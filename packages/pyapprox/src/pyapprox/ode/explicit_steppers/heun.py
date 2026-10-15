@@ -70,16 +70,14 @@ class HeunStepper(
 
     def __call__(self, state: Array) -> Array:
         # k1 = f(y_{n-1}, t_{n-1})
-        self._residual.set_time(self._ctx.t_prev)
-        k1 = self._residual(self._ctx.y_prev)
+        k1 = self._residual(self._ctx.y_prev, self._ctx.t_prev)
 
         # Stage: y_{n-1} + Δt·M^{-1}·k1. The ODE is M·dy/dt = f, so the
         # slope is M^{-1}f; for identity mass (collocation) the solve is
         # a no-op and this reduces to y_{n-1} + Δt·k1.
         mass = self._residual.mass_matrix()
         next_state = self._ctx.y_prev + self._ctx.deltat * mass.solve(k1)
-        self._residual.set_time(self._ctx.t_curr)
-        k2 = self._residual(next_state)
+        k2 = self._residual(next_state, self._ctx.t_curr)
 
         return mass.apply(state - self._ctx.y_prev) - 0.5 * self._ctx.deltat * (k1 + k2)
 
@@ -124,14 +122,12 @@ class HeunStepper(
         """
         mass_obj = self._residual.mass_matrix()
 
-        self._residual.set_time(ctx.t_prev)
-        k1_jac = self._residual.jacobian(ctx.y_prev)
+        k1_jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
 
-        k1 = self._residual(ctx.y_prev)
+        k1 = self._residual(ctx.y_prev, ctx.t_prev)
         k2_state = ctx.y_prev + ctx.deltat * mass_obj.solve(k1)
 
-        self._residual.set_time(ctx.t_curr)
-        k2_jac = self._residual.jacobian(k2_state)
+        k2_jac = self._residual.jacobian(k2_state, ctx.t_curr)
 
         minv_j1 = mass_obj.solve(_dense(self._bkd, k1_jac))
         inner = (
@@ -190,16 +186,14 @@ class HeunAdjoint(
         mass_obj = self._residual.mass_matrix()
 
         # k1 stage
-        self._residual.set_time(ctx.t_prev)
-        k1_param_jac = self._adjoint_residual.param_jacobian(ctx.y_prev)
+        k1_param_jac = self._adjoint_residual.param_jacobian(ctx.y_prev, ctx.t_prev)
 
         # k2 stage: z = y_{n-1} + Δt·M^{-1}·k1
-        k1 = self._residual(ctx.y_prev)
+        k1 = self._residual(ctx.y_prev, ctx.t_prev)
         k2_state = ctx.y_prev + ctx.deltat * mass_obj.solve(k1)
 
-        self._residual.set_time(ctx.t_curr)
-        k2_state_jac = self._residual.jacobian(k2_state)
-        k2_param_jac = self._adjoint_residual.param_jacobian(k2_state)
+        k2_state_jac = self._residual.jacobian(k2_state, ctx.t_curr)
+        k2_param_jac = self._adjoint_residual.param_jacobian(k2_state, ctx.t_curr)
 
         # Chain rule: dk2/dp = ∂f/∂p + ∂f/∂y · Δt · M^{-1} · dk1/dp
         minv_k1_param_jac = mass_obj.solve(_dense(self._bkd, k1_param_jac))
@@ -249,13 +243,11 @@ class HeunHVP(
 ):
     """Heun's method with HVP capability for Hessian-vector products.
 
-    Heun evaluates f at two stages (t_prev, t_curr). Within each HVP method,
-    sub-calls to self._hvp_residual.*_hvp(...) inherit the most recent
-    set_time(). When a stage-1 sub-call follows a stage-2 J2 evaluation
-    (e.g. for the J2^T · adj contraction term), reset the residual time to
-    next_ctx.t_prev (or ctx.t_prev) IMMEDIATELY before the sub-call. Failing
-    to do so silently uses the stage-2 time on a stage-1 quantity — invisible
-    under autonomous f, wrong otherwise.
+    Heun evaluates f at two stages: stage 1 at ``(y_{n-1}, t_{n-1})`` and
+    stage 2 at the predictor ``(z, t_n)``. Every sub-call passes its
+    stage's time explicitly, so a stage-1 quantity contracted against a
+    stage-2 Jacobian (the ``J2^T adj`` terms) still evaluates at
+    ``t_{n-1}``.
     """
 
     def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
@@ -310,17 +302,17 @@ class HeunHVP(
         dt = ctx.deltat
         mass_obj = self._residual.mass_matrix()
 
-        # Stage 1
-        self._residual.set_time(ctx.t_prev)
-        k1 = self._residual(ctx.y_prev)
-        dk1_dp = self._adjoint_residual.param_jacobian(ctx.y_prev)
+        t1, t2 = ctx.t_prev, ctx.t_curr
 
-        k1_pp_hvp = self._hvp_residual.param_param_hvp(ctx.y_prev, adj_state, vvec)
+        # Stage 1
+        k1 = self._residual(ctx.y_prev, t1)
+        dk1_dp = self._adjoint_residual.param_jacobian(ctx.y_prev, t1)
+
+        k1_pp_hvp = self._hvp_residual.param_param_hvp(ctx.y_prev, t1, adj_state, vvec)
 
         # Stage 2
         z = ctx.y_prev + dt * mass_obj.solve(k1)
-        self._residual.set_time(ctx.t_curr)
-        J2 = self._residual.jacobian(z)
+        J2 = self._residual.jacobian(z, t2)
 
         dz_dp_v = dt * mass_obj.solve(
             self._bkd.flatten(_dense(self._bkd, dk1_dp) @ vvec)
@@ -328,24 +320,24 @@ class HeunHVP(
         dz_dp_v_flat = self._bkd.flatten(dz_dp_v)
 
         # Term 1: d2f/dp2 at z, direction v
-        k2_term1 = self._hvp_residual.param_param_hvp(z, adj_state, vvec)
+        k2_term1 = self._hvp_residual.param_param_hvp(z, t2, adj_state, vvec)
 
         # Term 2: d2f/(dp dz) at z, direction dz/dp v
-        k2_term2 = self._hvp_residual.param_state_hvp(z, adj_state, dz_dp_v_flat)
+        k2_term2 = self._hvp_residual.param_state_hvp(z, t2, adj_state, dz_dp_v_flat)
 
         # Term 3: (dz/dp)^T f_zz(z) (dz/dp v) = dt dk1_dp^T M^-T h
-        h_dz_dp_v = self._hvp_residual.state_state_hvp(z, adj_state, dz_dp_v_flat)
+        h_dz_dp_v = self._hvp_residual.state_state_hvp(z, t2, adj_state, dz_dp_v_flat)
         h_dz_dp_v_flat = mass_obj.solve_transpose(self._bkd.flatten(h_dz_dp_v))
         k2_term3 = dt * (dk1_dp.T @ h_dz_dp_v_flat)
 
         # Term 4: adj^T J_z d2z/dp2 v = dt f_pp(y; M^-T J_z^T adj) v
         J2_T_adj = mass_obj.solve_transpose(J2.T @ adj_state)
-        self._residual.set_time(ctx.t_prev)
-        k2_term4 = dt * self._hvp_residual.param_param_hvp(ctx.y_prev, J2_T_adj, vvec)
+        k2_term4 = dt * self._hvp_residual.param_param_hvp(
+            ctx.y_prev, t1, J2_T_adj, vvec
+        )
 
         # Term 5: (dz/dp)^T f_zp(z) v = dt dk1_dp^T M^-T sp
-        self._residual.set_time(ctx.t_curr)
-        sp_hvp = self._hvp_residual.state_param_hvp(z, adj_state, vvec)
+        sp_hvp = self._hvp_residual.state_param_hvp(z, t2, adj_state, vvec)
         k2_term5 = dt * (
             dk1_dp.T
             @ self._bkd.reshape(
@@ -383,17 +375,19 @@ class HeunHVP(
         dt = next_ctx.deltat
         mass_obj = self._residual.mass_matrix()
 
-        # Stage 1: k1 = f(y_k)
-        self._residual.set_time(next_ctx.t_prev)
-        k1 = self._residual(next_ctx.y_prev)
-        J1 = self._residual.jacobian(next_ctx.y_prev)
+        t1, t2 = next_ctx.t_prev, next_ctx.t_curr
 
-        k1_ss_hvp = self._hvp_residual.state_state_hvp(next_ctx.y_prev, adj_state, wvec)
+        # Stage 1: k1 = f(y_k)
+        k1 = self._residual(next_ctx.y_prev, t1)
+        J1 = self._residual.jacobian(next_ctx.y_prev, t1)
+
+        k1_ss_hvp = self._hvp_residual.state_state_hvp(
+            next_ctx.y_prev, t1, adj_state, wvec
+        )
 
         # Stage 2: k2 = f(z) where z = y_k + dt*M^-1*k1
         z = next_ctx.y_prev + dt * mass_obj.solve(k1)
-        self._residual.set_time(next_ctx.t_curr)
-        J2 = self._residual.jacobian(z)
+        J2 = self._residual.jacobian(z, t2)
 
         # S = dz/dy = I + dt*M^-1*J1
         nstates = next_ctx.y_prev.shape[0]
@@ -401,15 +395,14 @@ class HeunHVP(
 
         # Term 1: S^T f_zz(z; adj) (S w)
         scaled_wvec = stage_sens @ wvec
-        h2_scaled = self._hvp_residual.state_state_hvp(z, adj_state, scaled_wvec)
+        h2_scaled = self._hvp_residual.state_state_hvp(z, t2, adj_state, scaled_wvec)
         h2_scaled_flat = self._bkd.flatten(h2_scaled)
         k2_term1 = stage_sens.T @ h2_scaled_flat
 
         # Term 2: adj^T J2 dS/dy w = dt f_yy(y_k; M^-T J2^T adj) w
         J2_T_adj = mass_obj.solve_transpose(J2.T @ adj_state)
-        self._residual.set_time(next_ctx.t_prev)
         k2_term2 = dt * self._hvp_residual.state_state_hvp(
-            next_ctx.y_prev, J2_T_adj, wvec
+            next_ctx.y_prev, t1, J2_T_adj, wvec
         )
 
         result = self._bkd.flatten(k1_ss_hvp) + k2_term1 + self._bkd.flatten(k2_term2)
@@ -431,18 +424,20 @@ class HeunHVP(
         dt = next_ctx.deltat
         mass_obj = self._residual.mass_matrix()
 
-        # Stage 1
-        self._residual.set_time(next_ctx.t_prev)
-        k1 = self._residual(next_ctx.y_prev)
-        J1 = self._residual.jacobian(next_ctx.y_prev)
-        dk1_dp = self._adjoint_residual.param_jacobian(next_ctx.y_prev)
+        t1, t2 = next_ctx.t_prev, next_ctx.t_curr
 
-        k1_sp_hvp = self._hvp_residual.state_param_hvp(next_ctx.y_prev, adj_state, vvec)
+        # Stage 1
+        k1 = self._residual(next_ctx.y_prev, t1)
+        J1 = self._residual.jacobian(next_ctx.y_prev, t1)
+        dk1_dp = self._adjoint_residual.param_jacobian(next_ctx.y_prev, t1)
+
+        k1_sp_hvp = self._hvp_residual.state_param_hvp(
+            next_ctx.y_prev, t1, adj_state, vvec
+        )
 
         # Stage 2
         z = next_ctx.y_prev + dt * mass_obj.solve(k1)
-        self._residual.set_time(next_ctx.t_curr)
-        J2 = self._residual.jacobian(z)
+        J2 = self._residual.jacobian(z, t2)
 
         nstates = next_ctx.y_prev.shape[0]
         stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(_dense(self._bkd, J1))
@@ -452,18 +447,17 @@ class HeunHVP(
         dz_dp_v_flat = self._bkd.flatten(dz_dp_v)
 
         # Term 1: S^T f_zp(z; adj) v
-        sp_hvp_z = self._hvp_residual.state_param_hvp(z, adj_state, vvec)
+        sp_hvp_z = self._hvp_residual.state_param_hvp(z, t2, adj_state, vvec)
         k2_term1 = stage_sens.T @ self._bkd.flatten(sp_hvp_z)
 
         # Term 2: S^T f_zz(z; adj) (dz/dp v)
-        ss_hvp_z = self._hvp_residual.state_state_hvp(z, adj_state, dz_dp_v_flat)
+        ss_hvp_z = self._hvp_residual.state_state_hvp(z, t2, adj_state, dz_dp_v_flat)
         k2_term2 = stage_sens.T @ self._bkd.flatten(ss_hvp_z)
 
         # Term 3: adj^T J2 dS/dp v = dt f_yp(y_k; M^-T J2^T adj) v
         J2_T_adj = mass_obj.solve_transpose(J2.T @ adj_state)
-        self._residual.set_time(next_ctx.t_prev)
         k2_term3 = dt * self._hvp_residual.state_param_hvp(
-            next_ctx.y_prev, J2_T_adj, vvec
+            next_ctx.y_prev, t1, J2_T_adj, vvec
         )
 
         result = (
@@ -490,28 +484,30 @@ class HeunHVP(
         dt = next_ctx.deltat
         mass_obj = self._residual.mass_matrix()
 
-        # Stage 1
-        self._residual.set_time(next_ctx.t_prev)
-        k1 = self._residual(next_ctx.y_prev)
-        J1 = self._residual.jacobian(next_ctx.y_prev)
-        dk1_dp = self._adjoint_residual.param_jacobian(next_ctx.y_prev)
+        t1, t2 = next_ctx.t_prev, next_ctx.t_curr
 
-        k1_ps_hvp = self._hvp_residual.param_state_hvp(next_ctx.y_prev, adj_state, wvec)
+        # Stage 1
+        k1 = self._residual(next_ctx.y_prev, t1)
+        J1 = self._residual.jacobian(next_ctx.y_prev, t1)
+        dk1_dp = self._adjoint_residual.param_jacobian(next_ctx.y_prev, t1)
+
+        k1_ps_hvp = self._hvp_residual.param_state_hvp(
+            next_ctx.y_prev, t1, adj_state, wvec
+        )
 
         # Stage 2
         z = next_ctx.y_prev + dt * mass_obj.solve(k1)
-        self._residual.set_time(next_ctx.t_curr)
-        J2 = self._residual.jacobian(z)
+        J2 = self._residual.jacobian(z, t2)
 
         nstates = next_ctx.y_prev.shape[0]
         stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(_dense(self._bkd, J1))
         dz_dy_w = stage_sens @ wvec
 
         # Term 1: f_pz(z; adj) (S w)
-        k2_term1 = self._hvp_residual.param_state_hvp(z, adj_state, dz_dy_w)
+        k2_term1 = self._hvp_residual.param_state_hvp(z, t2, adj_state, dz_dy_w)
 
         # Term 2: (dz/dp)^T f_zz(z; adj) (S w) = dt dk1_dp^T M^-T H
-        H_z_dz_dy_w = self._hvp_residual.state_state_hvp(z, adj_state, dz_dy_w)
+        H_z_dz_dy_w = self._hvp_residual.state_state_hvp(z, t2, adj_state, dz_dy_w)
         k2_term2 = dt * (
             dk1_dp.T
             @ self._bkd.reshape(
@@ -522,9 +518,8 @@ class HeunHVP(
 
         # Term 3: adj^T J2 d/dp[dS w] = dt f_py(y_k; M^-T J2^T adj) w
         J2_T_adj = mass_obj.solve_transpose(J2.T @ adj_state)
-        self._residual.set_time(next_ctx.t_prev)
         k2_term3 = dt * self._hvp_residual.param_state_hvp(
-            next_ctx.y_prev, J2_T_adj, wvec
+            next_ctx.y_prev, t1, J2_T_adj, wvec
         )
 
         result = (

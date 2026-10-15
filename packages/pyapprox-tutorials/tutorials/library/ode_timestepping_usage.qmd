@@ -96,13 +96,10 @@ class LinearResidual(DefaultNewtonJacobianMixin):
     def bkd(self):
         return self._bkd                      # which array library to use
 
-    def __call__(self, state):
-        return self._matrix @ state           # f(y, t)
+    def __call__(self, state, time):
+        return self._matrix @ state           # f(y, t); autonomous: no t
 
-    def set_time(self, time):
-        pass                                  # autonomous: f has no t
-
-    def jacobian(self, state):
+    def jacobian(self, state, time):
         return self._matrix                   # df/dy
 
     def mass_matrix(self):
@@ -111,13 +108,16 @@ class LinearResidual(DefaultNewtonJacobianMixin):
 
 bkd = NumpyBkd()
 residual = LinearResidual(MATRIX, bkd)
-print("f(y0) =", residual(INITIAL))
+print("f(y0) =", residual(INITIAL, 0.0))
 ```
 
-Those five methods are the entire contract, and each states one fact about
-the equation. `set_time` exists because a residual may depend on time
-explicitly; this one does not, so it ignores the value. `mass_matrix` returns
-the identity here, and the closing section says when it would not.
+Those four methods are the entire contract, and each states one fact about
+the equation. Time is an argument of every evaluation because a residual may
+depend on it explicitly; this one does not, so it ignores the value. Passing
+time rather than storing it means a residual holds no hidden state: a scheme
+that evaluates $f$ at two times in one step (Crank-Nicolson reads $t_n$ and
+$t_{n+1}$) cannot see a stale one. `mass_matrix` returns the identity here,
+and the closing section says when it would not.
 
 Notice what the residual does *not* do: it never mentions a step size, a
 scheme, or the operator a Newton iteration inverts. An implicit step solves

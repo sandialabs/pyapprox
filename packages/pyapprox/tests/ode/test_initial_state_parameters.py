@@ -40,9 +40,7 @@ _NSTATES = 3
 _BASE_PARAM = np.array([0.7, 1.2, 0.4])
 _Y_BASE = np.array([1.0, -0.5, 0.8])
 _SOURCE = np.array([0.5, -0.3, 0.2])
-_IC_JACOBIAN = np.array(
-    [[1.0, 0.3, 0.0], [-0.4, 0.8, 0.2], [0.1, 0.0, -0.6]]
-)
+_IC_JACOBIAN = np.array([[1.0, 0.3, 0.0], [-0.4, 0.8, 0.2], [0.1, 0.0, -0.6]])
 _IC_CURVATURE = np.array([0.5, -1.2, 0.8])
 # Non-symmetric, so a transposed or missing mass cannot pass.
 _MASS = (
@@ -75,13 +73,10 @@ class _DecayResidualWithoutCurvature(DefaultNewtonJacobianMixin):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def set_time(self, time: float) -> None:
-        pass
-
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         return -self._param * state + self._source
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         return -self._bkd.diag(self._param)
 
     def mass_matrix(self) -> Any:
@@ -93,22 +88,30 @@ class _DecayResidualWithoutCurvature(DefaultNewtonJacobianMixin):
     def set_param(self, param: Array) -> None:
         self._param = self._bkd.flatten(param)
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         return -self._bkd.diag(state)
 
     def initial_param_jacobian(self) -> Array:
         return self._ic_jacobian + self._bkd.diag(self._ic_curvature * self._param)
 
-    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def state_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         return self._bkd.zeros((_NSTATES,))
 
-    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def state_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         return -adj_state * self._bkd.flatten(vvec)
 
-    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def param_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         return -adj_state * self._bkd.flatten(wvec)
 
-    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def param_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         return self._bkd.zeros((_NSTATES,))
 
 
@@ -122,11 +125,7 @@ class _DecayResidual(_DecayResidualWithoutCurvature):
 def _initial_state(bkd: Backend[Array], kind: str, param: Array) -> Array:
     jac, curv = _IC_KINDS[kind]
     p = bkd.flatten(param)
-    return (
-        bkd.asarray(_Y_BASE)
-        + bkd.asarray(jac) @ p
-        + 0.5 * bkd.asarray(curv) * p * p
-    )
+    return bkd.asarray(_Y_BASE) + bkd.asarray(jac) @ p + 0.5 * bkd.asarray(curv) * p * p
 
 
 def _operator(
@@ -192,9 +191,7 @@ class TestInitialStateParameters:
         no HVP: it raises instead of silently assuming zero."""
         bkd = numpy_bkd
         base = bkd.asarray(_BASE_PARAM.reshape(-1, 1))
-        op = _operator(
-            bkd, "crank_nicolson", "curved", _DecayResidualWithoutCurvature
-        )
+        op = _operator(bkd, "crank_nicolson", "curved", _DecayResidualWithoutCurvature)
         y0 = _initial_state(bkd, "curved", base)
         op.jacobian(y0, base)  # the gradient needs no curvature
         with pytest.raises(TypeError):

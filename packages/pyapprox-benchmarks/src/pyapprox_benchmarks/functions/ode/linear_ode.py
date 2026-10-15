@@ -24,9 +24,7 @@ from pyapprox.util.backends.validation import validate_backend
 def _require_1d(name: str, arr: Array) -> None:
     """Raise if a direction vector is not 1D (silent broadcast risk)."""
     if arr.ndim != 1:
-        raise ValueError(
-            f"{name} must be 1D, got shape {tuple(arr.shape)}"
-        )
+        raise ValueError(f"{name} must be 1D, got shape {tuple(arr.shape)}")
 
 
 class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
@@ -56,7 +54,6 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._Amat = Amat
         self._Bmat = Bmat
         self._bkd = bkd
-        self._time = 0.0
         self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = Bmat.shape[1]
@@ -69,10 +66,6 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._nparams
-
-    def set_time(self, time: float) -> None:
-        """Set the current time."""
-        self._time = time
 
     def set_param(self, param: Array) -> None:
         """
@@ -90,7 +83,7 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             )
         self._param = param
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
         Evaluate the ODE right-hand side.
 
@@ -111,7 +104,7 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         forcing = self._Bmat @ self._param
         return self._Amat @ state + forcing
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
         Compute df/dy = A.
 
@@ -130,7 +123,7 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
         Compute df/dp = B.
 
@@ -167,7 +160,9 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     # HVP Methods for second-order adjoints
     # =========================================================================
 
-    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def state_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dy^2)·w contracted with adjoint.
 
@@ -175,7 +170,9 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         return self._bkd.zeros(state.shape)
 
-    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def state_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dy dp)·v contracted with adjoint.
 
@@ -183,7 +180,9 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         return self._bkd.zeros(state.shape)
 
-    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def param_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dp dy)·w contracted with adjoint.
 
@@ -191,7 +190,9 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         return self._bkd.zeros((self._nparams,))
 
-    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def param_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dp^2)·v contracted with adjoint.
 
@@ -237,7 +238,6 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         validate_backend(bkd)
         self._Amat = Amat
         self._bkd = bkd
-        self._time = 0.0
         self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = 2  # p[0] = quadratic coeff, p[1] = constant
@@ -255,10 +255,6 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """Return the number of parameters."""
         return self._nparams
 
-    def set_time(self, time: float) -> None:
-        """Set the current time."""
-        self._time = time
-
     def set_param(self, param: Array) -> None:
         """
         Set the parameters.
@@ -275,7 +271,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             )
         self._param = param
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
         Evaluate f(y) = A·y + p[0]·y² + p[1].
 
@@ -295,7 +291,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         p1 = self._param[1]
         return self._Amat @ state + p0 * state**2 + p1
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
         Compute df/dy = A + 2·p[0]·diag(y).
 
@@ -316,7 +312,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
         Compute df/dp.
 
@@ -351,7 +347,9 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     # HVP Methods - Non-zero for quadratic ODE
     # =========================================================================
 
-    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def state_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute λᵀ·(d²f/dy²)·w.
 
@@ -371,7 +369,9 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         _require_1d("wvec", wvec)
         return 2.0 * self._param[0] * adj_state * wvec
 
-    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def state_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute λᵀ·(d²f/dy dp)·v.
 
@@ -389,7 +389,9 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         _require_1d("vvec", vvec)
         return 2.0 * adj_state * state * vvec[0]
 
-    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def param_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute λᵀ·(d²f/dp dy)·w.
 
@@ -405,7 +407,9 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         result[0] = 2.0 * self._bkd.sum(adj_state * state * wvec)
         return result
 
-    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def param_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute λᵀ·(d²f/dp²)·v.
 

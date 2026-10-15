@@ -65,24 +65,21 @@ class FlowODEResidual(Generic[Array]):
         self._vf = vf
         self._bkd = bkd
         self._conditioning = conditioning
-        self._time: float = 0.0
         self._mass = IdentityMassMatrix(nstates, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
 
-    def set_time(self, time: float) -> None:
-        """Set the current time for evaluation."""
-        self._time = time
-
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Evaluate dx/dt = v(t, x [, c]).
 
         Parameters
         ----------
         state : Array
             Current state, shape ``(d,)``.
+        time : float
+            Time t.
 
         Returns
         -------
@@ -90,7 +87,7 @@ class FlowODEResidual(Generic[Array]):
             Time derivative, shape ``(d,)``.
         """
         d = state.shape[0]
-        t_col = self._bkd.array([[self._time]])  # (1, 1)
+        t_col = self._bkd.array([[time]])  # (1, 1)
         x_col = self._bkd.reshape(state, (d, 1))  # (d, 1)
 
         if self._conditioning is not None:
@@ -101,23 +98,32 @@ class FlowODEResidual(Generic[Array]):
         result = self._vf(vf_input)
         return result[:, 0]  # (d,)
 
-    def jacobian(self, state: Array) -> Array:
-        """Jacobian df/dy — not needed for explicit steppers.
+    def jacobian(self, state: Array, time: float) -> Array:
+        """Refuse: the vector field supplies no Jacobian ``df/dy``.
 
-        Returns zeros since explicit steppers don't use it.
+        Explicit integration never calls this; implicit steppers already
+        refuse this residual (it has no ``newton_jacobian``). Forward
+        sensitivities and adjoints do call it, and a stand-in such as
+        zeros would make them return plausible but wrong derivatives, so
+        they fail here instead.
 
         Parameters
         ----------
         state : Array
             Current state, shape ``(d,)``.
+        time : float
+            Time t.
 
-        Returns
-        -------
-        Array
-            Zero matrix, shape ``(d, d)``.
+        Raises
+        ------
+        NotImplementedError
+            Always.
         """
-        d = state.shape[0]
-        return self._bkd.zeros((d, d))
+        raise NotImplementedError(
+            f"{type(self).__name__} has no state Jacobian: the flow vector "
+            "field supplies none, so forward sensitivities and adjoints of "
+            "the flow are unavailable."
+        )
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return identity mass matrix."""

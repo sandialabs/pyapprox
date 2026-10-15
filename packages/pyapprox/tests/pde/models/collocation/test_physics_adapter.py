@@ -182,7 +182,6 @@ def _make_hvp_tier_setup(bkd):
     params_2d = bkd.array([0.4, -0.7])[:, None]
     state = bkd.cos(0.5 * math.pi * nodes) + 1.2
     adj = bkd.array([1.0, -0.5, 0.25, 2.0, -1.0, 0.7])
-    adapter.set_time(0.3)
     adapter.set_param(params_2d[:, 0])
     return adapter, state, adj, params_2d
 
@@ -226,9 +225,8 @@ class TestCollocationAdapterFactoryTiers:
         adapter.set_param(bkd.array([0.5]))
         nodes = basis.nodes()
         state = bkd.sin(math.pi * nodes)
-        adapter.set_time(0.0)
 
-        param_jac = adapter.param_jacobian(state)
+        param_jac = adapter.param_jacobian(state, 0.0)
         assert param_jac.shape == (npts, 1)
 
     def test_factory_base_tier_for_basic_physics(self, bkd):
@@ -340,4 +338,4 @@ class TestCollocationAdapterFactoryTiers:
         )
         state = bkd.zeros((npts,))
         with pytest.raises(RuntimeError, match="set_param"):
-            adapter.param_jacobian(state)
+            adapter.param_jacobian(state, 0.0)

@@ -146,13 +146,25 @@ class SparseMatrixOperator(Generic[Array]):
 
     def solve_transpose(self, rhs: Array) -> Array:
         rhs_np = self._bkd.to_numpy(rhs)
-        return self._bkd.asarray(
-            self._factorization().solve(rhs_np, trans="T")
-        )
+        return self._bkd.asarray(self._factorization().solve(rhs_np, trans="T"))
 
     def apply_transpose(self, vec: Array) -> Array:
         vec_np = self._bkd.to_numpy(vec)
         return self._bkd.asarray(self._matrix.T @ vec_np)
+
+
+def create_linear_operator(
+    matrix: Array, bkd: Backend[Array]
+) -> LinearOperatorProtocol[Array]:
+    """Wrap an assembled matrix in the operator for its representation.
+
+    A sparse matrix gets a ``SparseMatrixOperator`` (factored once,
+    lazily), a dense one a ``MatrixOperator``; the one place that
+    decision is made, like ``create_mass_matrix`` for masses.
+    """
+    if issparse(matrix):
+        return SparseMatrixOperator(matrix, bkd)
+    return MatrixOperator(matrix, bkd)
 
 
 class TransposeLinearOperator(Generic[Array]):
@@ -187,9 +199,7 @@ class BlockDiagonalLinearOperator(Generic[Array]):
 
     def __init__(self, blocks: Array, bkd: Backend[Array]) -> None:
         if blocks.ndim != 3:
-            raise ValueError(
-                f"blocks must be 3D (k, m, m), got shape {blocks.shape}"
-            )
+            raise ValueError(f"blocks must be 3D (k, m, m), got shape {blocks.shape}")
         if blocks.shape[1] != blocks.shape[2]:
             raise ValueError(
                 f"blocks must be square per block, got shape {blocks.shape}"

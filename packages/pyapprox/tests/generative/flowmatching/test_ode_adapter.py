@@ -1,6 +1,7 @@
 """Tests for FlowODEResidual and integrate_flow."""
 
 import numpy as np
+import pytest
 
 from pyapprox.generative.flowmatching.ode_adapter import (
     FlowODEResidual,
@@ -10,9 +11,11 @@ from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerStepper,
 )
 from pyapprox.ode.explicit_steppers.heun import HeunStepper
+from pyapprox.ode.implicit_steppers import BackwardEulerStepper
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestFlowODEResidual:
@@ -34,9 +37,8 @@ class TestFlowODEResidual:
             return c_val * bkd.ones_like(vf_input[0:1, :])  # (2, ns)
 
         res = FlowODEResidual(const_vf, bkd, nstates=2)
-        res.set_time(0.5)
         state = bkd.array([10.0, 20.0])
-        result = res(state)
+        result = res(state, 0.5)
         bkd.assert_allclose(result, bkd.array([2.0, -1.0]), rtol=1e-12)
 
     def test_output_shape(self, bkd) -> None:
@@ -46,9 +48,8 @@ class TestFlowODEResidual:
             return bkd.zeros((d, x.shape[1]))
 
         res = FlowODEResidual(vf, bkd, nstates=d)
-        res.set_time(0.0)
         state = bkd.zeros((d,))
-        result = res(state)
+        result = res(state, 0.0)
         assert result.shape == (d,)
 
     def test_with_conditioning(self, bkd) -> None:
@@ -63,21 +64,36 @@ class TestFlowODEResidual:
 
         c_val = bkd.array([[3.0]])  # (1, 1)
         res = FlowODEResidual(cond_vf, bkd, nstates=1, conditioning=c_val)
-        res.set_time(0.0)
         state = bkd.array([0.0])
-        result = res(state)
+        result = res(state, 0.0)
         bkd.assert_allclose(result, bkd.array([3.0]), rtol=1e-12)
 
-    def test_jacobian_returns_zeros(self, bkd) -> None:
+    def test_jacobian_refuses(self, bkd: Backend[Array]) -> None:
         d = 2
 
-        def vf(x):
+        def vf(x: Array) -> Array:
             return bkd.zeros((d, x.shape[1]))
 
         res = FlowODEResidual(vf, bkd, nstates=d)
-        state = bkd.zeros((d,))
-        jac = res.jacobian(state)
-        bkd.assert_allclose(jac, bkd.zeros((d, d)), rtol=1e-12)
+        with pytest.raises(NotImplementedError, match="no state Jacobian"):
+            res.jacobian(bkd.zeros((d,)), 0.0)
+
+    def test_implicit_stepper_refuses(self, bkd: Backend[Array]) -> None:
+        """An implicit stepper needs a Newton operator the flow lacks."""
+
+        def vf(x: Array) -> Array:
+            return -x[1:3, :]
+
+        with pytest.raises(TypeError, match="newton_jacobian"):
+            integrate_flow(
+                vf,
+                bkd.ones((2, 3)),
+                0.0,
+                1.0,
+                4,
+                bkd,
+                stepper_cls=BackwardEulerStepper,
+            )
 
     def test_mass_matrix_is_identity(self, bkd) -> None:
         def vf(x):

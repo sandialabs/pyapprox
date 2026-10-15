@@ -6,7 +6,8 @@ time integrators.
 
 Key interface differences:
 - Physics: residual(state, time), jacobian(state, time), mass_matrix()
-- ODEResidual: __call__(state), jacobian(state), set_time(time), mass_matrix(nstates)
+- ODEResidual: __call__(state, time), jacobian(state, time), mass_matrix()
+  returning a mass value object
 
 The parameterized adapter tiers and the capability-selecting factory
 live in ``pyapprox.pde.models.collocation.physics_adapter`` — the
@@ -32,8 +33,8 @@ class CollocationPhysicsToODEResidualAdapter(
     Wraps a collocation Physics object to provide the raw
     ODEResidualProtocol interface expected by time integrators:
 
-    - Stores time internally via set_time()
-    - Translates __call__(state) to physics.residual(state, time)
+    - Translates __call__(state, time) to physics.residual(state, time)
+    - Holds no time state
 
     Boundary conditions are NOT applied here; for transient problems they
     are applied to the Newton residual by the BC-enforcing time residual
@@ -51,8 +52,7 @@ class CollocationPhysicsToODEResidualAdapter(
     >>> physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
     >>> physics.set_boundary_conditions([bc_left, bc_right])
     >>> ode_residual = CollocationPhysicsToODEResidualAdapter(physics, bkd)
-    >>> ode_residual.set_time(0.0)
-    >>> f_y = ode_residual(state)
+    >>> f_y = ode_residual(state, 0.0)
     """
 
     def __init__(
@@ -62,12 +62,10 @@ class CollocationPhysicsToODEResidualAdapter(
     ) -> None:
         if not isinstance(physics, PhysicsProtocol):
             raise TypeError(
-                f"physics must satisfy PhysicsProtocol, "
-                f"got {type(physics).__name__}"
+                f"physics must satisfy PhysicsProtocol, got {type(physics).__name__}"
             )
         self._physics = physics
         self._bkd = bkd
-        self._time = 0.0
         self._mass = create_mass_matrix(physics.mass_matrix(), bkd)
 
     def bkd(self) -> Backend[Array]:
@@ -78,17 +76,7 @@ class CollocationPhysicsToODEResidualAdapter(
         """Return the wrapped physics object."""
         return self._physics
 
-    def set_time(self, time: float) -> None:
-        """Set the current time for evaluation.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-        """
-        self._time = time
-
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Evaluate the ODE residual f(y, t).
 
         Returns the physics residual WITHOUT boundary conditions applied.
@@ -99,15 +87,17 @@ class CollocationPhysicsToODEResidualAdapter(
         ----------
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
         Array
             Physics residual. Shape: (nstates,)
         """
-        return self._physics.residual(state, self._time)
+        return self._physics.residual(state, time)
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Compute the state Jacobian df/dy.
 
         Returns the physics Jacobian WITHOUT boundary conditions applied.
@@ -118,20 +108,19 @@ class CollocationPhysicsToODEResidualAdapter(
         ----------
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
         Array
             Physics Jacobian. Shape: (nstates, nstates)
         """
-        return self._physics.jacobian(state, self._time)
+        return self._physics.jacobian(state, time)
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return the mass matrix."""
         return self._mass
 
     def __repr__(self) -> str:
-        return (
-            f"{type(self).__name__}("
-            f"physics={type(self._physics).__name__})"
-        )
+        return f"{type(self).__name__}(physics={type(self._physics).__name__})"

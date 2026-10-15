@@ -34,12 +34,8 @@ parameterization.
 from typing import Callable, Generic, Optional, Union
 
 import numpy as np
-from scipy.sparse import diags, issparse, spmatrix
+from scipy.sparse import spmatrix
 
-from pyapprox.ode.linear_operator import (
-    LinearOperatorProtocol,
-    SparseMatrixOperator,
-)
 from pyapprox.ode.mass_matrix import (
     DiagonalMassMatrix,
     MassMatrixProtocol,
@@ -54,7 +50,6 @@ from pyapprox.pde.galerkin.protocols.system import (
 from pyapprox.pde.galerkin.time_integration.constrained_mass import (
     ConstrainedMassMatrix,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -102,16 +97,12 @@ class GalerkinPhysicsToODEResidualAdapter(
         self._system = system
         self._spatial_operator = system.spatial_operator()
         self._bkd = system.bkd()
-        self._time: float = 0.0
         self._lumped_mass = lumped_mass
         self._constraint_set = system.constraint_set()
         # Captured once: consulted on every residual evaluation.
         self._boundary_velocity: Optional[Callable[[float], Array]] = (
             self._constraint_set.values_derivative(1)
         )
-        # Sparse form of the BC-neutralized mass for the sparse Newton
-        # matrix; None when the mass is dense.
-        self._sparse_mass: Optional[spmatrix] = None
         self._mass = self._build_mass()
 
     def _build_mass(self) -> ConstrainedMassMatrix[Array]:
@@ -130,15 +121,11 @@ class GalerkinPhysicsToODEResidualAdapter(
             diagonal = lumped
             if constraint_set.ndofs():
                 diagonal = self._bkd.index_update(diagonal, constraint_set.dofs(), 1.0)
-            if isinstance(self._bkd, NumpyBkd):
-                self._sparse_mass = diags(self.bkd().to_numpy(diagonal)).tocsc()
             return ConstrainedMassMatrix(
                 DiagonalMassMatrix(diagonal, self._bkd),
                 DiagonalMassMatrix(lumped, self._bkd),
             )
         bc_mass = constraint_set.apply_to_mass(raw_mass)
-        if isinstance(bc_mass, spmatrix):
-            self._sparse_mass = bc_mass
         return ConstrainedMassMatrix(
             create_mass_matrix(bc_mass, self._bkd),
             create_mass_matrix(raw_mass, self._bkd),
@@ -158,17 +145,7 @@ class GalerkinPhysicsToODEResidualAdapter(
         """Return the adapted system."""
         return self._system
 
-    def set_time(self, time: float) -> None:
-        """Set the current time for evaluation.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-        """
-        self._time = time
-
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Evaluate the BC-neutralized residual f(y, t).
 
         Essential rows carry the boundary velocity g_dot(t) (exact
@@ -182,13 +159,15 @@ class GalerkinPhysicsToODEResidualAdapter(
         ----------
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
         Array
             BC-neutralized residual. Shape: (nstates,)
         """
-        residual = self._spatial_operator.spatial_residual(state, self._time)
+        residual = self._spatial_operator.spatial_residual(state, time)
         constraint_set = self._constraint_set
         if not constraint_set.ndofs():
             return residual
@@ -196,11 +175,11 @@ class GalerkinPhysicsToODEResidualAdapter(
             return self._bkd.index_update(
                 residual,
                 constraint_set.dofs(),
-                self._boundary_velocity(self._time),
+                self._boundary_velocity(time),
             )
         return constraint_set.zero_entries(residual)
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Compute the state Jacobian with essential rows zeroed.
 
         The essential rows of f are state-independent (they carry
@@ -210,6 +189,8 @@ class GalerkinPhysicsToODEResidualAdapter(
         ----------
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
@@ -217,35 +198,12 @@ class GalerkinPhysicsToODEResidualAdapter(
             BC-neutralized Jacobian dF/du. Shape: (nstates, nstates)
         """
         return self._constraint_set.zero_rows(
-            self._spatial_operator.spatial_jacobian(state, self._time)
+            self._spatial_operator.spatial_jacobian(state, time)
         )
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return the FEM mass matrix as a value-object."""
         return self._mass
-
-    def newton_jacobian(
-        self, state: Array, coefficient: float
-    ) -> LinearOperatorProtocol[Array]:
-        """Return M - coefficient * dF/du as a linear operator.
-
-        Sparse FEM systems get a ``SparseMatrixOperator`` whose
-        ``as_matrix()`` returns the SPARSE Newton matrix, keeping
-        sparsity flowing to the implicit steppers and the BC-enforcing
-        wrapper (which applies constraint rows sparsely). Dense systems
-        (e.g. the torch backend) fall back to the default dense
-        operator.
-        """
-        jacobian = self.jacobian(state)
-        if (
-            issparse(jacobian)
-            and self._sparse_mass is not None
-            and isinstance(self._bkd, NumpyBkd)
-        ):
-            return SparseMatrixOperator(
-                self._sparse_mass - coefficient * jacobian, self.bkd()
-            )
-        return super().newton_jacobian(state, coefficient)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(system={self._system!r})"

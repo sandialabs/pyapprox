@@ -82,13 +82,9 @@ class BatchedBoundODEResidual(Generic[Array]):
             )
 
         self._mass = IdentityMassMatrix(n_dynamic * self._k, self._bkd)
-        self._time: float = 0.0
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
-
-    def set_time(self, time: float) -> None:
-        self._time = time
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         return self._mass
@@ -105,23 +101,23 @@ class BatchedBoundODEResidual(Generic[Array]):
     def learned_function(self) -> "LearnedFunctionProtocol[Array]":
         return self._lf
 
-    def __call__(self, state: Array) -> Array:
-        """Evaluate f(state). Shape: (n_dynamic*k,) -> (n_dynamic*k,)."""
-        augmented = self._assemble_augmented_input(state)
+    def __call__(self, state: Array, time: float) -> Array:
+        """Evaluate f(state, time). Shape: (n_dynamic*k,) -> (n_dynamic*k,)."""
+        augmented = self._assemble_augmented_input(state, time)
         output = self._lf(augmented)
         # output: (n_dynamic, k). Flatten column-major: [col0, col1, ...col_{k-1}]
         return self._bkd.reshape(
             self._bkd.transpose(output), (self._n_dynamic * self._k,)
         )
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Compute df/dy as dense matrix. Shape: (n_dynamic*k, n_dynamic*k)."""
-        blocks = self._state_jacobian_blocks(state)
+        blocks = self._state_jacobian_blocks(state, time)
         op = BlockDiagonalLinearOperator(blocks, self._bkd)
         return op.as_matrix()
 
     def newton_jacobian(
-        self, state: Array, coefficient: float
+        self, state: Array, time: float, coefficient: float
     ) -> BlockDiagonalLinearOperator[Array]:
         """Compute M - coefficient*J as BlockDiagonalLinearOperator.
 
@@ -130,17 +126,16 @@ class BatchedBoundODEResidual(Generic[Array]):
         BlockDiagonalLinearOperator
             Blocks are I - coefficient * J_block^(i) for each trajectory.
         """
-        jac_blocks = self._state_jacobian_blocks(state)
+        jac_blocks = self._state_jacobian_blocks(state, time)
         eye = self._bkd.eye(self._n_dynamic)
-        newton_blocks = self._bkd.stack([
-            eye - coefficient * jac_blocks[i]
-            for i in range(self._k)
-        ])
+        newton_blocks = self._bkd.stack(
+            [eye - coefficient * jac_blocks[i] for i in range(self._k)]
+        )
         return BlockDiagonalLinearOperator(newton_blocks, self._bkd)
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """Compute df/d_eta. Shape: (n_dynamic*k, nactive_params)."""
-        augmented = self._assemble_augmented_input(state)
+        augmented = self._assemble_augmented_input(state, time)
         pjac = self._lf.jacobian_wrt_params(augmented)
         nactive = pjac.shape[2]
         return self._bkd.reshape(pjac, (self._n_dynamic * self._k, nactive))
@@ -152,12 +147,10 @@ class BatchedBoundODEResidual(Generic[Array]):
         controlling the RHS f(y; eta). The initial condition y0 is set
         externally via integrator.solve(init_state).
         """
-        return self._bkd.zeros(
-            (self._n_dynamic * self._k, self.nparams())
-        )
+        return self._bkd.zeros((self._n_dynamic * self._k, self.nparams()))
 
-    def _assemble_augmented_input(self, state: Array) -> Array:
-        """Build augmented input (nvars, k) from flat state."""
+    def _assemble_augmented_input(self, state: Array, time: float) -> Array:
+        """Build augmented input (nvars, k) from flat state and time."""
         # Flat layout: [traj0_s0, ..., traj0_s_{n-1}, traj1_s0, ...]
         # Reshape to (k, n_dynamic) then transpose to (n_dynamic, k)
         dynamic = self._bkd.transpose(
@@ -165,14 +158,14 @@ class BatchedBoundODEResidual(Generic[Array]):
         )
         parts = [dynamic]
         if self._has_time_input:
-            time_row = self._bkd.full((1, self._k), self._time)
+            time_row = self._bkd.full((1, self._k), time)
             parts.append(time_row)
         if self._mu_batch is not None:
             parts.append(self._mu_batch)
         return self._bkd.vstack(parts)
 
-    def _state_jacobian_blocks(self, state: Array) -> Array:
+    def _state_jacobian_blocks(self, state: Array, time: float) -> Array:
         """Compute per-trajectory Jacobian blocks. Shape: (k, n_dynamic, n_dynamic)."""
-        augmented = self._assemble_augmented_input(state)
+        augmented = self._assemble_augmented_input(state, time)
         full_jac = self._lf_jac_batch(augmented)
-        return full_jac[:, :, :self._n_dynamic]
+        return full_jac[:, :, : self._n_dynamic]

@@ -81,9 +81,7 @@ class CollocationModel(Generic[Array]):
         adapter: Optional[CollocationPhysicsToODEResidualAdapter[Array]] = None,
     ):
         if adapter is not None:
-            if not isinstance(
-                adapter, CollocationPhysicsToODEResidualAdapter
-            ):
+            if not isinstance(adapter, CollocationPhysicsToODEResidualAdapter):
                 raise TypeError(
                     f"adapter must be a "
                     f"CollocationPhysicsToODEResidualAdapter, "
@@ -216,12 +214,14 @@ class CollocationModel(Generic[Array]):
         bkd = self._bkd
 
         state = bkd.copy(initial_guess)
-        self._adapter.set_time(0.0)
 
         for iteration in range(maxiter):
-            # Compute residual and Jacobian
-            residual = self._adapter(state)
-            jacobian = self._adapter.jacobian(state)
+            # Compute residual and Jacobian. Steady problem evaluated at
+            # t = 0 here and in the line search: collocation physics have
+            # no time-free view yet, so time-dependent data is read at
+            # t = 0.
+            residual = self._adapter(state, 0.0)
+            jacobian = self._adapter.jacobian(state, 0.0)
 
             # Apply boundary conditions
             residual, jacobian = self._apply_boundary_conditions(
@@ -245,7 +245,7 @@ class CollocationModel(Generic[Array]):
             alpha = 1.0
             for _ in range(10):
                 state_new = state + alpha * delta
-                res_new = self._adapter(state_new)
+                res_new = self._adapter(state_new, 0.0)
                 res_new = self._apply_bc_to_residual(res_new, state_new, 0.0)
                 if bkd.to_float(bkd.norm(res_new)) < res_norm:
                     break

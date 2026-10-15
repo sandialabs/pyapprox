@@ -1,5 +1,6 @@
 """Tests for ODE forward UQ problems."""
 
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.ode import (
     build_chemical_reaction_surface,
     build_coupled_springs_2mass,
@@ -37,7 +38,9 @@ class TestLotkaVolterra3Species:
         problem = build_lotka_volterra_3species(bkd)
         expected = bkd.array([[0.3], [0.4], [0.3]])
         bkd.assert_allclose(
-            problem.initial_condition(), expected, atol=1e-14,
+            problem.initial_condition(),
+            expected,
+            atol=1e-14,
         )
 
     def test_time_config(self, bkd) -> None:
@@ -64,7 +67,7 @@ class TestLotkaVolterra3Species:
             assert bkd.all_bool(samples[i, :] >= bounds[i, 0])
             assert bkd.all_bool(samples[i, :] <= bounds[i, 1])
 
-    def test_residual_evaluation(self, bkd) -> None:
+    def test_residual_evaluation(self, bkd: Backend[Array]) -> None:
         problem = build_lotka_volterra_3species(bkd)
         residual = problem.residual()
 
@@ -72,10 +75,10 @@ class TestLotkaVolterra3Species:
         residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
-        f = residual(state)
+        f = residual(state, 0.0)
         assert f.shape == (3,)
 
-    def test_residual_jacobian(self, bkd) -> None:
+    def test_residual_jacobian(self, bkd: Backend[Array]) -> None:
         problem = build_lotka_volterra_3species(bkd)
         residual = problem.residual()
 
@@ -83,10 +86,10 @@ class TestLotkaVolterra3Species:
         residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
-        jac = residual.jacobian(state)
+        jac = residual.jacobian(state, 0.0)
         assert jac.shape == (3, 3)
 
-    def test_residual_param_jacobian(self, bkd) -> None:
+    def test_residual_param_jacobian(self, bkd: Backend[Array]) -> None:
         problem = build_lotka_volterra_3species(bkd)
         residual = problem.residual()
 
@@ -94,7 +97,7 @@ class TestLotkaVolterra3Species:
         residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
-        pjac = residual.param_jacobian(state)
+        pjac = residual.param_jacobian(state, 0.0)
         assert pjac.shape == (3, 12)
 
     def test_function(self, bkd) -> None:
@@ -135,7 +138,7 @@ class TestCoupledSprings2Mass:
         problem = build_coupled_springs_2mass(bkd)
         assert problem.prior().nvars() == 12
 
-    def test_residual_evaluation(self, bkd) -> None:
+    def test_residual_evaluation(self, bkd: Backend[Array]) -> None:
         problem = build_coupled_springs_2mass(bkd)
         residual = problem.residual()
 
@@ -143,7 +146,7 @@ class TestCoupledSprings2Mass:
         residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
-        f = residual(state)
+        f = residual(state, 0.0)
         assert f.shape == (4,)
 
 
@@ -178,7 +181,7 @@ class TestHastingsEcology3Species:
         problem = build_hastings_ecology_3species(bkd)
         assert problem.prior().nvars() == 9
 
-    def test_residual_evaluation(self, bkd) -> None:
+    def test_residual_evaluation(self, bkd: Backend[Array]) -> None:
         problem = build_hastings_ecology_3species(bkd)
         residual = problem.residual()
 
@@ -186,7 +189,7 @@ class TestHastingsEcology3Species:
         residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
-        f = residual(state)
+        f = residual(state, 0.0)
         assert f.shape == (3,)
 
 
@@ -217,7 +220,9 @@ class TestChemicalReactionSurface:
         problem = build_chemical_reaction_surface(bkd)
         expected = bkd.array([[0.0], [0.0], [0.0]])
         bkd.assert_allclose(
-            problem.initial_condition(), expected, atol=1e-14,
+            problem.initial_condition(),
+            expected,
+            atol=1e-14,
         )
 
     def test_reference(self, bkd) -> None:
@@ -228,7 +233,7 @@ class TestChemicalReactionSurface:
         problem = build_chemical_reaction_surface(bkd)
         assert problem.prior().nvars() == 6
 
-    def test_residual_evaluation(self, bkd) -> None:
+    def test_residual_evaluation(self, bkd: Backend[Array]) -> None:
         problem = build_chemical_reaction_surface(bkd)
         residual = problem.residual()
 
@@ -236,5 +241,5 @@ class TestChemicalReactionSurface:
         residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
-        f = residual(state)
+        f = residual(state, 0.0)
         assert f.shape == (3,)

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Generic
 
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
-    MatrixOperator,
+    create_linear_operator,
 )
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -25,15 +25,22 @@ class DefaultNewtonJacobianMixin(ABC, Generic[Array]):
     def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
     @abstractmethod
-    def jacobian(self, state: Array) -> Array: ...
+    def jacobian(self, state: Array, time: float) -> Array: ...
 
     if TYPE_CHECKING:
         _bkd: Backend[Array]
 
     def newton_jacobian(
-        self, state: Array, coefficient: float
+        self, state: Array, time: float, coefficient: float
     ) -> LinearOperatorProtocol[Array]:
-        matrix = (
-            self.mass_matrix().as_matrix() - coefficient * self.jacobian(state)
+        """Return ``M - coefficient * J(state, time)`` as an operator.
+
+        The mass adds itself (``add_to``): an identity or lumped mass
+        adds only its diagonal, so it never materializes as a dense
+        ``(nstates, nstates)`` matrix and a sparse ``J`` keeps a sparse
+        Newton matrix.
+        """
+        return create_linear_operator(
+            self.mass_matrix().add_to(-coefficient * self.jacobian(state, time)),
+            self._bkd,
         )
-        return MatrixOperator(matrix, self._bkd)

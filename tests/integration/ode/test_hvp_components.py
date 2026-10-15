@@ -193,7 +193,7 @@ class ODEResidualHVPWrapper(Generic[Array]):
 
     def __call__(self, state: Array) -> Array:
         """Return λ^T · df/dy(y) as a vector."""
-        jac = self._residual.jacobian(state.flatten())
+        jac = self._residual.jacobian(state.flatten(), 0.0)
         return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)
 
     def derivatives(self) -> Derivatives[Array]:
@@ -474,9 +474,7 @@ class TestAnalyticalSolutions:
 
         # Solve analytically
         p = [0.1, 0.2]
-        fwd_sols_ana = sympy_solve_forward(
-            1.0, p, deltat, 3, a, method="forward_euler"
-        )
+        fwd_sols_ana = sympy_solve_forward(1.0, p, deltat, 3, a, method="forward_euler")
 
         # Compare
         for n in range(len(times)):
@@ -632,9 +630,7 @@ class TestTimeResidualHVP:
         adj_state = bkd.asarray(np.array([1.2, -0.8]))
 
         # Wrap for derivative checking
-        wrapper = TimeResidualStateHVPWrapper(
-            time_residual, adj_state, ctx, bkd
-        )
+        wrapper = TimeResidualStateHVPWrapper(time_residual, adj_state, ctx, bkd)
 
         # Check derivatives
         checker = DerivativeChecker(wrapper)
@@ -700,7 +696,7 @@ class TestTimeResidualHVP:
         jac_ratio = float(checker.error_ratio(errors[0]))
         assert jac_ratio < 1e-6
 
-    def test_forward_euler_state_state_hvp(self, bkd) -> None:
+    def test_forward_euler_state_state_hvp(self, bkd: Backend[Array]) -> None:
         """Test ForwardEuler state_state_hvp using DerivativeChecker.
 
         For Forward Euler:
@@ -752,7 +748,8 @@ class TestTimeResidualHVP:
                 self._time_residual.bind(ctx)
                 jac = (
                     -self._time_residual._residual.mass_matrix().as_matrix()
-                    - self._deltat * self._time_residual._residual.jacobian(y_nm1_flat)
+                    - self._deltat
+                    * self._time_residual._residual.jacobian(y_nm1_flat, ctx.t_prev)
                 )
                 return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)
 

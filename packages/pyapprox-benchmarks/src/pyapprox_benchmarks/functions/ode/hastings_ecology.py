@@ -21,9 +21,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
-class HastingsEcologyResidual(
-    DefaultNewtonJacobianMixin[Array], Generic[Array]
-):
+class HastingsEcologyResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Hastings ecology ODE residual.
 
@@ -48,7 +46,6 @@ class HastingsEcologyResidual(
         self._nstates = 3
         self._mass = IdentityMassMatrix(3, bkd)
         self._nparams = 9  # 6 physical params + 3 initial conditions
-        self._time = 0.0
         self._param: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
@@ -58,10 +55,6 @@ class HastingsEcologyResidual(
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._nparams
-
-    def set_time(self, time: float) -> None:
-        """Set the current time."""
-        self._time = time
 
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
@@ -82,7 +75,7 @@ class HastingsEcologyResidual(
             raise RuntimeError("Must call set_param() first")
         return self._param[6:]
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
         Evaluate the ODE right-hand side.
 
@@ -109,7 +102,7 @@ class HastingsEcologyResidual(
             axis=0,
         )
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the state Jacobian df/dy.
 
@@ -157,7 +150,7 @@ class HastingsEcologyResidual(
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the parameter Jacobian df/dp.
 

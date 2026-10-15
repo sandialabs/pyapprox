@@ -64,9 +64,7 @@ def _has_coefficient_dependent_bc_rows(
     construction guard and the forward model's tier selection.
     """
     for bc in physics.boundary_conditions():
-        if not isinstance(
-            bc, BoundaryConditionWithNormalOperatorProtocol
-        ):
+        if not isinstance(bc, BoundaryConditionWithNormalOperatorProtocol):
             continue
         if bc.normal_operator().has_coefficient_dependence():
             return True
@@ -136,15 +134,11 @@ class CollocationParameterizedStateEquation(Generic[Array]):
             )
         self._physics: PhysicsProtocol[Array] = physics
         self._adapter = model.adapter()
-        self._parameterization: ParameterizationProtocol[Array] = (
-            parameterization
-        )
+        self._parameterization: ParameterizationProtocol[Array] = parameterization
         self._bc_indices = self._collect_bc_indices()
         # Capability is fixed at construction: the narrowed second-order
         # callables are captured once, and None when any is absent.
-        self._hvp_physics: Optional[PhysicsWithStateStateHVPProtocol[Array]] = (
-            None
-        )
+        self._hvp_physics: Optional[PhysicsWithStateStateHVPProtocol[Array]] = None
         self._param_param_hvp_fn: Optional[ParamHVPFn[Array]] = None
         self._state_param_hvp_fn: Optional[ParamHVPFn[Array]] = None
         self._param_state_hvp_fn: Optional[ParamHVPFn[Array]] = None
@@ -235,9 +229,10 @@ class CollocationParameterizedStateEquation(Generic[Array]):
         """
         self._set_param(param)
         state_1d = state[:, 0]
-        self._adapter.set_time(0.0)
-        residual = self._adapter(state_1d)
-        jacobian = self._adapter.jacobian(state_1d)
+        # Steady problem evaluated at t = 0: collocation physics have no
+        # time-free view yet, so time-dependent data is read at t = 0.
+        residual = self._adapter(state_1d, 0.0)
+        jacobian = self._adapter.jacobian(state_1d, 0.0)
         residual, _ = self._physics.apply_boundary_conditions(
             residual, jacobian, state_1d, 0.0
         )
@@ -260,9 +255,9 @@ class CollocationParameterizedStateEquation(Generic[Array]):
         """
         self._set_param(param)
         state_1d = state[:, 0]
-        self._adapter.set_time(0.0)
-        residual = self._adapter(state_1d)
-        jacobian = self._adapter.jacobian(state_1d)
+        # Steady problem evaluated at t = 0 (see ``residual``).
+        residual = self._adapter(state_1d, 0.0)
+        jacobian = self._adapter.jacobian(state_1d, 0.0)
         _, jacobian = self._physics.apply_boundary_conditions(
             residual, jacobian, state_1d, 0.0
         )
@@ -289,20 +284,14 @@ class CollocationParameterizedStateEquation(Generic[Array]):
         """
         self._set_param(param)
         state_1d = state[:, 0]
-        param_jac_fn = (
-            self._parameterization.param_derivatives().param_jacobian
-        )
+        param_jac_fn = self._parameterization.param_derivatives().param_jacobian
         if param_jac_fn is None:
-            raise RuntimeError(
-                "parameterization does not provide param_jacobian"
-            )
+            raise RuntimeError("parameterization does not provide param_jacobian")
         pjac = param_jac_fn(state_1d, 0.0, param[:, 0])
 
         # Apply each BC's parameter-Jacobian row correction
         for bc in self._physics.boundary_conditions():
-            if not isinstance(
-                bc, BoundaryConditionWithParamJacobianProtocol
-            ):
+            if not isinstance(bc, BoundaryConditionWithParamJacobianProtocol):
                 raise TypeError(
                     f"BC {type(bc).__name__} must satisfy "
                     f"BoundaryConditionWithParamJacobianProtocol "
@@ -337,9 +326,7 @@ class CollocationParameterizedStateEquation(Generic[Array]):
         )
         if bc_flux_fn is None:
             return None
-        if not isinstance(
-            bc, BoundaryConditionWithNormalOperatorProtocol
-        ):
+        if not isinstance(bc, BoundaryConditionWithNormalOperatorProtocol):
             return None
         normal_op: NormalOperatorProtocol[Array] = bc.normal_operator()
         if not normal_op.has_coefficient_dependence():
@@ -475,14 +462,11 @@ class SteadyForwardModel(Generic[Array]):
             )
         if not isinstance(physics, PhysicsProtocol):
             raise TypeError(
-                f"physics must satisfy PhysicsProtocol, "
-                f"got {type(physics).__name__}"
+                f"physics must satisfy PhysicsProtocol, got {type(physics).__name__}"
             )
         self._bkd = bkd
         self._physics = physics
-        self._parameterization: ParameterizationProtocol[Array] = (
-            parameterization
-        )
+        self._parameterization: ParameterizationProtocol[Array] = parameterization
         self._init_state_1d = init_state
         self._init_state_2d = init_state[:, None]
 
@@ -527,9 +511,7 @@ class SteadyForwardModel(Generic[Array]):
         if bundle.param_jacobian is None or q_derivs.state_jacobian is None:
             return
         if functional.nqoi() != 1:
-            self._jacobian_op = ForwardSensitivityOperator(
-                self._state_eq, functional
-            )
+            self._jacobian_op = ForwardSensitivityOperator(self._state_eq, functional)
             self._derivs = Derivatives.first_order(jacobian=self._jacobian)
             return
         adjoint_op = AdjointOperator(self._state_eq, functional)
@@ -642,7 +624,5 @@ class SteadyForwardModel(Generic[Array]):
         """
         operator_hvp = self._operator_hvp
         if operator_hvp is None:
-            raise RuntimeError(
-                "hvp is unavailable; check derivatives() before calling"
-            )
+            raise RuntimeError("hvp is unavailable; check derivatives() before calling")
         return operator_hvp(self._init_state_2d, sample, vvec)

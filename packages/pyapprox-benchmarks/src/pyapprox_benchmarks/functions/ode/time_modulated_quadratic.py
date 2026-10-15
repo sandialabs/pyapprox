@@ -27,18 +27,14 @@ from pyapprox.util.backends.validation import validate_backend
 def _require_1d(name: str, arr: Array) -> None:
     """Raise if a direction vector is not 1D (silent broadcast risk)."""
     if arr.ndim != 1:
-        raise ValueError(
-            f"{name} must be 1D, got shape {tuple(arr.shape)}"
-        )
+        raise ValueError(f"{name} must be 1D, got shape {tuple(arr.shape)}")
 
 
 def _g(t: float) -> float:
     return 1.0 + 0.5 * t
 
 
-class TimeModulatedQuadraticODE(
-    DefaultNewtonJacobianMixin[Array], Generic[Array]
-):
+class TimeModulatedQuadraticODE(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     r"""Non-autonomous quadratic ODE for testing time-context correctness.
 
     .. math::
@@ -58,7 +54,6 @@ class TimeModulatedQuadraticODE(
         validate_backend(bkd)
         self._Amat = Amat
         self._bkd = bkd
-        self._time = 0.0
         self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = 2
@@ -69,9 +64,6 @@ class TimeModulatedQuadraticODE(
 
     def nparams(self) -> int:
         return self._nparams
-
-    def set_time(self, time: float) -> None:
-        self._time = time
 
     def set_param(self, param: Array) -> None:
         """Set the parameters.
@@ -88,28 +80,28 @@ class TimeModulatedQuadraticODE(
             )
         self._param = param
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         r"""Evaluate f(y, t) = g(t) * (A·y + p[0]·y² + p[1])."""
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        gt = _g(self._time)
+        gt = _g(time)
         p0 = self._param[0]
         p1 = self._param[1]
         return gt * (self._Amat @ state + p0 * state**2 + p1)
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         r"""Compute df/dy = g(t) * (A + 2·p[0]·diag(y))."""
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        gt = _g(self._time)
+        gt = _g(time)
         return gt * (self._Amat + 2.0 * self._param[0] * self._bkd.diag(state))
 
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         r"""Compute df/dp = g(t) * [y², 1]."""
-        gt = _g(self._time)
+        gt = _g(time)
         jac = self._bkd.zeros((self._nstates, self._nparams))
         jac = self._bkd.copy(jac)
         jac[:, 0] = gt * state**2
@@ -128,28 +120,28 @@ class TimeModulatedQuadraticODE(
     # =====================================================================
 
     def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array:
         r"""Compute λᵀ·(d²f/dy²)·w = g(t) * 2·p[0]·λ·w (elementwise)."""
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        gt = _g(self._time)
+        gt = _g(time)
         _require_1d("wvec", wvec)
         return gt * 2.0 * self._param[0] * adj_state * wvec
 
     def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array:
         r"""Compute λᵀ·(d²f/dy dp)·v = g(t) * 2·λ·y·v[0]."""
-        gt = _g(self._time)
+        gt = _g(time)
         _require_1d("vvec", vvec)
         return gt * 2.0 * adj_state * state * vvec[0]
 
     def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array:
         r"""Compute λᵀ·(d²f/dp dy)·w. Returns shape (nparams,)."""
-        gt = _g(self._time)
+        gt = _g(time)
         result = self._bkd.zeros((self._nparams,))
         result = self._bkd.copy(result)
         _require_1d("wvec", wvec)
@@ -157,7 +149,7 @@ class TimeModulatedQuadraticODE(
         return result
 
     def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array:
         r"""Compute λᵀ·(d²f/dp²)·v = 0."""
         return self._bkd.zeros((self._nparams,))

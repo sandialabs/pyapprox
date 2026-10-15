@@ -61,21 +61,16 @@ class BackwardEulerStepper(
     def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _newton_coefficient(self) -> float:
-        return self._ctx.deltat
+    def _newton_operator(
+        self, ctx: StepContext[Array], state: Array
+    ) -> LinearOperatorProtocol[Array]:
+        r""":math:`dR/dy_n = M - \Delta t \, (df/dy)(y_n, t_n)`."""
+        return self._implicit_residual.newton_jacobian(state, ctx.t_curr, ctx.deltat)
 
     def __call__(self, state: Array) -> Array:
-        self._residual.set_time(self._ctx.t_curr)
         return self._residual.mass_matrix().apply(
             state - self._ctx.y_prev
-        ) - self._ctx.deltat * self._residual(state)
-
-    def jacobian(self, state: Array) -> Array:
-        r"""Compute :math:`dR/dy_n = M - \Delta t \, (df/dy)`."""
-        self._residual.set_time(self._ctx.t_curr)
-        return self._implicit_residual.newton_jacobian(
-            state, self._newton_coefficient()
-        ).as_matrix()
+        ) - self._ctx.deltat * self._residual(state, self._ctx.t_curr)
 
     # -- SensitivityMixin --
 
@@ -135,16 +130,13 @@ class BackwardEulerAdjoint(
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_n, t_n}`."""
-        self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._adjoint_residual.param_jacobian(y_curr)
+        return -ctx.deltat * self._adjoint_residual.param_jacobian(y_curr, ctx.t_curr)
 
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - \Delta t \, J)^T`."""
-        self._residual.set_time(ctx.t_curr)
-        op = self._implicit_residual.newton_jacobian(y_curr, ctx.deltat)
-        return TransposeLinearOperator(op)
+        return TransposeLinearOperator(self._newton_operator(ctx, y_curr))
 
     def adjoint_off_diag_jacobian(
         self, next_ctx: StepContext[Array], y_curr_of_next: Array
@@ -156,9 +148,7 @@ class BackwardEulerAdjoint(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
-        self._residual.set_time(ctx.t_curr)
-        op = self._implicit_residual.newton_jacobian(final_fwd_sol, ctx.deltat)
-        return op.solve_transpose(-final_dqdu)
+        return self._newton_operator(ctx, final_fwd_sol).solve_transpose(-final_dqdu)
 
 
 # =========================================================================
@@ -199,8 +189,9 @@ class BackwardEulerHVP(
         wvec: Array,
     ) -> Array:
         r"""Compute :math:`(d^2R/dy_n^2) w = -\Delta t \, (d^2f/dy^2) w`."""
-        self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.state_state_hvp(y_curr, adj_state, wvec)
+        return -ctx.deltat * self._hvp_residual.state_state_hvp(
+            y_curr, ctx.t_curr, adj_state, wvec
+        )
 
     def state_param_hvp(
         self,
@@ -210,8 +201,9 @@ class BackwardEulerHVP(
         vvec: Array,
     ) -> Array:
         r"""Compute :math:`(d^2R/dy_n \, dp) v = -\Delta t \, (d^2f/dy \, dp) v`."""
-        self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.state_param_hvp(y_curr, adj_state, vvec)
+        return -ctx.deltat * self._hvp_residual.state_param_hvp(
+            y_curr, ctx.t_curr, adj_state, vvec
+        )
 
     def param_state_hvp(
         self,
@@ -221,8 +213,9 @@ class BackwardEulerHVP(
         wvec: Array,
     ) -> Array:
         r"""Compute :math:`(d^2R/dp \, dy_n) w = -\Delta t \, (d^2f/dp \, dy) w`."""
-        self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.param_state_hvp(y_curr, adj_state, wvec)
+        return -ctx.deltat * self._hvp_residual.param_state_hvp(
+            y_curr, ctx.t_curr, adj_state, wvec
+        )
 
     def param_param_hvp(
         self,
@@ -232,8 +225,9 @@ class BackwardEulerHVP(
         vvec: Array,
     ) -> Array:
         r"""Compute :math:`(d^2R/dp^2) v = -\Delta t \, (d^2f/dp^2) v`."""
-        self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.param_param_hvp(y_curr, adj_state, vvec)
+        return -ctx.deltat * self._hvp_residual.param_param_hvp(
+            y_curr, ctx.t_curr, adj_state, vvec
+        )
 
     # -- Cross-step HVP methods (all zero for BE) --
 

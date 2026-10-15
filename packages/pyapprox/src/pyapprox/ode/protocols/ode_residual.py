@@ -37,28 +37,33 @@ class ODEResidualProtocol(Protocol, Generic[Array]):
     -------
     bkd()
         Get the computational backend.
-    __call__(state)
-        Evaluate f(y, t) at current time (set via set_time).
-    set_time(time)
-        Set the current time for evaluation.
-    jacobian(state)
-        Compute df/dy at current state and time.
-    mass_matrix(nstates)
+    __call__(state, time)
+        Evaluate f(y, t).
+    jacobian(state, time)
+        Compute df/dy at (y, t).
+    mass_matrix()
         Return the mass matrix M (identity for standard ODEs).
+
+    Time is an argument of every evaluation, never stored: a residual
+    holds no time state, so evaluations at different times (a
+    Crank–Nicolson step reads t_n and t_{n+1}; Heun's stages read two
+    times) cannot see a stale one.
     """
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
         ...
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
-        Evaluate the ODE residual f(y, t) at current time.
+        Evaluate the ODE residual f(y, t).
 
         Parameters
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
@@ -67,25 +72,16 @@ class ODEResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def set_time(self, time: float) -> None:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
-        Set the current time for evaluation.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-        """
-        ...
-
-    def jacobian(self, state: Array) -> Array:
-        """
-        Compute the Jacobian df/dy at current state and time.
+        Compute the Jacobian df/dy at (y, t).
 
         Parameters
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
@@ -120,19 +116,17 @@ class ODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
         Number of parameters.
     set_param(param)
         Set the parameter values.
-    param_jacobian(state)
-        Compute df/dp at current state and time.
+    param_jacobian(state, time)
+        Compute df/dp at (y, t).
     initial_param_jacobian()
         Jacobian of initial condition with respect to parameters.
     """
 
     def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array: ...
+    def __call__(self, state: Array, time: float) -> Array: ...
 
-    def set_time(self, time: float) -> None: ...
-
-    def jacobian(self, state: Array) -> Array: ...
+    def jacobian(self, state: Array, time: float) -> Array: ...
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
@@ -158,14 +152,16 @@ class ODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
-        Compute the Jacobian df/dp at current state and time.
+        Compute the Jacobian df/dp at (y, t).
 
         Parameters
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
@@ -202,23 +198,21 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
 
     Additional Methods
     ------------------
-    state_state_hvp(state, adj_state, wvec)
+    state_state_hvp(state, time, adj_state, wvec)
         (d^2f/dy^2)w contracted with lambda
-    state_param_hvp(state, adj_state, vvec)
+    state_param_hvp(state, time, adj_state, vvec)
         (d^2f/dydp)v contracted with lambda
-    param_state_hvp(state, adj_state, wvec)
+    param_state_hvp(state, time, adj_state, wvec)
         (d^2f/dpdy)w contracted with lambda
-    param_param_hvp(state, adj_state, vvec)
+    param_param_hvp(state, time, adj_state, vvec)
         (d^2f/dp^2)v contracted with lambda
     """
 
     def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array: ...
+    def __call__(self, state: Array, time: float) -> Array: ...
 
-    def set_time(self, time: float) -> None: ...
-
-    def jacobian(self, state: Array) -> Array: ...
+    def jacobian(self, state: Array, time: float) -> Array: ...
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
@@ -226,11 +220,13 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
 
     def set_param(self, param: Array) -> None: ...
 
-    def param_jacobian(self, state: Array) -> Array: ...
+    def param_jacobian(self, state: Array, time: float) -> Array: ...
 
     def initial_param_jacobian(self) -> Array: ...
 
-    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def state_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dy^2)w contracted with adjoint state.
 
@@ -238,6 +234,8 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time at which f is evaluated.
         adj_state : Array
             Adjoint state lambda. Shape: (nstates,)
         wvec : Array
@@ -250,7 +248,9 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def state_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dydp)v contracted with adjoint state.
 
@@ -258,6 +258,8 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time at which f is evaluated.
         adj_state : Array
             Adjoint state lambda. Shape: (nstates,)
         vvec : Array
@@ -270,7 +272,9 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def param_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dpdy)w contracted with adjoint state.
 
@@ -278,6 +282,8 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time at which f is evaluated.
         adj_state : Array
             Adjoint state lambda. Shape: (nstates,)
         wvec : Array
@@ -290,7 +296,9 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def param_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute (d^2f/dp^2)v contracted with adjoint state.
 
@@ -298,6 +306,8 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         ----------
         state : Array
             Current state y. Shape: (nstates,)
+        time : float
+            Time at which f is evaluated.
         adj_state : Array
             Adjoint state lambda. Shape: (nstates,)
         vvec : Array
@@ -350,16 +360,14 @@ class ImplicitODEResidualProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array: ...
+    def __call__(self, state: Array, time: float) -> Array: ...
 
-    def set_time(self, time: float) -> None: ...
-
-    def jacobian(self, state: Array) -> Array: ...
+    def jacobian(self, state: Array, time: float) -> Array: ...
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
     def newton_jacobian(
-        self, state: Array, coefficient: float
+        self, state: Array, time: float, coefficient: float
     ) -> LinearOperatorProtocol[Array]: ...
 
 
@@ -369,23 +377,21 @@ class ImplicitODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array: ...
+    def __call__(self, state: Array, time: float) -> Array: ...
 
-    def set_time(self, time: float) -> None: ...
-
-    def jacobian(self, state: Array) -> Array: ...
+    def jacobian(self, state: Array, time: float) -> Array: ...
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
     def newton_jacobian(
-        self, state: Array, coefficient: float
+        self, state: Array, time: float, coefficient: float
     ) -> LinearOperatorProtocol[Array]: ...
 
     def nparams(self) -> int: ...
 
     def set_param(self, param: Array) -> None: ...
 
-    def param_jacobian(self, state: Array) -> Array: ...
+    def param_jacobian(self, state: Array, time: float) -> Array: ...
 
     def initial_param_jacobian(self) -> Array: ...
 
@@ -396,40 +402,38 @@ class ImplicitODEResidualWithHVPProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array: ...
+    def __call__(self, state: Array, time: float) -> Array: ...
 
-    def set_time(self, time: float) -> None: ...
-
-    def jacobian(self, state: Array) -> Array: ...
+    def jacobian(self, state: Array, time: float) -> Array: ...
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
     def newton_jacobian(
-        self, state: Array, coefficient: float
+        self, state: Array, time: float, coefficient: float
     ) -> LinearOperatorProtocol[Array]: ...
 
     def nparams(self) -> int: ...
 
     def set_param(self, param: Array) -> None: ...
 
-    def param_jacobian(self, state: Array) -> Array: ...
+    def param_jacobian(self, state: Array, time: float) -> Array: ...
 
     def initial_param_jacobian(self) -> Array: ...
 
     def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array: ...
 
     def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array: ...
 
     def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array: ...
 
     def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array: ...
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array: ...

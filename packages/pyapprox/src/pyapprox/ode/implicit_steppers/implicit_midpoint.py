@@ -69,32 +69,33 @@ class ImplicitMidpointStepper(
     def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _newton_coefficient(self) -> float:
-        return 0.5 * self._ctx.deltat
-
-    def _set_midpoint_time(self, ctx: StepContext[Array]) -> None:
-        self._residual.set_time(ctx.t_prev + 0.5 * ctx.deltat)
+    def _midpoint_time(self, ctx: StepContext[Array]) -> float:
+        return ctx.t_prev + 0.5 * ctx.deltat
 
     def _midpoint_state(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         return 0.5 * (ctx.y_prev + y_curr)
 
     def __call__(self, state: Array) -> Array:
         y_mid = self._midpoint_state(self._ctx, state)
-        self._set_midpoint_time(self._ctx)
+        t_mid = self._midpoint_time(self._ctx)
         return self._residual.mass_matrix().apply(
             state - self._ctx.y_prev
-        ) - self._ctx.deltat * self._residual(y_mid)
+        ) - self._ctx.deltat * self._residual(y_mid, t_mid)
 
-    def jacobian(self, state: Array) -> Array:
-        r"""Compute :math:`dR/dy_n = M - (\Delta t/2) \, J(y_{\mathrm{mid}})`.
+    def _newton_operator(
+        self, ctx: StepContext[Array], state: Array
+    ) -> LinearOperatorProtocol[Array]:
+        r""":math:`dR/dy_n = M - (\Delta t/2) \, J(y_{\mathrm{mid}}, t_{\mathrm{mid}})`.
 
-        Chain rule: :math:`dy_{\mathrm{mid}}/dy_n = 1/2`.
+        Chain rule: :math:`dy_{\mathrm{mid}}/dy_n = 1/2`. Used by both
+        ``jacobian`` and the Newton linear solve, so Newton is exact at
+        the midpoint linearization the residual uses.
         """
-        y_mid = self._midpoint_state(self._ctx, state)
-        self._set_midpoint_time(self._ctx)
         return self._implicit_residual.newton_jacobian(
-            y_mid, self._newton_coefficient()
-        ).as_matrix()
+            self._midpoint_state(ctx, state),
+            self._midpoint_time(ctx),
+            0.5 * ctx.deltat,
+        )
 
     # -- SensitivityMixin --
 
@@ -115,10 +116,9 @@ class ImplicitMidpointStepper(
         Chain rule: :math:`dy_{\mathrm{mid}}/dy_{n-1} = 1/2`.
         """
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
-        mass = self._residual.mass_matrix().as_matrix()
-        jac = self._residual.jacobian(y_mid)
-        return -(mass + 0.5 * ctx.deltat * jac)
+        t_mid = self._midpoint_time(ctx)
+        jac = self._residual.jacobian(y_mid, t_mid)
+        return -self._residual.mass_matrix().add_to(0.5 * ctx.deltat * jac)
 
     # -- QuadratureMixin --
 
@@ -163,18 +163,15 @@ class ImplicitMidpointAdjoint(
         r"""Compute :math:`dR/dp = -\Delta t
         \, (df/dp)|_{y_{\mathrm{mid}}, t_{\mathrm{mid}}}`."""
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
-        return -ctx.deltat * self._adjoint_residual.param_jacobian(y_mid)
+        t_mid = self._midpoint_time(ctx)
+        return -ctx.deltat * self._adjoint_residual.param_jacobian(y_mid, t_mid)
 
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2)
         \, J(y_{\mathrm{mid}}))^T`."""
-        y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
-        op = self._implicit_residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
-        return TransposeLinearOperator(op)
+        return TransposeLinearOperator(self._newton_operator(ctx, y_curr))
 
     def adjoint_off_diag_jacobian(
         self, next_ctx: StepContext[Array], y_curr_of_next: Array
@@ -189,20 +186,15 @@ class ImplicitMidpointAdjoint(
         where :math:`y_{\mathrm{mid},n+1} = (y_{n+1} + y_n)/2`.
         """
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
-        self._set_midpoint_time(next_ctx)
-        return -(
-            self._residual.mass_matrix().as_matrix()
-            + 0.5 * next_ctx.deltat * self._residual.jacobian(y_mid)
-        ).T
+        t_mid = self._midpoint_time(next_ctx)
+        jac = self._residual.jacobian(y_mid, t_mid)
+        return -self._residual.mass_matrix().add_to(0.5 * next_ctx.deltat * jac).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
-        y_mid = self._midpoint_state(ctx, final_fwd_sol)
-        self._set_midpoint_time(ctx)
-        op = self._implicit_residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
-        return op.solve_transpose(-final_dqdu)
+        return self._newton_operator(ctx, final_fwd_sol).solve_transpose(-final_dqdu)
 
 
 # =========================================================================
@@ -246,11 +238,11 @@ class ImplicitMidpointHVP(
     ) -> Array:
         r"""Compute :math:`-(\Delta t/4) \, (d^2f/dy^2)|_{y_{\mathrm{mid}}} \, w`."""
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
+        t_mid = self._midpoint_time(ctx)
         return (
             -0.25
             * ctx.deltat
-            * self._hvp_residual.state_state_hvp(y_mid, adj_state, wvec)
+            * self._hvp_residual.state_state_hvp(y_mid, t_mid, adj_state, wvec)
         )
 
     def state_param_hvp(
@@ -262,11 +254,11 @@ class ImplicitMidpointHVP(
     ) -> Array:
         r"""Compute :math:`-(\Delta t/2) \, (d^2f/dy\,dp)|_{y_{\mathrm{mid}}} \, v`."""
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
+        t_mid = self._midpoint_time(ctx)
         return (
             -0.5
             * ctx.deltat
-            * self._hvp_residual.state_param_hvp(y_mid, adj_state, vvec)
+            * self._hvp_residual.state_param_hvp(y_mid, t_mid, adj_state, vvec)
         )
 
     def param_state_hvp(
@@ -278,11 +270,11 @@ class ImplicitMidpointHVP(
     ) -> Array:
         r"""Compute :math:`-(\Delta t/2) \, (d^2f/dp\,dy)|_{y_{\mathrm{mid}}} \, w`."""
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
+        t_mid = self._midpoint_time(ctx)
         return (
             -0.5
             * ctx.deltat
-            * self._hvp_residual.param_state_hvp(y_mid, adj_state, wvec)
+            * self._hvp_residual.param_state_hvp(y_mid, t_mid, adj_state, wvec)
         )
 
     def param_param_hvp(
@@ -294,8 +286,10 @@ class ImplicitMidpointHVP(
     ) -> Array:
         r"""Compute :math:`-\Delta t \, (d^2f/dp^2)|_{y_{\mathrm{mid}}} \, v`."""
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
-        return -ctx.deltat * self._hvp_residual.param_param_hvp(y_mid, adj_state, vvec)
+        t_mid = self._midpoint_time(ctx)
+        return -ctx.deltat * self._hvp_residual.param_param_hvp(
+            y_mid, t_mid, adj_state, vvec
+        )
 
     # -- Cross-step HVP methods --
 
@@ -309,11 +303,11 @@ class ImplicitMidpointHVP(
         r"""Compute :math:`-(\Delta t_{n+1}/4)
         \, (d^2f/dy^2)|_{y_{\mathrm{mid},n+1}} \, w`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
-        self._set_midpoint_time(next_ctx)
+        t_mid = self._midpoint_time(next_ctx)
         return (
             -0.25
             * next_ctx.deltat
-            * self._hvp_residual.state_state_hvp(y_mid, adj_state, wvec)
+            * self._hvp_residual.state_state_hvp(y_mid, t_mid, adj_state, wvec)
         )
 
     def prev_state_param_hvp(
@@ -326,11 +320,11 @@ class ImplicitMidpointHVP(
         r"""Compute :math:`-(\Delta t_{n+1}/2)
         \, (d^2f/dy\,dp)|_{y_{\mathrm{mid},n+1}} \, v`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
-        self._set_midpoint_time(next_ctx)
+        t_mid = self._midpoint_time(next_ctx)
         return (
             -0.5
             * next_ctx.deltat
-            * self._hvp_residual.state_param_hvp(y_mid, adj_state, vvec)
+            * self._hvp_residual.state_param_hvp(y_mid, t_mid, adj_state, vvec)
         )
 
     def prev_param_state_hvp(
@@ -343,11 +337,11 @@ class ImplicitMidpointHVP(
         r"""Compute :math:`-(\Delta t_{n+1}/2)
         \, (d^2f/dp\,dy)|_{y_{\mathrm{mid},n+1}} \, w`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
-        self._set_midpoint_time(next_ctx)
+        t_mid = self._midpoint_time(next_ctx)
         return (
             -0.5
             * next_ctx.deltat
-            * self._hvp_residual.param_state_hvp(y_mid, adj_state, wvec)
+            * self._hvp_residual.param_state_hvp(y_mid, t_mid, adj_state, wvec)
         )
 
     # -- Mixed derivative HVP methods --
@@ -363,11 +357,11 @@ class ImplicitMidpointHVP(
         r"""Compute :math:`\lambda^T \, \partial^2 R_n
         /(\partial y_n \, \partial y_{n-1}) \, w_{n-1}`."""
         y_mid = self._midpoint_state(ctx, y_curr)
-        self._set_midpoint_time(ctx)
+        t_mid = self._midpoint_time(ctx)
         return (
             -0.25
             * ctx.deltat
-            * self._hvp_residual.state_state_hvp(y_mid, adj_state, wvec_prev)
+            * self._hvp_residual.state_state_hvp(y_mid, t_mid, adj_state, wvec_prev)
         )
 
     def prev_state_curr_state_hvp(
@@ -380,9 +374,11 @@ class ImplicitMidpointHVP(
         r"""Compute :math:`\lambda^T \, \partial^2 R_{n+1}
         /(\partial y_n \, \partial y_{n+1}) \, w_{n+1}`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
-        self._set_midpoint_time(next_ctx)
+        t_mid = self._midpoint_time(next_ctx)
         return (
             -0.25
             * next_ctx.deltat
-            * self._hvp_residual.state_state_hvp(y_mid, adj_state, wvec_curr_of_next)
+            * self._hvp_residual.state_state_hvp(
+                y_mid, t_mid, adj_state, wvec_curr_of_next
+            )
         )

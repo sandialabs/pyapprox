@@ -45,7 +45,6 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._nstates = 4
         self._mass = IdentityMassMatrix(4, bkd)
         self._nparams = 12  # 8 physical params + 4 initial conditions
-        self._time = 0.0
         self._param: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
@@ -55,10 +54,6 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._nparams
-
-    def set_time(self, time: float) -> None:
-        """Set the current time."""
-        self._time = time
 
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
@@ -79,7 +74,7 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             raise RuntimeError("Must call set_param() first")
         return self._param[8:]
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
         Evaluate the ODE right-hand side.
 
@@ -106,7 +101,7 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             ]
         )
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the state Jacobian df/dy.
 
@@ -139,7 +134,7 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the parameter Jacobian df/dp.
 

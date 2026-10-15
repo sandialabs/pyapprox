@@ -51,7 +51,6 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._bkd = bkd
         self._nspecies = nspecies
         self._nparams = nspecies + nspecies * nspecies  # r + A
-        self._time = 0.0
         self._param: Optional[Array] = None
         self._growth_rates: Optional[Array] = None  # r
         self._alpha: Optional[Array] = None  # A (competition matrix)
@@ -64,10 +63,6 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._nparams
-
-    def set_time(self, time: float) -> None:
-        """Set the current time."""
-        self._time = time
 
     def set_param(self, param: Array) -> None:
         """
@@ -93,7 +88,7 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._growth_rates = param[:n]
         self._alpha = self._bkd.reshape(param[n:], (n, n))
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
         Evaluate the ODE right-hand side.
 
@@ -113,7 +108,7 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             raise RuntimeError("Must call set_params() first")
         return self._growth_rates * state * (1.0 - self._alpha @ state)
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the state Jacobian df/dy.
 
@@ -145,7 +140,7 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the parameter Jacobian df/dp.
 
@@ -213,7 +208,9 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     # HVP Methods for second-order adjoints
     # =========================================================================
 
-    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def state_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute lambda^T (d^2f/dy^2) w.
 
@@ -248,7 +245,9 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
         return -(lr * Aw) - (A.T @ (lr * wvec))
 
-    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def state_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute lambda^T (d^2f/dy dp) v.
 
@@ -288,8 +287,7 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
         if vvec.ndim != 1:
             raise ValueError(
-                f"vvec must be 1D with shape (nparams,), got shape "
-                f"{tuple(vvec.shape)}"
+                f"vvec must be 1D with shape (nparams,), got shape {tuple(vvec.shape)}"
             )
 
         v_r = vvec[:n]
@@ -307,7 +305,9 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
         return result_r + result_A
 
-    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+    def param_state_hvp(
+        self, state: Array, time: float, adj_state: Array, wvec: Array
+    ) -> Array:
         """
         Compute lambda^T (d^2f/dp dy) w.
 
@@ -357,7 +357,9 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
         return self._bkd.concatenate([result_r, result_A])
 
-    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
+    def param_param_hvp(
+        self, state: Array, time: float, adj_state: Array, vvec: Array
+    ) -> Array:
         """
         Compute lambda^T (d^2f/dp^2) v.
 
@@ -389,8 +391,7 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
         if vvec.ndim != 1:
             raise ValueError(
-                f"vvec must be 1D with shape (nparams,), got shape "
-                f"{tuple(vvec.shape)}"
+                f"vvec must be 1D with shape (nparams,), got shape {tuple(vvec.shape)}"
             )
 
         v_r = vvec[:n]

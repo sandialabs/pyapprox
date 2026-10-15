@@ -39,14 +39,12 @@ class TestCollocationPhysicsToODEResidualAdapter:
 
         # Check interface methods exist
         assert callable(adapter.bkd)
-        assert callable(adapter.set_time)
         assert callable(adapter.jacobian)
         assert callable(adapter.mass_matrix)
 
         # __call__ should work
         state = bkd.zeros((npts,))
-        adapter.set_time(0.0)
-        result = adapter(state)
+        result = adapter(state, 0.0)
         assert result.shape == (npts,)
 
     def test_adapter_residual_consistency(self, bkd):
@@ -67,8 +65,7 @@ class TestCollocationPhysicsToODEResidualAdapter:
         physics_res = physics.residual(state, time)
 
         # Adapter residual (without BCs)
-        adapter.set_time(time)
-        adapter_res = adapter(state)
+        adapter_res = adapter(state, time)
 
         # Should match when no BCs
         bkd.assert_allclose(adapter_res, physics_res, atol=1e-14)
@@ -91,8 +88,7 @@ class TestCollocationPhysicsToODEResidualAdapter:
         physics_jac = physics.jacobian(state, time)
 
         # Adapter Jacobian (without BCs)
-        adapter.set_time(time)
-        adapter_jac = adapter.jacobian(state)
+        adapter_jac = adapter.jacobian(state, time)
 
         bkd.assert_allclose(adapter_jac, physics_jac, atol=1e-14)
 
@@ -359,16 +355,12 @@ class TestCollocationModel:
         def forcing(t: float):
             return (3.0 * t**2 + r * t**3) * bkd.ones((npts,))
 
-        physics = AdvectionDiffusionReaction(
-            basis, bkd, reaction=-r, forcing=forcing
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, reaction=-r, forcing=forcing)
         model = CollocationModel(physics, bkd)
 
         u0 = bkd.ones((npts,))
         final_time = 0.5
-        u_exact_final = (
-            math.exp(-r * final_time) + final_time**3
-        ) * bkd.ones((npts,))
+        u_exact_final = (math.exp(-r * final_time) + final_time**3) * bkd.ones((npts,))
 
         dt_values = [0.1, 0.05, 0.025]
         errors = []
@@ -389,12 +381,9 @@ class TestCollocationModel:
 
         err_arr = np.array(errors)
         dt_arr = np.array(dt_values)
-        rates = np.log(err_arr[:-1] / err_arr[1:]) / np.log(
-            dt_arr[:-1] / dt_arr[1:]
-        )
+        rates = np.log(err_arr[:-1] / err_arr[1:]) / np.log(dt_arr[:-1] / dt_arr[1:])
         assert np.all(rates > expected_order - 0.15), (
-            f"{method}: observed rates {rates} below expected "
-            f"order {expected_order}"
+            f"{method}: observed rates {rates} below expected order {expected_order}"
         )
 
     def test_transient_diffusion(self, bkd):

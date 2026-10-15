@@ -7,7 +7,7 @@ steppers never dispatch on sparsity or rebuild factorizations.
 from typing import Generic, Optional, Protocol, runtime_checkable
 
 import numpy as np
-from scipy.sparse import csc_matrix, issparse, spmatrix
+from scipy.sparse import csc_matrix, diags, issparse, spmatrix
 from scipy.sparse.linalg import SuperLU, splu
 
 from pyapprox.util.backends.protocols import Array, Backend
@@ -16,11 +16,16 @@ from pyapprox.util.backends.protocols import Array, Backend
 def _find_zero_rows(matrix: Array, bkd: Backend[Array]) -> list[int]:
     """Structural zero-row detection (DAE algebraic DOFs)."""
     row_sums = bkd.sum(bkd.abs(matrix), axis=1)
-    return [
-        i
-        for i in range(matrix.shape[0])
-        if bkd.to_float(row_sums[i]) == 0.0
-    ]
+    return [i for i in range(matrix.shape[0]) if bkd.to_float(row_sums[i]) == 0.0]
+
+
+def _add_diagonal(matrix: Array, diagonal: Array, bkd: Backend[Array]) -> Array:
+    """``matrix + diag(diagonal)``, keeping a sparse ``matrix`` sparse."""
+    if isinstance(matrix, spmatrix):
+        # Sparse Jacobians travel as ``Array`` through the ODE layer.
+        total: Array = matrix + diags(bkd.to_numpy(diagonal), format=matrix.format)
+        return total
+    return matrix + bkd.diag(diagonal)
 
 
 @runtime_checkable
@@ -36,6 +41,17 @@ class MassMatrixProtocol(Protocol, Generic[Array]):
     def solve_transpose(self, vec: Array) -> Array: ...
 
     def as_matrix(self) -> Array: ...
+
+    def add_to(self, matrix: Array) -> Array:
+        """Return ``M + matrix`` without materializing more than ``M`` is.
+
+        Each mass adds itself in its own representation: a diagonal or
+        identity mass adds only its diagonal, so a sparse ``matrix``
+        stays sparse and no dense ``(n, n)`` identity is formed; an
+        assembled mass adds its matrix. Used to form Newton matrices
+        ``M - c J`` without asking which kind of mass this is.
+        """
+        ...
 
     def is_diagonal(self) -> bool:
         """Whether the mass matrix is diagonal (incl. identity).
@@ -91,6 +107,9 @@ class IdentityMassMatrix(Generic[Array]):
             self._cached_matrix = self._bkd.eye(self._n)
         return self._cached_matrix
 
+    def add_to(self, matrix: Array) -> Array:
+        return _add_diagonal(matrix, self._bkd.ones((self._n,)), self._bkd)
+
     def is_identity(self) -> bool:
         return True
 
@@ -142,6 +161,10 @@ class ConstantDenseMassMatrix(Generic[Array]):
 
     def as_matrix(self) -> Array:
         return self._matrix
+
+    def add_to(self, matrix: Array) -> Array:
+        """``M + matrix``; ``matrix`` is dense, like this mass."""
+        return self._matrix + matrix
 
     def is_identity(self) -> bool:
         return False
@@ -205,6 +228,9 @@ class DiagonalMassMatrix(Generic[Array]):
     def as_matrix(self) -> Array:
         return self._bkd.diag(self._diag)
 
+    def add_to(self, matrix: Array) -> Array:
+        return _add_diagonal(matrix, self._diag, self._bkd)
+
     def is_identity(self) -> bool:
         return False
 
@@ -238,9 +264,7 @@ class ConstantSparseMassMatrix(Generic[Array]):
         # scipy's sparse row-sum is numpy-native; the result is pure
         # index metadata, so no backend round trip is warranted.
         row_sums = np.asarray(abs(self._csc).sum(axis=1)).ravel()
-        self._zero_rows: list[int] = [
-            int(i) for i in np.nonzero(row_sums == 0.0)[0]
-        ]
+        self._zero_rows: list[int] = [int(i) for i in np.nonzero(row_sums == 0.0)[0]]
 
     def _ensure_lu(self) -> SuperLU:
         if self._lu is None:
@@ -266,6 +290,11 @@ class ConstantSparseMassMatrix(Generic[Array]):
     def as_matrix(self) -> spmatrix:
         return self._matrix
 
+    def add_to(self, matrix: Array) -> Array:
+        """``M + matrix``; ``matrix`` is sparse, like this mass."""
+        total: Array = self._matrix + matrix
+        return total
+
     def is_identity(self) -> bool:
         return False
 
@@ -279,9 +308,7 @@ class ConstantSparseMassMatrix(Generic[Array]):
         return list(self._zero_rows)
 
 
-def create_mass_matrix(
-    matrix: Array, bkd: Backend[Array]
-) -> MassMatrixProtocol[Array]:
+def create_mass_matrix(matrix: Array, bkd: Backend[Array]) -> MassMatrixProtocol[Array]:
     """Create a MassMatrix from a raw array, detecting identity and sparsity."""
     if issparse(matrix):
         return ConstantSparseMassMatrix(matrix, bkd)

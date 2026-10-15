@@ -21,6 +21,7 @@ from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
 from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _make_expansion(bkd, nvars, nqoi, max_level=3):
@@ -42,90 +43,78 @@ class TestBatchedBoundODEResidual:
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2)
         assert isinstance(wrapper, ImplicitODEResidualProtocol)
 
-    def test_single_trajectory_nonparametric(self, bkd):
+    def test_single_trajectory_nonparametric(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=2, nqoi=2)
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2)
-        wrapper.set_time(0.5)
 
         state = bkd.array([1.0, -0.5])
-        result = wrapper(state)
+        result = wrapper(state, 0.5)
         assert result.shape == (2,)
 
         samples = bkd.array([[1.0], [-0.5]])
         expected = expansion(samples)
-        bkd.assert_allclose(
-            result, bkd.reshape(expected, (2,)), rtol=1e-12
-        )
+        bkd.assert_allclose(result, bkd.reshape(expected, (2,)), rtol=1e-12)
 
-    def test_single_trajectory_parametric(self, bkd):
+    def test_single_trajectory_parametric(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=3, nqoi=2)
         mu_batch = bkd.array([[1.5]])
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2, mu_batch=mu_batch)
-        wrapper.set_time(0.0)
 
         state = bkd.array([0.5, -1.0])
-        result = wrapper(state)
+        result = wrapper(state, 0.0)
         assert result.shape == (2,)
 
         augmented = bkd.array([[0.5], [-1.0], [1.5]])
         expected = expansion(augmented)
-        bkd.assert_allclose(
-            result, bkd.reshape(expected, (2,)), rtol=1e-12
-        )
+        bkd.assert_allclose(result, bkd.reshape(expected, (2,)), rtol=1e-12)
 
-    def test_batched_trajectories_decouple(self, bkd):
+    def test_batched_trajectories_decouple(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=3, nqoi=2)
         k = 4
         mu_vals = bkd.array([[0.5, 1.0, 1.5, 2.0]])
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2, mu_batch=mu_vals)
-        wrapper.set_time(0.0)
 
         rng = np.random.RandomState(7)
         states_flat = bkd.array(rng.randn(2 * k))
-        result = wrapper(states_flat)
+        result = wrapper(states_flat, 0.0)
         assert result.shape == (2 * k,)
 
         for i in range(k):
-            single_state = states_flat[i * 2:(i + 1) * 2]
+            single_state = states_flat[i * 2 : (i + 1) * 2]
             single_mu = bkd.array([[float(mu_vals[0, i])]])
             single_wrapper = BatchedBoundODEResidual(
                 expansion, n_dynamic=2, mu_batch=single_mu
             )
-            single_wrapper.set_time(0.0)
-            single_result = single_wrapper(single_state)
-            bkd.assert_allclose(
-                result[i * 2:(i + 1) * 2], single_result, rtol=1e-12
-            )
+            single_result = single_wrapper(single_state, 0.0)
+            bkd.assert_allclose(result[i * 2 : (i + 1) * 2], single_result, rtol=1e-12)
 
-    def test_newton_jacobian_block_diagonal(self, bkd):
+    def test_newton_jacobian_block_diagonal(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=3, nqoi=2)
         k = 3
         mu_vals = bkd.array([[0.5, 1.0, 1.5]])
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2, mu_batch=mu_vals)
-        wrapper.set_time(0.0)
 
         rng = np.random.RandomState(11)
         state = bkd.array(rng.randn(2 * k))
         coeff = 0.05
 
-        op = wrapper.newton_jacobian(state, coeff)
+        op = wrapper.newton_jacobian(state, 0.0, coeff)
         assert isinstance(op, BlockDiagonalLinearOperator)
         assert isinstance(op, LinearOperatorProtocol)
 
-        full_jac = wrapper.jacobian(state)
+        full_jac = wrapper.jacobian(state, 0.0)
         eye = bkd.eye(2 * k)
         expected = eye - coeff * full_jac
         bkd.assert_allclose(op.as_matrix(), expected, rtol=1e-12)
 
-    def test_param_jacobian_shape(self, bkd):
+    def test_param_jacobian_shape(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=3, nqoi=2)
         k = 2
         mu_vals = bkd.array([[0.5, 1.5]])
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2, mu_batch=mu_vals)
-        wrapper.set_time(0.0)
 
         state = bkd.array([1.0, 0.0, -1.0, 0.5])
-        pjac = wrapper.param_jacobian(state)
+        pjac = wrapper.param_jacobian(state, 0.0)
         nactive = wrapper.nparams()
         assert pjac.shape == (2 * k, nactive)
 

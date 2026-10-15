@@ -64,6 +64,9 @@ class ConstrainedMassMatrix(Generic[Array]):
     def as_matrix(self) -> Array:
         return self._constrained.as_matrix()
 
+    def add_to(self, matrix: Array) -> Array:
+        return self._constrained.add_to(matrix)
+
     def is_diagonal(self) -> bool:
         return self._constrained.is_diagonal()
 

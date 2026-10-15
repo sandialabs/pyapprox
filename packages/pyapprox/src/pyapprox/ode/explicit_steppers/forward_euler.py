@@ -55,10 +55,9 @@ class ForwardEulerStepper(
         super().__init__(residual)
 
     def __call__(self, state: Array) -> Array:
-        self._residual.set_time(self._ctx.t_prev)
         return self._residual.mass_matrix().apply(
             state - self._ctx.y_prev
-        ) - self._ctx.deltat * self._residual(self._ctx.y_prev)
+        ) - self._ctx.deltat * self._residual(self._ctx.y_prev, self._ctx.t_prev)
 
     def jacobian(self, state: Array) -> Array:
         return self._residual.mass_matrix().as_matrix()
@@ -86,12 +85,10 @@ class ForwardEulerStepper(
 
             \frac{dR_n}{dy_{n-1}} = -(M + \Delta t \, J)
 
-        where :math:`J = df/dy|_{y_{n-1}}`.
+        where :math:`J = df/dy|_{y_{n-1}, t_{n-1}}`.
         """
-        self._residual.set_time(ctx.t_prev)
-        mass = self._residual.mass_matrix().as_matrix()
-        jac = self._residual.jacobian(ctx.y_prev)
-        return -mass - ctx.deltat * jac
+        jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
+        return -self._residual.mass_matrix().add_to(ctx.deltat * jac)
 
     # -- QuadratureMixin --
 
@@ -128,9 +125,10 @@ class ForwardEulerAdjoint(
         super().__init__(residual)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
-        r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_{n-1}}`."""
-        self._adjoint_residual.set_time(ctx.t_prev)
-        return -ctx.deltat * self._adjoint_residual.param_jacobian(ctx.y_prev)
+        r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_{n-1}, t_{n-1}}`."""
+        return -ctx.deltat * self._adjoint_residual.param_jacobian(
+            ctx.y_prev, ctx.t_prev
+        )
 
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
@@ -142,11 +140,8 @@ class ForwardEulerAdjoint(
         self, next_ctx: StepContext[Array], y_curr_of_next: Array
     ) -> Array:
         r"""Compute :math:`(dR_{n+1}/dy_n)^T = -(\Delta t \, J + M)^T`."""
-        self._adjoint_residual.set_time(next_ctx.t_prev)
-        return -(
-            next_ctx.deltat * self._adjoint_residual.jacobian(next_ctx.y_prev)
-            + self._adjoint_residual.mass_matrix().as_matrix()
-        ).T
+        jac = self._adjoint_residual.jacobian(next_ctx.y_prev, next_ctx.t_prev)
+        return -self._adjoint_residual.mass_matrix().add_to(next_ctx.deltat * jac).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
@@ -218,9 +213,8 @@ class ForwardEulerHVP(
         vvec: Array,
     ) -> Array:
         r"""Compute :math:`d^2R_n/dp^2 = -\Delta t \, (d^2f/dp^2)|_{y_{n-1}}`."""
-        self._hvp_residual.set_time(ctx.t_prev)
         return -ctx.deltat * self._hvp_residual.param_param_hvp(
-            ctx.y_prev, adj_state, vvec
+            ctx.y_prev, ctx.t_prev, adj_state, vvec
         )
 
     # -- Cross-step HVP methods: d²R_{k+1}/d(y_k)² --
@@ -234,9 +228,8 @@ class ForwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`d^2R_{k+1}/dy_k^2 = -\Delta t_{k+1}
         \, (d^2f/dy^2)|_{y_k}`."""
-        self._hvp_residual.set_time(next_ctx.t_prev)
         return -next_ctx.deltat * self._hvp_residual.state_state_hvp(
-            next_ctx.y_prev, adj_state, wvec
+            next_ctx.y_prev, next_ctx.t_prev, adj_state, wvec
         )
 
     def prev_state_param_hvp(
@@ -248,9 +241,8 @@ class ForwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`d^2R_{k+1}/(dy_k \, dp) = -\Delta t_{k+1}
         \, (d^2f/(dy \, dp))|_{y_k}`."""
-        self._hvp_residual.set_time(next_ctx.t_prev)
         return -next_ctx.deltat * self._hvp_residual.state_param_hvp(
-            next_ctx.y_prev, adj_state, vvec
+            next_ctx.y_prev, next_ctx.t_prev, adj_state, vvec
         )
 
     def prev_param_state_hvp(
@@ -262,7 +254,6 @@ class ForwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`d^2R_{k+1}/(dp \, dy_k) = -\Delta t_{k+1}
         \, (d^2f/(dp \, dy))|_{y_k}`."""
-        self._hvp_residual.set_time(next_ctx.t_prev)
         return -next_ctx.deltat * self._hvp_residual.param_state_hvp(
-            next_ctx.y_prev, adj_state, wvec
+            next_ctx.y_prev, next_ctx.t_prev, adj_state, wvec
         )

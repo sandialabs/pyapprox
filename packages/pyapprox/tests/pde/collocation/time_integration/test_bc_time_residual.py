@@ -84,11 +84,10 @@ class TestBCEnforcingTimeResidual:
         y = prev_state + 0.01 * bkd.cos(math.pi * s["nodes"])
 
         # --- Manual backward Euler residual with BCs ---
-        adapter.set_time(t_np1)
-        f_y = adapter(y)
+        f_y = adapter(y, t_np1)
         mass = physics.mass_matrix()
         manual_residual = physics.apply_mass_matrix(y - prev_state) - deltat * f_y
-        jac_f = adapter.jacobian(y)
+        jac_f = adapter.jacobian(y, t_np1)
         manual_jacobian = mass - deltat * jac_f
         manual_residual, manual_jacobian = physics.apply_boundary_conditions(
             manual_residual, manual_jacobian, y, t_np1
@@ -222,9 +221,7 @@ class TestBCEnforcingTimeResidual:
         """Factory returns BCEnforcingAdjointResidual for BackwardEulerAdjoint."""
         s = self._setup_diffusion_problem(bkd)
         adjoint_stepper = BackwardEulerAdjoint(s["adapter"])
-        bc_res = create_bc_enforcing_residual(
-            adjoint_stepper, s["physics"], bkd
-        )
+        bc_res = create_bc_enforcing_residual(adjoint_stepper, s["physics"], bkd)
         assert isinstance(bc_res, BCEnforcingAdjointResidual)
         # native_residual should be narrowed to ParamJacobian level
         assert bc_res.native_residual is s["adapter"]
@@ -233,10 +230,9 @@ class TestBCEnforcingTimeResidual:
         """Factory returns BCEnforcingHVPResidual for BackwardEulerHVP."""
         s = self._setup_diffusion_problem(bkd)
         hvp_stepper = BackwardEulerHVP(s["adapter"])
-        bc_res = create_bc_enforcing_residual(
-            hvp_stepper, s["physics"], bkd
-        )
+        bc_res = create_bc_enforcing_residual(hvp_stepper, s["physics"], bkd)
         from pyapprox.pde.collocation.time_integration import (
             BCEnforcingHVPResidual,
         )
+
         assert isinstance(bc_res, BCEnforcingHVPResidual)

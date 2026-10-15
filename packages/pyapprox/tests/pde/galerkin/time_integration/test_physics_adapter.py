@@ -47,7 +47,6 @@ class TestPhysicsAdapterBase:
         self._setup(bkd)
         assert callable(getattr(self.adapter, "bkd"))
         assert callable(getattr(self.adapter, "__call__"))
-        assert callable(getattr(self.adapter, "set_time"))
         assert callable(getattr(self.adapter, "jacobian"))
         assert callable(getattr(self.adapter, "mass_matrix"))
 
@@ -56,8 +55,7 @@ class TestPhysicsAdapterBase:
         bkd = numpy_bkd
         self._setup(bkd)
         u0 = self.physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
-        self.adapter.set_time(0.0)
-        residual = self.adapter(u0)
+        residual = self.adapter(u0, 0.0)
         assert residual.shape == (self.physics.nstates(),)
 
     def test_jacobian_shape(self, numpy_bkd) -> None:
@@ -65,8 +63,7 @@ class TestPhysicsAdapterBase:
         bkd = numpy_bkd
         self._setup(bkd)
         u0 = bkd.asarray(np.zeros(self.physics.nstates()))
-        self.adapter.set_time(0.0)
-        jac = self.adapter.jacobian(u0)
+        jac = self.adapter.jacobian(u0, 0.0)
         assert jac.shape == (self.physics.nstates(), self.physics.nstates())
 
     def test_mass_matrix_shape(self, numpy_bkd) -> None:
@@ -84,13 +81,6 @@ class TestPhysicsAdapterBase:
         M1 = self.adapter.mass_matrix()
         M2 = self.adapter.mass_matrix()
         assert M1 is M2
-
-    def test_set_time(self, numpy_bkd) -> None:
-        """Test set_time updates internal time."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        self.adapter.set_time(1.5)
-        assert self.adapter._time == 1.5
 
     def test_bkd_returns_backend(self, numpy_bkd) -> None:
         """Test bkd returns correct backend."""

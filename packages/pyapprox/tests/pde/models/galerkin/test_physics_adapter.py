@@ -30,15 +30,11 @@ class TestGalerkinAdapterFactoryTiers:
     def _make_physics(self, bkd):
         mesh = StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        return LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=bkd
-        )
+        return LinearAdvectionDiffusionReaction(basis=basis, diffusivity=0.01, bkd=bkd)
 
     def test_base_tier_without_parameterization(self, numpy_bkd: NumpyBkd) -> None:
         physics = self._make_physics(numpy_bkd)
-        adapter = create_galerkin_physics_ode_residual(
-            compose_galerkin_system(physics)
-        )
+        adapter = create_galerkin_physics_ode_residual(compose_galerkin_system(physics))
         assert type(adapter) is GalerkinPhysicsToODEResidualAdapter
         assert not hasattr(adapter, "param_jacobian")
         assert not hasattr(adapter, "nparams")
@@ -113,12 +109,11 @@ class TestGalerkinAdapterFactoryTiers:
         adapter = create_galerkin_physics_ode_residual(
             compose_galerkin_system(physics), FirstOrderParameterization(physics)
         )
-        assert isinstance(
-            adapter, GalerkinPhysicsToODEResidualWithParamJacobianAdapter
-        )
+        assert isinstance(adapter, GalerkinPhysicsToODEResidualWithParamJacobianAdapter)
         adapter.set_param(bkd.array([0.5]))
-        assert adapter.param_jacobian(bkd.zeros((nstates,))).shape == (
-            nstates, 1,
+        assert adapter.param_jacobian(bkd.zeros((nstates,)), 0.0).shape == (
+            nstates,
+            1,
         )
 
     def test_set_param_rejects_2d(self, numpy_bkd: NumpyBkd) -> None:

@@ -7,9 +7,7 @@ from pyapprox.ode.mixins.default_newton_jacobian import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class NonLinearDecoupledODE(
-    DefaultNewtonJacobianMixin[Array], Generic[Array]
-):
+class NonLinearDecoupledODE(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Nonlinear decoupled ODE system.
 
@@ -34,8 +32,6 @@ class NonLinearDecoupledODE(
         Whether the coefficient b depends on time.
     _bkd : Backend[Array]
         Backend used for computations.
-    _time : float
-        Current time.
     _coef : float
         Coefficient for the ODE system.
     _init_cond : float
@@ -46,7 +42,6 @@ class NonLinearDecoupledODE(
         self._nstates = nstates
         self._transient_coef = transient_coef
         self._bkd = bkd
-        self._time = 0.0
         self.set_parameters(self._bkd.array([0.0, 0.0]))
         self._init_cond: Optional[Array] = None
         self._mass = IdentityMassMatrix(nstates, bkd)
@@ -73,17 +68,6 @@ class NonLinearDecoupledODE(
         """
         return self._nstates
 
-    def set_time(self, time: float) -> None:
-        """
-        Set the current time.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-        """
-        self._time = time
-
     def set_parameters(self, param: Array) -> None:
         """
         Set the parameters for the ODE system.
@@ -96,7 +80,7 @@ class NonLinearDecoupledODE(
         self._coef = param[0]
         self._init_cond = param[1]
 
-    def __call__(self, sol: Array) -> Array:
+    def __call__(self, sol: Array, time: float) -> Array:
         """
         Evaluate the ODE residual.
 
@@ -114,10 +98,10 @@ class NonLinearDecoupledODE(
             1, sol.shape[0] + 1, dtype=self._bkd.double_dtype()
         )
         if self._transient_coef:
-            b *= 2 + self._time
+            b *= 2 + time
         return -b * sol**2
 
-    def jacobian(self, sol: Array) -> Array:
+    def jacobian(self, sol: Array, time: float) -> Array:
         """
         Compute the Jacobian of the ODE residual with respect to the solution.
 
@@ -135,7 +119,7 @@ class NonLinearDecoupledODE(
             1, sol.shape[0] + 1, dtype=self._bkd.double_dtype()
         )
         if self._transient_coef:
-            b *= 2 + self._time
+            b *= 2 + time
         return self._bkd.diag(-2 * b * sol)
 
     def mass_matrix(self) -> IdentityMassMatrix[Array]:

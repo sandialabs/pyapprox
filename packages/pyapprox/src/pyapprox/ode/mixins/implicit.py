@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic
 
+from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualProtocol,
     ODEResidualProtocol,
@@ -14,11 +15,15 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ImplicitStepperMixin(ABC, Generic[Array]):
-    """Mixin for implicit steppers (backward Euler, Crank-Nicolson).
+    """Mixin for implicit steppers (backward Euler, Crank-Nicolson,
+    implicit midpoint).
 
-    Provides linsolve via residual's newton_jacobian operator. The
-    stepper-specific coefficient (dt for BE, dt/2 for CN) is defined
-    once per stepper in _newton_coefficient.
+    Provides linsolve via the stepper's Newton operator. Each stepper
+    states its linearization once, in ``_newton_operator``: the state
+    and time at which ``f`` is linearized and the coefficient (backward
+    Euler: ``y_n``, ``t_n``, ``dt``; Crank-Nicolson: ``y_n``, ``t_n``,
+    ``dt/2``; implicit midpoint: the midpoint state and time, ``dt/2``),
+    so ``jacobian`` and ``linsolve`` cannot disagree.
     """
 
     if TYPE_CHECKING:
@@ -44,17 +49,21 @@ class ImplicitStepperMixin(ABC, Generic[Array]):
         return residual
 
     @abstractmethod
-    def _newton_coefficient(self) -> float:
-        """Stepper-specific coefficient for Newton Jacobian.
+    def _newton_operator(
+        self, ctx: StepContext[Array], state: Array
+    ) -> LinearOperatorProtocol[Array]:
+        """Return ``dR/dy_n`` of the step ``ctx`` at ``state``.
 
-        BackwardEuler: self._ctx.deltat. CrankNicolson: 0.5 * self._ctx.deltat.
+        The context is explicit so the Newton solve (the bound step)
+        and the adjoint (any step) share this one linearization.
         Internal to the stepper hierarchy, not exposed externally.
         """
         ...
 
+    def jacobian(self, state: Array) -> Array:
+        """Return ``dR/dy_n`` of the current step as a matrix."""
+        return self._newton_operator(self._ctx, state).as_matrix()
+
     def linsolve(self, state: Array, residual: Array) -> Array:
-        """Solve (M - coeff*J) dy = residual via residual's newton_jacobian."""
-        op = self._implicit_residual.newton_jacobian(
-            state, self._newton_coefficient()
-        )
-        return op.solve(residual)
+        """Solve ``(dR/dy_n) dy = residual`` with the step's Newton operator."""
+        return self._newton_operator(self._ctx, state).solve(residual)

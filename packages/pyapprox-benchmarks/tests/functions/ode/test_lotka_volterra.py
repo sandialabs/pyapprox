@@ -4,7 +4,6 @@ Tests for Lotka-Volterra ODE residual with HVP support.
 Uses TimeAdjointDerivativeChecker for all derivative tests.
 """
 
-
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.functions.ode.lotka_volterra import (
     LotkaVolterraResidual,
@@ -24,24 +23,23 @@ class TestLotkaVolterraResidual:
             [0.5, 0.6, 0.7, 1.0, 0.1, 0.2, 0.1, 1.0, 0.1, 0.2, 0.1, 1.0]
         )
         self._residual.set_param(self._params)
-        self._residual.set_time(0.0)
 
         self._state = self._bkd.array([0.3, 0.4, 0.3])
         self._adj_state = self._bkd.array([1.0, 0.5, 0.2])
 
     def test_residual_shape(self):
         """Test that residual returns correct shape."""
-        result = self._residual(self._state)
+        result = self._residual(self._state, 0.0)
         assert result.shape == (self._nspecies,)
 
     def test_jacobian_shape(self):
         """Test that Jacobian returns correct shape."""
-        result = self._residual.jacobian(self._state)
+        result = self._residual.jacobian(self._state, 0.0)
         assert result.shape == (self._nspecies, self._nspecies)
 
     def test_param_jacobian_shape(self):
         """Test that param Jacobian returns correct shape."""
-        result = self._residual.param_jacobian(self._state)
+        result = self._residual.param_jacobian(self._state, 0.0)
         nparams = self._nspecies + self._nspecies**2
         assert result.shape == (self._nspecies, nparams)
 
@@ -50,17 +48,17 @@ class TestLotkaVolterraResidual:
         wvec = self._bkd.array([0.1, 0.2, 0.15])
         vvec = self._bkd.ones(12) * 0.1
 
-        ss = self._residual.state_state_hvp(self._state, self._adj_state, wvec)
+        ss = self._residual.state_state_hvp(self._state, 0.0, self._adj_state, wvec)
         assert ss.shape == (self._nspecies,)
 
-        sp = self._residual.state_param_hvp(self._state, self._adj_state, vvec)
+        sp = self._residual.state_param_hvp(self._state, 0.0, self._adj_state, vvec)
         assert sp.shape == (self._nspecies,)
 
-        ps = self._residual.param_state_hvp(self._state, self._adj_state, wvec)
+        ps = self._residual.param_state_hvp(self._state, 0.0, self._adj_state, wvec)
         nparams = self._nspecies + self._nspecies**2
         assert ps.shape == (nparams,)
 
-        pp = self._residual.param_param_hvp(self._state, self._adj_state, vvec)
+        pp = self._residual.param_param_hvp(self._state, 0.0, self._adj_state, vvec)
         assert pp.shape == (nparams,)
 
     def test_mass_matrix_is_identity(self):

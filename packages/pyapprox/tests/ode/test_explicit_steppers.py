@@ -24,21 +24,15 @@ class _LinearResidual:
             np.array([[-2.0, 1.0, 0.0], [1.0, -3.0, 1.0], [0.0, 1.0, -1.5]])
         )
         self._bvec = bkd.asarray(np.array([0.5, -1.0, 2.0]))
-        self._mass = create_mass_matrix(
-            bkd.asarray(np.diag([2.0, 3.0, 4.0])), bkd
-        )
-        self._time = 0.0
+        self._mass = create_mass_matrix(bkd.asarray(np.diag([2.0, 3.0, 4.0])), bkd)
 
     def bkd(self) -> Backend[Any]:
         return self._bkd
 
-    def set_time(self, time: float) -> None:
-        self._time = time
+    def __call__(self, state: Any, time: float) -> Any:
+        return self._bkd.dot(self._amat, state) + time * self._bvec
 
-    def __call__(self, state: Any) -> Any:
-        return self._bkd.dot(self._amat, state) + self._time * self._bvec
-
-    def jacobian(self, state: Any) -> Any:
+    def jacobian(self, state: Any, time: float) -> Any:
         return self._amat
 
     def mass_matrix(self) -> MassMatrixProtocol[Any]:
@@ -46,9 +40,7 @@ class _LinearResidual:
 
 
 class TestHeunWithMassMatrix:
-    def _bind(
-        self, stepper: HeunHVP[Any], y_prev: Any
-    ) -> StepContext[Any]:
+    def _bind(self, stepper: HeunHVP[Any], y_prev: Any) -> StepContext[Any]:
         ctx = StepContext(t_prev=0.3, deltat=0.1, y_prev=y_prev)
         stepper.bind(ctx)
         return ctx
@@ -65,7 +57,7 @@ class TestHeunWithMassMatrix:
 
         # hand-computed reference
         minv = np.diag(1.0 / np.array([2.0, 3.0, 4.0]))
-        amat = bkd.to_numpy(residual.jacobian(y_prev))
+        amat = bkd.to_numpy(residual.jacobian(y_prev, ctx.t_prev))
         bvec = np.array([0.5, -1.0, 2.0])
         y0 = bkd.to_numpy(y_prev)
         k1 = amat @ y0 + ctx.t_prev * bvec

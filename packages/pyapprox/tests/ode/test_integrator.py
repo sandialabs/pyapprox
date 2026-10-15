@@ -19,13 +19,10 @@ class _DecayResidual:
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def set_time(self, time: float) -> None:
-        pass
-
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         return -state
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         return -self._bkd.eye(state.shape[0])
 
     def mass_matrix(self) -> IdentityMassMatrix:
@@ -37,7 +34,7 @@ class _DecayResidual:
     def set_param(self, param: Array) -> None:
         pass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         return self._bkd.zeros((state.shape[0], 0))
 
     def initial_param_jacobian(self) -> Array:

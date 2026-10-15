@@ -159,22 +159,22 @@ class CollocationPhysicsToODEResidualWithParamJacobianAdapter(
             derivs.bc_flux_param_sensitivity
         )
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """Compute the parameter Jacobian df/dp.
 
         Parameters
         ----------
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
-        return self._param_jacobian_fn(
-            state, self._time, self._require_params()
-        )
+        return self._param_jacobian_fn(state, time, self._require_params())
 
     def initial_param_jacobian(self) -> Array:
         """Compute d(initial_state)/d(params).
@@ -253,44 +253,40 @@ class CollocationPhysicsToODEResidualWithHVPAdapter(
         self._param_param_hvp_fn: ParamHVPFn[Array] = param_param_hvp
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
-        self._initial_param_hvp_fn: InitialParamHVPFn[Array] = (
-            initial_param_hvp
-        )
+        self._initial_param_hvp_fn: InitialParamHVPFn[Array] = initial_param_hvp
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
         """sum_i weight_i (d^2 y_0,i/dp^2) v. Shape: (nparams,)."""
         return self._initial_param_hvp_fn(self._require_params(), weight, vvec)
 
     def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute lambda^T (d^2f/dy^2) w. Shape: (nstates,)."""
-        return self._hvp_physics.state_state_hvp(
-            state, adj_state, wvec, self._time
-        )
+        return self._hvp_physics.state_state_hvp(state, adj_state, wvec, time)
 
     def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute lambda^T (d^2f/dp^2) v. Shape: (nparams,)."""
         return self._param_param_hvp_fn(
-            state, self._time, self._require_params(), adj_state, vvec
+            state, time, self._require_params(), adj_state, vvec
         )
 
     def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute lambda^T (d^2f/dy dp) v. Shape: (nstates,)."""
         return self._state_param_hvp_fn(
-            state, self._time, self._require_params(), adj_state, vvec
+            state, time, self._require_params(), adj_state, vvec
         )
 
     def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute lambda^T (d^2f/dp dy) w. Shape: (nparams,)."""
         return self._param_state_hvp_fn(
-            state, self._time, self._require_params(), adj_state, wvec
+            state, time, self._require_params(), adj_state, wvec
         )
 
 
@@ -345,8 +341,7 @@ def create_collocation_physics_ode_residual(
         )
     derivs = parameterization.param_derivatives()
     has_first_order = (
-        derivs.param_jacobian is not None
-        and derivs.initial_param_jacobian is not None
+        derivs.param_jacobian is not None and derivs.initial_param_jacobian is not None
     )
     has_hvps = (
         derivs.param_param_hvp is not None

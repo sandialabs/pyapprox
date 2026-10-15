@@ -46,7 +46,7 @@ class _ToyResidual:
     def bkd(self):
         return self._bkd
 
-    def __call__(self, state):
+    def __call__(self, state, time: float):
         return -state
 
     def mass_matrix(self):
@@ -69,18 +69,14 @@ class _ForcedCubicResidual(DefaultNewtonJacobianMixin):
         self._bkd = bkd
         self._mass = ConstantDenseMassMatrix(bkd.asarray([[2.0, 0.5], [0.5, 1.0]]), bkd)
         self._forcing = bkd.asarray([1.0, -0.5])
-        self._time = 0.0
 
     def bkd(self):
         return self._bkd
 
-    def set_time(self, time: float) -> None:
-        self._time = time
+    def __call__(self, state, time: float):
+        return -(state**3) + np.sin(3.0 * time) * self._forcing
 
-    def __call__(self, state):
-        return -(state**3) + np.sin(3.0 * self._time) * self._forcing
-
-    def jacobian(self, state):
+    def jacobian(self, state, time: float):
         return self._bkd.diag(-3.0 * state**2)
 
     def mass_matrix(self):
@@ -92,7 +88,7 @@ class _ForcedCubicResidual(DefaultNewtonJacobianMixin):
     def set_param(self, param) -> None:
         pass
 
-    def param_jacobian(self, state):
+    def param_jacobian(self, state, time: float):
         return self._bkd.zeros((state.shape[0], 0))
 
     def initial_param_jacobian(self):
@@ -119,8 +115,9 @@ def _summed_step_residuals(bkd, stepper_class):
     stage_times = rule.sample_times()
     weights = rule.weights()
     for jj in range(rule.nsamples()):
-        residual.set_time(bkd.to_float(stage_times[jj]))
-        total = total - weights[jj] * residual(stages[:, jj])
+        total = total - weights[jj] * residual(
+            stages[:, jj], bkd.to_float(stage_times[jj])
+        )
     return total
 
 

@@ -28,9 +28,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
-class ChemicalReactionResidual(
-    DefaultNewtonJacobianMixin[Array], Generic[Array]
-):
+class ChemicalReactionResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Chemical reaction ODE residual.
 
@@ -59,7 +57,6 @@ class ChemicalReactionResidual(
         self._nstates = 3
         self._mass = IdentityMassMatrix(3, bkd)
         self._nparams = 6
-        self._time = 0.0
         self._param: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
@@ -69,10 +66,6 @@ class ChemicalReactionResidual(
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._nparams
-
-    def set_time(self, time: float) -> None:
-        """Set the current time."""
-        self._time = time
 
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
@@ -91,7 +84,7 @@ class ChemicalReactionResidual(
         """Return initial condition (empty surface)."""
         return self._bkd.zeros((self._nstates,))
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """
         Evaluate the ODE right-hand side.
 
@@ -118,7 +111,7 @@ class ChemicalReactionResidual(
             ]
         )
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the state Jacobian df/dy.
 
@@ -151,7 +144,7 @@ class ChemicalReactionResidual(
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """
         Compute the parameter Jacobian df/dp.
 

@@ -63,13 +63,10 @@ class _ParamDecayResidual(DefaultNewtonJacobianMixin):
     def bkd(self):
         return self._bkd
 
-    def set_time(self, time):
-        pass
-
-    def __call__(self, state):
+    def __call__(self, state, time: float):
         return -self._param * state + self._source
 
-    def jacobian(self, state):
+    def jacobian(self, state, time: float):
         return -self._bkd.diag(self._param)
 
     def mass_matrix(self):
@@ -81,7 +78,7 @@ class _ParamDecayResidual(DefaultNewtonJacobianMixin):
     def set_param(self, param):
         self._param = self._bkd.flatten(param)
 
-    def param_jacobian(self, state):
+    def param_jacobian(self, state, time: float):
         return -self._bkd.diag(state)
 
     def initial_param_jacobian(self):
@@ -92,7 +89,8 @@ def _make_mass(bkd, kind):
     if kind == "identity":
         return IdentityMassMatrix(_NSTATES, bkd)
     mat = bkd.asarray(
-        np.eye(_NSTATES) + 0.2 * np.diag(np.ones(_NSTATES - 1), 1)
+        np.eye(_NSTATES)
+        + 0.2 * np.diag(np.ones(_NSTATES - 1), 1)
         + 0.2 * np.diag(np.ones(_NSTATES - 1), -1)
     )
     return ConstantDenseMassMatrix(mat, bkd)
@@ -117,13 +115,9 @@ class TestForwardSensitivityMatrix:
     @pytest.mark.parametrize(
         "method", ["backward_euler", "crank_nicolson", "forward_euler", "heun"]
     )
-    def test_final_sensitivity_matches_fd(
-        self, bkd, method, mass_kind
-    ) -> None:
+    def test_final_sensitivity_matches_fd(self, bkd, method, mass_kind) -> None:
         source = bkd.asarray(np.array([0.5, -0.3, 0.2]))
-        residual = _ParamDecayResidual(
-            bkd, _make_mass(bkd, mass_kind), source
-        )
+        residual = _ParamDecayResidual(bkd, _make_mass(bkd, mass_kind), source)
         y0 = bkd.asarray(np.array([1.0, -0.5, 0.8]))
         param_np = np.array([0.7, 1.2, 0.4])
         final_time, deltat = 0.5, 0.05
@@ -132,16 +126,26 @@ class TestForwardSensitivityMatrix:
             results = []
             for ii in range(samples.shape[1]):
                 _, sols, _ = _solve(
-                    bkd, residual, method, samples[:, ii], y0,
-                    final_time, deltat,
+                    bkd,
+                    residual,
+                    method,
+                    samples[:, ii],
+                    y0,
+                    final_time,
+                    deltat,
                 )
                 results.append(bkd.to_numpy(sols[:, -1]).copy())
             return bkd.asarray(np.stack(results, axis=1))
 
         def sensitivity_of_params(sample):
             integrator, sols, times = _solve(
-                bkd, residual, method, sample[:, 0], y0,
-                final_time, deltat,
+                bkd,
+                residual,
+                method,
+                sample[:, 0],
+                y0,
+                final_time,
+                deltat,
             )
             return forward_sensitivity_jacobian(
                 integrator, _final_states(bkd), sols, times, sample
@@ -182,16 +186,26 @@ class TestForwardSensitivityMatrix:
             results = []
             for ii in range(samples.shape[1]):
                 _, sols, _ = _solve(
-                    bkd, residual, "crank_nicolson", samples[:, ii], y0,
-                    final_time, deltat,
+                    bkd,
+                    residual,
+                    "crank_nicolson",
+                    samples[:, ii],
+                    y0,
+                    final_time,
+                    deltat,
                 )
                 results.append(bkd.to_numpy(sols[:, -1]).copy())
             return bkd.asarray(np.stack(results, axis=1))
 
         def sensitivity_of_params(sample):
             integrator, sols, times = _solve(
-                bkd, residual, "crank_nicolson", sample[:, 0], y0,
-                final_time, deltat,
+                bkd,
+                residual,
+                "crank_nicolson",
+                sample[:, 0],
+                y0,
+                final_time,
+                deltat,
             )
             return forward_sensitivity_jacobian(
                 integrator, _final_states(bkd), sols, times, sample
@@ -220,12 +234,15 @@ class TestForwardSensitivityMatrix:
     def test_short_trajectory_raises(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         source = bkd.zeros((_NSTATES,))
-        residual = _ParamDecayResidual(
-            bkd, _make_mass(bkd, "identity"), source
-        )
+        residual = _ParamDecayResidual(bkd, _make_mass(bkd, "identity"), source)
         integrator, _, _ = _solve(
-            bkd, residual, "backward_euler", bkd.ones((_NSTATES,)),
-            bkd.ones((_NSTATES,)), 0.1, 0.05,
+            bkd,
+            residual,
+            "backward_euler",
+            bkd.ones((_NSTATES,)),
+            bkd.ones((_NSTATES,)),
+            0.1,
+            0.05,
         )
         with pytest.raises(ValueError, match="two time points"):
             forward_sensitivity_jacobian(
@@ -302,7 +319,8 @@ class _ObservedTimesFunctional:
 
     def apply_state_jacobian(self, sol, param, time_idx, wmat):
         blocks = [
-            p_j @ wmat if n_j == time_idx
+            p_j @ wmat
+            if n_j == time_idx
             else self._bkd.zeros((p_j.shape[0], wmat.shape[1]))
             for n_j, p_j in self._observations
         ]
@@ -399,9 +417,7 @@ class TestQoIJacobianMethods:
             cols = []
             for ii in range(samples.shape[1]):
                 sample = samples[:, ii : ii + 1]
-                _, sols, _ = _solve(
-                    bkd, residual, method, sample[1:, 0], y0, 0.5, 0.05
-                )
+                _, sols, _ = _solve(bkd, residual, method, sample[1:, 0], y0, 0.5, 0.05)
                 cols.append(functional(sols, sample))
             return bkd.hstack(cols)
 
@@ -410,9 +426,8 @@ class TestQoIJacobianMethods:
                 integrator, sols, times = _solve(
                     bkd, residual, method, sample[1:, 0], y0, 0.5, 0.05
                 )
-                return jacobian_method(
-                    integrator, functional, sols, times, sample
-                )
+                return jacobian_method(integrator, functional, sols, times, sample)
+
             return jacobian
 
         sample = bkd.asarray(np.array([[0.3], [0.7], [1.2], [0.4]]))
@@ -430,7 +445,8 @@ class TestQoIJacobianMethods:
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(
-            sample, relative=True,
+            sample,
+            relative=True,
             weights=bkd.ones((functional.nqoi(), 1)),
         )[0]
         # Same one-sided FD floor as the final-time check above.
@@ -452,16 +468,19 @@ class TestQoIJacobianMethods:
         source = bkd.asarray(np.array([0.5, -0.3, 0.2]))
         residual = _ParamDecayResidual(bkd, _make_mass(bkd, "dense"), source)
         integrator, sols, times = _solve(
-            bkd, residual, "backward_euler", bkd.ones((_NSTATES,)),
-            bkd.ones((_NSTATES,)), 0.1, 0.05,
+            bkd,
+            residual,
+            "backward_euler",
+            bkd.ones((_NSTATES,)),
+            bkd.ones((_NSTATES,)),
+            0.1,
+            0.05,
         )
         param = bkd.ones((_NSTATES, 1))
         # A scalar functional without a state-Jacobian action.
         scalar = EndpointFunctional(0, _NSTATES, _NSTATES, bkd)
         with pytest.raises(TypeError, match="apply_state_jacobian"):
-            forward_sensitivity_jacobian(
-                integrator, scalar, sols, times, param
-            )
+            forward_sensitivity_jacobian(integrator, scalar, sols, times, param)
         # A vector functional without scalar rows.
         no_rows = _NoRowsFunctional(_final_states(bkd))
         with pytest.raises(TypeError, match="row_functional"):
@@ -472,14 +491,8 @@ class TestQoIJacobianMethods:
         scalar = EndpointFunctional(0, _NSTATES, _NSTATES, bkd)
         vector = _final_states(bkd)
         assert default_qoi_jacobian_method(scalar, None) is adjoint_jacobian
-        assert (
-            default_qoi_jacobian_method(vector, None)
-            is forward_sensitivity_jacobian
-        )
-        assert (
-            default_qoi_jacobian_method(vector, adjoint_jacobian)
-            is adjoint_jacobian
-        )
+        assert default_qoi_jacobian_method(vector, None) is forward_sensitivity_jacobian
+        assert default_qoi_jacobian_method(vector, adjoint_jacobian) is adjoint_jacobian
 
 
 class _NoRowsFunctional:

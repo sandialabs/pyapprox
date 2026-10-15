@@ -147,7 +147,7 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
             initial_param_jacobian
         )
 
-    def param_jacobian(self, state: Array) -> Array:
+    def param_jacobian(self, state: Array, time: float) -> Array:
         """Compute the parameter Jacobian of the BC-NEUTRALIZED f.
 
         The adapter's f carries analytic boundary velocities on
@@ -162,15 +162,15 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         ----------
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Time t.
 
         Returns
         -------
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
-        return self._param_jacobian_fn(
-            state, self._time, self._require_params()
-        )
+        return self._param_jacobian_fn(state, time, self._require_params())
 
     def initial_param_jacobian(self) -> Array:
         """Compute d(initial_state)/d(params).
@@ -210,9 +210,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         system: GalerkinTransientSystemProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
-        state_state_hvp = (
-            system.spatial_operator().state_derivatives().state_state_hvp
-        )
+        state_state_hvp = system.spatial_operator().state_derivatives().state_state_hvp
         if state_state_hvp is None:
             raise TypeError(
                 f"{type(self).__name__} requires a system whose spatial "
@@ -240,51 +238,47 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
                 "initial_param_hvp; use create_galerkin_physics_ode_residual "
                 "to select the right tier"
             )
-        self._state_state_hvp_fn: StateStateHVPFn[Array] = (
-            constrain_state_state_hvp(state_state_hvp, self._constraint_set)
+        self._state_state_hvp_fn: StateStateHVPFn[Array] = constrain_state_state_hvp(
+            state_state_hvp, self._constraint_set
         )
         self._param_param_hvp_fn: ParamHVPFn[Array] = param_param_hvp
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
-        self._initial_param_hvp_fn: InitialParamHVPFn[Array] = (
-            initial_param_hvp
-        )
+        self._initial_param_hvp_fn: InitialParamHVPFn[Array] = initial_param_hvp
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
         """sum_i weight_i (d^2 y_0,i/dp^2) v, essential entries zeroed.
         Shape: (nparams,)."""
-        return self._initial_param_hvp_fn(
-            self._require_params(), weight, vvec
-        )
+        return self._initial_param_hvp_fn(self._require_params(), weight, vvec)
 
     def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute lambda^T (d^2F/dy^2) w. Shape: (nstates,)."""
-        return self._state_state_hvp_fn(state, adj_state, wvec, self._time)
+        return self._state_state_hvp_fn(state, adj_state, wvec, time)
 
     def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute lambda^T (d^2F/dp^2) v. Shape: (nparams,)."""
         return self._param_param_hvp_fn(
-            state, self._time, self._require_params(), adj_state, vvec
+            state, time, self._require_params(), adj_state, vvec
         )
 
     def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
+        self, state: Array, time: float, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute lambda^T (d^2F/dy dp) v. Shape: (nstates,)."""
         return self._state_param_hvp_fn(
-            state, self._time, self._require_params(), adj_state, vvec
+            state, time, self._require_params(), adj_state, vvec
         )
 
     def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
+        self, state: Array, time: float, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute lambda^T (d^2F/dp dy) w. Shape: (nparams,)."""
         return self._param_state_hvp_fn(
-            state, self._time, self._require_params(), adj_state, wvec
+            state, time, self._require_params(), adj_state, wvec
         )
 
 
@@ -334,10 +328,7 @@ def create_galerkin_physics_ode_residual(
             f"got {type(parameterization).__name__}"
         )
     derivs = parameterization.param_derivatives()
-    if (
-        derivs.param_jacobian is not None
-        and derivs.initial_param_jacobian is not None
-    ):
+    if derivs.param_jacobian is not None and derivs.initial_param_jacobian is not None:
         if (
             derivs.param_param_hvp is not None
             and derivs.state_param_hvp is not None
@@ -346,12 +337,8 @@ def create_galerkin_physics_ode_residual(
             and system.spatial_operator().state_derivatives().state_state_hvp
             is not None
         ):
-            return GalerkinPhysicsToODEResidualWithHVPAdapter(
-                system, parameterization
-            )
+            return GalerkinPhysicsToODEResidualWithHVPAdapter(system, parameterization)
         return GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
             system, parameterization
         )
-    return GalerkinPhysicsToODEResidualWithSetParamAdapter(
-        system, parameterization
-    )
+    return GalerkinPhysicsToODEResidualWithSetParamAdapter(system, parameterization)
