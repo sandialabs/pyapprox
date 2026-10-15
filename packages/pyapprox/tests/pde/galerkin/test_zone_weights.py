@@ -17,6 +17,8 @@ from pyapprox.pde.galerkin.zone_weights import (
 )
 from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.symmetric_weight import SymmetricWeightProtocol
 
 # The rectangle directly above the uppermost obstruction block: all
 # edges lie on the coarse tensor grid (x in {4/7, 5/7}, y in {3/4, 1}),
@@ -28,6 +30,27 @@ _ZONE_AREA = (5.0 / 7.0 - 4.0 / 7.0) * 0.25
 
 def _basis(bkd, nrefine):
     return LagrangeBasis(build_obstructed_mesh(bkd, nrefine), degree=1)
+
+
+def _quadratic_form_of_ones(
+    weight: SymmetricWeightProtocol[Array], bkd: Backend[Array]
+) -> float:
+    """``1^T W 1`` through the action only."""
+    ones = bkd.ones((weight.nstates(), 1))
+    return bkd.to_float(bkd.sum(ones * weight.apply(ones)))
+
+
+def _assert_symmetric_action(
+    weight: SymmetricWeightProtocol[Array], bkd: Backend[Array]
+) -> None:
+    """``u^T (W v) = v^T (W u)`` for random u, v: symmetry through the
+    action, without forming W."""
+    rng = np.random.default_rng(17)
+    u = bkd.asarray(rng.normal(size=(weight.nstates(), 1)))
+    v = bkd.asarray(rng.normal(size=(weight.nstates(), 1)))
+    bkd.assert_allclose(
+        bkd.sum(u * weight.apply(v)), bkd.sum(v * weight.apply(u)), rtol=1e-12
+    )
 
 
 class TestElementAlignedRectangleZone:
@@ -49,20 +72,26 @@ class TestElementAlignedRectangleZone:
         bkd = numpy_bkd
         zone = ElementAlignedRectangleZone(_ZONE_XLIM, _ZONE_YLIM)
         weight = zone.assemble_weighted_mass(_basis(bkd, nrefine), bkd)
-        ones = np.ones(weight.shape[0])
-        total = ones @ bkd.to_numpy(weight) @ ones
-        np.testing.assert_allclose(total, _ZONE_AREA, rtol=1e-13)
+        bkd.assert_allclose(
+            bkd.asarray([_quadratic_form_of_ones(weight, bkd)]),
+            bkd.asarray([_ZONE_AREA]),
+            rtol=1e-13,
+        )
 
     def test_symmetric_and_localized(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _basis(bkd, 1)
         zone = ElementAlignedRectangleZone(_ZONE_XLIM, _ZONE_YLIM)
-        weight = bkd.to_numpy(zone.assemble_weighted_mass(basis, bkd))
-        np.testing.assert_allclose(weight, weight.T, rtol=1e-14)
+        weight = zone.assemble_weighted_mass(basis, bkd)
+        assert isinstance(weight, SymmetricWeightProtocol)
+        _assert_symmetric_action(weight, bkd)
         # Rows of DOFs far from the zone are identically zero.
+        dense = bkd.to_numpy(weight.apply(bkd.eye(weight.nstates())))
         coords = bkd.to_numpy(basis.dof_coordinates())
         far = coords[0] < 0.3
-        np.testing.assert_allclose(weight[far], 0.0, atol=1e-15)
+        bkd.assert_allclose(
+            bkd.asarray(dense[far]), bkd.zeros(dense[far].shape), atol=1e-15
+        )
 
     def test_cut_elements_raise(self, numpy_bkd: NumpyBkd) -> None:
         """A rectangle whose edge falls inside elements must fail
@@ -75,9 +104,7 @@ class TestElementAlignedRectangleZone:
     def test_empty_zone_raises(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         # Inside obstruction block C: mesh has no elements there.
-        zone = ElementAlignedRectangleZone(
-            (4.0 / 7.0, 5.0 / 7.0), (0.5, 0.75)
-        )
+        zone = ElementAlignedRectangleZone((4.0 / 7.0, 5.0 / 7.0), (0.5, 0.75))
         with pytest.raises(ValueError, match="no elements"):
             zone.assemble_weighted_mass(_basis(bkd, 0), bkd)
 
@@ -107,9 +134,7 @@ class TestSmoothDiscZone:
         np.testing.assert_allclose(vals[1], 0.5, atol=1e-12)  # on edge
         assert vals[2] < 0.01  # far outside
 
-    def test_assembly_approximates_disc_area(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_assembly_approximates_disc_area(self, numpy_bkd: NumpyBkd) -> None:
         """1^T W 1 ~ pi r^2 when the transition layer is resolved.
         Quadrature assembly is APPROXIMATE — the tolerance here is
         orders looser than the aligned rectangle's 1e-13."""
@@ -117,11 +142,12 @@ class TestSmoothDiscZone:
         # Disc in the open corridor left of the blocks.
         zone = SmoothDiscZone((0.15, 0.6), 0.1, 0.02)
         weight = zone.assemble_weighted_mass(_basis(bkd, 2), bkd)
-        weight_np = bkd.to_numpy(weight)
-        np.testing.assert_allclose(weight_np, weight_np.T, rtol=1e-14)
-        ones = np.ones(weight_np.shape[0])
-        total = ones @ weight_np @ ones
-        np.testing.assert_allclose(total, np.pi * 0.1**2, rtol=5e-2)
+        _assert_symmetric_action(weight, bkd)
+        bkd.assert_allclose(
+            bkd.asarray([_quadratic_form_of_ones(weight, bkd)]),
+            bkd.asarray([np.pi * 0.1**2]),
+            rtol=5e-2,
+        )
 
     def test_outline_is_closed_circle(self) -> None:
         zone = SmoothDiscZone((0.5, 0.85), 0.1, 0.02)

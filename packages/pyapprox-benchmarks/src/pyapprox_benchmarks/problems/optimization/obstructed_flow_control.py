@@ -77,9 +77,7 @@ class _InletNormalSpeed:
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         y = x[1]
-        return np.asarray(
-            y ** (self._a - 1.0) * (1.0 - y) ** (self._b - 1.0)
-        )
+        return np.asarray(y ** (self._a - 1.0) * (1.0 - y) ** (self._b - 1.0))
 
 
 class ObstructedFlowControlProblem(Generic[Array]):
@@ -194,8 +192,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
             )
         if inlet_bc not in ("danckwerts", "dirichlet"):
             raise ValueError(
-                f"inlet_bc must be 'danckwerts' or 'dirichlet', got "
-                f"{inlet_bc!r}"
+                f"inlet_bc must be 'danckwerts' or 'dirichlet', got {inlet_bc!r}"
             )
         self._inlet_bc = inlet_bc
         if actuator_centers is None:
@@ -232,10 +229,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         """Evaluate a unit Gaussian bump at nodal coordinates."""
         return np.asarray(
             np.exp(
-                -(
-                    (coords[0] - center[0]) ** 2
-                    + (coords[1] - center[1]) ** 2
-                )
+                -((coords[0] - center[0]) ** 2 + (coords[1] - center[1]) ** 2)
                 / (2.0 * width**2)
             )
         )
@@ -249,12 +243,9 @@ class ObstructedFlowControlProblem(Generic[Array]):
             One field per device. Shape: (ncontrols, ndofs).
         """
         squared_dist = (
-            (self._dof_coords[:, None, :] - self._actuator_centers[:, :, None])
-            ** 2
+            (self._dof_coords[:, None, :] - self._actuator_centers[:, :, None]) ** 2
         ).sum(axis=0)
-        return np.asarray(
-            np.exp(-squared_dist / (2.0 * self._actuator_width**2))
-        )
+        return np.asarray(np.exp(-squared_dist / (2.0 * self._actuator_width**2)))
 
     def _build_model(
         self,
@@ -314,9 +305,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         )
 
         transport_mesh = build_obstructed_mesh(bkd, ntransport_refine)
-        self._basis: "LagrangeBasis[Array]" = LagrangeBasis(
-            transport_mesh, degree=1
-        )
+        self._basis: "LagrangeBasis[Array]" = LagrangeBasis(transport_mesh, degree=1)
         self._velocity = extract_velocity_callable(
             stokes_sol, stokes, vel_basis, pres_basis, self._basis, bkd
         )
@@ -334,10 +323,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         extraction_map = BasisExpansion(
             bkd,
             0.0,
-            [
-                bkd.asarray(-actuator_fields[kk])
-                for kk in range(self.ncontrols())
-            ],
+            [bkd.asarray(-actuator_fields[kk]) for kk in range(self.ncontrols())],
         )
 
         physics = AdvectionDiffusionReaction(
@@ -382,16 +368,12 @@ class ObstructedFlowControlProblem(Generic[Array]):
         )
 
         if zone_weight is None:
-            zone_weight = ElementAlignedRectangleZone(
-                _ZONE_XLIM, _ZONE_YLIM
-            )
+            zone_weight = ElementAlignedRectangleZone(_ZONE_XLIM, _ZONE_YLIM)
         self._zone_weight: "ZoneWeightProtocol[Array]" = zone_weight
-        weight_matrix = zone_weight.assemble_weighted_mass(self._basis, bkd)
+        zone_mass = zone_weight.assemble_weighted_mass(self._basis, bkd)
 
         functional = TikhonovAugmentedFunctional(
-            TimeIntegratedWeightedL2Functional(
-                weight_matrix, self.ncontrols(), bkd
-            ),
+            TimeIntegratedWeightedL2Functional(zone_mass, self.ncontrols(), bkd),
             self._alpha,
             bkd,
         )
@@ -470,8 +452,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
             Nonnegative rate field. Shape: (ndofs,).
         """
         return np.asarray(
-            np.asarray(controls, dtype=float)
-            @ self._actuator_fields_nodal()
+            np.asarray(controls, dtype=float) @ self._actuator_fields_nodal()
         )
 
     def actuator_labels(self) -> Tuple[str, ...]:

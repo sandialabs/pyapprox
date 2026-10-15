@@ -15,7 +15,9 @@ function ``w(x)`` assembled against the finite-element basis as
   by quadrature; the transition width should resolve the mesh.
 
 Swapping implementations changes the QoI's spatial weighting without
-touching the functional, which consumes only the assembled ``W``.
+touching the functional, which consumes only the action ``W x``. The
+assembled matrix stays sparse (``ScipySparseWeight``); it is never
+densified.
 """
 
 from __future__ import annotations
@@ -39,6 +41,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.symmetric_weight import (
+    ScipySparseWeight,
+    SymmetricWeightProtocol,
+)
 
 
 @runtime_checkable
@@ -47,7 +53,7 @@ class ZoneWeightProtocol(Protocol, Generic[Array]):
 
     def assemble_weighted_mass(
         self, basis: "LagrangeBasis[Array]", bkd: Backend[Array]
-    ) -> Array:
+    ) -> SymmetricWeightProtocol[Array]:
         """Assemble ``W_ij = int w(x) phi_i phi_j dx``.
 
         Parameters
@@ -55,12 +61,14 @@ class ZoneWeightProtocol(Protocol, Generic[Array]):
         basis : LagrangeBasis
             Scalar basis of the state the weight applies to.
         bkd : Backend
-            Backend for the returned dense array.
+            Backend of the arrays the weight's ``apply`` returns.
 
         Returns
         -------
-        Array
-            Symmetric weighted mass matrix. Shape: ``(ndofs, ndofs)``.
+        SymmetricWeightProtocol
+            Symmetric positive-semidefinite weighted mass, ``nstates``
+            equal to the basis' number of DOFs. Zero outside the zone,
+            so only semidefinite.
         """
         ...
 
@@ -93,13 +101,10 @@ class ElementAlignedRectangleZone(Generic[Array]):
         Rectangle y-extent ``(ymin, ymax)``.
     """
 
-    def __init__(
-        self, xlim: Tuple[float, float], ylim: Tuple[float, float]
-    ) -> None:
+    def __init__(self, xlim: Tuple[float, float], ylim: Tuple[float, float]) -> None:
         if not (xlim[0] < xlim[1] and ylim[0] < ylim[1]):
             raise ValueError(
-                f"rectangle must have positive extent, got xlim={xlim}, "
-                f"ylim={ylim}"
+                f"rectangle must have positive extent, got xlim={xlim}, ylim={ylim}"
             )
         self._xlim = (float(xlim[0]), float(xlim[1]))
         self._ylim = (float(ylim[0]), float(ylim[1]))
@@ -127,24 +132,14 @@ class ElementAlignedRectangleZone(Generic[Array]):
             & (points[1] <= self._ylim[1])
         )
 
-    def _member_elements(
-        self, mesh_p: np.ndarray, mesh_t: np.ndarray
-    ) -> np.ndarray:
+    def _member_elements(self, mesh_p: np.ndarray, mesh_t: np.ndarray) -> np.ndarray:
         """Classify elements, raising on any cut element."""
         tol = 1e-12
-        xin = (mesh_p[0] >= self._xlim[0] - tol) & (
-            mesh_p[0] <= self._xlim[1] + tol
-        )
-        yin = (mesh_p[1] >= self._ylim[0] - tol) & (
-            mesh_p[1] <= self._ylim[1] + tol
-        )
+        xin = (mesh_p[0] >= self._xlim[0] - tol) & (mesh_p[0] <= self._xlim[1] + tol)
+        yin = (mesh_p[1] >= self._ylim[0] - tol) & (mesh_p[1] <= self._ylim[1] + tol)
         vert_in = xin & yin
-        xstrict = (mesh_p[0] > self._xlim[0] + tol) & (
-            mesh_p[0] < self._xlim[1] - tol
-        )
-        ystrict = (mesh_p[1] > self._ylim[0] + tol) & (
-            mesh_p[1] < self._ylim[1] - tol
-        )
+        xstrict = (mesh_p[0] > self._xlim[0] + tol) & (mesh_p[0] < self._xlim[1] - tol)
+        ystrict = (mesh_p[1] > self._ylim[0] + tol) & (mesh_p[1] < self._ylim[1] - tol)
         vert_strict_in = xstrict & ystrict
 
         elem_vert_in = vert_in[mesh_t]
@@ -164,19 +159,16 @@ class ElementAlignedRectangleZone(Generic[Array]):
 
     def assemble_weighted_mass(
         self, basis: "LagrangeBasis[Array]", bkd: Backend[Array]
-    ) -> Array:
+    ) -> SymmetricWeightProtocol[Array]:
         """Assemble the exact sub-mesh mass matrix of the rectangle."""
         from skfem import Basis, BilinearForm, asm
 
         skfem_basis = basis.skfem_basis()
         mesh = skfem_basis.mesh
-        elements = self._member_elements(
-            np.asarray(mesh.p), np.asarray(mesh.t)
-        )
+        elements = self._member_elements(np.asarray(mesh.p), np.asarray(mesh.t))
         if elements.shape[0] == 0:
             raise ValueError(
-                f"no elements lie inside the rectangle x={self._xlim}, "
-                f"y={self._ylim}"
+                f"no elements lie inside the rectangle x={self._xlim}, y={self._ylim}"
             )
         sub_basis = Basis(mesh, skfem_basis.elem, elements=elements)
 
@@ -188,9 +180,7 @@ class ElementAlignedRectangleZone(Generic[Array]):
             ret: NDArray[np.floating[Any]] = u * v
             return ret
 
-        return bkd.asarray(
-            asm(BilinearForm(mass_form), sub_basis).toarray()
-        )
+        return ScipySparseWeight(asm(BilinearForm(mass_form), sub_basis), bkd)
 
     def outline_vertices(self) -> np.ndarray:
         """Return the closed rectangle outline. Shape: ``(2, 5)``."""
@@ -204,10 +194,7 @@ class ElementAlignedRectangleZone(Generic[Array]):
         )
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"xlim={self._xlim}, ylim={self._ylim})"
-        )
+        return f"{self.__class__.__name__}(xlim={self._xlim}, ylim={self._ylim})"
 
 
 class SmoothDiscZone(Generic[Array]):
@@ -254,22 +241,15 @@ class SmoothDiscZone(Generic[Array]):
     def weight_values(self, points: np.ndarray) -> np.ndarray:
         """Evaluate w at points of shape ``(2, ...)``."""
         distance = np.sqrt(
-            (points[0] - self._center[0]) ** 2
-            + (points[1] - self._center[1]) ** 2
+            (points[0] - self._center[0]) ** 2 + (points[1] - self._center[1]) ** 2
         )
         return np.asarray(
-            0.5
-            * (
-                1.0
-                - np.tanh(
-                    (distance - self._radius) / self._transition_width
-                )
-            )
+            0.5 * (1.0 - np.tanh((distance - self._radius) / self._transition_width))
         )
 
     def assemble_weighted_mass(
         self, basis: "LagrangeBasis[Array]", bkd: Backend[Array]
-    ) -> Array:
+    ) -> SymmetricWeightProtocol[Array]:
         """Assemble ``W`` with w evaluated at quadrature points."""
         from skfem import BilinearForm, asm
 
@@ -280,14 +260,11 @@ class SmoothDiscZone(Generic[Array]):
             v: "DiscreteField",
             w: "FormExtraParams",
         ) -> np.ndarray:
-            ret: NDArray[np.floating[Any]] = (
-                weight_values(np.asarray(w.x)) * u * v
-            )
+            ret: NDArray[np.floating[Any]] = weight_values(np.asarray(w.x)) * u * v
             return ret
 
-        return bkd.asarray(
-            asm(BilinearForm(weighted_mass_form), basis.skfem_basis())
-            .toarray()
+        return ScipySparseWeight(
+            asm(BilinearForm(weighted_mass_form), basis.skfem_basis()), bkd
         )
 
     def outline_vertices(self) -> np.ndarray:

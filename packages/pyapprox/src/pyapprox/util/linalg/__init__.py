@@ -50,6 +50,12 @@ from pyapprox.util.linalg.sparse_dispatch import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
+from pyapprox.util.linalg.symmetric_weight import (
+    DenseMatrixWeight,
+    ScipySparseWeight,
+    SymmetricWeightProtocol,
+    TorchSparseWeight,
+)
 from pyapprox.util.linalg.truncated_pivoted_qr import (
     TruncatedPivotedQRFactorizer,
 )
@@ -80,6 +86,11 @@ __all__ = [
     "m_orthonormality_drift",
     "RowSeparableMetric",
     "m_orthonormality_drift_from_blocks",
+    # Symmetric weights (storage owned by the implementation)
+    "SymmetricWeightProtocol",
+    "DenseMatrixWeight",
+    "ScipySparseWeight",
+    "TorchSparseWeight",
     "OrthonormalizerProtocol",
     "HouseholderQR",
     "CholeskyQR",

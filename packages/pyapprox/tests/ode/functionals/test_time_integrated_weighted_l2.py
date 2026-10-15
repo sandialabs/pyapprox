@@ -9,6 +9,7 @@ between scheme and quadrature.
 
 import numpy as np
 import pytest
+from scipy.sparse import diags
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -27,6 +28,11 @@ from pyapprox.ode.time_quadrature import (
     right_rectangle_quadrature,
     trapezoidal_quadrature,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.symmetric_weight import (
+    DenseMatrixWeight,
+    ScipySparseWeight,
+)
 
 _NSTATES = 4
 _NTIMES = 6
@@ -44,16 +50,14 @@ def _times(bkd):
     return bkd.asarray(np.linspace(0.0, _DELTAT * (_NTIMES - 1), _NTIMES))
 
 
-def _make_functional(bkd, quadrature="trapezoid"):
-    func = TimeIntegratedWeightedL2Functional(
-        bkd.asarray(_weight_matrix_np()), _NPARAMS, bkd
-    )
+def _make_functional(bkd, quadrature="trapezoid", weight=None):
+    if weight is None:
+        weight = DenseMatrixWeight(bkd.asarray(_weight_matrix_np()), bkd)
+    func = TimeIntegratedWeightedL2Functional(weight, _NPARAMS, bkd)
     if quadrature == "trapezoid":
         func.set_time_quadrature(trapezoidal_quadrature(_times(bkd), bkd))
     elif quadrature == "right":
-        func.set_time_quadrature(
-            right_rectangle_quadrature(_times(bkd), bkd)
-        )
+        func.set_time_quadrature(right_rectangle_quadrature(_times(bkd), bkd))
     elif quadrature == "midpoint":
         func.set_time_quadrature(midpoint_quadrature(_times(bkd), bkd))
     return func
@@ -69,17 +73,48 @@ class TestTimeIntegratedWeightedL2Functional:
         assert func.nparams() == _NPARAMS
         assert func.nunique_params() == 0
 
-    def test_constructor_validation(self, bkd) -> None:
-        with pytest.raises(ValueError, match="nstates, nstates"):
+    def test_raw_matrix_is_refused(self, bkd: Backend[Array]) -> None:
+        """The weight is injected as a storage-owning object; shape and
+        symmetry are validated where it is built (see
+        test_symmetric_weight.py)."""
+        with pytest.raises(TypeError, match="SymmetricWeightProtocol"):
             TimeIntegratedWeightedL2Functional(
-                bkd.ones((_NSTATES, _NSTATES + 1)), _NPARAMS, bkd
+                bkd.asarray(_weight_matrix_np()), _NPARAMS, bkd
             )
-        asymmetric = np.eye(_NSTATES)
-        asymmetric[0, 1] = 1.0
-        with pytest.raises(ValueError, match="symmetric"):
-            TimeIntegratedWeightedL2Functional(
-                bkd.asarray(asymmetric), _NPARAMS, bkd
-            )
+
+    @pytest.mark.parametrize("quadrature", ["trapezoid", "right", "midpoint"])
+    def test_sparse_weight_matches_dense(
+        self, bkd: Backend[Array], quadrature: str
+    ) -> None:
+        """A 1D P1 mass stored sparse gives the same value, state
+        Jacobian and per-step HVP as its dense copy."""
+        h = 1.0 / (_NSTATES - 1)
+        mass = diags(
+            [h / 6.0, 2.0 * h / 3.0, h / 6.0],
+            [-1, 0, 1],
+            shape=(_NSTATES, _NSTATES),
+        ).tocsr()
+        sparse = _make_functional(bkd, quadrature, ScipySparseWeight(mass, bkd))
+        dense = _make_functional(
+            bkd, quadrature, DenseMatrixWeight(bkd.asarray(mass.toarray()), bkd)
+        )
+        rng = np.random.default_rng(5)
+        sol = bkd.asarray(rng.normal(0.0, 1.0, (_NSTATES, _NTIMES)))
+        param = bkd.zeros((_NPARAMS, 1))
+        bkd.assert_allclose(sparse(sol, param), dense(sol, param), rtol=1e-12)
+        bkd.assert_allclose(
+            sparse.state_jacobian(sol, param),
+            dense.state_jacobian(sol, param),
+            rtol=1e-12,
+        )
+        if quadrature == "midpoint":
+            return
+        wvec = bkd.asarray(rng.normal(0.0, 1.0, (_NSTATES, 1)))
+        bkd.assert_allclose(
+            sparse.state_state_hvp(sol, param, 2, wvec),
+            dense.state_state_hvp(sol, param, 2, wvec),
+            rtol=1e-12,
+        )
 
     def test_evaluation_requires_injected_quadrature(self, bkd) -> None:
         """The functional REFUSES to run on hand-assumed weights: the
@@ -108,9 +143,7 @@ class TestTimeIntegratedWeightedL2Functional:
     @pytest.mark.parametrize("rule", ["trapezoid", "right", "midpoint"])
     def test_value_matches_quadrature_sum(self, bkd, rule) -> None:
         func = _make_functional(bkd, quadrature=rule)
-        sol_np = np.random.default_rng(3).normal(
-            0.0, 1.0, (_NSTATES, _NTIMES)
-        )
+        sol_np = np.random.default_rng(3).normal(0.0, 1.0, (_NSTATES, _NTIMES))
         weight_np = _weight_matrix_np()
         if rule == "trapezoid":
             quad_w = np.full(_NTIMES, _DELTAT)
@@ -128,18 +161,12 @@ class TestTimeIntegratedWeightedL2Functional:
         )
         value = func(bkd.asarray(sol_np), bkd.zeros((_NPARAMS, 1)))
         assert value.shape == (1, 1)
-        bkd.assert_allclose(
-            value, bkd.asarray(np.array([[expected]])), rtol=1e-12
-        )
+        bkd.assert_allclose(value, bkd.asarray(np.array([[expected]])), rtol=1e-12)
 
     def test_state_jacobian_every_step_nonzero(self, bkd) -> None:
         func = _make_functional(bkd)
-        sol_np = np.random.default_rng(5).normal(
-            0.0, 1.0, (_NSTATES, _NTIMES)
-        )
-        dqdu = func.state_jacobian(
-            bkd.asarray(sol_np), bkd.zeros((_NPARAMS, 1))
-        )
+        sol_np = np.random.default_rng(5).normal(0.0, 1.0, (_NSTATES, _NTIMES))
+        dqdu = func.state_jacobian(bkd.asarray(sol_np), bkd.zeros((_NPARAMS, 1)))
         assert dqdu.shape == (_NSTATES, _NTIMES)
         quad_w = np.full(_NTIMES, _DELTAT)
         quad_w[0] = quad_w[-1] = 0.5 * _DELTAT
@@ -166,17 +193,13 @@ class TestTimeIntegratedWeightedL2Functional:
 
         def jac_fn(sample):
             sol = bkd.reshape(sample[:, 0], (_NSTATES, _NTIMES))
-            return bkd.reshape(
-                func.state_jacobian(sol, param), (1, nvars)
-            )
+            return bkd.reshape(func.state_jacobian(sol, param), (1, nvars))
 
         wrapped = FunctionWithJacobianFromCallable(
             nqoi=1, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd
         )
         checker = DerivativeChecker(wrapped)
-        sample = bkd.asarray(
-            np.random.default_rng(7).normal(0.0, 1.0, (nvars, 1))
-        )
+        sample = bkd.asarray(np.random.default_rng(7).normal(0.0, 1.0, (nvars, 1)))
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         # Observed V-bottom ~1.3e-6 locally (600-var FD accumulates
@@ -194,12 +217,8 @@ class TestTimeIntegratedWeightedL2Functional:
         quad_w = np.full(_NTIMES, _DELTAT)
         quad_w[0] = quad_w[-1] = 0.5 * _DELTAT
         for time_idx in [0, _NTIMES // 2, _NTIMES - 1]:
-            expected = (
-                2.0 * quad_w[time_idx] * _weight_matrix_np() @ wvec_np
-            )
-            hvp = func.state_state_hvp(
-                sol, param, time_idx, bkd.asarray(wvec_np)
-            )
+            expected = 2.0 * quad_w[time_idx] * _weight_matrix_np() @ wvec_np
+            hvp = func.state_state_hvp(sol, param, time_idx, bkd.asarray(wvec_np))
             assert hvp.shape == (_NSTATES, 1)
             bkd.assert_allclose(hvp, bkd.asarray(expected), rtol=1e-12)
 

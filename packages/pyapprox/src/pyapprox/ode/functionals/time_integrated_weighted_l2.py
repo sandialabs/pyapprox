@@ -14,6 +14,7 @@ from pyapprox.ode.functionals.protocols import (
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
+from pyapprox.util.linalg.symmetric_weight import SymmetricWeightProtocol
 
 
 class TimeIntegratedWeightedL2Functional(Generic[Array]):
@@ -34,46 +35,47 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
     Per-step HVP methods require a time-diagonal quadrature (all nodal
     rules); the midpoint rule couples adjacent steps and raises.
 
+    The weight is used only through its action ``W x``, so it may be
+    stored in any form (dense, scipy sparse, torch sparse, diagonal) and
+    is never densified here. Symmetry, which the state Jacobian
+    ``2 w_j W y_j`` relies on, is part of the weight's contract and is
+    checked where the weight is built from raw data.
+
     Parameters
     ----------
-    weight_matrix : Array
-        Symmetric matrix W, e.g. a subdomain-weighted mass matrix.
-        Shape: ``(nstates, nstates)``.
+    weight : SymmetricWeightProtocol
+        Symmetric positive-semidefinite weight W, e.g. a
+        subdomain-weighted mass matrix (``ScipySparseWeight``) or
+        ``EuclideanInnerProduct`` for the unweighted norm.
     nparams : int
         Total number of parameters.
     bkd : Backend
         Backend for array operations.
+
+    Raises
+    ------
+    TypeError
+        If ``weight`` does not satisfy ``SymmetricWeightProtocol``.
     """
 
     def __init__(
         self,
-        weight_matrix: Array,
+        weight: SymmetricWeightProtocol[Array],
         nparams: int,
         bkd: Backend[Array],
     ):
         validate_backend(bkd)
-        if (
-            weight_matrix.ndim != 2
-            or weight_matrix.shape[0] != weight_matrix.shape[1]
-        ):
-            raise ValueError(
-                "weight_matrix must have shape (nstates, nstates), got "
-                f"{weight_matrix.shape}"
+        if not isinstance(weight, SymmetricWeightProtocol):
+            raise TypeError(
+                "weight must satisfy SymmetricWeightProtocol, got "
+                f"{type(weight).__name__}; wrap a matrix in "
+                "DenseMatrixWeight or ScipySparseWeight"
             )
-        asymmetry = bkd.max(bkd.abs(weight_matrix - weight_matrix.T))
-        scale = bkd.max(bkd.abs(weight_matrix))
-        if bkd.to_float(asymmetry) > 1e-12 * max(bkd.to_float(scale), 1.0):
-            raise ValueError(
-                "weight_matrix must be symmetric; the state Jacobian "
-                "formula 2 w_j W y_j assumes W = W^T"
-            )
-        self._weight_matrix = weight_matrix
-        self._nstates = weight_matrix.shape[0]
+        self._weight = weight
+        self._nstates = weight.nstates()
         self._nparams = nparams
         self._bkd = bkd
-        self._quadrature: Optional[
-            TrajectoryQuadratureProtocol[Array]
-        ] = None
+        self._quadrature: Optional[TrajectoryQuadratureProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -128,9 +130,9 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
             self.param_param_hvp,
         )
 
-    def weight_matrix(self) -> Array:
-        """Return W. Shape: ``(nstates, nstates)``."""
-        return self._weight_matrix
+    def weight(self) -> SymmetricWeightProtocol[Array]:
+        """Return the weight W."""
+        return self._weight
 
     def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]
@@ -168,8 +170,7 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
     ) -> None:
         if sol.shape[0] != self._nstates:
             raise ValueError(
-                f"sol has {sol.shape[0]} states but weight_matrix has "
-                f"{self._nstates}"
+                f"sol has {sol.shape[0]} states but the weight has {self._nstates}"
             )
         if sol.shape[1] != quadrature.ntimes():
             raise ValueError(
@@ -197,7 +198,7 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
         quadrature = self.time_quadrature()
         self._validate_sol(sol, quadrature)
         sampled = quadrature.sample(sol)
-        weighted = self._bkd.dot(self._weight_matrix, sampled)
+        weighted = self._weight.apply(sampled)
         per_sample = self._bkd.sum(sampled * weighted, axis=0)
         return self._bkd.reshape(
             self._bkd.sum(quadrature.weights() * per_sample), (1, 1)
@@ -225,9 +226,11 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
         quadrature = self.time_quadrature()
         self._validate_sol(sol, quadrature)
         sampled = quadrature.sample(sol)
-        weighted = self._bkd.dot(self._weight_matrix, sampled)
-        graded = 2.0 * weighted * self._bkd.reshape(
-            quadrature.weights(), (1, quadrature.nsamples())
+        weighted = self._weight.apply(sampled)
+        graded = (
+            2.0
+            * weighted
+            * self._bkd.reshape(quadrature.weights(), (1, quadrature.nsamples()))
         )
         return quadrature.accumulate(graded)
 
@@ -274,11 +277,7 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
             HVP result. Shape: (nstates, 1)
         """
         nodal_weights = self.time_quadrature().nodal_weights()
-        return (
-            2.0
-            * nodal_weights[time_idx]
-            * self._bkd.dot(self._weight_matrix, wvec)
-        )
+        return 2.0 * nodal_weights[time_idx] * self._weight.apply(wvec)
 
     def state_param_hvp(
         self, sol: Array, param: Array, time_idx: int, vvec: Array

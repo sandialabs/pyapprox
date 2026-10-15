@@ -80,6 +80,7 @@ from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.symmetric_weight import ScipySparseWeight
 from tests._helpers.adjoint_checks import NumpyArray
 
 _N_KLE_MODES = 4
@@ -111,9 +112,7 @@ def _time_config(method: str) -> TimeIntegrationConfig[NumpyArray]:
     )
 
 
-def _build_physics(
-    bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = False
-):
+def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = False):
     """2D unit-square ADR: nodal diffusivity/forcing, constant (1, 0)
     velocity, homogeneous Dirichlet. The optional CUBIC reaction is the
     only state-nonlinear term, and unlike the component tiers'
@@ -124,9 +123,7 @@ def _build_physics(
     alpha(y) on the left, constant on the right): the adjoint then must
     handle a mixed essential/natural set where the Robin boundary term
     enters the transposed operator rather than the row machinery."""
-    mesh = StructuredMesh2D(
-        nx=6, ny=6, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
-    )
+    mesh = StructuredMesh2D(nx=6, ny=6, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     vel_basis = VectorLagrangeBasis(mesh, degree=1)
     vel_dofs = np.zeros(vel_basis.ndofs())
@@ -154,9 +151,7 @@ def _build_physics(
         ]
     physics = AdvectionDiffusionReaction(
         basis=basis,
-        diffusivity=NodalFieldDiffusion(
-            basis, dofs=0.1 * np.ones(basis.ndofs())
-        ),
+        diffusivity=NodalFieldDiffusion(basis, dofs=0.1 * np.ones(basis.ndofs())),
         bkd=bkd,
         velocity=NodalFieldVelocity(vel_basis, vel_dofs),
         reaction=reaction,
@@ -233,9 +228,7 @@ def _subdomain_average_weights(bkd: NumpyBkd, physics) -> NumpyArray:
 
 def _gaussian_bump_ic(bkd: NumpyBkd, physics) -> NumpyArray:
     coords = bkd.to_numpy(physics.basis().dof_coordinates())
-    vals = np.exp(
-        -50.0 * ((coords[0] - 0.4) ** 2 + (coords[1] - 0.5) ** 2)
-    )
+    vals = np.exp(-50.0 * ((coords[0] - 0.4) ** 2 + (coords[1] - 0.5) ** 2))
     return bkd.asarray(vals)
 
 
@@ -284,21 +277,15 @@ def _check_gradient_and_hvp(
 
     if expect_zero_hessian:
         checker = DerivativeChecker(model)
-        errors = checker.check_derivatives(
-            sample, direction=direction, relative=True
-        )
+        errors = checker.check_derivatives(sample, direction=direction, relative=True)
         jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
         assert jac_ratio <= 2e-5
         hvp_val = hvp_fn(sample, direction)
-        bkd.assert_allclose(
-            hvp_val, bkd.zeros(hvp_val.shape), atol=1e-14, rtol=0.0
-        )
+        bkd.assert_allclose(hvp_val, bkd.zeros(hvp_val.shape), atol=1e-14, rtol=0.0)
         return
 
     checker = DerivativeChecker(model)
-    errors = checker.check_derivatives(
-        sample, direction=direction, relative=True
-    )
+    errors = checker.check_derivatives(sample, direction=direction, relative=True)
     jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
     assert jac_ratio <= 2e-5
     hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
@@ -306,9 +293,7 @@ def _check_gradient_and_hvp(
     hvp_ratio = float(bkd.to_numpy(checker.error_ratio(errors[1])))
     assert hvp_ratio <= 1e-5
 
-    other = bkd.asarray(
-        np.random.default_rng(11).normal(0.0, 1.0, (model.nvars(), 1))
-    )
+    other = bkd.asarray(np.random.default_rng(11).normal(0.0, 1.0, (model.nvars(), 1)))
     h_dir = bkd.flatten(hvp_fn(sample, direction))
     h_other = bkd.flatten(hvp_fn(sample, other))
     bkd.assert_allclose(
@@ -370,9 +355,7 @@ class TestTransientAdjointWorkedExample:
         # exact Hessian is zero. The cubic-linear case shares the
         # linear forcing map but its Hessian is NONZERO: the state
         # enters Q through the cubic reaction.
-        _check_gradient_and_hvp(
-            bkd, model, expect_zero_hessian=(case == "forcing")
-        )
+        _check_gradient_and_hvp(bkd, model, expect_zero_hessian=(case == "forcing"))
 
     def test_scalar_adjoint_matches_forward_sensitivity_row(
         self, numpy_bkd: NumpyBkd
@@ -400,9 +383,7 @@ class TestTransientAdjointWorkedExample:
                 bkd,
             ),
         )
-        vector_model = GalerkinTransientForwardModel(
-            system, param_obj, ic, config, bkd
-        )
+        vector_model = GalerkinTransientForwardModel(system, param_obj, ic, config, bkd)
         sample_np, _ = _sample_and_direction(scalar_model.nvars())
         sample = bkd.asarray(sample_np)
         scalar_jac = scalar_model.derivatives().jacobian
@@ -411,9 +392,7 @@ class TestTransientAdjointWorkedExample:
         assert vector_jac is not None
         grad = bkd.to_numpy(scalar_jac(sample))
         w_final = bkd.to_numpy(vector_jac(sample))
-        weights = bkd.to_numpy(
-            _subdomain_average_weights(bkd, physics)
-        )[:, 0]
+        weights = bkd.to_numpy(_subdomain_average_weights(bkd, physics))[:, 0]
         bkd.assert_allclose(
             bkd.asarray(grad.flatten()),
             bkd.asarray(weights @ w_final),
@@ -449,9 +428,7 @@ class TestTransientAdjointWorkedExample:
             np.random.default_rng(13).normal(0.0, 1.0, (model.nvars(), 1))
         )
         checker = DerivativeChecker(model)
-        errors = checker.check_derivatives(
-            sample, direction=direction, relative=True
-        )
+        errors = checker.check_derivatives(sample, direction=direction, relative=True)
         jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
         assert jac_ratio <= 2e-5
         hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
@@ -471,13 +448,11 @@ class TestTransientAdjointWorkedExample:
         pathways."""
         bkd = numpy_bkd
         physics, system, param_obj = _build_parameterization(bkd, "forcing")
-        mass = physics.mass_matrix()
-        mass_np = (
-            mass.toarray() if hasattr(mass, "toarray") else np.asarray(mass)
-        )
         functional = TikhonovAugmentedFunctional(
             TimeIntegratedWeightedL2Functional(
-                bkd.asarray(mass_np), param_obj.nparams(), bkd
+                ScipySparseWeight(physics.mass_matrix(), bkd),
+                param_obj.nparams(),
+                bkd,
             ),
             0.7,
             bkd,
@@ -500,12 +475,10 @@ class TestTransientAdjointWorkedExample:
         trapezoid a hand-roller would reach for."""
         bkd = numpy_bkd
         physics, system, param_obj = _build_parameterization(bkd, "forcing")
-        mass = physics.mass_matrix()
-        mass_np = (
-            mass.toarray() if hasattr(mass, "toarray") else np.asarray(mass)
-        )
         inner = TimeIntegratedWeightedL2Functional(
-            bkd.asarray(mass_np), param_obj.nparams(), bkd
+            ScipySparseWeight(physics.mass_matrix(), bkd),
+            param_obj.nparams(),
+            bkd,
         )
         model = GalerkinTransientForwardModel(
             system,
@@ -517,9 +490,7 @@ class TestTransientAdjointWorkedExample:
         )
         model(bkd.zeros((model.nvars(), 1)))
         config = _time_config("backward_euler")
-        nsteps = round(
-            (config.final_time - config.init_time) / config.deltat
-        )
+        nsteps = round((config.final_time - config.init_time) / config.deltat)
         expected = np.full(nsteps + 1, config.deltat)
         expected[0] = 0.0
         bkd.assert_allclose(
@@ -540,9 +511,7 @@ class TestTransientAdjointWorkedExample:
         essential rows. First adjoint coverage of galerkin Robin BCs —
         needed before an inflow can become the Danckwerts condition."""
         bkd = numpy_bkd
-        physics, system, param_obj = _build_parameterization(
-            bkd, case, robin=True
-        )
+        physics, system, param_obj = _build_parameterization(bkd, case, robin=True)
         functional = WeightedEndpointFunctional(
             _subdomain_average_weights(bkd, physics),
             param_obj.nparams(),
@@ -559,27 +528,19 @@ class TestTransientAdjointWorkedExample:
         assert model.derivatives().hvp is not None
         # Linear forcing map + linear QoI: exactly zero Hessian, as in
         # the Dirichlet variant of this configuration.
-        _check_gradient_and_hvp(
-            bkd, model, expect_zero_hessian=(case == "forcing")
-        )
+        _check_gradient_and_hvp(bkd, model, expect_zero_hessian=(case == "forcing"))
 
-    def test_quasilinear_gradient_and_hvp(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_quasilinear_gradient_and_hvp(self, numpy_bkd: NumpyBkd) -> None:
         """Quasilinear kappa(u)*a(x) diffusion through the model: the
         genuinely state-dependent mixed curvature is exercised end to
         end (a plausibly-wrong Hessian is invisible to gradient-only
         tests)."""
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = QuasilinearDiffusion(
             basis=basis,
-            diffusivity=NodalFieldDiffusion(
-                basis, dofs=0.1 * np.ones(basis.ndofs())
-            ),
+            diffusivity=NodalFieldDiffusion(basis, dofs=0.1 * np.ones(basis.ndofs())),
             bkd=bkd,
             kappa=_kappa,
             kappa_deriv=_kappa_deriv,
@@ -638,18 +599,13 @@ class TestTimeModulatedControl:
         )
 
         bkd = NumpyBkd()
-        mesh = StructuredMesh2D(
-            nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         ndofs = basis.ndofs()
         coords = bkd.to_numpy(basis.dof_coordinates())
         modes = np.stack(
             [
-                np.exp(
-                    -15.0
-                    * ((coords[0] - c) ** 2 + (coords[1] - 0.5) ** 2)
-                )
+                np.exp(-15.0 * ((coords[0] - c) ** 2 + (coords[1] - 0.5) ** 2))
                 for c in (0.3, 0.5, 0.7)
             ],
             axis=1,
@@ -666,9 +622,7 @@ class TestTimeModulatedControl:
         )
         physics = AdvectionDiffusionReaction(
             basis=basis,
-            diffusivity=NodalFieldDiffusion(
-                basis, dofs=0.1 * np.ones(ndofs)
-            ),
+            diffusivity=NodalFieldDiffusion(basis, dofs=0.1 * np.ones(ndofs)),
             bkd=bkd,
             reaction=reaction,
             forcing=NodalFieldForcing(basis, dofs=np.ones(ndofs)),
@@ -683,9 +637,7 @@ class TestTimeModulatedControl:
         param = AdvectionDiffusionParameterization(
             physics, reaction_map=FROM_FIELD, bkd=bkd
         )
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
-        )
+        constrained = set(int(d) for d in bkd.to_numpy(system.constraint_set().dofs()))
         free = [i for i in range(ndofs) if i not in constrained]
         weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
         weights[free[len(free) // 2]] = 1.0
@@ -704,15 +656,11 @@ class TestTimeModulatedControl:
                 verbosity=0,
             ),
             bkd,
-            functional=WeightedEndpointFunctional(
-                weights, param.nparams(), bkd
-            ),
+            functional=WeightedEndpointFunctional(weights, param.nparams(), bkd),
         )
         return bkd, model, reaction, param
 
-    @pytest.mark.parametrize(
-        "method", ["backward_euler", "crank_nicolson"]
-    )
+    @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
     def test_gradient_matches_fd(self, method: str) -> None:
         bkd, model, _, param = self._build(method)
         assert model.nvars() == param.nparams() == 3
@@ -732,13 +680,9 @@ class TestTimeModulatedControl:
         control is silently dropped: a gradient of zero agrees with a
         finite difference of zero."""
         bkd, model, _, _ = self._build("crank_nicolson")
-        quiet = float(
-            bkd.to_numpy(model(bkd.asarray(np.zeros((3, 1)))))[0, 0]
-        )
+        quiet = float(bkd.to_numpy(model(bkd.asarray(np.zeros((3, 1)))))[0, 0])
         acting = float(
-            bkd.to_numpy(
-                model(bkd.asarray(np.array([[0.5], [0.3], [0.4]])))
-            )[0, 0]
+            bkd.to_numpy(model(bkd.asarray(np.array([[0.5], [0.3], [0.4]]))))[0, 0]
         )
         assert abs(acting - quiet) > 1e-8
 

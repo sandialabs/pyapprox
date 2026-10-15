@@ -181,6 +181,7 @@ from pyapprox.ode.time_quadrature import (
     right_rectangle_quadrature,
     trapezoidal_quadrature,
 )
+from pyapprox.util.linalg.symmetric_weight import DenseMatrixWeight
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 WEIGHT = np.array([[1.0, 0.0], [0.0, 0.5]])
@@ -214,7 +215,7 @@ def integrated_qoi(stepper_class, deltat, rule):
         0.0, FINAL_TIME, deltat, NewtonSolver(stepper_class(residual)),
     )
     functional = TimeIntegratedWeightedL2Functional(
-        bkd.asarray(WEIGHT), 2, bkd
+        DenseMatrixWeight(bkd.asarray(WEIGHT), bkd), 2, bkd
     )
     integrator.set_functional(functional)
     states, solve_times = integrator.solve(bkd.asarray(INITIAL))

@@ -28,7 +28,8 @@ from pyapprox.ode.time_quadrature import (
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.symmetric_weight import DenseMatrixWeight
 
 _NSTATES = 4
 _NTIMES = 6
@@ -74,9 +75,7 @@ def _make_inner(bkd):
 
 def _make_functional(bkd, weight_np=None):
     weight = None if weight_np is None else bkd.asarray(weight_np)
-    return TikhonovAugmentedFunctional(
-        _make_inner(bkd), _ALPHA, bkd, weight=weight
-    )
+    return TikhonovAugmentedFunctional(_make_inner(bkd), _ALPHA, bkd, weight=weight)
 
 
 class _JacobianOnlyFunctional:
@@ -182,9 +181,7 @@ class TestTikhonovAugmentedFunctional:
         bkd.assert_allclose(func(sol, param), expected, rtol=1e-12)
 
     @pytest.mark.parametrize("weighted", [False, True])
-    def test_param_jacobian_and_hvp_sum_both_terms(
-        self, bkd, weighted
-    ) -> None:
+    def test_param_jacobian_and_hvp_sum_both_terms(self, bkd, weighted) -> None:
         """Inner param derivatives are NONZERO here: the wrapper must
         return inner + Tikhonov, not either alone."""
         weight_np = _spd_np(_NPARAMS, 21) if weighted else None
@@ -204,9 +201,7 @@ class TestTikhonovAugmentedFunctional:
             bkd.asarray(expected_jac),
             rtol=1e-12,
         )
-        expected_hvp = (
-            _INNER_HESSIAN_NP @ vvec_np + _ALPHA * wq @ vvec_np
-        )
+        expected_hvp = _INNER_HESSIAN_NP @ vvec_np + _ALPHA * wq @ vvec_np
         bkd.assert_allclose(
             func.derivatives().param_param_hvp(
                 sol, bkd.asarray(param_np), bkd.asarray(vvec_np)
@@ -234,32 +229,24 @@ class TestTikhonovAugmentedFunctional:
         )
 
     def test_time_quadrature_injection_delegates_to_inner(
-        self, bkd
+        self, bkd: Backend[Array]
     ) -> None:
         """The wrapper forwards the injected rule to the inner functional,
         which uses it if it integrates over time and ignores it
         otherwise."""
-        weight = bkd.asarray(_spd_np(_NSTATES, 29))
+        weight = DenseMatrixWeight(bkd.asarray(_spd_np(_NSTATES, 29)), bkd)
         inner = TimeIntegratedWeightedL2Functional(weight, _NPARAMS, bkd)
         func = TikhonovAugmentedFunctional(inner, _ALPHA, bkd)
         times = bkd.asarray(np.linspace(0.0, 0.5, _NTIMES))
         func.set_time_quadrature(trapezoidal_quadrature(times, bkd))
         sol = bkd.asarray(
-            np.random.default_rng(31).normal(
-                0.0, 1.0, (_NSTATES, _NTIMES)
-            )
+            np.random.default_rng(31).normal(0.0, 1.0, (_NSTATES, _NTIMES))
         )
         param = bkd.zeros((_NPARAMS, 1))
-        bkd.assert_allclose(
-            func(sol, param), inner(sol, param), rtol=1e-14
-        )
+        bkd.assert_allclose(func(sol, param), inner(sol, param), rtol=1e-14)
         endpoint_inner = _make_inner(bkd)
-        endpoint_wrapped = TikhonovAugmentedFunctional(
-            endpoint_inner, _ALPHA, bkd
-        )
-        endpoint_wrapped.set_time_quadrature(
-            trapezoidal_quadrature(times, bkd)
-        )
+        endpoint_wrapped = TikhonovAugmentedFunctional(endpoint_inner, _ALPHA, bkd)
+        endpoint_wrapped.set_time_quadrature(trapezoidal_quadrature(times, bkd))
         bkd.assert_allclose(
             endpoint_wrapped(sol, param),
             endpoint_inner(sol, param),
@@ -278,8 +265,7 @@ class TestTikhonovAugmentedFunctional:
 
         def eval_fn(samples):
             results = [
-                func(sol, samples[:, ii : ii + 1])
-                for ii in range(samples.shape[1])
+                func(sol, samples[:, ii : ii + 1]) for ii in range(samples.shape[1])
             ]
             return bkd.hstack(results)
 
@@ -290,9 +276,7 @@ class TestTikhonovAugmentedFunctional:
             nqoi=1, nvars=_NPARAMS, fun=eval_fn, jacobian=jac_fn, bkd=bkd
         )
         checker = DerivativeChecker(wrapped)
-        sample = bkd.asarray(
-            np.random.default_rng(13).normal(0.0, 1.0, (_NPARAMS, 1))
-        )
+        sample = bkd.asarray(np.random.default_rng(13).normal(0.0, 1.0, (_NPARAMS, 1)))
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-6

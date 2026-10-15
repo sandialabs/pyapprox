@@ -44,6 +44,7 @@ from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.inner_product import EuclideanInnerProduct
 
 _NSTATES, _NPARAMS = 3, 2
 _JAC = {"state_jacobian", "param_jacobian"}
@@ -115,7 +116,9 @@ _FACTORIES: Dict[str, Callable[[NumpyBkd], Any]] = {
         _NSTATES, _NPARAMS, [(0, bkd.asarray(np.array([1, 2])))], bkd
     ),
     "time_integrated_l2": lambda bkd: _with_quadrature(
-        TimeIntegratedWeightedL2Functional(bkd.eye(_NSTATES), _NPARAMS, bkd),
+        TimeIntegratedWeightedL2Functional(
+            EuclideanInnerProduct(_NSTATES, bkd), _NPARAMS, bkd
+        ),
         bkd,
     ),
     "time_indexed_observation": lambda bkd: TimeIndexedObservationFunctional(
@@ -137,14 +140,11 @@ _FACTORIES: Dict[str, Callable[[NumpyBkd], Any]] = {
 
 _EXPECTED: Dict[str, Set[str]] = {
     "endpoint": _JAC | _HVPS,
-    "all_states_endpoint": _JAC
-    | _HVPS
-    | {"apply_state_jacobian", "row_functional"},
+    "all_states_endpoint": _JAC | _HVPS | {"apply_state_jacobian", "row_functional"},
     "weighted_endpoint": _JAC | _HVPS,
     "transient_mse": _JAC | _HVPS,
     "time_integrated_l2": _JAC | _HVPS,
-    "time_indexed_observation": _JAC
-    | {"apply_state_jacobian", "row_functional"},
+    "time_indexed_observation": _JAC | {"apply_state_jacobian", "row_functional"},
     "mse": _JAC | _HVPS,
     "subset_of_states": _JAC,
     "weighted_sum": _JAC | _HVPS,
@@ -168,13 +168,9 @@ class TestDeclaredCapabilities:
         functional = _FACTORIES[name](numpy_bkd)
         bundle = functional.derivatives()
         for field_name in _present(functional):
-            assert getattr(bundle, field_name) == getattr(
-                functional, field_name
-            )
+            assert getattr(bundle, field_name) == getattr(functional, field_name)
 
-    @pytest.mark.parametrize(
-        "name", sorted(n for n in _FACTORIES if n not in _STEADY)
-    )
+    @pytest.mark.parametrize("name", sorted(n for n in _FACTORIES if n not in _STEADY))
     def test_every_transient_functional_accepts_the_quadrature(
         self, numpy_bkd: NumpyBkd, name: str
     ) -> None:
@@ -190,14 +186,14 @@ class TestQuadratureDependentCapability:
 
     def test_capability_needs_a_quadrature(self, numpy_bkd: NumpyBkd) -> None:
         functional = TimeIntegratedWeightedL2Functional(
-            numpy_bkd.eye(_NSTATES), _NPARAMS, numpy_bkd
+            EuclideanInnerProduct(_NSTATES, numpy_bkd), _NPARAMS, numpy_bkd
         )
         with pytest.raises(RuntimeError, match="time quadrature not set"):
             functional.derivatives()
 
     def test_midpoint_rule_drops_the_hvps(self, numpy_bkd: NumpyBkd) -> None:
         functional = TimeIntegratedWeightedL2Functional(
-            numpy_bkd.eye(_NSTATES), _NPARAMS, numpy_bkd
+            EuclideanInnerProduct(_NSTATES, numpy_bkd), _NPARAMS, numpy_bkd
         )
         functional.set_time_quadrature(
             midpoint_quadrature(numpy_bkd.linspace(0.0, 1.0, 4), numpy_bkd)
@@ -206,9 +202,7 @@ class TestQuadratureDependentCapability:
         wrapped = TikhonovAugmentedFunctional(functional, 0.5, numpy_bkd)
         assert _present(wrapped) == _JAC
 
-    def test_endpoint_keeps_hvps_under_midpoint_rule(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_endpoint_keeps_hvps_under_midpoint_rule(self, numpy_bkd: NumpyBkd) -> None:
         """An endpoint functional ignores the quadrature."""
         functional = EndpointFunctional(0, _NSTATES, _NPARAMS, numpy_bkd)
         functional.set_time_quadrature(
@@ -225,18 +219,14 @@ class TestTikhonovMirrorsInner:
         wrapped = TikhonovAugmentedFunctional(inner, 0.5, numpy_bkd)
         assert _present(wrapped) == _JAC | _HVPS
 
-    def test_value_only_inner_gives_no_derivatives(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_value_only_inner_gives_no_derivatives(self, numpy_bkd: NumpyBkd) -> None:
         """A value-only inner functional makes a value-only wrapper."""
         wrapped = TikhonovAugmentedFunctional(
             _ValueOnlyFunctional(numpy_bkd), 0.5, numpy_bkd
         )
         assert _present(wrapped) == set()
 
-    def test_action_inner_gives_action_only(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_action_inner_gives_action_only(self, numpy_bkd: NumpyBkd) -> None:
         """The state-Jacobian action is the inner one; the rows are not
         offered, since they would omit the parameter cost."""
         inner = TimeIndexedObservationFunctional(
@@ -249,14 +239,11 @@ class TestTikhonovMirrorsInner:
         )
         wrapped = TikhonovAugmentedFunctional(inner, 0.5, numpy_bkd)
         assert _present(wrapped) == _JAC | {"apply_state_jacobian"}
-        assert (
-            wrapped.derivatives().apply_state_jacobian
-            == inner.apply_state_jacobian
-        )
+        assert wrapped.derivatives().apply_state_jacobian == inner.apply_state_jacobian
 
     def test_forwards_the_quadrature(self, numpy_bkd: NumpyBkd) -> None:
         inner = TimeIntegratedWeightedL2Functional(
-            numpy_bkd.eye(_NSTATES), _NPARAMS, numpy_bkd
+            EuclideanInnerProduct(_NSTATES, numpy_bkd), _NPARAMS, numpy_bkd
         )
         wrapped = TikhonovAugmentedFunctional(inner, 0.5, numpy_bkd)
         sol = numpy_bkd.ones((_NSTATES, 4))
@@ -266,6 +253,4 @@ class TestTikhonovMirrorsInner:
         )
         # The inner functional received the quadrature (it cannot
         # evaluate without one), and at p = 0 the cost adds nothing.
-        numpy_bkd.assert_allclose(
-            wrapped(sol, param), inner(sol, param), rtol=1e-14
-        )
+        numpy_bkd.assert_allclose(wrapped(sol, param), inner(sol, param), rtol=1e-14)
