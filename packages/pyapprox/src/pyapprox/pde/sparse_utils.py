@@ -6,12 +6,11 @@ both scipy sparse matrices and dense numpy arrays.
 
 from __future__ import annotations
 
-import warnings
 from typing import Any, Union, overload
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import spmatrix
+from scipy.sparse import csr_matrix, spmatrix
 
 # Re-export for backward compatibility
 from pyapprox.util.linalg.sparse_dispatch import (  # noqa: F401
@@ -56,57 +55,30 @@ def apply_dirichlet_rows(
         Modified matrix (same type as input).
     """
     if isinstance(matrix, spmatrix):
-        mat = matrix.tocsr().copy()
-        indptr = mat.indptr
-        data = mat.data
-        indices = mat.indices
-        dof_set = np.asarray(dof_indices)
+        mat = matrix.tocsr(copy=True)
+        nrows = mat.shape[0]
+        dofs = np.unique(np.asarray(dof_indices))
+        is_dirichlet_row = np.zeros(nrows, dtype=bool)
+        is_dirichlet_row[dofs] = True
 
-        # Identify which Dirichlet DOFs have the diagonal entry
-        # already in the sparsity pattern and which need a CSR insert.
-        starts = indptr[dof_set]
-        ends = indptr[dof_set + 1]
-
-        has_diag_mask = np.zeros(len(dof_set), dtype=bool)
-        diag_data_pos = np.empty(len(dof_set), dtype=np.intp)
-        needs_insert = []
-        for ii, dof in enumerate(dof_set):
-            s, e = starts[ii], ends[ii]
-            col_slice = indices[s:e]
-            dp = np.searchsorted(col_slice, dof)
-            if dp < len(col_slice) and col_slice[dp] == dof:
-                has_diag_mask[ii] = True
-                diag_data_pos[ii] = s + dp
-            else:
-                needs_insert.append(dof)
-
-        # Zero all data entries in Dirichlet rows in one pass.
-        lengths = ends - starts
-        total = int(lengths.sum())
-        if total > 0:
-            flat_idx = np.empty(total, dtype=np.intp)
-            pos = 0
-            for s, ln in zip(starts, lengths):
-                flat_idx[pos:pos + ln] = np.arange(s, s + ln)
-                pos += ln
-            data[flat_idx] = 0.0
-
-        # Set diagonals that are in the sparsity pattern.
-        if has_diag_mask.any():
-            data[diag_data_pos[has_diag_mask]] = 1.0
-
-        # Insert diagonals that are missing from the sparsity pattern.
-        # This is rare (only when the matrix was assembled without a
-        # diagonal entry for certain Dirichlet DOFs, e.g. pressure
-        # DOFs in some Stokes formulations).
-        if needs_insert:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=Warning)
-                for dof in needs_insert:
-                    mat[dof, dof] = 1.0
-
+        # Zero every stored entry of the Dirichlet rows in one masked
+        # assignment: the row of each stored entry is expanded from
+        # indptr, so the cost is O(nnz) with no per-DOF Python loop.
+        entry_rows = np.repeat(np.arange(nrows), np.diff(mat.indptr))
+        mat.data[is_dirichlet_row[entry_rows]] = 0.0
         mat.eliminate_zeros()
-        return mat
+
+        # The Dirichlet rows are now structurally empty, so adding the
+        # identity restricted to them sets each diagonal to 1.0 whether
+        # or not it was in the original sparsity pattern (it is absent
+        # when a matrix is assembled without a diagonal entry for some
+        # Dirichlet DOFs, e.g. pressure DOFs in some Stokes
+        # formulations), and leaves every other row unchanged.
+        dirichlet_identity = csr_matrix(
+            (np.ones(dofs.shape[0], dtype=mat.dtype), (dofs, dofs)),
+            shape=mat.shape,
+        )
+        return mat + dirichlet_identity
     else:
         mat = matrix.copy()
         mat[dof_indices, :] = 0.0
