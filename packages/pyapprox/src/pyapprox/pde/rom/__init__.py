@@ -30,8 +30,33 @@ Reduced residuals
 - ParameterizedResidualProtocol: the raw full-order residual consumed
 - ProjectedResidual: the exact projection, the reference for every
   cheaper reduced residual
+
+Affine projection
+-----------------
+- AffineProjectedResidual / fit_affine_projection: precomputed pieces of
+  a residual affine in the state and the parameters
+- ComposedParameterizedResidualProtocol: a raw residual exposing the
+  operator and parameterization whose declarations are checked
+
+Checks
+------
+- ReducedResidualCheckProtocol: compares a fitted reduced residual with
+  a reference, injected into fits
+- AgreementCheck: value and Jacobian at given parameters and codes
+
+Steady solves
+-------------
+- solve_reduced_steady / ReducedNewtonResidual: Newton on any reduced
+  residual
+- full_state: g(t) + phi(z)
 """
 
+from .affine import (
+    AffineProjectedResidual,
+    ComposedParameterizedResidualProtocol,
+    fit_affine_projection,
+)
+from .checks import AgreementCheck, ReducedResidualCheckProtocol
 from .lift import AlgebraicLift, LiftProtocol, homogenize
 from .projection import (
     ParameterizedResidualProtocol,
@@ -46,6 +71,7 @@ from .snapshots import (
     collect_transient_snapshots,
     concatenate_snapshot_sets,
 )
+from .steady import ReducedNewtonResidual, full_state, solve_reduced_steady
 from .trial_space import (
     LinearTrialSpace,
     LinearTrialSpaceProtocol,
@@ -78,4 +104,12 @@ __all__ = [
     "ReducedResidualDerivatives",
     "ParameterizedResidualProtocol",
     "ProjectedResidual",
+    "AffineProjectedResidual",
+    "ComposedParameterizedResidualProtocol",
+    "fit_affine_projection",
+    "ReducedResidualCheckProtocol",
+    "AgreementCheck",
+    "ReducedNewtonResidual",
+    "solve_reduced_steady",
+    "full_state",
 ]
