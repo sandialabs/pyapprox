@@ -260,10 +260,10 @@ class TestCachingUnchanged:
         zeros = numpy_bkd.zeros((physics.nstates(),))
         operator = compose_galerkin_system(physics).spatial_operator()
         operator.spatial_jacobian(zeros, 0.0)
-        assert physics._stiffness_cached is not None
-        first = physics._stiffness_cached
+        assert physics._assembler.cached_stiffness() is not None
+        first = physics._assembler.cached_stiffness()
         operator.spatial_jacobian(zeros, 0.0)
-        assert physics._stiffness_cached is first
+        assert physics._assembler.cached_stiffness() is first
 
     def test_callable_coefficients_cached_by_version(
         self, numpy_bkd: NumpyBkd
@@ -277,10 +277,10 @@ class TestCachingUnchanged:
         zeros = numpy_bkd.zeros((physics.nstates(),))
         operator = compose_galerkin_system(physics).spatial_operator()
         operator.spatial_jacobian(zeros, 0.0)
-        first = physics._stiffness_cached
+        first = physics._assembler.cached_stiffness()
         assert first is not None
         operator.spatial_jacobian(zeros, 0.0)
-        assert physics._stiffness_cached is first
+        assert physics._assembler.cached_stiffness() is first
 
     def test_nodal_forcing_load_cached_and_invalidated(
         self, numpy_bkd: NumpyBkd
@@ -300,17 +300,17 @@ class TestCachingUnchanged:
         zeros = numpy_bkd.zeros((physics.nstates(),))
         operator = compose_galerkin_system(physics).spatial_operator()
         load_first = operator.spatial_residual(zeros, 0.0)
-        assert physics._forcing_load_cached is not None
-        cached = physics._forcing_load_cached
+        assert physics._assembler.cached_loads() is not None
+        cached = physics._assembler.cached_loads()
         # Reused across a DIFFERENT time (the field is time-invariant).
         numpy_bkd.assert_allclose(
             operator.spatial_residual(zeros, 1.0), load_first, rtol=1e-14
         )
-        assert physics._forcing_load_cached is cached
+        assert physics._assembler.cached_loads() is cached
         # Rebind invalidates: doubled dofs double the load.
         forcing.set_dofs(2.0 * np.ones(ndofs))
         load_rebound = operator.spatial_residual(zeros, 0.0)
-        assert physics._forcing_load_cached is not cached
+        assert physics._assembler.cached_loads() is not cached
         numpy_bkd.assert_allclose(
             load_rebound, 2.0 * load_first, rtol=1e-12
         )
@@ -331,5 +331,5 @@ class TestCachingUnchanged:
         operator = compose_galerkin_system(physics).spatial_operator()
         load_t0 = operator.spatial_residual(zeros, 0.0)
         load_t1 = operator.spatial_residual(zeros, 1.0)
-        assert physics._forcing_load_cached is None
+        assert physics._assembler.cached_loads() is None
         numpy_bkd.assert_allclose(load_t1, 2.0 * load_t0, rtol=1e-12)

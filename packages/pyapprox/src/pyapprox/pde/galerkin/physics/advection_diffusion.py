@@ -26,6 +26,7 @@ from typing import (
     Any,
     Callable,
     Generic,
+    Hashable,
     List,
     Optional,
     Protocol,
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix
+from scipy.sparse import spmatrix
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.advection import (
@@ -66,6 +67,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     VersionedProtocol,
     as_time_aware,
 )
+from pyapprox.pde.elementwise import ElementSet
 from pyapprox.pde.galerkin.boundary.flux_law import (
     AdvectiveFlux,
     DiffusiveFlux,
@@ -74,6 +76,11 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
 )
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.term_assembly import (
+    GalerkinResidualTerms,
+    SkfemRestrictedOperator,
+    SkfemTermAssembler,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for assembly
@@ -664,18 +671,13 @@ class AdvectionDiffusionReaction(Generic[Array]):
         # version() bumped on mutation (set_dofs), and each cached
         # assembly product stores the versions it was built from —
         # rebinds invalidate, Newton iterations and time steps reuse.
-        # The same pattern serves the stiffness (below) and the
-        # time-invariant forcing load (_assemble_forcing_load).
-        self._stiffness_cached: Optional[Array] = None
-        # Three coefficient versions, plus the assembly time when any of
-        # them depends on it: a time-dependent stiffness must not be
-        # served from a key that cannot distinguish two times.
-        self._stiffness_versions: Optional[
-            Union[Tuple[int, int, int], Tuple[int, int, int, float]]
-        ] = None
-        self._load_cached: Optional[Array] = None
-        self._forcing_load_cached: Optional[np.ndarray] = None
-        self._forcing_load_version: Optional[int] = None
+        # The same pattern serves the stiffness (_stiffness_key: three
+        # coefficient versions, plus the assembly time when any of them
+        # depends on it, since a time-dependent stiffness must not be
+        # served from a key that cannot distinguish two times) and the
+        # time-invariant forcing load (_load_key). The caches live in
+        # the term assembler, which every assembly goes through.
+        self._assembler = SkfemTermAssembler()
 
     @staticmethod
     def _coerce_diffusion(
@@ -750,9 +752,14 @@ class AdvectionDiffusionReaction(Generic[Array]):
         )
 
     def _diffusion_reaction_form(
-        self, time: float = 0.0
+        self, time: float, skfem_basis: "Basis"
     ) -> "BilinearForm":
         """Bilinear form for diffusion plus linear reaction.
+
+        Built for ``skfem_basis``, the basis it will be assembled on: a
+        nodal coefficient is evaluated through that basis, so a form
+        built for the full mesh cannot be assembled on a subset of its
+        elements.
 
         All diffusion functions are consumed uniformly through
         ``values`` (constant-coefficient problems assemble once and hit
@@ -767,7 +774,6 @@ class AdvectionDiffusionReaction(Generic[Array]):
             if isinstance(reaction, LinearReaction)
             else None
         )
-        skfem_basis = self._basis.skfem_basis()
         # Selected on the CAPABILITY, not on a concrete class: gating on
         # one class silently dropped any other spatially varying linear
         # reaction from the stiffness --- no error, just a missing term.
@@ -793,9 +799,10 @@ class AdvectionDiffusionReaction(Generic[Array]):
         )
 
     def _advection_form(
-        self, time: float = 0.0
+        self, time: float, skfem_basis: "Basis"
     ) -> Optional["BilinearForm"]:
-        """Bilinear form for advection, or None when velocity is absent."""
+        """Bilinear form for advection built for ``skfem_basis``, or None
+        when velocity is absent."""
         velocity = self._velocity_function
         if velocity is None:
             return None
@@ -808,7 +815,9 @@ class AdvectionDiffusionReaction(Generic[Array]):
         evaluator: _TimedEvaluatorProtocol = velocity.values
         if isinstance(velocity, NodalFieldVelocity):
             vel_skfem = velocity.basis().skfem_basis()
-            own_shape = self._basis.skfem_basis().global_coordinates().shape
+            # On a subset of elements the shapes differ, so the velocity
+            # is evaluated by coordinate: correct, without the fast path.
+            own_shape = skfem_basis.global_coordinates().shape
             if vel_skfem.global_coordinates().shape == own_shape:
                 evaluator = _coefficient_evaluator(
                     velocity, vel_skfem, velocity.values
@@ -820,6 +829,15 @@ class AdvectionDiffusionReaction(Generic[Array]):
     def forcing_form(self, time: float) -> Optional["LinearForm"]:
         """Linear form for the forcing contribution (w, f), or None.
 
+        Built for the physics' full basis.
+        """
+        return self._forcing_form(time, self._basis.skfem_basis())
+
+    def _forcing_form(
+        self, time: float, skfem_basis: "Basis"
+    ) -> Optional["LinearForm"]:
+        """The forcing form built for ``skfem_basis``, or None.
+
         A nodal forcing takes the same basis fast path as the other
         coefficients: evaluating it by coordinate makes the element
         search the basis has already done, once per quadrature point.
@@ -830,7 +848,7 @@ class AdvectionDiffusionReaction(Generic[Array]):
         # convention: _FieldOnBasisEvaluator accepts (coords, time), and
         # the fallback is the already-normalized _forcing_eval.
         evaluator: _TimedEvaluatorProtocol = _coefficient_evaluator(
-            self._forcing, self._basis.skfem_basis(), self._forcing_eval
+            self._forcing, skfem_basis, self._forcing_eval
         )
         return LinearForm(_ForcingKernel(evaluator, time))
 
@@ -894,11 +912,116 @@ class AdvectionDiffusionReaction(Generic[Array]):
             Diffusion (+ linear reaction) form, followed by the
             advection form when a velocity is present.
         """
-        forms = [self._diffusion_reaction_form(time)]
-        advection = self._advection_form(time)
+        return self._stiffness_forms(time, self._basis.skfem_basis())
+
+    def _stiffness_forms(
+        self, time: float, skfem_basis: "Basis"
+    ) -> List["BilinearForm"]:
+        """The stiffness forms built for ``skfem_basis``."""
+        forms = [self._diffusion_reaction_form(time, skfem_basis)]
+        advection = self._advection_form(time, skfem_basis)
         if advection is not None:
             forms.append(advection)
         return forms
+
+    def residual_terms(
+        self, skfem_basis: "Basis", time: float
+    ) -> GalerkinResidualTerms:
+        """The interior residual as terms built for ``skfem_basis``.
+
+        ``F = (w, f) + (w, R(u)) - K u``: the forcing load, the
+        nonlinear reaction as a state load with its Jacobian, and the
+        stiffness forms (diffusion with any linear reaction, and
+        advection). Every assembly of this physics, over the whole mesh
+        or a subset of elements, goes through these terms
+        (``pyapprox.pde.galerkin.term_assembly``), so they are the single
+        definition of its residual. The stiffness carries the
+        positivity check, run whenever it is assembled.
+        """
+        forcing = self._forcing_form(time, skfem_basis)
+        reaction = self.reaction_form()
+        reaction_jacobian = self.reaction_jacobian_form()
+        state_loads: Tuple[Tuple["LinearForm", "BilinearForm"], ...] = (
+            ((reaction, reaction_jacobian),)
+            if reaction is not None and reaction_jacobian is not None
+            else ()
+        )
+        return GalerkinResidualTerms(
+            stiffness=tuple(self._stiffness_forms(time, skfem_basis)),
+            loads=() if forcing is None else (forcing,),
+            state_loads=state_loads,
+            stiffness_key=self._stiffness_key(time),
+            load_key=self._load_key(),
+            stiffness_check=self._check_diffusivity_positive,
+        )
+
+    def _stiffness_key(self, time: float) -> Hashable:
+        """The coefficient versions the stiffness is built from.
+
+        The stiffness (diffusion + advection + linear reaction) is
+        state-independent; keying it on the coefficient function
+        versions lets field updates (set_dofs) invalidate it while
+        Newton iterations reuse it.
+
+        Time joins the key only when a contributing coefficient declares
+        that it varies with time. Without that, a time-dependent
+        diffusivity or velocity would assemble once and be served stale
+        at every later time --- silently, and the adjoint would inherit
+        the stale Jacobian. Time-independent coefficients keep the
+        single-key fast path, so a steady problem reuses one assembly
+        across all time steps.
+        """
+        versions: Union[Tuple[int, int, int], Tuple[int, int, int, float]] = (
+            self._diffusion_function.version(),
+            self._velocity_function.version()
+            if self._velocity_function is not None
+            else 0,
+            # Keyed on the capability to carry a version, not on a
+            # concrete class: a reaction whose values change without
+            # bumping the key would be served a stale stiffness.
+            self._reaction_function.version()
+            if isinstance(self._reaction_function, VersionedProtocol)
+            else 0,
+        )
+        if self._stiffness_is_time_dependent():
+            versions = versions[:3] + (time,)
+        return versions
+
+    def _load_key(self) -> Optional[Hashable]:
+        """The forcing version when its load may be cached, else None.
+
+        Cacheable only when the forcing carries a ``version()`` and does
+        not depend on time (``_forcing_load_cacheable``, decided once at
+        construction). Everything else is assembled fresh every call,
+        which is what keeps a time-varying forcing correct: the key has
+        no time component, so caching one would freeze it at its first
+        evaluation.
+        """
+        if not self._forcing_load_cacheable:
+            return None
+        if not isinstance(self._forcing, NodalFieldForcing):
+            raise TypeError(
+                "forcing load marked cacheable but the forcing is "
+                f"{type(self._forcing).__name__}, which carries no "
+                "version() to key the cache on"
+            )
+        return self._forcing.version()
+
+    def nelements(self) -> int:
+        """Return the number of elements of the mesh."""
+        return int(self._basis.skfem_basis().nelems)
+
+    def restrict(
+        self, elements: ElementSet[NDArray[Any]]
+    ) -> SkfemRestrictedOperator:
+        """Return the interior operator restricted to ``elements``.
+
+        Satisfies ``ElementwiseOperatorProtocol`` on the NumPy backend,
+        the only one skfem assembles on: the restricted operator
+        evaluates element residuals and Jacobians from element-local
+        states through the same terms as the global assembly.
+        """
+        return SkfemRestrictedOperator(self, self._basis.skfem_basis(), elements)
 
     def _stiffness_is_time_dependent(self) -> bool:
         """Whether any coefficient in the stiffness varies with time.
@@ -918,8 +1041,8 @@ class AdvectionDiffusionReaction(Generic[Array]):
             for contributor in contributors
         )
 
-    def _assemble_stiffness(self, state: Array, time: float) -> Array:
-        """Assemble stiffness matrix K.
+    def _assemble_stiffness(self, state: Array, time: float) -> spmatrix:
+        """Assemble stiffness matrix K, a sparse matrix.
 
         For the weak form, K includes:
         - Diffusion: (grad(w), D*grad(u))
@@ -928,57 +1051,13 @@ class AdvectionDiffusionReaction(Generic[Array]):
 
         Note: For nonlinear reaction, the contribution is handled in
         the residual and Jacobian separately.
+
+        Cached on :meth:`_stiffness_key` by the term assembler.
         """
-        # Check cache for linear problems
-        # The stiffness (diffusion + advection + linear reaction) is
-        # state-independent; the cache is keyed on the coefficient
-        # function versions so field updates (set_dofs) invalidate it
-        # while Newton iterations reuse it.
-        #
-        # Time joins the key only when a contributing coefficient
-        # declares that it varies with time. Without that, a
-        # time-dependent diffusivity or velocity would assemble once and
-        # be served stale at every later time --- silently, and the
-        # adjoint would inherit the stale Jacobian. Time-independent
-        # coefficients keep the single-key fast path, so a steady
-        # problem reuses one assembly across all time steps as before.
-        versions: Union[
-            Tuple[int, int, int], Tuple[int, int, int, float]
-        ] = (
-            self._diffusion_function.version(),
-            self._velocity_function.version()
-            if self._velocity_function is not None
-            else 0,
-            # Keyed on the capability to carry a version, not on a
-            # concrete class: a reaction whose values change without
-            # bumping the key would be served a stale stiffness.
-            self._reaction_function.version()
-            if isinstance(self._reaction_function, VersionedProtocol)
-            else 0,
-        )
-        if self._stiffness_is_time_dependent():
-            versions = versions[:3] + (time,)
-        if (
-            self._stiffness_cached is not None
-            and self._stiffness_versions == versions
-        ):
-            return self._stiffness_cached
-
         skfem_basis = self._basis.skfem_basis()
-
-        self._check_diffusivity_positive(skfem_basis, time)
-
-        forms = self.stiffness_forms(time)
-        stiffness = asm(forms[0], skfem_basis)
-        # Add advection if present
-        for form in forms[1:]:
-            stiffness = stiffness + asm(form, skfem_basis)
-
-        self._stiffness_cached = stiffness
-        self._stiffness_versions = versions
-
-        result: Array = stiffness
-        return result
+        return self._assembler.stiffness(
+            self.residual_terms(skfem_basis, time), skfem_basis, time
+        )
 
     def _check_diffusivity_positive(
         self, skfem_basis: "Basis", time: float
@@ -1015,104 +1094,17 @@ class AdvectionDiffusionReaction(Generic[Array]):
                 "solution rather than a solver failure"
             )
 
-    def _assemble_load(self, state: Array, time: float) -> Array:
-        """Assemble load vector b.
-
-        For the weak form, b includes:
-        - Forcing: (w, f)
-        - Nonlinear reaction: (w, R(u)) evaluated at current state
-
-        For linear reaction, the term is already in the stiffness matrix.
-        """
-        skfem_basis = self._basis.skfem_basis()
-        state_np = self._bkd.to_numpy(state)
-
-        # Start with forcing contribution
-        if self._forcing is None and (
-            self._reaction_function is None
-            or self._reaction_function.is_linear()
-        ):
-            # No forcing and no nonlinear reaction - use cached zero vector
-            if self._load_cached is not None:
-                return self._load_cached
-            load_np = np.zeros(self.nstates())
-            self._load_cached = self._bkd.asarray(load_np.astype(np.float64))
-            return self._load_cached
-
-        load_np = np.zeros(self.nstates())
-
-        # Forcing contribution: (w, f)
-        forcing_load = self._assemble_forcing_load(time)
-        if forcing_load is not None:
-            load_np += forcing_load
-
-        # Nonlinear reaction contribution: (w, R(u))
-        reaction = self.reaction_form()
-        if reaction is not None:
-            # Interpolate state to get u values at quadrature points
-            state_interp = skfem_basis.interpolate(state_np)
-            load_np += asm(reaction, skfem_basis, u_prev=state_interp)
-
-        return self._bkd.asarray(load_np.astype(np.float64))
-
     def _assemble_forcing_load(self, time: float) -> Optional[np.ndarray]:
-        """Assemble the forcing contribution (w, f) to the load.
+        """Assemble the forcing contribution (w, f) to the load, or None.
 
-        A forcing whose values do not depend on time and that carries a
-        ``version()`` has its assembled load cached on that version —
-        rebinds (``set_dofs``) invalidate, while Newton iterations and
-        time steps reuse it. Everything else is assembled fresh every
-        call, which is what keeps a time-varying forcing correct: the
-        cache key has no time component, so caching one would freeze it
-        at its first evaluation. ``_forcing_load_cacheable`` records
-        that decision, made once at construction.
+        Cached on :meth:`_load_key` by the term assembler.
         """
-        forcing_form = self.forcing_form(time)
-        if forcing_form is None:
+        if self._forcing_eval is None:
             return None
-        if not self._forcing_load_cacheable:
-            return np.asarray(asm(forcing_form, self._basis.skfem_basis()))
-        if not isinstance(self._forcing, NodalFieldForcing):
-            raise TypeError(
-                "forcing load marked cacheable but the forcing is "
-                f"{type(self._forcing).__name__}, which carries no "
-                "version() to key the cache on"
-            )
-        version = self._forcing.version()
-        if (
-            self._forcing_load_cached is not None
-            and self._forcing_load_version == version
-        ):
-            return self._forcing_load_cached
-        forcing_load = np.asarray(
-            asm(forcing_form, self._basis.skfem_basis())
-        )
-        self._forcing_load_cached = forcing_load
-        self._forcing_load_version = version
-        return forcing_load
-
-    def _assemble_reaction_jacobian(self, state: Array, time: float) -> Array:
-        """Assemble Jacobian contribution from nonlinear reaction.
-
-        For R(u), the Jacobian term is: (w, R'(u) * du)
-        where du is the trial function.
-
-        This returns the matrix J where J_ij = integral(R'(u) * phi_j * phi_i)
-        """
-        form = self.reaction_jacobian_form()
-        if form is None:
-            # No nonlinear reaction or linear reaction (already in stiffness)
-            empty: Array = csr_matrix((self.nstates(), self.nstates()))
-            return empty
-
         skfem_basis = self._basis.skfem_basis()
-        state_np = self._bkd.to_numpy(state)
-
-        # Interpolate state
-        state_interp = skfem_basis.interpolate(state_np)
-
-        jacobian: Array = asm(form, skfem_basis, u_prev=state_interp)
-        return jacobian
+        return self._assembler.loads(
+            self.residual_terms(skfem_basis, time), skfem_basis
+        )
 
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         """Return the interior curvature, decided once.
@@ -1181,9 +1173,17 @@ class AdvectionDiffusionReaction(Generic[Array]):
         Array
             Interior residual. Shape: (nstates,)
         """
-        stiffness = self._assemble_stiffness(state, time)
-        load = self._assemble_load(state, time)
-        return load - stiffness @ state
+        skfem_basis = self._basis.skfem_basis()
+        # The conversions are where the generic interior protocol meets
+        # NumPy-only skfem assembly; both are identity on NumPy.
+        return self._bkd.asarray(
+            self._assembler.residual(
+                self.residual_terms(skfem_basis, time),
+                skfem_basis,
+                self._bkd.to_numpy(state),
+                time,
+            )
+        )
 
     def interior_jacobian(self, state: Array, time: float) -> Array:
         """Compute dF_Omega/du (no BCs).
@@ -1202,13 +1202,17 @@ class AdvectionDiffusionReaction(Generic[Array]):
         Array
             Interior Jacobian. Shape: (nstates, nstates)
         """
-        stiffness = self._assemble_stiffness(state, time)
-        jacobian = -stiffness
-        if (
-            self._reaction_function is not None
-            and not self._reaction_function.is_linear()
-        ):
-            jacobian = jacobian + self._assemble_reaction_jacobian(state, time)
+        skfem_basis = self._basis.skfem_basis()
+        # The interior protocol promises an Array, but an assembled
+        # Galerkin Jacobian is a sparse matrix. This binding is the one
+        # place that mismatch is absorbed; the fix is an operator-valued
+        # Jacobian in the spatial-operator protocol, not a conversion.
+        jacobian: Array = self._assembler.jacobian(
+            self.residual_terms(skfem_basis, time),
+            skfem_basis,
+            self._bkd.to_numpy(state),
+            time,
+        )
         return jacobian
 
     def residual_diffusivity_jacobian(self, state: Array) -> Array:
