@@ -12,6 +12,7 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamJacobianFn,
 )
 from pyapprox.pde.parameterizations.protocol import (
+    AffineInParamsProtocol,
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -246,6 +247,21 @@ class CompositeParameterization(Generic[Array]):
 
     def nparams(self) -> int:
         return self._total_nparams
+
+    def is_affine_in_params(self) -> bool:
+        """Whether every part declares itself affine in its parameters.
+
+        Sufficient for the composite: parts own disjoint coefficients
+        and their parameter curvature is block diagonal (no part's
+        parameters multiply another's), so a sum of affine parts is
+        affine. A part that does not implement the declaration counts
+        as not affine. Read from the parts on each call, since
+        ``append`` can add one.
+        """
+        return all(
+            isinstance(part, AffineInParamsProtocol) and part.is_affine_in_params()
+            for part in self._parts
+        )
 
     def apply(self, params_1d: Array) -> None:
         """Apply all parameterizations in sequence."""

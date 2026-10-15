@@ -61,3 +61,25 @@ class ParameterizationProtocol(Protocol, Generic[Array]):
     def apply(self, params_1d: Array) -> None: ...
 
     def param_derivatives(self) -> ParamDerivatives[Array]: ...
+
+
+@runtime_checkable
+class AffineInParamsProtocol(Protocol):
+    r"""Declares whether the residual is affine in the parameters.
+
+    Affine means :math:`F(u, p) = F_0(u) + \sum_q p_q F_q(u)`: the
+    parameters enter linearly, so projections of :math:`F_0` and each
+    :math:`F_q` can be precomputed once and recombined for any ``p``.
+    The answer is derived from structure the parameterization already
+    declares (a linear field map, a term linear in its field), never
+    asserted by a caller. A parameterization that does not implement
+    this protocol is treated as not affine, the safe default.
+
+    Separate from :class:`ParameterizationProtocol` so that existing
+    parameterizations need not answer a question only some consumers
+    ask.
+    """
+
+    def is_affine_in_params(self) -> bool:
+        """Whether the residual is affine in the parameters."""
+        ...

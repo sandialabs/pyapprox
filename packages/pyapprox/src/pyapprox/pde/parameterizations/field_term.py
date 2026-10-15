@@ -589,6 +589,20 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         """Return the derivative capability bundle."""
         return self._derivs
 
+    def is_affine_in_params(self) -> bool:
+        """Whether the residual term is affine in the parameters.
+
+        True when the term is linear in its field (the field-field slot
+        is certified ``Zero()``, so the curvature in the field vanishes)
+        and the field map declares itself linear in the parameters. Both
+        are declarations made at construction, so nothing is inferred
+        from values. A time modulation scales the term by a function of
+        time only, so it leaves the term affine in the parameters.
+        """
+        return isinstance(self._field_field_hvp, Zero) and _is_linear_map(
+            self._field_map
+        )
+
     def apply(self, params_1d: Array) -> None:
         """Write what the coefficient's setter expects.
 

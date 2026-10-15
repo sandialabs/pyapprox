@@ -8,7 +8,7 @@ derivative arithmetic lives in the engine — this module is
 construction wiring only.
 """
 
-from typing import Generic, List, Optional, Tuple, Union
+from typing import Generic, List, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 
@@ -42,6 +42,8 @@ _ADRTerm = _FieldParameterizationTerm[
     Array, AdvectionDiffusionReaction[Array]
 ]
 
+_FieldT = TypeVar("_FieldT")
+
 
 class _FromField:
     """Sentinel: take the parameter-to-field map from the coefficient.
@@ -68,10 +70,13 @@ FROM_FIELD = _FromField()
 
 
 def _require_field(
-    physics_field: object, expected: type, kwarg: str
-) -> object:
+    physics_field: object, expected: Type[_FieldT], kwarg: str
+) -> _FieldT:
     """Eager validation: the facade kwarg must target the physics's
-    differentiable (nodal-field) representation."""
+    differentiable (nodal-field) representation.
+
+    Returns the field typed as ``expected``, so callers need no further
+    narrowing."""
     if not isinstance(physics_field, expected):
         raise TypeError(
             f"{kwarg} was supplied but the physics's coefficient is "
@@ -161,7 +166,6 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             NodalFieldDiffusion,
             "diffusivity_map",
         )
-        assert isinstance(diffusion, NodalFieldDiffusion)
         return _FieldParameterizationTerm.linear_field_state(
             setter=ToNumpySetter(diffusion.set_dofs, bkd),
             physics=physics,
@@ -185,7 +189,6 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         forcing = _require_field(
             physics.forcing_function(), NodalFieldForcing, "forcing_map"
         )
-        assert isinstance(forcing, NodalFieldForcing)
         return _FieldParameterizationTerm.state_independent(
             setter=ToNumpySetter(forcing.set_dofs, bkd),
             physics=physics,
@@ -232,7 +235,6 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             NodalFieldLinearReaction,
             "reaction_map",
         )
-        assert isinstance(reaction, NodalFieldLinearReaction)
         return _FieldParameterizationTerm.linear_field_state(
             setter=ToNumpySetter(reaction.set_dofs, bkd),
             physics=physics,
@@ -305,7 +307,6 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             NodalFieldVelocity,
             "velocity_map",
         )
-        assert isinstance(velocity, NodalFieldVelocity)
         return _FieldParameterizationTerm.linear_field_state(
             setter=ToNumpySetter(velocity.set_dofs, bkd),
             physics=physics,
@@ -351,3 +352,11 @@ class AdvectionDiffusionParameterization(Generic[Array]):
     def param_derivatives(self) -> ParamDerivatives[Array]:
         """Return the composed derivative capability bundle."""
         return self._inner.param_derivatives()
+
+    def is_affine_in_params(self) -> bool:
+        """Whether the residual is affine in the parameters.
+
+        Every ADR coefficient term is linear in its field, so this holds
+        exactly when every supplied field map is linear.
+        """
+        return self._inner.is_affine_in_params()
