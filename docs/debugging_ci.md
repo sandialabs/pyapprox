@@ -25,7 +25,7 @@ gh workflow run Tests --repo sandialabs/pyapprox --ref <branch> \
 It accepts anything pytest does — a path, a node id, or a `-k` expression:
 
 ```bash
-  -f tests="-k test_allocation_succeeds_without_analytical_derivatives"
+  -f tests="-k test_allocation_is_feasible_without_analytical_derivatives"
 ```
 
 **Set `tier=fast`.** The tier default is `slow`, which skips the fast jobs

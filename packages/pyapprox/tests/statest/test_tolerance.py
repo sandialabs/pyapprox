@@ -298,6 +298,12 @@ class TestRowContract:
         shrunk = covariance - 0.5 * covariance
         assert bkd.all_bool(req.rows(shrunk) <= req.rows(covariance))
 
+    # Central differences: the forward-difference V here is only ~6 decades
+    # deep, so error_ratio, which divides the smallest error in the sweep by
+    # the largest, came to rest just under the tolerance (7.97e-7 and 4.54e-7
+    # locally for log-det) and depended on the size of the rounding tail.
+    # macOS CI reached 1.06e-6 and failed. Second-order differences deepen the
+    # V: the same ratios become 2.05e-8 and 7.50e-9.
     @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
     def test_derivatives(self, bkd, make) -> None:
         covariance, linear, quadratic = _covariance_and_directions(bkd)
@@ -308,6 +314,7 @@ class TestRowContract:
             weights=bkd.asarray(
                 np.linspace(0.5, 1.5, curve.nqoi())[:, None]
             ),
+            central=True,
         )
         assert float(checker.error_ratio(errors[0])) <= 1e-6
         assert float(checker.error_ratio(errors[1])) <= 1e-6
