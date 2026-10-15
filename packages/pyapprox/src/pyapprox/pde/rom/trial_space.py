@@ -2,13 +2,24 @@ r"""The space a reduced model's state lives in, and how it is fitted.
 
 A reduced state :math:`z` stands for the full state
 
-.. math:: u = g(t) + \bar{u} + V z,
+.. math:: u = g(t) + \phi(z),
 
 where :math:`g` is the lift carrying the boundary data
-(:mod:`pyapprox.pde.rom.lift`), :math:`\bar{u}` a fixed reference (the
-snapshot mean) and :math:`V` the basis. The trial space owns
-:math:`\bar{u}` and :math:`V`; the lift stays separate because it
-depends on time and the basis must not.
+(:mod:`pyapprox.pde.rom.lift`) and :math:`\phi` the decoder. The trial
+space owns :math:`\phi`; the lift stays separate because it depends on
+time and the decoder must not, and because keeping it out lets the same
+trial space serve a different lift without refitting.
+
+:class:`TrialSpaceProtocol` is the general contract, enough for a
+curved decoder (a quadratic manifold, say): :math:`\phi(z)`, its
+tangent :math:`J(z) = \partial\phi/\partial z` as an operator, and the
+curvature :math:`\partial^2 (w^T \phi)/\partial z^2` that an exact
+reduced Jacobian needs. :class:`LinearTrialSpaceProtocol` is the affine
+case :math:`\phi(z) = \bar{u} + V z`, with :math:`\bar{u}` a fixed
+reference (the snapshot mean) and :math:`V` a basis; consumers that
+precompute with a constant :math:`V` (affine projection) require it, so
+handing them a curved decoder is a type error rather than a silently
+wrong answer.
 
 :math:`V` is used only through its action and transpose action, so a
 basis held out of core (``StreamingBasis``) serves as well as a resident
@@ -48,9 +59,37 @@ from pyapprox.util.linalg.inner_product import (
 
 
 @runtime_checkable
+class TangentOperatorProtocol(Protocol, Generic[Array]):
+    r"""A decoder tangent :math:`J`, shape (nstates, nterms), as actions.
+
+    Any ``BasisOperatorProtocol`` satisfies it, so a linear trial space
+    returns its basis unchanged.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def nstates(self) -> int:
+        """Return the number of rows."""
+        ...
+
+    def nterms(self) -> int:
+        """Return the number of columns."""
+        ...
+
+    def apply(self, coefs: Array) -> Array:
+        """Return ``J coefs``. Shape: (nterms, k) -> (nstates, k)."""
+        ...
+
+    def apply_transpose(self, fields: Array) -> Array:
+        """Return ``J^T fields``. Shape: (nstates, k) -> (nterms, k)."""
+        ...
+
+
+@runtime_checkable
 class TrialSpaceProtocol(Protocol, Generic[Array]):
-    r"""The affine space :math:`\bar{u} + \mathrm{span}(V)` of a reduced
-    model, excluding the time-dependent lift."""
+    r"""A decoder :math:`\phi`, excluding the time-dependent lift."""
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -63,6 +102,37 @@ class TrialSpaceProtocol(Protocol, Generic[Array]):
     def ncodes(self) -> int:
         """Return the reduced dimension."""
         ...
+
+    def decode(self, codes: Array) -> Array:
+        r"""Return :math:`\phi(z)`. Shape: (ncodes, k) -> (nstates, k)."""
+        ...
+
+    def tangent(self, code: Array) -> TangentOperatorProtocol[Array]:
+        r"""Return :math:`J(z) = \partial \phi / \partial z` at one code.
+
+        ``code`` has shape (ncodes,).
+        """
+        ...
+
+    def weighted_curvature(self, code: Array, weights: Array) -> Array:
+        r"""Return :math:`\partial^2 (w^T \phi)/\partial z^2` at one code.
+
+        ``code`` has shape (ncodes,), ``weights`` (nstates,); the result
+        is (ncodes, ncodes), and identically zero for a linear decoder.
+
+        A contraction, not a tensor: implementations must not form the
+        (nstates, ncodes, ncodes) second derivative. For a quadratic
+        manifold it is one transpose action of the quadratic part on
+        ``weights``, the same cost as projecting a Jacobian; a decoder
+        acting row by row touches only the rows where ``weights`` is
+        nonzero, which keeps hyper-reduced evaluation off the full mesh.
+        """
+        ...
+
+
+@runtime_checkable
+class LinearTrialSpaceProtocol(TrialSpaceProtocol[Array], Protocol):
+    r"""The affine decoder :math:`\phi(z) = \bar{u} + V z`."""
 
     def reference(self) -> Array:
         r"""Return :math:`\bar{u}`. Shape: (nstates,)."""
@@ -179,9 +249,18 @@ class LinearTrialSpace(Generic[Array]):
             self._gram, self.apply_transpose(self._metric.apply(centered))
         )
 
-    def reconstruct(self, codes: Array) -> Array:
+    def decode(self, codes: Array) -> Array:
         r"""Return :math:`\bar{u} + V z`. Shape: (ncodes, k) -> (nstates, k)."""
         return self._reference[:, None] + self.apply(codes)
+
+    def tangent(self, code: Array) -> TangentOperatorProtocol[Array]:
+        """Return the basis, the tangent at every code."""
+        return self._basis
+
+    def weighted_curvature(self, code: Array, weights: Array) -> Array:
+        """Return zeros: a linear decoder has no curvature."""
+        ncodes = self.ncodes()
+        return self._bkd.zeros((ncodes, ncodes))
 
     def __repr__(self) -> str:
         return (
@@ -287,5 +366,5 @@ def projection_errors(trial_space: LinearTrialSpace[Array], fields: Array) -> Ar
     ``fields`` must have the lift removed, like the snapshots the trial
     space was fitted to. Shape: (nstates, k) -> (k,).
     """
-    residual = fields - trial_space.reconstruct(trial_space.project(fields))
+    residual = fields - trial_space.decode(trial_space.project(fields))
     return trial_space.metric().norm(residual)

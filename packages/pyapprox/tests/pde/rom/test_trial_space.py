@@ -166,11 +166,11 @@ class TestLinearTrialSpace:
         assert isinstance(trial, TrialSpaceProtocol)
         assert (trial.nstates(), trial.ncodes()) == (20, 3)
 
-    def test_project_inverts_reconstruct(self, bkd: Backend[Any]) -> None:
+    def test_project_inverts_decode(self, bkd: Backend[Any]) -> None:
         snapshots, metric = _synthetic(bkd)
         trial = fit_pod_trial_space(snapshots, bkd, latent_dim=3, metric=metric)
         codes = bkd.asarray(np.random.default_rng(3).normal(size=(3, 4)))
-        bkd.assert_allclose(trial.project(trial.reconstruct(codes)), codes, rtol=1e-10)
+        bkd.assert_allclose(trial.project(trial.decode(codes)), codes, rtol=1e-10)
 
     def test_projection_is_metric_orthogonal_for_any_basis(
         self, bkd: Backend[Any]
@@ -179,7 +179,7 @@ class TestLinearTrialSpace:
         snapshots, metric = _synthetic(bkd)
         raw = bkd.asarray(np.random.default_rng(4).normal(size=(20, 3)))
         trial = LinearTrialSpace(as_basis_operator(raw, bkd), bkd.zeros((20,)), metric)
-        residual = snapshots.states - trial.reconstruct(trial.project(snapshots.states))
+        residual = snapshots.states - trial.decode(trial.project(snapshots.states))
         bkd.assert_allclose(
             bkd.dot(raw.T, metric.apply(residual)),
             bkd.zeros((3, 8)),
