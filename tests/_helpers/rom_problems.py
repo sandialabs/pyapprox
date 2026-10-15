@@ -12,7 +12,7 @@ Requires skfem; import only after skipping when it is absent.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,6 +27,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
 )
+from pyapprox.pde.elementwise import ElementwiseOperatorProtocol
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.field_maps.transformed import (
@@ -38,6 +39,7 @@ from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSteadySystem
 from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
 from pyapprox.pde.models.galerkin.steady import (
@@ -73,7 +75,9 @@ class RomProblem:
     ``affine``: the residual is affine in the state and the parameters,
     so the affine fit must succeed and be exact. ``coercive``: Galerkin
     quasi-optimality holds, so the ROM error is a bounded multiple of the
-    best approximation error.
+    best approximation error. ``elementwise``: the interior operator
+    restricted to element subsets, for hyper-reduction; None when the
+    discretization does not supply one.
     """
 
     name: str
@@ -88,6 +92,7 @@ class RomProblem:
     reference_params: NumpyArray
     affine: bool
     coercive: bool
+    elementwise: Optional[ElementwiseOperatorProtocol[NumpyArray]] = None
 
     def nstates(self) -> int:
         return self.residual.nstates()
@@ -116,18 +121,25 @@ def _square_deriv2(x: _Points, u: _Points) -> _Points:
 
 
 def _galerkin_adr(
-    bkd: NumpyBkd, name: str, reaction: bool, exp_diffusivity: bool = False
+    bkd: NumpyBkd,
+    name: str,
+    reaction: bool,
+    exp_diffusivity: bool = False,
+    ncells: int = 10,
+    newton_tol: float = 1e-12,
 ) -> RomProblem:
-    """1D ADR, -(kappa u')' [+ u^2] = f, u(0) = 1, u(1) = 2, P1 on 10 cells.
+    """1D ADR, -(kappa u')' [+ u^2] = f, u(0) = 1, u(1) = 2, P1 on ``ncells``.
 
     kappa = 1 + Phi p_kappa (or exp(Phi p_kappa)) and f = 1 + Phi p_f with
     Phi the modes 0.2 sin(k pi x), k = 1..3: six parameters, kappa >= 0.4
     on [-1, 1]^6. The u^2 reaction makes F nonlinear in u; the
     exponential kappa makes it nonlinear in p while staying linear and
     coercive in u. Twelve training and four held-out samples, uniform on
-    [-1, 1]^6 (seed 0); reference parameter zero; mass metric.
+    [-1, 1]^6 (seed 0); reference parameter zero; mass metric. Newton's
+    absolute tolerance ``newton_tol`` must sit above the roundoff floor,
+    which grows with the mesh (1e-12 fails at 200 cells).
     """
-    mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
+    mesh = StructuredMesh1D(nx=ncells, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     physics = AdvectionDiffusionReaction(
         basis=basis,
@@ -176,7 +188,10 @@ def _galerkin_adr(
         bkd=bkd,
         residual=GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
         state_equation=GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
+            system.steady(),
+            param_obj,
+            bkd,
+            solver=SteadyStateSolver(system.steady(), tol=newton_tol),
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, system.nstates()),
@@ -186,6 +201,7 @@ def _galerkin_adr(
         reference_params=bkd.zeros((nparams,)),
         affine=not (reaction or exp_diffusivity),
         coercive=not reaction,
+        elementwise=physics,
     )
 
 
@@ -422,4 +438,40 @@ ALL_ROM_FACTORIES: List[RomProblemFactory] = [
 AFFINE_ROM_FACTORIES: List[RomProblemFactory] = [
     galerkin_adr_linear,
     finite_difference_adr_linear,
+]
+
+
+def galerkin_adr_linear_fine(bkd: NumpyBkd) -> RomProblem:
+    """The linear problem on 200 cells, enough elements for ECSW to drop
+    most (on 10 cells every element is needed)."""
+    return _galerkin_adr(
+        bkd, "galerkin-adr-linear-200", reaction=False, ncells=200, newton_tol=1e-10
+    )
+
+
+def galerkin_adr_nonlinear_state_fine(bkd: NumpyBkd) -> RomProblem:
+    """The u^2 problem on 200 cells."""
+    return _galerkin_adr(
+        bkd, "galerkin-adr-u2-200", reaction=True, ncells=200, newton_tol=1e-10
+    )
+
+
+def galerkin_adr_nonlinear_params_fine(bkd: NumpyBkd) -> RomProblem:
+    """The exp-kappa problem on 200 cells."""
+    return _galerkin_adr(
+        bkd,
+        "galerkin-adr-exp-kappa-200",
+        reaction=False,
+        exp_diffusivity=True,
+        ncells=200,
+        newton_tol=1e-10,
+    )
+
+
+# Factories whose discretization supplies an element-wise operator, fine
+# enough for hyper-reduction to keep only some elements.
+ELEMENTWISE_ROM_FACTORIES: List[RomProblemFactory] = [
+    galerkin_adr_linear_fine,
+    galerkin_adr_nonlinear_state_fine,
+    galerkin_adr_nonlinear_params_fine,
 ]

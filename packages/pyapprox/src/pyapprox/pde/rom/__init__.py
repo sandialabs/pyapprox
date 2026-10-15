@@ -41,7 +41,7 @@ Affine projection
 Checks
 ------
 - ReducedResidualCheckProtocol: compares a fitted reduced residual with
-  a reference, injected into fits
+  a reference, run on a fit's result
 - AgreementCheck: value and Jacobian at given parameters and codes
 
 Steady solves
@@ -49,6 +49,16 @@ Steady solves
 - solve_reduced_steady / ReducedNewtonResidual: Newton on any reduced
   residual
 - full_state: g(t) + phi(z)
+
+Hyper-reduction
+---------------
+- ElementSampledResidual: the reduced residual summed over a sample of
+  elements, each with its own reduction (ECSW now, DEIM later)
+- unit_weight_residual / ecsw_training_matrix / fit_ecsw / build_ecsw:
+  ECSW in three steps (training matrix, weights, residual)
+- ElementTargetProtocol / ResidualTargets / JacobianTargets: what the
+  weights must reproduce
+- ECSWFit: the hyper-reduced residual and its fit
 """
 
 from .affine import (
@@ -57,6 +67,16 @@ from .affine import (
     fit_affine_projection,
 )
 from .checks import AgreementCheck, ReducedResidualCheckProtocol
+from .ecsw import (
+    ECSWFit,
+    ElementTargetProtocol,
+    JacobianTargets,
+    ResidualTargets,
+    build_ecsw,
+    ecsw_training_matrix,
+    fit_ecsw,
+    unit_weight_residual,
+)
 from .lift import AlgebraicLift, LiftProtocol, homogenize
 from .projection import (
     ParameterizedResidualProtocol,
@@ -64,6 +84,7 @@ from .projection import (
     ReducedResidualDerivatives,
     ReducedResidualProtocol,
 )
+from .sampled import ElementSampledResidual
 from .snapshots import (
     SnapshotSet,
     TrajectorySolverProtocol,
@@ -112,4 +133,13 @@ __all__ = [
     "ReducedNewtonResidual",
     "solve_reduced_steady",
     "full_state",
+    "ElementSampledResidual",
+    "ECSWFit",
+    "ElementTargetProtocol",
+    "ResidualTargets",
+    "JacobianTargets",
+    "unit_weight_residual",
+    "ecsw_training_matrix",
+    "fit_ecsw",
+    "build_ecsw",
 ]

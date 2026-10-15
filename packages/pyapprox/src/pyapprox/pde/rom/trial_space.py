@@ -41,7 +41,7 @@ module adds the reduced-model view of its result and the diagnostics
 used to choose the truncation.
 """
 
-from typing import Generic, Optional, Protocol, runtime_checkable
+from typing import Generic, Optional, Protocol, Sequence, runtime_checkable
 
 from pyapprox.pde.rom.snapshots import SnapshotSet
 from pyapprox.surrogates.kle import (
@@ -146,6 +146,14 @@ class LinearTrialSpaceProtocol(TrialSpaceProtocol[Array], Protocol):
         """Return ``V^T fields``. Shape: (nstates, k) -> (ncodes, k)."""
         ...
 
+    def rows(self, indices: Sequence[int]) -> Array:
+        """Return the named rows of ``V``. Shape: (len(indices), ncodes).
+
+        What evaluating on a subset of elements needs: the basis on
+        those elements' DOFs only, never the whole of ``V``.
+        """
+        ...
+
 
 class LinearTrialSpace(Generic[Array]):
     r"""A fixed reference plus the span of a basis, in a metric.
@@ -237,6 +245,10 @@ class LinearTrialSpace(Generic[Array]):
     def apply_transpose(self, fields: Array) -> Array:
         """Return ``V^T fields``. Shape: (nstates, k) -> (ncodes, k)."""
         return self._basis.apply_transpose(fields)
+
+    def rows(self, indices: Sequence[int]) -> Array:
+        """Return the named rows of ``V``. Shape: (len(indices), ncodes)."""
+        return self._basis.rows(indices)
 
     def project(self, fields: Array) -> Array:
         r"""Return the coordinates of the best approximation in the metric.
