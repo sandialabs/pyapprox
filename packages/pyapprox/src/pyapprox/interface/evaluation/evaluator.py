@@ -24,6 +24,7 @@ recording needs task-completion timing, and only this class sees it.
 
 import logging
 import time
+from dataclasses import dataclass, field
 from math import ceil
 from typing import (
     Callable,
@@ -71,6 +72,30 @@ _LOGGER = logging.getLogger(__name__)
 CompletionHook = Callable[
     [Outcome[Task, Payload], Optional[Decoded[Array]], Cost], None
 ]
+
+
+def _derivative_buckets() -> Dict[str, List[Tuple[int, Array]]]:
+    return {name: [] for name in _DERIVATIVE_FIELDS}
+
+
+@dataclass
+class _Harvest(Generic[Array]):
+    """What finished tasks produced, not yet returned to the caller.
+
+    Built up one task at a time as each is absorbed, and handed back,
+    then emptied, by the next return.
+    """
+
+    succeeded: List[int] = field(default_factory=list)
+    failed: List[int] = field(default_factory=list)
+    cancelled: List[int] = field(default_factory=list)
+    statuses: Dict[int, JobStatus] = field(default_factory=dict)
+    columns: List[Tuple[int, Array]] = field(default_factory=list)
+    # Derivative pieces, gathered per quantity so a batch split across
+    # tasks reassembles each one in index order.
+    derivative_pieces: Dict[str, List[Tuple[int, Array]]] = field(
+        default_factory=_derivative_buckets
+    )
 
 
 class Batch(Generic[Array, Task, Payload]):
@@ -127,6 +152,8 @@ class Batch(Generic[Array, Task, Payload]):
         self._statuses: Dict[int, JobStatus] = {}
         self._nsucceeded = 0
         self._nfailed = 0
+        # Tasks absorbed but not yet returned to the caller.
+        self._unreturned: _Harvest[Array] = _Harvest()
 
     def nsubmitted(self) -> int:
         """How many samples this batch was submitted with."""
@@ -194,11 +221,16 @@ class Batch(Generic[Array, Task, Payload]):
 
         On timeout, returns what finished; the remainder stays
         outstanding and collectable.
+
+        Each task is harvested -- decoded, charged, passed to the
+        completion hook and released -- as soon as its outcome is in,
+        not once the whole batch is. A process killed while waiting on
+        the last task of a long batch has then already recorded every
+        task that finished before it.
         """
         deadline = None if timeout is None else time.perf_counter() + timeout
-        finished = []
-        # Two-pass: gather first, mutate after, so the pending list is
-        # never modified while being iterated.
+        # Iterates a copy: absorbing removes each handle from the pending
+        # list, which must not change while it is being walked.
         for handle in list(self._pending):
             remaining = (
                 None if deadline is None
@@ -207,8 +239,8 @@ class Batch(Generic[Array, Task, Payload]):
             outcome = handle.outcome(remaining)
             if outcome.status is JobStatus.OUTSTANDING:
                 continue
-            finished.append(handle)
-        return self._harvest(finished)
+            self._absorb(handle)
+        return self._release_harvest()
 
     def cancel(self) -> EvalResult[Array]:
         """Stop what has not finished and return everything outstanding.
@@ -224,164 +256,178 @@ class Batch(Generic[Array, Task, Payload]):
         self, handles: Sequence[JobHandle[Task, Payload]]
     ) -> EvalResult[Array]:
         """Decode finished handles into one result, once each."""
-        succeeded: List[int] = []
-        failed: List[int] = []
-        cancelled: List[int] = []
-        statuses: Dict[int, JobStatus] = {}
-        columns: List[Tuple[int, Array]] = []
-        # Derivative pieces, gathered per quantity so a batch split
-        # across tasks reassembles each one in index order.
-        derivative_pieces: Dict[str, List[Tuple[int, Array]]] = {
-            name: [] for name in _DERIVATIVE_FIELDS
-        }
-
         for handle in handles:
-            if handle not in self._pending:
-                continue
-            self._pending.remove(handle)
-            outcome = handle.outcome()
+            self._absorb(handle)
+        return self._release_harvest()
 
-            decoded: Optional[Decoded[Array]] = None
-            if outcome.status is JobStatus.SUCCEEDED:
-                try:
-                    decoded = self._marshaller.values(outcome)
-                except MarshalError:
-                    # A statement about one task: record its samples as
-                    # failed and keep the rest of the batch running.
-                    decoded = None
+    def _release_harvest(self) -> EvalResult[Array]:
+        """Return everything absorbed since the last return, and forget it.
 
-            # Decoding first, because it may carry a better duration than
-            # the dispatcher measured. A wrapper times whatever it waited
-            # through -- process startup, input staging, and on a
-            # scheduler the whole queue wait -- while a solver reporting
-            # its own runtime is timing the work itself.
-            cost = _outcome_cost(outcome, decoded)
-            # The start is what lets the ledger tell overlapping jobs
-            # from consecutive ones. Without it every span anchors at
-            # zero, they all overlap, and the wall-clock total collapses
-            # to the longest single job -- understating a concurrent
-            # batch and, equally, refusing to sum a serial one.
-            self._ledger.add(cost, start=outcome.started)
-
-            if decoded is None:
-                target = (
-                    cancelled
-                    if outcome.status.is_retryable()
-                    else failed
-                )
-                for idx in outcome.indices:
-                    if idx in self._returned:
-                        continue
-                    self._returned.add(idx)
-                    target.append(idx)
-                    statuses[idx] = (
-                        outcome.status
-                        if outcome.status is not JobStatus.SUCCEEDED
-                        else JobStatus.FAILED
-                    )
-                    self._nfailed += 1
-            else:
-                fresh = [
-                    (pos, idx)
-                    for pos, idx in enumerate(decoded.indices)
-                    if idx not in self._returned
-                ]
-                for _, idx in fresh:
-                    self._returned.add(idx)
-                    succeeded.append(idx)
-                    statuses[idx] = JobStatus.SUCCEEDED
-                    self._nsucceeded += 1
-                if fresh:
-                    # Tag each piece with the batch index of its first
-                    # column, so assembly can restore index order.
-                    #
-                    # Handles arrive in whatever order the dispatcher
-                    # finished them, which for anything concurrent is
-                    # unrelated to submission order. Sorting the indices
-                    # while concatenating columns as they arrive pairs
-                    # every value with the wrong sample -- silently, and
-                    # only when completion is reordered.
-                    #
-                    # One integer per task, not per sample: a task's own
-                    # columns are already contiguous and ordered, so
-                    # only the tasks need reordering. The tag comes from
-                    # the *fresh* columns rather than the task, since an
-                    # earlier partial collection may already have taken
-                    # some of them.
-                    take = [pos for pos, _ in fresh]
-                    first = fresh[0][1]
-                    if decoded.values.shape[1] > 0:
-                        columns.append((first, decoded.values[:, take]))
-                # Derivatives are gathered whether or not these indices
-                # are newly succeeded. Where one request became several
-                # tasks -- a solver computing values and a jacobian by
-                # separate invocations -- the second task covers indices
-                # the first already reported, and skipping it would
-                # discard exactly the quantity it was run to produce.
-                # Success is per quantity, and this is where that holds.
-                if decoded.indices:
-                    at = list(range(len(decoded.indices)))
-                    origin = decoded.indices[0]
-                    for name in _DERIVATIVE_FIELDS:
-                        piece = getattr(decoded, name)
-                        if piece is not None:
-                            derivative_pieces[name].append(
-                                (origin, _select(piece, name, at))
-                            )
-
-                # A task that decoded fewer samples than it covered
-                # fails the remainder -- per quantity, not per sample.
-                undecoded = set(outcome.indices) - set(decoded.indices)
-                for idx in sorted(undecoded):
-                    if idx in self._returned:
-                        continue
-                    self._returned.add(idx)
-                    failed.append(idx)
-                    statuses[idx] = JobStatus.FAILED
-                    self._nfailed += 1
-
-            # Neither of these may take the batch down with it. Both run
-            # once per finished task, inside the loop that also removes
-            # handles from ``_pending`` -- so an exception escaping here
-            # abandons every handle after this one: never released,
-            # never charged, and absent from the result the caller gets
-            # back. A hook writing to a full disk, or a marshaller whose
-            # cleanup hits a read-only scratch, would turn one failed
-            # sample into a lost batch. Logged rather than swallowed
-            # silently, because a store that never wrote is a fact its
-            # owner needs.
-            if self._on_complete is not None:
-                try:
-                    self._on_complete(outcome, decoded, cost)
-                except Exception:
-                    _LOGGER.exception(
-                        "completion hook failed for indices %s; "
-                        "continuing with the rest of the batch",
-                        list(outcome.indices),
-                    )
-            try:
-                self._marshaller.release(outcome)
-            except Exception:
-                _LOGGER.exception(
-                    "release failed for indices %s; its working "
-                    "directory may survive",
-                    list(outcome.indices),
-                )
-
+        Absorbed pieces are held on the batch rather than in a call's
+        locals: an exception that interrupts a collection after some
+        tasks were absorbed -- and that the caller survives -- leaves
+        those tasks to be returned by the next call, rather than marked
+        returned and never delivered.
+        """
+        harvest, self._unreturned = self._unreturned, _Harvest[Array]()
         # Accumulated once here rather than at each of the three sites
         # that write ``statuses``, so a branch added later cannot forget
         # to. The streaming contract makes these disjoint: an index is
         # returned once, so no key is ever overwritten.
-        self._statuses.update(statuses)
-
+        self._statuses.update(harvest.statuses)
         return self._assemble(
-            succeeded,
-            failed,
-            cancelled,
-            statuses,
-            columns,
-            derivative_pieces,
+            harvest.succeeded,
+            harvest.failed,
+            harvest.cancelled,
+            harvest.statuses,
+            harvest.columns,
+            harvest.derivative_pieces,
         )
+
+    def _absorb(self, handle: JobHandle[Task, Payload]) -> None:
+        """Decode, charge, record and release one finished task.
+
+        Its pieces join the harvest the next return delivers. A handle
+        already absorbed, or not this batch's, is ignored.
+        """
+        if handle not in self._pending:
+            return
+        harvest = self._unreturned
+        succeeded = harvest.succeeded
+        failed = harvest.failed
+        cancelled = harvest.cancelled
+        statuses = harvest.statuses
+        columns = harvest.columns
+        derivative_pieces = harvest.derivative_pieces
+        self._pending.remove(handle)
+        outcome = handle.outcome()
+
+        decoded: Optional[Decoded[Array]] = None
+        if outcome.status is JobStatus.SUCCEEDED:
+            try:
+                decoded = self._marshaller.values(outcome)
+            except MarshalError:
+                # A statement about one task: record its samples as
+                # failed and keep the rest of the batch running.
+                decoded = None
+
+        # Decoding first, because it may carry a better duration than
+        # the dispatcher measured. A wrapper times whatever it waited
+        # through -- process startup, input staging, and on a
+        # scheduler the whole queue wait -- while a solver reporting
+        # its own runtime is timing the work itself.
+        cost = _outcome_cost(outcome, decoded)
+        # The start is what lets the ledger tell overlapping jobs
+        # from consecutive ones. Without it every span anchors at
+        # zero, they all overlap, and the wall-clock total collapses
+        # to the longest single job -- understating a concurrent
+        # batch and, equally, refusing to sum a serial one.
+        self._ledger.add(cost, start=outcome.started)
+
+        if decoded is None:
+            target = (
+                cancelled
+                if outcome.status.is_retryable()
+                else failed
+            )
+            for idx in outcome.indices:
+                if idx in self._returned:
+                    continue
+                self._returned.add(idx)
+                target.append(idx)
+                statuses[idx] = (
+                    outcome.status
+                    if outcome.status is not JobStatus.SUCCEEDED
+                    else JobStatus.FAILED
+                )
+                self._nfailed += 1
+        else:
+            fresh = [
+                (pos, idx)
+                for pos, idx in enumerate(decoded.indices)
+                if idx not in self._returned
+            ]
+            for _, idx in fresh:
+                self._returned.add(idx)
+                succeeded.append(idx)
+                statuses[idx] = JobStatus.SUCCEEDED
+                self._nsucceeded += 1
+            if fresh:
+                # Tag each piece with the batch index of its first
+                # column, so assembly can restore index order.
+                #
+                # Handles arrive in whatever order the dispatcher
+                # finished them, which for anything concurrent is
+                # unrelated to submission order. Sorting the indices
+                # while concatenating columns as they arrive pairs
+                # every value with the wrong sample -- silently, and
+                # only when completion is reordered.
+                #
+                # One integer per task, not per sample: a task's own
+                # columns are already contiguous and ordered, so
+                # only the tasks need reordering. The tag comes from
+                # the *fresh* columns rather than the task, since an
+                # earlier partial collection may already have taken
+                # some of them.
+                take = [pos for pos, _ in fresh]
+                first = fresh[0][1]
+                if decoded.values.shape[1] > 0:
+                    columns.append((first, decoded.values[:, take]))
+            # Derivatives are gathered whether or not these indices
+            # are newly succeeded. Where one request became several
+            # tasks -- a solver computing values and a jacobian by
+            # separate invocations -- the second task covers indices
+            # the first already reported, and skipping it would
+            # discard exactly the quantity it was run to produce.
+            # Success is per quantity, and this is where that holds.
+            if decoded.indices:
+                at = list(range(len(decoded.indices)))
+                origin = decoded.indices[0]
+                for name in _DERIVATIVE_FIELDS:
+                    piece = getattr(decoded, name)
+                    if piece is not None:
+                        derivative_pieces[name].append(
+                            (origin, _select(piece, name, at))
+                        )
+
+            # A task that decoded fewer samples than it covered
+            # fails the remainder -- per quantity, not per sample.
+            undecoded = set(outcome.indices) - set(decoded.indices)
+            for idx in sorted(undecoded):
+                if idx in self._returned:
+                    continue
+                self._returned.add(idx)
+                failed.append(idx)
+                statuses[idx] = JobStatus.FAILED
+                self._nfailed += 1
+
+        # Neither of these may take the batch down with it. Both run
+        # once per finished task, inside the loop that also removes
+        # handles from ``_pending`` -- so an exception escaping here
+        # abandons every handle after this one: never released,
+        # never charged, and absent from the result the caller gets
+        # back. A hook writing to a full disk, or a marshaller whose
+        # cleanup hits a read-only scratch, would turn one failed
+        # sample into a lost batch. Logged rather than swallowed
+        # silently, because a store that never wrote is a fact its
+        # owner needs.
+        if self._on_complete is not None:
+            try:
+                self._on_complete(outcome, decoded, cost)
+            except Exception:
+                _LOGGER.exception(
+                    "completion hook failed for indices %s; "
+                    "continuing with the rest of the batch",
+                    list(outcome.indices),
+                )
+        try:
+            self._marshaller.release(outcome)
+        except Exception:
+            _LOGGER.exception(
+                "release failed for indices %s; its working "
+                "directory may survive",
+                list(outcome.indices),
+            )
 
     def _assemble(
         self,
