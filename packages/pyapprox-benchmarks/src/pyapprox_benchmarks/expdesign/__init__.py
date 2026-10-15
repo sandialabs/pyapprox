@@ -15,6 +15,7 @@ Problem wrappers (no ground truth):
 - ``FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper``
 """
 
+from pyapprox.util.optional_deps import package_available
 from pyapprox_benchmarks.expdesign.advection_diffusion import (
     FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper,
     ObstructedAdvectionDiffusionOEDProblemWrapper,
@@ -24,15 +25,6 @@ from pyapprox_benchmarks.expdesign.advection_diffusion import (
 from pyapprox_benchmarks.expdesign.cantilever_beam import (
     CantileverBeam2DLoadOEDBenchmark,
     build_cantilever_beam_oed_benchmark,
-)
-from pyapprox_benchmarks.expdesign.contaminant_transport import (
-    CellsPlusUniformStreamFunction,
-    ContaminantTransportOEDProblem,
-    FixedVelocity,
-    GaussianPlume,
-    StreamFunctionFlow,
-    UncertainVelocity,
-    VelocityModelProtocol,
 )
 from pyapprox_benchmarks.expdesign.linear_gaussian import (
     LinearGaussianKLOEDBenchmark,
@@ -70,11 +62,28 @@ __all__ = [
     "build_fixed_velocity_obstructed_advection_diffusion_oed_problem",
     "CantileverBeam2DLoadOEDBenchmark",
     "build_cantilever_beam_oed_benchmark",
-    "ContaminantTransportOEDProblem",
-    "CellsPlusUniformStreamFunction",
-    "FixedVelocity",
-    "GaussianPlume",
-    "StreamFunctionFlow",
-    "UncertainVelocity",
-    "VelocityModelProtocol",
 ]
+
+# The contaminant transport problem assembles with skfem, so it is exported
+# only when the fem extra is installed; the analytical benchmarks above
+# must import without it.
+if package_available("skfem"):
+    from pyapprox_benchmarks.expdesign.contaminant_transport import (
+        CellsPlusUniformStreamFunction,
+        ContaminantTransportOEDProblem,
+        FixedVelocity,
+        GaussianPlume,
+        StreamFunctionFlow,
+        UncertainVelocity,
+        VelocityModelProtocol,
+    )
+
+    __all__ += [
+        "ContaminantTransportOEDProblem",
+        "CellsPlusUniformStreamFunction",
+        "FixedVelocity",
+        "GaussianPlume",
+        "StreamFunctionFlow",
+        "UncertainVelocity",
+        "VelocityModelProtocol",
+    ]
