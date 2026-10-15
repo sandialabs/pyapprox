@@ -53,9 +53,10 @@ from pyapprox.surrogates.kle import as_basis_operator
 from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.rom_problems import RomProblem
 
-# Measured max ratio 1.85 (rank 3) for the linear ADR problem over ranks
-# 1-6 and its held-out samples; the bound leaves headroom without hiding
-# a broken projection.
+# Measured max ratio over ranks 1-6 and the held-out samples: 1.85
+# Galerkin linear ADR, 1.88 Galerkin exp kappa, 1.72 finite-difference
+# linear ADR. The bound leaves headroom without hiding a broken
+# projection.
 _QUASI_OPTIMALITY_BOUND = 3.0
 
 
