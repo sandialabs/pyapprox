@@ -464,7 +464,12 @@ class TestEssentialBoundaryFluxFunctional:
         tols[4] = 5e-6
         tols[5] = 5e-6
         tols[8] = 5e-6
-        tols[9:13] = 5e-6
+        # 9:14, not 9:13: the assembled HVP (13) reads the same residual
+        # rows as the four contractions before it and floors with them.
+        # Left at 1e-6 it cleared on one machine and reached 1.21e-6 on
+        # CI's Linux BLAS, where the kernel chosen for a reduction
+        # changes the last digits.
+        tols[9:14] = 5e-6
         checker.check_derivatives(
             bkd.zeros((system.nstates(), 1)), bkd.asarray(_PARAM), tols
         )
