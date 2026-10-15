@@ -47,6 +47,7 @@ from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.pde.time_order import refuse_second_order_in_time
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -98,9 +99,7 @@ class TransientForwardModel(CollocationModel[Array]):
         bkd: Backend[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
-        functional: Optional[TransientFunctionalProtocol[Array]] = (
-            None
-        ),
+        functional: Optional[TransientFunctionalProtocol[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
         jacobian_method: Optional[TransientQoIJacobianMethod[Array]] = None,
     ) -> None:
@@ -111,9 +110,11 @@ class TransientForwardModel(CollocationModel[Array]):
             )
         if not isinstance(physics, PhysicsProtocol):
             raise TypeError(
-                f"physics must satisfy PhysicsProtocol, "
-                f"got {type(physics).__name__}"
+                f"physics must satisfy PhysicsProtocol, got {type(physics).__name__}"
             )
+        # Refused here, not only at solve_transient, so a model that
+        # could never be evaluated is never constructed.
+        refuse_second_order_in_time(physics)
         require_owned_targets(parameterization, physics)
         adapter = create_collocation_physics_ode_residual(
             physics, bkd, parameterization
@@ -130,9 +131,7 @@ class TransientForwardModel(CollocationModel[Array]):
             functional = AllStatesEndpointFunctional(
                 physics.nstates(), self._nparams, bkd
             )
-        if not isinstance(
-            functional, TransientFunctionalProtocol
-        ):
+        if not isinstance(functional, TransientFunctionalProtocol):
             raise TypeError(
                 "functional must satisfy "
                 "TransientFunctionalProtocol, got "
@@ -147,12 +146,8 @@ class TransientForwardModel(CollocationModel[Array]):
                 f"{functional.time_dependence()} functional; a transient "
                 "model needs one that reads a trajectory"
             )
-        self._functional: TransientFunctionalProtocol[Array] = (
-            functional
-        )
-        self._jacobian_method = default_qoi_jacobian_method(
-            functional, jacobian_method
-        )
+        self._functional: TransientFunctionalProtocol[Array] = functional
+        self._jacobian_method = default_qoi_jacobian_method(functional, jacobian_method)
 
         # This model injects no time quadrature, so a functional whose
         # capability depends on one (it integrates over time) raises
@@ -161,10 +156,7 @@ class TransientForwardModel(CollocationModel[Array]):
         functional_hvp = functional_derivs.state_state_hvp
         # A functional without Jacobians is evaluated, not differentiated.
         bundle = parameterization.param_derivatives()
-        if (
-            bundle.param_jacobian is None
-            or functional_derivs.state_jacobian is None
-        ):
+        if bundle.param_jacobian is None or functional_derivs.state_jacobian is None:
             self._derivs: Derivatives[Array] = Derivatives.none()
         elif (
             self._functional.nqoi() == 1
@@ -178,9 +170,7 @@ class TransientForwardModel(CollocationModel[Array]):
                 jacobian=self._jacobian, hvp=self._hvp
             )
         else:
-            self._derivs = Derivatives.first_order(
-                jacobian=self._jacobian
-            )
+            self._derivs = Derivatives.first_order(jacobian=self._jacobian)
 
     @staticmethod
     def _inject_essential_values(
@@ -223,9 +213,7 @@ class TransientForwardModel(CollocationModel[Array]):
         self,
     ) -> CollocationPhysicsToODEResidualWithSetParamAdapter[Array]:
         adapter = self.adapter()
-        if not isinstance(
-            adapter, CollocationPhysicsToODEResidualWithSetParamAdapter
-        ):
+        if not isinstance(adapter, CollocationPhysicsToODEResidualWithSetParamAdapter):
             raise TypeError(
                 "derivative evaluation requires a parameterized adapter "
                 f"tier; got {type(adapter).__name__}"
@@ -251,9 +239,7 @@ class TransientForwardModel(CollocationModel[Array]):
             Time points. Shape: (ntimes,).
         """
         if sample.ndim != 2 or sample.shape[1] != 1:
-            raise ValueError(
-                f"sample must have shape (nvars, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (nvars, 1), got {sample.shape}")
         param_1d = sample[:, 0]
         self._parameterization.apply(param_1d)
         self._param_adapter().set_param(param_1d)
@@ -306,9 +292,7 @@ class TransientForwardModel(CollocationModel[Array]):
         rebinding).
         """
         self.forward_solve(sample)
-        operator = TimeAdjointOperatorWithHVP(
-            self.last_integrator(), self._functional
-        )
+        operator = TimeAdjointOperatorWithHVP(self.last_integrator(), self._functional)
         return operator.hvp(self._init_state, sample, vvec)
 
     def __repr__(self) -> str:

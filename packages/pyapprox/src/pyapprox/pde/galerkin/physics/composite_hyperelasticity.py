@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from skfem.element.discrete_field import DiscreteField
 
 
-
 import numpy as np
 from numpy.typing import NDArray
 
@@ -47,6 +46,7 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     NormalFluxLawProtocol,
 )
 from pyapprox.pde.galerkin.physics.helpers import PerElementField
+from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -185,7 +185,8 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
 
         # Stress model (parameters will be set per-evaluation)
         self._stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
-            lamda=0.0, mu=0.0,
+            lamda=0.0,
+            mu=0.0,
         )
 
         # Cache mass matrix
@@ -261,6 +262,14 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
     def mass_solve(self, rhs: Array) -> Array:
         return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
+    def first_order_transient_refusal(self) -> str:
+        """Return why a first-order transient path refuses this physics.
+
+        Satisfies ``SecondOrderInTimeProtocol``: elasticity is second
+        order in time, so ``M du/dt = F(u, t)`` is not its dynamics.
+        """
+        return second_order_in_time_refusal(type(self).__name__)
+
     def _interpolate_state(self, state: Array) -> object:
         skfem_basis = self._basis.skfem_basis()
         state_np = self._bkd.to_numpy(state)
@@ -279,7 +288,8 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         if ndim == 1:
 
             def internal_force_1d(
-                v: "DiscreteField", w: "FormExtraParams",
+                v: "DiscreteField",
+                w: "FormExtraParams",
             ) -> np.ndarray:
                 F = 1.0 + w.u_prev.grad[0, 0]
                 J = F
@@ -299,7 +309,8 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         elif ndim == 2:
 
             def internal_force_2d(
-                v: "DiscreteField", w: "FormExtraParams",
+                v: "DiscreteField",
+                w: "FormExtraParams",
             ) -> np.ndarray:
                 F11 = 1.0 + w.u_prev.grad[0, 0]
                 F12 = w.u_prev.grad[0, 1]
@@ -339,7 +350,8 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         elif ndim == 3:
 
             def internal_force_3d(
-                v: "DiscreteField", w: "FormExtraParams",
+                v: "DiscreteField",
+                w: "FormExtraParams",
             ) -> np.ndarray:
                 F = tuple(
                     tuple(
@@ -391,9 +403,7 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
                 # Annotated because skfem's DiscreteField is untyped, so
                 # zeros_like() would otherwise make the accumulator Any
                 # and leak it through the declared return type.
-                result: NDArray[np.floating[Any]] = np.zeros_like(
-                    v.grad[0, 0]
-                )
+                result: NDArray[np.floating[Any]] = np.zeros_like(v.grad[0, 0])
                 for i in range(3):
                     for j in range(3):
                         result = result + P[i][j] * v.grad[i, j]
@@ -566,31 +576,34 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
                 ln_J = np.log(J)
 
                 # F^{-1}_{ab} = cof_{ba} / J
-                finv = np.stack(
-                    [
-                        np.stack(
-                            [
-                                F22 * F33 - F23 * F32,
-                                -(F12 * F33 - F13 * F32),
-                                F12 * F23 - F13 * F22,
-                            ]
-                        ),
-                        np.stack(
-                            [
-                                -(F21 * F33 - F23 * F31),
-                                F11 * F33 - F13 * F31,
-                                -(F11 * F23 - F13 * F21),
-                            ]
-                        ),
-                        np.stack(
-                            [
-                                F21 * F32 - F22 * F31,
-                                -(F11 * F32 - F12 * F31),
-                                F11 * F22 - F12 * F21,
-                            ]
-                        ),
-                    ]
-                ) / J
+                finv = (
+                    np.stack(
+                        [
+                            np.stack(
+                                [
+                                    F22 * F33 - F23 * F32,
+                                    -(F12 * F33 - F13 * F32),
+                                    F12 * F23 - F13 * F22,
+                                ]
+                            ),
+                            np.stack(
+                                [
+                                    -(F21 * F33 - F23 * F31),
+                                    F11 * F33 - F13 * F31,
+                                    -(F11 * F23 - F13 * F21),
+                                ]
+                            ),
+                            np.stack(
+                                [
+                                    F21 * F32 - F22 * F31,
+                                    -(F11 * F32 - F12 * F31),
+                                    F11 * F22 - F12 * F21,
+                                ]
+                            ),
+                        ]
+                    )
+                    / J
+                )
 
                 # A_iJkL = mu*d_ik*d_JL + (mu - lam*lnJ)*Finv_Jk*Finv_Li
                 #          + lam*Finv_Ji*Finv_Lk, contracted with
@@ -602,9 +615,7 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
                 tr_v = np.einsum("ij...,ji...->...", v.grad, finv)
                 tr_u = np.einsum("ij...,ji...->...", u.grad, finv)
                 ret: NDArray[np.floating[Any]] = (
-                    w.mu * vu
-                    + (w.mu - w.lam * ln_J) * cross
-                    + w.lam * tr_v * tr_u
+                    w.mu * vu + (w.mu - w.lam * ln_J) * cross + w.lam * tr_v * tr_u
                 )
                 return ret
 
@@ -700,8 +711,7 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         values = np.asarray(values)
         if values.shape != (2 * self._nmaterials,):
             raise ValueError(
-                f"values must have shape ({2 * self._nmaterials},), got "
-                f"{values.shape}"
+                f"values must have shape ({2 * self._nmaterials},), got {values.shape}"
             )
         nelems = self._lam_per_elem.shape[0]
         lam_per_elem = np.zeros(nelems)

@@ -1,13 +1,19 @@
-"""Linear elasticity physics for spectral collocation.
+r"""Linear elasticity physics for spectral collocation.
 
 Implements the linear elasticity equations in 2D and 3D:
-    -div(σ) + f = 0
+
+.. math::
+
+    -\nabla \cdot \sigma + f = 0
 
 where:
-    σ = λ*tr(ε)*I + 2μ*ε  (stress tensor)
-    ε_ij = 0.5*(∂u_i/∂x_j + ∂u_j/∂x_i)  (strain tensor)
-    u = (u, v) or (u, v, w) is the displacement field
-    λ, μ are Lamé parameters
+
+- :math:`\sigma = \lambda \operatorname{tr}(\varepsilon) I + 2\mu \varepsilon`
+  is the stress tensor,
+- :math:`\varepsilon_{ij} = \tfrac{1}{2}(\partial u_i/\partial x_j
+  + \partial u_j/\partial x_i)` is the strain tensor,
+- :math:`u = (u, v)` or :math:`(u, v, w)` is the displacement field,
+- :math:`\lambda, \mu` are the Lamé parameters.
 """
 
 from typing import Callable, Generic, List, Optional, Tuple, Union
@@ -16,25 +22,34 @@ from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
+from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
-    """Linear elasticity physics in 2D or 3D.
+    r"""Linear elasticity physics in 2D or 3D.
 
-    Implements the equilibrium equation:
-        -div(σ) + f = 0
+    Implements the equilibrium equation
 
-    where the stress tensor is:
-        σ = λ*tr(ε)*I + 2μ*ε
+    .. math::
 
-    and the strain tensor is:
-        ε_ij = 0.5*(∂u_i/∂x_j + ∂u_j/∂x_i)
+        -\nabla \cdot \sigma + f = 0
 
-    The residual is formulated as:
-        residual = div(σ) + f
+    where the stress tensor is
 
-    So that residual = 0 at equilibrium. The state stacks one
+    .. math::
+
+        \sigma = \lambda \operatorname{tr}(\varepsilon) I + 2\mu \varepsilon
+
+    and the strain tensor is
+
+    .. math::
+
+        \varepsilon_{ij} = \tfrac{1}{2}\left(\frac{\partial u_i}{\partial x_j}
+        + \frac{\partial u_j}{\partial x_i}\right)
+
+    The residual is formulated as :math:`\nabla \cdot \sigma + f`, so
+    that it vanishes at equilibrium. The state stacks one
     displacement component per spatial dimension, each of length npts.
 
     Parameters
@@ -46,9 +61,9 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     bkd : Backend
         Computational backend.
     lamda : float or Array
-        Lamé's first parameter λ. If Array, shape: (npts,).
+        Lamé's first parameter :math:`\lambda`. If Array, shape: (npts,).
     mu : float or Array
-        Shear modulus μ. If Array, shape: (npts,).
+        Shear modulus :math:`\mu`. If Array, shape: (npts,).
     forcing : Callable[[float], Array] or Array, optional
         Forcing term. If callable, takes time and returns
         (ndim*npts,) array with the force components stacked.
@@ -65,9 +80,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     ):
         ndim = basis.ndim()
         if ndim not in (2, 3):
-            raise ValueError(
-                "LinearElasticityPhysics requires a 2D or 3D basis"
-            )
+            raise ValueError("LinearElasticityPhysics requires a 2D or 3D basis")
 
         super().__init__(basis, bkd, ncomponents=ndim)
 
@@ -96,9 +109,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         self._forcing_func = forcing
 
         # Precompute first-derivative matrices per dimension
-        self._D: List[Array] = [
-            basis.derivative_matrix(1, dim) for dim in range(ndim)
-        ]
+        self._D: List[Array] = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
         if ndim == 2:
             self._Dx = self._D[0]  # d/dx
             self._Dy = self._D[1]  # d/dy
@@ -178,16 +189,14 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             One component per spatial dimension, each shape (npts,)
         """
         npts = self.npts()
-        return tuple(
-            state[i * npts : (i + 1) * npts] for i in range(self._ndim)
-        )
+        return tuple(state[i * npts : (i + 1) * npts] for i in range(self._ndim))
 
     def residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual f(u, t).
+        r"""Compute spatial residual f(u, t).
 
-        The residual is: div(σ) + forcing
-
-        where σ = λ*tr(ε)*I + 2μ*ε
+        The residual is :math:`\nabla \cdot \sigma + f`, where
+        :math:`\sigma = \lambda \operatorname{tr}(\varepsilon) I
+        + 2\mu \varepsilon`.
 
         Parameters
         ----------
@@ -251,21 +260,19 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         each entry shape (npts,).
         """
         comps = self._extract_components(state)
-        grads = [
-            [self._D[j] @ comps[i] for j in range(3)] for i in range(3)
-        ]
+        grads = [[self._D[j] @ comps[i] for j in range(3)] for i in range(3)]
         return [
             [
-                grads[i][j]
-                if i == j
-                else 0.5 * (grads[i][j] + grads[j][i])
+                grads[i][j] if i == j else 0.5 * (grads[i][j] + grads[j][i])
                 for j in range(3)
             ]
             for i in range(3)
         ]
 
     def _residual_3d(self, state: Array, time: float) -> Array:
-        """3D residual div(σ) + f with σ = λ*tr(ε)*I + 2μ*ε."""
+        r"""3D residual :math:`\nabla \cdot \sigma + f` with
+        :math:`\sigma = \lambda \operatorname{tr}(\varepsilon) I
+        + 2\mu \varepsilon`."""
         bkd = self._bkd
         npts = self.npts()
         eps = self._strains_3d(state)
@@ -281,26 +288,28 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
                 if i == j:
                     sigma_ij = sigma_ij + lam * trace_e
                 div_sigma_i = div_sigma_i + self._D[j] @ sigma_ij
-            residuals.append(
-                div_sigma_i + forcing[i * npts : (i + 1) * npts]
-            )
+            residuals.append(div_sigma_i + forcing[i * npts : (i + 1) * npts])
         return bkd.concatenate(residuals)
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian df/d(u,v).
+        r"""Compute state Jacobian df/d(u,v).
 
         For linear elasticity with constant Lamé parameters, the Jacobian
-        is constant (independent of state).
+        is constant (independent of state). It has block structure
 
-        The Jacobian has block structure:
-            J = [[J_uu, J_uv],
-                 [J_vu, J_vv]]
+        .. math::
 
-        where:
-            J_uu = (λ + 2μ)*D²_x + μ*D²_y
-            J_uv = (λ + μ)*D_x @ D_y
-            J_vu = (λ + μ)*D_y @ D_x
-            J_vv = μ*D²_x + (λ + 2μ)*D²_y
+            J = \begin{bmatrix} J_{uu} & J_{uv} \\ J_{vu} & J_{vv}
+            \end{bmatrix}
+
+        where
+
+        .. math::
+
+            J_{uu} &= (\lambda + 2\mu) D_x^2 + \mu D_y^2, \\
+            J_{uv} &= (\lambda + \mu) D_x D_y, \\
+            J_{vu} &= (\lambda + \mu) D_y D_x, \\
+            J_{vv} &= \mu D_x^2 + (\lambda + 2\mu) D_y^2.
 
         Parameters
         ----------
@@ -366,14 +375,18 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         return jacobian
 
     def _jacobian_3d(self, state: Array, time: float) -> Array:
-        """3D block Jacobian in variable-Lamé D@diag@D form.
+        r"""3D block Jacobian in variable-Lamé D@diag@D form.
 
-        Derived from R_i = sum_j D_j @ sigma_ij (divergence operator
-        always the LEFT factor, so the ordering is correct on
-        curvilinear meshes where D_i@D_j != D_j@D_i):
+        Derived from :math:`R_i = \sum_j D_j \sigma_{ij}` (divergence
+        operator always the LEFT factor, so the ordering is correct on
+        curvilinear meshes where :math:`D_i D_j \neq D_j D_i`):
 
-            J[i][i] = D_i diag(λ+2μ) D_i + sum_{k≠i} D_k diag(μ) D_k
-            J[i][j] = D_i diag(λ) D_j + D_j diag(μ) D_i   (i ≠ j)
+        .. math::
+
+            J_{ii} &= D_i \operatorname{diag}(\lambda + 2\mu) D_i
+            + \sum_{k \neq i} D_k \operatorname{diag}(\mu) D_k, \\
+            J_{ij} &= D_i \operatorname{diag}(\lambda) D_j
+            + D_j \operatorname{diag}(\mu) D_i \quad (i \neq j).
 
         The Lamé arrays are always populated (scalars are expanded at
         construction), so one form serves constant and field Lamé.
@@ -390,9 +403,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
                     block = self._D[i] @ diag_lam_2mu @ self._D[i]
                     for k in range(3):
                         if k != i:
-                            block = (
-                                block + self._D[k] @ diag_mu @ self._D[k]
-                            )
+                            block = block + self._D[k] @ diag_mu @ self._D[k]
                 else:
                     block = (
                         self._D[i] @ diag_lam @ self._D[j]
@@ -411,6 +422,14 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         the contraction is exactly zero.
         """
         return self._bkd.zeros((self.nstates(),))
+
+    def first_order_transient_refusal(self) -> str:
+        """Return why a first-order transient path refuses this physics.
+
+        Satisfies ``SecondOrderInTimeProtocol``: elasticity is second
+        order in time, so ``du/dt = div(sigma) + f`` is not its dynamics.
+        """
+        return second_order_in_time_refusal(type(self).__name__)
 
     # -- full-matrix field-derivative assemblies (engine slots)
 
@@ -458,12 +477,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
                 row_blocks.append(block)
             return bkd.concatenate(row_blocks, axis=0)
         exx, exy, eyy = self._strains(state)
-        top = self._Dx @ bkd.diag(2.0 * exx) + self._Dy @ bkd.diag(
-            2.0 * exy
-        )
-        bottom = self._Dx @ bkd.diag(2.0 * exy) + self._Dy @ bkd.diag(
-            2.0 * eyy
-        )
+        top = self._Dx @ bkd.diag(2.0 * exx) + self._Dy @ bkd.diag(2.0 * exy)
+        bottom = self._Dx @ bkd.diag(2.0 * exy) + self._Dy @ bkd.diag(2.0 * eyy)
         return bkd.concatenate([top, bottom], axis=0)
 
     def residual_lamda_jacobian(self, state: Array) -> Array:
@@ -494,18 +509,12 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         if self._ndim == 3:
             eps = self._strains_3d(state)
             diag_trace = bkd.diag(eps[0][0] + eps[1][1] + eps[2][2])
-            return bkd.concatenate(
-                [self._D[i] @ diag_trace for i in range(3)], axis=0
-            )
+            return bkd.concatenate([self._D[i] @ diag_trace for i in range(3)], axis=0)
         exx, _, eyy = self._strains(state)
         diag_trace = bkd.diag(exx + eyy)
-        return bkd.concatenate(
-            [self._Dx @ diag_trace, self._Dy @ diag_trace], axis=0
-        )
+        return bkd.concatenate([self._Dx @ diag_trace, self._Dy @ diag_trace], axis=0)
 
-    def residual_mu_state_jacobian(
-        self, delta: Array, state: Array
-    ) -> Array:
+    def residual_mu_state_jacobian(self, delta: Array, state: Array) -> Array:
         """Assemble the mixed operator :math:`A_\\mu(\\delta) =
         \\partial/\\partial(u,v)\\,[S_\\mu(u,v)\\,\\delta]`.
 
@@ -545,10 +554,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
                         block = self._D[i] @ diag_2d @ self._D[i]
                         for k in range(3):
                             if k != i:
-                                block = (
-                                    block
-                                    + self._D[k] @ diag_d @ self._D[k]
-                                )
+                                block = block + self._D[k] @ diag_d @ self._D[k]
                     else:
                         block = self._D[j] @ diag_d @ self._D[i]
                     blocks.append(block)
@@ -565,9 +571,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         bottom = bkd.concatenate([a_vu, a_vv], axis=1)
         return bkd.concatenate([top, bottom], axis=0)
 
-    def residual_lamda_state_jacobian(
-        self, delta: Array, state: Array
-    ) -> Array:
+    def residual_lamda_state_jacobian(self, delta: Array, state: Array) -> Array:
         """Assemble the mixed operator :math:`A_\\lambda(\\delta) =
         \\partial/\\partial(u,v)\\,[S_\\lambda(u,v)\\,\\delta]`.
 
@@ -596,10 +600,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             diag_d = bkd.diag(delta)
             rows = [
                 bkd.concatenate(
-                    [
-                        self._D[i] @ diag_d @ self._D[j]
-                        for j in range(3)
-                    ],
+                    [self._D[i] @ diag_d @ self._D[j] for j in range(3)],
                     axis=1,
                 )
                 for i in range(3)
@@ -607,12 +608,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             return bkd.concatenate(rows, axis=0)
         Dx, Dy = self._Dx, self._Dy
         diag_d = bkd.diag(delta)
-        top = bkd.concatenate(
-            [Dx @ diag_d @ Dx, Dx @ diag_d @ Dy], axis=1
-        )
-        bottom = bkd.concatenate(
-            [Dy @ diag_d @ Dx, Dy @ diag_d @ Dy], axis=1
-        )
+        top = bkd.concatenate([Dx @ diag_d @ Dx, Dx @ diag_d @ Dy], axis=1)
+        bottom = bkd.concatenate([Dy @ diag_d @ Dx, Dy @ diag_d @ Dy], axis=1)
         return bkd.concatenate([top, bottom], axis=0)
 
     def boundary_traction_lame_jacobian(
@@ -669,9 +666,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             trace_b = (eps[0][0] + eps[1][1] + eps[2][2])[mesh_idx]
             dt_dmu = 2.0 * eps[comp][0][mesh_idx] * normals[:, 0]
             for j in range(1, 3):
-                dt_dmu = (
-                    dt_dmu + 2.0 * eps[comp][j][mesh_idx] * normals[:, j]
-                )
+                dt_dmu = dt_dmu + 2.0 * eps[comp][j][mesh_idx] * normals[:, j]
             dt_dlam = trace_b * normals[:, comp]
             result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
             for i in range(nbnd):
@@ -703,11 +698,11 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array
     ) -> Array:
-        """Compute traction at boundary for DtN domain decomposition.
+        r"""Compute traction at boundary for DtN domain decomposition.
 
-        Computes t = σ · n at the specified boundary points, where:
-        - σ is the stress tensor
-        - n is the outward unit normal
+        Computes :math:`t = \sigma \cdot n` at the specified boundary
+        points, where :math:`\sigma` is the stress tensor and :math:`n`
+        the outward unit normal.
 
         Parameters
         ----------
@@ -727,16 +722,13 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         bkd = self._bkd
         if self._ndim == 3:
             eps = self._strains_3d(state)
-            trace_b = (eps[0][0] + eps[1][1] + eps[2][2])[
-                boundary_indices
-            ]
+            trace_b = (eps[0][0] + eps[1][1] + eps[2][2])[boundary_indices]
             lam_b = self._lambda_array[boundary_indices]
             mu_b = self._mu_array[boundary_indices]
             tractions = []
             for i in range(3):
                 t_i = (
-                    lam_b * trace_b
-                    + 2.0 * mu_b * eps[i][i][boundary_indices]
+                    lam_b * trace_b + 2.0 * mu_b * eps[i][i][boundary_indices]
                 ) * bkd.to_float(normal[i])
                 for j in range(3):
                     if j != i:
@@ -783,7 +775,7 @@ def create_linear_elasticity(
     mu: Union[float, Array],
     forcing: Optional[Callable[[float], Array]] = None,
 ) -> LinearElasticityPhysics[Array]:
-    """Create linear elasticity physics.
+    r"""Create linear elasticity physics.
 
     Parameters
     ----------
@@ -792,9 +784,9 @@ def create_linear_elasticity(
     bkd : Backend
         Computational backend.
     lamda : float or Array
-        Lamé's first parameter λ.
+        Lamé's first parameter :math:`\lambda`.
     mu : float or Array
-        Shear modulus μ.
+        Shear modulus :math:`\mu`.
     forcing : Callable or Array, optional
         Source term.
 

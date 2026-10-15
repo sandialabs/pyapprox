@@ -89,27 +89,34 @@ class GalerkinModel(Generic[Array]):
         self._system = system
         self._bkd = bkd
         self._adapter_injected = adapter is not None
-        if adapter is None:
-            adapter = GalerkinPhysicsToODEResidualAdapter(system)
-        self._adapter = adapter
+        # The base adapter reads the mass, which only a transient solve
+        # needs; built on first use so a steady solve never touches it.
+        self._adapter: Optional[GalerkinPhysicsToODEResidualAdapter[Array]] = adapter
         self._last_integrator: Optional[TimeIntegrator[Array]] = None
 
     def adapter(self) -> GalerkinPhysicsToODEResidualAdapter[Array]:
-        """Return the ODE residual adapter."""
+        """Return the ODE residual adapter, building the base one if none
+        was injected.
+
+        Raises
+        ------
+        TypeError
+            If the system's mass is second order in time (see
+            ``pyapprox.pde.time_order``).
+        """
+        if self._adapter is None:
+            self._adapter = GalerkinPhysicsToODEResidualAdapter(self._system)
         return self._adapter
 
     def last_integrator(self) -> TimeIntegrator[Array]:
         """Return the TimeIntegrator from the most recent transient solve."""
         if self._last_integrator is None:
             raise RuntimeError(
-                "no transient solve has been run yet; call "
-                "solve_transient first"
+                "no transient solve has been run yet; call solve_transient first"
             )
         return self._last_integrator
 
-    def set_functional(
-        self, functional: TransientFunctionalProtocol[Array]
-    ) -> None:
+    def set_functional(self, functional: TransientFunctionalProtocol[Array]) -> None:
         """Set the QoI functional on the most recent solve's integrator.
 
         Forwarded to :meth:`TimeIntegrator.set_functional`; required
@@ -117,9 +124,7 @@ class GalerkinModel(Generic[Array]):
         """
         self.last_integrator().set_functional(functional)
 
-    def gradient(
-        self, fwd_sols: Array, times: Array, param: Array
-    ) -> Array:
+    def gradient(self, fwd_sols: Array, times: Array, param: Array) -> Array:
         """Compute dQ/dp by the adjoint method on the last solve.
 
         Delegates to :meth:`TimeIntegrator.gradient`; the integrator
@@ -153,9 +158,7 @@ class GalerkinModel(Generic[Array]):
         an actionable TypeError when the functional's ``derivatives()``
         has no HVPs or the stepper was created without HVP support.
         """
-        return TimeAdjointOperatorWithHVP(
-            self.last_integrator(), functional
-        )
+        return TimeAdjointOperatorWithHVP(self.last_integrator(), functional)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -247,6 +250,13 @@ class GalerkinModel(Generic[Array]):
                 Solution trajectory. Shape: (nstates, ntimes)
             times : Array
                 Time points. Shape: (ntimes,)
+
+        Raises
+        ------
+        TypeError
+            If the system's mass is second order in time: integrating
+            it as ``M du/dt = F(u, t)`` is a relaxation, not dynamics
+            (see ``pyapprox.pde.time_order``).
         """
         # One pipeline for all methods: adapter -> stepper -> BC
         # residual -> Newton -> integrator (custom StepperFactory
@@ -263,7 +273,7 @@ class GalerkinModel(Generic[Array]):
                 self._system, lumped_mass=True
             )
         else:
-            adapter = self._adapter
+            adapter = self.adapter()
         stepper = create_stepper(config.method, adapter)
         bc_residual = create_galerkin_bc_enforcing_residual(
             stepper, adapter.system().constraint_set(), self._bkd

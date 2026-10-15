@@ -45,6 +45,7 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     NormalFluxLawProtocol,
     PK1Traction,
 )
+from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -181,6 +182,14 @@ class HyperelasticityPhysics(Generic[Array]):
         """Solve M * x = rhs for x."""
         return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
+    def first_order_transient_refusal(self) -> str:
+        """Return why a first-order transient path refuses this physics.
+
+        Satisfies ``SecondOrderInTimeProtocol``: elasticity is second
+        order in time, so ``M du/dt = F(u, t)`` is not its dynamics.
+        """
+        return second_order_in_time_refusal(type(self).__name__)
+
     def _interpolate_state(self, state: Array) -> object:
         """Interpolate state onto the skfem basis for use in forms.
 
@@ -207,7 +216,8 @@ class HyperelasticityPhysics(Generic[Array]):
         if ndim == 1:
 
             def internal_force_1d(
-                v: "DiscreteField", w: "FormExtraParams",
+                v: "DiscreteField",
+                w: "FormExtraParams",
             ) -> np.ndarray:
                 # F = 1 + du/dx; grad shape (1, 1, nelem, nquad)
                 F = 1.0 + w.u_prev.grad[0, 0]
@@ -224,7 +234,8 @@ class HyperelasticityPhysics(Generic[Array]):
         elif ndim == 2:
 
             def internal_force_2d(
-                v: "DiscreteField", w: "FormExtraParams",
+                v: "DiscreteField",
+                w: "FormExtraParams",
             ) -> np.ndarray:
                 # Deformation gradient F = I + grad(u)
                 # w.u_prev.grad shape: (2, 2, nelem, nquad)
@@ -252,7 +263,8 @@ class HyperelasticityPhysics(Generic[Array]):
         elif ndim == 3:
 
             def internal_force_3d(
-                v: "DiscreteField", w: "FormExtraParams",
+                v: "DiscreteField",
+                w: "FormExtraParams",
             ) -> np.ndarray:
                 # Deformation gradient F = I + grad(u)
                 # w.u_prev.grad shape: (3, 3, nelem, nquad)
@@ -266,9 +278,7 @@ class HyperelasticityPhysics(Generic[Array]):
                 # Seeded from an array-valued zero rather than the scalar
                 # 0.0, so the accumulator's type matches what every term
                 # contributes.
-                result: NDArray[np.floating[Any]] = np.zeros_like(
-                    v.grad[0, 0]
-                )
+                result: NDArray[np.floating[Any]] = np.zeros_like(v.grad[0, 0])
                 for i in range(3):
                     for j in range(3):
                         result = result + P[i][j] * v.grad[i, j]
@@ -392,9 +402,7 @@ class HyperelasticityPhysics(Generic[Array]):
                 # Seeded from an array-valued zero rather than the scalar
                 # 0.0, so the accumulator's type matches what every term
                 # contributes.
-                result: NDArray[np.floating[Any]] = np.zeros_like(
-                    v.grad[0, 0]
-                )
+                result: NDArray[np.floating[Any]] = np.zeros_like(v.grad[0, 0])
                 for i in range(2):
                     for J in range(2):
                         for k in range(2):
@@ -418,8 +426,7 @@ class HyperelasticityPhysics(Generic[Array]):
             ) -> np.ndarray:
                 F = tuple(
                     tuple(
-                        (1.0 if i == j else 0.0) + w.u_prev.grad[i, j]
-                        for j in range(3)
+                        (1.0 if i == j else 0.0) + w.u_prev.grad[i, j] for j in range(3)
                     )
                     for i in range(3)
                 )
@@ -437,9 +444,7 @@ class HyperelasticityPhysics(Generic[Array]):
             )
 
         else:
-            raise NotImplementedError(
-                f"Tangent stiffness not available for {ndim}D."
-            )
+            raise NotImplementedError(f"Tangent stiffness not available for {ndim}D.")
 
         # skfem's asm() is untyped, so pin the result here rather than
         # letting Any leak out through the declared Array return.

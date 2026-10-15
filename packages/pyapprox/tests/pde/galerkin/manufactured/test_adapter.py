@@ -113,13 +113,17 @@ def _exact_at_dofs(ms: GalerkinManufacturedSolution[Array]) -> _Arr:
 def _mass_norm_error(
     system: GalerkinSystem[Array],
     ms: GalerkinManufacturedSolution[Array],
+    mass: Array,
 ) -> float:
-    """L2 norm of the error against the exact solution's interpolant."""
+    """L2 norm of the error against the exact solution's interpolant.
+
+    ``mass`` is the physics' own mass matrix: the system's is the mass
+    of a first-order transient problem, refused for elasticity.
+    """
     bkd = system.bkd()
     result = SteadyStateSolver(system.steady(), tol=1e-11).solve()
     assert result.converged
     err = np.asarray(bkd.to_numpy(result.solution)) - _exact_at_dofs(ms)
-    mass = system.mass_matrix()
     mass_np = mass.toarray() if issparse(mass) else bkd.to_numpy(mass)
     return float(np.sqrt(err @ mass_np @ err))
 
@@ -189,9 +193,7 @@ class TestCreateHelpers:
 class TestValuesAndSuppliers:
     def test_dirichlet_values_are_exact(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=3, ny=3, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
         ms = GalerkinManufacturedSolution(
             basis, _adr_functions(bkd, NonConservativeAdvection()), bkd
@@ -207,9 +209,7 @@ class TestValuesAndSuppliers:
         )
         assert bc.is_time_invariant()
 
-    def test_vector_dirichlet_selects_components(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_vector_dirichlet_selects_components(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         functions, _ = create_elasticity_manufactured_test(
             bounds=[0.0, 1.0, 0.0, 1.0],
@@ -218,9 +218,7 @@ class TestValuesAndSuppliers:
             mu_str="1.0",
             bkd=bkd,
         )
-        mesh = StructuredMesh2D(
-            nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         ms = GalerkinManufacturedSolution(basis, functions, bkd)
         bc = ms.dirichlet("left")
@@ -250,9 +248,7 @@ class TestValuesAndSuppliers:
         ms = GalerkinManufacturedSolution(basis, functions, bkd)
         bc = ms.dirichlet("right")
         assert not bc.is_time_invariant()
-        bkd.assert_allclose(
-            bc.boundary_values(2.0), bkd.asarray([5.0]), rtol=1e-14
-        )
+        bkd.assert_allclose(bc.boundary_values(2.0), bkd.asarray([5.0]), rtol=1e-14)
         derivative = bc.constrained_values_derivative(1)
         assert derivative is not None
         bkd.assert_allclose(derivative(2.0), bkd.asarray([4.0]), rtol=1e-14)
@@ -260,9 +256,7 @@ class TestValuesAndSuppliers:
 
     def test_forcing_layout_follows_basis(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         coords = np.random.rand(2, 5)
         scalar = GalerkinManufacturedSolution(
             LagrangeBasis(mesh, degree=1),
@@ -287,13 +281,9 @@ class TestValuesAndSuppliers:
             rtol=1e-14,
         )
 
-    def test_velocity_matches_coordinate_shape(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_velocity_matches_coordinate_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         ms = GalerkinManufacturedSolution(
             LagrangeBasis(mesh, degree=1),
             _adr_functions(bkd, NonConservativeAdvection()),
@@ -336,13 +326,9 @@ def _square_adr_error(
     advection_form: AdvectionFormProtocol,
     bkd: Backend[Array],
 ) -> float:
-    mesh = StructuredMesh2D(
-        nx=nx, ny=nx, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd
-    )
+    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd)
     basis: GalerkinBasisProtocol[Array] = LagrangeBasis(mesh, degree=degree)
-    ms = GalerkinManufacturedSolution(
-        basis, _adr_functions(bkd, advection_form), bkd
-    )
+    ms = GalerkinManufacturedSolution(basis, _adr_functions(bkd, advection_form), bkd)
     physics = _adr_physics(ms, advection_form)
     law = physics.flux_law()
     bcs: List[BoundaryConditionRole[Array]] = [
@@ -351,7 +337,9 @@ def _square_adr_error(
         ms.robin("bottom", 2.0, law),
         ms.neumann("top", law),
     ]
-    return _mass_norm_error(compose_galerkin_system(physics, bcs), ms)
+    return _mass_norm_error(
+        compose_galerkin_system(physics, bcs), ms, physics.mass_matrix()
+    )
 
 
 def _disk_adr_error(
@@ -374,7 +362,9 @@ def _disk_adr_error(
     bc: BoundaryConditionRole[Array] = (
         ms.robin("circle", 1.5, law) if robin else ms.neumann("circle", law)
     )
-    return _mass_norm_error(compose_galerkin_system(physics, [bc]), ms)
+    return _mass_norm_error(
+        compose_galerkin_system(physics, [bc]), ms, physics.mass_matrix()
+    )
 
 
 class TestNaturalDataConverges:
@@ -419,9 +409,7 @@ class TestNaturalDataConverges:
         """Wrong-model control: inward normals give data for a different
         problem, so the error stalls at O(1)."""
         errors = [
-            _disk_adr_error(
-                nrefs, 1, tmp_path, numpy_bkd, False, reverse_normal=True
-            )
+            _disk_adr_error(nrefs, 1, tmp_path, numpy_bkd, False, reverse_normal=True)
             for nrefs in (2, 3, 4)
         ]
         assert np.all(np.abs(_rates(errors)) < 0.3), errors
@@ -449,9 +437,7 @@ class TestNaturalDataConverges:
                 basis, 1.0, 0.3, bkd, body_force=ms.forcing()
             )
             nelems = mesh.nelements()
-            physics.set_lame_parameters(
-                np.full(nelems, lam), np.full(nelems, mu)
-            )
+            physics.set_lame_parameters(np.full(nelems, lam), np.full(nelems, mu))
             law = physics.flux_law()
             bcs: List[BoundaryConditionRole[Array]] = [
                 ms.dirichlet("left"),
@@ -460,7 +446,11 @@ class TestNaturalDataConverges:
                 ms.robin("top", 2.0, law),
             ]
             errors.append(
-                _mass_norm_error(compose_galerkin_system(physics, bcs), ms)
+                _mass_norm_error(
+                    compose_galerkin_system(physics, bcs),
+                    ms,
+                    physics.mass_matrix(),
+                )
             )
         rates = _rates(errors)
         assert np.all(rates > 1.8), (errors, rates)

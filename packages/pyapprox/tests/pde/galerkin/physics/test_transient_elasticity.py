@@ -1,7 +1,10 @@
-"""Transient linear elasticity manufactured solution tests.
+"""First-order transient paths refuse Galerkin linear elasticity.
 
-Tests backward Euler and Crank-Nicolson time stepping for LinearElasticity
-using manufactured solutions with time-dependent displacement fields.
+Linear elasticity is second order in time (rho u_tt = div sigma + f).
+Every Galerkin transient path integrates ``M du/dt = F(u, t)``, which for
+elasticity is a viscous relaxation with no inertia or density, so each
+path refuses the physics. Steady solves, and direct use of the physics'
+own mass matrix, stay available.
 """
 
 import pytest
@@ -11,229 +14,152 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import List, Tuple
+from typing import Any, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pyapprox.ode.implicit_steppers import (
-    BackwardEulerHVP,
-    CrankNicolsonHVP,
-)
-from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
+    GalerkinManufacturedSolution,
     create_elasticity_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity as LinearElasticity,
-)
+from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
+    GalerkinModel,
     GalerkinPhysicsToODEResidualAdapter,
-    create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.pde.models.galerkin.transient import (
+    GalerkinTransientForwardModel,
+)
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
+from pyapprox.pde.time_order import SecondOrderInTimeProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.rootfinding.newton import NewtonSolver
 
-# =========================================================================
-# Helpers
-# =========================================================================
+_NumpyArray = NDArray[Any]
 
-
-def _make_vector_dirichlet_value_func(sol_func, ndim):
-    """Create a DirichletBC value_func for vector basis from manufactured solution.
-
-    The manufactured solution returns (npts, ncomponents).
-    For vector DOFs (interleaved), each DOF has a coordinate and the
-    value at that DOF is the appropriate component based on DOF index.
-
-    However, DirichletBC.boundary_values() calls value_func(bndry_coords, time)
-    where bndry_coords are the DOF coordinates for ALL boundary DOFs.
-    For a vector basis with get_dofs(), boundary DOFs for component idx
-    have the pattern: DOF i corresponds to component i % ndim.
-
-    The value_func must return (nbndry_dofs,) with the correct component
-    value for each DOF.
-    """
-
-    def value_func(coords, time):
-        # coords: (ndim, nbndry_dofs) — coordinates of boundary DOFs
-        # For vector basis, DOFs are interleaved, so DOF j corresponds
-        # to component j % ndim
-        nbndry_dofs = coords.shape[1]
-        vals = sol_func(coords, time)  # (nbndry_dofs, ncomponents)
-        result = np.zeros(nbndry_dofs)
-        for j in range(nbndry_dofs):
-            result[j] = vals[j, j % ndim]
-        return result
-
-    return value_func
+_REFUSAL = "second order in time"
 
 
-def _get_exact_displacement(funcs, basis, bkd, time):
-    """Evaluate manufactured solution at DOF locations for vector basis.
-
-    Returns the exact DOF values as a flat interleaved array.
-    """
-    ndim = basis.ncomponents()
-    dof_coords = bkd.to_numpy(basis.dof_coordinates())
-    n_dofs = basis.ndofs()
-
-    sol = funcs["solution"](dof_coords, time)  # (ndofs, ncomponents)
-
-    # Extract correct component for each interleaved DOF
-    exact = np.zeros(n_dofs)
-    for i in range(n_dofs):
-        exact[i] = sol[i, i % ndim]
-
-    return exact
-
-
-# =========================================================================
-# Parametrized transient elasticity tests
-# =========================================================================
-
-
-# Format: (name, method)
-TRANSIENT_ELASTICITY_2D_CASES: List[Tuple[str, str]] = [
-    ("DD_BE", "backward_euler"),
-    ("DD_CN", "crank_nicolson"),
-]
-
-
-class TestTransientElasticity2D:
-    """Transient 2D linear elasticity with manufactured solutions.
-
-    Uses time-linear solutions u(x,y,t) = u0(x,y)*(1+T) which are
-    exactly reproduced by both backward Euler and Crank-Nicolson.
-    """
-
-    @pytest.mark.parametrize(
-        "name,method",
-        TRANSIENT_ELASTICITY_2D_CASES,
+def _time_config(lumped_mass: bool = False) -> TimeIntegrationConfig[_NumpyArray]:
+    return TimeIntegrationConfig(
+        method="backward_euler",
+        init_time=0.0,
+        final_time=0.1,
+        deltat=0.05,
+        newton_tol=1e-10,
+        newton_maxiter=5,
+        lumped_mass=lumped_mass,
+        verbosity=0,
     )
-    def test_transient_elasticity_2d(
-        self,
-        numpy_bkd: NumpyBkd,
-        name: str,
-        method: str,
+
+
+def _setup(
+    bkd: NumpyBkd,
+) -> Tuple[
+    CompositeLinearElasticity[_NumpyArray],
+    GalerkinSystem[_NumpyArray],
+    _NumpyArray,
+]:
+    """Quadratic manufactured displacement, reproduced exactly by P2.
+
+    Lame parameters lambda = mu = 1 (E = 2.5, nu = 0.25); Dirichlet on
+    all four sides. Returns the physics, its system, and the exact
+    displacement at the DOFs.
+    """
+    functions, ndim = create_elasticity_manufactured_test(
+        bounds=[0.0, 1.0, 0.0, 1.0],
+        sol_strs=["x*(1-x)", "y*(1-y)"],
+        lambda_str="1.0",
+        mu_str="1.0",
+        bkd=bkd,
+    )
+    mesh = StructuredMesh2D(nx=4, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
+    basis = VectorLagrangeBasis(mesh, degree=2)
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
+    physics = CompositeLinearElasticity.from_uniform(
+        basis=basis,
+        youngs_modulus=2.5,
+        poisson_ratio=0.25,
+        bkd=bkd,
+        body_force=ms.forcing(),
+    )
+    bcs = [ms.dirichlet(name) for name in ("left", "right", "bottom", "top")]
+    dof_coords = bkd.to_numpy(basis.dof_coordinates())
+    values = np.asarray(ms.solution()(dof_coords, 0.0))  # (ndofs, ndim)
+    ndofs = basis.ndofs()
+    exact = values[np.arange(ndofs), np.arange(ndofs) % ndim]
+    return physics, compose_galerkin_system(physics, bcs), bkd.asarray(exact)
+
+
+class TestGalerkinLinearElasticityTimeOrder:
+    def test_declares_second_order(self, numpy_bkd: NumpyBkd) -> None:
+        physics, _, _ = _setup(numpy_bkd)
+        assert isinstance(physics, SecondOrderInTimeProtocol)
+        message = physics.first_order_transient_refusal()
+        for phrase in (
+            "CompositeLinearElasticity",
+            "rho u_tt = div sigma + f",
+            "M du/dt = F(u, t)",
+            "no inertia or density",
+            "steady",
+            "second-order time integration",
+        ):
+            assert phrase in message
+
+    def test_system_mass_is_refused(self, numpy_bkd: NumpyBkd) -> None:
+        _, system, _ = _setup(numpy_bkd)
+        with pytest.raises(TypeError, match=_REFUSAL):
+            system.mass_matrix()
+
+    @pytest.mark.parametrize("lumped_mass", [False, True])
+    def test_hand_built_adapter_is_refused(
+        self, numpy_bkd: NumpyBkd, lumped_mass: bool
     ) -> None:
-        bkd = numpy_bkd
-        bounds = [0.0, 1.0, 0.0, 1.0]
-        sol_strs = [
-            "(1-x)*x*(1-y)*y*(1+T)",
-            "(1-x)*x*(1-y)*y*(1+T)",
-        ]
-        lambda_str = "1.0"
-        mu_str = "1.0"
+        _, system, _ = _setup(numpy_bkd)
+        with pytest.raises(TypeError, match=_REFUSAL):
+            GalerkinPhysicsToODEResidualAdapter(system, lumped_mass=lumped_mass)
 
-        functions, nvars = create_elasticity_manufactured_test(
-            bounds=bounds,
-            sol_strs=sol_strs,
-            lambda_str=lambda_str,
-            mu_str=mu_str,
-            bkd=bkd,
-        )
+    @pytest.mark.parametrize("lumped_mass", [False, True])
+    def test_model_solve_transient_is_refused(
+        self, numpy_bkd: NumpyBkd, lumped_mass: bool
+    ) -> None:
+        _, system, exact = _setup(numpy_bkd)
+        model = GalerkinModel(system, numpy_bkd)
+        with pytest.raises(TypeError, match=_REFUSAL):
+            model.solve_transient(exact, _time_config(lumped_mass))
+        with pytest.raises(TypeError, match=_REFUSAL):
+            model.adapter()
 
-        # Mesh and basis
-        mesh = StructuredMesh2D(
-            nx=10,
-            ny=10,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=2)
-
-        # Forcing function for the physics. This one genuinely consults
-        # time, so it must say so: an undeclared two-arity callable is
-        # refused rather than guessed at.
-        forcing_func = functions["forcing"]
-
-        def _body_force(x, time):
-            vals = forcing_func(x, time)  # (npts, 2)
-            return vals.T  # (2, npts) — physics expects (ndim, npts)
-
-        body_force = TimeDependent(_body_force)
-
-        # Dirichlet BCs on all 4 boundaries
-        bndry_names = ["left", "right", "bottom", "top"]
-        sol_func = functions["solution"]
-        value_func = TimeDependent(
-            _make_vector_dirichlet_value_func(sol_func, nvars)
-        )
-
-        bc_list = []
-        for bname in bndry_names:
-            bc = DirichletBC(
-                basis=basis,
-                boundary_name=bname,
-                value_func=value_func,
-                bkd=bkd,
+    def test_forward_model_is_refused(self, numpy_bkd: NumpyBkd) -> None:
+        physics, system, exact = _setup(numpy_bkd)
+        parameterization = create_galerkin_lame_parameterization(physics, numpy_bkd)
+        with pytest.raises(TypeError, match=_REFUSAL):
+            GalerkinTransientForwardModel(
+                system, parameterization, exact, _time_config(), numpy_bkd
             )
-            bc_list.append(bc)
 
-        # Create physics
-        physics = LinearElasticity.from_uniform(
-            basis=basis,
-            youngs_modulus=2.5,  # E computed from lambda=1, mu=1
-            poisson_ratio=0.25,  # nu computed from lambda=1, mu=1
-            bkd=bkd,
-            body_force=body_force,
+    def test_steady_solve_still_works(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        _, system, exact = _setup(bkd)
+        solution = GalerkinModel(system, bkd).solve_steady(
+            bkd.zeros((system.nstates(),))
         )
-        system = compose_galerkin_system(physics, bc_list)
-        constraints = system.constraint_set()
+        bkd.assert_allclose(solution, exact, atol=1e-10)
 
-        # Verify Lame parameters match
-        assert abs(physics.lame_lambda() - 1.0) < 1e-10
-        assert abs(physics.lame_mu() - 1.0) < 1e-10
-
-        # Time stepping with constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
-
-        if method == "backward_euler":
-            stepper = BackwardEulerHVP(ode_adapter)
-        else:
-            stepper = CrankNicolsonHVP(ode_adapter)
-        constrained = create_galerkin_bc_enforcing_residual(
-            stepper, constraints, bkd
+    def test_physics_mass_still_available(self, numpy_bkd: NumpyBkd) -> None:
+        """Reduced models read the physics' mass directly."""
+        bkd = numpy_bkd
+        physics, _, exact = _setup(bkd)
+        mass = physics.mass_matrix()
+        nstates = physics.nstates()
+        assert mass.shape == (nstates, nstates)
+        bkd.assert_allclose(
+            physics.mass_solve(bkd.asarray(mass @ exact)), exact, atol=1e-10
         )
-
-        newton = NewtonSolver(constrained)
-        newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
-
-        y = bkd.asarray(_get_exact_displacement(functions, basis, bkd, time=0.0))
-
-        dt = 0.1
-        nsteps = 5
-        t = 0.0
-
-        for step in range(nsteps):
-            t_np1 = t + dt
-            constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-
-            # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = constraints.dofs(), constraints.values(t_np1)
-            d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
-            guess = bkd.copy(y)
-            if len(d_dofs_np) > 0:
-                guess_np = bkd.to_numpy(guess).copy()
-                guess_np[d_dofs_np] = bkd.to_numpy(d_vals)
-                guess = bkd.asarray(guess_np.astype(np.float64))
-
-            y = newton.solve(guess)
-            t = t_np1
-
-        # Compare to exact at final time
-        u_exact_final = _get_exact_displacement(functions, basis, bkd, time=t)
-        u_num = bkd.to_numpy(y)
-
-        u_norm = np.linalg.norm(u_exact_final)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_final)
-
-        assert rel_error < 1e-5

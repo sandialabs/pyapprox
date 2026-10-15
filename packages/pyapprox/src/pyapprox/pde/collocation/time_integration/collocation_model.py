@@ -31,6 +31,7 @@ from pyapprox.pde.collocation.time_integration.physics_adapter import (
     CollocationPhysicsToODEResidualAdapter,
 )
 from pyapprox.pde.ownership import owns
+from pyapprox.pde.time_order import refuse_second_order_in_time
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -293,7 +294,12 @@ class CollocationModel(Generic[Array]):
             method, or if ``config.lumped_mass`` is True (the
             collocation mass matrix is the identity; lumping is a
             finite-element concept with no collocation counterpart).
+        TypeError
+            If the physics is second order in time: integrating it as
+            ``du/dt = f(u, t)`` is a relaxation, not dynamics (see
+            ``pyapprox.pde.time_order``).
         """
+        refuse_second_order_in_time(self._physics)
         if config.lumped_mass:
             raise ValueError(
                 "lumped_mass=True is not supported for collocation: "

@@ -21,6 +21,7 @@ from pyapprox.pde.constitutive.protocols import (
 from pyapprox.pde.constitutive.registry import (
     create_stress_model,
 )
+from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -79,6 +80,14 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     def stress_model(self) -> StressModelWithSensitivityProtocol[Array]:
         """Return the stress model."""
         return self._stress_model
+
+    def first_order_transient_refusal(self) -> str:
+        """Return why a first-order transient path refuses this physics.
+
+        Satisfies ``SecondOrderInTimeProtocol``: elasticity is second
+        order in time, so ``du/dt = div(P) + f`` is not its dynamics.
+        """
+        return second_order_in_time_refusal(type(self).__name__)
 
     # ------------------------------------------------------------------
     # Material property setters
@@ -269,17 +278,13 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = (
-                self._stress_model.stress_sensitivity_mu_2d(
-                    F11, F12, F21, F22, bkd
-                )
+            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_mu_2d(
+                F11, F12, F21, F22, bkd
             )
             top = Dx @ bkd.diag(dP11) + Dy @ bkd.diag(dP12)
             bottom = Dx @ bkd.diag(dP21) + Dy @ bkd.diag(dP22)
             return bkd.concatenate([top, bottom], axis=0)
-        raise NotImplementedError(
-            "residual_mu_jacobian only implemented for 1D and 2D"
-        )
+        raise NotImplementedError("residual_mu_jacobian only implemented for 1D and 2D")
 
     def residual_lamda_jacobian(self, state: Array) -> Array:
         """Assemble :math:`S_\\lambda(u) = \\partial R/\\partial
@@ -300,9 +305,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         if self._ndim == 1:
             Dx = self._D[0]
             F = 1.0 + Dx @ state
-            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(
-                F, bkd
-            )
+            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(F, bkd)
             return Dx @ bkd.diag(dP_dlam)
         if self._ndim == 2:
             Dx, Dy = self._D
@@ -311,10 +314,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = (
-                self._stress_model.stress_sensitivity_lamda_2d(
-                    F11, F12, F21, F22, bkd
-                )
+            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_lamda_2d(
+                F11, F12, F21, F22, bkd
             )
             top = Dx @ bkd.diag(dP11) + Dy @ bkd.diag(dP12)
             bottom = Dx @ bkd.diag(dP21) + Dy @ bkd.diag(dP22)
@@ -364,9 +365,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             Dx = self._D[0]
             F = 1.0 + Dx @ state
             dP_dmu = self._stress_model.stress_sensitivity_mu_1d(F, bkd)
-            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(
-                F, bkd
-            )
+            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(F, bkd)
             for i in range(nbnd):
                 idx = bkd.to_int(bc_indices[i])
                 result[i, idx] = normals[i, 0] * dP_dmu[idx]
@@ -381,18 +380,14 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             F12 = (Dy @ u)[mesh_idx]
             F21 = (Dx @ v)[mesh_idx]
             F22 = (1.0 + Dy @ v)[mesh_idx]
-            dP_mu = self._stress_model.stress_sensitivity_mu_2d(
-                F11, F12, F21, F22, bkd
-            )
+            dP_mu = self._stress_model.stress_sensitivity_mu_2d(F11, F12, F21, F22, bkd)
             dP_lam = self._stress_model.stress_sensitivity_lamda_2d(
                 F11, F12, F21, F22, bkd
             )
             i1 = 2 * comp
             i2 = 2 * comp + 1
             dt_dmu = dP_mu[i1] * normals[:, 0] + dP_mu[i2] * normals[:, 1]
-            dt_dlam = (
-                dP_lam[i1] * normals[:, 0] + dP_lam[i2] * normals[:, 1]
-            )
+            dt_dlam = dP_lam[i1] * normals[:, 0] + dP_lam[i2] * normals[:, 1]
             for i in range(nbnd):
                 idx = bkd.to_int(mesh_idx[i])
                 result[i, idx] = dt_dmu[i]

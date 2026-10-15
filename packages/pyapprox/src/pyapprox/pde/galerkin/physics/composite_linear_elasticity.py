@@ -44,6 +44,7 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     NormalFluxLawProtocol,
 )
 from pyapprox.pde.galerkin.physics.helpers import PerElementField
+from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -324,6 +325,14 @@ class CompositeLinearElasticity(Generic[Array]):
         """Solve M * x = rhs for x."""
         return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
+    def first_order_transient_refusal(self) -> str:
+        """Return why a first-order transient path refuses this physics.
+
+        Satisfies ``SecondOrderInTimeProtocol``: elasticity is second
+        order in time, so ``M du/dt = F(u, t)`` is not its dynamics.
+        """
+        return second_order_in_time_refusal(type(self).__name__)
+
     def stiffness_matrix(self) -> Array:
         """Return the elasticity stiffness matrix.
 
@@ -560,8 +569,7 @@ class CompositeLinearElasticity(Generic[Array]):
         delta_np = self._bkd.to_numpy(delta)
         if delta_np.shape != (2 * self._nmaterials,):
             raise ValueError(
-                f"delta must have shape ({2 * self._nmaterials},), got "
-                f"{delta_np.shape}"
+                f"delta must have shape ({2 * self._nmaterials},), got {delta_np.shape}"
             )
         out = -float(delta_np[0]) * self._K_lam_per_material[0]
         out = out - float(delta_np[1]) * self._K_mu_per_material[0]
@@ -625,8 +633,7 @@ class CompositeLinearElasticity(Generic[Array]):
         values = np.asarray(values)
         if values.shape != (2 * self._nmaterials,):
             raise ValueError(
-                f"values must have shape ({2 * self._nmaterials},), got "
-                f"{values.shape}"
+                f"values must have shape ({2 * self._nmaterials},), got {values.shape}"
             )
         nelems = self._lam_per_elem.shape[0]
         lam_per_elem = np.zeros(nelems)

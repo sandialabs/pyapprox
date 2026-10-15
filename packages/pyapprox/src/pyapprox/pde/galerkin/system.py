@@ -15,6 +15,7 @@ from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.galerkin.protocols.system import GalerkinMassProtocol
 from pyapprox.pde.ownership import owns
 from pyapprox.pde.steady_view import SteadyView
+from pyapprox.pde.time_order import refuse_second_order_in_time
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -95,9 +96,7 @@ class GalerkinSteadySystem(Generic[Array]):
 
     def steady_snapshot(self, time: float) -> SteadyView[Array]:
         """The steady problem of the data frozen at ``time``."""
-        return SteadyView.snapshot(
-            self._spatial_operator, self._constraint_set, time
-        )
+        return SteadyView.snapshot(self._spatial_operator, self._constraint_set, time)
 
     def __repr__(self) -> str:
         return (
@@ -132,13 +131,26 @@ class GalerkinSystem(GalerkinSteadySystem[Array]):
         super().__init__(spatial_operator, constraint_set)
         if not isinstance(mass, GalerkinMassProtocol):
             raise TypeError(
-                "mass must satisfy GalerkinMassProtocol, got "
-                f"{type(mass).__name__}"
+                f"mass must satisfy GalerkinMassProtocol, got {type(mass).__name__}"
             )
         self._mass = mass
 
     def mass_matrix(self) -> Array:
-        """Return the mass matrix. Shape: (nstates, nstates)."""
+        """Return the mass matrix ``M`` of ``M du/dt = F(u, t)``.
+
+        Shape: (nstates, nstates). This is the mass of the first-order
+        system, read only by first-order transient consumers, so a mass
+        supplier second order in time is refused here. Its own
+        ``mass_matrix()`` stays available to anything else.
+
+        Raises
+        ------
+        TypeError
+            If the mass supplier satisfies ``SecondOrderInTimeProtocol``.
+        ValueError
+            If the mass shape does not match the number of states.
+        """
+        refuse_second_order_in_time(self._mass)
         mass = self._mass.mass_matrix()
         nstates = self.nstates()
         if tuple(mass.shape) != (nstates, nstates):
