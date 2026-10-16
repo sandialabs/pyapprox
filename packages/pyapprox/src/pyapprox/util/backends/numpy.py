@@ -455,7 +455,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def quantile(
         array: NDArray[Any], level: float, axis: int = 0
     ) -> NDArray[Any]:
-        return np.quantile(array, level, axis=axis)
+        # numpy's stubs type a quantile along an axis as Any.
+        result: NDArray[Any] = np.quantile(array, level, axis=axis)
+        return result
 
     @staticmethod
     def argsort(
