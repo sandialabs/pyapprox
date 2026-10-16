@@ -19,6 +19,16 @@ results equal the matching rows of the full element evaluation; the
 local-to-global map reproduces skfem's element DOFs; the restricted
 operator survives pickling unchanged. Wrong-model control: leaving out
 one element breaks the identity.
+
+Jacobian actions (two random directions, seeds 2 and 3): scattered
+forward actions equal the assembled Jacobian's action and scattered
+transpose actions its transpose's (rtol 1e-12), where advection makes
+the two differ by more than 1e-3; DerivativeChecker (central) on the
+element residuals of three elements against the blocks from the
+actions. The homogeneity check accepts the skfem operator and a
+finite-volume-shaped stub (one row, three states) and rejects
+sentinel-padded, repeat-padded and out-of-range DOF rows, a row count
+that disagrees with the element set, and a non-operator.
 """
 
 import pickle
@@ -34,6 +44,12 @@ if not package_available("skfem"):
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
@@ -43,6 +59,8 @@ from pyapprox.pde.elementwise import (
     ElementSet,
     ElementwiseOperatorProtocol,
     RestrictedElementOperatorProtocol,
+    check_restricted_operator,
+    element_jacobian_blocks,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
@@ -107,7 +125,7 @@ def _scatter(
     residual = np.zeros(nstates)
     np.add.at(residual, rows, restricted.element_residuals(local_states, 0.0))
     jacobian = np.zeros((nstates, nstates))
-    blocks = restricted.element_jacobians(local_states, 0.0)
+    blocks = element_jacobian_blocks(restricted, local_states, 0.0)
     for elem in range(int(rows.shape[0])):
         jacobian[np.ix_(rows[elem], cols[elem])] += blocks[elem]
     return residual, jacobian
@@ -173,7 +191,7 @@ class TestConformance:
             local = state[op.global_dofs()[op.element_state_dofs()]]
             return (
                 op.element_residuals(local, 0.0),
-                op.element_jacobians(local, 0.0),
+                element_jacobian_blocks(op, local, 0.0),
             )
 
         full_res, full_jac = evaluate(full)
@@ -214,6 +232,183 @@ class TestConformance:
         residual = _scatter(restricted, state, physics.nstates())[0]
         gap = np.max(np.abs(residual - physics.interior_residual(state, 0.0)))
         assert gap > 1e-3
+
+
+def _gather(
+    restricted: RestrictedElementOperatorProtocol[NumpyArray], state: NumpyArray
+) -> Tuple[NumpyArray, NumpyArray, NumpyArray]:
+    """Global rows, global state columns and local states of each element."""
+    global_dofs = restricted.global_dofs()
+    rows = global_dofs[restricted.element_row_dofs()]
+    cols = global_dofs[restricted.element_state_dofs()]
+    return rows, cols, state[cols]
+
+
+@pytest.mark.parametrize("ndim", [1, 2])
+class TestActions:
+    def test_actions_scatter_to_the_assembled_action(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        physics = _physics(numpy_bkd, ndim)
+        state = _state(physics)
+        restricted = physics.restrict(ElementSet.all(physics.nelements(), numpy_bkd))
+        rows, cols, local_states = _gather(restricted, state)
+        nstates = physics.nstates()
+        directions = np.random.default_rng(2).normal(size=(nstates, 2))
+        applied = restricted.element_jacobian_actions(
+            local_states, 0.0, directions[cols]
+        )
+        total = np.zeros((nstates, 2))
+        np.add.at(total, rows, applied)
+        assembled = physics.interior_jacobian(state, 0.0) @ directions
+        numpy_bkd.assert_allclose(total, assembled, rtol=1e-12, atol=1e-12)
+
+    def test_transpose_actions_scatter_to_the_assembled_transpose(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        # Advection makes the Jacobian non-symmetric, so a transpose
+        # action that returned the forward one would fail here.
+        physics = _physics(numpy_bkd, ndim)
+        state = _state(physics)
+        restricted = physics.restrict(ElementSet.all(physics.nelements(), numpy_bkd))
+        rows, cols, local_states = _gather(restricted, state)
+        nstates = physics.nstates()
+        adjoints = np.random.default_rng(3).normal(size=(nstates, 2))
+        applied = restricted.element_jacobian_transpose_actions(
+            local_states, 0.0, adjoints[rows]
+        )
+        total = np.zeros((nstates, 2))
+        np.add.at(total, cols, applied)
+        assembled = physics.interior_jacobian(state, 0.0).T @ adjoints
+        numpy_bkd.assert_allclose(total, assembled, rtol=1e-12, atol=1e-12)
+        forward = physics.interior_jacobian(state, 0.0) @ adjoints
+        assert np.max(np.abs(forward - assembled)) > 1e-3
+
+    def test_actions_are_the_derivative_of_the_residuals(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        physics = _physics(numpy_bkd, ndim)
+        restricted = physics.restrict(_elements([0, 2, 3], numpy_bkd))
+        _, _, local_states = _gather(restricted, _state(physics))
+        shape = local_states.shape
+        nvars = int(local_states.size)
+
+        def fun(sample: NumpyArray) -> NumpyArray:
+            residuals = restricted.element_residuals(sample[:, 0].reshape(shape), 0.0)
+            return residuals.reshape(-1)[:, None]
+
+        def jac(sample: NumpyArray) -> NumpyArray:
+            blocks = element_jacobian_blocks(
+                restricted, sample[:, 0].reshape(shape), 0.0
+            )
+            dense = np.zeros((nvars, nvars))
+            nper = shape[1]
+            for elem in range(shape[0]):
+                span = slice(elem * nper, (elem + 1) * nper)
+                dense[span, span] = blocks[elem]
+            return dense
+
+        checker = DerivativeChecker(
+            FunctionWithJacobianFromCallable(
+                nqoi=nvars, nvars=nvars, fun=fun, jacobian=jac, bkd=numpy_bkd
+            )
+        )
+        errors = checker.check_derivatives(
+            local_states.reshape(-1)[:, None], verbosity=0, central=True
+        )[0]
+        assert float(checker.error_ratio(errors)) <= 1e-6
+
+    def test_rejects_malformed_directions(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        physics = _physics(numpy_bkd, ndim)
+        restricted = physics.restrict(_elements([0, 1], numpy_bkd))
+        _, _, local_states = _gather(restricted, _state(physics))
+        with pytest.raises(ValueError, match="3D"):
+            restricted.element_jacobian_actions(local_states, 0.0, local_states)
+        with pytest.raises(ValueError, match="leading shape"):
+            restricted.element_jacobian_transpose_actions(
+                local_states, 0.0, np.zeros((3, local_states.shape[1], 1))
+            )
+
+
+class _DofsOnly:
+    """Satisfies the protocol with given DOF arrays; evaluates nothing."""
+
+    def __init__(
+        self, row_dofs: NumpyArray, state_dofs: NumpyArray, nlocal: int
+    ) -> None:
+        self._bkd = NumpyBkd()
+        self._row_dofs = row_dofs
+        self._state_dofs = state_dofs
+        self._nlocal = nlocal
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+    def elements(self) -> ElementSet[NumpyArray]:
+        return ElementSet.all(int(self._row_dofs.shape[0]), self._bkd)
+
+    def global_dofs(self) -> NumpyArray:
+        return np.arange(self._nlocal)
+
+    def element_row_dofs(self) -> NumpyArray:
+        return self._row_dofs
+
+    def element_state_dofs(self) -> NumpyArray:
+        return self._state_dofs
+
+    def element_residuals(self, local_states: NumpyArray, time: float) -> NumpyArray:
+        raise NotImplementedError
+
+    def element_jacobian_actions(
+        self, local_states: NumpyArray, time: float, directions: NumpyArray
+    ) -> NumpyArray:
+        raise NotImplementedError
+
+    def element_jacobian_transpose_actions(
+        self, local_states: NumpyArray, time: float, adjoints: NumpyArray
+    ) -> NumpyArray:
+        raise NotImplementedError
+
+
+class TestHomogeneityCheck:
+    def test_accepts_the_skfem_operator(self, numpy_bkd: NumpyBkd) -> None:
+        for ndim in (1, 2):
+            physics = _physics(numpy_bkd, ndim)
+            check_restricted_operator(physics.restrict(_elements([1, 3], numpy_bkd)))
+
+    def test_accepts_differing_row_and_state_dofs(self) -> None:
+        # A finite-volume cell: one row, a three-cell stencil of states.
+        check_restricted_operator(
+            _DofsOnly(np.array([[1], [2]]), np.array([[0, 1, 2], [1, 2, 3]]), 4)
+        )
+
+    def test_rejects_a_sentinel_padded_row(self) -> None:
+        # A triangle forced into a quadrilateral batch.
+        dofs = np.array([[0, 1, 2, 3], [2, 3, 4, -1]])
+        with pytest.raises(ValueError, match="padded"):
+            check_restricted_operator(_DofsOnly(dofs, dofs, 5))
+
+    def test_rejects_a_repeat_padded_row(self) -> None:
+        dofs = np.array([[0, 1, 2, 3], [2, 3, 4, 4]])
+        with pytest.raises(ValueError, match="twice"):
+            check_restricted_operator(_DofsOnly(dofs, dofs, 5))
+
+    def test_rejects_entries_past_the_local_dofs(self) -> None:
+        dofs = np.array([[0, 1], [1, 5]])
+        with pytest.raises(ValueError, match="padded"):
+            check_restricted_operator(_DofsOnly(dofs, dofs, 3))
+
+    def test_rejects_a_row_count_mismatch(self) -> None:
+        with pytest.raises(ValueError, match="shape"):
+            check_restricted_operator(
+                _DofsOnly(np.array([[0, 1], [1, 2]]), np.array([[0, 1]]), 3)
+            )
+
+    def test_rejects_a_non_operator(self) -> None:
+        with pytest.raises(TypeError, match="RestrictedElementOperatorProtocol"):
+            check_restricted_operator(object())  # type: ignore[arg-type]
 
 
 class TestElementSet:

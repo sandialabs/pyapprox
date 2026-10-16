@@ -22,7 +22,10 @@ the parameters, which today writes the whole coefficient field.
 
 from typing import Generic, List
 
-from pyapprox.pde.elementwise import RestrictedElementOperatorProtocol
+from pyapprox.pde.elementwise import (
+    RestrictedElementOperatorProtocol,
+    check_restricted_operator,
+)
 from pyapprox.pde.parameterizations.protocol import ParameterizationProtocol
 from pyapprox.pde.rom.lift import LiftProtocol
 from pyapprox.pde.rom.projection import ReducedResidualDerivatives
@@ -69,11 +72,7 @@ class ElementSampledResidual(Generic[Array]):
         lift: LiftProtocol[Array],
         reductions: Array,
     ) -> None:
-        if not isinstance(restricted, RestrictedElementOperatorProtocol):
-            raise TypeError(
-                "restricted must satisfy RestrictedElementOperatorProtocol, got "
-                f"{type(restricted).__name__}"
-            )
+        check_restricted_operator(restricted)
         if not isinstance(trial_space, LinearTrialSpaceProtocol):
             raise TypeError(
                 "trial_space must satisfy LinearTrialSpaceProtocol, got "
@@ -121,6 +120,7 @@ class ElementSampledResidual(Generic[Array]):
         ``weights`` has shape (nselected,); all ones over every element
         gives the exact projection.
         """
+        check_restricted_operator(restricted)
         bkd = restricted.bkd()
         global_dofs = restricted.global_dofs()
         dof_list: List[int] = [int(dof) for dof in bkd.to_numpy(global_dofs)]
@@ -163,12 +163,12 @@ class ElementSampledResidual(Generic[Array]):
 
         Shape: (nselected, ncodes, ncodes).
         """
-        jacobians = self._restricted.element_jacobians(
-            self._local_states(codes, params), time
+        # The action on the basis rows, k = ncodes directions: J_e is never
+        # formed when the reduced dimension is below the element's size.
+        applied = self._restricted.element_jacobian_actions(
+            self._local_states(codes, params), time, self._basis_state
         )
-        return self._bkd.einsum(
-            "erk,ekj,ejs->ers", self._reductions, jacobians, self._basis_state
-        )
+        return self._bkd.einsum("erk,eks->ers", self._reductions, applied)
 
     def residual(self, codes: Array, time: float, params: Array) -> Array:
         """Return the reduced residual. Shape: (ncodes,)."""

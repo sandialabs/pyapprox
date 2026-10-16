@@ -42,7 +42,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix, spmatrix
 
-from pyapprox.pde.elementwise import ElementSet
+from pyapprox.pde.elementwise import ElementSet, check_element_block
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.optional_deps import import_optional_dependency
 
@@ -414,6 +414,7 @@ class SkfemRestrictedOperator:
             self._global_dofs, element_global
         )
         self._assembly = _ElementAssembly(self._restricted)
+        self._nper = int(self._element_local.shape[1])
         self._stiffness_cache = _KeyedCache()
         self._load_cache = _KeyedCache()
 
@@ -448,8 +449,9 @@ class SkfemRestrictedOperator:
             _loads(terms, self._assembly, self._load_cache),
         )
 
-    def element_jacobians(self, local_states: _NumpyArray, time: float) -> _NumpyArray:
-        """Return the element Jacobians. Shape: (nselected, nper, nper)."""
+    def _jacobian_blocks(self, local_states: _NumpyArray, time: float) -> _NumpyArray:
+        # skfem's per-element assembly yields blocks, so both actions
+        # contract them; (nselected, nper, nper), test index first.
         terms = self._physics.residual_terms(self._restricted, time)
         jacobians: _NumpyArray = np.asarray(
             _jacobian(
@@ -460,6 +462,36 @@ class SkfemRestrictedOperator:
             )
         )
         return jacobians
+
+    def element_jacobian_actions(
+        self, local_states: _NumpyArray, time: float, directions: _NumpyArray
+    ) -> _NumpyArray:
+        """Return the element Jacobians applied to ``directions``.
+
+        ``directions``: (nselected, nper, k). Returns (nselected, nper, k).
+        """
+        check_element_block(
+            directions, self._elements.nselected(), self._nper, "directions"
+        )
+        applied: _NumpyArray = np.einsum(
+            "eij,ejk->eik", self._jacobian_blocks(local_states, time), directions
+        )
+        return applied
+
+    def element_jacobian_transpose_actions(
+        self, local_states: _NumpyArray, time: float, adjoints: _NumpyArray
+    ) -> _NumpyArray:
+        """Return the transposed element Jacobians applied to ``adjoints``.
+
+        ``adjoints``: (nselected, nper, k). Returns (nselected, nper, k).
+        """
+        check_element_block(
+            adjoints, self._elements.nselected(), self._nper, "adjoints"
+        )
+        applied: _NumpyArray = np.einsum(
+            "eij,eik->ejk", self._jacobian_blocks(local_states, time), adjoints
+        )
+        return applied
 
     def __repr__(self) -> str:
         return (
