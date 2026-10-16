@@ -6,7 +6,7 @@ bound implementation: it works on NumPy arrays only, writes in place
 whenever ``out`` is given, and is not differentiable.
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -163,6 +163,17 @@ class CSRFormat:
     def matrix(self) -> csr_matrix:
         """The stored matrix. Not to be modified: operators are immutable."""
         return self._matrix
+
+    def scaled_sum(
+        self, coefficient: float, others: Sequence[tuple[float, "CSRFormat"]]
+    ) -> "CSRFormat":
+        total = coefficient * self._matrix
+        for c, other in others:
+            total = total + c * other._matrix
+        return CSRFormat(total.tocsr())
+
+    def transposed(self) -> "CSRFormat":
+        return CSRFormat(self._matrix.T.tocsr())
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={self._matrix.shape})"

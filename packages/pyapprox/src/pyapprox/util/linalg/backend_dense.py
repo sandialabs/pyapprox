@@ -7,7 +7,7 @@ array (writing in place would break automatic differentiation). Meant
 for small dense problems and as a verification oracle, not for speed.
 """
 
-from typing import Any, Generic, Optional
+from typing import Any, Generic, Optional, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators.layout import Layout
@@ -142,6 +142,17 @@ class DenseFormat(Generic[Array]):
     def matrix(self) -> Array:
         """The stored matrix. Not to be modified: operators are immutable."""
         return self._matrix
+
+    def scaled_sum(
+        self, coefficient: float, others: Sequence[tuple[float, "DenseFormat[Array]"]]
+    ) -> "DenseFormat[Array]":
+        total = coefficient * self._matrix
+        for c, other in others:
+            total = total + c * other._matrix
+        return DenseFormat(total)
+
+    def transposed(self) -> "DenseFormat[Array]":
+        return DenseFormat(self._matrix.T)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={tuple(self._matrix.shape)})"

@@ -9,6 +9,29 @@ owns their storage; only the storage-free format lives here.
 """
 
 from dataclasses import dataclass
+from typing import Protocol, Self, Sequence, runtime_checkable
+
+
+@runtime_checkable
+class FormatProtocol(Protocol):
+    """The storage algebra every format owns.
+
+    Operator combinators (sums, transposes) build their format from their
+    operands' formats through these methods, so each format decides how
+    its storage combines and no combinator branches on the format.
+    Results are computed only when a consumer asks for the format, so an
+    operator that is only ever applied never assembles a combination.
+    """
+
+    def scaled_sum(
+        self, coefficient: float, others: Sequence[tuple[float, Self]]
+    ) -> Self:
+        """Return ``coefficient * self + sum(c * other for c, other in others)``."""
+        ...
+
+    def transposed(self) -> Self:
+        """Return the format of the transposed operator."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -16,5 +39,19 @@ class MatrixFree:
     """The format of an operator known only through its action.
 
     It has no storage, so nothing that needs a matrix can be paired with
-    an operator of this format.
+    an operator of this format. Its algebra is trivial: every combination
+    of matrix-free operators is matrix-free.
     """
+
+    def scaled_sum(
+        self, coefficient: float, others: Sequence[tuple[float, "MatrixFree"]]
+    ) -> "MatrixFree":
+        return self
+
+    def transposed(self) -> "MatrixFree":
+        """The transpose of an unstored operator is unstored.
+
+        This describes storage only: the transposed *action* comes from
+        the operator (``Transposed.apply`` calls ``apply_transpose``).
+        """
+        return self

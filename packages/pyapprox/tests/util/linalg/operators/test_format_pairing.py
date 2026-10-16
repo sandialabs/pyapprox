@@ -26,8 +26,14 @@ _SNIPPET = textwrap.dedent(
         Layout,
         MatrixFree,
         OperatorProperties,
+        ScaledSum,
+        as_matrix_free,
     )
-    from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipyCSROperator
+    from pyapprox.util.linalg.scipy_stack import (
+        CSRFormat,
+        NumpyVectorSpace,
+        ScipyCSROperator,
+    )
 
 
     def factor(op: ActionOperatorProtocol[NDArray[Any], CSRFormat]) -> None:
@@ -58,17 +64,23 @@ _SNIPPET = textwrap.dedent(
             return MatrixFree()
 
 
-    factor(ScipyCSROperator.identity(Layout("u", 3)))  # PAIRS
+    u = Layout("u", 3)
+    space = NumpyVectorSpace(u)
+    csr = ScipyCSROperator.identity(u)
+    factor(csr)  # PAIRS
     factor(Shift())  # REFUSED
+    factor(ScaledSum([(1.0, csr), (2.0, csr)], space))  # PAIRS
+    ScaledSum([(1.0, as_matrix_free(csr)), (2.0, csr)], space)  # REFUSED
     """
 )
 
 
-def _line_of(marker: str) -> int:
-    for number, line in enumerate(_SNIPPET.splitlines(), start=1):
-        if marker in line:
-            return number
-    raise AssertionError(f"marker {marker} not in snippet")
+def _lines_of(marker: str) -> list[int]:
+    return [
+        number
+        for number, line in enumerate(_SNIPPET.splitlines(), start=1)
+        if marker in line
+    ]
 
 
 def test_matrix_free_operator_cannot_pair_with_a_csr_consumer(
@@ -98,8 +110,10 @@ def test_matrix_free_operator_cannot_pair_with_a_csr_consumer(
         text=True,
         check=False,
     )
-    errors = [
-        int(match.group(1))
-        for match in re.finditer(r"pairing\.py:(\d+): error", result.stdout)
-    ]
-    assert errors == [_line_of("# REFUSED")], result.stdout
+    errors = sorted(
+        {
+            int(match.group(1))
+            for match in re.finditer(r"pairing\.py:(\d+): error", result.stdout)
+        }
+    )
+    assert errors == _lines_of("# REFUSED"), result.stdout
