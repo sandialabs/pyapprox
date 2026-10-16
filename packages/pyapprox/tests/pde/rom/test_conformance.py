@@ -1,6 +1,7 @@
 """Guarantees of exact projection ROMs, run against every test problem.
 
-The problems come from ``tests/_helpers/rom_problems.py`` through the
+The problems come from the factories listed in the ROM ``conftest.py``
+(the skfem-built ones only when skfem is installed) through the
 ``rom_problem`` and ``affine_rom_problem`` fixtures; each declares
 whether it is affine (state and parameters) and coercive. None of these
 tests needs a known PDE solution, only the discrete system. Each
@@ -29,14 +30,8 @@ curved trial spaces have no full-space limit.
 
 from typing import List
 
-import pytest
-
-from pyapprox.util.optional_deps import package_available
-
-if not package_available("skfem"):
-    pytest.skip("skfem not installed", allow_module_level=True)
-
 import numpy as np
+import pytest
 
 from pyapprox.pde.rom import (
     AgreementCheck,
@@ -51,7 +46,7 @@ from pyapprox.pde.rom import (
 )
 from pyapprox.surrogates.kle import as_basis_operator
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.rom_problems import RomProblem
+from tests._helpers.rom_problem import RomProblem
 
 # Measured max ratio over ranks 1-6 and the held-out samples: 1.85
 # Galerkin linear ADR, 1.88 Galerkin exp kappa, 1.72 finite-difference

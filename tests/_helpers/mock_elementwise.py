@@ -31,13 +31,24 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.elementwise import (
     ElementSet,
     check_element_block,
     element_jacobian_blocks,
 )
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.system import GalerkinSteadySystem
+from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
+from pyapprox.pde.models.galerkin.steady import (
+    GalerkinParameterizedStateEquation,
+)
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.rom import AlgebraicLift
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
+from tests._helpers.rom_problem import FixedValue, RomProblem
 
 _Points = NDArray[np.floating[Any]]
 
@@ -76,11 +87,6 @@ class MockP1Operator(Generic[Array]):
         self._kappa = bkd.ones((ncells,))
         self._forcing = bkd.ones((ncells + 1,))
         self._all = MockP1Restricted(self, ElementSet.all(ncells, bkd))
-        # Scatter from (element, local node) to global node, (ncells, 2, n).
-        gather = np.zeros((ncells, 2, ncells + 1))
-        for elem in range(ncells):
-            gather[elem, 0, elem] = gather[elem, 1, elem + 1] = 1.0
-        self._gather = bkd.asarray(gather)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -121,16 +127,39 @@ class MockP1Operator(Generic[Array]):
         is homogeneous."""
         return MockP1Restricted(self, elements)
 
+    # Cell e couples nodes e and e + 1, so every gather and scatter below
+    # is a shift by one node: O(n), and made of backend operations, so a
+    # Torch computation graph survives it.
+
     def _local_states(self, state: Array) -> Array:
-        return self._bkd.einsum("ein,n->ei", self._gather, state)
+        """Each cell's two nodal states. Shape: (ncells, 2)."""
+        return self._bkd.stack([state[:-1], state[1:]], axis=1)
+
+    def _scatter(self, per_cell: Array) -> Array:
+        """Sum (ncells, 2) cell rows into the ``ncells + 1`` nodes."""
+        zero = self._bkd.zeros((1,))
+        return self._bkd.concatenate([per_cell[:, 0], zero]) + self._bkd.concatenate(
+            [zero, per_cell[:, 1]]
+        )
 
     def spatial_residual(self, state: Array, time: float) -> Array:
         residuals = self._all.element_residuals(self._local_states(state), time)
-        return self._bkd.einsum("ein,ei->n", self._gather, residuals)
+        return self._scatter(residuals)
+
+    def _assemble(self, blocks: Array) -> Array:
+        """Sum (ncells, 2, 2) element blocks into the tridiagonal (n, n)
+        matrix."""
+        bkd = self._bkd
+        main = self._scatter(bkd.stack([blocks[:, 0, 0], blocks[:, 1, 1]], axis=1))
+        return (
+            bkd.diag(main)
+            + bkd.diag(blocks[:, 0, 1], k=1)
+            + bkd.diag(blocks[:, 1, 0], k=-1)
+        )
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         blocks = element_jacobian_blocks(self._all, self._local_states(state), time)
-        return self._bkd.einsum("ein,eij,ejm->nm", self._gather, blocks, self._gather)
+        return self._assemble(blocks)
 
     def state_derivatives(self) -> StateDerivatives[Array]:
         # The reaction's curvature is not supplied, which only rules out
@@ -147,13 +176,17 @@ class MockP1Operator(Generic[Array]):
         bkd = self._bkd
         stiffness = bkd.asarray([[1.0, -1.0], [-1.0, 1.0]]) / self._h
         per_cell = -bkd.einsum("ij,ej->ei", stiffness, self._local_states(state))
-        return bkd.einsum("ein,ei->ne", self._gather, per_cell)
+        # Column e holds cell e's two rows, at nodes e and e + 1.
+        zero_row = bkd.zeros((1, self._ncells))
+        return bkd.vstack([bkd.diag(per_cell[:, 0]), zero_row]) + bkd.vstack(
+            [zero_row, bkd.diag(per_cell[:, 1])]
+        )
 
     def forcing_jacobian(self) -> Array:
         """dF/df, the consistent mass matrix. Shape: (n, n)."""
         bkd = self._bkd
         mass = bkd.asarray([[2.0, 1.0], [1.0, 2.0]]) * (self._h / 6.0)
-        return bkd.einsum("ein,ij,ejm->nm", self._gather, mass, self._gather)
+        return self._assemble(bkd.ones((self._ncells, 1, 1)) * mass[None, :, :])
 
     def __repr__(self) -> str:
         return (
@@ -343,3 +376,76 @@ class ModalCoefficientParameterization(Generic[Array]):
 
     def _initial_param_jacobian(self, params_1d: Array) -> Array:
         return self._bkd.zeros((self._operator.nstates(), 6))
+
+
+def _mock_p1_adr(bkd: NumpyBkd, name: str, reaction: bool, ncells: int) -> RomProblem:
+    """The ADR ROM problem on the mock producer: no assembly library.
+
+    ``ncells`` cells on [0, 1], u(0) = 1, u(1) = 2, no advection (so the
+    reduced Jacobian stays symmetric), the modal parameters and the
+    samples of the other factories (twelve training, four held out,
+    uniform on [-1, 1]^6, seed 0), trapezoid-rule diagonal metric.
+    Newton's absolute tolerance is 1e-10: 1e-12 is below the roundoff
+    floor at 200 cells.
+    """
+    nnodes = ncells + 1
+    operator = MockP1Operator(ncells, reaction, bkd)
+    param_obj = ModalCoefficientParameterization(operator, bkd)
+    constraint_set = DirichletConstraintSet(
+        [FixedValue(0, 1.0, bkd), FixedValue(nnodes - 1, 2.0, bkd)], nnodes, bkd
+    )
+    system = GalerkinSteadySystem(operator, constraint_set)
+    weights = np.full(nnodes, 1.0 / ncells)
+    weights[[0, -1]] *= 0.5
+    rng = np.random.default_rng(0)
+    return RomProblem(
+        name=name,
+        bkd=bkd,
+        residual=GalerkinParameterizedResidual(operator, param_obj),
+        state_equation=GalerkinParameterizedStateEquation(
+            system.steady(),
+            param_obj,
+            bkd,
+            solver=SteadyStateSolver(system.steady(), tol=1e-10),
+        ),
+        constraint_set=constraint_set,
+        lift=AlgebraicLift(constraint_set, nnodes),
+        metric=DiagonalInnerProduct(bkd.asarray(weights), bkd),
+        train=bkd.asarray(rng.uniform(-1.0, 1.0, size=(6, 12))),
+        held_out=bkd.asarray(rng.uniform(-1.0, 1.0, size=(6, 4))),
+        reference_params=bkd.zeros((6,)),
+        affine=not reaction,
+        coercive=not reaction,
+        elementwise=operator,
+    )
+
+
+def mock_p1_adr_linear(bkd: NumpyBkd) -> RomProblem:
+    """Affine and coercive, on 10 cells, without skfem."""
+    return _mock_p1_adr(bkd, "mock-p1-adr-linear", reaction=False, ncells=10)
+
+
+def mock_p1_adr_nonlinear_state(bkd: NumpyBkd) -> RomProblem:
+    """Nonlinear in the state (u^2 reaction), on 10 cells, without skfem."""
+    return _mock_p1_adr(bkd, "mock-p1-adr-u2-reaction", reaction=True, ncells=10)
+
+
+def mock_p1_adr_linear_fine(bkd: NumpyBkd) -> RomProblem:
+    """The linear problem on 200 cells, enough for ECSW to drop most."""
+    return _mock_p1_adr(bkd, "mock-p1-adr-linear-200", reaction=False, ncells=200)
+
+
+def mock_p1_adr_nonlinear_state_fine(bkd: NumpyBkd) -> RomProblem:
+    """The u^2 problem on 200 cells."""
+    return _mock_p1_adr(bkd, "mock-p1-adr-u2-200", reaction=True, ncells=200)
+
+
+# ROM factories that need no assembly library, listed like those in
+# ``tests/_helpers/rom_problems.py``: coarse ones for the generic suite,
+# fine ones for hyper-reduction.
+MOCK_ROM_FACTORIES = [mock_p1_adr_linear, mock_p1_adr_nonlinear_state]
+MOCK_AFFINE_ROM_FACTORIES = [mock_p1_adr_linear]
+MOCK_ELEMENTWISE_ROM_FACTORIES = [
+    mock_p1_adr_linear_fine,
+    mock_p1_adr_nonlinear_state_fine,
+]

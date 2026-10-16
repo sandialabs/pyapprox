@@ -2,8 +2,11 @@
 
 Problems (``elementwise_rom_problem``): the 1D ADR factories of
 ``tests/_helpers/rom_problems.py`` on 200 P1 cells (linear, u^2
-reaction, exp kappa), 12 training samples, POD rank 4 in the mass
-metric. Training targets: reduced residual and reduced Jacobian at the
+reaction, exp kappa; skfem, so only when it is installed), 12 training
+samples, POD rank 4 in the mass metric; and the closed-form mock P1
+factories of ``tests/_helpers/mock_elementwise.py`` (linear, u^2
+reaction; 200 cells, trapezoid metric, no assembly library), which pass
+the same checks. Training targets: reduced residual and reduced Jacobian at the
 projected training snapshots (240 rows by 200 element columns).
 Weights from EarlyStoppingLawsonHanson.
 
@@ -26,13 +29,6 @@ more than 10x.
 """
 
 from typing import List, Tuple
-
-import pytest
-
-from pyapprox.util.optional_deps import package_available
-
-if not package_available("skfem"):
-    pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
 
@@ -60,7 +56,7 @@ from pyapprox.pde.rom import (
 )
 from pyapprox.util.linalg.nnls import EarlyStoppingLawsonHanson, NNLSResult
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.rom_problems import RomProblem
+from tests._helpers.rom_problem import RomProblem
 
 _RANK = 4
 

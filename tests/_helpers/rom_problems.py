@@ -4,30 +4,28 @@ A reduced model's guarantees depend only on the discrete system, so the
 same tests run against every factory here (the fixtures live in
 ``packages/pyapprox/tests/pde/rom/conftest.py``). Adding a physics, or a
 discretization, to the suite means adding one factory that returns a
-:class:`RomProblem`. Each factory states what it expects: whether the
-residual is affine in state and parameters (so the affine fit applies)
-and whether it is coercive (so Galerkin quasi-optimality applies).
+``RomProblem`` (``tests/_helpers/rom_problem.py``, which needs no skfem;
+factories built without skfem live beside their discretization, e.g.
+``tests/_helpers/mock_elementwise.py``). Each factory states what it
+expects: whether the residual is affine in state and parameters (so
+the affine fit applies) and whether it is coercive (so Galerkin
+quasi-optimality applies).
 
 Requires skfem; import only after skipping when it is absent.
 """
 
-from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    SteadyStateEquationProtocol,
-)
-from pyapprox.pde.boundary import ConstraintSetProtocol, DirichletConstraintSet
+from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
 )
-from pyapprox.pde.elementwise import ElementwiseOperatorProtocol
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.field_maps.transformed import (
@@ -51,61 +49,16 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
 )
 from pyapprox.pde.rom import (
     AlgebraicLift,
-    ComposedParameterizedResidualProtocol,
-    LiftProtocol,
-    SnapshotSet,
-    collect_steady_snapshots,
-    homogenize,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
-    InnerProductProtocol,
     MassInnerProduct,
 )
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.rom_problem import FixedValue, RomProblem
 
 _Points = NDArray[np.floating[Any]]
-
-
-@dataclass(frozen=True)
-class RomProblem:
-    """Everything a physics-agnostic ROM test needs, and what to expect.
-
-    ``affine``: the residual is affine in the state and the parameters,
-    so the affine fit must succeed and be exact. ``coercive``: Galerkin
-    quasi-optimality holds, so the ROM error is a bounded multiple of the
-    best approximation error. ``elementwise``: the interior operator
-    restricted to element subsets, for hyper-reduction; None when the
-    discretization does not supply one.
-    """
-
-    name: str
-    bkd: NumpyBkd
-    residual: ComposedParameterizedResidualProtocol[NumpyArray]
-    state_equation: SteadyStateEquationProtocol[NumpyArray]
-    constraint_set: ConstraintSetProtocol[NumpyArray]
-    lift: LiftProtocol[NumpyArray]
-    metric: InnerProductProtocol[NumpyArray]
-    train: NumpyArray
-    held_out: NumpyArray
-    reference_params: NumpyArray
-    affine: bool
-    coercive: bool
-    elementwise: Optional[ElementwiseOperatorProtocol[NumpyArray]] = None
-
-    def nstates(self) -> int:
-        return self.residual.nstates()
-
-    def solve(self, samples: NumpyArray) -> SnapshotSet[NumpyArray]:
-        """Full-order steady solutions at each column of ``samples``."""
-        return collect_steady_snapshots(
-            self.state_equation, samples, self.bkd.zeros((self.nstates(), 1))
-        )
-
-    def homogenized(self, samples: NumpyArray) -> SnapshotSet[NumpyArray]:
-        """Full-order solutions with the lift removed."""
-        return homogenize(self.solve(samples), self.lift, self.constraint_set)
 
 
 def _square(x: _Points, u: _Points) -> _Points:
@@ -220,33 +173,6 @@ def galerkin_adr_nonlinear_params(bkd: NumpyBkd) -> RomProblem:
     return _galerkin_adr(
         bkd, "galerkin-adr-exp-kappa", reaction=False, exp_diffusivity=True
     )
-
-
-class _FixedValue:
-    """An essential condition fixing one DOF to a constant."""
-
-    def __init__(self, dof: int, value: float, bkd: NumpyBkd) -> None:
-        self._dofs = bkd.asarray([dof], dtype=bkd.int64_dtype())
-        self._values = bkd.asarray([value])
-        self._bkd = bkd
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-    def constrained_dofs(self) -> NumpyArray:
-        return self._dofs
-
-    def constrained_values(self, time: float) -> NumpyArray:
-        return self._values
-
-    def is_time_invariant(self) -> bool:
-        return True
-
-    def constrained_values_derivative(
-        self, order: int
-    ) -> Callable[[float], NumpyArray]:
-        zeros = self._bkd.zeros((1,))
-        return lambda time: zeros
 
 
 class _FiniteDifferenceADR:
@@ -394,7 +320,7 @@ def _finite_difference_adr(bkd: NumpyBkd, name: str, reaction: bool) -> RomProbl
     operator = _FiniteDifferenceADR(nnodes, reaction, bkd)
     param_obj = _FiniteDifferenceParameterization(operator, bkd)
     constraint_set = DirichletConstraintSet(
-        [_FixedValue(0, 1.0, bkd), _FixedValue(nnodes - 1, 2.0, bkd)],
+        [FixedValue(0, 1.0, bkd), FixedValue(nnodes - 1, 2.0, bkd)],
         nnodes,
         bkd,
     )
