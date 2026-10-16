@@ -117,6 +117,60 @@ class TestEagerExecution:
         assert ran == [0, 1, 2, 3]
 
 
+class TestDeferredExecution:
+    """Opted into, tasks run when their outcome is first asked for.
+
+    For an expensive in-process model whose finished work must survive
+    a crash: collection then runs and records one task at a time.
+    """
+
+    def test_eager_is_the_default(self) -> None:
+        assert not InlineDispatcher(_run).deferred()
+        assert InlineDispatcher(_run, deferred=True).deferred()
+
+    def test_submit_runs_nothing(self) -> None:
+        ran = []
+
+        def record(task: _Task) -> int:
+            ran.append(task.value)
+            return task.value
+
+        handles = InlineDispatcher(record, deferred=True).submit(
+            [_Task(indices=[i], value=i) for i in range(3)]
+        )
+        assert ran == []
+        assert not any(h.done() for h in handles)
+
+    def test_each_task_runs_when_its_outcome_is_asked_for(self) -> None:
+        ran = []
+
+        def record(task: _Task) -> int:
+            ran.append(task.value)
+            return task.value
+
+        handles = InlineDispatcher(record, deferred=True).submit(
+            [_Task(indices=[i], value=i) for i in range(3)]
+        )
+        assert handles[1].outcome().payload == 1
+        assert ran == [1]
+        handles[1].outcome()
+        assert ran == [1]
+
+    def test_a_task_cancelled_before_it_runs_never_runs(self) -> None:
+        ran = []
+
+        def record(task: _Task) -> int:
+            ran.append(task.value)
+            return task.value
+
+        (handle,) = InlineDispatcher(record, deferred=True).submit(
+            [_Task(indices=[0])]
+        )
+        assert handle.cancel()
+        assert handle.outcome().status is JobStatus.CANCELLED
+        assert ran == []
+
+
 class TestIdempotence:
     """A handle has one outcome, readable as often as you like."""
 

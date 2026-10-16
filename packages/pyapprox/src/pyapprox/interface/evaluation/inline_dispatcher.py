@@ -23,6 +23,17 @@ happen, and saying so is better than a fast ``submit`` that misleads.
 Everything downstream still works unchanged: this dispatcher's handles
 are simply already finished when the evaluator first looks at them.
 
+**Deferred, on request.** Running everything in ``submit`` has one cost
+the above does not weigh: a process killed partway through a batch has
+run tasks whose results nothing has yet recorded, because a completion
+hook -- where a result becomes durable -- fires at collection. For an
+expensive model run in-process, losing a whole batch to a crash costs
+more than an honest-looking ``submit`` gains. ``deferred=True`` runs
+each task when its outcome is first asked for instead, which is during
+collection, one task at a time, each recorded before the next begins.
+``submit`` then returns at once, and ``progress`` reports the tasks as
+outstanding until collection runs them -- which, here, is true.
+
 Nothing here is concurrent, so nothing here needs a lock.
 """
 
@@ -67,7 +78,8 @@ class InlineJobHandle(Generic[Task, Payload]):
 
         Always true once :meth:`run_now` has been called, which
         :meth:`InlineDispatcher.submit` does for every task before
-        returning.
+        returning -- unless the dispatcher defers, when a task has run
+        once its :meth:`outcome` has been asked for.
         """
         return self._outcome is not None
 
@@ -156,15 +168,28 @@ class InlineDispatcher(Generic[Task, Payload]):
     run : Callable[[Task], Payload]
         How to execute one task. Injected rather than inherited, so this
         dispatcher is not tied to any particular task family.
+    deferred : bool
+        Run each task when its outcome is first asked for -- during
+        collection, each recorded before the next runs -- rather than
+        all of them in :meth:`submit`. For an expensive in-process model
+        whose finished work must survive a crash; see the module
+        docstring.
     """
 
-    def __init__(self, run: Callable[[Task], Payload]) -> None:
+    def __init__(
+        self, run: Callable[[Task], Payload], deferred: bool = False
+    ) -> None:
         if not callable(run):
             raise TypeError(
                 f"run must be callable, got {type(run).__name__}"
             )
         self._run = run
+        self._deferred = deferred
         self._closed = False
+
+    def deferred(self) -> bool:
+        """Whether tasks run at collection rather than in :meth:`submit`."""
+        return self._deferred
 
     def concurrency(self) -> int:
         """One: this dispatcher runs a single task at a time."""
@@ -191,6 +216,9 @@ class InlineDispatcher(Generic[Task, Payload]):
         Concurrent dispatchers return before the work finishes, as the
         protocol requires of them. Here the work *is* finished, so the
         requirement is met trivially rather than defeated.
+
+        A deferring dispatcher returns at once instead, and each task
+        runs when collection first asks for its outcome.
         """
         if self._closed:
             raise RuntimeError("cannot submit to a closed dispatcher")
@@ -202,8 +230,9 @@ class InlineDispatcher(Generic[Task, Payload]):
             )
             for task in tasks
         ]
-        for handle in handles:
-            handle.run_now()
+        if not self._deferred:
+            for handle in handles:
+                handle.run_now()
         return handles
 
     def close(self) -> None:

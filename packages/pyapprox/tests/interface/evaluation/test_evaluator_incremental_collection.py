@@ -21,6 +21,7 @@ from pyapprox.interface.evaluation.callable_marshaller import (
     CallableMarshaller,
 )
 from pyapprox.interface.evaluation.evaluator import Evaluator
+from pyapprox.interface.evaluation.inline_dispatcher import InlineDispatcher
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
     JobStatus,
@@ -179,3 +180,50 @@ class TestAnInterruptedCollectionLosesNothing:
         bkd.assert_allclose(result.values, bkd.sum(X * X, axis=0)[None, :])
         assert sorted(batch.statuses()) == [0, 1, 2, 3, 4]
         assert batch.collect().nreturned() == 0
+
+
+class TestDeferredInlineDispatch:
+    """In-process, a task killed partway through a batch.
+
+    Eagerly, every task ran inside ``submit`` and the process died before
+    collection, so nothing was recorded. Deferred, tasks run during
+    collection, each recorded before the next starts.
+    """
+
+    @staticmethod
+    def _killed_at(
+        bkd: Backend[Any], task: int, deferred: bool
+    ) -> Set[int]:
+        recorded: Set[int] = set()
+        calls = [0]
+
+        def model(samples: Any) -> Any:
+            if calls[0] == task:
+                raise _Killed()
+            calls[0] += 1
+            return bkd.sum(samples * samples, axis=0)[None, :]
+
+        def hook(outcome: Outcome[Any, Any], decoded: Any, cost: Any) -> None:
+            if decoded is not None:
+                recorded.update(decoded.indices)
+
+        marshaller = CallableMarshaller(
+            model, bkd, nvars=2, nqoi=1, samples_per_task=1
+        )
+        evaluator = Evaluator(
+            marshaller,
+            InlineDispatcher(marshaller.run, deferred=deferred),
+            on_complete=hook,
+        )
+        with pytest.raises(_Killed):
+            evaluator.submit(_samples(bkd, 6)).collect()
+        return recorded
+
+    def test_deferred_has_recorded_every_task_before_the_kill(
+        self, numpy_bkd: Backend[Any]
+    ) -> None:
+        assert self._killed_at(numpy_bkd, 3, deferred=True) == {0, 1, 2}
+
+    def test_eager_has_recorded_nothing(self, numpy_bkd: Backend[Any]) -> None:
+        """Why deferral exists: the eager default loses the batch."""
+        assert self._killed_at(numpy_bkd, 3, deferred=False) == set()
