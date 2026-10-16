@@ -167,8 +167,10 @@ class TestNumpyVectorSpace:
 
 
 class TestBackendVectorSpace:
-    def test_rejects_non_float64_layout(self, bkd: Backend[Any]) -> None:
-        with pytest.raises(ValueError, match="float64"):
+    def test_rejects_layout_dtype_other_than_the_backends(
+        self, bkd: Backend[Any]
+    ) -> None:
+        with pytest.raises(ValueError, match="configured dtype 'float64'"):
             BackendVectorSpace(Layout("x", _N, dtype="float32"), bkd)
 
     def test_preserves_the_graph(self, torch_bkd: Backend[Any]) -> None:

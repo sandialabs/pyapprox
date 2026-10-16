@@ -31,12 +31,58 @@ own input: an in-place stack would read input it had already
 overwritten. Stacks may check this and raise ``ValueError``.
 """
 
+from dataclasses import dataclass
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.layout import Layout
 
 V = TypeVar("V")
 A_co = TypeVar("A_co", covariant=True)
+F_co = TypeVar("F_co", covariant=True)
+
+
+@dataclass(frozen=True)
+class OperatorProperties:
+    r"""Structural properties an operator declares.
+
+    Declared by whoever builds the operator and kept separate from its
+    storage, so a matrix-free operator can declare them too. Solvers rely
+    on them (a conjugate-gradient solver needs ``spd``; a solver may use
+    its forward solve as the transpose only when ``symmetric``), so each
+    implies the weaker ones, and inconsistent combinations are refused.
+
+    Parameters
+    ----------
+    symmetric : bool
+        :math:`A = A^\top` (the algebraic transpose, no conjugation).
+    spd : bool
+        Symmetric positive definite. Implies ``symmetric``.
+    diagonal : bool
+        Only diagonal entries are nonzero. Implies ``symmetric``.
+    identity : bool
+        :math:`A = I`. Implies ``diagonal`` and ``spd``.
+
+    Raises
+    ------
+    ValueError
+        If a property is declared without one it implies.
+    """
+
+    symmetric: bool = False
+    spd: bool = False
+    diagonal: bool = False
+    identity: bool = False
+
+    def __post_init__(self) -> None:
+        implications = (
+            ("spd", self.spd, "symmetric", self.symmetric),
+            ("diagonal", self.diagonal, "symmetric", self.symmetric),
+            ("identity", self.identity, "diagonal", self.diagonal),
+            ("identity", self.identity, "spd", self.spd),
+        )
+        for name, value, implied, implied_value in implications:
+            if value and not implied_value:
+                raise ValueError(f"{name}=True requires {implied}=True")
 
 
 @runtime_checkable
@@ -90,5 +136,65 @@ class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
 
         A global reduction, replicated on every process. Shape
         ``(1, ncols(x))``.
+        """
+        ...
+
+
+@runtime_checkable
+class ActionOperatorProtocol(Protocol, Generic[V, F_co]):
+    r"""A linear operator from :meth:`domain` to :meth:`range`.
+
+    ``V`` is the stack's vector type and ``F_co`` the type of the format
+    witness :meth:`format`. A consumer that needs storage, such as a
+    direct solver, declares the format it accepts, so pairing it with an
+    operator of another format is a static type error.
+
+    ``apply`` and ``apply_transpose`` act on blocks of vectors and take
+    the optional ``out`` hint of :class:`VectorSpaceProtocol`; ``out``
+    must never alias the input.
+    """
+
+    def domain(self) -> Layout:
+        """The space of the input of :meth:`apply`."""
+        ...
+
+    def range(self) -> Layout:
+        """The space of the output of :meth:`apply`."""
+        ...
+
+    def apply(self, x: V, out: Optional[V] = None) -> V:
+        """Return :math:`A x` for a block ``x`` in the domain."""
+        ...
+
+    def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
+        r"""Return :math:`A^\top y` for a block ``y`` in the range.
+
+        The plain algebraic transpose: no conjugation and no weighting
+        by an inner product.
+        """
+        ...
+
+    def properties(self) -> OperatorProperties:
+        """The declared structural properties."""
+        ...
+
+    def format(self) -> F_co:
+        """The format witness: how, and whether, the operator is stored."""
+        ...
+
+
+@runtime_checkable
+class DiagonalCapableProtocol(ActionOperatorProtocol[V, F_co], Protocol[V, F_co]):
+    """An operator that can also return its diagonal.
+
+    Cheap preconditioners (Jacobi, smoothers) need the diagonal of an
+    operator that may never be assembled, so the capability is declared
+    independently of the format.
+    """
+
+    def diagonal(self) -> V:
+        """Return the diagonal as a single vector of the domain.
+
+        Requires ``domain() == range()``.
         """
         ...

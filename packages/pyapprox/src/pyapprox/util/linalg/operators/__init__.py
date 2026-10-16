@@ -5,11 +5,21 @@ discretization library; stacks implementing these protocols live
 beside it, in :mod:`pyapprox.util.linalg`.
 """
 
+from pyapprox.util.linalg.operators.formats import MatrixFree
 from pyapprox.util.linalg.operators.layout import Layout, LayoutMismatchError
-from pyapprox.util.linalg.operators.protocols import VectorSpaceProtocol
+from pyapprox.util.linalg.operators.protocols import (
+    ActionOperatorProtocol,
+    DiagonalCapableProtocol,
+    OperatorProperties,
+    VectorSpaceProtocol,
+)
 
 __all__ = [
+    "ActionOperatorProtocol",
+    "DiagonalCapableProtocol",
     "Layout",
     "LayoutMismatchError",
+    "MatrixFree",
+    "OperatorProperties",
     "VectorSpaceProtocol",
 ]
