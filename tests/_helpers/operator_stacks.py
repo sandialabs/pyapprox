@@ -15,6 +15,7 @@ from scipy.sparse import csr_matrix
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.backend_dense import (
+    BackendDenseLU,
     BackendDenseOperator,
     BackendRowSet,
     BackendVectorSpace,
@@ -22,6 +23,7 @@ from pyapprox.util.linalg.backend_dense import (
 )
 from pyapprox.util.linalg.operators import (
     Layout,
+    LinearSolverProtocol,
     OperatorProperties,
     RowSetProtocol,
     VectorSpaceProtocol,
@@ -31,6 +33,7 @@ from pyapprox.util.linalg.scipy_stack import (
     NumpyRowSet,
     NumpyVectorSpace,
     ScipyCSROperator,
+    ScipySparseLU,
 )
 
 STACK_NAMES = ("csr", "dense-numpy", "dense-torch")
@@ -59,6 +62,7 @@ class StackCase:
     from_diagonal: Callable[[Any, Layout], Any]
     space: Callable[[Layout], VectorSpaceProtocol[Any, Any]]
     rows: Callable[[Layout, Sequence[int]], RowSetProtocol[Any]]
+    direct_solver: Callable[[], LinearSolverProtocol[Any, Any]]
     format_type: type
     format_dense: Callable[[Any], Any]
     """A stored format's matrix as a dense backend array."""
@@ -89,6 +93,7 @@ def csr_case() -> StackCase:
         ScipyCSROperator.from_diagonal,
         NumpyVectorSpace,
         NumpyRowSet,
+        ScipySparseLU,
         CSRFormat,
         lambda fmt: fmt.matrix().toarray(),
         NumpyBkd(),
@@ -111,6 +116,7 @@ def dense_case(bkd: Backend[Any]) -> StackCase:
         lambda d, layout: BackendDenseOperator.from_diagonal(d, layout, bkd),
         lambda layout: BackendVectorSpace(layout, bkd),
         lambda layout, rows: BackendRowSet(layout, rows, bkd),
+        lambda: BackendDenseLU(bkd),
         DenseFormat,
         lambda fmt: fmt.matrix(),
         bkd,

@@ -33,6 +33,7 @@ _SNIPPET = textwrap.dedent(
         CSRFormat,
         NumpyVectorSpace,
         ScipyCSROperator,
+        ScipySparseLU,
     )
 
 
@@ -71,6 +72,8 @@ _SNIPPET = textwrap.dedent(
     factor(Shift())  # REFUSED
     factor(ScaledSum([(1.0, csr), (2.0, csr)], space))  # PAIRS
     ScaledSum([(1.0, as_matrix_free(csr)), (2.0, csr)], space)  # REFUSED
+    ScipySparseLU().setup(csr)  # PAIRS
+    ScipySparseLU().setup(Shift())  # REFUSED
     """
 )
 

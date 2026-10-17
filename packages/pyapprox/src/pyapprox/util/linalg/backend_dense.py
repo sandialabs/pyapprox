@@ -7,16 +7,34 @@ array (writing in place would break automatic differentiation). Meant
 for small dense problems and as a verification oracle, not for speed.
 """
 
+import warnings
 from typing import Any, Generic, Optional, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators.algebra import Transposed
 from pyapprox.util.linalg.operators.layout import Layout
 from pyapprox.util.linalg.operators.protocols import (
+    ActionOperatorProtocol,
     OperatorProperties,
     RowSetProtocol,
 )
+from pyapprox.util.linalg.operators.solvers import (
+    SolveInfo,
+    SolverCapabilities,
+    SolverHandleBase,
+    SolverHandleProtocol,
+    require_format,
+    require_square,
+)
 
 _SYMMETRY_RTOL = 1e-12
+
+
+def _all_finite(x: Array, bkd: Backend[Array]) -> bool:
+    nentries = 1
+    for extent in x.shape:
+        nentries *= int(extent)
+    return bkd.to_int(bkd.sum(bkd.isfinite(x))) == nentries
 
 
 def _require_backend_dtype(layout: Layout, bkd: Backend[Array], what: str) -> Any:
@@ -125,6 +143,20 @@ class BackendVectorSpace(Generic[Array]):
     def norm(self, x: Array) -> Array:
         self._check(x, "x")
         return self._bkd.sqrt(self._bkd.sum(x * x, axis=0, keepdims=True))
+
+    def pointwise_divide(
+        self, x: Array, d: Array, out: Optional[Array] = None
+    ) -> Array:
+        self._check(x, "x")
+        self._check(d, "d")
+        if d.shape[1] != 1:
+            raise ValueError(f"d must be a single vector, got shape {tuple(d.shape)}")
+        self._check_out(out, (d,))
+        return x / d
+
+    def all_finite(self, x: Array) -> bool:
+        self._check(x, "x")
+        return _all_finite(x, self._bkd)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._layout!r})"
@@ -436,3 +468,90 @@ class BackendDenseOperator(Generic[Array]):
             f"{self.__class__.__name__}(domain={self._domain!r}, "
             f"range={self._range!r}, {self._properties!r})"
         )
+
+
+class _DenseLUHandle(SolverHandleBase[Array]):
+    """A backend LU factorization, solving with A or, sharing it, A^T."""
+
+    def __init__(
+        self,
+        op: ActionOperatorProtocol[Array, Any],
+        factors: Optional[tuple[Array, Array]],
+        failure: str,
+        transposed: bool,
+        bkd: Backend[Array],
+    ) -> None:
+        super().__init__(op)
+        self._op = op
+        self._factors = factors
+        self._failure = failure
+        self._transposed = transposed
+        self._bkd = bkd
+
+    def solve(
+        self, rhs: Array, tol: Optional[float] = None, x0: Optional[Array] = None
+    ) -> tuple[Array, SolveInfo]:
+        if rhs.ndim != 2 or rhs.shape[0] != self.domain().size:
+            raise ValueError(
+                f"rhs must have shape ({self.domain().size}, ncols), "
+                f"got {tuple(rhs.shape)}"
+            )
+        if self._factors is None:
+            return rhs * float("nan"), SolveInfo(False, message=self._failure)
+        lu, pivots = self._factors
+        solution = self._bkd.lu_solve(lu, pivots, rhs, adjoint=self._transposed)
+        if not _all_finite(solution, self._bkd):
+            return solution, SolveInfo(False, message="non-finite solution")
+        return solution, SolveInfo(True)
+
+    def transpose(self) -> "_DenseLUHandle[Array]":
+        return _DenseLUHandle(
+            Transposed(self._op),
+            self._factors,
+            self._failure,
+            not self._transposed,
+            self._bkd,
+        )
+
+
+class BackendDenseLU(Generic[Array]):
+    """Dense LU through the backend, for operators stored densely.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.solvers.LinearSolverProtocol`
+    for :class:`DenseFormat`. Factored once at ``setup``; the backend's
+    LU is differentiable, so a torch graph through the matrix and the
+    right-hand side is preserved. A singular matrix gives handles whose
+    solves report ``converged=False``.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def capabilities(self) -> SolverCapabilities:
+        return SolverCapabilities(transpose=True)
+
+    def setup(
+        self, op: ActionOperatorProtocol[Array, DenseFormat[Array]]
+    ) -> SolverHandleProtocol[Array]:
+        fmt = require_format(op, DenseFormat, "BackendDenseLU")
+        require_square(op, "BackendDenseLU")
+        factors: Optional[tuple[Array, Array]] = None
+        failure = ""
+        try:
+            # An exactly singular matrix only warns here; the solve then
+            # reports it as non-finite.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                factors = self._bkd.lu_factor(fmt.matrix())
+        except (RuntimeError, ValueError) as error:
+            failure = f"factorization failed: {error}"
+        return _DenseLUHandle(op, factors, failure, False, self._bkd)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"

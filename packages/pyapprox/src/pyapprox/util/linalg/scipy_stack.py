@@ -12,11 +12,22 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix, diags, issparse, spmatrix
 from scipy.sparse import identity as sparse_identity
+from scipy.sparse.linalg import SuperLU, splu
 
+from pyapprox.util.linalg.operators.algebra import Transposed
 from pyapprox.util.linalg.operators.layout import Layout
 from pyapprox.util.linalg.operators.protocols import (
+    ActionOperatorProtocol,
     OperatorProperties,
     RowSetProtocol,
+)
+from pyapprox.util.linalg.operators.solvers import (
+    SolveInfo,
+    SolverCapabilities,
+    SolverHandleBase,
+    SolverHandleProtocol,
+    require_format,
+    require_square,
 )
 
 _Vector = NDArray[Any]
@@ -149,6 +160,23 @@ class NumpyVectorSpace:
         # numpy's stubs type a norm along an axis as Any.
         norm: _Vector = np.linalg.norm(x, axis=0, keepdims=True)
         return norm
+
+    def pointwise_divide(
+        self, x: _Vector, d: _Vector, out: Optional[_Vector] = None
+    ) -> _Vector:
+        self._check(x, "x")
+        self._check(d, "d")
+        if d.shape[1] != 1:
+            raise ValueError(f"d must be a single vector, got shape {d.shape}")
+        if out is None:
+            return x / d
+        self._check_out(out, x.shape[1], x, (d,))
+        np.divide(x, d, out=out)
+        return out
+
+    def all_finite(self, x: _Vector) -> bool:
+        self._check(x, "x")
+        return bool(np.all(np.isfinite(x)))
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._layout!r})"
@@ -461,6 +489,71 @@ class ScipyCSROperator:
             f"{self.__class__.__name__}(domain={self._domain!r}, "
             f"range={self._range!r}, {self._properties!r})"
         )
+
+
+class _SparseLUHandle(SolverHandleBase[_Vector]):
+    """A SuperLU factorization, solving with A or, sharing it, A^T."""
+
+    def __init__(
+        self,
+        op: ActionOperatorProtocol[_Vector, Any],
+        factor: Optional[SuperLU],
+        failure: str,
+        transposed: bool,
+    ) -> None:
+        super().__init__(op)
+        self._op = op
+        self._factor = factor
+        self._failure = failure
+        self._transposed = transposed
+        self._dtype = np.dtype(op.range().dtype)
+
+    def solve(
+        self, rhs: _Vector, tol: Optional[float] = None, x0: Optional[_Vector] = None
+    ) -> tuple[_Vector, SolveInfo]:
+        _check_block(rhs, self.domain().size, self._dtype, "rhs")
+        if self._factor is None:
+            return np.full_like(rhs, np.nan), SolveInfo(False, message=self._failure)
+        solution: _Vector = self._factor.solve(
+            rhs, trans="T" if self._transposed else "N"
+        )
+        if not np.all(np.isfinite(solution)):
+            return solution, SolveInfo(False, message="non-finite solution")
+        return solution, SolveInfo(True)
+
+    def transpose(self) -> "_SparseLUHandle":
+        return _SparseLUHandle(
+            Transposed(self._op), self._factor, self._failure, not self._transposed
+        )
+
+
+class ScipySparseLU:
+    """Sparse LU (SuperLU) for operators stored as CSR.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.solvers.LinearSolverProtocol`
+    for :class:`CSRFormat`. One factorization serves both the solve and
+    the transposed solve. A singular matrix gives handles whose solves
+    report ``converged=False``; ``setup`` does not raise for it.
+    """
+
+    def capabilities(self) -> SolverCapabilities:
+        return SolverCapabilities(transpose=True)
+
+    def setup(
+        self, op: ActionOperatorProtocol[_Vector, CSRFormat]
+    ) -> SolverHandleProtocol[_Vector]:
+        fmt = require_format(op, CSRFormat, "ScipySparseLU")
+        require_square(op, "ScipySparseLU")
+        try:
+            factor: Optional[SuperLU] = splu(fmt.matrix().tocsc())
+            failure = ""
+        except RuntimeError as error:
+            factor, failure = None, f"factorization failed: {error}"
+        return _SparseLUHandle(op, factor, failure, transposed=False)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
 def _check_operator_layouts(

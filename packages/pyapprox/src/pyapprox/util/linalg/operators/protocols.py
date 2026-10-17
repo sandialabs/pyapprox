@@ -139,6 +139,15 @@ class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
         """
         ...
 
+    def pointwise_divide(self, x: V, d: V, out: Optional[V] = None) -> V:
+        """Return ``x`` with each row divided by the matching entry of the
+        single vector ``d``, for every column. ``out`` may be ``x``."""
+        ...
+
+    def all_finite(self, x: V) -> bool:
+        """Whether every entry of ``x`` is finite: a global reduction."""
+        ...
+
 
 @runtime_checkable
 class ActionOperatorProtocol(Protocol, Generic[V, F_co]):

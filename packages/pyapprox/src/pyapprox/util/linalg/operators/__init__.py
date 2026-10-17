@@ -28,13 +28,24 @@ from pyapprox.util.linalg.operators.protocols import (
     RowSetProtocol,
     VectorSpaceProtocol,
 )
+from pyapprox.util.linalg.operators.solvers import (
+    DiagonalSolver,
+    LinearSolverProtocol,
+    SolveFailedError,
+    SolveInfo,
+    SolverCapabilities,
+    SolverHandleBase,
+    SolverHandleProtocol,
+)
 
 __all__ = [
     "ActionOperatorProtocol",
     "DiagonalCapableProtocol",
+    "DiagonalSolver",
     "FormatProtocol",
     "Layout",
     "LayoutMismatchError",
+    "LinearSolverProtocol",
     "MatrixFree",
     "OperatorProperties",
     "Product",
@@ -42,6 +53,11 @@ __all__ = [
     "RowSetProtocol",
     "RowsZeroedOperator",
     "ScaledSum",
+    "SolveFailedError",
+    "SolveInfo",
+    "SolverCapabilities",
+    "SolverHandleBase",
+    "SolverHandleProtocol",
     "Transposed",
     "VectorSpaceProtocol",
     "as_matrix_free",
