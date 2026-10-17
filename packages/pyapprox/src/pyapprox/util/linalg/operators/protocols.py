@@ -34,7 +34,7 @@ overwritten. Stacks may check this and raise ``ValueError``.
 from dataclasses import dataclass
 from typing import Generic, Optional, Protocol, Self, TypeVar, runtime_checkable
 
-from pyapprox.util.linalg.operators.layout import Layout
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 
 V = TypeVar("V")
 A_co = TypeVar("A_co", covariant=True)
@@ -90,11 +90,11 @@ class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
     r"""Operations on blocks of vectors of one space.
 
     ``V`` is the stack's vector type, a block of ``ncols`` vectors of
-    :meth:`layout`; ``A_co`` is the small dense array type of reduction
+    :meth:`descriptor`; ``A_co`` is the small dense array type of reduction
     results.
     """
 
-    def layout(self) -> Layout:
+    def descriptor(self) -> SpaceDescriptor:
         """The space every vector handled here belongs to."""
         ...
 
@@ -139,7 +139,7 @@ class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
         """
         ...
 
-    def pointwise_divide(self, x: V, d: V, out: Optional[V] = None) -> V:
+    def divide_entries(self, x: V, d: V, out: Optional[V] = None) -> V:
         """Return ``x`` with each row divided by the matching entry of the
         single vector ``d``, for every column. ``out`` may be ``x``."""
         ...
@@ -163,11 +163,11 @@ class ActionOperatorProtocol(Protocol, Generic[V, F_co]):
     must never alias the input.
     """
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         """The space of the input of :meth:`apply`."""
         ...
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         """The space of the output of :meth:`apply`."""
         ...
 
@@ -211,7 +211,7 @@ class DiagonalCapableProtocol(ActionOperatorProtocol[V, F_co], Protocol[V, F_co]
 
 @runtime_checkable
 class RowSetProtocol(Protocol, Generic[V]):
-    r"""A stack-owned set of rows of one layout.
+    r"""A stack-owned set of rows of one space.
 
     Generic code holds no integer row arrays: it acts on rows through
     these operations, and each stack stores the set as its library does
@@ -224,7 +224,7 @@ class RowSetProtocol(Protocol, Generic[V]):
     be the operand accumulated into (``y``), never another operand.
     """
 
-    def layout(self) -> Layout:
+    def descriptor(self) -> SpaceDescriptor:
         """The space whose rows the set selects."""
         ...
 

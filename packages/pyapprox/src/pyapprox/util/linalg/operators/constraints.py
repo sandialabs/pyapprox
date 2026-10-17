@@ -24,8 +24,8 @@ where the result is provably still structured (see
 
 from typing import Generic, Optional, TypeVar
 
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import FormatProtocol
-from pyapprox.util.linalg.operators.layout import Layout
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -69,8 +69,10 @@ def rows_zeroed_properties(props: OperatorProperties, nrows: int) -> OperatorPro
     return OperatorProperties(symmetric=True, diagonal=True)
 
 
-def _require_rows_of(rows: RowSetProtocol[V], layout: Layout, what: str) -> None:
-    layout.require_same(rows.layout(), f"row set of {what}")
+def _require_rows_of(
+    rows: RowSetProtocol[V], descriptor: SpaceDescriptor, what: str
+) -> None:
+    descriptor.require_same(rows.descriptor(), f"row set of {what}")
 
 
 class RowReplacedOperator(Generic[V, F]):
@@ -87,7 +89,7 @@ class RowReplacedOperator(Generic[V, F]):
     ------
     ValueError
         If ``op`` is not square in one space, or ``rows`` belongs to
-        another layout.
+        another space.
     """
 
     def __init__(
@@ -100,10 +102,10 @@ class RowReplacedOperator(Generic[V, F]):
         self._properties = rows_replaced_properties(op.properties(), rows.count())
         self._format: Optional[F] = None
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._op.domain()
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._op.range()
 
     def properties(self) -> OperatorProperties:
@@ -142,7 +144,7 @@ class RowsZeroedOperator(Generic[V, F]):
     Raises
     ------
     ValueError
-        If ``rows`` belongs to a layout other than ``op``'s range.
+        If ``rows`` belongs to a space other than ``op``'s range.
     """
 
     def __init__(
@@ -154,10 +156,10 @@ class RowsZeroedOperator(Generic[V, F]):
         self._properties = rows_zeroed_properties(op.properties(), rows.count())
         self._format: Optional[F] = None
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._op.domain()
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._op.range()
 
     def properties(self) -> OperatorProperties:

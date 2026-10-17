@@ -1,11 +1,11 @@
-r"""Layouts: the runtime description of the space a vector lives in.
+r"""Space descriptors: the runtime description of the space a vector lives in.
 
-A :class:`Layout` is a frozen value naming everything generic code may
-know about a vector without looking inside it: which space it belongs
+A :class:`SpaceDescriptor` is a frozen value naming everything generic
+code may know about a vector without looking inside it: which space it belongs
 to, its global size, its scalar type, and a version that is bumped
 whenever the space is rebuilt (for example a resize or a
 redistribution). Two vectors, or a vector and an operator, can be
-combined only when their layouts match.
+combined only when their descriptors match.
 
 A space is identified by its name, not only by its size: two spaces of
 equal dimension are still different spaces, so a vector of one is never
@@ -13,10 +13,10 @@ silently accepted as a vector of the other. An operator between two
 spaces records both, as its domain and range.
 
 Vectors themselves are opaque handles owned by a linear-algebra stack,
-so a layout cannot always be recovered from a vector. Layouts are
+so a descriptor cannot always be recovered from a vector. Descriptors are
 therefore compared where objects that carry one meet (an operator and
 the space it is applied in, a solver and the operator it factors), with
-:meth:`Layout.require_same`.
+:meth:`SpaceDescriptor.require_same`.
 
 Distributed and in-place linear-algebra libraries describe a vector's
 space the same way: a runtime map or layout object, of global size,
@@ -29,12 +29,12 @@ from dataclasses import dataclass, fields
 _SUPPORTED_DTYPES = ("float32", "float64", "complex64", "complex128")
 
 
-class LayoutMismatchError(ValueError):
-    """Raised when objects with different layouts are combined."""
+class SpaceMismatchError(ValueError):
+    """Raised when objects belonging to different spaces are combined."""
 
 
 @dataclass(frozen=True)
-class Layout:
+class SpaceDescriptor:
     """The global description of a vector space.
 
     Parameters
@@ -48,7 +48,7 @@ class Layout:
     dtype : str
         Scalar type name: one of ``"float32"``, ``"float64"``,
         ``"complex64"``, ``"complex128"``. A name rather than a library
-        dtype object, so a layout means the same to every stack.
+        dtype object, so a descriptor means the same to every stack.
     version : int
         Incremented whenever the space is rebuilt. Vectors, operators and
         factorizations built for one version are invalid for another.
@@ -77,19 +77,19 @@ class Layout:
                 f"dtype must be one of {_SUPPORTED_DTYPES}, got {self.dtype!r}"
             )
 
-    def require_same(self, other: "Layout", what: str) -> None:
+    def require_same(self, other: "SpaceDescriptor", what: str) -> None:
         """Raise unless ``other`` describes the same space as ``self``.
 
         Parameters
         ----------
-        other : Layout
-            The layout received.
+        other : SpaceDescriptor
+            The descriptor received.
         what : str
             What ``other`` belongs to, named in the error message.
 
         Raises
         ------
-        LayoutMismatchError
+        SpaceMismatchError
             Naming every field that differs, with both values.
         """
         if other == self:
@@ -100,6 +100,6 @@ class Layout:
             for field in fields(self)
             if getattr(self, field.name) != getattr(other, field.name)
         )
-        raise LayoutMismatchError(
-            f"{what} has a different layout (expected vs received: {differences})"
+        raise SpaceMismatchError(
+            f"{what} describes a different space (expected vs received: {differences})"
         )

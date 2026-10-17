@@ -18,12 +18,12 @@ from pyapprox.util.linalg.backend_dense import (
     BackendRowSet,
 )
 from pyapprox.util.linalg.operators import (
-    Layout,
-    LayoutMismatchError,
     OperatorProperties,
     RowReplacedOperator,
     RowSetProtocol,
     RowsZeroedOperator,
+    SpaceDescriptor,
+    SpaceMismatchError,
     Transposed,
     rows_replaced_properties,
     rows_zeroed_properties,
@@ -31,8 +31,8 @@ from pyapprox.util.linalg.operators import (
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipyCSROperator
 from tests._helpers.operator_stacks import StackCase, random_matrix, spd_matrix
 
-_U = Layout("u", 5)
-_P = Layout("p", 3)
+_U = SpaceDescriptor("u", 5)
+_P = SpaceDescriptor("p", 3)
 _ROWS = [3, 0, 3]  # unsorted, with a duplicate: the set is {0, 3}
 _SPD = OperatorProperties(symmetric=True, spd=True)
 _DIAG_SPD = OperatorProperties(symmetric=True, spd=True, diagonal=True)
@@ -58,7 +58,7 @@ class TestRowSet:
         rows = case.rows(_U, _ROWS)
         assert isinstance(rows, RowSetProtocol)
         assert rows.count() == 2
-        assert rows.layout() == _U
+        assert rows.descriptor() == _U
 
     def test_operations(self, case: StackCase) -> None:
         bkd = case.bkd
@@ -89,8 +89,8 @@ class TestRowSet:
         assert rows.count() == 2
         x = case.vec(5, 1, 4)
         bkd.assert_allclose(rows.zero_rows(x), case.dense(_keep(5, [0, 3])) * x)
-        with pytest.raises(LayoutMismatchError):
-            rows.difference(case.rows(Layout("v", 5), [0]))
+        with pytest.raises(SpaceMismatchError):
+            rows.difference(case.rows(SpaceDescriptor("v", 5), [0]))
 
     def test_rejects_out_of_range_rows(self, case: StackCase) -> None:
         with pytest.raises(ValueError, match=r"\[0, 5\)"):
@@ -148,12 +148,14 @@ class TestRowReplacedOperator:
         bkd.assert_allclose(case.format_dense(op.format()), case.dense(a))
 
     def test_rejects_rectangular_and_foreign_rows(self, case: StackCase) -> None:
-        with pytest.raises(LayoutMismatchError, match="row-replaced"):
+        with pytest.raises(SpaceMismatchError, match="row-replaced"):
             RowReplacedOperator(
                 case.build(random_matrix(3, 5, 13), _U, _P), case.rows(_P, [0])
             )
-        with pytest.raises(LayoutMismatchError, match="row set"):
-            RowReplacedOperator(case.identity(_U), case.rows(Layout("v", 5), [0]))
+        with pytest.raises(SpaceMismatchError, match="row set"):
+            RowReplacedOperator(
+                case.identity(_U), case.rows(SpaceDescriptor("v", 5), [0])
+            )
 
 
 class TestRowsZeroedOperator:
@@ -187,7 +189,7 @@ class TestRowsZeroedOperator:
         )
 
     def test_rejects_rows_of_the_domain(self, case: StackCase) -> None:
-        with pytest.raises(LayoutMismatchError, match="row set"):
+        with pytest.raises(SpaceMismatchError, match="row set"):
             RowsZeroedOperator(
                 case.build(random_matrix(3, 5, 19), _U, _P), case.rows(_U, [0])
             )

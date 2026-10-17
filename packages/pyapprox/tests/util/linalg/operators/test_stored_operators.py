@@ -16,16 +16,16 @@ from pyapprox.util.linalg.backend_dense import BackendDenseOperator
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     DiagonalCapableProtocol,
-    Layout,
     OperatorProperties,
+    SpaceDescriptor,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator
 from tests._helpers.operator_stacks import StackCase as _Case
 from tests._helpers.operator_stacks import random_matrix as _random
 from tests._helpers.operator_stacks import spd_matrix as _spd
 
-_U = Layout("u", 5)
-_P = Layout("p", 3)
+_U = SpaceDescriptor("u", 5)
+_P = SpaceDescriptor("p", 3)
 
 
 class TestStoredOperatorConformance:
@@ -144,7 +144,10 @@ class TestStoredOperatorConformance:
         """Equal sizes but different spaces: not a symmetric operator."""
         with pytest.raises(ValueError, match="symmetric operator"):
             case.build(
-                np.eye(5), _U, Layout("v", 5), OperatorProperties(symmetric=True)
+                np.eye(5),
+                _U,
+                SpaceDescriptor("v", 5),
+                OperatorProperties(symmetric=True),
             )
 
 
@@ -181,7 +184,7 @@ class TestBackendDenseOperator:
     ) -> None:
         with pytest.raises(ValueError, match="configured dtype"):
             BackendDenseOperator(
-                bkd.asarray(np.eye(5)), Layout("u", 5, dtype="float32"), bkd
+                bkd.asarray(np.eye(5)), SpaceDescriptor("u", 5, dtype="float32"), bkd
             )
 
     def test_preserves_the_graph(self, torch_bkd: Backend[Any]) -> None:

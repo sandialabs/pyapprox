@@ -19,8 +19,11 @@ from pyapprox.util.linalg.operators.constraints import (
     rows_replaced_properties,
     rows_zeroed_properties,
 )
+from pyapprox.util.linalg.operators.descriptor import (
+    SpaceDescriptor,
+    SpaceMismatchError,
+)
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
-from pyapprox.util.linalg.operators.layout import Layout, LayoutMismatchError
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     DiagonalCapableProtocol,
@@ -43,8 +46,8 @@ __all__ = [
     "DiagonalCapableProtocol",
     "DiagonalSolver",
     "FormatProtocol",
-    "Layout",
-    "LayoutMismatchError",
+    "SpaceDescriptor",
+    "SpaceMismatchError",
     "LinearSolverProtocol",
     "MatrixFree",
     "OperatorProperties",

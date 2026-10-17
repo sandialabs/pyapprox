@@ -22,8 +22,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import MatrixFree
-from pyapprox.util.linalg.operators.layout import Layout
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     DiagonalCapableProtocol,
@@ -160,10 +160,10 @@ class SolverHandleBase(ABC, Generic[V]):
         self._op_range = op.range()
         self._properties = op.properties()
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._op_range
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._op_domain
 
     def properties(self) -> OperatorProperties:
@@ -223,7 +223,7 @@ class _DiagonalHandle(SolverHandleBase[V]):
     def solve(
         self, rhs: V, tol: Optional[float] = None, x0: Optional[V] = None
     ) -> tuple[V, SolveInfo]:
-        solution = self._space.pointwise_divide(rhs, self._diagonal)
+        solution = self._space.divide_entries(rhs, self._diagonal)
         if not self._space.all_finite(solution):
             return solution, SolveInfo(False, message="zero diagonal entry")
         return solution, SolveInfo(True)
@@ -255,7 +255,7 @@ class DiagonalSolver(Generic[V]):
         if not op.properties().diagonal:
             raise TypeError("DiagonalSolver needs an operator declared diagonal")
         op.domain().require_same(op.range(), "range of a diagonal operator")
-        self._space.layout().require_same(op.domain(), "space of DiagonalSolver")
+        self._space.descriptor().require_same(op.domain(), "space of DiagonalSolver")
         return _DiagonalHandle(op, op.diagonal(), self._space)
 
     def __repr__(self) -> str:

@@ -9,12 +9,12 @@ from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseOperator, BackendVectorSpace
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
-    Layout,
-    LayoutMismatchError,
     MatrixFree,
     OperatorProperties,
     Product,
     ScaledSum,
+    SpaceDescriptor,
+    SpaceMismatchError,
     Transposed,
     as_matrix_free,
     product_properties,
@@ -22,8 +22,8 @@ from pyapprox.util.linalg.operators import (
 )
 from tests._helpers.operator_stacks import StackCase, random_matrix, spd_matrix
 
-_U = Layout("u", 5)
-_P = Layout("p", 3)
+_U = SpaceDescriptor("u", 5)
+_P = SpaceDescriptor("p", 3)
 
 _NONE = OperatorProperties()
 _SYM = OperatorProperties(symmetric=True)
@@ -89,17 +89,20 @@ class TestScaledSum:
         bkd.assert_allclose(
             op.apply_transpose(y), bkd.dot(case.dense(a - b).T, y), rtol=1e-12
         )
-        with pytest.raises(LayoutMismatchError, match="domain space"):
+        with pytest.raises(SpaceMismatchError, match="domain space"):
             ScaledSum(terms, case.space(_P))
 
     def test_rejects_mismatched_terms(self, case: StackCase) -> None:
-        with pytest.raises(LayoutMismatchError, match="summed operator"):
+        with pytest.raises(SpaceMismatchError, match="summed operator"):
             ScaledSum(
-                [(1.0, case.identity(_U)), (1.0, case.identity(Layout("v", 5)))],
+                [
+                    (1.0, case.identity(_U)),
+                    (1.0, case.identity(SpaceDescriptor("v", 5))),
+                ],
                 case.space(_U),
             )
-        with pytest.raises(LayoutMismatchError, match="space of a scaled sum"):
-            ScaledSum([(1.0, case.identity(_U))], case.space(Layout("v", 5)))
+        with pytest.raises(SpaceMismatchError, match="space of a scaled sum"):
+            ScaledSum([(1.0, case.identity(_U))], case.space(SpaceDescriptor("v", 5)))
         with pytest.raises(ValueError, match="at least one term"):
             ScaledSum([], case.space(_U))
 
@@ -148,7 +151,7 @@ class TestProduct:
         assert (result is out) == case.in_place
 
     def test_rejects_unchained_layouts(self, case: StackCase) -> None:
-        with pytest.raises(LayoutMismatchError, match="product factor"):
+        with pytest.raises(SpaceMismatchError, match="product factor"):
             Product([case.identity(_U), case.identity(_P)])
         with pytest.raises(ValueError, match="at least one factor"):
             Product([])

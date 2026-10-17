@@ -15,7 +15,7 @@ from scipy.sparse import identity as sparse_identity
 from scipy.sparse.linalg import SuperLU, splu
 
 from pyapprox.util.linalg.operators.algebra import Transposed
-from pyapprox.util.linalg.operators.layout import Layout
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -66,22 +66,22 @@ class NumpyVectorSpace:
 
     Parameters
     ----------
-    layout : Layout
+    descriptor : SpaceDescriptor
         The space of the vectors.
 
     Raises
     ------
     ValueError
-        From any operation, if a vector is not 2-D with ``layout.size``
-        rows and the layout's dtype, if an ``out`` has a different shape
+        From any operation, if a vector is not 2-D with ``descriptor.size``
+        rows and the descriptor's dtype, if an ``out`` has a different shape
         from the result, or if ``out`` aliases an operand it may not.
     """
 
-    def __init__(self, layout: Layout) -> None:
-        self._layout = layout
-        self._dtype = np.dtype(layout.dtype)
+    def __init__(self, descriptor: SpaceDescriptor) -> None:
+        self._layout = descriptor
+        self._dtype = np.dtype(descriptor.dtype)
 
-    def layout(self) -> Layout:
+    def descriptor(self) -> SpaceDescriptor:
         return self._layout
 
     def _check(self, x: _Vector, name: str) -> None:
@@ -161,7 +161,7 @@ class NumpyVectorSpace:
         norm: _Vector = np.linalg.norm(x, axis=0, keepdims=True)
         return norm
 
-    def pointwise_divide(
+    def divide_entries(
         self, x: _Vector, d: _Vector, out: Optional[_Vector] = None
     ) -> _Vector:
         self._check(x, "x")
@@ -183,7 +183,7 @@ class NumpyVectorSpace:
 
 
 class NumpyRowSet:
-    """A set of rows of a layout, stored as a sorted integer index array.
+    """A set of rows of a space, stored as a sorted integer index array.
 
     Satisfies
     :class:`~pyapprox.util.linalg.operators.protocols.RowSetProtocol` for
@@ -192,7 +192,7 @@ class NumpyRowSet:
 
     Parameters
     ----------
-    layout : Layout
+    descriptor : SpaceDescriptor
         The space whose rows are selected.
     rows : sequence of int
         Row indices; duplicates are removed and order is ignored.
@@ -201,26 +201,28 @@ class NumpyRowSet:
     ------
     ValueError
         If ``rows`` is not one-dimensional or an index is outside
-        ``[0, layout.size)``.
+        ``[0, descriptor.size)``.
     """
 
     def __init__(
-        self, layout: Layout, rows: Sequence[int] | NDArray[np.integer[Any]]
+        self,
+        descriptor: SpaceDescriptor,
+        rows: Sequence[int] | NDArray[np.integer[Any]],
     ) -> None:
         indices = np.unique(np.asarray(rows, dtype=np.intp))
         if indices.ndim != 1:
             raise ValueError(f"rows must be one-dimensional, got shape {indices.shape}")
-        if indices.size and (indices[0] < 0 or indices[-1] >= layout.size):
+        if indices.size and (indices[0] < 0 or indices[-1] >= descriptor.size):
             raise ValueError(
-                f"row indices must lie in [0, {layout.size}), got "
+                f"row indices must lie in [0, {descriptor.size}), got "
                 f"[{indices[0]}, {indices[-1]}]"
             )
         indices.setflags(write=False)
-        self._layout = layout
+        self._layout = descriptor
         self._indices = indices
-        self._dtype = np.dtype(layout.dtype)
+        self._dtype = np.dtype(descriptor.dtype)
 
-    def layout(self) -> Layout:
+    def descriptor(self) -> SpaceDescriptor:
         return self._layout
 
     def count(self) -> int:
@@ -271,7 +273,7 @@ class NumpyRowSet:
         return result
 
     def difference(self, other: "NumpyRowSet") -> "NumpyRowSet":
-        self._layout.require_same(other.layout(), "row set to subtract")
+        self._layout.require_same(other.descriptor(), "row set to subtract")
         return NumpyRowSet(
             self._layout,
             np.setdiff1d(self._indices, other.indices(), assume_unique=True),
@@ -363,9 +365,9 @@ class ScipyCSROperator:
     ----------
     matrix : scipy sparse matrix
         Shape ``(range.size, domain.size)``. Stored as CSR.
-    domain : Layout
+    domain : SpaceDescriptor
         The space of the input of ``apply``.
-    range : Layout, optional
+    range : SpaceDescriptor, optional
         The space of the output of ``apply``. Defaults to ``domain``.
     properties : OperatorProperties, optional
         Declared properties. ``symmetric``, ``diagonal`` and ``identity``
@@ -377,7 +379,7 @@ class ScipyCSROperator:
     TypeError
         If ``matrix`` is not a SciPy sparse matrix.
     ValueError
-        If the shape or dtype disagrees with the layouts, if a symmetric
+        If the shape or dtype disagrees with the descriptors, if a symmetric
         operator's domain and range differ, or if a verified property
         does not hold.
     """
@@ -385,8 +387,8 @@ class ScipyCSROperator:
     def __init__(
         self,
         matrix: spmatrix,
-        domain: Layout,
-        range: Optional[Layout] = None,
+        domain: SpaceDescriptor,
+        range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
     ) -> None:
         if not issparse(matrix):
@@ -406,39 +408,41 @@ class ScipyCSROperator:
         self._format = CSRFormat(csr)
 
     @classmethod
-    def identity(cls, layout: Layout) -> "ScipyCSROperator":
-        """The identity on ``layout``, stored as CSR so it combines with
+    def identity(cls, descriptor: SpaceDescriptor) -> "ScipyCSROperator":
+        """The identity on ``descriptor``, stored as CSR so it combines with
         other CSR operators without leaving the format."""
         matrix = sparse_identity(
-            layout.size, dtype=np.dtype(layout.dtype), format="csr"
+            descriptor.size, dtype=np.dtype(descriptor.dtype), format="csr"
         )
         return cls(
             matrix,
-            layout,
+            descriptor,
             properties=OperatorProperties(
                 symmetric=True, spd=True, diagonal=True, identity=True
             ),
         )
 
     @classmethod
-    def from_diagonal(cls, d: _Vector, layout: Layout) -> "ScipyCSROperator":
+    def from_diagonal(
+        cls, d: _Vector, descriptor: SpaceDescriptor
+    ) -> "ScipyCSROperator":
         """The diagonal operator with diagonal ``d``, a single vector of
-        ``layout``, stored as CSR. Declared ``spd`` when ``d`` is real and
+        ``descriptor``, stored as CSR. Declared ``spd`` when ``d`` is real and
         positive."""
-        _check_block(d, layout.size, np.dtype(layout.dtype), "d")
+        _check_block(d, descriptor.size, np.dtype(descriptor.dtype), "d")
         if d.shape[1] != 1:
             raise ValueError(f"d must be a single vector, got shape {d.shape}")
         spd = bool(np.isrealobj(d) and np.all(d > 0))
         return cls(
             diags(d[:, 0], format="csr"),
-            layout,
+            descriptor,
             properties=OperatorProperties(symmetric=True, spd=spd, diagonal=True),
         )
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._domain
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._range
 
     def properties(self) -> OperatorProperties:
@@ -454,7 +458,11 @@ class ScipyCSROperator:
         return out
 
     def _check_apply(
-        self, x: _Vector, out: Optional[_Vector], src: Layout, dst: Layout
+        self,
+        x: _Vector,
+        out: Optional[_Vector],
+        src: SpaceDescriptor,
+        dst: SpaceDescriptor,
     ) -> None:
         _check_block(x, src.size, self._dtype, "input")
         if out is None:
@@ -559,8 +567,8 @@ class ScipySparseLU:
 def _check_operator_layouts(
     shape: tuple[int, ...],
     dtype: np.dtype[Any],
-    domain: Layout,
-    range_: Layout,
+    domain: SpaceDescriptor,
+    range_: SpaceDescriptor,
     properties: OperatorProperties,
 ) -> None:
     if shape != (range_.size, domain.size):
@@ -568,10 +576,10 @@ def _check_operator_layouts(
             f"matrix must have shape (range.size, domain.size) = "
             f"({range_.size}, {domain.size}), got {shape}"
         )
-    for name, layout in (("domain", domain), ("range", range_)):
-        if np.dtype(layout.dtype) != dtype:
+    for name, descriptor in (("domain", domain), ("range", range_)):
+        if np.dtype(descriptor.dtype) != dtype:
             raise ValueError(
-                f"matrix dtype {dtype} differs from the {name} dtype {layout.dtype}"
+                f"matrix dtype {dtype} differs from the {name} dtype {descriptor.dtype}"
             )
     if properties.symmetric:
         domain.require_same(range_, "range of a symmetric operator")

@@ -18,8 +18,8 @@ never relies on a property that does not hold.
 
 from typing import Any, Generic, Optional, Sequence, TypeVar
 
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
-from pyapprox.util.linalg.operators.layout import Layout
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -64,7 +64,10 @@ def product_properties(factors: Sequence[OperatorProperties]) -> OperatorPropert
 
 
 def _require_spaces(
-    op: ActionOperatorProtocol[Any, Any], domain: Layout, range_: Layout, what: str
+    op: ActionOperatorProtocol[Any, Any],
+    domain: SpaceDescriptor,
+    range_: SpaceDescriptor,
+    what: str,
 ) -> None:
     domain.require_same(op.domain(), f"domain of {what}")
     range_.require_same(op.range(), f"range of {what}")
@@ -88,7 +91,7 @@ class ScaledSum(Generic[V, F]):
     Raises
     ------
     ValueError
-        If ``terms`` is empty or a layout disagrees.
+        If ``terms`` is empty or a descriptor disagrees.
     """
 
     def __init__(
@@ -106,19 +109,19 @@ class ScaledSum(Generic[V, F]):
             _require_spaces(op, self._domain, self._range, "a summed operator")
         self._space = space
         self._domain_space = space if domain_space is None else domain_space
-        self._range.require_same(space.layout(), "space of a scaled sum")
+        self._range.require_same(space.descriptor(), "space of a scaled sum")
         self._domain.require_same(
-            self._domain_space.layout(), "domain space of a scaled sum"
+            self._domain_space.descriptor(), "domain space of a scaled sum"
         )
         self._properties = scaled_sum_properties(
             [(c, op.properties()) for c, op in self._terms]
         )
         self._format: Optional[F] = None
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._domain
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._range
 
     def properties(self) -> OperatorProperties:
@@ -168,10 +171,10 @@ class Transposed(Generic[V, F]):
         self._op = op
         self._format: Optional[F] = None
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._op.range()
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._op.domain()
 
     def properties(self) -> OperatorProperties:
@@ -210,7 +213,7 @@ class Product(Generic[V]):
     Raises
     ------
     ValueError
-        If ``factors`` is empty or consecutive layouts disagree.
+        If ``factors`` is empty or consecutive descriptors disagree.
     """
 
     def __init__(self, factors: Sequence[ActionOperatorProtocol[V, Any]]) -> None:
@@ -223,10 +226,10 @@ class Product(Generic[V]):
             [factor.properties() for factor in self._factors]
         )
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._factors[-1].domain()
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._factors[0].range()
 
     def properties(self) -> OperatorProperties:
@@ -257,10 +260,10 @@ class _MatrixFreeView(Generic[V]):
     def __init__(self, op: ActionOperatorProtocol[V, Any]) -> None:
         self._op = op
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._op.domain()
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._op.range()
 
     def properties(self) -> OperatorProperties:

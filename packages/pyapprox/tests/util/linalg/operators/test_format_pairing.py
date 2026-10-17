@@ -23,7 +23,7 @@ _SNIPPET = textwrap.dedent(
 
     from pyapprox.util.linalg.operators import (
         ActionOperatorProtocol,
-        Layout,
+        SpaceDescriptor,
         MatrixFree,
         OperatorProperties,
         ScaledSum,
@@ -42,10 +42,10 @@ _SNIPPET = textwrap.dedent(
 
 
     class Shift:
-        def domain(self) -> Layout:
+        def domain(self) -> SpaceDescriptor:
             raise NotImplementedError
 
-        def range(self) -> Layout:
+        def range(self) -> SpaceDescriptor:
             raise NotImplementedError
 
         def apply(
@@ -65,7 +65,7 @@ _SNIPPET = textwrap.dedent(
             return MatrixFree()
 
 
-    u = Layout("u", 3)
+    u = SpaceDescriptor("u", 3)
     space = NumpyVectorSpace(u)
     csr = ScipyCSROperator.identity(u)
     factor(csr)  # PAIRS

@@ -14,21 +14,21 @@ from pyapprox.util.linalg.backend_dense import (
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     DiagonalSolver,
-    Layout,
-    LayoutMismatchError,
     MatrixFree,
     OperatorProperties,
     Product,
     RowReplacedOperator,
     SolveFailedError,
     SolverHandleProtocol,
+    SpaceDescriptor,
+    SpaceMismatchError,
     as_matrix_free,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator, ScipySparseLU
 from tests._helpers.operator_stacks import StackCase, random_matrix, spd_matrix
 
-_U = Layout("u", 5)
-_V = Layout("v", 5)
+_U = SpaceDescriptor("u", 5)
+_V = SpaceDescriptor("v", 5)
 _SPD = OperatorProperties(symmetric=True, spd=True)
 # Direct solves are exact up to rounding: a relative residual of 1e-10
 # leaves four decades for the condition numbers of these 5x5 matrices.
@@ -124,7 +124,7 @@ class TestDirectSolver:
     def test_refuses_non_square(self, case: StackCase) -> None:
         with pytest.raises(ValueError, match="square"):
             case.direct_solver().setup(
-                case.build(random_matrix(3, 5, 12), _U, Layout("p", 3))
+                case.build(random_matrix(3, 5, 12), _U, SpaceDescriptor("p", 3))
             )
 
 
@@ -168,7 +168,7 @@ class TestDiagonalSolver:
     def test_refuses_an_operator_not_declared_diagonal(self, case: StackCase) -> None:
         with pytest.raises(TypeError, match="declared diagonal"):
             DiagonalSolver(case.space(_U)).setup(case.build(spd_matrix(5, 15), _U))
-        with pytest.raises(LayoutMismatchError):
+        with pytest.raises(SpaceMismatchError):
             DiagonalSolver(case.space(_V)).setup(case.identity(_U))
 
 

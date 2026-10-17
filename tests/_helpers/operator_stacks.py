@@ -23,10 +23,10 @@ from pyapprox.util.linalg.backend_dense import (
 )
 from pyapprox.util.linalg.operators import (
     DiagonalCapableProtocol,
-    Layout,
     LinearSolverProtocol,
     OperatorProperties,
     RowSetProtocol,
+    SpaceDescriptor,
     VectorSpaceProtocol,
 )
 from pyapprox.util.linalg.scipy_stack import (
@@ -65,8 +65,8 @@ class _Build(Protocol[V, F_co]):
     def __call__(
         self,
         matrix: NDArray[np.float64],
-        domain: Layout,
-        range: Optional[Layout] = None,
+        domain: SpaceDescriptor,
+        range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
     ) -> DiagonalCapableProtocol[V, F_co]: ...
 
@@ -80,10 +80,10 @@ class TypedStackCase(Generic[V, F]):
     """
 
     build: _Build[V, F]
-    identity: Callable[[Layout], DiagonalCapableProtocol[V, F]]
-    from_diagonal: Callable[[V, Layout], DiagonalCapableProtocol[V, F]]
-    space: Callable[[Layout], VectorSpaceProtocol[V, V]]
-    rows: Callable[[Layout, Sequence[int]], RowSetProtocol[V]]
+    identity: Callable[[SpaceDescriptor], DiagonalCapableProtocol[V, F]]
+    from_diagonal: Callable[[V, SpaceDescriptor], DiagonalCapableProtocol[V, F]]
+    space: Callable[[SpaceDescriptor], VectorSpaceProtocol[V, V]]
+    rows: Callable[[SpaceDescriptor, Sequence[int]], RowSetProtocol[V]]
     direct_solver: Callable[[], LinearSolverProtocol[V, F]]
     format_type: type[F]
     format_dense: Callable[[F], V]
@@ -109,8 +109,8 @@ only be ``Any``. Everything inside the helper is typed per stack."""
 def csr_case() -> TypedStackCase[NDArray[Any], CSRFormat]:
     def build(
         matrix: NDArray[np.float64],
-        domain: Layout,
-        range: Optional[Layout] = None,
+        domain: SpaceDescriptor,
+        range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
     ) -> ScipyCSROperator:
         return ScipyCSROperator(csr_matrix(matrix), domain, range, properties)
@@ -136,18 +136,18 @@ def csr_case() -> TypedStackCase[NDArray[Any], CSRFormat]:
 def dense_case(bkd: Backend[Array]) -> TypedStackCase[Array, DenseFormat[Array]]:
     def build(
         matrix: NDArray[np.float64],
-        domain: Layout,
-        range: Optional[Layout] = None,
+        domain: SpaceDescriptor,
+        range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
     ) -> BackendDenseOperator[Array]:
         return BackendDenseOperator(bkd.asarray(matrix), domain, bkd, range, properties)
 
     return TypedStackCase(
         build,
-        lambda layout: BackendDenseOperator.identity(layout, bkd),
-        lambda d, layout: BackendDenseOperator.from_diagonal(d, layout, bkd),
-        lambda layout: BackendVectorSpace(layout, bkd),
-        lambda layout, rows: BackendRowSet(layout, rows, bkd),
+        lambda descriptor: BackendDenseOperator.identity(descriptor, bkd),
+        lambda d, descriptor: BackendDenseOperator.from_diagonal(d, descriptor, bkd),
+        lambda descriptor: BackendVectorSpace(descriptor, bkd),
+        lambda descriptor, rows: BackendRowSet(descriptor, rows, bkd),
         lambda: BackendDenseLU(bkd),
         DenseFormat,
         lambda fmt: fmt.matrix(),

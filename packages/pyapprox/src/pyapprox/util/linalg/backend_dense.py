@@ -12,7 +12,7 @@ from typing import Any, Generic, Optional, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators.algebra import Transposed
-from pyapprox.util.linalg.operators.layout import Layout
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -37,18 +37,20 @@ def _all_finite(x: Array, bkd: Backend[Array]) -> bool:
     return bkd.to_int(bkd.sum(bkd.isfinite(x))) == nentries
 
 
-def _require_backend_dtype(layout: Layout, bkd: Backend[Array], what: str) -> Any:
-    """Return the backend's configured dtype, refusing a layout of another.
+def _require_backend_dtype(
+    descriptor: SpaceDescriptor, bkd: Backend[Array], what: str
+) -> Any:
+    """Return the backend's configured dtype, refusing a space of another.
 
     The dtype name is read from a one-element array, so any backend that
     reports its default dtype works, whatever its dtype objects are.
     """
     dtype = bkd.default_dtype()
     name = bkd.to_numpy(bkd.zeros((1,), dtype=dtype)).dtype.name
-    if layout.dtype != name:
+    if descriptor.dtype != name:
         raise ValueError(
-            f"{what}: layout dtype {layout.dtype!r} differs from the backend's "
-            f"configured dtype {name!r}; configure the backend or change the layout"
+            f"{what}: descriptor dtype {descriptor.dtype!r} differs from the backend's "
+            f"configured dtype {name!r}; configure the backend or change the descriptor"
         )
     return dtype
 
@@ -65,7 +67,7 @@ class BackendVectorSpace(Generic[Array]):
 
     Parameters
     ----------
-    layout : Layout
+    descriptor : SpaceDescriptor
         The space of the vectors. Its dtype must be the backend's
         configured dtype (``bkd.default_dtype()``).
     bkd : Backend[Array]
@@ -74,17 +76,17 @@ class BackendVectorSpace(Generic[Array]):
     Raises
     ------
     ValueError
-        If the layout's dtype is not the backend's. From any operation,
-        if a vector is not 2-D with ``layout.size`` rows, or if ``out``
+        If the descriptor's dtype is not the backend's. From any operation,
+        if a vector is not 2-D with ``descriptor.size`` rows, or if ``out``
         is an operand it may not alias.
     """
 
-    def __init__(self, layout: Layout, bkd: Backend[Array]) -> None:
-        self._dtype: Any = _require_backend_dtype(layout, bkd, "BackendVectorSpace")
-        self._layout = layout
+    def __init__(self, descriptor: SpaceDescriptor, bkd: Backend[Array]) -> None:
+        self._dtype: Any = _require_backend_dtype(descriptor, bkd, "BackendVectorSpace")
+        self._layout = descriptor
         self._bkd = bkd
 
-    def layout(self) -> Layout:
+    def descriptor(self) -> SpaceDescriptor:
         return self._layout
 
     def _check(self, x: Array, name: str) -> None:
@@ -144,9 +146,7 @@ class BackendVectorSpace(Generic[Array]):
         self._check(x, "x")
         return self._bkd.sqrt(self._bkd.sum(x * x, axis=0, keepdims=True))
 
-    def pointwise_divide(
-        self, x: Array, d: Array, out: Optional[Array] = None
-    ) -> Array:
+    def divide_entries(self, x: Array, d: Array, out: Optional[Array] = None) -> Array:
         self._check(x, "x")
         self._check(d, "d")
         if d.shape[1] != 1:
@@ -163,7 +163,7 @@ class BackendVectorSpace(Generic[Array]):
 
 
 class BackendRowSet(Generic[Array]):
-    """A set of rows of a layout, applied to backend blocks by masking.
+    """A set of rows of a space, applied to backend blocks by masking.
 
     Satisfies
     :class:`~pyapprox.util.linalg.operators.protocols.RowSetProtocol` for
@@ -174,7 +174,7 @@ class BackendRowSet(Generic[Array]):
 
     Parameters
     ----------
-    layout : Layout
+    descriptor : SpaceDescriptor
         The space whose rows are selected. Its dtype must be the
         backend's configured dtype.
     rows : sequence of int
@@ -185,30 +185,30 @@ class BackendRowSet(Generic[Array]):
     Raises
     ------
     ValueError
-        If an index is outside ``[0, layout.size)`` or the layout's dtype
+        If an index is outside ``[0, descriptor.size)`` or the descriptor's dtype
         is not the backend's.
     """
 
     def __init__(
-        self, layout: Layout, rows: Sequence[int], bkd: Backend[Array]
+        self, descriptor: SpaceDescriptor, rows: Sequence[int], bkd: Backend[Array]
     ) -> None:
-        dtype = _require_backend_dtype(layout, bkd, "BackendRowSet")
+        dtype = _require_backend_dtype(descriptor, bkd, "BackendRowSet")
         indices = tuple(sorted({int(row) for row in rows}))
-        if indices and (indices[0] < 0 or indices[-1] >= layout.size):
+        if indices and (indices[0] < 0 or indices[-1] >= descriptor.size):
             raise ValueError(
-                f"row indices must lie in [0, {layout.size}), got "
+                f"row indices must lie in [0, {descriptor.size}), got "
                 f"[{indices[0]}, {indices[-1]}]"
             )
-        self._layout = layout
+        self._layout = descriptor
         self._indices = indices
         self._bkd = bkd
         # The masks are constant data, built once from plain integers.
         in_set = set(indices)
-        keep = [[0.0] if row in in_set else [1.0] for row in range(layout.size)]
+        keep = [[0.0] if row in in_set else [1.0] for row in range(descriptor.size)]
         self._keep = bkd.asarray(keep, dtype=dtype)
         self._take = 1.0 - self._keep
 
-    def layout(self) -> Layout:
+    def descriptor(self) -> SpaceDescriptor:
         return self._layout
 
     def count(self) -> int:
@@ -245,7 +245,7 @@ class BackendRowSet(Generic[Array]):
         return y + x * self._take
 
     def difference(self, other: "BackendRowSet[Array]") -> "BackendRowSet[Array]":
-        self._layout.require_same(other.layout(), "row set to subtract")
+        self._layout.require_same(other.descriptor(), "row set to subtract")
         remaining = sorted(set(self._indices) - set(other.indices()))
         return BackendRowSet(self._layout, remaining, self._bkd)
 
@@ -318,12 +318,12 @@ class BackendDenseOperator(Generic[Array]):
     ----------
     matrix : Array
         Shape ``(range.size, domain.size)``.
-    domain : Layout
+    domain : SpaceDescriptor
         The space of the input of ``apply``. Its dtype, and the range's,
         must be the backend's configured dtype.
     bkd : Backend[Array]
         Computational backend.
-    range : Layout, optional
+    range : SpaceDescriptor, optional
         The space of the output of ``apply``. Defaults to ``domain``.
     properties : OperatorProperties, optional
         Declared properties. ``symmetric``, ``diagonal`` and ``identity``
@@ -332,7 +332,7 @@ class BackendDenseOperator(Generic[Array]):
     Raises
     ------
     ValueError
-        If the shape disagrees with the layouts, a layout's dtype is not
+        If the shape disagrees with the descriptors, a descriptor's dtype is not
         the backend's,
         a symmetric operator's domain and range differ, or a verified
         property does not hold.
@@ -341,9 +341,9 @@ class BackendDenseOperator(Generic[Array]):
     def __init__(
         self,
         matrix: Array,
-        domain: Layout,
+        domain: SpaceDescriptor,
         bkd: Backend[Array],
-        range: Optional[Layout] = None,
+        range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
     ) -> None:
         self._domain = domain
@@ -393,13 +393,13 @@ class BackendDenseOperator(Generic[Array]):
 
     @classmethod
     def identity(
-        cls, layout: Layout, bkd: Backend[Array]
+        cls, descriptor: SpaceDescriptor, bkd: Backend[Array]
     ) -> "BackendDenseOperator[Array]":
-        """The identity on ``layout``, stored densely so it combines with
+        """The identity on ``descriptor``, stored densely so it combines with
         other dense operators without leaving the format."""
         return cls(
-            bkd.eye(layout.size, dtype=bkd.default_dtype()),
-            layout,
+            bkd.eye(descriptor.size, dtype=bkd.default_dtype()),
+            descriptor,
             bkd,
             properties=OperatorProperties(
                 symmetric=True, spd=True, diagonal=True, identity=True
@@ -408,28 +408,28 @@ class BackendDenseOperator(Generic[Array]):
 
     @classmethod
     def from_diagonal(
-        cls, d: Array, layout: Layout, bkd: Backend[Array]
+        cls, d: Array, descriptor: SpaceDescriptor, bkd: Backend[Array]
     ) -> "BackendDenseOperator[Array]":
         """The diagonal operator with diagonal ``d``, a single vector of
-        ``layout``, stored densely. Declared ``spd`` when ``d`` is
+        ``descriptor``, stored densely. Declared ``spd`` when ``d`` is
         positive."""
-        if tuple(d.shape) != (layout.size, 1):
+        if tuple(d.shape) != (descriptor.size, 1):
             raise ValueError(
-                f"d must be a single vector of shape ({layout.size}, 1), "
+                f"d must be a single vector of shape ({descriptor.size}, 1), "
                 f"got {tuple(d.shape)}"
             )
-        spd = layout.size == 0 or bkd.to_float(bkd.min(d)) > 0.0
+        spd = descriptor.size == 0 or bkd.to_float(bkd.min(d)) > 0.0
         return cls(
-            bkd.diag(bkd.reshape(d, (layout.size,))),
-            layout,
+            bkd.diag(bkd.reshape(d, (descriptor.size,))),
+            descriptor,
             bkd,
             properties=OperatorProperties(symmetric=True, spd=spd, diagonal=True),
         )
 
-    def domain(self) -> Layout:
+    def domain(self) -> SpaceDescriptor:
         return self._domain
 
-    def range(self) -> Layout:
+    def range(self) -> SpaceDescriptor:
         return self._range
 
     def properties(self) -> OperatorProperties:
@@ -439,7 +439,7 @@ class BackendDenseOperator(Generic[Array]):
         return self._format
 
     @staticmethod
-    def _check_apply(x: Array, out: Optional[Array], src: Layout) -> None:
+    def _check_apply(x: Array, out: Optional[Array], src: SpaceDescriptor) -> None:
         if x.ndim != 2 or x.shape[0] != src.size:
             raise ValueError(
                 f"input must have shape ({src.size}, ncols), got {tuple(x.shape)}"

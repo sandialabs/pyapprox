@@ -13,11 +13,11 @@ import pytest
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.backend_dense import BackendVectorSpace
-from pyapprox.util.linalg.operators import Layout, VectorSpaceProtocol
+from pyapprox.util.linalg.operators import SpaceDescriptor, VectorSpaceProtocol
 from pyapprox.util.linalg.scipy_stack import NumpyVectorSpace
 
 _N = 6
-_LAYOUT = Layout("x", _N)
+_DESCRIPTOR = SpaceDescriptor("x", _N)
 
 
 @dataclass
@@ -34,16 +34,16 @@ class _Case:
 @pytest.fixture(params=["numpy-stack", "backend-numpy", "backend-torch"])
 def case(request: pytest.FixtureRequest) -> _Case:
     if request.param == "numpy-stack":
-        return _Case(NumpyVectorSpace(_LAYOUT), NumpyBkd(), True)
+        return _Case(NumpyVectorSpace(_DESCRIPTOR), NumpyBkd(), True)
     fixture = "numpy_bkd" if request.param == "backend-numpy" else "torch_bkd"
     bkd = request.getfixturevalue(fixture)
-    return _Case(BackendVectorSpace(_LAYOUT, bkd), bkd, False)
+    return _Case(BackendVectorSpace(_DESCRIPTOR, bkd), bkd, False)
 
 
 class TestVectorSpaceConformance:
     def test_satisfies_protocol(self, case: _Case) -> None:
         assert isinstance(case.space, VectorSpaceProtocol)
-        assert case.space.layout() == _LAYOUT
+        assert case.space.descriptor() == _DESCRIPTOR
 
     def test_zeros(self, case: _Case) -> None:
         space, bkd = case.space, case.bkd
@@ -130,7 +130,7 @@ class TestVectorSpaceConformance:
 
 class TestNumpyVectorSpace:
     def test_writes_into_and_returns_out(self) -> None:
-        space = NumpyVectorSpace(_LAYOUT)
+        space = NumpyVectorSpace(_DESCRIPTOR)
         x, y = np.ones((_N, 1)), np.full((_N, 1), 2.0)
         assert space.axpby(1.0, x, 2.0, y, out=y) is y
         assert space.scale(3.0, x, out=x) is x
@@ -139,7 +139,7 @@ class TestNumpyVectorSpace:
 
     def test_rejects_overlapping_out(self) -> None:
         """A view of a non-accumulating operand is an alias too."""
-        space = NumpyVectorSpace(_LAYOUT)
+        space = NumpyVectorSpace(_DESCRIPTOR)
         x = np.ones((_N, 2))
         with pytest.raises(ValueError, match="alias"):
             space.axpby(1.0, x[:, :1], 1.0, np.ones((_N, 1)), out=x[:, :1])
@@ -147,7 +147,7 @@ class TestNumpyVectorSpace:
             space.copy(x[:, 1:], out=x[:, 1:])
 
     def test_rejects_out_of_wrong_shape_or_dtype(self) -> None:
-        space = NumpyVectorSpace(_LAYOUT)
+        space = NumpyVectorSpace(_DESCRIPTOR)
         x = np.ones((_N, 2))
         with pytest.raises(ValueError, match="out must have shape"):
             space.scale(2.0, x, out=np.zeros((_N, 1)))
@@ -155,12 +155,12 @@ class TestNumpyVectorSpace:
             space.norm(np.ones((_N, 1), dtype=np.float32))
 
     def test_dtype_follows_layout(self) -> None:
-        space = NumpyVectorSpace(Layout("x", _N, dtype="float32"))
+        space = NumpyVectorSpace(SpaceDescriptor("x", _N, dtype="float32"))
         assert space.zeros(2).dtype == np.float32
 
     def test_complex_dot_conjugates_first_argument(self) -> None:
         bkd = NumpyBkd()
-        space = NumpyVectorSpace(Layout("z", 2, dtype="complex128"))
+        space = NumpyVectorSpace(SpaceDescriptor("z", 2, dtype="complex128"))
         x = np.array([[1.0 + 1.0j], [2.0j]])
         bkd.assert_allclose(space.dot(x, x), np.array([[6.0 + 0.0j]]))
         bkd.assert_allclose(space.norm(x), np.array([[np.sqrt(6.0)]]))
@@ -171,13 +171,13 @@ class TestBackendVectorSpace:
         self, bkd: Backend[Any]
     ) -> None:
         with pytest.raises(ValueError, match="configured dtype 'float64'"):
-            BackendVectorSpace(Layout("x", _N, dtype="float32"), bkd)
+            BackendVectorSpace(SpaceDescriptor("x", _N, dtype="float32"), bkd)
 
     def test_preserves_the_graph(self, torch_bkd: Backend[Any]) -> None:
         """d(||a x + b y||^2)/dx = 2 a (a x + b y) through autograd."""
         import torch
 
-        space = BackendVectorSpace(_LAYOUT, torch_bkd)
+        space = BackendVectorSpace(_DESCRIPTOR, torch_bkd)
         rng = np.random.default_rng(17)
         x = torch.tensor(rng.normal(size=(_N, 1)), requires_grad=True)
         y = torch.tensor(rng.normal(size=(_N, 1)))
