@@ -1,0 +1,181 @@
+r"""Assembly into a linear-algebra stack.
+
+An assembled PDE operator is a sum of element contributions,
+:math:`A = \sum_e L_e^\top w_e A_e R_e`, where :math:`L_e` and
+:math:`R_e` gather element :math:`e`'s row and column DOFs and
+:math:`w_e` is an optional element weight (1 for full assembly, a
+reduced-quadrature weight for hyper-reduction). An *assembly stack* owns
+where those sums go: it hands the assembler a *sink* whose sparsity
+pattern is fixed once from the element DOF maps, accepts batched element
+blocks, and produces an operator of the stack's own type.
+
+The assembler never sees the stack's storage. It sees:
+
+- sinks for matrices and vectors, rectangular in general (rows and
+  columns may belong to different spaces);
+- a declared bulk capability, for a single-process assembler that
+  already produces a whole sparse matrix, ``None`` on a distributed
+  stack;
+- the prolongation :math:`P` from the solve space (the true DOFs a
+  solver works on) to the assembly space (the local DOFs elements
+  write). The solved operator is :math:`P^\top A P`. Today :math:`P = I`
+  on every mesh; hanging-node constraints and shared parallel DOFs make
+  it nontrivial, without changing any assembler.
+"""
+
+from typing import Any, Generic, Optional, Protocol, TypeVar, runtime_checkable
+
+from scipy.sparse import spmatrix
+
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    OperatorProperties,
+    SpaceDescriptor,
+    VectorSpaceProtocol,
+)
+
+V = TypeVar("V")
+F = TypeVar("F")
+V_co = TypeVar("V_co", covariant=True)
+F_co = TypeVar("F_co", covariant=True)
+# Element data only flows in to a sink, so its array type is contravariant.
+L_contra = TypeVar("L_contra", contravariant=True)
+
+
+@runtime_checkable
+class BulkMatrixSinkProtocol(Protocol):
+    """Accepts a whole assembled sparse matrix, on one process."""
+
+    def add_assembled(self, matrix: spmatrix) -> None:
+        """Add ``matrix``, whose entries must lie in the sink's pattern.
+
+        Raises
+        ------
+        ValueError
+            If the shape differs from the sink's, or an entry lies outside
+            the pattern.
+        """
+        ...
+
+
+@runtime_checkable
+class MatrixSinkProtocol(Protocol, Generic[V, F_co, L_contra]):
+    """Accumulates element matrices into an operator of fixed pattern.
+
+    Created for one pair of spaces and one sparsity pattern; reused for
+    every assembly with that pattern (``zero``, then adds, then
+    ``assemble``).
+    """
+
+    def add_element_matrices(
+        self,
+        row_dofs: L_contra,
+        col_dofs: L_contra,
+        values: L_contra,
+        weights: Optional[L_contra] = None,
+    ) -> None:
+        """Add ``weights[e] * values[e]`` at ``(row_dofs[e], col_dofs[e])``.
+
+        Shapes: ``row_dofs`` (nsel, nrow), ``col_dofs`` (nsel, ncol),
+        ``values`` (nsel, nrow, ncol), ``weights`` (nsel,). DOFs index the
+        range and domain assembly spaces.
+
+        Raises
+        ------
+        ValueError
+            If a shape disagrees or an entry lies outside the pattern.
+        """
+        ...
+
+    def bulk(self) -> Optional[BulkMatrixSinkProtocol]:
+        """The bulk capability, or ``None`` where it does not exist."""
+        ...
+
+    def zero(self) -> None:
+        """Reset every accumulated value, keeping the pattern."""
+        ...
+
+    def assemble(
+        self, properties: Optional[OperatorProperties] = None
+    ) -> ActionOperatorProtocol[V, F_co]:
+        """Return the accumulated operator, independent of later adds."""
+        ...
+
+
+@runtime_checkable
+class BulkVectorSinkProtocol(Protocol):
+    """Accepts a whole assembled vector, on one process."""
+
+    def add_assembled(self, vector: Any) -> None:
+        """Add a 1-D array of the sink's size."""
+        ...
+
+
+@runtime_checkable
+class VectorSinkProtocol(Protocol, Generic[V_co, L_contra]):
+    """Accumulates element vectors into a single vector."""
+
+    def add_element_vectors(
+        self, row_dofs: L_contra, values: L_contra, weights: Optional[L_contra] = None
+    ) -> None:
+        """Add ``weights[e] * values[e]`` at ``row_dofs[e]``.
+
+        Shapes: ``row_dofs`` and ``values`` (nsel, nrow), ``weights``
+        (nsel,).
+        """
+        ...
+
+    def bulk(self) -> Optional[BulkVectorSinkProtocol]:
+        """The bulk capability, or ``None`` where it does not exist."""
+        ...
+
+    def zero(self) -> None:
+        """Reset the accumulated vector."""
+        ...
+
+    def assemble(self) -> V_co:
+        """Return the accumulated vector, a single column, independent of
+        later adds."""
+        ...
+
+
+@runtime_checkable
+class AssemblyStackProtocol(Protocol, Generic[V, F, L_contra]):
+    """Where assembled operators and vectors are built.
+
+    ``V`` is the stack's vector type, ``F`` the format of the operators
+    its sinks produce, and ``L`` the array type of element DOF maps and
+    element values.
+    """
+
+    def space(self, descriptor: SpaceDescriptor) -> VectorSpaceProtocol[V, Any]:
+        """The vector space of ``descriptor``."""
+        ...
+
+    def matrix_sink(
+        self,
+        range: SpaceDescriptor,
+        domain: SpaceDescriptor,
+        row_dofs: L_contra,
+        col_dofs: L_contra,
+    ) -> MatrixSinkProtocol[V, F, L_contra]:
+        """A sink whose pattern covers every ``(row_dofs[e], col_dofs[e])``
+        block. Both spaces are assembly spaces."""
+        ...
+
+    def vector_sink(
+        self, descriptor: SpaceDescriptor
+    ) -> VectorSinkProtocol[V, L_contra]:
+        """A sink for vectors of the assembly space ``descriptor``."""
+        ...
+
+    def prolongation(self, assembly: SpaceDescriptor) -> ActionOperatorProtocol[V, F]:
+        """:math:`P`, from the solve space of ``assembly`` to ``assembly``."""
+        ...
+
+    def solve_operator(
+        self, op: ActionOperatorProtocol[V, F]
+    ) -> ActionOperatorProtocol[V, F]:
+        r"""The stored :math:`P_r^\top A P_d` of an assembled operator,
+        between the solve spaces of its range and domain."""
+        ...
