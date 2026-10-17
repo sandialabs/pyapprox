@@ -32,7 +32,7 @@ overwritten. Stacks may check this and raise ``ValueError``.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, Self, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.layout import Layout
 
@@ -197,4 +197,47 @@ class DiagonalCapableProtocol(ActionOperatorProtocol[V, F_co], Protocol[V, F_co]
 
         Requires ``domain() == range()``.
         """
+        ...
+
+
+@runtime_checkable
+class RowSetProtocol(Protocol, Generic[V]):
+    r"""A stack-owned set of rows of one layout.
+
+    Generic code holds no integer row arrays: it acts on rows through
+    these operations, and each stack stores the set as its library does
+    (an index array, a distributed index set). Under distribution each
+    process holds the rows it owns, so no operation communicates.
+
+    With :math:`P` the projection that zeros the rows in the set, the
+    operations are fused forms of the products a row-constrained
+    operator needs. ``out`` follows :class:`VectorSpaceProtocol`: it may
+    be the operand accumulated into (``y``), never another operand.
+    """
+
+    def layout(self) -> Layout:
+        """The space whose rows the set selects."""
+        ...
+
+    def count(self) -> int:
+        """The number of rows in the set, over all processes."""
+        ...
+
+    def zero_rows(self, x: V, out: Optional[V] = None) -> V:
+        """Return :math:`P x`: ``x`` with the rows in the set zeroed.
+        ``out`` may be ``x``."""
+        ...
+
+    def replace_rows(self, y: V, x: V, out: Optional[V] = None) -> V:
+        """Return :math:`P y + (I - P) x`: ``y`` with the rows in the set
+        taken from ``x``."""
+        ...
+
+    def add_rows(self, y: V, x: V, out: Optional[V] = None) -> V:
+        """Return :math:`y + (I - P) x`: ``y`` plus the rows of ``x`` in
+        the set."""
+        ...
+
+    def difference(self, other: Self) -> Self:
+        """Return the rows in this set and not in ``other``."""
         ...

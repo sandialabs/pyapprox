@@ -14,7 +14,10 @@ from scipy.sparse import csr_matrix, diags, issparse, spmatrix
 from scipy.sparse import identity as sparse_identity
 
 from pyapprox.util.linalg.operators.layout import Layout
-from pyapprox.util.linalg.operators.protocols import OperatorProperties
+from pyapprox.util.linalg.operators.protocols import (
+    OperatorProperties,
+    RowSetProtocol,
+)
 
 _Vector = NDArray[Any]
 
@@ -26,6 +29,20 @@ def _check_block(x: _Vector, size: int, dtype: np.dtype[Any], name: str) -> None
         raise ValueError(f"{name} must have shape ({size}, ncols), got {x.shape}")
     if x.dtype != dtype:
         raise ValueError(f"{name} must have dtype {dtype}, got {x.dtype}")
+
+
+def _check_alias(
+    out: _Vector, accumulator: Optional[_Vector], others: tuple[_Vector, ...]
+) -> None:
+    """Check ``out``: it may be ``accumulator`` itself, and must share no
+    storage with anything else (including ``others`` that happen to be the
+    accumulator)."""
+    operands = others
+    if accumulator is not None and out is not accumulator:
+        operands = (*others, accumulator)
+    for operand in operands:
+        if np.may_share_memory(out, operand):
+            raise ValueError("out shares storage with an operand it may not alias")
 
 
 class NumpyVectorSpace:
@@ -66,20 +83,12 @@ class NumpyVectorSpace:
         accumulator: Optional[_Vector],
         others: tuple[_Vector, ...],
     ) -> None:
-        """Check ``out``: it may be ``accumulator`` itself, and must share
-        no storage with anything else (including ``others`` that happen
-        to be the accumulator)."""
         self._check(out, "out")
         if out.shape[1] != ncols:
             raise ValueError(
                 f"out must have shape ({self._layout.size}, {ncols}), got {out.shape}"
             )
-        operands = others
-        if accumulator is not None and out is not accumulator:
-            operands = (*others, accumulator)
-        for operand in operands:
-            if np.may_share_memory(out, operand):
-                raise ValueError("out shares storage with an operand it may not alias")
+        _check_alias(out, accumulator, others)
 
     def zeros(self, ncols: int = 1) -> _Vector:
         return np.zeros((self._layout.size, ncols), dtype=self._dtype)
@@ -145,6 +154,128 @@ class NumpyVectorSpace:
         return f"{self.__class__.__name__}({self._layout!r})"
 
 
+class NumpyRowSet:
+    """A set of rows of a layout, stored as a sorted integer index array.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.protocols.RowSetProtocol` for
+    NumPy blocks of shape ``(size, ncols)``. Every operation given ``out``
+    writes into it and returns it.
+
+    Parameters
+    ----------
+    layout : Layout
+        The space whose rows are selected.
+    rows : sequence of int
+        Row indices; duplicates are removed and order is ignored.
+
+    Raises
+    ------
+    ValueError
+        If ``rows`` is not one-dimensional or an index is outside
+        ``[0, layout.size)``.
+    """
+
+    def __init__(
+        self, layout: Layout, rows: Sequence[int] | NDArray[np.integer[Any]]
+    ) -> None:
+        indices = np.unique(np.asarray(rows, dtype=np.intp))
+        if indices.ndim != 1:
+            raise ValueError(f"rows must be one-dimensional, got shape {indices.shape}")
+        if indices.size and (indices[0] < 0 or indices[-1] >= layout.size):
+            raise ValueError(
+                f"row indices must lie in [0, {layout.size}), got "
+                f"[{indices[0]}, {indices[-1]}]"
+            )
+        indices.setflags(write=False)
+        self._layout = layout
+        self._indices = indices
+        self._dtype = np.dtype(layout.dtype)
+
+    def layout(self) -> Layout:
+        return self._layout
+
+    def count(self) -> int:
+        return int(self._indices.size)
+
+    def indices(self) -> NDArray[np.intp]:
+        """The sorted row indices (read-only), for this stack's formats."""
+        return self._indices
+
+    def _start(
+        self, y: _Vector, out: Optional[_Vector], others: tuple[_Vector, ...]
+    ) -> _Vector:
+        """Check operands and return the buffer holding a copy of ``y``."""
+        _check_block(y, self._layout.size, self._dtype, "y")
+        for other in others:
+            _check_block(other, self._layout.size, self._dtype, "x")
+            if other.shape != y.shape:
+                raise ValueError(
+                    f"x and y must have the same shape, got {other.shape} and {y.shape}"
+                )
+        if out is None:
+            return y.copy()
+        _check_block(out, self._layout.size, self._dtype, "out")
+        if out.shape != y.shape:
+            raise ValueError(f"out must have shape {y.shape}, got {out.shape}")
+        _check_alias(out, y, others)
+        if out is not y:
+            np.copyto(out, y)
+        return out
+
+    def zero_rows(self, x: _Vector, out: Optional[_Vector] = None) -> _Vector:
+        result = self._start(x, out, ())
+        result[self._indices] = 0.0
+        return result
+
+    def replace_rows(
+        self, y: _Vector, x: _Vector, out: Optional[_Vector] = None
+    ) -> _Vector:
+        result = self._start(y, out, (x,))
+        result[self._indices] = x[self._indices]
+        return result
+
+    def add_rows(
+        self, y: _Vector, x: _Vector, out: Optional[_Vector] = None
+    ) -> _Vector:
+        result = self._start(y, out, (x,))
+        result[self._indices] += x[self._indices]
+        return result
+
+    def difference(self, other: "NumpyRowSet") -> "NumpyRowSet":
+        self._layout.require_same(other.layout(), "row set to subtract")
+        return NumpyRowSet(
+            self._layout,
+            np.setdiff1d(self._indices, other.indices(), assume_unique=True),
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._layout!r}, count={self.count()})"
+
+
+def _numpy_row_indices(rows: RowSetProtocol[Any]) -> NDArray[np.intp]:
+    if not isinstance(rows, NumpyRowSet):
+        raise TypeError(
+            f"CSRFormat row edits need a NumpyRowSet, got {type(rows).__name__}"
+        )
+    return rows.indices()
+
+
+def _csr_zero_rows(matrix: csr_matrix, indices: NDArray[np.intp]) -> csr_matrix:
+    """A copy of ``matrix`` with the rows ``indices`` structurally empty.
+
+    The row of each stored entry is expanded from ``indptr``, so the cost
+    is O(nnz) with no per-row Python loop.
+    """
+    result = matrix.copy()
+    in_set = np.zeros(result.shape[0], dtype=bool)
+    in_set[indices] = True
+    entry_rows = np.repeat(np.arange(result.shape[0]), np.diff(result.indptr))
+    result.data[in_set[entry_rows]] = 0.0
+    result.eliminate_zeros()
+    return result
+
+
 class CSRFormat:
     """Compressed sparse row storage, the format of :class:`ScipyCSROperator`.
 
@@ -174,6 +305,19 @@ class CSRFormat:
 
     def transposed(self) -> "CSRFormat":
         return CSRFormat(self._matrix.T.tocsr())
+
+    def rows_replaced(self, rows: RowSetProtocol[Any]) -> "CSRFormat":
+        indices = _numpy_row_indices(rows)
+        emptied = _csr_zero_rows(self._matrix, indices)
+        # The rows are now structurally empty, so adding the identity
+        # restricted to them sets each diagonal to 1 whether or not it was
+        # in the original pattern, and leaves every other row unchanged.
+        ones = np.ones(indices.shape[0], dtype=emptied.dtype)
+        identity_rows = csr_matrix((ones, (indices, indices)), shape=emptied.shape)
+        return CSRFormat((emptied + identity_rows).tocsr())
+
+    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> "CSRFormat":
+        return CSRFormat(_csr_zero_rows(self._matrix, _numpy_row_indices(rows)))
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={self._matrix.shape})"

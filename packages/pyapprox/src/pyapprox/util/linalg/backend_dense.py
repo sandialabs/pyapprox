@@ -11,7 +11,10 @@ from typing import Any, Generic, Optional, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators.layout import Layout
-from pyapprox.util.linalg.operators.protocols import OperatorProperties
+from pyapprox.util.linalg.operators.protocols import (
+    OperatorProperties,
+    RowSetProtocol,
+)
 
 _SYMMETRY_RTOL = 1e-12
 
@@ -127,6 +130,105 @@ class BackendVectorSpace(Generic[Array]):
         return f"{self.__class__.__name__}({self._layout!r})"
 
 
+class BackendRowSet(Generic[Array]):
+    """A set of rows of a layout, applied to backend blocks by masking.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.protocols.RowSetProtocol` for
+    backend blocks of shape ``(size, ncols)``. Every operation multiplies
+    by a constant 0/1 column mask, so a torch graph through the operands
+    is preserved; ``out`` is ignored, as in :class:`BackendVectorSpace`,
+    and the aliasing rule is enforced by identity.
+
+    Parameters
+    ----------
+    layout : Layout
+        The space whose rows are selected. Its dtype must be the
+        backend's configured dtype.
+    rows : sequence of int
+        Row indices; duplicates are removed and order is ignored.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If an index is outside ``[0, layout.size)`` or the layout's dtype
+        is not the backend's.
+    """
+
+    def __init__(
+        self, layout: Layout, rows: Sequence[int], bkd: Backend[Array]
+    ) -> None:
+        dtype = _require_backend_dtype(layout, bkd, "BackendRowSet")
+        indices = tuple(sorted({int(row) for row in rows}))
+        if indices and (indices[0] < 0 or indices[-1] >= layout.size):
+            raise ValueError(
+                f"row indices must lie in [0, {layout.size}), got "
+                f"[{indices[0]}, {indices[-1]}]"
+            )
+        self._layout = layout
+        self._indices = indices
+        self._bkd = bkd
+        # The masks are constant data, built once from plain integers.
+        in_set = set(indices)
+        keep = [[0.0] if row in in_set else [1.0] for row in range(layout.size)]
+        self._keep = bkd.asarray(keep, dtype=dtype)
+        self._take = 1.0 - self._keep
+
+    def layout(self) -> Layout:
+        return self._layout
+
+    def count(self) -> int:
+        return len(self._indices)
+
+    def indices(self) -> tuple[int, ...]:
+        """The sorted row indices."""
+        return self._indices
+
+    def keep_mask(self) -> Array:
+        """A ``(size, 1)`` column: 0 on the rows in the set, 1 elsewhere."""
+        return self._keep
+
+    def _check(self, y: Array, out: Optional[Array], others: tuple[Array, ...]) -> None:
+        for name, block in (("y", y), *(("x", other) for other in others)):
+            if block.ndim != 2 or block.shape[0] != self._layout.size:
+                raise ValueError(
+                    f"{name} must have shape ({self._layout.size}, ncols), "
+                    f"got {tuple(block.shape)}"
+                )
+        if out is not None and any(other is out for other in others):
+            raise ValueError("out is an operand it may not alias")
+
+    def zero_rows(self, x: Array, out: Optional[Array] = None) -> Array:
+        self._check(x, out, ())
+        return x * self._keep
+
+    def replace_rows(self, y: Array, x: Array, out: Optional[Array] = None) -> Array:
+        self._check(y, out, (x,))
+        return y * self._keep + x * self._take
+
+    def add_rows(self, y: Array, x: Array, out: Optional[Array] = None) -> Array:
+        self._check(y, out, (x,))
+        return y + x * self._take
+
+    def difference(self, other: "BackendRowSet[Array]") -> "BackendRowSet[Array]":
+        self._layout.require_same(other.layout(), "row set to subtract")
+        remaining = sorted(set(self._indices) - set(other.indices()))
+        return BackendRowSet(self._layout, remaining, self._bkd)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._layout!r}, count={self.count()})"
+
+
+def _backend_keep_mask(rows: RowSetProtocol[Any]) -> Any:
+    if not isinstance(rows, BackendRowSet):
+        raise TypeError(
+            f"DenseFormat row edits need a BackendRowSet, got {type(rows).__name__}"
+        )
+    return rows.keep_mask()
+
+
 class DenseFormat(Generic[Array]):
     """Dense backend storage, the format of :class:`BackendDenseOperator`.
 
@@ -134,10 +236,13 @@ class DenseFormat(Generic[Array]):
     ----------
     matrix : Array
         The stored matrix.
+    bkd : Backend[Array]
+        Computational backend, for the row edits.
     """
 
-    def __init__(self, matrix: Array) -> None:
+    def __init__(self, matrix: Array, bkd: Backend[Array]) -> None:
         self._matrix = matrix
+        self._bkd = bkd
 
     def matrix(self) -> Array:
         """The stored matrix. Not to be modified: operators are immutable."""
@@ -149,10 +254,19 @@ class DenseFormat(Generic[Array]):
         total = coefficient * self._matrix
         for c, other in others:
             total = total + c * other._matrix
-        return DenseFormat(total)
+        return DenseFormat(total, self._bkd)
 
     def transposed(self) -> "DenseFormat[Array]":
-        return DenseFormat(self._matrix.T)
+        return DenseFormat(self._matrix.T, self._bkd)
+
+    def rows_replaced(self, rows: RowSetProtocol[Any]) -> "DenseFormat[Array]":
+        keep = _backend_keep_mask(rows)
+        n = self._matrix.shape[0]
+        identity_rows = self._bkd.diag(self._bkd.reshape(1.0 - keep, (n,)))
+        return DenseFormat(self._matrix * keep + identity_rows, self._bkd)
+
+    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> "DenseFormat[Array]":
+        return DenseFormat(self._matrix * _backend_keep_mask(rows), self._bkd)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={tuple(self._matrix.shape)})"
@@ -217,7 +331,7 @@ class BackendDenseOperator(Generic[Array]):
         if self._properties.symmetric:
             self._domain.require_same(self._range, "range of a symmetric operator")
         self._verify_properties(matrix)
-        self._format = DenseFormat(matrix)
+        self._format = DenseFormat(matrix, bkd)
 
     def _verify_properties(self, matrix: Array) -> None:
         if matrix.shape[0] == 0:

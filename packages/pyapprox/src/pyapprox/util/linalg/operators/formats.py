@@ -9,7 +9,9 @@ owns their storage; only the storage-free format lives here.
 """
 
 from dataclasses import dataclass
-from typing import Protocol, Self, Sequence, runtime_checkable
+from typing import Any, Protocol, Self, Sequence, runtime_checkable
+
+from pyapprox.util.linalg.operators.protocols import RowSetProtocol
 
 
 @runtime_checkable
@@ -33,6 +35,19 @@ class FormatProtocol(Protocol):
         """Return the format of the transposed operator."""
         ...
 
+    def rows_replaced(self, rows: RowSetProtocol[Any]) -> Self:
+        r"""Return the format of :math:`P A + (I - P)`: the rows in
+        ``rows`` replaced by identity rows.
+
+        A stored format accepts only its own stack's row sets and raises
+        ``TypeError`` for another.
+        """
+        ...
+
+    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> Self:
+        r"""Return the format of :math:`P A`: the rows in ``rows`` zeroed."""
+        ...
+
 
 @dataclass(frozen=True)
 class MatrixFree:
@@ -54,4 +69,10 @@ class MatrixFree:
         This describes storage only: the transposed *action* comes from
         the operator (``Transposed.apply`` calls ``apply_transpose``).
         """
+        return self
+
+    def rows_replaced(self, rows: RowSetProtocol[Any]) -> "MatrixFree":
+        return self
+
+    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> "MatrixFree":
         return self

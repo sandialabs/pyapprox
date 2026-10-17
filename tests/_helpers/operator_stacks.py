@@ -6,7 +6,7 @@ Use the ``case`` fixture of ``tests/util/linalg/operators/conftest.py``.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,16 +16,19 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseOperator,
+    BackendRowSet,
     BackendVectorSpace,
     DenseFormat,
 )
 from pyapprox.util.linalg.operators import (
     Layout,
     OperatorProperties,
+    RowSetProtocol,
     VectorSpaceProtocol,
 )
 from pyapprox.util.linalg.scipy_stack import (
     CSRFormat,
+    NumpyRowSet,
     NumpyVectorSpace,
     ScipyCSROperator,
 )
@@ -55,6 +58,7 @@ class StackCase:
     identity: Callable[[Layout], Any]
     from_diagonal: Callable[[Any, Layout], Any]
     space: Callable[[Layout], VectorSpaceProtocol[Any, Any]]
+    rows: Callable[[Layout, Sequence[int]], RowSetProtocol[Any]]
     format_type: type
     format_dense: Callable[[Any], Any]
     """A stored format's matrix as a dense backend array."""
@@ -84,6 +88,7 @@ def csr_case() -> StackCase:
         ScipyCSROperator.identity,
         ScipyCSROperator.from_diagonal,
         NumpyVectorSpace,
+        NumpyRowSet,
         CSRFormat,
         lambda fmt: fmt.matrix().toarray(),
         NumpyBkd(),
@@ -105,6 +110,7 @@ def dense_case(bkd: Backend[Any]) -> StackCase:
         lambda layout: BackendDenseOperator.identity(layout, bkd),
         lambda d, layout: BackendDenseOperator.from_diagonal(d, layout, bkd),
         lambda layout: BackendVectorSpace(layout, bkd),
+        lambda layout, rows: BackendRowSet(layout, rows, bkd),
         DenseFormat,
         lambda fmt: fmt.matrix(),
         bkd,

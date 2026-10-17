@@ -13,12 +13,19 @@ from pyapprox.util.linalg.operators.algebra import (
     product_properties,
     scaled_sum_properties,
 )
+from pyapprox.util.linalg.operators.constraints import (
+    RowReplacedOperator,
+    RowsZeroedOperator,
+    rows_replaced_properties,
+    rows_zeroed_properties,
+)
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
 from pyapprox.util.linalg.operators.layout import Layout, LayoutMismatchError
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     DiagonalCapableProtocol,
     OperatorProperties,
+    RowSetProtocol,
     VectorSpaceProtocol,
 )
 
@@ -31,10 +38,15 @@ __all__ = [
     "MatrixFree",
     "OperatorProperties",
     "Product",
+    "RowReplacedOperator",
+    "RowSetProtocol",
+    "RowsZeroedOperator",
     "ScaledSum",
     "Transposed",
     "VectorSpaceProtocol",
     "as_matrix_free",
     "product_properties",
+    "rows_replaced_properties",
+    "rows_zeroed_properties",
     "scaled_sum_properties",
 ]
