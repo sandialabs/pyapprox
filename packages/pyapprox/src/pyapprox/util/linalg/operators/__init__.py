@@ -13,6 +13,7 @@ from pyapprox.util.linalg.operators.algebra import (
     product_properties,
     scaled_sum_properties,
 )
+from pyapprox.util.linalg.operators.caching import CachingSolver, ReuseKey, reuse_key
 from pyapprox.util.linalg.operators.constraints import (
     RowReplacedOperator,
     RowsZeroedOperator,
@@ -48,6 +49,9 @@ from pyapprox.util.linalg.operators.solvers import (
 
 __all__ = [
     "ActionOperatorProtocol",
+    "CachingSolver",
+    "ReuseKey",
+    "reuse_key",
     "DiagonalCapableProtocol",
     "DiagonalSolver",
     "FormatProtocol",
