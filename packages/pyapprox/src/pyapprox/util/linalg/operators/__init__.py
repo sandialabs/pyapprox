@@ -24,6 +24,11 @@ from pyapprox.util.linalg.operators.descriptor import (
     SpaceMismatchError,
 )
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
+from pyapprox.util.linalg.operators.linearization import (
+    JacobianSnapshotProtocol,
+    LinearizationPoint,
+    LinearizedOperator,
+)
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     DiagonalCapableProtocol,
@@ -46,6 +51,9 @@ __all__ = [
     "DiagonalCapableProtocol",
     "DiagonalSolver",
     "FormatProtocol",
+    "JacobianSnapshotProtocol",
+    "LinearizationPoint",
+    "LinearizedOperator",
     "SpaceDescriptor",
     "SpaceMismatchError",
     "LinearSolverProtocol",
