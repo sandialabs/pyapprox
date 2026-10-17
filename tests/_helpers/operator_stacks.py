@@ -6,14 +6,14 @@ Use the ``case`` fixture of ``tests/util/linalg/operators/conftest.py``.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Generic, Optional, Protocol, Sequence, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendDenseOperator,
@@ -22,6 +22,7 @@ from pyapprox.util.linalg.backend_dense import (
     DenseFormat,
 )
 from pyapprox.util.linalg.operators import (
+    DiagonalCapableProtocol,
     Layout,
     LinearSolverProtocol,
     OperatorProperties,
@@ -53,32 +54,59 @@ def spd_matrix(n: int, seed: int) -> NDArray[np.float64]:
     return a @ a.T + n * np.eye(n)
 
 
-@dataclass
-class StackCase:
-    """A stack's constructors and the backend its vectors live in."""
+V = TypeVar("V", bound=ArrayProtocol)
+F = TypeVar("F")
+F_co = TypeVar("F_co", covariant=True)
 
-    build: Callable[..., Any]
-    identity: Callable[[Layout], Any]
-    from_diagonal: Callable[[Any, Layout], Any]
-    space: Callable[[Layout], VectorSpaceProtocol[Any, Any]]
-    rows: Callable[[Layout, Sequence[int]], RowSetProtocol[Any]]
-    direct_solver: Callable[[], LinearSolverProtocol[Any, Any]]
-    format_type: type
-    format_dense: Callable[[Any], Any]
+
+class _Build(Protocol[V, F_co]):
+    """Builds a stack's stored operator from a dense NumPy matrix."""
+
+    def __call__(
+        self,
+        matrix: NDArray[np.float64],
+        domain: Layout,
+        range: Optional[Layout] = None,
+        properties: Optional[OperatorProperties] = None,
+    ) -> DiagonalCapableProtocol[V, F_co]: ...
+
+
+@dataclass
+class TypedStackCase(Generic[V, F]):
+    """A stack's constructors and the backend its vectors live in.
+
+    ``V`` is the stack's vector type (also its reduction type) and ``F``
+    the format of its stored operators.
+    """
+
+    build: _Build[V, F]
+    identity: Callable[[Layout], DiagonalCapableProtocol[V, F]]
+    from_diagonal: Callable[[V, Layout], DiagonalCapableProtocol[V, F]]
+    space: Callable[[Layout], VectorSpaceProtocol[V, V]]
+    rows: Callable[[Layout, Sequence[int]], RowSetProtocol[V]]
+    direct_solver: Callable[[], LinearSolverProtocol[V, F]]
+    format_type: type[F]
+    format_dense: Callable[[F], V]
     """A stored format's matrix as a dense backend array."""
-    bkd: Backend[Any]
+    bkd: Backend[V]
     in_place: bool
 
-    def vec(self, n: int, ncols: int, seed: int) -> Any:
+    def vec(self, n: int, ncols: int, seed: int) -> V:
         rng = np.random.default_rng(seed)
         return self.bkd.asarray(rng.normal(size=(n, ncols)))
 
-    def dense(self, matrix: NDArray[np.float64]) -> Any:
+    def dense(self, matrix: NDArray[np.float64]) -> V:
         """``matrix`` as a backend array, for explicit comparisons."""
         return self.bkd.asarray(matrix)
 
 
-def csr_case() -> StackCase:
+StackCase = TypedStackCase[Any, Any]
+"""What the parametrized ``case`` fixture yields: one test body runs on
+stacks with different vector types, so at that boundary the types can
+only be ``Any``. Everything inside the helper is typed per stack."""
+
+
+def csr_case() -> TypedStackCase[NDArray[Any], CSRFormat]:
     def build(
         matrix: NDArray[np.float64],
         domain: Layout,
@@ -87,7 +115,11 @@ def csr_case() -> StackCase:
     ) -> ScipyCSROperator:
         return ScipyCSROperator(csr_matrix(matrix), domain, range, properties)
 
-    return StackCase(
+    def format_dense(fmt: CSRFormat) -> NDArray[Any]:
+        dense: NDArray[Any] = fmt.matrix().toarray()
+        return dense
+
+    return TypedStackCase(
         build,
         ScipyCSROperator.identity,
         ScipyCSROperator.from_diagonal,
@@ -95,22 +127,22 @@ def csr_case() -> StackCase:
         NumpyRowSet,
         ScipySparseLU,
         CSRFormat,
-        lambda fmt: fmt.matrix().toarray(),
+        format_dense,
         NumpyBkd(),
         True,
     )
 
 
-def dense_case(bkd: Backend[Any]) -> StackCase:
+def dense_case(bkd: Backend[Array]) -> TypedStackCase[Array, DenseFormat[Array]]:
     def build(
         matrix: NDArray[np.float64],
         domain: Layout,
         range: Optional[Layout] = None,
         properties: Optional[OperatorProperties] = None,
-    ) -> BackendDenseOperator[Any]:
+    ) -> BackendDenseOperator[Array]:
         return BackendDenseOperator(bkd.asarray(matrix), domain, bkd, range, properties)
 
-    return StackCase(
+    return TypedStackCase(
         build,
         lambda layout: BackendDenseOperator.identity(layout, bkd),
         lambda d, layout: BackendDenseOperator.from_diagonal(d, layout, bkd),
