@@ -12,7 +12,7 @@ from pyapprox.util.linalg.operators import (
     OperatorProperties,
     SpaceDescriptor,
 )
-from tests._helpers.operator_stacks import StackCase, random_matrix, spd_matrix
+from tests._helpers.linalg.stacks import StackCase, random_matrix, spd_matrix
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)

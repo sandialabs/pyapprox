@@ -37,7 +37,7 @@ from pyapprox.util.linalg.scipy_stack import (
     ScipyCSROperator,
     ScipySparseLU,
 )
-from tests._helpers.mock_stack import (
+from tests._helpers.linalg.mock_stack import (
     MockFormat,
     MockLU,
     MockOperator,

@@ -21,9 +21,9 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator
-from tests._helpers.operator_stacks import StackCase as _Case
-from tests._helpers.operator_stacks import random_matrix as _random
-from tests._helpers.operator_stacks import spd_matrix as _spd
+from tests._helpers.linalg.stacks import StackCase as _Case
+from tests._helpers.linalg.stacks import random_matrix as _random
+from tests._helpers.linalg.stacks import spd_matrix as _spd
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)

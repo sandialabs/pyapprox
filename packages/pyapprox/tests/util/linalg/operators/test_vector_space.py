@@ -16,7 +16,7 @@ from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.backend_dense import BackendVectorSpace
 from pyapprox.util.linalg.operators import SpaceDescriptor, VectorSpaceProtocol
 from pyapprox.util.linalg.scipy_stack import NumpyVectorSpace
-from tests._helpers.operator_stacks import StackCase as _Case
+from tests._helpers.linalg.stacks import StackCase as _Case
 
 _N = 6
 _DESCRIPTOR = SpaceDescriptor("x", _N)

@@ -29,7 +29,7 @@ from pyapprox.util.linalg.operators import (
     VectorSpaceProtocol,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator, ScipySparseLU
-from tests._helpers.mock_stack import (
+from tests._helpers.linalg.mock_stack import (
     MockLU,
     MockOperator,
     MockRowSet,
@@ -38,7 +38,7 @@ from tests._helpers.mock_stack import (
     peek,
     wrap,
 )
-from tests._helpers.operator_stacks import random_matrix, spd_matrix
+from tests._helpers.linalg.stacks import random_matrix, spd_matrix
 
 _BKD = NumpyBkd()
 _U = SpaceDescriptor("u", 5)

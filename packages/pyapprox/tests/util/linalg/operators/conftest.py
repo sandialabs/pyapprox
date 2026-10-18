@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests._helpers.operator_stacks import (
+from tests._helpers.linalg.stacks import (
     STACK_NAMES,
     StackCase,
     csr_case,

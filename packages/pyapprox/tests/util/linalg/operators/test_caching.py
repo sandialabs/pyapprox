@@ -14,7 +14,7 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
     reuse_key,
 )
-from tests._helpers.operator_stacks import StackCase, random_matrix
+from tests._helpers.linalg.stacks import StackCase, random_matrix
 
 _U = SpaceDescriptor("u", 5)
 

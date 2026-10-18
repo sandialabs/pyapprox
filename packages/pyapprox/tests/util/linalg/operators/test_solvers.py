@@ -25,7 +25,7 @@ from pyapprox.util.linalg.operators import (
     as_matrix_free,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator, ScipySparseLU
-from tests._helpers.operator_stacks import StackCase, random_matrix, spd_matrix
+from tests._helpers.linalg.stacks import StackCase, random_matrix, spd_matrix
 
 _U = SpaceDescriptor("u", 5)
 _V = SpaceDescriptor("v", 5)

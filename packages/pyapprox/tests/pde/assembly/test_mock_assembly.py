@@ -16,7 +16,7 @@ from pyapprox.pde.assembly import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import RowReplacedOperator, SpaceDescriptor
-from tests._helpers.mock_stack import MockAssemblyStack, MockLU, MockRowSet, peek
+from tests._helpers.linalg.mock_stack import MockAssemblyStack, MockLU, MockRowSet, peek
 
 _BKD = NumpyBkd()
 _U = SpaceDescriptor("u", 6)

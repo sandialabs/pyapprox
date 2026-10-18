@@ -29,7 +29,7 @@ from pyapprox.util.linalg.operators import (
     rows_zeroed_properties,
 )
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipyCSROperator
-from tests._helpers.operator_stacks import StackCase, random_matrix, spd_matrix
+from tests._helpers.linalg.stacks import StackCase, random_matrix, spd_matrix
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)
