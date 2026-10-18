@@ -1035,11 +1035,19 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         LU: torch.Tensor,
         pivots: torch.Tensor,
         rhs: torch.Tensor,
-        adjoint: bool = False,
+        transpose: bool = False,
     ) -> torch.Tensor:
         rhs_2d = rhs[:, None] if rhs.ndim == 1 else rhs
-        result = torch.linalg.lu_solve(LU, pivots, rhs_2d, adjoint=adjoint)
-        return cast(torch.Tensor, result[:, 0] if rhs.ndim == 1 else result)
+        if transpose:
+            # torch's adjoint solve is with A^H; the protocol's is with A^T.
+            # They agree for real A; in general A^T x = b iff
+            # A^H conj(x) = conj(b). conj is a free view for real tensors.
+            result = torch.conj(
+                torch.linalg.lu_solve(LU, pivots, torch.conj(rhs_2d), adjoint=True)
+            )
+        else:
+            result = torch.linalg.lu_solve(LU, pivots, rhs_2d)
+        return result[:, 0] if rhs.ndim == 1 else result
 
     @staticmethod
     def index_update(

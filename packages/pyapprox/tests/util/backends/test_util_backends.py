@@ -1,5 +1,6 @@
 from typing import Union
 
+import numpy as np
 import pytest
 
 from pyapprox.util.backends.protocols import Array, Backend
@@ -263,3 +264,28 @@ class TestConj:
     def test_leaves_real_entries_unchanged(self, bkd: Backend[Array]) -> None:
         x = bkd.asarray([[1.5], [-2.0]])
         bkd.assert_allclose(bkd.conj(x), x)
+
+
+class TestLuSolveTranspose:
+    """``lu_solve(transpose=True)`` solves with the plain transpose
+    :math:`A^T` on every backend, complex matrices included."""
+
+    @pytest.mark.parametrize("complex_entries", [False, True], ids=["real", "complex"])
+    def test_solves_with_the_transpose(
+        self, bkd: Backend[Array], complex_entries: bool
+    ) -> None:
+        rng = np.random.default_rng(3)
+        a = rng.normal(size=(4, 4)) + 4.0 * np.eye(4)
+        b = rng.normal(size=(4, 2))
+        dtype = bkd.double_dtype()
+        if complex_entries:
+            a = a + 1j * rng.normal(size=(4, 4))
+            b = b + 1j * rng.normal(size=(4, 2))
+            dtype = bkd.complex_dtype()
+        lu, pivots = bkd.lu_factor(bkd.asarray(a, dtype=dtype))
+        x = bkd.lu_solve(lu, pivots, bkd.asarray(b, dtype=dtype), transpose=True)
+        bkd.assert_allclose(
+            bkd.dot(bkd.asarray(a.T, dtype=dtype), x),
+            bkd.asarray(b, dtype=dtype),
+            rtol=1e-12,
+        )

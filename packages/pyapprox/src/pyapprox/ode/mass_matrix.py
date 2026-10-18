@@ -157,7 +157,7 @@ class ConstantDenseMassMatrix(Generic[Array]):
 
     def solve_transpose(self, vec: Array) -> Array:
         lu, pivots = self._ensure_lu()
-        return self._bkd.lu_solve(lu, pivots, vec, adjoint=True)
+        return self._bkd.lu_solve(lu, pivots, vec, transpose=True)
 
     def as_matrix(self) -> Array:
         return self._matrix

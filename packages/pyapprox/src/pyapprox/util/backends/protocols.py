@@ -1145,7 +1145,7 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def lu_solve(
-        LU: Array, pivots: Array, rhs: Array, adjoint: bool = False
+        LU: Array, pivots: Array, rhs: Array, transpose: bool = False
     ) -> Array:
         """Solve a linear system given a compact LU factorization.
 
@@ -1157,8 +1157,10 @@ class Backend(Protocol, Generic[Array]):
             Pivot indices from lu_factor.
         rhs : Array
             Right-hand side. Shape: (n,) or (n, k).
-        adjoint : bool
-            If True, solve A^T x = rhs instead of A x = rhs.
+        transpose : bool
+            If True, solve :math:`A^T x = b` instead of :math:`A x = b`,
+            with :math:`b` the right-hand side. This is the plain transpose, without
+            conjugation, for complex matrices too.
 
         Returns
         -------

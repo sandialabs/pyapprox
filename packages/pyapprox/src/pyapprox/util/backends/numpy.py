@@ -857,11 +857,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         LU: NDArray[Any],
         pivots: NDArray[Any],
         rhs: NDArray[Any],
-        adjoint: bool = False,
+        transpose: bool = False,
     ) -> NDArray[Any]:
         return cast(
             NDArray[Any],
-            scipy.linalg.lu_solve((LU, pivots), rhs, trans=1 if adjoint else 0),
+            scipy.linalg.lu_solve((LU, pivots), rhs, trans=1 if transpose else 0),
         )
 
     @staticmethod

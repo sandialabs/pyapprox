@@ -158,7 +158,7 @@ class LinearGaussianObservation(Generic[Array]):
             )
         bkd = self._bkd
         m = bkd.lu_solve(
-            self._lu, self._piv, bkd.dot(self._cty.T, cov_bar), adjoint=True
+            self._lu, self._piv, bkd.dot(self._cty.T, cov_bar), transpose=True
         )
         residual = bkd.dot(self._syy, self._x) - self._cty.T
         return self._row_sums(m * residual), self._row_sums(m * self._x)

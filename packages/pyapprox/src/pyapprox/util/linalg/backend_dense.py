@@ -499,7 +499,7 @@ class _DenseLUHandle(SolverHandleBase[Array]):
         if self._factors is None:
             return rhs * float("nan"), SolveInfo(False, message=self._failure)
         lu, pivots = self._factors
-        solution = self._bkd.lu_solve(lu, pivots, rhs, adjoint=self._transposed)
+        solution = self._bkd.lu_solve(lu, pivots, rhs, transpose=self._transposed)
         if not _all_finite(solution, self._bkd):
             return solution, SolveInfo(False, message="non-finite solution")
         return solution, SolveInfo(True)
