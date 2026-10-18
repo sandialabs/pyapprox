@@ -7,6 +7,7 @@ array storage fails.
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -15,8 +16,10 @@ from pyapprox.util.linalg.operators import (
     CachingSolver,
     DiagonalCapableProtocol,
     DiagonalSolver,
+    InnerProductSpaceProtocol,
     LinearizationPoint,
     LinearizedOperator,
+    LinearMapProtocol,
     LinearSolverProtocol,
     Product,
     RowReplacedOperator,
@@ -26,7 +29,6 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
     SpaceMismatchError,
     Transposed,
-    VectorSpaceProtocol,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator, ScipySparseLU
 from tests._helpers.linalg.mock_stack import (
@@ -54,11 +56,11 @@ class TestOpacity:
         # Each of these is a type error on purpose: the runtime must refuse
         # it too.
         with pytest.raises(TypeError):
-            x[0]
+            x[0]  # type: ignore[index]
         with pytest.raises(TypeError):
-            x @ x
+            x @ x  # type: ignore[operator]
         with pytest.raises(TypeError):
-            x + x
+            x + x  # type: ignore[operator]
         with pytest.raises(TypeError, match="opaque"):
             np.asarray(x)
         assert not hasattr(x, "shape")
@@ -81,7 +83,7 @@ class TestOpacity:
 class TestProtocols:
     def test_mock_classes_satisfy_the_protocols(self) -> None:
         op = MockOperator.from_dense(spd_matrix(5, 5), _U)
-        assert isinstance(MockVectorSpace(_U), VectorSpaceProtocol)
+        assert isinstance(MockVectorSpace(_U), InnerProductSpaceProtocol)
         assert isinstance(MockRowSet(_U, [0]), RowSetProtocol)
         assert isinstance(op, ActionOperatorProtocol)
         assert isinstance(op, DiagonalCapableProtocol)
@@ -90,15 +92,15 @@ class TestProtocols:
 
     def test_solvers_refuse_each_others_formats(self) -> None:
         mock = MockOperator.from_dense(spd_matrix(5, 6), _U)
-        csr = ScipyCSROperator(csr_matrix(spd_matrix(5, 6)), _U)
+        csr = ScipyCSROperator(csr_matrix(spd_matrix(5, 6)), _U, scalar=np.float64)
         with pytest.raises(
             TypeError, match="needs an operator in CSRFormat, got one in MockFormat"
         ):
-            ScipySparseLU().setup(mock)
+            ScipySparseLU().setup(mock)  # type: ignore[arg-type]
         with pytest.raises(
             TypeError, match="needs an operator in MockFormat, got one in CSRFormat"
         ):
-            MockLU().setup(csr)
+            MockLU().setup(csr)  # type: ignore[arg-type]
 
 
 class TestGenericCodeOnTheMock:
@@ -138,7 +140,8 @@ class TestGenericCodeOnTheMock:
 
     def test_handle_inside_a_product(self) -> None:
         op = MockOperator.from_dense(random_matrix(5, 5, 12) + 5.0 * np.eye(5), _U)
-        product = Product([op, MockLU().setup(op)])
+        factors: list[LinearMapProtocol[MockVector]] = [op, MockLU().setup(op)]
+        product = Product(factors)
         x = _vec(13, ncols=2)
         _BKD.assert_allclose(peek(product.apply(x)), peek(x), rtol=1e-10)
         _BKD.assert_allclose(peek(Transposed(product).apply(x)), peek(x), rtol=1e-10)
@@ -149,7 +152,8 @@ class TestGenericCodeOnTheMock:
         for _ in range(3):
             cache.setup(LinearizedOperator(op, LinearizationPoint(0)))
         assert (cache.setups(), cache.hits()) == (1, 2)
-        d = wrap(np.arange(1.0, 6.0)[:, None], _U)
+        entries: NDArray[np.float64] = np.arange(1.0, 6.0, dtype=np.float64)[:, None]
+        d = wrap(entries, _U)
         handle = DiagonalSolver(MockVectorSpace(_U)).setup(
             MockOperator.from_diagonal(d, _U)
         )

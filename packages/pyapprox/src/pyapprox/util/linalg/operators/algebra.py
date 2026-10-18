@@ -16,12 +16,13 @@ property only when it holds for every admissible operand, so a solver
 never relies on a property that does not hold.
 """
 
-from typing import Any, Generic, Optional, Sequence, TypeVar
+from typing import Generic, Optional, Sequence, TypeVar
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
+    LinearMapProtocol,
     OperatorProperties,
     VectorSpaceProtocol,
 )
@@ -64,7 +65,7 @@ def product_properties(factors: Sequence[OperatorProperties]) -> OperatorPropert
 
 
 def _require_spaces(
-    op: ActionOperatorProtocol[Any, Any],
+    op: LinearMapProtocol[V],
     domain: SpaceDescriptor,
     range_: SpaceDescriptor,
     what: str,
@@ -82,11 +83,11 @@ class ScaledSum(Generic[V, F]):
         Nonempty. Every operator maps the same domain to the same range
         and has the same format type ``F``.
     space : VectorSpaceProtocol
-        The vector space of the range, used to accumulate ``apply``.
+        Linear combinations in the range, used to accumulate ``apply``.
     domain_space : VectorSpaceProtocol, optional
-        The vector space of the domain, used to accumulate
-        ``apply_transpose``. Defaults to ``space``, which then must be a
-        space of the domain too.
+        Linear combinations in the domain, used to accumulate
+        ``apply_transpose``. Defaults to ``space``, which then must be
+        over the domain too (a square sum).
 
     Raises
     ------
@@ -97,8 +98,8 @@ class ScaledSum(Generic[V, F]):
     def __init__(
         self,
         terms: Sequence[tuple[float, ActionOperatorProtocol[V, F]]],
-        space: VectorSpaceProtocol[V, Any],
-        domain_space: Optional[VectorSpaceProtocol[V, Any]] = None,
+        space: VectorSpaceProtocol[V],
+        domain_space: Optional[VectorSpaceProtocol[V]] = None,
     ) -> None:
         if not terms:
             raise ValueError("a scaled sum needs at least one term")
@@ -216,7 +217,7 @@ class Product(Generic[V]):
         If ``factors`` is empty or consecutive descriptors disagree.
     """
 
-    def __init__(self, factors: Sequence[ActionOperatorProtocol[V, Any]]) -> None:
+    def __init__(self, factors: Sequence[LinearMapProtocol[V]]) -> None:
         if not factors:
             raise ValueError("a product needs at least one factor")
         self._factors = tuple(factors)
@@ -257,7 +258,7 @@ class Product(Generic[V]):
 class _MatrixFreeView(Generic[V]):
     """An operator's action and properties, with its format erased."""
 
-    def __init__(self, op: ActionOperatorProtocol[V, Any]) -> None:
+    def __init__(self, op: LinearMapProtocol[V]) -> None:
         self._op = op
 
     def domain(self) -> SpaceDescriptor:
@@ -283,7 +284,7 @@ class _MatrixFreeView(Generic[V]):
 
 
 def as_matrix_free(
-    op: ActionOperatorProtocol[V, Any],
+    op: LinearMapProtocol[V],
 ) -> ActionOperatorProtocol[V, MatrixFree]:
     """Erase ``op``'s format, keeping its action and properties.
 

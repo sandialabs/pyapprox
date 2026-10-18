@@ -4,8 +4,6 @@ The element data is a 1D mesh of 6 nodes and 5 two-node elements with
 random element blocks; references are explicit dense sums.
 """
 
-from typing import Any
-
 import numpy as np
 import pytest
 from numpy.typing import NDArray
@@ -31,7 +29,10 @@ def _blocks(seed: int, nrow: int = 2, ncol: int = 2) -> NDArray[np.float64]:
 
 
 def _dense_sum(
-    rows: NDArray[Any], cols: NDArray[Any], values: NDArray[Any], shape: tuple[int, int]
+    rows: NDArray[np.int64],
+    cols: NDArray[np.int64],
+    values: NDArray[np.float64],
+    shape: tuple[int, int],
 ) -> NDArray[np.float64]:
     total = np.zeros(shape)
     for r, c, v in zip(rows, cols, values):
@@ -48,14 +49,14 @@ def _spd_blocks() -> NDArray[np.float64]:
 
 class TestMatrixSink:
     def test_satisfies_protocols(self) -> None:
-        stack = ScipyAssemblyStack()
+        stack = ScipyAssemblyStack(np.float64)
         assert isinstance(stack, AssemblyStackProtocol)
         assert isinstance(stack.matrix_sink(_U, _U, _DOFS, _DOFS), MatrixSinkProtocol)
         assert isinstance(stack.vector_sink(_U), VectorSinkProtocol)
 
     def test_element_adds_match_the_dense_sum(self) -> None:
         values = _blocks(0)
-        sink = ScipyAssemblyStack().matrix_sink(_U, _U, _DOFS, _DOFS)
+        sink = ScipyAssemblyStack(np.float64).matrix_sink(_U, _U, _DOFS, _DOFS)
         sink.add_element_matrices(_DOFS, _DOFS, values)
         op = sink.assemble()
         _BKD.assert_allclose(
@@ -67,7 +68,7 @@ class TestMatrixSink:
 
     def test_bulk_and_element_adds_give_the_same_operator(self) -> None:
         values = _blocks(1)
-        stack = ScipyAssemblyStack()
+        stack = ScipyAssemblyStack(np.float64)
         by_element = stack.matrix_sink(_U, _U, _DOFS, _DOFS)
         by_element.add_element_matrices(_DOFS, _DOFS, values)
         rows = np.repeat(_DOFS[:, :, None], 2, axis=2).ravel()
@@ -86,7 +87,7 @@ class TestMatrixSink:
     def test_weights_scale_each_element(self) -> None:
         values = _blocks(2)
         weights = np.array([1.0, 0.0, 2.0, 0.5, 3.0])
-        sink = ScipyAssemblyStack().matrix_sink(_U, _U, _DOFS, _DOFS)
+        sink = ScipyAssemblyStack(np.float64).matrix_sink(_U, _U, _DOFS, _DOFS)
         sink.add_element_matrices(_DOFS, _DOFS, values, weights)
         _BKD.assert_allclose(
             sink.assemble().format().matrix().toarray(),
@@ -97,7 +98,7 @@ class TestMatrixSink:
     def test_pattern_is_fixed_at_creation(self) -> None:
         """Tridiagonal: 6 diagonal entries plus 2 x 5 off-diagonal. Adds
         never grow it, and an entry outside it is refused."""
-        sink = ScipyAssemblyStack().matrix_sink(_U, _U, _DOFS, _DOFS)
+        sink = ScipyAssemblyStack(np.float64).matrix_sink(_U, _U, _DOFS, _DOFS)
         assert sink.nnz() == 16
         sink.add_element_matrices(_DOFS, _DOFS, _blocks(3))
         assert sink.nnz() == 16
@@ -114,7 +115,7 @@ class TestMatrixSink:
         self,
     ) -> None:
         values = _blocks(4)
-        sink = ScipyAssemblyStack().matrix_sink(_U, _U, _DOFS, _DOFS)
+        sink = ScipyAssemblyStack(np.float64).matrix_sink(_U, _U, _DOFS, _DOFS)
         sink.add_element_matrices(_DOFS, _DOFS, values)
         first = sink.assemble()
         expected = first.format().matrix().toarray().copy()
@@ -130,7 +131,7 @@ class TestMatrixSink:
         rows = np.array([[0], [1], [2]])
         cols = np.array([[0, 1], [2, 3], [4, 5]])
         values = np.random.default_rng(5).normal(size=(3, 1, 2))
-        sink = ScipyAssemblyStack().matrix_sink(cells, _U, rows, cols)
+        sink = ScipyAssemblyStack(np.float64).matrix_sink(cells, _U, rows, cols)
         sink.add_element_matrices(rows, cols, values)
         op = sink.assemble()
         assert op.range() == cells and op.domain() == _U
@@ -141,13 +142,13 @@ class TestMatrixSink:
         )
 
     def test_assemble_declares_given_properties(self) -> None:
-        sink = ScipyAssemblyStack().matrix_sink(_U, _U, _DOFS, _DOFS)
+        sink = ScipyAssemblyStack(np.float64).matrix_sink(_U, _U, _DOFS, _DOFS)
         sink.add_element_matrices(_DOFS, _DOFS, _spd_blocks())
         spd = OperatorProperties(symmetric=True, spd=True)
         assert sink.assemble(spd).properties() == spd
 
     def test_rejects_bad_inputs(self) -> None:
-        stack = ScipyAssemblyStack()
+        stack = ScipyAssemblyStack(np.float64)
         with pytest.raises(ValueError, match=r"\[0, 6\)"):
             stack.matrix_sink(_U, _U, _DOFS + 1, _DOFS)
         with pytest.raises(ValueError, match="same elements"):
@@ -167,7 +168,7 @@ class TestVectorSink:
     def test_element_and_bulk_adds_match(self) -> None:
         values = np.random.default_rng(7).normal(size=(5, 2))
         weights = np.array([1.0, 2.0, 0.0, 1.0, 0.5])
-        stack = ScipyAssemblyStack()
+        stack = ScipyAssemblyStack(np.float64)
         sink = stack.vector_sink(_U)
         sink.add_element_vectors(_DOFS, values, weights)
         expected = np.zeros(6)
@@ -185,7 +186,7 @@ class TestVectorSink:
         _BKD.assert_allclose(sink.assemble(), np.zeros((6, 1)))
 
     def test_rejects_bad_shapes(self) -> None:
-        sink = ScipyAssemblyStack().vector_sink(_U)
+        sink = ScipyAssemblyStack(np.float64).vector_sink(_U)
         with pytest.raises(ValueError, match="values must have shape"):
             sink.add_element_vectors(_DOFS, np.ones((5, 3)))
         bulk = sink.bulk()
@@ -198,7 +199,7 @@ class TestProlongation:
     def test_identity_means_one_space(self) -> None:
         """With P = I the solve space is the assembly space and the
         assembled operator is solved as it is."""
-        stack = ScipyAssemblyStack()
+        stack = ScipyAssemblyStack(np.float64)
         p = stack.prolongation(_U)
         assert p.domain() == _U and p.range() == _U and p.properties().identity
         sink = stack.matrix_sink(_U, _U, _DOFS, _DOFS)
@@ -213,7 +214,7 @@ class TestProlongation:
         p = np.zeros((6, 5))
         p[:5, :5] = np.eye(5)
         p[5, 3] = p[5, 4] = 0.5
-        stack = ScipyAssemblyStack({_U: (solve, csr_matrix(p))})
+        stack = ScipyAssemblyStack(np.float64, {_U: (solve, csr_matrix(p))})
         assert stack.prolongation(_U).domain() == solve
         sink = stack.matrix_sink(_U, _U, _DOFS, _DOFS)
         sink.add_element_matrices(_DOFS, _DOFS, _spd_blocks())
@@ -232,4 +233,6 @@ class TestProlongation:
 
     def test_rejects_a_misshapen_prolongation(self) -> None:
         with pytest.raises(ValueError, match="prolongation"):
-            ScipyAssemblyStack({_U: (SpaceDescriptor("t", 5), csr_matrix((5, 5)))})
+            ScipyAssemblyStack(
+                np.float64, {_U: (SpaceDescriptor("t", 5), csr_matrix((5, 5)))}
+            )

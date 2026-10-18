@@ -17,14 +17,17 @@ point.
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.linearization import (
     JacobianSnapshotProtocol,
     LinearizationPoint,
 )
-from pyapprox.util.linalg.operators.protocols import ActionOperatorProtocol
+from pyapprox.util.linalg.operators.protocols import (
+    ActionOperatorProtocol,
+    LinearMapProtocol,
+)
 from pyapprox.util.linalg.operators.solvers import (
     LinearSolverProtocol,
     SolverCapabilities,
@@ -55,7 +58,7 @@ class ReuseKey:
     range: SpaceDescriptor
 
 
-def reuse_key(op: ActionOperatorProtocol[Any, Any]) -> Optional[ReuseKey]:
+def reuse_key(op: LinearMapProtocol[V]) -> Optional[ReuseKey]:
     """The key of ``op``, or ``None`` when ``op`` records no linearization
     point (it is then never reused)."""
     if not isinstance(op, JacobianSnapshotProtocol):

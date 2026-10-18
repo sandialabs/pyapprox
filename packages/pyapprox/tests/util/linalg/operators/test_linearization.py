@@ -12,7 +12,14 @@ from pyapprox.util.linalg.operators import (
     OperatorProperties,
     SpaceDescriptor,
 )
-from tests._helpers.linalg.stacks import StackCase, random_matrix, spd_matrix
+from tests._helpers.linalg.stacks import (
+    A,
+    F,
+    TypedStackCase,
+    V,
+    random_matrix,
+    spd_matrix,
+)
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)
@@ -39,7 +46,7 @@ class TestLinearizationPoint:
 
     def test_rejects_invalid(self) -> None:
         with pytest.raises(TypeError, match="hashable"):
-            LinearizationPoint(0, [1, 2])
+            LinearizationPoint(0, [1, 2])  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="nonnegative"):
             LinearizationPoint(-1)
         with pytest.raises(ValueError, match="cannot be provisional"):
@@ -47,7 +54,9 @@ class TestLinearizationPoint:
 
 
 class TestLinearizedOperator:
-    def test_carries_its_point_and_delegates(self, case: StackCase) -> None:
+    def test_carries_its_point_and_delegates(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
         a = random_matrix(3, 5, 0)
         stored = case.build(a, _U, _P)
         point = LinearizationPoint(1, "iterate-2", provisional=True)
@@ -63,7 +72,7 @@ class TestLinearizedOperator:
             snapshot.apply_transpose(y), case.array(stored.apply_transpose(y))
         )
 
-    def test_keeps_properties_and_solves(self, case: StackCase) -> None:
+    def test_keeps_properties_and_solves(self, case: TypedStackCase[V, F, A]) -> None:
         """A labeled derivative is still factorable in its format."""
         stored = case.build(spd_matrix(5, 3), _U, properties=_SPD)
         snapshot = LinearizedOperator(stored, LinearizationPoint(0))
@@ -73,5 +82,7 @@ class TestLinearizedOperator:
         assert info.converged
         case.assert_vector(stored.apply(x), case.array(b), rtol=1e-10)
 
-    def test_a_plain_operator_is_not_a_snapshot(self, case: StackCase) -> None:
+    def test_a_plain_operator_is_not_a_snapshot(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
         assert not isinstance(case.identity(_U), JacobianSnapshotProtocol)

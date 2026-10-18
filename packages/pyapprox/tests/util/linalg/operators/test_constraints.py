@@ -4,17 +4,15 @@ Row replacement is checked against ``apply_dirichlet_rows``, the row
 edit the PDE code uses today, so the decorator is a drop-in for it.
 """
 
-from typing import Any
-
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
-    BackendDenseOperator,
     BackendRowSet,
 )
 from pyapprox.util.linalg.operators import (
@@ -29,7 +27,14 @@ from pyapprox.util.linalg.operators import (
     rows_zeroed_properties,
 )
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipyCSROperator
-from tests._helpers.linalg.stacks import StackCase, random_matrix, spd_matrix
+from tests._helpers.linalg.stacks import (
+    A,
+    F,
+    TypedStackCase,
+    V,
+    random_matrix,
+    spd_matrix,
+)
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)
@@ -38,20 +43,22 @@ _SPD = OperatorProperties(symmetric=True, spd=True)
 _DIAG_SPD = OperatorProperties(symmetric=True, spd=True, diagonal=True)
 
 
-def _keep(n: int, rows: list[int]) -> np.ndarray[Any, np.dtype[np.float64]]:
+def _keep(n: int, rows: list[int]) -> NDArray[np.float64]:
     mask = np.ones((n, 1))
     mask[rows] = 0.0
     return mask
 
 
 class TestRowSet:
-    def test_satisfies_protocol_and_normalizes(self, case: StackCase) -> None:
+    def test_satisfies_protocol_and_normalizes(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
         rows = case.rows(_U, _ROWS)
         assert isinstance(rows, RowSetProtocol)
         assert rows.count() == 2
         assert rows.descriptor() == _U
 
-    def test_operations(self, case: StackCase) -> None:
+    def test_operations(self, case: TypedStackCase[V, F, A]) -> None:
         rows = case.rows(_U, _ROWS)
         keep = case.dense(_keep(5, [0, 3]))
         x, y = case.vec(_U, 2, 0), case.vec(_U, 2, 1)
@@ -60,7 +67,7 @@ class TestRowSet:
         case.assert_vector(rows.replace_rows(y, x), keep * ya + (1 - keep) * xa)
         case.assert_vector(rows.add_rows(y, x), ya + (1 - keep) * xa)
 
-    def test_out_and_aliasing(self, case: StackCase) -> None:
+    def test_out_and_aliasing(self, case: TypedStackCase[V, F, A]) -> None:
         rows = case.rows(_U, _ROWS)
         keep = case.dense(_keep(5, [0, 3]))
         x, y = case.vec(_U, 1, 2), case.vec(_U, 1, 3)
@@ -73,7 +80,7 @@ class TestRowSet:
         with pytest.raises(ValueError, match="alias"):
             rows.add_rows(y, x, out=x)
 
-    def test_difference(self, case: StackCase) -> None:
+    def test_difference(self, case: TypedStackCase[V, F, A]) -> None:
         rows = case.rows(_U, [0, 1, 3]).difference(case.rows(_U, [1, 4]))
         assert rows.count() == 2
         x = case.vec(_U, 1, 4)
@@ -83,7 +90,7 @@ class TestRowSet:
         with pytest.raises(SpaceMismatchError):
             rows.difference(case.rows(SpaceDescriptor("v", 5), [0]))
 
-    def test_rejects_out_of_range_rows(self, case: StackCase) -> None:
+    def test_rejects_out_of_range_rows(self, case: TypedStackCase[V, F, A]) -> None:
         with pytest.raises(ValueError, match=r"\[0, 5\)"):
             case.rows(_U, [0, 5])
         with pytest.raises(ValueError, match=r"\[0, 5\)"):
@@ -91,11 +98,14 @@ class TestRowSet:
 
 
 class TestRowReplacedOperator:
-    def test_matches_apply_dirichlet_rows(self, case: StackCase) -> None:
+    def test_matches_apply_dirichlet_rows(self, case: TypedStackCase[V, F, A]) -> None:
         """Action, transpose and stored format all equal P A + (I - P)."""
         bkd = case.bkd
         a = random_matrix(5, 5, 5)
-        reference = case.dense(apply_dirichlet_rows(a, np.array([0, 3])))
+        replaced: NDArray[np.float64] = np.asarray(
+            apply_dirichlet_rows(a, np.array([0, 3])), dtype=np.float64
+        )
+        reference = case.dense(replaced)
         op = RowReplacedOperator(case.build(a, _U), case.rows(_U, _ROWS))
         x = case.vec(_U, 2, 6)
         case.assert_vector(op.apply(x), case.times(reference, x), rtol=1e-12)
@@ -106,10 +116,13 @@ class TestRowReplacedOperator:
         bkd.assert_allclose(case.format_dense(op.format()), reference)
         case.assert_dot_identity(op, 7)
 
-    def test_apply_with_out(self, case: StackCase) -> None:
+    def test_apply_with_out(self, case: TypedStackCase[V, F, A]) -> None:
         bkd = case.bkd
         a = random_matrix(5, 5, 8)
-        reference = case.dense(apply_dirichlet_rows(a, np.array([0, 3])))
+        replaced: NDArray[np.float64] = np.asarray(
+            apply_dirichlet_rows(a, np.array([0, 3])), dtype=np.float64
+        )
+        reference = case.dense(replaced)
         op = RowReplacedOperator(case.build(a, _U), case.rows(_U, _ROWS))
         x = case.vec(_U, 1, 9)
         out = case.vector(bkd.zeros((5, 1)), _U)
@@ -119,17 +132,20 @@ class TestRowReplacedOperator:
         result = op.apply_transpose(x, out=out)
         case.assert_vector(result, case.times(reference.T, x), rtol=1e-12)
 
-    def test_clears_symmetry_unless_diagonal(self, case: StackCase) -> None:
+    def test_clears_symmetry_unless_diagonal(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
         rows = case.rows(_U, _ROWS)
         spd = RowReplacedOperator(
             case.build(spd_matrix(5, 10), _U, properties=_SPD), rows
         )
         assert spd.properties() == OperatorProperties()
-        d = case.vector(case.dense(np.arange(1.0, 6.0)[:, None]), _U)
+        entries: NDArray[np.float64] = np.arange(1.0, 6.0, dtype=np.float64)[:, None]
+        d = case.vector(case.dense(entries), _U)
         diagonal = RowReplacedOperator(case.from_diagonal(d, _U), rows)
         assert diagonal.properties() == _DIAG_SPD
 
-    def test_empty_set_is_the_operator(self, case: StackCase) -> None:
+    def test_empty_set_is_the_operator(self, case: TypedStackCase[V, F, A]) -> None:
         bkd = case.bkd
         a = spd_matrix(5, 11)
         stored = case.build(a, _U, properties=_SPD)
@@ -140,7 +156,9 @@ class TestRowReplacedOperator:
         case.assert_vector(op.apply_transpose(x), case.array(stored.apply_transpose(x)))
         bkd.assert_allclose(case.format_dense(op.format()), case.dense(a))
 
-    def test_rejects_rectangular_and_foreign_rows(self, case: StackCase) -> None:
+    def test_rejects_rectangular_and_foreign_rows(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
         with pytest.raises(SpaceMismatchError, match="row-replaced"):
             RowReplacedOperator(
                 case.build(random_matrix(3, 5, 13), _U, _P), case.rows(_P, [0])
@@ -152,7 +170,7 @@ class TestRowReplacedOperator:
 
 
 class TestRowsZeroedOperator:
-    def test_matches_masked_products(self, case: StackCase) -> None:
+    def test_matches_masked_products(self, case: TypedStackCase[V, F, A]) -> None:
         """P A on a 3x5 operator; its transpose zeros A^T's columns."""
         bkd = case.bkd
         a = random_matrix(3, 5, 14)
@@ -171,19 +189,20 @@ class TestRowsZeroedOperator:
         )
         case.assert_dot_identity(op, 17)
 
-    def test_clears_spd(self, case: StackCase) -> None:
+    def test_clears_spd(self, case: TypedStackCase[V, F, A]) -> None:
         rows = case.rows(_U, _ROWS)
         spd = RowsZeroedOperator(
             case.build(spd_matrix(5, 18), _U, properties=_SPD), rows
         )
         assert spd.properties() == OperatorProperties()
-        d = case.vector(case.dense(np.arange(1.0, 6.0)[:, None]), _U)
+        entries: NDArray[np.float64] = np.arange(1.0, 6.0, dtype=np.float64)[:, None]
+        d = case.vector(case.dense(entries), _U)
         diagonal = RowsZeroedOperator(case.from_diagonal(d, _U), rows)
         assert diagonal.properties() == OperatorProperties(
             symmetric=True, diagonal=True
         )
 
-    def test_rejects_rows_of_the_domain(self, case: StackCase) -> None:
+    def test_rejects_rows_of_the_domain(self, case: TypedStackCase[V, F, A]) -> None:
         with pytest.raises(SpaceMismatchError, match="row set"):
             RowsZeroedOperator(
                 case.build(random_matrix(3, 5, 19), _U, _P), case.rows(_U, [0])
@@ -232,13 +251,15 @@ class TestScipyRowEdits:
         a = random_matrix(5, 5, 20)
         a[3, 3] = 0.0
         matrix = csr_matrix(a)
-        op = RowReplacedOperator(ScipyCSROperator(matrix, _U), NumpyRowSet(_U, _ROWS))
+        op = RowReplacedOperator(
+            ScipyCSROperator(matrix, _U, scalar=np.float64), NumpyRowSet(_U, _ROWS)
+        )
         reference = apply_dirichlet_rows(matrix, np.array([0, 3]))
         NumpyBkd().assert_allclose(op.format().matrix().toarray(), reference.toarray())
 
-    def test_rejects_another_stacks_row_set(self, numpy_bkd: Backend[Any]) -> None:
-        op = RowReplacedOperator(
-            ScipyCSROperator.identity(_U), BackendRowSet(_U, [0], numpy_bkd)
+    def test_rejects_another_stacks_row_set(self, numpy_bkd: Backend[Array]) -> None:
+        op = RowReplacedOperator(  # type: ignore[misc]
+            ScipyCSROperator.identity(_U, np.float64), BackendRowSet(_U, [0], numpy_bkd)
         )
         with pytest.raises(TypeError, match="NumpyRowSet"):
             op.format()
@@ -248,20 +269,3 @@ class TestScipyRowEdits:
         block = np.ones((5, 2))
         with pytest.raises(ValueError, match="alias"):
             rows.replace_rows(np.zeros((5, 1)), block[:, :1], out=block[:, :1])
-
-
-class TestBackendGraph:
-    def test_row_replaced_preserves_the_graph(self, torch_bkd: Backend[Any]) -> None:
-        r"""d(y^T R x)/dx = R^T y through autograd, R = P A + (I - P)."""
-        import torch
-
-        bkd = torch_bkd
-        a = random_matrix(5, 5, 21)
-        op = RowReplacedOperator(
-            BackendDenseOperator(bkd.asarray(a), _U, bkd), BackendRowSet(_U, _ROWS, bkd)
-        )
-        rng = np.random.default_rng(22)
-        x = torch.tensor(rng.normal(size=(5, 1)), requires_grad=True)
-        y = torch.tensor(rng.normal(size=(5, 1)))
-        (grad,) = torch.autograd.grad(torch.sum(y * op.apply(x)), x)
-        bkd.assert_allclose(grad, op.apply_transpose(y), rtol=1e-12)

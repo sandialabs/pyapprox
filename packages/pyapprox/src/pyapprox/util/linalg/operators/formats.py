@@ -9,9 +9,14 @@ owns their storage; only the storage-free format lives here.
 """
 
 from dataclasses import dataclass
-from typing import Any, Protocol, Self, Sequence, runtime_checkable
+from typing import Protocol, Self, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.protocols import RowSetProtocol
+
+# The vector type of a row set given to a row edit. Each method is
+# generic in it: the type admits a row set of any stack, and a stored
+# format refuses another stack's at runtime.
+W = TypeVar("W")
 
 
 @runtime_checkable
@@ -35,7 +40,7 @@ class FormatProtocol(Protocol):
         """Return the format of the transposed operator."""
         ...
 
-    def rows_replaced(self, rows: RowSetProtocol[Any]) -> Self:
+    def rows_replaced(self, rows: RowSetProtocol[W]) -> Self:
         r"""Return the format of :math:`P A + (I - P)`: the rows in
         ``rows`` replaced by identity rows.
 
@@ -44,7 +49,7 @@ class FormatProtocol(Protocol):
         """
         ...
 
-    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> Self:
+    def rows_zeroed(self, rows: RowSetProtocol[W]) -> Self:
         r"""Return the format of :math:`P A`: the rows in ``rows`` zeroed."""
         ...
 
@@ -71,8 +76,8 @@ class MatrixFree:
         """
         return self
 
-    def rows_replaced(self, rows: RowSetProtocol[Any]) -> "MatrixFree":
+    def rows_replaced(self, rows: RowSetProtocol[W]) -> "MatrixFree":
         return self
 
-    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> "MatrixFree":
+    def rows_zeroed(self, rows: RowSetProtocol[W]) -> "MatrixFree":
         return self

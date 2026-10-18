@@ -8,7 +8,7 @@ for small dense problems and as a verification oracle, not for speed.
 """
 
 import warnings
-from typing import Any, Generic, Optional, Sequence
+from typing import Generic, Optional, Sequence, TypeVar
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators.algebra import Transposed
@@ -28,6 +28,8 @@ from pyapprox.util.linalg.operators.solvers import (
 )
 
 _SYMMETRY_RTOL = 1e-12
+# The vector type of a row set given to a row edit; see FormatProtocol.
+W = TypeVar("W")
 
 
 def _all_finite(x: Array, bkd: Backend[Array]) -> bool:
@@ -39,27 +41,35 @@ def _all_finite(x: Array, bkd: Backend[Array]) -> bool:
 
 def _require_backend_dtype(
     descriptor: SpaceDescriptor, bkd: Backend[Array], what: str
-) -> Any:
-    """Return the backend's configured dtype, refusing a space of another.
+) -> None:
+    """Refuse a space whose dtype is not the backend's configured dtype.
 
     The dtype name is read from a one-element array, so any backend that
     reports its default dtype works, whatever its dtype objects are.
+    Arrays are then allocated with ``bkd.default_dtype()`` itself.
     """
-    dtype = bkd.default_dtype()
-    name = bkd.to_numpy(bkd.zeros((1,), dtype=dtype)).dtype.name
+    name = bkd.to_numpy(bkd.zeros((1,), dtype=bkd.default_dtype())).dtype.name
     if descriptor.dtype != name:
         raise ValueError(
-            f"{what}: descriptor dtype {descriptor.dtype!r} differs from the backend's "
-            f"configured dtype {name!r}; configure the backend or change the descriptor"
+            f"{what}: descriptor dtype {descriptor.dtype!r} differs from the "
+            f"backend's configured dtype {name!r}; configure the backend or "
+            "change the descriptor"
         )
-    return dtype
+
+
+def _keep_mask(indices: Sequence[int], size: int, bkd: Backend[Array]) -> Array:
+    """A ``(size, 1)`` column: 0 on ``indices``, 1 elsewhere. Constant
+    data, built once from plain integers."""
+    in_set = set(indices)
+    keep = [[0.0] if row in in_set else [1.0] for row in range(size)]
+    return bkd.asarray(keep, dtype=bkd.default_dtype())
 
 
 class BackendVectorSpace(Generic[Array]):
     """Blocks of vectors stored as backend arrays of shape ``(size, ncols)``.
 
     Satisfies
-    :class:`~pyapprox.util.linalg.operators.protocols.VectorSpaceProtocol`
+    :class:`~pyapprox.util.linalg.operators.protocols.InnerProductSpaceProtocol`
     with backend arrays as both the vector and the reduction type.
     ``out`` is accepted and ignored, so callers must use the returned
     value. The aliasing rule is still enforced, by identity, so code
@@ -82,17 +92,17 @@ class BackendVectorSpace(Generic[Array]):
     """
 
     def __init__(self, descriptor: SpaceDescriptor, bkd: Backend[Array]) -> None:
-        self._dtype: Any = _require_backend_dtype(descriptor, bkd, "BackendVectorSpace")
-        self._layout = descriptor
+        _require_backend_dtype(descriptor, bkd, "BackendVectorSpace")
+        self._descriptor = descriptor
         self._bkd = bkd
 
     def descriptor(self) -> SpaceDescriptor:
-        return self._layout
+        return self._descriptor
 
     def _check(self, x: Array, name: str) -> None:
-        if x.ndim != 2 or x.shape[0] != self._layout.size:
+        if x.ndim != 2 or x.shape[0] != self._descriptor.size:
             raise ValueError(
-                f"{name} must have shape ({self._layout.size}, ncols), "
+                f"{name} must have shape ({self._descriptor.size}, ncols), "
                 f"got {tuple(x.shape)}"
             )
 
@@ -104,11 +114,13 @@ class BackendVectorSpace(Generic[Array]):
             raise ValueError("out is an operand it may not alias")
 
     def zeros(self, ncols: int = 1) -> Array:
-        return self._bkd.zeros((self._layout.size, ncols), dtype=self._dtype)
+        return self._bkd.zeros(
+            (self._descriptor.size, ncols), dtype=self._bkd.default_dtype()
+        )
 
     def zeros_like(self, x: Array) -> Array:
         self._check(x, "x")
-        return self._bkd.zeros((self._layout.size, x.shape[1]), dtype=self._dtype)
+        return self.zeros(int(x.shape[1]))
 
     def ncols(self, x: Array) -> int:
         self._check(x, "x")
@@ -140,11 +152,14 @@ class BackendVectorSpace(Generic[Array]):
     def dot(self, x: Array, y: Array) -> Array:
         self._check(x, "x")
         self._check(y, "y")
-        return self._bkd.dot(x.T, y)
+        return self._bkd.dot(self._bkd.conj(x).T, y)
 
     def norm(self, x: Array) -> Array:
         self._check(x, "x")
-        return self._bkd.sqrt(self._bkd.sum(x * x, axis=0, keepdims=True))
+        magnitude = self._bkd.abs(x)
+        return self._bkd.sqrt(
+            self._bkd.sum(magnitude * magnitude, axis=0, keepdims=True)
+        )
 
     def divide_entries(self, x: Array, d: Array, out: Optional[Array] = None) -> Array:
         self._check(x, "x")
@@ -159,7 +174,7 @@ class BackendVectorSpace(Generic[Array]):
         return _all_finite(x, self._bkd)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._layout!r})"
+        return f"{self.__class__.__name__}({self._descriptor!r})"
 
 
 class BackendRowSet(Generic[Array]):
@@ -192,24 +207,21 @@ class BackendRowSet(Generic[Array]):
     def __init__(
         self, descriptor: SpaceDescriptor, rows: Sequence[int], bkd: Backend[Array]
     ) -> None:
-        dtype = _require_backend_dtype(descriptor, bkd, "BackendRowSet")
+        _require_backend_dtype(descriptor, bkd, "BackendRowSet")
         indices = tuple(sorted({int(row) for row in rows}))
         if indices and (indices[0] < 0 or indices[-1] >= descriptor.size):
             raise ValueError(
                 f"row indices must lie in [0, {descriptor.size}), got "
                 f"[{indices[0]}, {indices[-1]}]"
             )
-        self._layout = descriptor
+        self._descriptor = descriptor
         self._indices = indices
         self._bkd = bkd
-        # The masks are constant data, built once from plain integers.
-        in_set = set(indices)
-        keep = [[0.0] if row in in_set else [1.0] for row in range(descriptor.size)]
-        self._keep = bkd.asarray(keep, dtype=dtype)
+        self._keep = _keep_mask(indices, descriptor.size, bkd)
         self._take = 1.0 - self._keep
 
     def descriptor(self) -> SpaceDescriptor:
-        return self._layout
+        return self._descriptor
 
     def count(self) -> int:
         return len(self._indices)
@@ -224,9 +236,9 @@ class BackendRowSet(Generic[Array]):
 
     def _check(self, y: Array, out: Optional[Array], others: tuple[Array, ...]) -> None:
         for name, block in (("y", y), *(("x", other) for other in others)):
-            if block.ndim != 2 or block.shape[0] != self._layout.size:
+            if block.ndim != 2 or block.shape[0] != self._descriptor.size:
                 raise ValueError(
-                    f"{name} must have shape ({self._layout.size}, ncols), "
+                    f"{name} must have shape ({self._descriptor.size}, ncols), "
                     f"got {tuple(block.shape)}"
                 )
         if out is not None and any(other is out for other in others):
@@ -245,20 +257,21 @@ class BackendRowSet(Generic[Array]):
         return y + x * self._take
 
     def difference(self, other: "BackendRowSet[Array]") -> "BackendRowSet[Array]":
-        self._layout.require_same(other.descriptor(), "row set to subtract")
+        self._descriptor.require_same(other.descriptor(), "row set to subtract")
         remaining = sorted(set(self._indices) - set(other.indices()))
-        return BackendRowSet(self._layout, remaining, self._bkd)
+        return BackendRowSet(self._descriptor, remaining, self._bkd)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._layout!r}, count={self.count()})"
+        return f"{self.__class__.__name__}({self._descriptor!r}, count={self.count()})"
 
 
-def _backend_keep_mask(rows: RowSetProtocol[Any]) -> Any:
+def _backend_keep_mask(rows: RowSetProtocol[W], bkd: Backend[Array]) -> Array:
+    """The keep mask of a backend row set, in ``bkd``'s arrays."""
     if not isinstance(rows, BackendRowSet):
         raise TypeError(
             f"DenseFormat row edits need a BackendRowSet, got {type(rows).__name__}"
         )
-    return rows.keep_mask()
+    return _keep_mask(rows.indices(), rows.descriptor().size, bkd)
 
 
 class DenseFormat(Generic[Array]):
@@ -291,14 +304,15 @@ class DenseFormat(Generic[Array]):
     def transposed(self) -> "DenseFormat[Array]":
         return DenseFormat(self._matrix.T, self._bkd)
 
-    def rows_replaced(self, rows: RowSetProtocol[Any]) -> "DenseFormat[Array]":
-        keep = _backend_keep_mask(rows)
+    def rows_replaced(self, rows: RowSetProtocol[W]) -> "DenseFormat[Array]":
+        keep = _backend_keep_mask(rows, self._bkd)
         n = self._matrix.shape[0]
         identity_rows = self._bkd.diag(self._bkd.reshape(1.0 - keep, (n,)))
         return DenseFormat(self._matrix * keep + identity_rows, self._bkd)
 
-    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> "DenseFormat[Array]":
-        return DenseFormat(self._matrix * _backend_keep_mask(rows), self._bkd)
+    def rows_zeroed(self, rows: RowSetProtocol[W]) -> "DenseFormat[Array]":
+        keep = _backend_keep_mask(rows, self._bkd)
+        return DenseFormat(self._matrix * keep, self._bkd)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={tuple(self._matrix.shape)})"
@@ -350,9 +364,7 @@ class BackendDenseOperator(Generic[Array]):
         self._range = domain if range is None else range
         self._properties = OperatorProperties() if properties is None else properties
         self._bkd = bkd
-        self._dtype: Any = _require_backend_dtype(
-            self._domain, bkd, "BackendDenseOperator"
-        )
+        _require_backend_dtype(self._domain, bkd, "BackendDenseOperator")
         _require_backend_dtype(self._range, bkd, "BackendDenseOperator")
         shape = tuple(matrix.shape)
         if shape != (self._range.size, self._domain.size):
@@ -385,7 +397,7 @@ class BackendDenseOperator(Generic[Array]):
                 raise ValueError("matrix declared diagonal has off-diagonal nonzeros")
         if props.identity:
             n = matrix.shape[0]
-            deviation = matrix - bkd.eye(n, dtype=self._dtype)
+            deviation = matrix - bkd.eye(n, dtype=bkd.default_dtype())
             if bkd.to_float(bkd.max(bkd.abs(deviation))) > 0.0:
                 raise ValueError(
                     "matrix declared identity has a diagonal entry other than 1"
@@ -475,7 +487,7 @@ class _DenseLUHandle(SolverHandleBase[Array]):
 
     def __init__(
         self,
-        op: ActionOperatorProtocol[Array, Any],
+        op: ActionOperatorProtocol[Array, DenseFormat[Array]],
         factors: Optional[tuple[Array, Array]],
         failure: str,
         transposed: bool,

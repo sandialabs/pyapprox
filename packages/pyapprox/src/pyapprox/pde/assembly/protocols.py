@@ -23,7 +23,7 @@ The assembler never sees the stack's storage. It sees:
   it nontrivial, without changing any assembler.
 """
 
-from typing import Any, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from scipy.sparse import spmatrix
 
@@ -38,7 +38,9 @@ V = TypeVar("V")
 F = TypeVar("F")
 V_co = TypeVar("V_co", covariant=True)
 F_co = TypeVar("F_co", covariant=True)
-# Element data only flows in to a sink, so its array type is contravariant.
+# Element data only flows in to a sink, so its array types are
+# contravariant: I for DOF index arrays, L for element values.
+I_contra = TypeVar("I_contra", contravariant=True)
 L_contra = TypeVar("L_contra", contravariant=True)
 
 
@@ -59,18 +61,19 @@ class BulkMatrixSinkProtocol(Protocol):
 
 
 @runtime_checkable
-class MatrixSinkProtocol(Protocol, Generic[V, F_co, L_contra]):
+class MatrixSinkProtocol(Protocol, Generic[V, F_co, I_contra, L_contra]):
     """Accumulates element matrices into an operator of fixed pattern.
 
     Created for one pair of spaces and one sparsity pattern; reused for
     every assembly with that pattern (``zero``, then adds, then
-    ``assemble``).
+    ``assemble``). ``I_contra`` is the array type of DOF maps and
+    ``L_contra`` that of element values and weights.
     """
 
     def add_element_matrices(
         self,
-        row_dofs: L_contra,
-        col_dofs: L_contra,
+        row_dofs: I_contra,
+        col_dofs: I_contra,
         values: L_contra,
         weights: Optional[L_contra] = None,
     ) -> None:
@@ -103,20 +106,24 @@ class MatrixSinkProtocol(Protocol, Generic[V, F_co, L_contra]):
 
 
 @runtime_checkable
-class BulkVectorSinkProtocol(Protocol):
-    """Accepts a whole assembled vector, on one process."""
+class BulkVectorSinkProtocol(Protocol, Generic[L_contra]):
+    """Accepts a whole assembled vector, on one process.
 
-    def add_assembled(self, vector: Any) -> None:
+    ``L_contra`` is the sink's element-value array type: a whole vector
+    is a 1-D array of the same kind.
+    """
+
+    def add_assembled(self, vector: L_contra) -> None:
         """Add a 1-D array of the sink's size."""
         ...
 
 
 @runtime_checkable
-class VectorSinkProtocol(Protocol, Generic[V_co, L_contra]):
+class VectorSinkProtocol(Protocol, Generic[V_co, I_contra, L_contra]):
     """Accumulates element vectors into a single vector."""
 
     def add_element_vectors(
-        self, row_dofs: L_contra, values: L_contra, weights: Optional[L_contra] = None
+        self, row_dofs: I_contra, values: L_contra, weights: Optional[L_contra] = None
     ) -> None:
         """Add ``weights[e] * values[e]`` at ``row_dofs[e]``.
 
@@ -125,7 +132,7 @@ class VectorSinkProtocol(Protocol, Generic[V_co, L_contra]):
         """
         ...
 
-    def bulk(self) -> Optional[BulkVectorSinkProtocol]:
+    def bulk(self) -> Optional[BulkVectorSinkProtocol[L_contra]]:
         """The bulk capability, or ``None`` where it does not exist."""
         ...
 
@@ -140,15 +147,15 @@ class VectorSinkProtocol(Protocol, Generic[V_co, L_contra]):
 
 
 @runtime_checkable
-class AssemblyStackProtocol(Protocol, Generic[V, F, L_contra]):
+class AssemblyStackProtocol(Protocol, Generic[V, F, I_contra, L_contra]):
     """Where assembled operators and vectors are built.
 
     ``V`` is the stack's vector type, ``F`` the format of the operators
-    its sinks produce, and ``L`` the array type of element DOF maps and
-    element values.
+    its sinks produce, ``I_contra`` the array type of element DOF maps and
+    ``L_contra`` that of element values.
     """
 
-    def space(self, descriptor: SpaceDescriptor) -> VectorSpaceProtocol[V, Any]:
+    def space(self, descriptor: SpaceDescriptor) -> VectorSpaceProtocol[V]:
         """The vector space of ``descriptor``."""
         ...
 
@@ -156,16 +163,16 @@ class AssemblyStackProtocol(Protocol, Generic[V, F, L_contra]):
         self,
         range: SpaceDescriptor,
         domain: SpaceDescriptor,
-        row_dofs: L_contra,
-        col_dofs: L_contra,
-    ) -> MatrixSinkProtocol[V, F, L_contra]:
+        row_dofs: I_contra,
+        col_dofs: I_contra,
+    ) -> MatrixSinkProtocol[V, F, I_contra, L_contra]:
         """A sink whose pattern covers every ``(row_dofs[e], col_dofs[e])``
         block. Both spaces are assembly spaces."""
         ...
 
     def vector_sink(
         self, descriptor: SpaceDescriptor
-    ) -> VectorSinkProtocol[V, L_contra]:
+    ) -> VectorSinkProtocol[V, I_contra, L_contra]:
         """A sink for vectors of the assembly space ``descriptor``."""
         ...
 

@@ -1,12 +1,14 @@
 """Linear-algebra stacks for conformance tests of the operator layer.
 
-Each :class:`StackCase` builds a stack's vector space and stored
+Each :class:`TypedStackCase` builds a stack's vector space and stored
 operators from plain NumPy data, so one test body runs on every stack.
-Use the ``case`` fixture of ``tests/util/linalg/operators/conftest.py``.
+Use the ``case`` fixture of ``tests/util/linalg/operators/conftest.py``,
+annotating the parameter ``case: TypedStackCase[V, F, A]`` with the type
+variables exported here.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, Optional, Protocol, Sequence, TypeVar
+from typing import Any, Callable, Generic, Optional, Protocol, Sequence, TypeVar, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,13 +24,14 @@ from pyapprox.util.linalg.backend_dense import (
     DenseFormat,
 )
 from pyapprox.util.linalg.operators import (
-    ActionOperatorProtocol,
     DiagonalCapableProtocol,
+    FormatProtocol,
+    InnerProductSpaceProtocol,
+    LinearMapProtocol,
     LinearSolverProtocol,
     OperatorProperties,
     RowSetProtocol,
     SpaceDescriptor,
-    VectorSpaceProtocol,
 )
 from pyapprox.util.linalg.scipy_stack import (
     CSRFormat,
@@ -66,7 +69,7 @@ def spd_matrix(n: int, seed: int) -> NDArray[np.float64]:
 
 
 V = TypeVar("V")
-F = TypeVar("F")
+F = TypeVar("F", bound=FormatProtocol)
 A = TypeVar("A", bound=ArrayProtocol)
 F_co = TypeVar("F_co", covariant=True)
 
@@ -97,7 +100,7 @@ class TypedStackCase(Generic[V, F, A]):
     build: _Build[V, F]
     identity: Callable[[SpaceDescriptor], DiagonalCapableProtocol[V, F]]
     from_diagonal: Callable[[V, SpaceDescriptor], DiagonalCapableProtocol[V, F]]
-    space: Callable[[SpaceDescriptor], VectorSpaceProtocol[V, A]]
+    space: Callable[[SpaceDescriptor], InnerProductSpaceProtocol[V, A]]
     rows: Callable[[SpaceDescriptor, Sequence[int]], RowSetProtocol[V]]
     direct_solver: Callable[[], LinearSolverProtocol[V, F]]
     format_type: type[F]
@@ -137,9 +140,7 @@ class TypedStackCase(Generic[V, F, A]):
         """Assert a stack vector equals a backend array."""
         self.bkd.assert_allclose(self.array(actual), expected, rtol=rtol, atol=atol)
 
-    def assert_dot_identity(
-        self, op: ActionOperatorProtocol[V, Any], seed: int
-    ) -> None:
+    def assert_dot_identity(self, op: LinearMapProtocol[V], seed: int) -> None:
         r"""Assert :math:`\langle A x, y \rangle = \langle x, A^\top y \rangle`
         for random single vectors."""
         bkd = self.bkd
@@ -147,43 +148,59 @@ class TypedStackCase(Generic[V, F, A]):
         y = self.vec(op.range(), 1, seed + 1)
         lhs = bkd.sum(self.array(op.apply(x)) * self.array(y))
         rhs = bkd.sum(self.array(x) * self.array(op.apply_transpose(y)))
-        bkd.assert_allclose(
-            bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12
-        )
+        bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
 
 
-StackCase = TypedStackCase[Any, Any, Any]
-"""What the parametrized ``case`` fixture yields: one test body runs on
-stacks with different vector types, so at that boundary the types can
-only be ``Any``. Everything inside the helper is typed per stack."""
+# NumPy cases compute expected values with NumpyBkd, whose array type is
+# NDArray[Any]: the dtype varies (float values, integer indices).
+CsrCase = TypedStackCase[NDArray[np.float64], CSRFormat, NDArray[Any]]
+DenseCase = TypedStackCase[ArrayProtocol, DenseFormat[ArrayProtocol], ArrayProtocol]
+"""The dense case over some backend array: NumPy or Torch, decided by the
+fixture's backend, named here without importing Torch."""
+MockCase = TypedStackCase[MockVector, MockFormat, NDArray[Any]]
+StackCase = Union[CsrCase, DenseCase, MockCase]
+"""What the parametrized ``case`` fixture yields. Test bodies annotate
+their parameter as ``TypedStackCase[V, F, A]`` instead, so each body is
+checked against any stack rather than a union of these."""
+
+T = TypeVar("T")
 
 
-def _same(x: Any) -> Any:
+def _same(x: T) -> T:
     return x
 
 
-def _same_in(array: Any, descriptor: SpaceDescriptor) -> Any:
+def _same_in(array: T, descriptor: SpaceDescriptor) -> T:
     return array
 
 
-def csr_case() -> TypedStackCase[NDArray[Any], CSRFormat, NDArray[Any]]:
+def csr_case() -> CsrCase:
     def build(
         matrix: NDArray[np.float64],
         domain: SpaceDescriptor,
         range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
-    ) -> ScipyCSROperator:
-        return ScipyCSROperator(csr_matrix(matrix), domain, range, properties)
+    ) -> ScipyCSROperator[np.float64]:
+        return ScipyCSROperator(
+            csr_matrix(matrix), domain, range, properties, scalar=np.float64
+        )
 
-    def format_dense(fmt: CSRFormat) -> NDArray[Any]:
-        dense: NDArray[Any] = fmt.matrix().toarray()
+    def format_dense(fmt: CSRFormat) -> NDArray[np.float64]:
+        # scipy's sparse matrices are untyped.
+        dense: NDArray[np.float64] = fmt.matrix().toarray()
         return dense
+
+    def space(descriptor: SpaceDescriptor) -> NumpyVectorSpace[np.float64]:
+        return NumpyVectorSpace(descriptor, np.float64)
+
+    def identity(descriptor: SpaceDescriptor) -> ScipyCSROperator[np.float64]:
+        return ScipyCSROperator.identity(descriptor, np.float64)
 
     return TypedStackCase(
         build,
-        ScipyCSROperator.identity,
+        identity,
         ScipyCSROperator.from_diagonal,
-        NumpyVectorSpace,
+        space,
         NumpyRowSet,
         ScipySparseLU,
         CSRFormat,
@@ -222,7 +239,7 @@ def dense_case(
     )
 
 
-def mock_case() -> TypedStackCase[MockVector, MockFormat, NDArray[Any]]:
+def mock_case() -> MockCase:
     """The opaque mock stack; tests see its vectors only through
     ``array`` and ``vector``."""
 
@@ -234,7 +251,7 @@ def mock_case() -> TypedStackCase[MockVector, MockFormat, NDArray[Any]]:
     ) -> MockOperator:
         return MockOperator.from_dense(matrix, domain, range, properties)
 
-    def format_dense(fmt: MockFormat) -> NDArray[Any]:
+    def format_dense(fmt: MockFormat) -> NDArray[np.float64]:
         return fmt.dense()
 
     return TypedStackCase(

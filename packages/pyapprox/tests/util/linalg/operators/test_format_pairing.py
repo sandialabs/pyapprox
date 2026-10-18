@@ -17,8 +17,9 @@ import pytest
 
 _SNIPPET = textwrap.dedent(
     """
-    from typing import Any, Optional
+    from typing import Optional
 
+    import numpy as np
     from numpy.typing import NDArray
 
     from pyapprox.util.linalg.operators import (
@@ -36,8 +37,10 @@ _SNIPPET = textwrap.dedent(
         ScipySparseLU,
     )
 
+    Vector = NDArray[np.float64]
 
-    def factor(op: ActionOperatorProtocol[NDArray[Any], CSRFormat]) -> None:
+
+    def factor(op: ActionOperatorProtocol[Vector, CSRFormat]) -> None:
         pass
 
 
@@ -48,14 +51,12 @@ _SNIPPET = textwrap.dedent(
         def range(self) -> SpaceDescriptor:
             raise NotImplementedError
 
-        def apply(
-            self, x: NDArray[Any], out: Optional[NDArray[Any]] = None
-        ) -> NDArray[Any]:
+        def apply(self, x: Vector, out: Optional[Vector] = None) -> Vector:
             raise NotImplementedError
 
         def apply_transpose(
-            self, y: NDArray[Any], out: Optional[NDArray[Any]] = None
-        ) -> NDArray[Any]:
+            self, y: Vector, out: Optional[Vector] = None
+        ) -> Vector:
             raise NotImplementedError
 
         def properties(self) -> OperatorProperties:
@@ -66,8 +67,8 @@ _SNIPPET = textwrap.dedent(
 
 
     u = SpaceDescriptor("u", 3)
-    space = NumpyVectorSpace(u)
-    csr = ScipyCSROperator.identity(u)
+    space = NumpyVectorSpace(u, np.float64)
+    csr = ScipyCSROperator.identity(u, np.float64)
     factor(csr)  # PAIRS
     factor(Shift())  # REFUSED
     factor(ScaledSum([(1.0, csr), (2.0, csr)], space))  # PAIRS

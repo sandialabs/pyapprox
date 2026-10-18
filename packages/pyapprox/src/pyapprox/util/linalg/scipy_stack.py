@@ -4,9 +4,14 @@ A single-process stack whose vectors are NumPy arrays of shape
 ``(size, ncols)``: a single vector is ``(size, 1)``, never 1-D. It is a
 bound implementation: it works on NumPy arrays only, writes in place
 whenever ``out`` is given, and is not differentiable.
+
+The scalar type ``S`` is the stack's configured precision, a type
+parameter given once where vectors or matrices are created
+(``NumpyVectorSpace(descriptor, np.float32)``); every descriptor the
+stack meets must name the same type.
 """
 
-from typing import Any, Optional, Sequence
+from typing import Generic, Optional, Sequence, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -30,89 +35,117 @@ from pyapprox.util.linalg.operators.solvers import (
     require_square,
 )
 
-_Vector = NDArray[Any]
+S = TypeVar("S", np.float32, np.float64, np.complex64, np.complex128)
+# A NumPy vector type of the stack, for code that inspects arrays but
+# does no arithmetic on them.
+H = TypeVar("H", bound=NDArray[np.generic])
+# The vector type of a row set given to a row edit; see FormatProtocol.
+W = TypeVar("W")
 
 _SYMMETRY_RTOL = 1e-12
 
 
-def _check_block(x: _Vector, size: int, dtype: np.dtype[Any], name: str) -> None:
-    if x.ndim != 2 or x.shape[0] != size:
-        raise ValueError(f"{name} must have shape ({size}, ncols), got {x.shape}")
-    if x.dtype != dtype:
-        raise ValueError(f"{name} must have dtype {dtype}, got {x.dtype}")
+def require_scalar(descriptor: SpaceDescriptor, scalar: type[S], what: str) -> None:
+    """Refuse a space whose dtype is not the configured scalar type."""
+    configured = np.dtype(scalar).name
+    if descriptor.dtype != configured:
+        raise ValueError(
+            f"{what}: space {descriptor.name!r} has dtype {descriptor.dtype!r}, "
+            f"not the configured scalar type {configured!r}"
+        )
+
+
+def _check_block(
+    x: NDArray[np.generic], descriptor: SpaceDescriptor, name: str
+) -> None:
+    if x.ndim != 2 or x.shape[0] != descriptor.size:
+        raise ValueError(
+            f"{name} must have shape ({descriptor.size}, ncols), got {x.shape}"
+        )
+    if x.dtype.name != descriptor.dtype:
+        raise ValueError(f"{name} must have dtype {descriptor.dtype}, got {x.dtype}")
 
 
 def _check_alias(
-    out: _Vector, accumulator: Optional[_Vector], others: tuple[_Vector, ...]
+    out: NDArray[np.generic],
+    accumulator: Optional[NDArray[np.generic]],
+    others: tuple[NDArray[np.generic], ...],
 ) -> None:
     """Check ``out``: it may be ``accumulator`` itself, and must share no
     storage with anything else (including ``others`` that happen to be the
     accumulator)."""
-    operands = others
+    operands = list(others)
     if accumulator is not None and out is not accumulator:
-        operands = (*others, accumulator)
+        operands.append(accumulator)
     for operand in operands:
         if np.may_share_memory(out, operand):
             raise ValueError("out shares storage with an operand it may not alias")
 
 
-class NumpyVectorSpace:
+class NumpyVectorSpace(Generic[S]):
     """Blocks of vectors stored as NumPy arrays of shape ``(size, ncols)``.
 
     Satisfies
-    :class:`~pyapprox.util.linalg.operators.protocols.VectorSpaceProtocol`
-    with NumPy arrays as both the vector and the reduction type. Every
+    :class:`~pyapprox.util.linalg.operators.protocols.InnerProductSpaceProtocol`
+    with ``NDArray[S]`` as both the vector and the reduction type. Every
     operation given ``out`` writes into it and returns it.
 
     Parameters
     ----------
     descriptor : SpaceDescriptor
         The space of the vectors.
+    scalar : type
+        The configured scalar type, one of ``np.float32``, ``np.float64``,
+        ``np.complex64``, ``np.complex128``; the descriptor's dtype must
+        name it.
 
     Raises
     ------
     ValueError
-        From any operation, if a vector is not 2-D with ``descriptor.size``
-        rows and the descriptor's dtype, if an ``out`` has a different shape
-        from the result, or if ``out`` aliases an operand it may not.
+        If the descriptor's dtype is not ``scalar``. From any operation, if
+        a vector is not a 2-D array of that dtype with ``descriptor.size``
+        rows, if an ``out`` has a different shape from the result, or if
+        ``out`` aliases an operand it may not.
     """
 
-    def __init__(self, descriptor: SpaceDescriptor) -> None:
-        self._layout = descriptor
-        self._dtype = np.dtype(descriptor.dtype)
+    def __init__(self, descriptor: SpaceDescriptor, scalar: type[S]) -> None:
+        require_scalar(descriptor, scalar, "NumpyVectorSpace")
+        self._descriptor = descriptor
+        self._scalar: type[S] = scalar
 
     def descriptor(self) -> SpaceDescriptor:
-        return self._layout
+        return self._descriptor
 
-    def _check(self, x: _Vector, name: str) -> None:
-        _check_block(x, self._layout.size, self._dtype, name)
+    def _check(self, x: NDArray[S], name: str) -> None:
+        _check_block(x, self._descriptor, name)
 
     def _check_out(
         self,
-        out: _Vector,
+        out: NDArray[S],
         ncols: int,
-        accumulator: Optional[_Vector],
-        others: tuple[_Vector, ...],
+        accumulator: Optional[NDArray[S]],
+        others: tuple[NDArray[S], ...],
     ) -> None:
         self._check(out, "out")
         if out.shape[1] != ncols:
             raise ValueError(
-                f"out must have shape ({self._layout.size}, {ncols}), got {out.shape}"
+                f"out must have shape ({self._descriptor.size}, {ncols}), "
+                f"got {out.shape}"
             )
         _check_alias(out, accumulator, others)
 
-    def zeros(self, ncols: int = 1) -> _Vector:
-        return np.zeros((self._layout.size, ncols), dtype=self._dtype)
+    def zeros(self, ncols: int = 1) -> NDArray[S]:
+        return np.zeros((self._descriptor.size, ncols), dtype=self._scalar)
 
-    def zeros_like(self, x: _Vector) -> _Vector:
+    def zeros_like(self, x: NDArray[S]) -> NDArray[S]:
         self._check(x, "x")
         return np.zeros_like(x)
 
-    def ncols(self, x: _Vector) -> int:
+    def ncols(self, x: NDArray[S]) -> int:
         self._check(x, "x")
         return int(x.shape[1])
 
-    def copy(self, x: _Vector, out: Optional[_Vector] = None) -> _Vector:
+    def copy(self, x: NDArray[S], out: Optional[NDArray[S]] = None) -> NDArray[S]:
         self._check(x, "x")
         if out is None:
             return x.copy()
@@ -120,7 +153,9 @@ class NumpyVectorSpace:
         np.copyto(out, x)
         return out
 
-    def scale(self, a: float, x: _Vector, out: Optional[_Vector] = None) -> _Vector:
+    def scale(
+        self, a: float, x: NDArray[S], out: Optional[NDArray[S]] = None
+    ) -> NDArray[S]:
         self._check(x, "x")
         if out is None:
             return a * x
@@ -131,11 +166,11 @@ class NumpyVectorSpace:
     def axpby(
         self,
         a: float,
-        x: _Vector,
+        x: NDArray[S],
         b: float,
-        y: _Vector,
-        out: Optional[_Vector] = None,
-    ) -> _Vector:
+        y: NDArray[S],
+        out: Optional[NDArray[S]] = None,
+    ) -> NDArray[S]:
         self._check(x, "x")
         self._check(y, "y")
         if x.shape != y.shape:
@@ -150,20 +185,22 @@ class NumpyVectorSpace:
         out += a * x
         return out
 
-    def dot(self, x: _Vector, y: _Vector) -> _Vector:
+    def dot(self, x: NDArray[S], y: NDArray[S]) -> NDArray[S]:
         self._check(x, "x")
         self._check(y, "y")
         return np.conj(x).T @ y
 
-    def norm(self, x: _Vector) -> _Vector:
+    def norm(self, x: NDArray[S]) -> NDArray[S]:
+        """The norms in the space's scalar type (real-valued for a
+        complex space)."""
         self._check(x, "x")
         # numpy's stubs type a norm along an axis as Any.
-        norm: _Vector = np.linalg.norm(x, axis=0, keepdims=True)
+        norm: NDArray[S] = np.linalg.norm(x, axis=0, keepdims=True).astype(self._scalar)
         return norm
 
     def divide_entries(
-        self, x: _Vector, d: _Vector, out: Optional[_Vector] = None
-    ) -> _Vector:
+        self, x: NDArray[S], d: NDArray[S], out: Optional[NDArray[S]] = None
+    ) -> NDArray[S]:
         self._check(x, "x")
         self._check(d, "d")
         if d.shape[1] != 1:
@@ -174,12 +211,12 @@ class NumpyVectorSpace:
         np.divide(x, d, out=out)
         return out
 
-    def all_finite(self, x: _Vector) -> bool:
+    def all_finite(self, x: NDArray[S]) -> bool:
         self._check(x, "x")
         return bool(np.all(np.isfinite(x)))
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._layout!r})"
+        return f"{self.__class__.__name__}({self._descriptor!r})"
 
 
 class NumpyRowSet:
@@ -204,11 +241,7 @@ class NumpyRowSet:
         ``[0, descriptor.size)``.
     """
 
-    def __init__(
-        self,
-        descriptor: SpaceDescriptor,
-        rows: Sequence[int] | NDArray[np.integer[Any]],
-    ) -> None:
+    def __init__(self, descriptor: SpaceDescriptor, rows: Sequence[int]) -> None:
         indices = np.unique(np.asarray(rows, dtype=np.intp))
         if indices.ndim != 1:
             raise ValueError(f"rows must be one-dimensional, got shape {indices.shape}")
@@ -218,12 +251,11 @@ class NumpyRowSet:
                 f"[{indices[0]}, {indices[-1]}]"
             )
         indices.setflags(write=False)
-        self._layout = descriptor
+        self._descriptor = descriptor
         self._indices = indices
-        self._dtype = np.dtype(descriptor.dtype)
 
     def descriptor(self) -> SpaceDescriptor:
-        return self._layout
+        return self._descriptor
 
     def count(self) -> int:
         return int(self._indices.size)
@@ -233,19 +265,19 @@ class NumpyRowSet:
         return self._indices
 
     def _start(
-        self, y: _Vector, out: Optional[_Vector], others: tuple[_Vector, ...]
-    ) -> _Vector:
+        self, y: NDArray[S], out: Optional[NDArray[S]], others: tuple[NDArray[S], ...]
+    ) -> NDArray[S]:
         """Check operands and return the buffer holding a copy of ``y``."""
-        _check_block(y, self._layout.size, self._dtype, "y")
+        _check_block(y, self._descriptor, "y")
         for other in others:
-            _check_block(other, self._layout.size, self._dtype, "x")
+            _check_block(other, self._descriptor, "x")
             if other.shape != y.shape:
                 raise ValueError(
                     f"x and y must have the same shape, got {other.shape} and {y.shape}"
                 )
         if out is None:
             return y.copy()
-        _check_block(out, self._layout.size, self._dtype, "out")
+        _check_block(out, self._descriptor, "out")
         if out.shape != y.shape:
             raise ValueError(f"out must have shape {y.shape}, got {out.shape}")
         _check_alias(out, y, others)
@@ -253,37 +285,35 @@ class NumpyRowSet:
             np.copyto(out, y)
         return out
 
-    def zero_rows(self, x: _Vector, out: Optional[_Vector] = None) -> _Vector:
+    def zero_rows(self, x: NDArray[S], out: Optional[NDArray[S]] = None) -> NDArray[S]:
         result = self._start(x, out, ())
         result[self._indices] = 0.0
         return result
 
     def replace_rows(
-        self, y: _Vector, x: _Vector, out: Optional[_Vector] = None
-    ) -> _Vector:
+        self, y: NDArray[S], x: NDArray[S], out: Optional[NDArray[S]] = None
+    ) -> NDArray[S]:
         result = self._start(y, out, (x,))
         result[self._indices] = x[self._indices]
         return result
 
     def add_rows(
-        self, y: _Vector, x: _Vector, out: Optional[_Vector] = None
-    ) -> _Vector:
+        self, y: NDArray[S], x: NDArray[S], out: Optional[NDArray[S]] = None
+    ) -> NDArray[S]:
         result = self._start(y, out, (x,))
         result[self._indices] += x[self._indices]
         return result
 
     def difference(self, other: "NumpyRowSet") -> "NumpyRowSet":
-        self._layout.require_same(other.descriptor(), "row set to subtract")
-        return NumpyRowSet(
-            self._layout,
-            np.setdiff1d(self._indices, other.indices(), assume_unique=True),
-        )
+        self._descriptor.require_same(other.descriptor(), "row set to subtract")
+        remaining = np.setdiff1d(self._indices, other.indices(), assume_unique=True)
+        return NumpyRowSet(self._descriptor, [int(row) for row in remaining])
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._layout!r}, count={self.count()})"
+        return f"{self.__class__.__name__}({self._descriptor!r}, count={self.count()})"
 
 
-def _numpy_row_indices(rows: RowSetProtocol[Any]) -> NDArray[np.intp]:
+def _numpy_row_indices(rows: RowSetProtocol[W]) -> NDArray[np.intp]:
     if not isinstance(rows, NumpyRowSet):
         raise TypeError(
             f"CSRFormat row edits need a NumpyRowSet, got {type(rows).__name__}"
@@ -336,7 +366,7 @@ class CSRFormat:
     def transposed(self) -> "CSRFormat":
         return CSRFormat(self._matrix.T.tocsr())
 
-    def rows_replaced(self, rows: RowSetProtocol[Any]) -> "CSRFormat":
+    def rows_replaced(self, rows: RowSetProtocol[W]) -> "CSRFormat":
         indices = _numpy_row_indices(rows)
         emptied = _csr_zero_rows(self._matrix, indices)
         # The rows are now structurally empty, so adding the identity
@@ -346,25 +376,26 @@ class CSRFormat:
         identity_rows = csr_matrix((ones, (indices, indices)), shape=emptied.shape)
         return CSRFormat((emptied + identity_rows).tocsr())
 
-    def rows_zeroed(self, rows: RowSetProtocol[Any]) -> "CSRFormat":
+    def rows_zeroed(self, rows: RowSetProtocol[W]) -> "CSRFormat":
         return CSRFormat(_csr_zero_rows(self._matrix, _numpy_row_indices(rows)))
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={self._matrix.shape})"
 
 
-class ScipyCSROperator:
+class ScipyCSROperator(Generic[S]):
     """A linear operator stored as a SciPy CSR matrix.
 
     Satisfies
     :class:`~pyapprox.util.linalg.operators.protocols.DiagonalCapableProtocol`
-    with NumPy arrays as vectors and :class:`CSRFormat` as its format.
+    with ``NDArray[S]`` as vectors and :class:`CSRFormat` as its format.
     ``apply`` and ``apply_transpose`` copy into ``out`` when it is given.
 
     Parameters
     ----------
     matrix : scipy sparse matrix
-        Shape ``(range.size, domain.size)``. Stored as CSR.
+        Shape ``(range.size, domain.size)``, of dtype ``scalar``. Stored as
+        CSR.
     domain : SpaceDescriptor
         The space of the input of ``apply``.
     range : SpaceDescriptor, optional
@@ -373,15 +404,17 @@ class ScipyCSROperator:
         Declared properties. ``symmetric``, ``diagonal`` and ``identity``
         are verified, in time proportional to the number of nonzeros;
         ``spd`` is not (that would cost a factorization).
+    scalar : type
+        The configured scalar type; both spaces' dtypes must name it.
 
     Raises
     ------
     TypeError
         If ``matrix`` is not a SciPy sparse matrix.
     ValueError
-        If the shape or dtype disagrees with the descriptors, if a symmetric
-        operator's domain and range differ, or if a verified property
-        does not hold.
+        If the shape or dtype disagrees with the descriptors or ``scalar``,
+        if a symmetric operator's domain and range differ, or if a
+        verified property does not hold.
     """
 
     def __init__(
@@ -390,6 +423,8 @@ class ScipyCSROperator:
         domain: SpaceDescriptor,
         range: Optional[SpaceDescriptor] = None,
         properties: Optional[OperatorProperties] = None,
+        *,
+        scalar: type[S],
     ) -> None:
         if not issparse(matrix):
             raise TypeError(
@@ -399,44 +434,52 @@ class ScipyCSROperator:
         self._domain = domain
         self._range = domain if range is None else range
         self._properties = OperatorProperties() if properties is None else properties
+        require_scalar(self._domain, scalar, "ScipyCSROperator")
+        require_scalar(self._range, scalar, "ScipyCSROperator")
         csr = matrix.tocsr()
-        self._dtype = np.dtype(self._domain.dtype)
+        if csr.dtype != np.dtype(scalar):
+            raise ValueError(
+                f"matrix dtype {csr.dtype} differs from the configured scalar "
+                f"type {np.dtype(scalar).name}"
+            )
         _check_operator_layouts(
-            tuple(csr.shape), csr.dtype, self._domain, self._range, self._properties
+            tuple(csr.shape), self._domain, self._range, self._properties
         )
         _verify_csr_properties(csr, self._properties)
         self._format = CSRFormat(csr)
 
     @classmethod
-    def identity(cls, descriptor: SpaceDescriptor) -> "ScipyCSROperator":
+    def identity(
+        cls, descriptor: SpaceDescriptor, scalar: type[S]
+    ) -> "ScipyCSROperator[S]":
         """The identity on ``descriptor``, stored as CSR so it combines with
         other CSR operators without leaving the format."""
-        matrix = sparse_identity(
-            descriptor.size, dtype=np.dtype(descriptor.dtype), format="csr"
-        )
+        matrix = sparse_identity(descriptor.size, dtype=scalar, format="csr")
         return cls(
             matrix,
             descriptor,
             properties=OperatorProperties(
                 symmetric=True, spd=True, diagonal=True, identity=True
             ),
+            scalar=scalar,
         )
 
     @classmethod
     def from_diagonal(
-        cls, d: _Vector, descriptor: SpaceDescriptor
-    ) -> "ScipyCSROperator":
+        cls, d: NDArray[S], descriptor: SpaceDescriptor
+    ) -> "ScipyCSROperator[S]":
         """The diagonal operator with diagonal ``d``, a single vector of
-        ``descriptor``, stored as CSR. Declared ``spd`` when ``d`` is real and
-        positive."""
-        _check_block(d, descriptor.size, np.dtype(descriptor.dtype), "d")
+        ``descriptor``, stored as CSR; the scalar type is ``d``'s. Declared
+        ``spd`` when ``d`` is real and positive."""
+        _check_block(d, descriptor, "d")
         if d.shape[1] != 1:
             raise ValueError(f"d must be a single vector, got shape {d.shape}")
-        spd = bool(np.isrealobj(d) and np.all(d > 0))
+        spd = bool(np.isrealobj(d) and np.all(d.real > 0))
         return cls(
             diags(d[:, 0], format="csr"),
             descriptor,
             properties=OperatorProperties(symmetric=True, spd=spd, diagonal=True),
+            scalar=d.dtype.type,
         )
 
     def domain(self) -> SpaceDescriptor:
@@ -451,7 +494,7 @@ class ScipyCSROperator:
     def format(self) -> CSRFormat:
         return self._format
 
-    def _into(self, result: _Vector, out: Optional[_Vector]) -> _Vector:
+    def _into(self, result: NDArray[S], out: Optional[NDArray[S]]) -> NDArray[S]:
         if out is None:
             return result
         np.copyto(out, result)
@@ -459,15 +502,15 @@ class ScipyCSROperator:
 
     def _check_apply(
         self,
-        x: _Vector,
-        out: Optional[_Vector],
+        x: NDArray[S],
+        out: Optional[NDArray[S]],
         src: SpaceDescriptor,
         dst: SpaceDescriptor,
     ) -> None:
-        _check_block(x, src.size, self._dtype, "input")
+        _check_block(x, src, "input")
         if out is None:
             return
-        _check_block(out, dst.size, self._dtype, "out")
+        _check_block(out, dst, "out")
         if out.shape[1] != x.shape[1]:
             raise ValueError(
                 f"out must have {x.shape[1]} columns, got shape {out.shape}"
@@ -475,21 +518,24 @@ class ScipyCSROperator:
         if np.may_share_memory(out, x):
             raise ValueError("out must not alias the input of apply")
 
-    def apply(self, x: _Vector, out: Optional[_Vector] = None) -> _Vector:
+    def apply(self, x: NDArray[S], out: Optional[NDArray[S]] = None) -> NDArray[S]:
         self._check_apply(x, out, self._domain, self._range)
-        result: _Vector = self._format.matrix() @ x
+        # scipy's sparse product is untyped; the result has x's scalar type.
+        result: NDArray[S] = self._format.matrix() @ x
         return self._into(result, out)
 
-    def apply_transpose(self, y: _Vector, out: Optional[_Vector] = None) -> _Vector:
+    def apply_transpose(
+        self, y: NDArray[S], out: Optional[NDArray[S]] = None
+    ) -> NDArray[S]:
         self._check_apply(y, out, self._range, self._domain)
-        result: _Vector = self._format.matrix().T @ y
+        result: NDArray[S] = self._format.matrix().T @ y
         return self._into(result, out)
 
-    def diagonal(self) -> _Vector:
+    def diagonal(self) -> NDArray[S]:
         self._domain.require_same(
             self._range, "range of an operator asked for its diagonal"
         )
-        diagonal: _Vector = self._format.matrix().diagonal()
+        diagonal: NDArray[S] = self._format.matrix().diagonal()
         return diagonal.reshape(-1, 1)
 
     def __repr__(self) -> str:
@@ -499,37 +545,36 @@ class ScipyCSROperator:
         )
 
 
-class _SparseLUHandle(SolverHandleBase[_Vector]):
+class _SparseLUHandle(SolverHandleBase[H]):
     """A SuperLU factorization, solving with A or, sharing it, A^T."""
 
     def __init__(
         self,
-        op: ActionOperatorProtocol[_Vector, Any],
+        op: ActionOperatorProtocol[H, CSRFormat],
         factor: Optional[SuperLU],
         failure: str,
         transposed: bool,
     ) -> None:
         super().__init__(op)
-        self._op = op
+        self._op: ActionOperatorProtocol[H, CSRFormat] = op
         self._factor = factor
         self._failure = failure
         self._transposed = transposed
-        self._dtype = np.dtype(op.range().dtype)
 
     def solve(
-        self, rhs: _Vector, tol: Optional[float] = None, x0: Optional[_Vector] = None
-    ) -> tuple[_Vector, SolveInfo]:
-        _check_block(rhs, self.domain().size, self._dtype, "rhs")
+        self, rhs: H, tol: Optional[float] = None, x0: Optional[H] = None
+    ) -> tuple[H, SolveInfo]:
+        _check_block(rhs, self.domain(), "rhs")
         if self._factor is None:
-            return np.full_like(rhs, np.nan), SolveInfo(False, message=self._failure)
-        solution: _Vector = self._factor.solve(
-            rhs, trans="T" if self._transposed else "N"
-        )
+            failed: H = np.full_like(rhs, np.nan)
+            return failed, SolveInfo(False, message=self._failure)
+        # SuperLU is untyped; the solution has the right-hand side's type.
+        solution: H = self._factor.solve(rhs, trans="T" if self._transposed else "N")
         if not np.all(np.isfinite(solution)):
             return solution, SolveInfo(False, message="non-finite solution")
         return solution, SolveInfo(True)
 
-    def transpose(self) -> "_SparseLUHandle":
+    def transpose(self) -> "_SparseLUHandle[H]":
         return _SparseLUHandle(
             Transposed(self._op), self._factor, self._failure, not self._transposed
         )
@@ -549,8 +594,8 @@ class ScipySparseLU:
         return SolverCapabilities(transpose=True)
 
     def setup(
-        self, op: ActionOperatorProtocol[_Vector, CSRFormat]
-    ) -> SolverHandleProtocol[_Vector]:
+        self, op: ActionOperatorProtocol[NDArray[S], CSRFormat]
+    ) -> SolverHandleProtocol[NDArray[S]]:
         fmt = require_format(op, CSRFormat, "ScipySparseLU")
         require_square(op, "ScipySparseLU")
         try:
@@ -566,7 +611,6 @@ class ScipySparseLU:
 
 def _check_operator_layouts(
     shape: tuple[int, ...],
-    dtype: np.dtype[Any],
     domain: SpaceDescriptor,
     range_: SpaceDescriptor,
     properties: OperatorProperties,
@@ -576,11 +620,6 @@ def _check_operator_layouts(
             f"matrix must have shape (range.size, domain.size) = "
             f"({range_.size}, {domain.size}), got {shape}"
         )
-    for name, descriptor in (("domain", domain), ("range", range_)):
-        if np.dtype(descriptor.dtype) != dtype:
-            raise ValueError(
-                f"matrix dtype {dtype} differs from the {name} dtype {descriptor.dtype}"
-            )
     if properties.symmetric:
         domain.require_same(range_, "range of a symmetric operator")
 

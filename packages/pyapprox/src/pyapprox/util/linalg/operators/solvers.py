@@ -20,19 +20,23 @@ which mypy checks, and checks it again at ``setup``, raising
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import MatrixFree
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     DiagonalCapableProtocol,
+    LinearMapProtocol,
     OperatorProperties,
     VectorSpaceProtocol,
 )
 
 V = TypeVar("V")
+F = TypeVar("F")
 F_contra = TypeVar("F_contra", contravariant=True)
+# The format of an operator a function inspects but does not constrain.
+G = TypeVar("G")
 
 
 @dataclass(frozen=True)
@@ -116,13 +120,11 @@ class LinearSolverProtocol(Protocol, Generic[V, F_contra]):
         ...
 
 
-def require_format(
-    op: ActionOperatorProtocol[Any, Any], needed: type, solver: str
-) -> Any:
-    """Return ``op.format()``, raising unless it is a ``needed``.
+def require_format(op: ActionOperatorProtocol[V, G], needed: type[F], solver: str) -> F:
+    """Return ``op.format()`` as a ``needed``, raising unless it is one.
 
     The runtime half of format pairing, for pairings decided by data that
-    mypy cannot see.
+    mypy cannot see; the check is what narrows the format's type.
     """
     fmt = op.format()
     if not isinstance(fmt, needed):
@@ -133,7 +135,7 @@ def require_format(
     return fmt
 
 
-def require_square(op: ActionOperatorProtocol[Any, Any], solver: str) -> None:
+def require_square(op: LinearMapProtocol[V], solver: str) -> None:
     if op.domain().size != op.range().size:
         raise ValueError(
             f"{solver} needs a square operator, got range size "
@@ -151,11 +153,11 @@ class SolverHandleBase(ABC, Generic[V]):
 
     Parameters
     ----------
-    op : ActionOperatorProtocol
+    op : LinearMapProtocol
         The operator the handle inverts.
     """
 
-    def __init__(self, op: ActionOperatorProtocol[V, Any]) -> None:
+    def __init__(self, op: LinearMapProtocol[V]) -> None:
         self._op_domain = op.domain()
         self._op_range = op.range()
         self._properties = op.properties()
@@ -212,9 +214,9 @@ class SolverHandleBase(ABC, Generic[V]):
 class _DiagonalHandle(SolverHandleBase[V]):
     def __init__(
         self,
-        op: ActionOperatorProtocol[V, Any],
+        op: LinearMapProtocol[V],
         diagonal: V,
-        space: VectorSpaceProtocol[V, Any],
+        space: VectorSpaceProtocol[V],
     ) -> None:
         super().__init__(op)
         self._diagonal = diagonal
@@ -244,13 +246,13 @@ class DiagonalSolver(Generic[V]):
         The vector space of the operator's domain and range.
     """
 
-    def __init__(self, space: VectorSpaceProtocol[V, Any]) -> None:
+    def __init__(self, space: VectorSpaceProtocol[V]) -> None:
         self._space = space
 
     def capabilities(self) -> SolverCapabilities:
         return SolverCapabilities(transpose=True)
 
-    def setup(self, op: DiagonalCapableProtocol[V, Any]) -> SolverHandleProtocol[V]:
+    def setup(self, op: DiagonalCapableProtocol[V, G]) -> SolverHandleProtocol[V]:
         """Raises ``TypeError`` unless ``op`` declares ``diagonal``."""
         if not op.properties().diagonal:
             raise TypeError("DiagonalSolver needs an operator declared diagonal")

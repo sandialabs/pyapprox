@@ -16,7 +16,7 @@ and tests read one only through :func:`peek`.
 """
 
 import warnings
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence, TypeVar
 
 import numpy as np
 import scipy.linalg
@@ -26,6 +26,7 @@ from scipy.sparse import issparse, spmatrix
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     OperatorProperties,
+    RowSetProtocol,
     SolveInfo,
     SolverCapabilities,
     SolverHandleBase,
@@ -35,7 +36,13 @@ from pyapprox.util.linalg.operators import (
 )
 from pyapprox.util.linalg.operators.solvers import require_format, require_square
 
-_Array = NDArray[Any]
+# The mock holds float64 entries, indexed by intp row and column arrays.
+_Array = NDArray[np.float64]
+_Index = NDArray[np.intp]
+# Element DOF maps, as the assembly protocols type them.
+_Dofs = NDArray[np.int64]
+# The vector type of a row set given to a row edit; see FormatProtocol.
+W = TypeVar("W")
 _RTOL = 1e-12
 
 
@@ -52,7 +59,10 @@ class MockVector:
         self._data = data
         self._descriptor = descriptor
 
-    def __array__(self, *args: Any, **kwargs: Any) -> _Array:
+    def __array__(
+        self, dtype: Optional[np.dtype[np.float64]] = None, copy: Optional[bool] = None
+    ) -> _Array:
+        """Refuse conversion: the signature is NumPy's array protocol."""
         raise TypeError("a MockVector is opaque: use the stack's operations")
 
     def __repr__(self) -> str:
@@ -231,8 +241,8 @@ class MockRowSet:
 
 
 def _coalesce(
-    rows: _Array, cols: _Array, vals: _Array, shape: tuple[int, int]
-) -> tuple[NDArray[np.intp], NDArray[np.intp], _Array]:
+    rows: _Index, cols: _Index, vals: _Array, shape: tuple[int, int]
+) -> tuple[_Index, _Index, _Array]:
     """Sum duplicate coordinates; keep explicit zeros out."""
     keys = rows.astype(np.intp) * shape[1] + cols.astype(np.intp)
     unique, inverse = np.unique(keys, return_inverse=True)
@@ -247,12 +257,12 @@ class MockFormat:
     """Coordinate triplets: the format of :class:`MockOperator`."""
 
     def __init__(
-        self, rows: _Array, cols: _Array, vals: _Array, shape: tuple[int, int]
+        self, rows: _Index, cols: _Index, vals: _Array, shape: tuple[int, int]
     ) -> None:
         self._rows, self._cols, self._vals = _coalesce(rows, cols, vals, shape)
         self._shape = shape
 
-    def triplets(self) -> tuple[NDArray[np.intp], NDArray[np.intp], _Array]:
+    def triplets(self) -> tuple[_Index, _Index, _Array]:
         """The stored entries, for :class:`MockLU`."""
         return self._rows, self._cols, self._vals
 
@@ -281,16 +291,17 @@ class MockFormat:
             self._cols, self._rows, self._vals, (self._shape[1], self._shape[0])
         )
 
-    def _keep(self, rows: Any) -> NDArray[np.bool_]:
+    @staticmethod
+    def _mock_rows(rows: RowSetProtocol[W]) -> "MockRowSet":
         if not isinstance(rows, MockRowSet):
             raise TypeError(
                 f"MockFormat row edits need a MockRowSet, got {type(rows).__name__}"
             )
-        return ~np.isin(self._rows, rows.indices())
+        return rows
 
-    def rows_replaced(self, rows: Any) -> "MockFormat":
-        keep = self._keep(rows)
-        indices = rows.indices()
+    def rows_replaced(self, rows: RowSetProtocol[W]) -> "MockFormat":
+        indices = self._mock_rows(rows).indices()
+        keep = ~np.isin(self._rows, indices)
         return MockFormat(
             np.concatenate([self._rows[keep], indices]),
             np.concatenate([self._cols[keep], indices]),
@@ -298,8 +309,8 @@ class MockFormat:
             self._shape,
         )
 
-    def rows_zeroed(self, rows: Any) -> "MockFormat":
-        keep = self._keep(rows)
+    def rows_zeroed(self, rows: RowSetProtocol[W]) -> "MockFormat":
+        keep = ~np.isin(self._rows, self._mock_rows(rows).indices())
         return MockFormat(
             self._rows[keep], self._cols[keep], self._vals[keep], self._shape
         )
@@ -399,7 +410,7 @@ class MockOperator:
 
     @staticmethod
     def _product(
-        rows: _Array, cols: _Array, vals: _Array, x: _Array, nrows: int
+        rows: _Index, cols: _Index, vals: _Array, x: _Array, nrows: int
     ) -> _Array:
         result = np.zeros((nrows, x.shape[1]), dtype=x.dtype)
         np.add.at(result, rows, vals[:, None] * x[cols])
@@ -433,8 +444,8 @@ class MockOperator:
 class _MockLUHandle(SolverHandleBase[MockVector]):
     def __init__(
         self,
-        op: ActionOperatorProtocol[MockVector, Any],
-        factors: Optional[tuple[_Array, _Array]],
+        op: ActionOperatorProtocol[MockVector, MockFormat],
+        factors: Optional[tuple[_Array, _Index]],
         transposed: bool,
     ) -> None:
         super().__init__(op)
@@ -477,7 +488,7 @@ class MockLU:
     ) -> SolverHandleProtocol[MockVector]:
         fmt = require_format(op, MockFormat, "MockLU")
         require_square(op, "MockLU")
-        factors: Optional[tuple[_Array, _Array]] = None
+        factors: Optional[tuple[_Array, _Index]] = None
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
@@ -487,7 +498,7 @@ class MockLU:
         return _MockLUHandle(op, factors, transposed=False)
 
 
-def _check_dofs(dofs: _Array, size: int, name: str) -> NDArray[np.intp]:
+def _check_dofs(dofs: _Dofs, size: int, name: str) -> _Index:
     as_int = np.asarray(dofs, dtype=np.intp)
     if as_int.ndim != 2:
         raise ValueError(f"{name} must have shape (nsel, n), got {as_int.shape}")
@@ -518,8 +529,8 @@ class MockMatrixSink:
         self,
         range: SpaceDescriptor,
         domain: SpaceDescriptor,
-        row_dofs: _Array,
-        col_dofs: _Array,
+        row_dofs: _Dofs,
+        col_dofs: _Dofs,
     ) -> None:
         rows = _check_dofs(row_dofs, range.size, "row_dofs")
         cols = _check_dofs(col_dofs, domain.size, "col_dofs")
@@ -527,7 +538,7 @@ class MockMatrixSink:
         self._range, self._domain = range, domain
         self._values: dict[int, float] = {int(key): 0.0 for key in keys}
 
-    def _add(self, rows: _Array, cols: _Array, vals: _Array) -> None:
+    def _add(self, rows: _Index, cols: _Index, vals: _Array) -> None:
         for key, value in zip(
             (
                 np.asarray(rows, np.intp) * self._domain.size
@@ -541,8 +552,8 @@ class MockMatrixSink:
 
     def add_element_matrices(
         self,
-        row_dofs: _Array,
-        col_dofs: _Array,
+        row_dofs: _Dofs,
+        col_dofs: _Dofs,
         values: _Array,
         weights: Optional[_Array] = None,
     ) -> None:
@@ -594,7 +605,7 @@ class MockVectorSink:
         self._data = np.zeros(descriptor.size)
 
     def add_element_vectors(
-        self, row_dofs: _Array, values: _Array, weights: Optional[_Array] = None
+        self, row_dofs: _Dofs, values: _Array, weights: Optional[_Array] = None
     ) -> None:
         rows = _check_dofs(row_dofs, self._descriptor.size, "row_dofs")
         scaled = values if weights is None else values * weights[:, None]
@@ -620,8 +631,8 @@ class MockAssemblyStack:
         self,
         range: SpaceDescriptor,
         domain: SpaceDescriptor,
-        row_dofs: _Array,
-        col_dofs: _Array,
+        row_dofs: _Dofs,
+        col_dofs: _Dofs,
     ) -> MockMatrixSink:
         return MockMatrixSink(range, domain, row_dofs, col_dofs)
 

@@ -86,12 +86,15 @@ class OperatorProperties:
 
 
 @runtime_checkable
-class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
-    r"""Operations on blocks of vectors of one space.
+class VectorSpaceProtocol(Protocol, Generic[V]):
+    r"""A vector space: linear combinations of blocks of its vectors.
 
     ``V`` is the stack's vector type, a block of ``ncols`` vectors of
-    :meth:`descriptor`; ``A_co`` is the small dense array type of reduction
-    results.
+    :meth:`descriptor`. Code that only combines vectors asks for this;
+    :class:`InnerProductSpaceProtocol` adds the inner product and norm.
+    Vectors are coordinate vectors in the stack's fixed basis, so the
+    entrywise :meth:`divide_entries` and :meth:`all_finite` belong here
+    too.
     """
 
     def descriptor(self) -> SpaceDescriptor:
@@ -122,6 +125,24 @@ class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
         """Return ``a x + b y``. ``out`` may be ``y``, never ``x``."""
         ...
 
+    def divide_entries(self, x: V, d: V, out: Optional[V] = None) -> V:
+        """Return ``x`` with each row divided by the matching entry of the
+        single vector ``d``, for every column. ``out`` may be ``x``."""
+        ...
+
+    def all_finite(self, x: V) -> bool:
+        """Whether every entry of ``x`` is finite: a global reduction."""
+        ...
+
+
+@runtime_checkable
+class InnerProductSpaceProtocol(VectorSpaceProtocol[V], Protocol[V, A_co]):
+    r"""A vector space with an inner product and its norm.
+
+    Both are global reductions to small dense arrays of type ``A_co``,
+    replicated on every process.
+    """
+
     def dot(self, x: V, y: V) -> A_co:
         r"""Return the block inner product :math:`x^H y`.
 
@@ -139,28 +160,17 @@ class VectorSpaceProtocol(Protocol, Generic[V, A_co]):
         """
         ...
 
-    def divide_entries(self, x: V, d: V, out: Optional[V] = None) -> V:
-        """Return ``x`` with each row divided by the matching entry of the
-        single vector ``d``, for every column. ``out`` may be ``x``."""
-        ...
-
-    def all_finite(self, x: V) -> bool:
-        """Whether every entry of ``x`` is finite: a global reduction."""
-        ...
-
 
 @runtime_checkable
-class ActionOperatorProtocol(Protocol, Generic[V, F_co]):
-    r"""A linear operator from :meth:`domain` to :meth:`range`.
+class LinearMapProtocol(Protocol, Generic[V]):
+    r"""A linear map from :meth:`domain` to :meth:`range`, known by its action.
 
-    ``V`` is the stack's vector type and ``F_co`` the type of the format
-    witness :meth:`format`. A consumer that needs storage, such as a
-    direct solver, declares the format it accepts, so pairing it with an
-    operator of another format is a static type error.
-
-    ``apply`` and ``apply_transpose`` act on blocks of vectors and take
-    the optional ``out`` hint of :class:`VectorSpaceProtocol`; ``out``
-    must never alias the input.
+    ``V`` is the stack's vector type. ``apply`` and ``apply_transpose``
+    act on blocks of vectors and take the optional ``out`` hint of
+    :class:`VectorSpaceProtocol`; ``out`` must never alias the input.
+    Code that only applies an operator (a product, a format erasure, a
+    solver handle's bookkeeping) asks for this; code that needs storage
+    asks for :class:`ActionOperatorProtocol` and its format.
     """
 
     def domain(self) -> SpaceDescriptor:
@@ -186,6 +196,16 @@ class ActionOperatorProtocol(Protocol, Generic[V, F_co]):
     def properties(self) -> OperatorProperties:
         """The declared structural properties."""
         ...
+
+
+@runtime_checkable
+class ActionOperatorProtocol(LinearMapProtocol[V], Protocol[V, F_co]):
+    r"""A linear map with a format witness.
+
+    ``F_co`` is the type of :meth:`format`. A consumer that needs storage,
+    such as a direct solver, declares the format it accepts, so pairing
+    it with an operator of another format is a static type error.
+    """
 
     def format(self) -> F_co:
         """The format witness: how, and whether, the operator is stored."""
