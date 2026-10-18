@@ -463,6 +463,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.abs(array)
 
     @staticmethod
+    def conj(array: torch.Tensor) -> torch.Tensor:
+        # A lazy conjugate view: no copy, and autograd follows it.
+        return torch.conj(array)
+
+    @staticmethod
     def round(array: torch.Tensor) -> torch.Tensor:
         return torch.round(array)
 

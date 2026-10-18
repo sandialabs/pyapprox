@@ -252,3 +252,14 @@ class TestCdistShapeConsistency:
         bkd.assert_allclose(
             bkd.diag(dists), bkd.full((37,), 0.0), atol=1e-15, rtol=0.0
         )
+
+
+class TestConj:
+    def test_conjugates_complex_entries(self, bkd: Backend[Array]) -> None:
+        x = bkd.asarray([[1.0 + 2.0j], [-3.0j]], dtype=bkd.complex_dtype())
+        expected = bkd.asarray([[1.0 - 2.0j], [3.0j]], dtype=bkd.complex_dtype())
+        bkd.assert_allclose(bkd.conj(x), expected)
+
+    def test_leaves_real_entries_unchanged(self, bkd: Backend[Array]) -> None:
+        x = bkd.asarray([[1.5], [-2.0]])
+        bkd.assert_allclose(bkd.conj(x), x)

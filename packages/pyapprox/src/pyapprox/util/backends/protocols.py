@@ -532,6 +532,14 @@ class Backend(Protocol, Generic[Array]):
     def abs(array: Array) -> Array: ...
 
     @staticmethod
+    def conj(array: Array) -> Array:
+        """Return the elementwise complex conjugate; real arrays unchanged.
+
+        Differentiable, so a gradient graph through ``array`` survives.
+        """
+        ...
+
+    @staticmethod
     def round(array: Array) -> Array: ...
 
     @staticmethod

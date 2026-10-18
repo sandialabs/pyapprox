@@ -392,6 +392,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.abs(array))
 
     @staticmethod
+    def conj(array: NDArray[Any]) -> NDArray[Any]:
+        # numpy's stubs type the conj ufunc's result as Any.
+        result: NDArray[Any] = np.conj(array)
+        return result
+
+    @staticmethod
     def round(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.round(array))
 
