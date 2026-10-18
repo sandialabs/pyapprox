@@ -48,7 +48,6 @@ class TestLinearizationPoint:
 
 class TestLinearizedOperator:
     def test_carries_its_point_and_delegates(self, case: StackCase) -> None:
-        bkd = case.bkd
         a = random_matrix(3, 5, 0)
         stored = case.build(a, _U, _P)
         point = LinearizationPoint(1, "iterate-2", provisional=True)
@@ -58,20 +57,21 @@ class TestLinearizedOperator:
         assert snapshot.linearization() is point
         assert snapshot.domain() == _U and snapshot.range() == _P
         assert snapshot.format() is stored.format()
-        x, y = case.vec(5, 2, 1), case.vec(3, 2, 2)
-        bkd.assert_allclose(snapshot.apply(x), stored.apply(x))
-        bkd.assert_allclose(snapshot.apply_transpose(y), stored.apply_transpose(y))
+        x, y = case.vec(_U, 2, 1), case.vec(_P, 2, 2)
+        case.assert_vector(snapshot.apply(x), case.array(stored.apply(x)))
+        case.assert_vector(
+            snapshot.apply_transpose(y), case.array(stored.apply_transpose(y))
+        )
 
     def test_keeps_properties_and_solves(self, case: StackCase) -> None:
         """A labeled derivative is still factorable in its format."""
-        bkd = case.bkd
         stored = case.build(spd_matrix(5, 3), _U, properties=_SPD)
         snapshot = LinearizedOperator(stored, LinearizationPoint(0))
         assert snapshot.properties() == _SPD
-        b = case.vec(5, 1, 4)
+        b = case.vec(_U, 1, 4)
         x, info = case.direct_solver().setup(snapshot).solve(b)
         assert info.converged
-        bkd.assert_allclose(stored.apply(x), b, rtol=1e-10)
+        case.assert_vector(stored.apply(x), case.array(b), rtol=1e-10)
 
     def test_a_plain_operator_is_not_a_snapshot(self, case: StackCase) -> None:
         assert not isinstance(case.identity(_U), JacobianSnapshotProtocol)

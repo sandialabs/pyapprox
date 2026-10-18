@@ -41,12 +41,15 @@ def _well_conditioned(seed: int) -> np.ndarray[Any, np.dtype[np.float64]]:
 
 
 def _assert_solves(case: StackCase, matrix: Any, x: Any, b: Any) -> None:
+    """``matrix x = b`` to relative residual ``_DIRECT_RTOL``; ``x`` and
+    ``b`` are stack vectors, ``matrix`` a backend array."""
     bkd = case.bkd
-    residual = bkd.dot(matrix, x) - b
+    rhs = case.array(b)
+    residual = case.times(matrix, x) - rhs
     bkd.assert_allclose(
         bkd.reshape(bkd.sum(residual * residual), (1,)),
         bkd.zeros((1,)),
-        atol=_DIRECT_RTOL**2 * bkd.to_float(bkd.sum(b * b)),
+        atol=_DIRECT_RTOL**2 * bkd.to_float(bkd.sum(rhs * rhs)),
     )
 
 
@@ -56,7 +59,7 @@ class TestDirectSolver:
         handle = case.direct_solver().setup(case.build(a, _U))
         assert isinstance(handle, SolverHandleProtocol)
         assert case.direct_solver().capabilities().transpose
-        b = case.vec(5, 3, 1)
+        b = case.vec(_U, 3, 1)
         x, info = handle.solve(b)
         assert info.converged and info.iterations == 0
         _assert_solves(case, case.dense(a), x, b)
@@ -67,17 +70,17 @@ class TestDirectSolver:
         _assert_solves(case, case.dense(a).T, xt, b)
 
     def test_handle_is_the_inverse_operator(self, case: StackCase) -> None:
-        """apply is the solve, from the operator's range to its domain."""
-        bkd = case.bkd
+        """apply is the solve, from the operator's range (u) to its domain
+        (v); the transposed solve takes vectors of v."""
         a = _well_conditioned(2)
         handle = case.direct_solver().setup(case.build(a, _V, _U))
         assert isinstance(handle, ActionOperatorProtocol)
         assert handle.domain() == _U and handle.range() == _V
         assert handle.format() == MatrixFree()
-        b = case.vec(5, 2, 3)
+        b, bt = case.vec(_U, 2, 3), case.vec(_V, 2, 4)
         _assert_solves(case, case.dense(a), handle.apply(b), b)
-        _assert_solves(case, case.dense(a).T, handle.apply_transpose(b), b)
-        bkd.assert_allclose(handle.apply(b), handle.solve(b)[0])
+        _assert_solves(case, case.dense(a).T, handle.apply_transpose(bt), bt)
+        case.assert_vector(handle.apply(b), case.array(handle.solve(b)[0]))
 
     def test_keeps_the_operators_properties(self, case: StackCase) -> None:
         handle = case.direct_solver().setup(
@@ -87,12 +90,11 @@ class TestDirectSolver:
 
     def test_composes_as_an_inverse(self, case: StackCase) -> None:
         """A A^{-1} x = x, with the handle as a product factor."""
-        bkd = case.bkd
         op = case.build(_well_conditioned(5), _U)
         product = Product([op, case.direct_solver().setup(op)])
-        x = case.vec(5, 2, 6)
-        bkd.assert_allclose(product.apply(x), x, rtol=1e-10)
-        bkd.assert_allclose(product.apply_transpose(x), x, rtol=1e-10)
+        x = case.vec(_U, 2, 6)
+        case.assert_vector(product.apply(x), case.array(x), rtol=1e-10)
+        case.assert_vector(product.apply_transpose(x), case.array(x), rtol=1e-10)
 
     def test_row_replaced_operator_is_factored(self, case: StackCase) -> None:
         """The row-replaced storage is formed at setup; the solution takes
@@ -100,22 +102,24 @@ class TestDirectSolver:
         bkd = case.bkd
         a = _well_conditioned(7)
         op = RowReplacedOperator(case.build(a, _U), case.rows(_U, [0, 3]))
-        b = case.vec(5, 1, 8)
+        b = case.vec(_U, 1, 8)
         x, info = case.direct_solver().setup(op).solve(b)
         assert info.converged
-        bkd.assert_allclose(op.apply(x), b, rtol=1e-10)
+        case.assert_vector(op.apply(x), case.array(b), rtol=1e-10)
         keep = case.dense(np.array([[0.0], [1.0], [1.0], [0.0], [1.0]]))
-        bkd.assert_allclose((1 - keep) * x, (1 - keep) * b, atol=1e-12)
+        bkd.assert_allclose(
+            (1 - keep) * case.array(x), (1 - keep) * case.array(b), atol=1e-12
+        )
 
     def test_singular_matrix_reports_without_raising(self, case: StackCase) -> None:
         a = _well_conditioned(9)
         a[2, :] = 0.0
         handle = case.direct_solver().setup(case.build(a, _U))
-        _, info = handle.solve(case.vec(5, 1, 10))
+        _, info = handle.solve(case.vec(_U, 1, 10))
         assert not info.converged
         assert info.message
         with pytest.raises(SolveFailedError):
-            handle.apply(case.vec(5, 1, 11))
+            handle.apply(case.vec(_U, 1, 11))
 
     def test_refuses_matrix_free_operators(self, case: StackCase) -> None:
         with pytest.raises(TypeError, match="got one in MatrixFree"):
@@ -146,23 +150,26 @@ class TestFormatPairingAtSetup:
 
 class TestDiagonalSolver:
     def test_solves_with_the_diagonal(self, case: StackCase) -> None:
-        bkd = case.bkd
         d = case.dense(np.arange(1.0, 6.0)[:, None])
-        handle = DiagonalSolver(case.space(_U)).setup(case.from_diagonal(d, _U))
-        b = case.vec(5, 2, 13)
+        handle = DiagonalSolver(case.space(_U)).setup(
+            case.from_diagonal(case.vector(d, _U), _U)
+        )
+        b = case.vec(_U, 2, 13)
         x, info = handle.solve(b)
         assert info.converged
-        bkd.assert_allclose(x, b / d, rtol=1e-14)
+        case.assert_vector(x, case.array(b) / d, rtol=1e-14)
         transposed = handle.transpose()
         assert transposed is not None
-        bkd.assert_allclose(transposed.apply(b), b / d, rtol=1e-14)
+        case.assert_vector(transposed.apply(b), case.array(b) / d, rtol=1e-14)
 
     @pytest.mark.filterwarnings("ignore:divide by zero:RuntimeWarning")
     def test_zero_diagonal_reports_without_raising(self, case: StackCase) -> None:
         """The division gives inf, which all_finite turns into a report."""
         d = case.dense(np.array([[1.0], [0.0], [2.0], [3.0], [4.0]]))
-        handle = DiagonalSolver(case.space(_U)).setup(case.from_diagonal(d, _U))
-        _, info = handle.solve(case.vec(5, 1, 14))
+        handle = DiagonalSolver(case.space(_U)).setup(
+            case.from_diagonal(case.vector(d, _U), _U)
+        )
+        _, info = handle.solve(case.vec(_U, 1, 14))
         assert not info.converged
 
     def test_refuses_an_operator_not_declared_diagonal(self, case: StackCase) -> None:

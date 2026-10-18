@@ -1,7 +1,8 @@
-"""Conformance tests for the stored operators of the SciPy and backend stacks.
+"""Conformance tests for the stored operators of every stack.
 
-Every protocol test runs on ScipyCSROperator (NumPy arrays) and on
-BackendDenseOperator under NumPy and Torch.
+Every protocol test runs on ScipyCSROperator (NumPy arrays), on
+BackendDenseOperator under NumPy and Torch, and on the opaque mock
+stack, reading vectors only through ``case.array`` and ``case.vector``.
 """
 
 from typing import Any
@@ -42,46 +43,57 @@ class TestStoredOperatorConformance:
         bkd = case.bkd
         matrix = _random(3, 5, 1)
         op = case.build(matrix, _U, _P)
-        x, y = case.vec(5, 2, 2), case.vec(3, 4, 3)
+        x, y = case.vec(_U, 2, 2), case.vec(_P, 4, 3)
         dense = bkd.asarray(matrix)
-        bkd.assert_allclose(op.apply(x), bkd.dot(dense, x), rtol=1e-12)
-        bkd.assert_allclose(op.apply_transpose(y), bkd.dot(dense.T, y), rtol=1e-12)
+        bkd.assert_allclose(
+            case.array(op.apply(x)), bkd.dot(dense, case.array(x)), rtol=1e-12
+        )
+        bkd.assert_allclose(
+            case.array(op.apply_transpose(y)),
+            bkd.dot(dense.T, case.array(y)),
+            rtol=1e-12,
+        )
 
     def test_dot_identity(self, case: _Case) -> None:
         r"""<A x, y> = <x, A^T y>, the check that replaces independent
         transpose implementations."""
         bkd = case.bkd
         op = case.build(_random(3, 5, 4), _U, _P)
-        x, y = case.vec(5, 1, 5), case.vec(3, 1, 6)
-        lhs = bkd.sum(op.apply(x) * y)
-        rhs = bkd.sum(x * op.apply_transpose(y))
+        x, y = case.vec(_U, 1, 5), case.vec(_P, 1, 6)
+        lhs = bkd.sum(case.array(op.apply(x)) * case.array(y))
+        rhs = bkd.sum(case.array(x) * case.array(op.apply_transpose(y)))
         bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
 
     def test_apply_with_out(self, case: _Case) -> None:
         bkd = case.bkd
         op = case.build(_random(3, 5, 7), _U, _P)
-        x = case.vec(5, 2, 8)
-        out = bkd.zeros((3, 2))
+        x = case.vec(_U, 2, 8)
+        out = case.vector(bkd.zeros((3, 2)), _P)
         result = op.apply(x, out=out)
-        bkd.assert_allclose(result, op.apply(x), rtol=1e-12)
+        bkd.assert_allclose(
+            case.array(result), case.array(op.apply(x)), rtol=1e-12
+        )
         assert (result is out) == case.in_place
 
     def test_apply_never_aliases_its_input(self, case: _Case) -> None:
         op = case.build(_spd(5, 9), _U)
-        x = case.vec(5, 1, 10)
+        x = case.vec(_U, 1, 10)
         with pytest.raises(ValueError, match="alias"):
             op.apply(x, out=x)
         with pytest.raises(ValueError, match="alias"):
             op.apply_transpose(x, out=x)
 
-    def test_rejects_wrong_input_shape(self, case: _Case) -> None:
+    def test_rejects_input_of_another_space(self, case: _Case) -> None:
+        """An array stack sees the wrong row count; the mock also sees the
+        wrong space. A 1-D array is not a block of any stack (the mock
+        refuses anything that is not its own vector)."""
         op = case.build(_random(3, 5, 11), _U, _P)
-        with pytest.raises(ValueError, match="ncols"):
-            op.apply(case.vec(3, 1, 12))
-        with pytest.raises(ValueError, match="ncols"):
+        with pytest.raises(ValueError):
+            op.apply(case.vec(_P, 1, 12))
+        with pytest.raises((ValueError, TypeError)):
             op.apply(case.bkd.zeros((5,)))
-        with pytest.raises(ValueError, match="ncols"):
-            op.apply_transpose(case.vec(5, 1, 13))
+        with pytest.raises(ValueError):
+            op.apply_transpose(case.vec(_U, 1, 13))
 
     def test_rejects_matrix_shape_disagreeing_with_layouts(self, case: _Case) -> None:
         with pytest.raises(ValueError, match="range.size, domain.size"):
@@ -90,7 +102,7 @@ class TestStoredOperatorConformance:
     def test_diagonal_matches_the_matrix(self, case: _Case) -> None:
         bkd = case.bkd
         matrix = _random(5, 5, 15)
-        diagonal = case.build(matrix, _U).diagonal()
+        diagonal = case.array(case.build(matrix, _U).diagonal())
         assert tuple(diagonal.shape) == (5, 1)
         # np.diag returns a read-only view, which torch warns about.
         bkd.assert_allclose(diagonal, bkd.asarray(np.diag(matrix).copy()[:, None]))
@@ -106,25 +118,25 @@ class TestStoredOperatorConformance:
         assert ident.properties() == OperatorProperties(
             symmetric=True, spd=True, diagonal=True, identity=True
         )
-        x = case.vec(5, 3, 17)
-        bkd.assert_allclose(ident.apply(x), x)
-        bkd.assert_allclose(ident.diagonal(), bkd.ones((5, 1)))
+        x = case.vec(_U, 3, 17)
+        bkd.assert_allclose(case.array(ident.apply(x)), case.array(x))
+        bkd.assert_allclose(case.array(ident.diagonal()), bkd.ones((5, 1)))
 
     def test_from_diagonal(self, case: _Case) -> None:
         bkd = case.bkd
         d = bkd.asarray(np.arange(1.0, 6.0)[:, None])
-        op = case.from_diagonal(d, _U)
+        op = case.from_diagonal(case.vector(d, _U), _U)
         assert isinstance(op.format(), case.format_type)
         props = op.properties()
         assert props.diagonal and props.symmetric and props.spd
         assert not props.identity
-        x = case.vec(5, 2, 18)
-        bkd.assert_allclose(op.apply(x), d * x, rtol=1e-12)
-        bkd.assert_allclose(op.diagonal(), d)
-        negative = case.from_diagonal(-d, _U)
+        x = case.vec(_U, 2, 18)
+        bkd.assert_allclose(case.array(op.apply(x)), d * case.array(x), rtol=1e-12)
+        bkd.assert_allclose(case.array(op.diagonal()), d)
+        negative = case.from_diagonal(case.vector(-d, _U), _U)
         assert not negative.properties().spd
         with pytest.raises(ValueError, match="single vector"):
-            case.from_diagonal(bkd.ones((5, 2)), _U)
+            case.from_diagonal(case.vector(bkd.ones((5, 2)), _U), _U)
 
     def test_verifies_declared_properties(self, case: _Case) -> None:
         symmetric = OperatorProperties(symmetric=True)

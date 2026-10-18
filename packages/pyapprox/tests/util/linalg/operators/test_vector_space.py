@@ -1,10 +1,11 @@
-"""Conformance tests for the vector spaces of the NumPy and backend stacks.
+"""Conformance tests for the vector space of every stack.
 
-Every test of the protocol runs on each stack: the NumPy stack (writes
-into ``out``) and the backend space on NumPy and Torch (ignores ``out``).
+Every test of the protocol runs on each stack of the shared ``case``
+fixture: the NumPy stack (writes into ``out``), the backend space on
+NumPy and Torch (ignores ``out``) and the opaque mock (writes into
+``out``; read only through ``case.array``).
 """
 
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -15,100 +16,84 @@ from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.backend_dense import BackendVectorSpace
 from pyapprox.util.linalg.operators import SpaceDescriptor, VectorSpaceProtocol
 from pyapprox.util.linalg.scipy_stack import NumpyVectorSpace
+from tests._helpers.operator_stacks import StackCase as _Case
 
 _N = 6
 _DESCRIPTOR = SpaceDescriptor("x", _N)
 
 
-@dataclass
-class _Case:
-    space: VectorSpaceProtocol[Any, Any]
-    bkd: Backend[Any]
-    in_place: bool
-
-    def vec(self, ncols: int, seed: int) -> Any:
-        rng = np.random.default_rng(seed)
-        return self.bkd.asarray(rng.normal(size=(_N, ncols)))
-
-
-@pytest.fixture(params=["numpy-stack", "backend-numpy", "backend-torch"])
-def case(request: pytest.FixtureRequest) -> _Case:
-    if request.param == "numpy-stack":
-        return _Case(NumpyVectorSpace(_DESCRIPTOR), NumpyBkd(), True)
-    fixture = "numpy_bkd" if request.param == "backend-numpy" else "torch_bkd"
-    bkd = request.getfixturevalue(fixture)
-    return _Case(BackendVectorSpace(_DESCRIPTOR, bkd), bkd, False)
-
-
 class TestVectorSpaceConformance:
     def test_satisfies_protocol(self, case: _Case) -> None:
-        assert isinstance(case.space, VectorSpaceProtocol)
-        assert case.space.descriptor() == _DESCRIPTOR
+        space = case.space(_DESCRIPTOR)
+        assert isinstance(space, VectorSpaceProtocol)
+        assert space.descriptor() == _DESCRIPTOR
 
     def test_zeros(self, case: _Case) -> None:
-        space, bkd = case.space, case.bkd
+        space, bkd = case.space(_DESCRIPTOR), case.bkd
         x = space.zeros()
         assert space.ncols(x) == 1
         assert space.ncols(space.zeros(3)) == 3
-        assert space.ncols(space.zeros_like(case.vec(4, 0))) == 4
+        assert space.ncols(space.zeros_like(case.vec(_DESCRIPTOR, 4, 0))) == 4
         bkd.assert_allclose(space.norm(x), bkd.zeros((1, 1)))
 
     def test_reduction_shapes_and_values(self, case: _Case) -> None:
         """dot is (kx, ky) and norm is (1, k), replicated small arrays."""
-        space, bkd = case.space, case.bkd
-        x, y = case.vec(3, 1), case.vec(2, 2)
+        space, bkd = case.space(_DESCRIPTOR), case.bkd
+        x, y = case.vec(_DESCRIPTOR, 3, 1), case.vec(_DESCRIPTOR, 2, 2)
+        xa, ya = case.array(x), case.array(y)
         dot = space.dot(x, y)
         assert tuple(dot.shape) == (3, 2)
-        bkd.assert_allclose(dot, bkd.dot(x.T, y), rtol=1e-12)
+        bkd.assert_allclose(dot, bkd.dot(xa.T, ya), rtol=1e-12)
         norm = space.norm(x)
         assert tuple(norm.shape) == (1, 3)
         bkd.assert_allclose(
-            norm, bkd.sqrt(bkd.sum(x * x, axis=0, keepdims=True)), rtol=1e-12
+            norm, bkd.sqrt(bkd.sum(xa * xa, axis=0, keepdims=True)), rtol=1e-12
         )
-        assert tuple(space.dot(x[:, :1], y[:, :1]).shape) == (1, 1)
-        assert tuple(space.norm(y[:, :1]).shape) == (1, 1)
+        single = case.vec(_DESCRIPTOR, 1, 3)
+        assert tuple(space.dot(single, single).shape) == (1, 1)
+        assert tuple(space.norm(single).shape) == (1, 1)
 
     def test_axpby_without_out(self, case: _Case) -> None:
-        space, bkd = case.space, case.bkd
-        x, y = case.vec(2, 3), case.vec(2, 4)
-        y0 = bkd.copy(y)
+        space = case.space(_DESCRIPTOR)
+        x, y = case.vec(_DESCRIPTOR, 2, 3), case.vec(_DESCRIPTOR, 2, 4)
+        y0 = case.array(y)
         result = space.axpby(2.0, x, -3.0, y)
-        bkd.assert_allclose(result, 2.0 * x - 3.0 * y0, rtol=1e-12)
-        bkd.assert_allclose(y, y0)
+        case.assert_vector(result, 2.0 * case.array(x) - 3.0 * y0, rtol=1e-12)
+        case.assert_vector(y, y0)
         assert result is not y
 
     def test_axpby_into_accumulating_operand(self, case: _Case) -> None:
         """out may be y; callers use the returned value either way."""
-        space, bkd = case.space, case.bkd
-        x, y = case.vec(2, 5), case.vec(2, 6)
-        expected = 0.5 * x + 4.0 * y
+        space = case.space(_DESCRIPTOR)
+        x, y = case.vec(_DESCRIPTOR, 2, 5), case.vec(_DESCRIPTOR, 2, 6)
+        expected = 0.5 * case.array(x) + 4.0 * case.array(y)
         y = space.axpby(0.5, x, 4.0, y, out=y)
-        bkd.assert_allclose(y, expected, rtol=1e-12)
+        case.assert_vector(y, expected, rtol=1e-12)
 
     def test_axpby_into_separate_buffer(self, case: _Case) -> None:
-        space, bkd = case.space, case.bkd
-        x, y = case.vec(1, 7), case.vec(1, 8)
+        space = case.space(_DESCRIPTOR)
+        x, y = case.vec(_DESCRIPTOR, 1, 7), case.vec(_DESCRIPTOR, 1, 8)
         out = space.zeros()
         result = space.axpby(1.0, x, 1.0, y, out=out)
-        bkd.assert_allclose(result, x + y, rtol=1e-12)
+        case.assert_vector(result, case.array(x) + case.array(y), rtol=1e-12)
         assert (result is out) == case.in_place
 
     def test_scale_and_copy(self, case: _Case) -> None:
-        space, bkd = case.space, case.bkd
-        x = case.vec(2, 9)
-        expected = -2.0 * x
+        space = case.space(_DESCRIPTOR)
+        x = case.vec(_DESCRIPTOR, 2, 9)
+        expected = -2.0 * case.array(x)
         out = space.zeros(2)
         copied = space.copy(x, out=out)
-        bkd.assert_allclose(copied, x)
+        case.assert_vector(copied, case.array(x))
         assert (copied is out) == case.in_place
         copied = space.scale(-2.0, copied, out=copied)
-        bkd.assert_allclose(copied, expected, rtol=1e-12)
-        bkd.assert_allclose(space.copy(x), x)
+        case.assert_vector(copied, expected, rtol=1e-12)
+        case.assert_vector(space.copy(x), case.array(x))
 
     def test_aliasing_rules(self, case: _Case) -> None:
         """out may be the accumulating operand, never another operand."""
-        space = case.space
-        x, y = case.vec(1, 12), case.vec(1, 13)
+        space = case.space(_DESCRIPTOR)
+        x, y = case.vec(_DESCRIPTOR, 1, 12), case.vec(_DESCRIPTOR, 1, 13)
         with pytest.raises(ValueError, match="alias"):
             space.axpby(1.0, x, 1.0, y, out=x)
         with pytest.raises(ValueError, match="alias"):
@@ -116,16 +101,20 @@ class TestVectorSpaceConformance:
         with pytest.raises(ValueError, match="alias"):
             space.copy(x, out=x)
         # x is y without out is a plain functional call.
-        case.bkd.assert_allclose(space.axpby(1.0, y, 1.0, y), 2.0 * y)
+        case.assert_vector(space.axpby(1.0, y, 1.0, y), 2.0 * case.array(y))
 
     def test_rejects_wrong_shapes(self, case: _Case) -> None:
-        space, bkd = case.space, case.bkd
-        with pytest.raises(ValueError, match="ncols"):
+        """A 1-D or wrong-length array is not a block of the space (the
+        mock refuses anything that is not its own vector)."""
+        space, bkd = case.space(_DESCRIPTOR), case.bkd
+        with pytest.raises((ValueError, TypeError)):
             space.norm(bkd.zeros((_N,)))
-        with pytest.raises(ValueError, match="ncols"):
-            space.dot(bkd.zeros((_N + 1, 1)), case.vec(1, 14))
+        with pytest.raises((ValueError, TypeError)):
+            space.dot(bkd.zeros((_N + 1, 1)), case.vec(_DESCRIPTOR, 1, 14))
         with pytest.raises(ValueError, match="same shape"):
-            space.axpby(1.0, case.vec(1, 15), 1.0, case.vec(2, 16))
+            space.axpby(
+                1.0, case.vec(_DESCRIPTOR, 1, 15), 1.0, case.vec(_DESCRIPTOR, 2, 16)
+            )
 
 
 class TestNumpyVectorSpace:

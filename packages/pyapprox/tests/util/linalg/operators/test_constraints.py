@@ -44,15 +44,6 @@ def _keep(n: int, rows: list[int]) -> np.ndarray[Any, np.dtype[np.float64]]:
     return mask
 
 
-def _dot_identity(case: StackCase, op: Any, seed: int) -> None:
-    bkd = case.bkd
-    x = case.vec(op.domain().size, 1, seed)
-    y = case.vec(op.range().size, 1, seed + 1)
-    lhs = bkd.reshape(bkd.sum(op.apply(x) * y), (1,))
-    rhs = bkd.reshape(bkd.sum(x * op.apply_transpose(y)), (1,))
-    bkd.assert_allclose(lhs, rhs, rtol=1e-12)
-
-
 class TestRowSet:
     def test_satisfies_protocol_and_normalizes(self, case: StackCase) -> None:
         rows = case.rows(_U, _ROWS)
@@ -61,22 +52,21 @@ class TestRowSet:
         assert rows.descriptor() == _U
 
     def test_operations(self, case: StackCase) -> None:
-        bkd = case.bkd
         rows = case.rows(_U, _ROWS)
         keep = case.dense(_keep(5, [0, 3]))
-        x, y = case.vec(5, 2, 0), case.vec(5, 2, 1)
-        bkd.assert_allclose(rows.zero_rows(x), keep * x)
-        bkd.assert_allclose(rows.replace_rows(y, x), keep * y + (1 - keep) * x)
-        bkd.assert_allclose(rows.add_rows(y, x), y + (1 - keep) * x)
+        x, y = case.vec(_U, 2, 0), case.vec(_U, 2, 1)
+        xa, ya = case.array(x), case.array(y)
+        case.assert_vector(rows.zero_rows(x), keep * xa)
+        case.assert_vector(rows.replace_rows(y, x), keep * ya + (1 - keep) * xa)
+        case.assert_vector(rows.add_rows(y, x), ya + (1 - keep) * xa)
 
     def test_out_and_aliasing(self, case: StackCase) -> None:
-        bkd = case.bkd
         rows = case.rows(_U, _ROWS)
         keep = case.dense(_keep(5, [0, 3]))
-        x, y = case.vec(5, 1, 2), case.vec(5, 1, 3)
-        expected = keep * y + (1 - keep) * x
+        x, y = case.vec(_U, 1, 2), case.vec(_U, 1, 3)
+        expected = keep * case.array(y) + (1 - keep) * case.array(x)
         result = rows.replace_rows(y, x, out=y)
-        bkd.assert_allclose(result, expected)
+        case.assert_vector(result, expected)
         assert (result is y) == case.in_place
         with pytest.raises(ValueError, match="alias"):
             rows.replace_rows(y, x, out=x)
@@ -84,11 +74,12 @@ class TestRowSet:
             rows.add_rows(y, x, out=x)
 
     def test_difference(self, case: StackCase) -> None:
-        bkd = case.bkd
         rows = case.rows(_U, [0, 1, 3]).difference(case.rows(_U, [1, 4]))
         assert rows.count() == 2
-        x = case.vec(5, 1, 4)
-        bkd.assert_allclose(rows.zero_rows(x), case.dense(_keep(5, [0, 3])) * x)
+        x = case.vec(_U, 1, 4)
+        case.assert_vector(
+            rows.zero_rows(x), case.dense(_keep(5, [0, 3])) * case.array(x)
+        )
         with pytest.raises(SpaceMismatchError):
             rows.difference(case.rows(SpaceDescriptor("v", 5), [0]))
 
@@ -106,25 +97,27 @@ class TestRowReplacedOperator:
         a = random_matrix(5, 5, 5)
         reference = case.dense(apply_dirichlet_rows(a, np.array([0, 3])))
         op = RowReplacedOperator(case.build(a, _U), case.rows(_U, _ROWS))
-        x = case.vec(5, 2, 6)
-        bkd.assert_allclose(op.apply(x), bkd.dot(reference, x), rtol=1e-12)
-        bkd.assert_allclose(op.apply_transpose(x), bkd.dot(reference.T, x), rtol=1e-12)
+        x = case.vec(_U, 2, 6)
+        case.assert_vector(op.apply(x), case.times(reference, x), rtol=1e-12)
+        case.assert_vector(
+            op.apply_transpose(x), case.times(reference.T, x), rtol=1e-12
+        )
         assert isinstance(op.format(), case.format_type)
         bkd.assert_allclose(case.format_dense(op.format()), reference)
-        _dot_identity(case, op, 7)
+        case.assert_dot_identity(op, 7)
 
     def test_apply_with_out(self, case: StackCase) -> None:
         bkd = case.bkd
         a = random_matrix(5, 5, 8)
         reference = case.dense(apply_dirichlet_rows(a, np.array([0, 3])))
         op = RowReplacedOperator(case.build(a, _U), case.rows(_U, _ROWS))
-        x = case.vec(5, 1, 9)
-        out = bkd.zeros((5, 1))
+        x = case.vec(_U, 1, 9)
+        out = case.vector(bkd.zeros((5, 1)), _U)
         result = op.apply(x, out=out)
-        bkd.assert_allclose(result, bkd.dot(reference, x), rtol=1e-12)
+        case.assert_vector(result, case.times(reference, x), rtol=1e-12)
         assert (result is out) == case.in_place
         result = op.apply_transpose(x, out=out)
-        bkd.assert_allclose(result, bkd.dot(reference.T, x), rtol=1e-12)
+        case.assert_vector(result, case.times(reference.T, x), rtol=1e-12)
 
     def test_clears_symmetry_unless_diagonal(self, case: StackCase) -> None:
         rows = case.rows(_U, _ROWS)
@@ -132,7 +125,7 @@ class TestRowReplacedOperator:
             case.build(spd_matrix(5, 10), _U, properties=_SPD), rows
         )
         assert spd.properties() == OperatorProperties()
-        d = case.dense(np.arange(1.0, 6.0)[:, None])
+        d = case.vector(case.dense(np.arange(1.0, 6.0)[:, None]), _U)
         diagonal = RowReplacedOperator(case.from_diagonal(d, _U), rows)
         assert diagonal.properties() == _DIAG_SPD
 
@@ -142,9 +135,9 @@ class TestRowReplacedOperator:
         stored = case.build(a, _U, properties=_SPD)
         op = RowReplacedOperator(stored, case.rows(_U, []))
         assert op.properties() == _SPD
-        x = case.vec(5, 2, 12)
-        bkd.assert_allclose(op.apply(x), stored.apply(x))
-        bkd.assert_allclose(op.apply_transpose(x), stored.apply_transpose(x))
+        x = case.vec(_U, 2, 12)
+        case.assert_vector(op.apply(x), case.array(stored.apply(x)))
+        case.assert_vector(op.apply_transpose(x), case.array(stored.apply_transpose(x)))
         bkd.assert_allclose(case.format_dense(op.format()), case.dense(a))
 
     def test_rejects_rectangular_and_foreign_rows(self, case: StackCase) -> None:
@@ -166,15 +159,17 @@ class TestRowsZeroedOperator:
         keep = _keep(3, [1])
         op = RowsZeroedOperator(case.build(a, _U, _P), case.rows(_P, [1]))
         reference = case.dense(keep * a)
-        x, y = case.vec(5, 2, 15), case.vec(3, 2, 16)
-        bkd.assert_allclose(op.apply(x), bkd.dot(reference, x), rtol=1e-12)
-        bkd.assert_allclose(op.apply_transpose(y), bkd.dot(reference.T, y), rtol=1e-12)
+        x, y = case.vec(_U, 2, 15), case.vec(_P, 2, 16)
+        case.assert_vector(op.apply(x), case.times(reference, x), rtol=1e-12)
+        case.assert_vector(
+            op.apply_transpose(y), case.times(reference.T, y), rtol=1e-12
+        )
         bkd.assert_allclose(case.format_dense(op.format()), reference)
         transposed = Transposed(op)
         bkd.assert_allclose(
             case.format_dense(transposed.format()), case.dense(a.T * keep.T)
         )
-        _dot_identity(case, op, 17)
+        case.assert_dot_identity(op, 17)
 
     def test_clears_spd(self, case: StackCase) -> None:
         rows = case.rows(_U, _ROWS)
@@ -182,7 +177,7 @@ class TestRowsZeroedOperator:
             case.build(spd_matrix(5, 18), _U, properties=_SPD), rows
         )
         assert spd.properties() == OperatorProperties()
-        d = case.dense(np.arange(1.0, 6.0)[:, None])
+        d = case.vector(case.dense(np.arange(1.0, 6.0)[:, None]), _U)
         diagonal = RowsZeroedOperator(case.from_diagonal(d, _U), rows)
         assert diagonal.properties() == OperatorProperties(
             symmetric=True, diagonal=True

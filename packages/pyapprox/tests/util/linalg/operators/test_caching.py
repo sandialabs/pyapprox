@@ -44,7 +44,6 @@ class TestCachingSolver:
         assert cache.capabilities() == case.direct_solver().capabilities()
 
     def test_equal_keys_share_one_setup(self, case: StackCase) -> None:
-        bkd = case.bkd
         cache = CachingSolver(case.direct_solver(), capacity=1)
         point = LinearizationPoint(0, ("step", 3))
         op = _snapshot(case, 1, point)
@@ -52,8 +51,8 @@ class TestCachingSolver:
         second = cache.setup(_snapshot(case, 1, point))
         assert second is first
         assert (cache.setups(), cache.hits()) == (1, 1)
-        b = case.vec(5, 1, 2)
-        bkd.assert_allclose(op.apply(second.apply(b)), b, rtol=1e-10)
+        b = case.vec(_U, 1, 2)
+        case.assert_vector(op.apply(second.apply(b)), case.array(b), rtol=1e-10)
 
     @pytest.mark.parametrize(
         "second",
