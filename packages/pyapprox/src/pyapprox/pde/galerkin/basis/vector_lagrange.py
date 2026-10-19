@@ -3,12 +3,15 @@
 Wraps scikit-fem ElementVector for multi-component problems like elasticity.
 """
 
-from typing import Any, Callable, Generic, Optional
+from typing import Generic, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.field_maps.vector_layout import InterleavedLayout
+from pyapprox.pde.galerkin.basis.element_dofs import skfem_element_dofs
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.protocols.basis import NodalFunction
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -16,6 +19,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 try:
     from skfem import Basis, ElementVector
     from skfem.element import (
+        Element,
         ElementHex1,
         ElementHex2,
         ElementLineP1,
@@ -90,7 +94,7 @@ class VectorLagrangeBasis(Generic[Array]):
         # Cache DOF locations
         self._dof_locs: Optional[Array] = None
 
-    def _select_element(self, mesh_type: str, degree: int) -> Any:
+    def _select_element(self, mesh_type: str, degree: int) -> Element:
         """Select skfem scalar element based on mesh type and polynomial degree."""
         # Handle both old (MeshLine) and new (MeshLine1) naming conventions
         base_type = mesh_type.rstrip("0123456789")
@@ -160,7 +164,7 @@ class VectorLagrangeBasis(Generic[Array]):
         """Return the scalar Lagrange basis for components."""
         return self._scalar_basis
 
-    def interpolate(self, func: Callable[..., Any]) -> Array:
+    def interpolate(self, func: NodalFunction) -> Array:
         """Interpolate a vector function onto the finite element space.
 
         Parameters
@@ -229,6 +233,11 @@ class VectorLagrangeBasis(Generic[Array]):
             self._dof_locs = self._bkd.asarray(dof_locs_np.astype(np.float64))
 
         return self._dof_locs
+
+    def element_dofs(self) -> NDArray[np.int64]:
+        """Return each element's DOFs, every component included.
+        Shape: (nelems, ncomponents * nodes_per_element)."""
+        return skfem_element_dofs(self._skfem_basis)
 
     def get_dofs(
         self,

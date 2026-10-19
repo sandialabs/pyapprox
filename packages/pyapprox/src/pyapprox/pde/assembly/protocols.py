@@ -42,6 +42,22 @@ F_co = TypeVar("F_co", covariant=True)
 # contravariant: I for DOF index arrays, L for element values.
 I_contra = TypeVar("I_contra", contravariant=True)
 L_contra = TypeVar("L_contra", contravariant=True)
+# A DOF map only flows out of its supplier.
+I_co = TypeVar("I_co", covariant=True)
+
+
+@runtime_checkable
+class ElementDofMapProtocol(Protocol, Generic[I_co]):
+    """Supplies each element's DOFs, from which a sink's pattern is built.
+
+    ``I_co`` is the index-array type, the stack's choice: a supplier and
+    a stack pair only when they agree on it.
+    """
+
+    def element_dofs(self) -> I_co:
+        """Each element's DOFs, one element per row, in assembly-space
+        numbering. Shape: (nelems, ndofs_per_element)."""
+        ...
 
 
 @runtime_checkable

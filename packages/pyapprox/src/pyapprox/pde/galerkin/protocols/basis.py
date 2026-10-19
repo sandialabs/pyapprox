@@ -8,6 +8,12 @@ from typing import Any, Callable, Generic, Optional, Protocol, runtime_checkable
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
+# A function given to ``interpolate``, from DOF coordinates of shape
+# (ndim, npts) to values. Today's bases hand it NumPy coordinates; the
+# intended contract is a backend function, ``Callable[[Array], Array]``,
+# once every caller is written against the backend.
+NodalFunction = Callable[..., Any]
+
 
 @runtime_checkable
 class GalerkinBasisProtocol(Protocol, Generic[Array]):
@@ -43,7 +49,7 @@ class GalerkinBasisProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def interpolate(self, func: Callable[..., Any]) -> Array:
+    def interpolate(self, func: NodalFunction) -> Array:
         """Interpolate a function onto the finite element space.
 
         Parameters

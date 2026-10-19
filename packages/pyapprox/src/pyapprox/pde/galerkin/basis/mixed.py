@@ -12,14 +12,37 @@ answers boundary-DOF queries in those global indices, so the ordinary
     DirichletBC(mixed.field("pressure"), "right", 0.0, bkd)
 """
 
-from typing import Generic, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
+import numpy as np
+from numpy.typing import NDArray
+
+from pyapprox.pde.assembly.protocols import ElementDofMapProtocol
 from pyapprox.pde.galerkin.protocols.basis import (
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
 )
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class MixedFieldBasisProtocol(
+    GalerkinBasisProtocol[Array],
+    ElementDofMapProtocol[NDArray[np.int64]],
+    Protocol[Array],
+):
+    """A field of a ``MixedBasis``: a basis that also supplies its element
+    DOF map as a NumPy index array, which ``MixedBasis`` concatenates."""
 
 
 class _ScalarFieldView(Generic[Array]):
@@ -95,7 +118,7 @@ class MixedBasis(Generic[Array]):
 
     Parameters
     ----------
-    fields : Sequence[Tuple[str, GalerkinBasisProtocol]]
+    fields : Sequence[Tuple[str, MixedFieldBasisProtocol]]
         ``(name, basis)`` pairs, in state-vector order. The bases must
         share one mesh. A basis whose DOFs carry components (a vector
         basis) gives a vector field view.
@@ -108,7 +131,7 @@ class MixedBasis(Generic[Array]):
     """
 
     def __init__(
-        self, fields: Sequence[Tuple[str, GalerkinBasisProtocol[Array]]]
+        self, fields: Sequence[Tuple[str, MixedFieldBasisProtocol[Array]]]
     ) -> None:
         if len(fields) == 0:
             raise ValueError("a MixedBasis needs at least one field")
@@ -177,6 +200,21 @@ class MixedBasis(Generic[Array]):
                 [basis.dof_coordinates() for basis in self._bases]
             )
         return self._dof_coords
+
+    def element_dofs(self) -> NDArray[np.int64]:
+        """Return each element's DOFs over every field, in global indices.
+
+        The fields share one mesh, so row ``e`` concatenates each field's
+        DOFs on element ``e``, shifted by the field's offset; the coupling
+        blocks between fields lie inside these rows' pattern.
+        Shape: (nelems, sum of the fields' ndofs_per_element).
+        """
+        return np.hstack(
+            [
+                basis.element_dofs() + offset
+                for basis, offset in zip(self._bases, self._offsets)
+            ]
+        )
 
     def __repr__(self) -> str:
         sizes = ", ".join(

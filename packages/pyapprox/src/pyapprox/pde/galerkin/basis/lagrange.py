@@ -3,10 +3,13 @@
 Wraps scikit-fem element and basis objects with backend abstraction.
 """
 
-from typing import Any, Callable, Generic, Optional, Tuple
+from typing import Generic, Optional, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
+from pyapprox.pde.galerkin.basis.element_dofs import skfem_element_dofs
+from pyapprox.pde.galerkin.protocols.basis import NodalFunction
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -14,6 +17,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 try:
     from skfem import Basis
     from skfem.element import (
+        Element,
         ElementHex1,
         ElementHex2,
         ElementLineP1,
@@ -78,7 +82,7 @@ class LagrangeBasis(Generic[Array]):
         # Cache DOF locations
         self._dof_locs: Optional[Array] = None
 
-    def _select_element(self, mesh_type: str, degree: int) -> Any:
+    def _select_element(self, mesh_type: str, degree: int) -> Element:
         """Select skfem element based on mesh type and polynomial degree."""
         # Handle both old (MeshLine) and new (MeshLine1) naming conventions
         # Strip trailing digits from mesh type names
@@ -133,7 +137,7 @@ class LagrangeBasis(Generic[Array]):
         """Return the underlying skfem Basis object."""
         return self._skfem_basis
 
-    def interpolate(self, func: Callable[..., Any]) -> Array:
+    def interpolate(self, func: NodalFunction) -> Array:
         """Interpolate a function onto the finite element space.
 
         Parameters
@@ -237,6 +241,10 @@ class LagrangeBasis(Generic[Array]):
                 self._dof_locs = self._bkd.asarray(dof_locs_np.astype(np.float64))
 
         return self._dof_locs
+
+    def element_dofs(self) -> NDArray[np.int64]:
+        """Return each element's DOFs. Shape: (nelems, ndofs_per_element)."""
+        return skfem_element_dofs(self._skfem_basis)
 
     def get_dofs(self, boundary_name: str) -> Array:
         """Return DOF indices on a named boundary.

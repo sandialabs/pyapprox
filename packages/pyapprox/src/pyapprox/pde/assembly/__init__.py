@@ -4,6 +4,7 @@ from pyapprox.pde.assembly.protocols import (
     AssemblyStackProtocol,
     BulkMatrixSinkProtocol,
     BulkVectorSinkProtocol,
+    ElementDofMapProtocol,
     MatrixSinkProtocol,
     VectorSinkProtocol,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "AssemblyStackProtocol",
     "BulkMatrixSinkProtocol",
     "BulkVectorSinkProtocol",
+    "ElementDofMapProtocol",
     "MatrixSinkProtocol",
     "ScipyAssemblyStack",
     "ScipyMatrixSink",

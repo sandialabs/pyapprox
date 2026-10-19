@@ -5,10 +5,13 @@ as the Euler-Bernoulli beam, whose weak form needs continuous first
 derivatives.
 """
 
-from typing import Any, Callable, Generic, Optional
+from typing import Generic, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
+from pyapprox.pde.galerkin.basis.element_dofs import skfem_element_dofs
+from pyapprox.pde.galerkin.protocols.basis import NodalFunction
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -95,7 +98,7 @@ class CubicHermiteBasis(Generic[Array]):
         """Return the underlying skfem Basis object."""
         return self._skfem_basis
 
-    def interpolate(self, func: Callable[..., Any]) -> Array:
+    def interpolate(self, func: NodalFunction) -> Array:
         """Interpolate a function from its values and slopes at the nodes.
 
         Parameters
@@ -195,6 +198,11 @@ class CubicHermiteBasis(Generic[Array]):
                 np.asarray(self._skfem_basis.doflocs, dtype=np.float64)
             )
         return self._dof_locs
+
+    def element_dofs(self) -> NDArray[np.int64]:
+        """Return each element's DOFs, values and slopes of both nodes.
+        Shape: (nelems, 4)."""
+        return skfem_element_dofs(self._skfem_basis)
 
     def __repr__(self) -> str:
         return f"CubicHermiteBasis(ndofs={self.ndofs()})"

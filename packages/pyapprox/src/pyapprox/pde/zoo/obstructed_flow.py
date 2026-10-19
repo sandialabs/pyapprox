@@ -22,19 +22,20 @@ Provides:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
     from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+    from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
     from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-    from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -238,7 +239,7 @@ def solve_obstructed_stokes(
 
     vel_basis = VectorLagrangeBasis(mesh, degree=2)
     pres_basis = LagrangeBasis(mesh, degree=1)
-    fields: List[Tuple[str, GalerkinBasisProtocol[Array]]] = [
+    fields: List[Tuple[str, MixedFieldBasisProtocol[Array]]] = [
         ("velocity", vel_basis),
         ("pressure", pres_basis),
     ]
@@ -281,7 +282,7 @@ def extract_velocity_callable(
     pres_basis: "LagrangeBasis[Array]",
     adr_basis: "LagrangeBasis[Array]",
     bkd: Backend[Array],
-    probes_cache: Optional[Dict[int, Any]] = None,
+    probes_cache: Optional[Dict[int, csr_matrix]] = None,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Extract velocity from a Stokes solution as a callable field.
 
@@ -326,7 +327,7 @@ def extract_velocity_callable(
     # The matrix depends only on the mesh and the evaluation points
     # (quadrature coords), which are identical across all time steps
     # and Newton iterations for a given basis.
-    cache: Dict[int, Any] = probes_cache if probes_cache is not None else {}
+    cache: Dict[int, csr_matrix] = probes_cache if probes_cache is not None else {}
 
     def velocity_field(x: np.ndarray) -> np.ndarray:
         orig_shape = x.shape[1:]
