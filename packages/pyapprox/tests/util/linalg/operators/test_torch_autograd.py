@@ -14,6 +14,10 @@ pytest.importorskip("torch")
 import torch
 
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.linalg.backend_block_diagonal import (
+    BackendBlockDiagonalOperator,
+    BlockDiagonalLU,
+)
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendDenseOperator,
@@ -95,3 +99,28 @@ class TestTorchAutograd:
         b, y = _random_pair(17, 5, 5)
         (grad,) = torch.autograd.grad(torch.sum(y * handle.apply(b)), b)
         bkd.assert_allclose(grad, handle.apply_transpose(y), rtol=1e-10)
+
+    def test_block_diagonal_solve(self, torch_bkd: TorchBkd) -> None:
+        """The derivative of a batched block solve with respect to the
+        blocks equals that of a dense solve with the block-diagonal
+        matrix."""
+        bkd = torch_bkd
+        space = SpaceDescriptor("w", 6)
+        rng = np.random.default_rng(18)
+        blocks = bkd.asarray(rng.normal(size=(3, 2, 2)) + 3.0 * np.eye(2))
+        b = bkd.asarray(rng.normal(size=(6, 1)))
+
+        def block_solve(stored: torch.Tensor) -> torch.Tensor:
+            op = BackendBlockDiagonalOperator(stored, space, bkd)
+            return BlockDiagonalLU(bkd).setup(op).apply(b)[:, 0]
+
+        def dense_solve(stored: torch.Tensor) -> torch.Tensor:
+            # The block-diagonal matrix, entry ((i, a), (j, b)) = d_ij B_i[a, b].
+            dense = bkd.reshape(bkd.einsum("ij,iab->iajb", bkd.eye(3), stored), (6, 6))
+            return bkd.solve(dense, b)[:, 0]
+
+        bkd.assert_allclose(
+            bkd.jacobian(block_solve, blocks),
+            bkd.jacobian(dense_solve, blocks),
+            rtol=1e-12,
+        )

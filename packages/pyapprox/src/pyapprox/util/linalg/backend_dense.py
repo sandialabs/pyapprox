@@ -39,16 +39,23 @@ def _all_finite(x: Array, bkd: Backend[Array]) -> bool:
     return bkd.to_int(bkd.sum(bkd.isfinite(x))) == nentries
 
 
-def _require_backend_dtype(
+def backend_dtype_name(bkd: Backend[Array]) -> str:
+    """The name of the backend's configured dtype, as a descriptor names it.
+
+    Read from a one-element array, so any backend that reports its
+    default dtype works, whatever its dtype objects are.
+    """
+    return bkd.to_numpy(bkd.zeros((1,), dtype=bkd.default_dtype())).dtype.name
+
+
+def require_backend_dtype(
     descriptor: SpaceDescriptor, bkd: Backend[Array], what: str
 ) -> None:
     """Refuse a space whose dtype is not the backend's configured dtype.
 
-    The dtype name is read from a one-element array, so any backend that
-    reports its default dtype works, whatever its dtype objects are.
     Arrays are then allocated with ``bkd.default_dtype()`` itself.
     """
-    name = bkd.to_numpy(bkd.zeros((1,), dtype=bkd.default_dtype())).dtype.name
+    name = backend_dtype_name(bkd)
     if descriptor.dtype != name:
         raise ValueError(
             f"{what}: descriptor dtype {descriptor.dtype!r} differs from the "
@@ -92,7 +99,7 @@ class BackendVectorSpace(Generic[Array]):
     """
 
     def __init__(self, descriptor: SpaceDescriptor, bkd: Backend[Array]) -> None:
-        _require_backend_dtype(descriptor, bkd, "BackendVectorSpace")
+        require_backend_dtype(descriptor, bkd, "BackendVectorSpace")
         self._descriptor = descriptor
         self._bkd = bkd
 
@@ -207,7 +214,7 @@ class BackendRowSet(Generic[Array]):
     def __init__(
         self, descriptor: SpaceDescriptor, rows: Sequence[int], bkd: Backend[Array]
     ) -> None:
-        _require_backend_dtype(descriptor, bkd, "BackendRowSet")
+        require_backend_dtype(descriptor, bkd, "BackendRowSet")
         indices = tuple(sorted({int(row) for row in rows}))
         if indices and (indices[0] < 0 or indices[-1] >= descriptor.size):
             raise ValueError(
@@ -364,8 +371,8 @@ class BackendDenseOperator(Generic[Array]):
         self._range = domain if range is None else range
         self._properties = OperatorProperties() if properties is None else properties
         self._bkd = bkd
-        _require_backend_dtype(self._domain, bkd, "BackendDenseOperator")
-        _require_backend_dtype(self._range, bkd, "BackendDenseOperator")
+        require_backend_dtype(self._domain, bkd, "BackendDenseOperator")
+        require_backend_dtype(self._range, bkd, "BackendDenseOperator")
         shape = tuple(matrix.shape)
         if shape != (self._range.size, self._domain.size):
             raise ValueError(
