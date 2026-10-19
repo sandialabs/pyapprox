@@ -27,6 +27,7 @@ from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from scipy.sparse import spmatrix
 
+from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -45,6 +46,8 @@ I_contra = TypeVar("I_contra", contravariant=True)
 L_contra = TypeVar("L_contra", contravariant=True)
 # A DOF map only flows out of its supplier.
 I_co = TypeVar("I_co", covariant=True)
+# A state only flows in to an assembler.
+Array_contra = TypeVar("Array_contra", bound=ArrayProtocol, contravariant=True)
 
 
 @runtime_checkable
@@ -211,4 +214,57 @@ class AssemblyStackProtocol(Protocol, Generic[V, F, I_contra, L_contra]):
     ) -> ActionOperatorProtocol[V, F]:
         r"""The stored :math:`P_r^\top A P_d` of an assembled operator,
         between the solve spaces of its range and domain."""
+        ...
+
+
+@runtime_checkable
+class BulkCapableMatrixSinkProtocol(
+    MatrixSinkProtocol[V, F_co, I_contra, L_contra],
+    Protocol[V, F_co, I_contra, L_contra],
+):
+    """A matrix sink that always accepts whole assembled matrices."""
+
+    def bulk(self) -> BulkMatrixSinkProtocol:
+        """The bulk capability, never ``None``."""
+        ...
+
+
+@runtime_checkable
+class BulkCapableAssemblyStackProtocol(
+    AssemblyStackProtocol[V, F, I_contra, L_contra],
+    Protocol[V, F, I_contra, L_contra],
+):
+    """A stack whose matrix sinks accept whole assembled matrices.
+
+    An assembler that produces a whole sparse matrix on one process
+    needs this, not just :class:`AssemblyStackProtocol`, so pairing it
+    with a stack that lacks the capability (a distributed one) is a type
+    error rather than a silent, unscalable fallback. Such stacks take
+    element-wise assembly instead.
+    """
+
+    def matrix_sink(
+        self,
+        range: SpaceDescriptor,
+        domain: SpaceDescriptor,
+        row_dofs: I_contra,
+        col_dofs: I_contra,
+    ) -> BulkCapableMatrixSinkProtocol[V, F, I_contra, L_contra]:
+        """A sink as in :class:`AssemblyStackProtocol`, with bulk adds."""
+        ...
+
+
+@runtime_checkable
+class JacobianAssemblerProtocol(Protocol[Array_contra, V, F_co]):
+    """Assembles a state Jacobian into a stack operator.
+
+    How the entries reach the stack (a whole matrix through a bulk sink,
+    or element blocks) is the assembler's own; it states what it needs
+    of the stack in its constructor's types.
+    """
+
+    def assemble_jacobian(
+        self, state: Array_contra, time: float
+    ) -> ActionOperatorProtocol[V, F_co]:
+        """The Jacobian at ``(state, time)``, independent of later calls."""
         ...

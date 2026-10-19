@@ -2,9 +2,12 @@
 
 from pyapprox.pde.assembly.protocols import (
     AssemblyStackProtocol,
+    BulkCapableAssemblyStackProtocol,
+    BulkCapableMatrixSinkProtocol,
     BulkMatrixSinkProtocol,
     BulkVectorSinkProtocol,
     ElementDofMapProtocol,
+    JacobianAssemblerProtocol,
     MatrixSinkProtocol,
     VectorSinkProtocol,
 )
@@ -16,9 +19,12 @@ from pyapprox.pde.assembly.scipy_stack import (
 
 __all__ = [
     "AssemblyStackProtocol",
+    "BulkCapableAssemblyStackProtocol",
+    "BulkCapableMatrixSinkProtocol",
     "BulkMatrixSinkProtocol",
     "BulkVectorSinkProtocol",
     "ElementDofMapProtocol",
+    "JacobianAssemblerProtocol",
     "MatrixSinkProtocol",
     "ScipyAssemblyStack",
     "ScipyMatrixSink",

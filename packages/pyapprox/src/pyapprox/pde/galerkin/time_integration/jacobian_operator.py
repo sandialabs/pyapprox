@@ -1,22 +1,21 @@
 """The Galerkin state Jacobian as an operator of an injected stack.
 
-``GalerkinJacobianOperator`` assembles the spatial Jacobian of a
-Galerkin system, with its essential rows zeroed, into a sink of an
-injected :class:`~pyapprox.pde.assembly.protocols.AssemblyStackProtocol`,
-so the result is an operator of that stack's own vector and format
-types. The sink's pattern is fixed once from the element DOF maps.
+``GalerkinJacobianOperator`` turns an injected
+:class:`~pyapprox.pde.assembly.protocols.JacobianAssemblerProtocol` into
+the state Jacobian with its essential rows zeroed, labeled with a
+linearization point. It works on any stack: how the entries reach the
+stack is the assembler's concern, and each assembler states what it
+needs of the stack in its own constructor's types.
 """
 
 from typing import Generic, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import spmatrix
 
 from pyapprox.pde.assembly.protocols import (
     AssemblyStackProtocol,
-    ElementDofMapProtocol,
-    MatrixSinkProtocol,
+    JacobianAssemblerProtocol,
 )
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
@@ -38,96 +37,96 @@ _Dofs = NDArray[np.int64]
 _Values = NDArray[np.float64]
 
 
-def require_sparse(matrix: Array) -> spmatrix:
-    """Return a Jacobian as the sparse matrix skfem assembles.
-
-    The spatial operators are typed as returning ``Array`` and return a
-    SciPy sparse matrix for skfem physics; this is the one place that
-    checks it.
+def check_state_space(
+    system: GalerkinTransientSystemProtocol[Array], descriptor: SpaceDescriptor
+) -> None:
+    """Check that ``descriptor`` can be the state space of ``system``.
 
     Raises
     ------
     TypeError
-        If ``matrix`` is not a SciPy sparse matrix.
+        If ``system`` does not satisfy ``GalerkinTransientSystemProtocol``.
+    ValueError
+        If ``descriptor`` does not have the system's number of states.
     """
-    if not isinstance(matrix, spmatrix):
+    if not isinstance(system, GalerkinTransientSystemProtocol):
         raise TypeError(
-            "the stack Jacobian needs the sparse Jacobian of an skfem "
-            f"physics, got {type(matrix).__name__}"
+            "system must satisfy GalerkinTransientSystemProtocol, "
+            f"got {type(system).__name__}"
         )
-    return matrix
+    if descriptor.size != system.nstates():
+        raise ValueError(
+            f"descriptor has size {descriptor.size}, the system "
+            f"{system.nstates()} states"
+        )
+
+
+def essential_rows(
+    system: GalerkinTransientSystemProtocol[Array],
+    stack: AssemblyStackProtocol[V, F, _Dofs, _Values],
+    descriptor: SpaceDescriptor,
+) -> RowSetProtocol[V]:
+    """The system's essential DOFs as a row set of ``stack``.
+
+    The constraint set gives its DOFs as a backend array; they are
+    converted to the stack's index type once, here, as integer data that
+    no derivative flows through.
+
+    Raises
+    ------
+    TypeError
+        If ``system`` or ``stack`` does not satisfy its protocol.
+    ValueError
+        If ``descriptor`` does not have the system's number of states.
+    """
+    check_state_space(system, descriptor)
+    if not isinstance(stack, AssemblyStackProtocol):
+        raise TypeError(
+            f"stack must satisfy AssemblyStackProtocol, got {type(stack).__name__}"
+        )
+    dofs: _Dofs = np.asarray(
+        system.bkd().to_numpy(system.constraint_set().dofs()), dtype=np.int64
+    )
+    return stack.row_set(descriptor, dofs)
 
 
 class GalerkinJacobianOperator(Generic[Array, V, F]):
-    r"""Assembles :math:`\partial F/\partial u`, essential rows zeroed,
-    into an injected stack.
+    """The state Jacobian with essential rows zeroed, on any stack.
 
     The essential rows are zeroed by
     :class:`~pyapprox.util.linalg.operators.RowsZeroedOperator` rather
     than in storage, so the stored operator is the plain assembled one.
-    The result is labeled with the given linearization point.
-
-    The constraint set gives its DOFs as a backend array; they are
-    converted to the stack's index type once, here, as integer data that
-    no derivative flows through. Assembly goes through skfem and SciPy,
-    so the operator is not differentiable through.
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
-        The composed system whose Jacobian is assembled.
-    stack : AssemblyStackProtocol
-        Where the operator is built.
-    dof_map : ElementDofMapProtocol
-        The element DOF maps of the system's state, which fix the sink's
-        pattern (the system's basis).
-    descriptor : SpaceDescriptor
-        The state space: the operator's domain and range.
+    assembler : JacobianAssemblerProtocol
+        Produces the assembled Jacobian.
+    rows : RowSetProtocol
+        The essential rows, of the assembler's stack (see
+        :func:`essential_rows`).
 
     Raises
     ------
     TypeError
         If an argument does not satisfy its protocol.
-    ValueError
-        If ``descriptor`` does not have the system's number of states.
     """
 
     def __init__(
         self,
-        system: GalerkinTransientSystemProtocol[Array],
-        stack: AssemblyStackProtocol[V, F, _Dofs, _Values],
-        dof_map: ElementDofMapProtocol[_Dofs],
-        descriptor: SpaceDescriptor,
+        assembler: JacobianAssemblerProtocol[Array, V, F],
+        rows: RowSetProtocol[V],
     ) -> None:
-        if not isinstance(system, GalerkinTransientSystemProtocol):
+        if not isinstance(assembler, JacobianAssemblerProtocol):
             raise TypeError(
-                "system must satisfy GalerkinTransientSystemProtocol, "
-                f"got {type(system).__name__}"
+                "assembler must satisfy JacobianAssemblerProtocol, "
+                f"got {type(assembler).__name__}"
             )
-        if not isinstance(stack, AssemblyStackProtocol):
+        if not isinstance(rows, RowSetProtocol):
             raise TypeError(
-                f"stack must satisfy AssemblyStackProtocol, got {type(stack).__name__}"
+                f"rows must satisfy RowSetProtocol, got {type(rows).__name__}"
             )
-        if not isinstance(dof_map, ElementDofMapProtocol):
-            raise TypeError(
-                "dof_map must satisfy ElementDofMapProtocol, "
-                f"got {type(dof_map).__name__}"
-            )
-        if descriptor.size != system.nstates():
-            raise ValueError(
-                f"descriptor has size {descriptor.size}, the system "
-                f"{system.nstates()} states"
-            )
-        self._spatial_operator = system.spatial_operator()
-        dofs = dof_map.element_dofs()
-        self._sink: MatrixSinkProtocol[V, F, _Dofs, _Values] = stack.matrix_sink(
-            descriptor, descriptor, dofs, dofs
-        )
-        constraint_set = system.constraint_set()
-        essential: _Dofs = np.asarray(
-            system.bkd().to_numpy(constraint_set.dofs()), dtype=np.int64
-        )
-        self._rows: RowSetProtocol[V] = stack.row_set(descriptor, essential)
+        self._assembler = assembler
+        self._rows = rows
 
     def jacobian_operator(
         self, state: Array, time: float, point: LinearizationPoint
@@ -148,23 +147,8 @@ class GalerkinJacobianOperator(Generic[Array, V, F]):
         LinearizedOperator
             The operator, independent of later calls.
         """
-        matrix = require_sparse(self._spatial_operator.spatial_jacobian(state, time))
-        sink = self._sink
-        sink.zero()
-        bulk = sink.bulk()
-        if bulk is not None:
-            bulk.add_assembled(matrix)
-        else:
-            # Without a bulk capability the nonzeros go in as 1x1 element
-            # blocks; they lie in the pattern, as the assembled ones do.
-            coo = matrix.tocoo()
-            rows: _Dofs = np.asarray(coo.row, dtype=np.int64)[:, None]
-            cols: _Dofs = np.asarray(coo.col, dtype=np.int64)[:, None]
-            values: _Values = np.asarray(coo.data, dtype=np.float64)[:, None, None]
-            sink.add_element_matrices(rows, cols, values)
-        return LinearizedOperator(
-            RowsZeroedOperator(sink.assemble(), self._rows), point
-        )
+        assembled = self._assembler.assemble_jacobian(state, time)
+        return LinearizedOperator(RowsZeroedOperator(assembled, self._rows), point)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(sink={self._sink!r})"
+        return f"{type(self).__name__}(assembler={self._assembler!r})"
