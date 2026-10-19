@@ -25,6 +25,7 @@ from pyapprox.util.linalg.operators.descriptor import (
     SpaceMismatchError,
 )
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
+from pyapprox.util.linalg.operators.krylov import GMRES, ConjugateGradient
 from pyapprox.util.linalg.operators.linearization import (
     JacobianSnapshotProtocol,
     LinearizationPoint,
@@ -52,6 +53,8 @@ from pyapprox.util.linalg.operators.solvers import (
 __all__ = [
     "ActionOperatorProtocol",
     "CachingSolver",
+    "ConjugateGradient",
+    "GMRES",
     "ReuseKey",
     "reuse_key",
     "DiagonalCapableProtocol",

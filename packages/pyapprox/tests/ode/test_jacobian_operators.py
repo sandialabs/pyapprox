@@ -19,11 +19,19 @@ from pyapprox.ode.matrix_free_jacobian_operator import (
 )
 from pyapprox.ode.protocols import JacobianOperatorProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseOperator,
+    BackendVectorSpace,
+    DenseFormat,
+)
 from pyapprox.util.linalg.operators import (
+    GMRES,
+    ActionOperatorProtocol,
+    FormatProtocol,
     JacobianSnapshotProtocol,
     LinearizationPoint,
     MatrixFree,
+    ScaledSum,
     SpaceDescriptor,
 )
 from tests._helpers.ode_models import LotkaVolterra
@@ -161,3 +169,27 @@ class TestMatrixFreeJacobianOperator:
 
         with pytest.raises(TypeError, match="JacobianActionProtocol"):
             MatrixFreeJacobianOperator(_MatrixOnly(), _Y)  # type: ignore[arg-type]
+
+
+class TestImplicitStepSolve:
+    def test_gmres_solves_the_matrix_free_newton_system(
+        self, bkd: Backend[Array]
+    ) -> None:
+        r""":math:`(I - \Delta t J) x = b` with the matrix-free Jacobian,
+        never forming :math:`J`, against a dense solve."""
+        dt = 0.1
+        model = LotkaVolterra(bkd)
+        y = _state(bkd)
+        jacobian = MatrixFreeJacobianOperator(model, _Y).jacobian_operator(
+            y, 0.0, _POINT
+        )
+        terms: list[tuple[float, ActionOperatorProtocol[Array, FormatProtocol]]] = [
+            (1.0, BackendDenseOperator.identity(_Y, bkd)),
+            (-dt, jacobian),
+        ]
+        newton = ScaledSum(terms, BackendVectorSpace(_Y, bkd))
+        b = bkd.asarray([[1.0], [-2.0]])
+        x, info = GMRES(BackendVectorSpace(_Y, bkd), bkd).setup(newton).solve(b)
+        assert info.converged
+        dense = bkd.eye(2, dtype=bkd.default_dtype()) - dt * model.jacobian(y, 0.0)
+        bkd.assert_allclose(x, bkd.solve(dense, b), rtol=1e-9)
