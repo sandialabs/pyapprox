@@ -11,16 +11,18 @@ parameter given once where vectors or matrices are created
 stack meets must name the same type.
 """
 
-from typing import Generic, Optional, Sequence, TypeVar, Union
+from abc import abstractmethod
+from typing import Any, Generic, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix, diags, issparse, spmatrix
 from scipy.sparse import identity as sparse_identity
-from scipy.sparse.linalg import SuperLU, splu
+from scipy.sparse.linalg import LinearOperator, SuperLU, cg, gmres, splu
 
 from pyapprox.util.linalg.operators.algebra import Transposed
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
+from pyapprox.util.linalg.operators.formats import FormatProtocol
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -41,6 +43,11 @@ S = TypeVar("S", np.float32, np.float64, np.complex64, np.complex128)
 H = TypeVar("H", bound=NDArray[np.generic])
 # The vector type of a row set given to a row edit; see FormatProtocol.
 W = TypeVar("W")
+# The format of an operator a Krylov solver applies but does not inspect.
+G = TypeVar("G", bound=FormatProtocol)
+# A vector block of any of the stack's scalar types, for the Krylov handles,
+# which never depend on which: the dtype truly varies.
+_Block = NDArray[Any]
 
 _SYMMETRY_RTOL = 1e-12
 
@@ -648,3 +655,243 @@ def _verify_csr_properties(csr: csr_matrix, properties: OperatorProperties) -> N
             raise ValueError("matrix declared diagonal has off-diagonal nonzeros")
     if properties.identity and not np.all(csr.diagonal() == 1):
         raise ValueError("matrix declared identity has a diagonal entry other than 1")
+
+
+class _ScipyKrylovHandle(SolverHandleBase[_Block], Generic[G]):
+    """What the SciPy Krylov handles share: the operator as a SciPy
+    ``LinearOperator``, the checks, the true-residual test and the
+    report. A subclass runs its SciPy method."""
+
+    def __init__(
+        self, op: ActionOperatorProtocol[_Block, G], tol: float, maxiter: int
+    ) -> None:
+        super().__init__(op)
+        self._op: ActionOperatorProtocol[_Block, G] = op
+        self._tol = tol
+        self._maxiter = maxiter
+        size = op.domain().size
+        self._linear: LinearOperator = LinearOperator(
+            (size, size), matvec=self._matvec, dtype=np.dtype(op.domain().dtype)
+        )
+
+    def _matvec(self, v: _Block) -> _Block:
+        return self._op.apply(v.reshape(-1, 1))[:, 0]
+
+    def solve(
+        self,
+        rhs: _Block,
+        tol: Optional[float] = None,
+        x0: Optional[_Block] = None,
+    ) -> tuple[_Block, SolveInfo]:
+        r"""Solve :math:`A x = b`, to ``tol`` relative to :math:`\|b\|`.
+
+        Raises
+        ------
+        ValueError
+            If ``rhs`` or ``x0`` is not a single vector of the space.
+        """
+        _check_block(rhs, self.domain(), "rhs")
+        if rhs.shape[1] != 1:
+            raise ValueError(
+                f"{type(self).__name__} solves one right-hand side at a time, "
+                f"got {rhs.shape[1]}"
+            )
+        if x0 is not None:
+            _check_block(x0, self.range(), "x0")
+            if x0.shape[1] != 1:
+                raise ValueError(f"x0 must be a single vector, got {x0.shape[1]}")
+        tolerance = self._tol if tol is None else tol
+        rhs_norm = float(np.linalg.norm(rhs))
+        if rhs_norm == 0.0:
+            return np.zeros_like(rhs), SolveInfo(True, 0, 0.0)
+        counter = [0]
+        start = None if x0 is None else x0[:, 0]
+        x = self._run(rhs[:, 0], start, tolerance, counter).reshape(-1, 1)
+        residual_norm = float(np.linalg.norm(rhs - self._op.apply(x)))
+        if not np.all(np.isfinite(x)) or not np.isfinite(residual_norm):
+            return x, SolveInfo(False, counter[0], message="non-finite iterate")
+        if residual_norm > tolerance * rhs_norm:
+            return x, SolveInfo(
+                False,
+                counter[0],
+                residual_norm,
+                f"relative residual {residual_norm / rhs_norm:.3e} above "
+                f"{tolerance:.1e} after {counter[0]} iterations",
+            )
+        return x, SolveInfo(True, counter[0], residual_norm)
+
+    @abstractmethod
+    def _run(
+        self,
+        b: _Block,
+        x0: Optional[_Block],
+        tol: float,
+        counter: list[int],
+    ) -> _Block:
+        """Run the SciPy method, counting iterations in ``counter[0]``."""
+        ...
+
+
+class _ScipyCGHandle(_ScipyKrylovHandle[G]):
+    def _run(
+        self,
+        b: _Block,
+        x0: Optional[_Block],
+        tol: float,
+        counter: list[int],
+    ) -> _Block:
+        def count(_: _Block) -> None:
+            counter[0] += 1
+
+        solution: _Block = cg(
+            self._linear,
+            b,
+            x0=x0,
+            rtol=tol,
+            atol=0.0,
+            maxiter=self._maxiter,
+            callback=count,
+        )[0]
+        return solution
+
+    def transpose(self) -> "_ScipyCGHandle[G]":
+        return _ScipyCGHandle(Transposed(self._op), self._tol, self._maxiter)
+
+
+class _ScipyGMRESHandle(_ScipyKrylovHandle[G]):
+    def __init__(
+        self,
+        op: ActionOperatorProtocol[_Block, G],
+        tol: float,
+        maxiter: int,
+        restart: int,
+    ) -> None:
+        super().__init__(op, tol, maxiter)
+        self._restart = restart
+
+    def _run(
+        self,
+        b: _Block,
+        x0: Optional[_Block],
+        tol: float,
+        counter: list[int],
+    ) -> _Block:
+        def count(_: float) -> None:
+            counter[0] += 1
+
+        # SciPy counts maxiter in restart cycles and cannot stop inside
+        # one; ours counts operator applications, so cycles are shortened
+        # to the limit and the limit rounds up to whole cycles.
+        restart = min(self._restart, self._maxiter)
+        cycles = -(-self._maxiter // restart)
+        solution: _Block = gmres(
+            self._linear,
+            b,
+            x0=x0,
+            rtol=tol,
+            atol=0.0,
+            restart=restart,
+            maxiter=cycles,
+            callback=count,
+            callback_type="pr_norm",
+        )[0]
+        return solution
+
+    def transpose(self) -> "_ScipyGMRESHandle[G]":
+        return _ScipyGMRESHandle(
+            Transposed(self._op), self._tol, self._maxiter, self._restart
+        )
+
+
+def _check_krylov_settings(tol: float, maxiter: int) -> None:
+    if tol <= 0.0 or maxiter < 1:
+        raise ValueError(f"need tol > 0 and maxiter >= 1, got {tol}, {maxiter}")
+
+
+class ScipyCG:
+    """SciPy's conjugate gradients, for the NumPy/SciPy stack.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.solvers.LinearSolverProtocol`
+    for every format: the operator reaches SciPy as a ``LinearOperator``
+    applying it, never as a matrix, so stored and matrix-free operators
+    are treated alike. Behaves as
+    :class:`~pyapprox.util.linalg.operators.ConjugateGradient`
+    (true-residual test, single right-hand sides, no symmetry check) with
+    SciPy's implementation of the iterations.
+
+    Parameters
+    ----------
+    tol : float, default 1e-10
+        Relative residual to reach.
+    maxiter : int, default 1000
+        Iteration limit.
+    """
+
+    def __init__(self, tol: float = 1e-10, maxiter: int = 1000) -> None:
+        _check_krylov_settings(tol, maxiter)
+        self._tol = tol
+        self._maxiter = maxiter
+
+    def capabilities(self) -> SolverCapabilities:
+        return SolverCapabilities(transpose=True)
+
+    def setup(
+        self, op: ActionOperatorProtocol[NDArray[S], G]
+    ) -> SolverHandleProtocol[NDArray[S]]:
+        require_square(op, "ScipyCG")
+        op.domain().require_same(op.range(), "range of the operator given to ScipyCG")
+        return _ScipyCGHandle(op, self._tol, self._maxiter)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(tol={self._tol}, maxiter={self._maxiter})"
+
+
+class ScipyGMRES:
+    """SciPy's restarted GMRES, for the NumPy/SciPy stack.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.solvers.LinearSolverProtocol`
+    for every format, as :class:`ScipyCG` does. Behaves as
+    :class:`~pyapprox.util.linalg.operators.GMRES` (true-residual test,
+    single right-hand sides, ``maxiter`` counting operator applications)
+    with SciPy's implementation of the iterations.
+
+    Parameters
+    ----------
+    tol : float, default 1e-10
+        Relative residual to reach.
+    maxiter : int, default 1000
+        Limit on operator applications, over all cycles, rounded up to a
+        whole number of cycles (SciPy cannot stop inside one).
+    restart : int, default 50
+        Basis size per cycle; at most ``maxiter``.
+    """
+
+    def __init__(
+        self, tol: float = 1e-10, maxiter: int = 1000, restart: int = 50
+    ) -> None:
+        _check_krylov_settings(tol, maxiter)
+        if restart < 1:
+            raise ValueError(f"need restart >= 1, got {restart}")
+        self._tol = tol
+        self._maxiter = maxiter
+        self._restart = restart
+
+    def capabilities(self) -> SolverCapabilities:
+        return SolverCapabilities(transpose=True)
+
+    def setup(
+        self, op: ActionOperatorProtocol[NDArray[S], G]
+    ) -> SolverHandleProtocol[NDArray[S]]:
+        require_square(op, "ScipyGMRES")
+        op.domain().require_same(
+            op.range(), "range of the operator given to ScipyGMRES"
+        )
+        return _ScipyGMRESHandle(op, self._tol, self._maxiter, self._restart)
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(tol={self._tol}, maxiter={self._maxiter}, "
+            f"restart={self._restart})"
+        )
