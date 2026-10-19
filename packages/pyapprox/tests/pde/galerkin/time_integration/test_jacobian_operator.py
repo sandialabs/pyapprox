@@ -23,6 +23,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix, spmatrix
 
+from pyapprox.ode.protocols import JacobianOperatorProtocol
 from pyapprox.pde.assembly import (
     ElementDofMapProtocol,
     JacobianAssemblerProtocol,
@@ -311,6 +312,12 @@ def _burgers_on_the_mock(
 
 
 class TestNonlinear:
+    def test_satisfies_the_ode_protocol(self, numpy_bkd: NumpyBkd) -> None:
+        """What a time stepper consumes, statically and at runtime."""
+        _, producer = _burgers_on_the_mock(numpy_bkd)
+        consumed: JacobianOperatorProtocol[_Np, MockVector, MockFormat] = producer
+        assert isinstance(consumed, JacobianOperatorProtocol)
+
     def test_action_is_the_residual_derivative(self, numpy_bkd: NumpyBkd) -> None:
         """Central difference of the residual: essential rows of the
         residual carry no state, so they differentiate to zero too."""

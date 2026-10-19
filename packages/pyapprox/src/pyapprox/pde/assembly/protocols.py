@@ -27,7 +27,7 @@ from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from scipy.sparse import spmatrix
 
-from pyapprox.util.backends.protocols import ArrayProtocol
+from pyapprox.util.backends.protocols import Array_contra
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -46,8 +46,6 @@ I_contra = TypeVar("I_contra", contravariant=True)
 L_contra = TypeVar("L_contra", contravariant=True)
 # A DOF map only flows out of its supplier.
 I_co = TypeVar("I_co", covariant=True)
-# A state only flows in to an assembler.
-Array_contra = TypeVar("Array_contra", bound=ArrayProtocol, contravariant=True)
 
 
 @runtime_checkable

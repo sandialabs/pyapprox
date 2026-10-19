@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 # Define generic types for arrays
 Array = TypeVar("Array", bound="ArrayProtocol")
 Array_co = TypeVar("Array_co", bound="ArrayProtocol", covariant=True)
+Array_contra = TypeVar("Array_contra", bound="ArrayProtocol", contravariant=True)
 
 # Input type for asarray/array — must be accepted by all backends
 ArrayLike = Union[
