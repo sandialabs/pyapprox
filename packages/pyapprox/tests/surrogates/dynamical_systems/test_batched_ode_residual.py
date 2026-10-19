@@ -7,6 +7,7 @@ from pyapprox.ode.linear_operator import (
     BlockDiagonalLinearOperator,
     LinearOperatorProtocol,
 )
+from pyapprox.ode.protocols import JacobianOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualProtocol,
 )
@@ -22,9 +23,22 @@ from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_block_diagonal import (
+    BackendBlockDiagonalOperator,
+    BlockDiagonalFormat,
+    BlockDiagonalLU,
+)
+from pyapprox.util.linalg.backend_dense import BackendVectorSpace
+from pyapprox.util.linalg.operators import (
+    JacobianSnapshotProtocol,
+    LinearizationPoint,
+    ScaledSum,
+)
 
 
-def _make_expansion(bkd, nvars, nqoi, max_level=3):
+def _make_expansion(
+    bkd: Backend[Array], nvars: int, nqoi: int, max_level: int = 3
+) -> BasisExpansion[Array]:
     marginals = [UniformMarginal(-3.0, 3.0, bkd) for _ in range(nvars)]
     bases_1d = create_bases_1d(marginals, bkd)
     indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
@@ -128,3 +142,72 @@ class TestBatchedBoundODEResidual:
         expansion = _make_expansion(bkd, nvars=2, nqoi=3)
         with pytest.raises(ValueError, match="nqoi"):
             BatchedBoundODEResidual(expansion, n_dynamic=2)
+
+
+def _four_trajectories(
+    bkd: Backend[Array],
+) -> tuple[BatchedBoundODEResidual[Array], Array]:
+    """Four parametric trajectories of two states each, and a state."""
+    expansion = _make_expansion(bkd, nvars=3, nqoi=2)
+    residual = BatchedBoundODEResidual(
+        expansion, n_dynamic=2, mu_batch=bkd.array([[0.5, 1.0, 1.5, 2.0]])
+    )
+    return residual, bkd.array(np.random.RandomState(13).randn(8))
+
+
+class TestBatchedJacobianOperator:
+    def test_satisfies_the_protocols(self, bkd: Backend[Array]) -> None:
+        residual, state = _four_trajectories(bkd)
+        producer: JacobianOperatorProtocol[Array, Array, BlockDiagonalFormat[Array]] = (
+            residual
+        )
+        assert isinstance(producer, JacobianOperatorProtocol)
+        point = LinearizationPoint(0, ("step", 2))
+        op = producer.jacobian_operator(state, 0.0, point)
+        assert isinstance(op, JacobianSnapshotProtocol)
+        assert op.linearization() == point
+        assert op.domain() == residual.state_descriptor()
+        snapshot = residual.jacobian_operator(state, 0.0, point)
+        assert (snapshot.nblocks(), snapshot.block_size()) == (4, 2)
+
+    def test_matches_the_dense_jacobian(self, bkd: Backend[Array]) -> None:
+        residual, state = _four_trajectories(bkd)
+        op = residual.jacobian_operator(state, 0.0, LinearizationPoint(0))
+        dense = residual.jacobian(state, 0.0)
+        x = bkd.array(np.random.RandomState(14).randn(8, 3))
+        bkd.assert_allclose(op.apply(x), bkd.dot(dense, x), rtol=1e-12)
+        bkd.assert_allclose(op.apply_transpose(x), bkd.dot(dense.T, x), rtol=1e-12)
+
+    def test_action_is_the_residual_derivative(self, bkd: Backend[Array]) -> None:
+        residual, state = _four_trajectories(bkd)
+        op = residual.jacobian_operator(state, 0.0, LinearizationPoint(0))
+        direction = bkd.array(np.random.RandomState(15).randn(8))
+        step = 1e-6
+        difference = (
+            residual(state + step * direction, 0.0)
+            - residual(state - step * direction, 0.0)
+        ) / (2 * step)
+        bkd.assert_allclose(
+            op.apply(direction[:, None])[:, 0], difference, rtol=1e-6, atol=1e-8
+        )
+
+    def test_newton_operator_factors_blockwise(self, bkd: Backend[Array]) -> None:
+        """I - c J built from operators stays block-diagonal, and its batched
+        LU solves as the existing block-diagonal Newton matrix does."""
+        residual, state = _four_trajectories(bkd)
+        descriptor = residual.state_descriptor()
+        coefficient = 0.05
+        jacobian = residual.jacobian_operator(state, 0.0, LinearizationPoint(0))
+        identity = BackendBlockDiagonalOperator(
+            bkd.stack([bkd.eye(2)] * 4), descriptor, bkd
+        )
+        newton = ScaledSum(
+            [(1.0, identity), (-coefficient, jacobian)],
+            BackendVectorSpace(descriptor, bkd),
+        )
+        handle = BlockDiagonalLU(bkd).setup(newton)
+        rhs = bkd.array(np.random.RandomState(16).randn(8, 1))
+        x, info = handle.solve(rhs)
+        assert info.converged
+        expected = residual.newton_jacobian(state, 0.0, coefficient).solve(rhs[:, 0])
+        bkd.assert_allclose(x[:, 0], expected, rtol=1e-12)

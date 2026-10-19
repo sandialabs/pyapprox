@@ -19,6 +19,46 @@ from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_block_diagonal import (
+    BackendBlockDiagonalOperator,
+)
+from pyapprox.util.linalg.backend_dense import backend_dtype_name
+from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
+
+
+class BlockDiagonalJacobianSnapshot(BackendBlockDiagonalOperator[Array]):
+    """A block-diagonal Jacobian operator that records where it was taken.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.JacobianSnapshotProtocol`; it
+    pairs with
+    :class:`~pyapprox.util.linalg.backend_block_diagonal.BlockDiagonalLU`.
+
+    Parameters
+    ----------
+    blocks : Array
+        One Jacobian block per trajectory. Shape: (k, m, m)
+    descriptor : SpaceDescriptor
+        The state space: domain and range, of size ``k m``.
+    bkd : Backend
+        Computational backend.
+    point : LinearizationPoint
+        Where the Jacobian was taken.
+    """
+
+    def __init__(
+        self,
+        blocks: Array,
+        descriptor: SpaceDescriptor,
+        bkd: Backend[Array],
+        point: LinearizationPoint,
+    ) -> None:
+        super().__init__(blocks, descriptor, bkd)
+        self._point = point
+
+    def linearization(self) -> LinearizationPoint:
+        """Where the Jacobian was taken."""
+        return self._point
 
 
 class BatchedBoundODEResidual(Generic[Array]):
@@ -82,6 +122,9 @@ class BatchedBoundODEResidual(Generic[Array]):
             )
 
         self._mass = IdentityMassMatrix(n_dynamic * self._k, self._bkd)
+        self._descriptor = SpaceDescriptor(
+            "state", n_dynamic * self._k, backend_dtype_name(self._bkd)
+        )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -115,6 +158,29 @@ class BatchedBoundODEResidual(Generic[Array]):
         blocks = self._state_jacobian_blocks(state, time)
         op = BlockDiagonalLinearOperator(blocks, self._bkd)
         return op.as_matrix()
+
+    def state_descriptor(self) -> SpaceDescriptor:
+        """The state space: ``n_dynamic * k`` entries, trajectory after
+        trajectory, in the backend's configured dtype."""
+        return self._descriptor
+
+    def jacobian_operator(
+        self, state: Array, time: float, point: LinearizationPoint
+    ) -> BlockDiagonalJacobianSnapshot[Array]:
+        """df/dy as one block per trajectory, labeled with ``point``.
+
+        Satisfies :class:`~pyapprox.ode.protocols.JacobianOperatorProtocol`.
+        The trajectories are independent, so the Jacobian is
+        block-diagonal; keeping the blocks costs ``k m^2`` storage and a
+        ``k m^3`` solve, where the dense matrix of :meth:`jacobian` costs
+        ``(k m)^2`` and ``(k m)^3``.
+        """
+        return BlockDiagonalJacobianSnapshot(
+            self._state_jacobian_blocks(state, time),
+            self._descriptor,
+            self._bkd,
+            point,
+        )
 
     def newton_jacobian(
         self, state: Array, time: float, coefficient: float
