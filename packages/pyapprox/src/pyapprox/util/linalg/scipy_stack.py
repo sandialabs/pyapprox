@@ -11,7 +11,7 @@ parameter given once where vectors or matrices are created
 stack meets must name the same type.
 """
 
-from typing import Generic, Optional, Sequence, TypeVar
+from typing import Generic, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -231,7 +231,7 @@ class NumpyRowSet:
     ----------
     descriptor : SpaceDescriptor
         The space whose rows are selected.
-    rows : sequence of int
+    rows : sequence of int, or ndarray of int64
         Row indices; duplicates are removed and order is ignored.
 
     Raises
@@ -241,7 +241,11 @@ class NumpyRowSet:
         ``[0, descriptor.size)``.
     """
 
-    def __init__(self, descriptor: SpaceDescriptor, rows: Sequence[int]) -> None:
+    def __init__(
+        self,
+        descriptor: SpaceDescriptor,
+        rows: Union[Sequence[int], NDArray[np.int64]],
+    ) -> None:
         indices = np.unique(np.asarray(rows, dtype=np.intp))
         if indices.ndim != 1:
             raise ValueError(f"rows must be one-dimensional, got shape {indices.shape}")

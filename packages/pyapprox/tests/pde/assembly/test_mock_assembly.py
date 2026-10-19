@@ -16,7 +16,13 @@ from pyapprox.pde.assembly import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import RowReplacedOperator, SpaceDescriptor
-from tests._helpers.linalg.mock_stack import MockAssemblyStack, MockLU, MockRowSet, peek
+from tests._helpers.linalg.mock_stack import (
+    MockAssemblyStack,
+    MockLU,
+    MockRowSet,
+    peek,
+    wrap,
+)
 
 _BKD = NumpyBkd()
 _U = SpaceDescriptor("u", 6)
@@ -40,6 +46,16 @@ class TestMockAssembly:
         assert isinstance(stack, AssemblyStackProtocol)
         assert isinstance(stack.matrix_sink(_U, _U, _DOFS, _DOFS), MatrixSinkProtocol)
         assert isinstance(stack.vector_sink(_U), VectorSinkProtocol)
+
+    def test_row_set_is_the_mocks_own(self) -> None:
+        rows = MockAssemblyStack().row_set(_U, np.array([4, 1, 4], dtype=np.int64))
+        assert isinstance(rows, MockRowSet)
+        x = np.arange(12, dtype=np.float64).reshape(6, 2)
+        expected = x.copy()
+        expected[[1, 4]] = 0.0
+        _BKD.assert_allclose(peek(rows.zero_rows(wrap(x, _U))), expected)
+        with pytest.raises(ValueError, match=r"\[0, 6\)"):
+            MockAssemblyStack().row_set(_U, np.array([6], dtype=np.int64))
 
     def test_element_and_bulk_assembly_agree(self) -> None:
         values = _blocks(0)

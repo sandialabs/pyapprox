@@ -4,6 +4,8 @@ The element data is a 1D mesh of 6 nodes and 5 two-node elements with
 random element blocks; references are explicit dense sums.
 """
 
+from typing import Union
+
 import numpy as np
 import pytest
 from numpy.typing import NDArray
@@ -16,8 +18,13 @@ from pyapprox.pde.assembly import (
     VectorSinkProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.operators import OperatorProperties, SpaceDescriptor
+from pyapprox.util.linalg.operators import (
+    OperatorProperties,
+    RowSetProtocol,
+    SpaceDescriptor,
+)
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from tests._helpers.linalg.no_bulk_stack import NoBulkAssemblyStack
 
 _BKD = NumpyBkd()
 _U = SpaceDescriptor("u", 6)
@@ -236,3 +243,42 @@ class TestProlongation:
             ScipyAssemblyStack(
                 np.float64, {_U: (SpaceDescriptor("t", 5), csr_matrix((5, 5)))}
             )
+
+
+_Stack = Union[ScipyAssemblyStack[np.float64], NoBulkAssemblyStack[np.float64]]
+
+
+@pytest.mark.parametrize(
+    "stack",
+    [ScipyAssemblyStack(np.float64), NoBulkAssemblyStack(np.float64)],
+    ids=["scipy", "no-bulk"],
+)
+class TestRowSet:
+    def test_selects_the_given_rows(self, stack: _Stack) -> None:
+        rows = stack.row_set(_U, np.array([4, 1, 4], dtype=np.int64))
+        assert isinstance(rows, RowSetProtocol)
+        assert rows.count() == 2 and rows.descriptor() == _U
+        x = np.arange(12.0).reshape(6, 2)
+        expected = x.copy()
+        expected[[1, 4]] = 0.0
+        _BKD.assert_allclose(rows.zero_rows(x), expected)
+
+    def test_rejects_rows_outside_the_space(self, stack: _Stack) -> None:
+        with pytest.raises(ValueError, match=r"\[0, 6\)"):
+            stack.row_set(_U, np.array([6], dtype=np.int64))
+
+
+class TestNoBulkStack:
+    def test_sinks_have_no_bulk_capability(self) -> None:
+        stack = NoBulkAssemblyStack(np.float64)
+        assert isinstance(stack, AssemblyStackProtocol)
+        sink = stack.matrix_sink(_U, _U, _DOFS, _DOFS)
+        assert isinstance(sink, MatrixSinkProtocol)
+        assert sink.bulk() is None
+        assert stack.vector_sink(_U).bulk() is None
+        values = _blocks(9)
+        sink.add_element_matrices(_DOFS, _DOFS, values)
+        _BKD.assert_allclose(
+            sink.assemble().format().matrix().toarray(),
+            _dense_sum(_DOFS, _DOFS, values, (6, 6)),
+        )

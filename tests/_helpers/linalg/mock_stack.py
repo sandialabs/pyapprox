@@ -16,7 +16,7 @@ and tests read one only through :func:`peek`.
 """
 
 import warnings
-from typing import Optional, Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar, Union
 
 import numpy as np
 import scipy.linalg
@@ -180,8 +180,10 @@ class MockVectorSpace:
 class MockRowSet:
     """A set of rows of one space, applied to :class:`MockVector` blocks."""
 
-    def __init__(self, descriptor: SpaceDescriptor, rows: Sequence[int]) -> None:
-        indices = np.unique(np.asarray(list(rows), dtype=np.intp))
+    def __init__(
+        self, descriptor: SpaceDescriptor, rows: Union[Sequence[int], _Dofs]
+    ) -> None:
+        indices = np.unique(np.asarray(rows, dtype=np.intp))
         if indices.size and (indices[0] < 0 or indices[-1] >= descriptor.size):
             raise ValueError(
                 f"row indices must lie in [0, {descriptor.size}), got "
@@ -638,6 +640,9 @@ class MockAssemblyStack:
 
     def vector_sink(self, descriptor: SpaceDescriptor) -> MockVectorSink:
         return MockVectorSink(descriptor)
+
+    def row_set(self, descriptor: SpaceDescriptor, rows: _Dofs) -> MockRowSet:
+        return MockRowSet(descriptor, rows)
 
     def prolongation(self, assembly: SpaceDescriptor) -> MockOperator:
         return MockOperator.identity(assembly)

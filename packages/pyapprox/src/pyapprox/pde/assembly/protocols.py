@@ -30,6 +30,7 @@ from scipy.sparse import spmatrix
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     OperatorProperties,
+    RowSetProtocol,
     SpaceDescriptor,
     VectorSpaceProtocol,
 )
@@ -190,6 +191,15 @@ class AssemblyStackProtocol(Protocol, Generic[V, F, I_contra, L_contra]):
         self, descriptor: SpaceDescriptor
     ) -> VectorSinkProtocol[V, I_contra, L_contra]:
         """A sink for vectors of the assembly space ``descriptor``."""
+        ...
+
+    def row_set(self, descriptor: SpaceDescriptor, rows: I_contra) -> RowSetProtocol[V]:
+        """The stack's own selection of ``rows`` of ``descriptor``.
+
+        ``rows`` is a 1-D index array in the assembly-space numbering that
+        element DOF maps use; the stack maps it to its own representation
+        and numbering.
+        """
         ...
 
     def prolongation(self, assembly: SpaceDescriptor) -> ActionOperatorProtocol[V, F]:

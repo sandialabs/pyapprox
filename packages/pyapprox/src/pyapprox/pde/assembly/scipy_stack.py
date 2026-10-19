@@ -22,6 +22,7 @@ from pyapprox.util.linalg.operators import (
 )
 from pyapprox.util.linalg.scipy_stack import (
     CSRFormat,
+    NumpyRowSet,
     NumpyVectorSpace,
     S,
     ScipyCSROperator,
@@ -296,6 +297,9 @@ class ScipyAssemblyStack(Generic[S]):
 
     def vector_sink(self, descriptor: SpaceDescriptor) -> ScipyVectorSink[S]:
         return ScipyVectorSink(descriptor, self._scalar)
+
+    def row_set(self, descriptor: SpaceDescriptor, rows: _Dofs) -> NumpyRowSet:
+        return NumpyRowSet(descriptor, rows)
 
     def prolongation(self, assembly: SpaceDescriptor) -> ScipyCSROperator[S]:
         if assembly in self._prolongations:
