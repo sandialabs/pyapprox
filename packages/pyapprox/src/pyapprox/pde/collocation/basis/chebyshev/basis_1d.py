@@ -85,6 +85,16 @@ class ChebyshevBasis1D(Generic[Array]):
         """
         return self._tensor_basis.nodes_1d(0)
 
+    def nodes_1d(self, dim: int) -> Array:
+        """Return the 1D reference nodes of dimension ``dim`` (only 0).
+        Shape: (npts,)"""
+        return self._tensor_basis.nodes_1d(dim)
+
+    def derivative_matrix_1d(self, dim: int) -> Array:
+        """Return the 1D reference derivative matrix of dimension ``dim``
+        (only 0). Shape: (npts, npts)"""
+        return self._tensor_basis.derivative_matrix_1d(dim)
+
     def mesh(self) -> MeshWithTransformProtocol[Array]:
         """Return the underlying mesh."""
         return self._mesh

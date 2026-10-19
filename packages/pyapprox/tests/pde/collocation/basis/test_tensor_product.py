@@ -1,5 +1,6 @@
 """Tests for tensor product basis."""
 
+import pytest
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -13,6 +14,8 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     TransformedMesh3D,
 )
+from pyapprox.pde.collocation.protocols.basis import TensorProductBasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestTensorProductBasis:
@@ -199,6 +202,22 @@ class TestChebyshevBasisWrappers:
         assert basis.npts_per_dim() == (npts,)
         assert basis.nodes().shape == (npts,)
         assert basis.derivative_matrix().shape == (npts, npts)
+
+    def test_chebyshev_basis_1d_is_a_tensor_product_basis(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The physics take TensorProductBasisProtocol; the 1D wrapper's
+        per-dimension accessors are the reference nodes and first
+        derivative matrix."""
+        basis = ChebyshevBasis1D(TransformedMesh1D(5, bkd), bkd)
+        assert isinstance(basis, TensorProductBasisProtocol)
+        bkd.assert_allclose(basis.nodes_1d(dim=0), basis.nodes())
+        bkd.assert_allclose(
+            basis.derivative_matrix_1d(dim=0),
+            basis.reference_derivative_matrix(order=1, dim=0),
+        )
+        with pytest.raises(ValueError, match="dim"):
+            basis.nodes_1d(dim=1)
 
     def test_chebyshev_basis_2d(self, bkd):
         """Test ChebyshevBasis2D wrapper."""

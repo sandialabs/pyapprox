@@ -35,6 +35,10 @@ class JacobianOperatorProtocol(Protocol[Array_contra, V, F_co]):
         """The Jacobian at ``(state, time)``, labeled with ``point`` and
         independent of later calls.
 
+        The result may refer to ``state`` rather than copy it, so it is
+        valid while the caller leaves ``state`` unmodified. A copy per
+        result would duplicate the states a trajectory already keeps.
+
         Parameters
         ----------
         state : Array
