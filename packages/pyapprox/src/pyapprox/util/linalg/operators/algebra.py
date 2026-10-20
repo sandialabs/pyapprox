@@ -80,8 +80,9 @@ class ScaledSum(Generic[V, F]):
     Parameters
     ----------
     terms : sequence of (float, operator)
-        Nonempty. Every operator maps the same domain to the same range
-        and has the same format type ``F``.
+        Nonempty. Every operator maps the same domain to the same range.
+        Its stored format exists only when every term has the same format
+        type ``F``; terms of mixed formats still sum and apply.
     space : VectorSpaceProtocol
         Linear combinations in the range, used to accumulate ``apply``.
     domain_space : VectorSpaceProtocol, optional
@@ -129,11 +130,30 @@ class ScaledSum(Generic[V, F]):
         return self._properties
 
     def format(self) -> F:
-        """The operands' formats combined, computed on first request."""
+        """The operands' formats combined, computed on first request.
+
+        The sum's action needs no format, so only callers asking for
+        storage (a direct solver, a row edit) reach this.
+
+        Raises
+        ------
+        TypeError
+            If the terms' formats are of different types: they have no
+            combined storage. Wrap the sum in :func:`as_matrix_free` to
+            use it without one.
+        """
         if self._format is None:
-            (c0, op0), *rest = self._terms
-            self._format = op0.format().scaled_sum(
-                c0, [(c, op.format()) for c, op in rest]
+            formats = [op.format() for _, op in self._terms]
+            kinds = sorted({type(fmt).__name__ for fmt in formats})
+            if len(kinds) > 1:
+                raise TypeError(
+                    f"a scaled sum of terms in different formats ({', '.join(kinds)}) "
+                    "has no combined format; wrap it in as_matrix_free to use it "
+                    "without one"
+                )
+            coefficients = [c for c, _ in self._terms]
+            self._format = formats[0].scaled_sum(
+                coefficients[0], list(zip(coefficients[1:], formats[1:]))
             )
         return self._format
 

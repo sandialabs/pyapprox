@@ -5,6 +5,7 @@ import pytest
 
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
+    FormatProtocol,
     MatrixFree,
     OperatorProperties,
     Product,
@@ -99,6 +100,36 @@ class TestScaledSum:
             ScaledSum([(1.0, case.identity(_U))], case.space(SpaceDescriptor("v", 5)))
         with pytest.raises(ValueError, match="at least one term"):
             ScaledSum([], case.space(_U))
+
+    @pytest.mark.parametrize("stored_first", [True, False], ids=["stored", "free"])
+    def test_mixed_formats_apply_but_have_no_format(
+        self, case: TypedStackCase[V, F, A], stored_first: bool
+    ) -> None:
+        """Either order: the action works, asking for storage is refused
+        clearly (also by a direct solver), and as_matrix_free uses it."""
+        a, b = random_matrix(5, 5, 9), random_matrix(5, 5, 10)
+        stored = case.build(a, _U)
+        free = as_matrix_free(case.build(b, _U))
+        pair: list[tuple[float, ActionOperatorProtocol[V, FormatProtocol]]] = [
+            (1.0, stored),
+            (2.0, free),
+        ]
+        terms = pair if stored_first else pair[::-1]
+        op = ScaledSum(terms, case.space(_U))
+        x = case.vec(_U, 1, 11)
+        case.assert_vector(
+            op.apply(x), case.times(case.dense(a + 2.0 * b), x), rtol=1e-12
+        )
+        with pytest.raises(TypeError, match="different formats"):
+            op.format()
+        with pytest.raises(TypeError, match="different formats"):
+            case.direct_solver().setup(op)  # type: ignore[arg-type]
+        assert as_matrix_free(op).format() == MatrixFree()
+        case.assert_vector(
+            as_matrix_free(op).apply(x),
+            case.times(case.dense(a + 2.0 * b), x),
+            rtol=1e-12,
+        )
 
 
 class TestTransposed:
