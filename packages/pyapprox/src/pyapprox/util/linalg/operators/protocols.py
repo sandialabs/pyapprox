@@ -32,7 +32,15 @@ overwritten. Stacks may check this and raise ``ValueError``.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, Self, TypeVar, runtime_checkable
+from typing import (
+    Generic,
+    Optional,
+    Protocol,
+    Self,
+    Sequence,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 
@@ -111,6 +119,14 @@ class VectorSpaceProtocol(Protocol, Generic[V]):
 
     def ncols(self, x: V) -> int:
         """Return the number of vectors in the block ``x``."""
+        ...
+
+    def column(self, x: V, k: int) -> V:
+        """Return a copy of the ``k``-th vector of ``x``, as a block of one."""
+        ...
+
+    def concatenate(self, blocks: Sequence[V]) -> V:
+        """Return the vectors of ``blocks``, in order, as one new block."""
         ...
 
     def copy(self, x: V, out: Optional[V] = None) -> V:

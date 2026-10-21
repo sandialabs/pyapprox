@@ -159,15 +159,50 @@ class TestShared:
         _, info = handle.solve(b, tol=1e-8, x0=exact)
         assert info.converged and info.iterations == 0
 
-    def test_refuses_blocks_and_mismatched_spaces(
+    def test_solves_a_block_column_by_column(
+        self,
+        case: TypedStackCase[V, F, A],
+        solver: type[ConjugateGradient[V, A]] | type[GMRES[V, A]],
+    ) -> None:
+        a = spd_matrix(6, 13)
+        handle = solver(case.space(_U), case.bkd).setup(
+            case.build(a, _U, properties=_SPD)
+        )
+        b = case.vec(_U, 3, 14)
+        x, info = handle.solve(b)
+        assert info.converged and info.residual_norm is not None
+        _assert_solves(case, case.dense(a), x, b)
+        one, single = handle.solve(case.space(_U).column(b, 1))
+        assert info.iterations >= single.iterations > 0
+        _assert_solves(case, case.dense(a), one, case.space(_U).column(b, 1))
+        # Each column starts from its own column of x0.
+        _, info = handle.solve(b, x0=x)
+        assert info.converged and info.iterations == 0
+        with pytest.raises(ValueError, match="3 columns"):
+            handle.solve(b, x0=case.vec(_U, 2, 15))
+
+    def test_reports_the_failing_column(
+        self,
+        case: TypedStackCase[V, F, A],
+        solver: type[ConjugateGradient[V, A]] | type[GMRES[V, A]],
+    ) -> None:
+        a = spd_matrix(6, 16)
+        handle = solver(case.space(_U), case.bkd, maxiter=1).setup(
+            case.build(a, _U, properties=_SPD)
+        )
+        space = case.space(_U)
+        b = case.vec(_U, 1, 17)
+        block = space.concatenate([space.zeros(1), b])
+        _, info = handle.solve(block)
+        assert not info.converged
+        assert info.message.startswith("column 1: relative residual")
+
+    def test_refuses_mismatched_spaces(
         self,
         case: TypedStackCase[V, F, A],
         solver: type[ConjugateGradient[V, A]] | type[GMRES[V, A]],
     ) -> None:
         op = case.build(spd_matrix(6, 10), _U, properties=_SPD)
-        handle = solver(case.space(_U), case.bkd).setup(op)
-        with pytest.raises(ValueError, match="one right-hand side"):
-            handle.solve(case.vec(_U, 2, 11))
         with pytest.raises(SpaceMismatchError):
             solver(case.space(SpaceDescriptor("v", 6)), case.bkd).setup(op)
         with pytest.raises(ValueError, match="square"):

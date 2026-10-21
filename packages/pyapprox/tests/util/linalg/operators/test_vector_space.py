@@ -90,6 +90,25 @@ class TestVectorSpaceConformance:
         case.assert_vector(copied, expected, rtol=1e-12)
         case.assert_vector(space.copy(x), case.array(x))
 
+    def test_column_and_concatenate(self, case: TypedStackCase[V, F, A]) -> None:
+        """A column is a copied block of one; concatenating the columns
+        gives the block back."""
+        space = case.space(_DESCRIPTOR)
+        x = case.vec(_DESCRIPTOR, 3, 17)
+        xa = case.array(x)
+        columns = [space.column(x, k) for k in range(3)]
+        for k, column in enumerate(columns):
+            assert space.ncols(column) == 1
+            case.assert_vector(column, xa[:, k : k + 1])
+        case.assert_vector(space.concatenate(columns), xa)
+        # Writing into a column leaves x unchanged.
+        space.scale(0.0, columns[0], out=columns[0])
+        case.assert_vector(x, xa)
+        case.assert_vector(
+            space.concatenate([columns[2], x]),
+            case.bkd.hstack([xa[:, 2:3], xa]),
+        )
+
     def test_aliasing_rules(self, case: TypedStackCase[V, F, A]) -> None:
         """out may be the accumulating operand, never another operand."""
         space = case.space(_DESCRIPTOR)

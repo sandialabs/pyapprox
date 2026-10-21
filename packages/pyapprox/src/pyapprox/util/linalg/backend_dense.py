@@ -133,6 +133,15 @@ class BackendVectorSpace(Generic[Array]):
         self._check(x, "x")
         return int(x.shape[1])
 
+    def column(self, x: Array, k: int) -> Array:
+        self._check(x, "x")
+        return self._bkd.copy(x[:, k : k + 1])
+
+    def concatenate(self, blocks: Sequence[Array]) -> Array:
+        for block in blocks:
+            self._check(block, "block")
+        return self._bkd.hstack(list(blocks))
+
     def copy(self, x: Array, out: Optional[Array] = None) -> Array:
         self._check(x, "x")
         self._check_out(out, (x,))

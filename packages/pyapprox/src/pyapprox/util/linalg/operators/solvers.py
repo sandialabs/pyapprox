@@ -20,7 +20,7 @@ which mypy checks, and checks it again at ``setup``, raising
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import MatrixFree
@@ -59,6 +59,23 @@ class SolveInfo:
     iterations: int = 0
     residual_norm: Optional[float] = None
     message: str = ""
+
+
+def merge_column_reports(reports: Sequence[SolveInfo]) -> SolveInfo:
+    """The report of a block solved one column at a time.
+
+    Converged when every column is; the iterations are summed, the
+    residual norm is the largest reported, and the message is the first
+    failing column's, prefixed with its index.
+    """
+    norms = [r.residual_norm for r in reports if r.residual_norm is not None]
+    failures = [(k, r) for k, r in enumerate(reports) if not r.converged]
+    return SolveInfo(
+        not failures,
+        sum(r.iterations for r in reports),
+        max(norms) if norms else None,
+        f"column {failures[0][0]}: {failures[0][1].message}" if failures else "",
+    )
 
 
 @dataclass(frozen=True)

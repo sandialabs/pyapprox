@@ -16,7 +16,8 @@ Convergence is decided on the true residual :math:`\|b - A x\|`,
 recomputed after the iterations, against ``tol`` times :math:`\|b\|`,
 so a solve whose recurrence drifts (conjugate gradients on a strongly
 nonsymmetric operator, say) reports ``converged=False`` rather than a
-wrong answer. Right-hand sides are single vectors for now.
+wrong answer. A block of right-hand sides is solved one column at a
+time, through the space's ``column`` and ``concatenate``.
 """
 
 import math
@@ -35,6 +36,7 @@ from pyapprox.util.linalg.operators.solvers import (
     SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
+    merge_column_reports,
     require_square,
 )
 
@@ -84,21 +86,45 @@ class _KrylovHandle(SolverHandleBase[V], Generic[V, A, G]):
     def solve(
         self, rhs: V, tol: Optional[float] = None, x0: Optional[V] = None
     ) -> tuple[V, SolveInfo]:
-        r"""Solve :math:`A x = b`, to ``tol`` relative to :math:`\|b\|`.
+        r"""Solve :math:`A x = b`, each column to ``tol`` relative to its
+        own :math:`\|b\|`.
+
+        The columns are solved one after another, each from its column
+        of ``x0``. The block converges when every column does; the report
+        is merged by :func:`merge_column_reports`.
 
         Raises
         ------
         ValueError
-            If ``rhs`` or ``x0`` is not a single vector.
+            If ``x0`` has a different number of columns from ``rhs``.
         """
         space = self._space
-        if space.ncols(rhs) != 1:
+        ncols = space.ncols(rhs)
+        if x0 is not None and space.ncols(x0) != ncols:
             raise ValueError(
-                f"{type(self).__name__} solves one right-hand side at a time, "
-                f"got {space.ncols(rhs)}"
+                f"x0 must have {ncols} columns like rhs, got {space.ncols(x0)}"
             )
-        if x0 is not None and space.ncols(x0) != 1:
-            raise ValueError(f"x0 must be a single vector, got {space.ncols(x0)}")
+        if ncols == 0:
+            return space.zeros(0), SolveInfo(True, 0, 0.0)
+        if ncols == 1:
+            return self._solve_vector(rhs, tol, x0)
+        results = [
+            self._solve_vector(
+                space.column(rhs, k),
+                tol,
+                None if x0 is None else space.column(x0, k),
+            )
+            for k in range(ncols)
+        ]
+        return space.concatenate([x for x, _ in results]), merge_column_reports(
+            [info for _, info in results]
+        )
+
+    def _solve_vector(
+        self, rhs: V, tol: Optional[float], x0: Optional[V]
+    ) -> tuple[V, SolveInfo]:
+        """Solve for a single right-hand side."""
+        space = self._space
         tolerance = self._tol if tol is None else tol
         rhs_norm = self._norm(rhs)
         if rhs_norm == 0.0:

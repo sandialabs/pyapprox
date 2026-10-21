@@ -138,10 +138,24 @@ class TestBehavior:
         _, info = handle.solve(b, tol=1e-8, x0=exact)
         assert info.converged and info.iterations == 0
 
-    def test_refuses_blocks_mismatches_and_bad_settings(self) -> None:
-        handle = ScipyGMRES().setup(_operator(spd_matrix(6, 12), False, _SPD))
-        with pytest.raises(ValueError, match="one right-hand side"):
-            handle.solve(np.ones((6, 2)))
+    @pytest.mark.parametrize("solver", [ScipyCG, ScipyGMRES], ids=["cg", "gmres"])
+    def test_solves_a_block_column_by_column(
+        self, solver: type[ScipyCG] | type[ScipyGMRES]
+    ) -> None:
+        a = spd_matrix(6, 14)
+        handle = solver().setup(_operator(a, False, _SPD))
+        b = np.hstack([_rhs(15), _rhs(16), np.zeros((6, 1))])
+        x, info = handle.solve(b)
+        assert info.converged and x.shape == (6, 3)
+        _BKD.assert_allclose(a @ x, b, rtol=0.0, atol=1e-9 * np.abs(b).max())
+        _, info = handle.solve(b, x0=x)
+        assert info.converged and info.iterations == 0
+        with pytest.raises(ValueError, match="3 columns"):
+            handle.solve(b, x0=np.zeros((6, 2)))
+        _, info = solver(maxiter=1).setup(_operator(a, False, _SPD)).solve(b)
+        assert not info.converged and info.message.startswith("column 0:")
+
+    def test_refuses_mismatches_and_bad_settings(self) -> None:
         rectangular = ScipyCSROperator(
             csr_matrix(random_matrix(3, 6, 13)),
             _U,

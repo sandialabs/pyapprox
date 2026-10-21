@@ -33,6 +33,7 @@ from pyapprox.util.linalg.operators.solvers import (
     SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
+    merge_column_reports,
     require_format,
     require_square,
 )
@@ -151,6 +152,15 @@ class NumpyVectorSpace(Generic[S]):
     def ncols(self, x: NDArray[S]) -> int:
         self._check(x, "x")
         return int(x.shape[1])
+
+    def column(self, x: NDArray[S], k: int) -> NDArray[S]:
+        self._check(x, "x")
+        return x[:, k : k + 1].copy()
+
+    def concatenate(self, blocks: Sequence[NDArray[S]]) -> NDArray[S]:
+        for block in blocks:
+            self._check(block, "block")
+        return np.hstack(blocks)
 
     def copy(self, x: NDArray[S], out: Optional[NDArray[S]] = None) -> NDArray[S]:
         self._check(x, "x")
@@ -683,23 +693,43 @@ class _ScipyKrylovHandle(SolverHandleBase[_Block], Generic[G]):
         tol: Optional[float] = None,
         x0: Optional[_Block] = None,
     ) -> tuple[_Block, SolveInfo]:
-        r"""Solve :math:`A x = b`, to ``tol`` relative to :math:`\|b\|`.
+        r"""Solve :math:`A x = b`, each column to ``tol`` relative to its
+        own :math:`\|b\|`.
+
+        The columns are solved one after another, each from its column
+        of ``x0``; the report is merged by :func:`merge_column_reports`.
 
         Raises
         ------
         ValueError
-            If ``rhs`` or ``x0`` is not a single vector of the space.
+            If ``rhs`` or ``x0`` is not a block of the space, or ``x0``
+            has a different number of columns from ``rhs``.
         """
         _check_block(rhs, self.domain(), "rhs")
-        if rhs.shape[1] != 1:
-            raise ValueError(
-                f"{type(self).__name__} solves one right-hand side at a time, "
-                f"got {rhs.shape[1]}"
-            )
+        ncols = rhs.shape[1]
         if x0 is not None:
             _check_block(x0, self.range(), "x0")
-            if x0.shape[1] != 1:
-                raise ValueError(f"x0 must be a single vector, got {x0.shape[1]}")
+            if x0.shape[1] != ncols:
+                raise ValueError(
+                    f"x0 must have {ncols} columns like rhs, got {x0.shape[1]}"
+                )
+        if ncols == 1:
+            return self._solve_vector(rhs, tol, x0)
+        results = [
+            self._solve_vector(
+                rhs[:, k : k + 1], tol, None if x0 is None else x0[:, k : k + 1]
+            )
+            for k in range(ncols)
+        ]
+        solution = (
+            np.hstack([x for x, _ in results]) if results else np.zeros_like(rhs)
+        )
+        return solution, merge_column_reports([info for _, info in results])
+
+    def _solve_vector(
+        self, rhs: _Block, tol: Optional[float], x0: Optional[_Block]
+    ) -> tuple[_Block, SolveInfo]:
+        """Solve for a single right-hand side."""
         tolerance = self._tol if tol is None else tol
         rhs_norm = float(np.linalg.norm(rhs))
         if rhs_norm == 0.0:

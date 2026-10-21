@@ -130,6 +130,15 @@ class MockVectorSpace:
     def ncols(self, x: MockVector) -> int:
         return int(self._get(x, "x").shape[1])
 
+    def column(self, x: MockVector, k: int) -> MockVector:
+        return MockVector(self._get(x, "x")[:, k : k + 1].copy(), self._descriptor)
+
+    def concatenate(self, blocks: Sequence[MockVector]) -> MockVector:
+        return MockVector(
+            np.hstack([self._get(block, "block") for block in blocks]),
+            self._descriptor,
+        )
+
     def copy(self, x: MockVector, out: Optional[MockVector] = None) -> MockVector:
         _refuse_alias(out, x)
         return _write(out, self._get(x, "x").copy(), self._descriptor)
