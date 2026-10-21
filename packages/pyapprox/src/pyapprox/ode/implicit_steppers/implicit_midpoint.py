@@ -19,8 +19,14 @@ Split into three classes via mixin composition:
 - ImplicitMidpointHVP: + HVP methods (same-step + cross-step)
 """
 
-from typing import Generic
+from functools import partial
+from typing import Generic, Optional, TypeVar
 
+from pyapprox.ode.implicit_stage_solve import (
+    ImplicitStageSolve,
+    newton_matrix,
+    stage_point,
+)
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
     TransposeLinearOperator,
@@ -30,6 +36,7 @@ from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.protocols.implicit_system import ImplicitSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
@@ -43,6 +50,9 @@ from pyapprox.ode.time_quadrature import (
     midpoint_quadrature,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.operators import FormatProtocol
+
+F = TypeVar("F", bound=FormatProtocol)
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit
@@ -66,8 +76,13 @@ class ImplicitMidpointStepper(
         t_{n-1} + \tfrac{\Delta t}{2}\bigr) = 0
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+    ) -> None:
         super().__init__(residual)
+        self._stage = ImplicitStageSolve(residual, system)
 
     def _midpoint_time(self, ctx: StepContext[Array]) -> float:
         return ctx.t_prev + 0.5 * ctx.deltat
@@ -89,12 +104,19 @@ class ImplicitMidpointStepper(
 
         Chain rule: :math:`dy_{\mathrm{mid}}/dy_n = 1/2`. Used by both
         ``jacobian`` and the Newton linear solve, so Newton is exact at
-        the midpoint linearization the residual uses.
+        the midpoint linearization the residual uses. It is the implicit
+        system's shifted Jacobian at the midpoint, with
+        :math:`\dot y = (y_n - y_{n-1})/\Delta t` and shift
+        :math:`2/\Delta t`, scaled by :math:`\Delta t/2`.
         """
-        return self._implicit_residual.newton_jacobian(
-            self._midpoint_state(ctx, state),
-            self._midpoint_time(ctx),
+        y_mid, t_mid = self._midpoint_state(ctx, state), self._midpoint_time(ctx)
+        return self._stage.newton_operator(
+            y_mid,
+            (state - ctx.y_prev) / ctx.deltat,
+            t_mid,
             0.5 * ctx.deltat,
+            stage_point(t_mid),
+            partial(newton_matrix, self._residual, y_mid, t_mid, 0.5 * ctx.deltat),
         )
 
     # -- SensitivityMixin --
@@ -156,8 +178,12 @@ class ImplicitMidpointAdjoint(
 
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t
@@ -224,8 +250,12 @@ class ImplicitMidpointHVP(
 
     _residual: ImplicitODEResidualWithHVPProtocol[Array]
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     # -- Same-step HVP methods --
 

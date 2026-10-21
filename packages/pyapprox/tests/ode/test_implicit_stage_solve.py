@@ -1,0 +1,254 @@
+"""Implicit steppers solving through implicit systems.
+
+Each implicit stepper's Newton solve, transposed diagonal solve and
+adjoint initial condition must agree with a dense solve with
+:math:`M - cJ`, whether the system is the dense default or an injected
+matrix-free one with GMRES; the matrix the sweeps read is exactly
+:math:`M - cJ`. Also the stage solve's own contract and
+``NewtonJacobianSystem``.
+"""
+
+from typing import Generic, Optional, Union
+
+import pytest
+
+from pyapprox.ode.implicit_stage_solve import ImplicitStageSolve, newton_matrix
+from pyapprox.ode.implicit_steppers import (
+    BackwardEulerHVP,
+    CrankNicolsonHVP,
+    ImplicitMidpointHVP,
+)
+from pyapprox.ode.mixins.default_newton_jacobian import DefaultNewtonJacobianMixin
+from pyapprox.ode.newton_jacobian_system import NewtonJacobianSystem
+from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
+from pyapprox.ode.step_context import StepContext
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseLU,
+    BackendDenseOperator,
+    BackendVectorSpace,
+    DenseFormat,
+)
+from pyapprox.util.linalg.operators import (
+    GMRES,
+    ActionOperatorProtocol,
+    LinearizationPoint,
+    SolveFailedError,
+    SolveInfo,
+    SolverCapabilities,
+    SolverHandleBase,
+    SolverHandleProtocol,
+    SpaceDescriptor,
+)
+from tests._helpers.ode_models import LotkaVolterra
+
+_MASS = [[2.0, 0.5], [0.5, 1.0]]
+_DT = 0.1
+_Stepper = Union[
+    BackwardEulerHVP[Array], CrankNicolsonHVP[Array], ImplicitMidpointHVP[Array]
+]
+
+
+def _model(bkd: Backend[Array]) -> LotkaVolterra[Array]:
+    return LotkaVolterra(bkd, mass=bkd.asarray(_MASS))
+
+
+def _ctx(bkd: Backend[Array]) -> StepContext[Array]:
+    return StepContext(t_prev=0.2, deltat=_DT, y_prev=bkd.asarray([9.0, 4.5]))
+
+
+def _linearization(
+    name: str, ctx: StepContext[Array], state: Array
+) -> tuple[Array, float, float]:
+    """Each method's (linearization state, time, coefficient c)."""
+    if name == "midpoint":
+        return 0.5 * (ctx.y_prev + state), ctx.t_prev + 0.5 * ctx.deltat, 0.5 * _DT
+    if name == "crank-nicolson":
+        return state, ctx.t_curr, 0.5 * _DT
+    return state, ctx.t_curr, _DT
+
+
+_NAMES = ["backward-euler", "crank-nicolson", "midpoint"]
+
+
+def _stepper(
+    name: str, model: LotkaVolterra[Array], matrix_free: bool
+) -> _Stepper[Array]:
+    """The method's stepper, with the default (dense) system or an
+    injected matrix-free one solved by GMRES."""
+    bkd = model.bkd()
+    space = BackendVectorSpace(SpaceDescriptor("state", 2), bkd)
+    system = (
+        matrix_free_system(model, nstates=2, solver=GMRES(space, bkd, tol=1e-13))
+        if matrix_free
+        else None
+    )
+    if name == "midpoint":
+        return ImplicitMidpointHVP(model, system)
+    if name == "crank-nicolson":
+        return CrankNicolsonHVP(model, system)
+    return BackwardEulerHVP(model, system)
+
+
+@pytest.mark.parametrize("matrix_free", [False, True], ids=["dense", "free"])
+@pytest.mark.parametrize("name", _NAMES)
+class TestImplicitSteppers:
+    def test_newton_and_adjoint_solves(
+        self, bkd: Backend[Array], name: str, matrix_free: bool
+    ) -> None:
+        model = _model(bkd)
+        stepper = _stepper(name, model, matrix_free)
+        ctx = _ctx(bkd)
+        stepper.bind(ctx)
+        state = bkd.asarray([10.0, 5.0])
+        y_lin, t_lin, c = _linearization(name, ctx, state)
+        newton = newton_matrix(model, y_lin, t_lin, c)
+        rhs = bkd.asarray([1.0, -2.0])
+        bkd.assert_allclose(
+            stepper.linsolve(state, rhs), bkd.solve(newton, rhs), rtol=1e-10
+        )
+        # The matrix the time-step sweeps read, formed beside the solves.
+        bkd.assert_allclose(stepper.jacobian(state), newton, rtol=1e-14)
+        # The adjoint's diagonal block is the transposed Newton operator.
+        diag = stepper.adjoint_diag_jacobian(ctx, state)
+        bkd.assert_allclose(diag.solve(rhs), bkd.solve(newton.T, rhs), rtol=1e-10)
+        bkd.assert_allclose(
+            diag.solve_transpose(rhs), bkd.solve(newton, rhs), rtol=1e-10
+        )
+        dqdu = bkd.asarray([0.3, 0.7])
+        bkd.assert_allclose(
+            stepper.adjoint_initial_condition(ctx, state, dqdu),
+            bkd.solve(newton.T, -dqdu),
+            rtol=1e-10,
+        )
+
+
+class _NoTransposeHandle(SolverHandleBase[Array]):
+    """Solves through another handle but offers no transposed solve."""
+
+    def __init__(self, inner: SolverHandleProtocol[Array]) -> None:
+        super().__init__(inner)
+        self._inner = inner
+
+    def solve(
+        self, rhs: Array, tol: Optional[float] = None, x0: Optional[Array] = None
+    ) -> tuple[Array, SolveInfo]:
+        return self._inner.solve(rhs, tol, x0)
+
+    def transpose(self) -> None:
+        return None
+
+
+class _NoTransposeSolver(Generic[Array]):
+    """A dense LU whose handles have no transposed solve."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._lu = BackendDenseLU(bkd)
+
+    def capabilities(self) -> SolverCapabilities:
+        return SolverCapabilities(transpose=False)
+
+    def setup(
+        self, op: ActionOperatorProtocol[Array, DenseFormat[Array]]
+    ) -> SolverHandleProtocol[Array]:
+        return _NoTransposeHandle(self._lu.setup(op))
+
+
+class TestImplicitStageSolve:
+    def test_injected_system_wins_and_matrix_comes_from_the_stepper(
+        self, bkd: Backend[Array]
+    ) -> None:
+        model = _model(bkd)
+        stage = ImplicitStageSolve(model, matrix_free_system(model, nstates=2))
+        state = bkd.asarray([10.0, 5.0])
+        rate = bkd.zeros((2,))
+        op = stage.newton_operator(
+            state, rate, 0.0, _DT, LinearizationPoint(0), lambda: bkd.eye(2)
+        )
+        bkd.assert_allclose(op.as_matrix(), bkd.eye(2))
+        newton = newton_matrix(model, state, 0.0, _DT)
+        x = bkd.asarray([[1.0, 0.0], [0.5, 2.0]])
+        bkd.assert_allclose(op.apply(x), bkd.dot(newton, x), rtol=1e-12)
+        bkd.assert_allclose(op.apply_transpose(x), bkd.dot(newton.T, x), rtol=1e-12)
+
+    def test_a_failed_solve_raises(self, bkd: Backend[Array]) -> None:
+        model = _model(bkd)
+        system = matrix_free_system(
+            model,
+            nstates=2,
+            solver=GMRES(
+                BackendVectorSpace(SpaceDescriptor("state", 2), bkd), bkd, maxiter=1
+            ),
+        )
+        op = ImplicitStageSolve(model, system).newton_operator(
+            bkd.asarray([10.0, 5.0]),
+            bkd.zeros((2,)),
+            0.0,
+            _DT,
+            LinearizationPoint(0),
+            lambda: bkd.eye(2),
+        )
+        with pytest.raises(SolveFailedError, match="relative residual"):
+            op.solve(bkd.asarray([1.0, -2.0]))
+
+    def test_a_solver_without_transposes_is_refused(self, bkd: Backend[Array]) -> None:
+        model = _model(bkd)
+        system = dense_system(model, solver=_NoTransposeSolver(bkd))
+        op = ImplicitStageSolve(model, system).newton_operator(
+            bkd.asarray([10.0, 5.0]),
+            bkd.zeros((2,)),
+            0.0,
+            _DT,
+            LinearizationPoint(0),
+            lambda: bkd.eye(2),
+        )
+        bkd.assert_allclose(
+            op.solve(bkd.asarray([1.0, 0.0])),
+            bkd.solve(
+                newton_matrix(model, bkd.asarray([10.0, 5.0]), 0.0, _DT),
+                bkd.asarray([1.0, 0.0]),
+            ),
+            rtol=1e-12,
+        )
+        with pytest.raises(TypeError, match="no transposed solve"):
+            op.solve_transpose(bkd.asarray([1.0, 0.0]))
+
+
+class _MixinModel(LotkaVolterra[Array], DefaultNewtonJacobianMixin[Array]):
+    """Lotka-Volterra that also builds its own Newton matrix (the model
+    first, so its concrete methods satisfy the mixin's abstract ones)."""
+
+
+class TestNewtonJacobianSystem:
+    """The adapter for residuals that build their own Newton matrix; these
+    tests go with ``NewtonJacobianSystem``."""
+
+    def test_shifted_jacobian_and_solver(self, bkd: Backend[Array]) -> None:
+        model = _MixinModel(bkd, mass=bkd.asarray(_MASS))
+        system = NewtonJacobianSystem(model)
+        state, shift = bkd.asarray([10.0, 5.0]), 1.0 / _DT
+        op = system.shifted_jacobian(
+            state, bkd.zeros((2,)), 0.0, shift, LinearizationPoint(0)
+        )
+        reference = shift * bkd.asarray(_MASS) - model.jacobian(state, 0.0)
+        x = bkd.asarray([[1.0], [-0.5]])
+        bkd.assert_allclose(op.apply(x), bkd.dot(reference, x), rtol=1e-12)
+        bkd.assert_allclose(op.apply_transpose(x), bkd.dot(reference.T, x), rtol=1e-12)
+        handle = system.solver().setup(op)
+        solution, info = handle.solve(x)
+        assert info.converged
+        bkd.assert_allclose(solution, bkd.solve(reference, x), rtol=1e-12)
+        transposed = handle.transpose()
+        assert transposed is not None
+        solution, _ = transposed.solve(x)
+        bkd.assert_allclose(solution, bkd.solve(reference.T, x), rtol=1e-12)
+
+    def test_refuses_other_operators_and_residuals(self, bkd: Backend[Array]) -> None:
+        model = _MixinModel(bkd, mass=bkd.asarray(_MASS))
+        other = BackendDenseOperator(
+            bkd.eye(2, dtype=bkd.default_dtype()), SpaceDescriptor("state", 2), bkd
+        )
+        with pytest.raises(TypeError, match="NewtonJacobianSystem"):
+            NewtonJacobianSystem(model).solver().setup(other)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="ImplicitODEResidualProtocol"):
+            NewtonJacobianSystem(_model(bkd))  # type: ignore[arg-type]

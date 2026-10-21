@@ -44,6 +44,7 @@ from pyapprox.ode.mass_matrix import (
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
+from pyapprox.ode.newton_jacobian_system import NewtonJacobianSystem
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
@@ -204,6 +205,11 @@ class GalerkinPhysicsToODEResidualAdapter(
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return the FEM mass matrix as a value-object."""
         return self._mass
+
+    def implicit_system(self) -> NewtonJacobianSystem[Array]:
+        """The implicit system implicit steppers solve with: this
+        adapter's own Newton matrix, in its SciPy storage."""
+        return NewtonJacobianSystem(self)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(system={self._system!r})"

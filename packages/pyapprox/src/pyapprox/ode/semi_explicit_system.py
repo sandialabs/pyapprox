@@ -13,12 +13,25 @@ single line, for a model whose Jacobian is a dense backend array or is
 given by its actions.
 """
 
-from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
+
+import numpy as np
+from numpy.typing import NDArray
+from scipy.sparse import csr_matrix
 
 from pyapprox.ode.dense_jacobian_operator import DenseJacobianOperator
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
 from pyapprox.ode.protocols import JacobianOperatorProtocol, ODEResidualProtocol
+from pyapprox.ode.sparse_jacobian_operator import SparseJacobianOperator
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
@@ -40,8 +53,16 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
     VectorSpaceProtocol,
 )
+from pyapprox.util.linalg.scipy_stack import (
+    CSRFormat,
+    NumpyVectorSpace,
+    ScipyCSROperator,
+    ScipySparseLU,
+)
 
 F = TypeVar("F", bound=FormatProtocol)
+# NumPy backend arrays, for the SciPy-stack builder: the dtype varies.
+_Np = NDArray[Any]
 
 
 @runtime_checkable
@@ -201,6 +222,39 @@ def dense_system(
         DenseJacobianOperator(model, descriptor, bkd),
         BackendVectorSpace(descriptor, bkd),
         BackendDenseLU(bkd) if solver is None else solver,
+    )
+
+
+def sparse_system(
+    model: ODEResidualProtocol[_Np],
+    solver: Optional[LinearSolverProtocol[_Np, CSRFormat]] = None,
+) -> SemiExplicitSystem[_Np, CSRFormat]:
+    """The implicit system of a model whose Jacobian is a sparse matrix.
+
+    The mass, the Jacobian and the shifted Jacobian are CSR operators of
+    the NumPy/SciPy stack in float64; the solver defaults to sparse LU.
+    Its mass is read from the model's ``mass_matrix()``. Bound to NumPy
+    and SciPy, so not differentiable.
+
+    Parameters
+    ----------
+    model : ODEResidualProtocol
+        Supplies :math:`f`, its ``jacobian`` as a SciPy sparse matrix,
+        and its mass.
+    solver : LinearSolverProtocol, optional
+        A solver for CSR operators. Defaults to ``ScipySparseLU``.
+    """
+    mass = model.mass_matrix()
+    stored = csr_matrix(mass.as_matrix())
+    descriptor = SpaceDescriptor("state", stored.shape[0], "float64")
+    return SemiExplicitSystem(
+        model,
+        ScipyCSROperator(
+            stored, descriptor, properties=_mass_properties(mass), scalar=np.float64
+        ),
+        SparseJacobianOperator(model, descriptor),
+        NumpyVectorSpace(descriptor, np.float64),
+        ScipySparseLU() if solver is None else solver,
     )
 
 

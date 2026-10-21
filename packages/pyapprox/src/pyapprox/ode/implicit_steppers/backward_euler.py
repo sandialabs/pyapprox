@@ -13,8 +13,14 @@ Split into three classes via mixin composition:
 - BackwardEulerHVP: + HVP methods
 """
 
-from typing import Generic
+from functools import partial
+from typing import Generic, Optional, TypeVar
 
+from pyapprox.ode.implicit_stage_solve import (
+    ImplicitStageSolve,
+    newton_matrix,
+    stage_point,
+)
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
     TransposeLinearOperator,
@@ -24,6 +30,7 @@ from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.protocols.implicit_system import ImplicitSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
@@ -37,6 +44,9 @@ from pyapprox.ode.time_quadrature import (
     right_rectangle_quadrature,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.operators import FormatProtocol
+
+F = TypeVar("F", bound=FormatProtocol)
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit
@@ -58,14 +68,28 @@ class BackwardEulerStepper(
         R(y_n) = M (y_n - y_{n-1}) - \Delta t \, f(y_n, t_n) = 0
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+    ) -> None:
         super().__init__(residual)
+        self._stage = ImplicitStageSolve(residual, system)
 
     def _newton_operator(
         self, ctx: StepContext[Array], state: Array
     ) -> LinearOperatorProtocol[Array]:
-        r""":math:`dR/dy_n = M - \Delta t \, (df/dy)(y_n, t_n)`."""
-        return self._implicit_residual.newton_jacobian(state, ctx.t_curr, ctx.deltat)
+        r""":math:`dR/dy_n = M - \Delta t \, (df/dy)(y_n, t_n)`, the implicit
+        system's shifted Jacobian at :math:`\dot y = (y_n - y_{n-1})/\Delta t`
+        with shift :math:`1/\Delta t`, scaled by :math:`\Delta t`."""
+        return self._stage.newton_operator(
+            state,
+            (state - ctx.y_prev) / ctx.deltat,
+            ctx.t_curr,
+            ctx.deltat,
+            stage_point(ctx.t_curr),
+            partial(newton_matrix, self._residual, state, ctx.t_curr, ctx.deltat),
+        )
 
     def __call__(self, state: Array) -> Array:
         return self._residual.mass_matrix().apply(
@@ -125,8 +149,12 @@ class BackwardEulerAdjoint(
 
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_n, t_n}`."""
@@ -176,8 +204,12 @@ class BackwardEulerHVP(
 
     _residual: ImplicitODEResidualWithHVPProtocol[Array]
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     # -- Same-step HVP methods --
 

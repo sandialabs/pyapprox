@@ -79,12 +79,13 @@ class TestFlowODEResidual:
             res.jacobian(bkd.zeros((d,)), 0.0)
 
     def test_implicit_stepper_refuses(self, bkd: Backend[Array]) -> None:
-        """An implicit stepper needs a Newton operator the flow lacks."""
+        """An implicit stepper needs a state Jacobian the flow lacks: its
+        first Newton solve asks for it and the flow refuses."""
 
         def vf(x: Array) -> Array:
             return -x[1:3, :]
 
-        with pytest.raises(TypeError, match="newton_jacobian"):
+        with pytest.raises(NotImplementedError, match="no state Jacobian"):
             integrate_flow(
                 vf,
                 bkd.ones((2, 3)),

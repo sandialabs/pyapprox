@@ -15,15 +15,22 @@ from typing import Generic, Optional
 from pyapprox.interface.functions.derivatives import JacobianBatchFn
 from pyapprox.ode.linear_operator import BlockDiagonalLinearOperator
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
+from pyapprox.ode.semi_explicit_system import SemiExplicitSystem
 from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_block_diagonal import (
     BackendBlockDiagonalOperator,
+    BlockDiagonalFormat,
+    BlockDiagonalLU,
 )
-from pyapprox.util.linalg.backend_dense import backend_dtype_name
-from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
+from pyapprox.util.linalg.backend_dense import BackendVectorSpace, backend_dtype_name
+from pyapprox.util.linalg.operators import (
+    LinearizationPoint,
+    OperatorProperties,
+    SpaceDescriptor,
+)
 
 
 class BlockDiagonalJacobianSnapshot(BackendBlockDiagonalOperator[Array]):
@@ -158,6 +165,26 @@ class BatchedBoundODEResidual(Generic[Array]):
         blocks = self._state_jacobian_blocks(state, time)
         op = BlockDiagonalLinearOperator(blocks, self._bkd)
         return op.as_matrix()
+
+    def implicit_system(
+        self,
+    ) -> SemiExplicitSystem[Array, BlockDiagonalFormat[Array]]:
+        """The implicit system implicit steppers solve with: identity
+        mass and Jacobian as one block per trajectory, so the shifted
+        Jacobian stays block-diagonal and the batched LU solves it."""
+        identity = BackendBlockDiagonalOperator(
+            self._bkd.stack([self._bkd.eye(self._n_dynamic)] * self._k),
+            self._descriptor,
+            self._bkd,
+            OperatorProperties(symmetric=True, spd=True, diagonal=True, identity=True),
+        )
+        return SemiExplicitSystem(
+            self,
+            identity,
+            self,
+            BackendVectorSpace(self._descriptor, self._bkd),
+            BlockDiagonalLU(self._bkd),
+        )
 
     def state_descriptor(self) -> SpaceDescriptor:
         """The state space: ``n_dynamic * k`` entries, trajectory after
