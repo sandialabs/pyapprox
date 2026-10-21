@@ -8,7 +8,7 @@ matrix-free one with GMRES; the matrix the sweeps read is exactly
 ``NewtonJacobianSystem``.
 """
 
-from typing import Generic, Optional, Union
+from typing import Union
 
 import pytest
 
@@ -24,22 +24,16 @@ from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
-    BackendDenseLU,
     BackendDenseOperator,
     BackendVectorSpace,
-    DenseFormat,
 )
 from pyapprox.util.linalg.operators import (
     GMRES,
-    ActionOperatorProtocol,
     LinearizationPoint,
     SolveFailedError,
-    SolveInfo,
-    SolverCapabilities,
-    SolverHandleBase,
-    SolverHandleProtocol,
     SpaceDescriptor,
 )
+from tests._helpers.linalg.no_transpose_solver import NoTransposeSolver
 from tests._helpers.ode_models import LotkaVolterra
 
 _MASS = [[2.0, 0.5], [0.5, 1.0]]
@@ -123,37 +117,6 @@ class TestImplicitSteppers:
         )
 
 
-class _NoTransposeHandle(SolverHandleBase[Array]):
-    """Solves through another handle but offers no transposed solve."""
-
-    def __init__(self, inner: SolverHandleProtocol[Array]) -> None:
-        super().__init__(inner)
-        self._inner = inner
-
-    def solve(
-        self, rhs: Array, tol: Optional[float] = None, x0: Optional[Array] = None
-    ) -> tuple[Array, SolveInfo]:
-        return self._inner.solve(rhs, tol, x0)
-
-    def transpose(self) -> None:
-        return None
-
-
-class _NoTransposeSolver(Generic[Array]):
-    """A dense LU whose handles have no transposed solve."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._lu = BackendDenseLU(bkd)
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=False)
-
-    def setup(
-        self, op: ActionOperatorProtocol[Array, DenseFormat[Array]]
-    ) -> SolverHandleProtocol[Array]:
-        return _NoTransposeHandle(self._lu.setup(op))
-
-
 class TestImplicitStageSolve:
     def test_injected_system_wins_and_matrix_comes_from_the_stepper(
         self, bkd: Backend[Array]
@@ -193,7 +156,7 @@ class TestImplicitStageSolve:
 
     def test_a_solver_without_transposes_is_refused(self, bkd: Backend[Array]) -> None:
         model = _model(bkd)
-        system = dense_system(model, solver=_NoTransposeSolver(bkd))
+        system = dense_system(model, solver=NoTransposeSolver(bkd))
         op = ImplicitStageSolve(model, system).newton_operator(
             bkd.asarray([10.0, 5.0]),
             bkd.zeros((2,)),

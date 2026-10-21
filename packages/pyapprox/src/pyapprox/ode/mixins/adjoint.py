@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic
+from typing import TYPE_CHECKING, Callable, Generic
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol
+from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
@@ -29,6 +30,7 @@ class AdjointMixin(ABC, Generic[Array]):
         _residual: ODEResidualProtocol[Array]
         _bkd: Backend[Array]
         _ctx: StepContext[Array]
+        _mass_matrix: Callable[[], MassMatrixProtocol[Array]]
 
     @property
     def _adjoint_residual(
@@ -117,7 +119,7 @@ class AdjointMixin(ABC, Generic[Array]):
         Symmetric with adjoint_initial_condition: ctx describes R_1
         (the first forward step), ctx.y_prev = y_0, y_curr = y_1.
         """
-        mass = self._adjoint_residual.mass_matrix()
+        mass = self._mass_matrix()
         drduT_offdiag = self.adjoint_off_diag_jacobian(ctx, y_curr)
         rhs = -drduT_offdiag @ asol_1 - dqdu_0
         return mass.solve_transpose(rhs)

@@ -10,16 +10,18 @@ Split into three classes via mixin composition:
 - ForwardEulerHVP: + HVP methods
 """
 
-from typing import Generic
+from typing import Generic, Optional, TypeVar
 
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
     MassMatrixTransposeOperator,
 )
+from pyapprox.ode.mass_solve import explicit_mass
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.protocols.mass_system import MassSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
@@ -31,6 +33,8 @@ from pyapprox.ode.time_quadrature import (
     left_rectangle_quadrature,
 )
 from pyapprox.util.backends.protocols import Array
+
+F = TypeVar("F")
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature
@@ -49,21 +53,39 @@ class ForwardEulerStepper(
     .. math::
 
         R(y_n) = M (y_n - y_{n-1}) - \Delta t \, f(y_{n-1}, t_{n-1}) = 0
+
+    Parameters
+    ----------
+    residual : ODEResidualProtocol
+        :math:`f` and its mass.
+    system : MassSystemProtocol, optional
+        Solves with the mass through this system's operator and solver,
+        set up once. When omitted, the residual's own mass solves.
+
+    Raises
+    ------
+    TypeError
+        If the mass is singular (a differential-algebraic model).
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[MassSystemProtocol[Array, F]] = None,
+    ) -> None:
         super().__init__(residual)
+        self._mass_matrix = explicit_mass(residual, system, type(self).__name__)
 
     def __call__(self, state: Array) -> Array:
-        return self._residual.mass_matrix().apply(
+        return self._mass_matrix().apply(
             state - self._ctx.y_prev
         ) - self._ctx.deltat * self._residual(self._ctx.y_prev, self._ctx.t_prev)
 
     def jacobian(self, state: Array) -> Array:
-        return self._residual.mass_matrix().as_matrix()
+        return self._mass_matrix().as_matrix()
 
     def linsolve(self, state: Array, residual: Array) -> Array:
-        return self._residual.mass_matrix().solve(residual)
+        return self._mass_matrix().solve(residual)
 
     # -- SensitivityMixin --
 
@@ -88,7 +110,7 @@ class ForwardEulerStepper(
         where :math:`J = df/dy|_{y_{n-1}, t_{n-1}}`.
         """
         jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
-        return -self._residual.mass_matrix().add_to(ctx.deltat * jac)
+        return -self._mass_matrix().add_to(ctx.deltat * jac)
 
     # -- QuadratureMixin --
 
@@ -121,8 +143,12 @@ class ForwardEulerAdjoint(
 ):
     """Forward Euler with adjoint capability for gradient computation."""
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[MassSystemProtocol[Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_{n-1}, t_{n-1}}`."""
@@ -134,21 +160,21 @@ class ForwardEulerAdjoint(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         r"""Return :math:`(dR/dy_n)^T = M^T` (explicit, so Jacobian is mass matrix)."""
-        return MassMatrixTransposeOperator(self._adjoint_residual.mass_matrix())
+        return MassMatrixTransposeOperator(self._mass_matrix())
 
     def adjoint_off_diag_jacobian(
         self, next_ctx: StepContext[Array], y_curr_of_next: Array
     ) -> Array:
         r"""Compute :math:`(dR_{n+1}/dy_n)^T = -(\Delta t \, J + M)^T`."""
         jac = self._adjoint_residual.jacobian(next_ctx.y_prev, next_ctx.t_prev)
-        return -self._adjoint_residual.mass_matrix().add_to(next_ctx.deltat * jac).T
+        return -self._mass_matrix().add_to(next_ctx.deltat * jac).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         r"""Solve :math:`M^T \lambda_N = -dQ/dy_N` (explicit:
         :math:`dR_N/dy_N = M`)."""
-        return self._adjoint_residual.mass_matrix().solve_transpose(-final_dqdu)
+        return self._mass_matrix().solve_transpose(-final_dqdu)
 
 
 # =========================================================================
@@ -170,8 +196,12 @@ class ForwardEulerHVP(
     f(y_k). param_param_hvp is nonzero because both terms depend on p.
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[MassSystemProtocol[Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     # -- Same-step HVP methods (all zero: R_n is linear in y_n) --
 

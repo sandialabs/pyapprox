@@ -12,7 +12,7 @@ Split into three classes via mixin composition:
 - HeunHVP: + HVP methods
 """
 
-from typing import Generic, Union
+from typing import Generic, Optional, TypeVar, Union
 
 from scipy.sparse import spmatrix
 
@@ -20,10 +20,12 @@ from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
     MassMatrixTransposeOperator,
 )
+from pyapprox.ode.mass_solve import explicit_mass
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.protocols.mass_system import MassSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
@@ -33,6 +35,8 @@ from pyapprox.ode.time_quadrature import (
     trapezoidal_quadrature,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+F = TypeVar("F")
 
 
 def _dense(bkd: Backend[Array], matrix: Union[spmatrix, Array]) -> Array:
@@ -63,10 +67,28 @@ class HeunStepper(
         k_2 = f(y_{n-1} + \Delta t \cdot k_1, t_n)
 
         R(y_n) = M (y_n - y_{n-1}) - \frac{\Delta t}{2} (k_1 + k_2) = 0
+
+    Parameters
+    ----------
+    residual : ODEResidualProtocol
+        :math:`f` and its mass.
+    system : MassSystemProtocol, optional
+        Solves with the mass through this system's operator and solver,
+        set up once. When omitted, the residual's own mass solves.
+
+    Raises
+    ------
+    TypeError
+        If the mass is singular (a differential-algebraic model).
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[MassSystemProtocol[Array, F]] = None,
+    ) -> None:
         super().__init__(residual)
+        self._mass_matrix = explicit_mass(residual, system, type(self).__name__)
 
     def __call__(self, state: Array) -> Array:
         # k1 = f(y_{n-1}, t_{n-1})
@@ -75,17 +97,17 @@ class HeunStepper(
         # Stage: y_{n-1} + Δt·M^{-1}·k1. The ODE is M·dy/dt = f, so the
         # slope is M^{-1}f; for identity mass (collocation) the solve is
         # a no-op and this reduces to y_{n-1} + Δt·k1.
-        mass = self._residual.mass_matrix()
+        mass = self._mass_matrix()
         next_state = self._ctx.y_prev + self._ctx.deltat * mass.solve(k1)
         k2 = self._residual(next_state, self._ctx.t_curr)
 
         return mass.apply(state - self._ctx.y_prev) - 0.5 * self._ctx.deltat * (k1 + k2)
 
     def jacobian(self, state: Array) -> Array:
-        return self._residual.mass_matrix().as_matrix()
+        return self._mass_matrix().as_matrix()
 
     def linsolve(self, state: Array, residual: Array) -> Array:
-        return self._residual.mass_matrix().solve(residual)
+        return self._mass_matrix().solve(residual)
 
     # -- SensitivityMixin --
 
@@ -120,7 +142,7 @@ class HeunStepper(
         fill-in), so sparse operands are normalized to dense before
         mixing with it — a no-op for backend arrays.
         """
-        mass_obj = self._residual.mass_matrix()
+        mass_obj = self._mass_matrix()
 
         k1_jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
 
@@ -164,8 +186,12 @@ class HeunAdjoint(
 ):
     """Heun's method with adjoint capability for gradient computation."""
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[MassSystemProtocol[Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute the parameter Jacobian :math:`dR/dp` for one time step.
@@ -183,7 +209,7 @@ class HeunAdjoint(
         :math:`M^{-1} f`; both solves are passthroughs for identity
         mass).
         """
-        mass_obj = self._residual.mass_matrix()
+        mass_obj = self._mass_matrix()
 
         # k1 stage
         k1_param_jac = self._adjoint_residual.param_jacobian(ctx.y_prev, ctx.t_prev)
@@ -210,7 +236,7 @@ class HeunAdjoint(
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
-        return MassMatrixTransposeOperator(self._adjoint_residual.mass_matrix())
+        return MassMatrixTransposeOperator(self._mass_matrix())
 
     def adjoint_off_diag_jacobian(
         self, next_ctx: StepContext[Array], y_curr_of_next: Array
@@ -228,7 +254,7 @@ class HeunAdjoint(
     ) -> Array:
         r"""Solve :math:`M^T \lambda_N = -dQ/dy_N` (explicit:
         :math:`dR_N/dy_N = M`)."""
-        return self._adjoint_residual.mass_matrix().solve_transpose(-final_dqdu)
+        return self._mass_matrix().solve_transpose(-final_dqdu)
 
 
 # =========================================================================
@@ -250,8 +276,12 @@ class HeunHVP(
     ``t_{n-1}``.
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
-        super().__init__(residual)
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        system: Optional[MassSystemProtocol[Array, F]] = None,
+    ) -> None:
+        super().__init__(residual, system)
 
     # -- Same-step HVP methods (all zero: R_n is linear in y_n) --
 
@@ -300,7 +330,7 @@ class HeunHVP(
         mass).
         """
         dt = ctx.deltat
-        mass_obj = self._residual.mass_matrix()
+        mass_obj = self._mass_matrix()
 
         t1, t2 = ctx.t_prev, ctx.t_curr
 
@@ -373,7 +403,7 @@ class HeunHVP(
         the stage-curvature weight carries :math:`M^{-T}`.
         """
         dt = next_ctx.deltat
-        mass_obj = self._residual.mass_matrix()
+        mass_obj = self._mass_matrix()
 
         t1, t2 = next_ctx.t_prev, next_ctx.t_curr
 
@@ -422,7 +452,7 @@ class HeunHVP(
         stage-curvature weight carries :math:`M^{-T}`.
         """
         dt = next_ctx.deltat
-        mass_obj = self._residual.mass_matrix()
+        mass_obj = self._mass_matrix()
 
         t1, t2 = next_ctx.t_prev, next_ctx.t_curr
 
@@ -482,7 +512,7 @@ class HeunHVP(
         stage-curvature weight carries :math:`M^{-T}`.
         """
         dt = next_ctx.deltat
-        mass_obj = self._residual.mass_matrix()
+        mass_obj = self._mass_matrix()
 
         t1, t2 = next_ctx.t_prev, next_ctx.t_curr
 

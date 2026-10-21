@@ -26,6 +26,7 @@ Post-hoc methods (adjoint, HVP, param_jacobian) take their
 
 from .implicit_system import ImplicitSystemProtocol
 from .jacobian_operator import JacobianOperatorProtocol
+from .mass_system import MassSystemProtocol
 from .ode_residual import (
     ImplicitODEResidualProtocol,
     ImplicitODEResidualWithHVPProtocol,
@@ -61,5 +62,6 @@ __all__ = [
     # Operator-valued Jacobian and implicit-system Protocols
     "JacobianOperatorProtocol",
     "ImplicitSystemProtocol",
+    "MassSystemProtocol",
     # Base Classes and Mixins
 ]
