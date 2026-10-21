@@ -39,16 +39,6 @@ def newton_matrix(
     return residual.mass_matrix().add_to(-coefficient * residual.jacobian(state, time))
 
 
-def stage_point(time: float) -> LinearizationPoint:
-    """The label of a stage's linearization at ``time``.
-
-    Provisional, so no solver reuses work across it: the same label
-    serves every Newton iterate of the stage, which only a token naming
-    the iterate could tell apart.
-    """
-    return LinearizationPoint(0, ("implicit stage", time), provisional=True)
-
-
 @runtime_checkable
 class ImplicitSystemProviderProtocol(Protocol[Array, F]):
     """A model that supplies its own implicit system."""
@@ -190,6 +180,19 @@ class ImplicitStageSolve(Generic[Array]):
         self._bkd = residual.bkd()
         self._linearizer: Optional[_LinearizerProtocol[Array]] = (
             None if system is None else _SystemLinearizer(system)
+        )
+        self._linearizations = 0
+
+    def stage_point(self, time: float) -> LinearizationPoint:
+        """A label for one linearization of a stage at ``time``.
+
+        Each call returns a new label. A caching solver reuses a setup
+        only for an equal label, so implicit stages are never reused:
+        not across Newton iterates, nor across parameter values.
+        """
+        self._linearizations += 1
+        return LinearizationPoint(
+            0, ("implicit stage", time, self._linearizations), provisional=True
         )
 
     def _resolve(self) -> _LinearizerProtocol[Array]:

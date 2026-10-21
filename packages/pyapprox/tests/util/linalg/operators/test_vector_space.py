@@ -108,6 +108,9 @@ class TestVectorSpaceConformance:
             space.concatenate([columns[2], x]),
             case.bkd.hstack([xa[:, 2:3], xa]),
         )
+        for k in (3, -1):
+            with pytest.raises(IndexError, match=f"column {k} is outside"):
+                space.column(x, k)
 
     def test_aliasing_rules(self, case: TypedStackCase[V, F, A]) -> None:
         """out may be the accumulating operand, never another operand."""

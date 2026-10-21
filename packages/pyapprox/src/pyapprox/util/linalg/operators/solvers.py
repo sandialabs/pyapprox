@@ -160,6 +160,22 @@ def require_square(op: LinearMapProtocol[V], solver: str) -> None:
         )
 
 
+def require_transposes(solver: LinearSolverProtocol[V, F_contra], user: str) -> None:
+    """Refuse, before any solve, a solver whose handles cannot solve with
+    the transpose, for a ``user`` that will need it (an adjoint).
+
+    Raises
+    ------
+    TypeError
+        If ``solver.capabilities().transpose`` is false.
+    """
+    if not solver.capabilities().transpose:
+        raise TypeError(
+            f"{user} needs transposed solves, which {type(solver).__name__} "
+            "does not offer"
+        )
+
+
 class SolverHandleBase(ABC, Generic[V]):
     r"""The operator half of a handle, shared by every solver.
 

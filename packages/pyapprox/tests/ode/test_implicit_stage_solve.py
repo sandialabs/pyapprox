@@ -15,6 +15,7 @@ import pytest
 from pyapprox.ode.implicit_stage_solve import ImplicitStageSolve, newton_matrix
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
+    BackwardEulerStepper,
     CrankNicolsonHVP,
     ImplicitMidpointHVP,
 )
@@ -24,11 +25,13 @@ from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
+    BackendDenseLU,
     BackendDenseOperator,
     BackendVectorSpace,
 )
 from pyapprox.util.linalg.operators import (
     GMRES,
+    CachingSolver,
     LinearizationPoint,
     SolveFailedError,
     SpaceDescriptor,
@@ -175,6 +178,38 @@ class TestImplicitStageSolve:
         )
         with pytest.raises(TypeError, match="no transposed solve"):
             op.solve_transpose(bkd.asarray([1.0, 0.0]))
+
+
+class TestStagePointsAndCapabilities:
+    def test_every_linearization_gets_a_new_label(self, bkd: Backend[Array]) -> None:
+        """A caching solver never reuses one Newton iterate's setup for
+        another at the same state and time."""
+        stage = ImplicitStageSolve(_model(bkd))
+        assert stage.stage_point(0.3) != stage.stage_point(0.3)
+        model = _model(bkd)
+        cache = CachingSolver(BackendDenseLU(bkd), 4)
+        stepper = BackwardEulerHVP(model, dense_system(model, solver=cache))
+        stepper.bind(_ctx(bkd))
+        state, rhs = bkd.asarray([10.0, 5.0]), bkd.asarray([1.0, -2.0])
+        stepper.linsolve(state, rhs)
+        stepper.linsolve(state, rhs)
+        assert cache.setups() == 2 and cache.hits() == 0
+
+    @pytest.mark.parametrize("name", _NAMES)
+    def test_adjoint_tiers_refuse_a_solver_without_transposes(
+        self, bkd: Backend[Array], name: str
+    ) -> None:
+        model = _model(bkd)
+        system = dense_system(model, solver=NoTransposeSolver(bkd))
+        with pytest.raises(TypeError, match="needs transposed solves"):
+            if name == "midpoint":
+                ImplicitMidpointHVP(model, system)
+            elif name == "crank-nicolson":
+                CrankNicolsonHVP(model, system)
+            else:
+                BackwardEulerHVP(model, system)
+        # A forward-only stepper does not need them.
+        BackwardEulerStepper(model, system)
 
 
 class _MixinModel(LotkaVolterra[Array], DefaultNewtonJacobianMixin[Array]):

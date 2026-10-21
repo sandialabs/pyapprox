@@ -12,7 +12,7 @@ from typing import Generic, Optional, Sequence, TypeVar
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators.algebra import Transposed
-from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor, check_column
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
     OperatorProperties,
@@ -135,6 +135,7 @@ class BackendVectorSpace(Generic[Array]):
 
     def column(self, x: Array, k: int) -> Array:
         self._check(x, "x")
+        check_column(k, int(x.shape[1]))
         return self._bkd.copy(x[:, k : k + 1])
 
     def concatenate(self, blocks: Sequence[Array]) -> Array:

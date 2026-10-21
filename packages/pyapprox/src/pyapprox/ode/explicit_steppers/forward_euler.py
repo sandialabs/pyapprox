@@ -33,6 +33,7 @@ from pyapprox.ode.time_quadrature import (
     left_rectangle_quadrature,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.operators.solvers import require_transposes
 
 F = TypeVar("F")
 
@@ -149,6 +150,8 @@ class ForwardEulerAdjoint(
         system: Optional[MassSystemProtocol[Array, F]] = None,
     ) -> None:
         super().__init__(residual, system)
+        if system is not None:
+            require_transposes(system.solver(), type(self).__name__)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_{n-1}, t_{n-1}}`."""

@@ -34,6 +34,7 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
     Transposed,
 )
+from pyapprox.util.linalg.operators.descriptor import check_column
 from pyapprox.util.linalg.operators.solvers import require_format, require_square
 
 # The mock holds float64 entries, indexed by intp row and column arrays.
@@ -131,7 +132,9 @@ class MockVectorSpace:
         return int(self._get(x, "x").shape[1])
 
     def column(self, x: MockVector, k: int) -> MockVector:
-        return MockVector(self._get(x, "x")[:, k : k + 1].copy(), self._descriptor)
+        entries = self._get(x, "x")
+        check_column(k, entries.shape[1])
+        return MockVector(entries[:, k : k + 1].copy(), self._descriptor)
 
     def concatenate(self, blocks: Sequence[MockVector]) -> MockVector:
         return MockVector(

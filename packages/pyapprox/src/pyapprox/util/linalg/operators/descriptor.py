@@ -33,6 +33,18 @@ class SpaceMismatchError(ValueError):
     """Raised when objects belonging to different spaces are combined."""
 
 
+def check_column(k: int, ncols: int) -> None:
+    """Refuse a column index outside ``[0, ncols)``, negative included.
+
+    Raises
+    ------
+    IndexError
+        If ``k`` does not index a column of a block of ``ncols`` vectors.
+    """
+    if not 0 <= k < ncols:
+        raise IndexError(f"column {k} is outside a block of {ncols} vectors")
+
+
 @dataclass(frozen=True)
 class SpaceDescriptor:
     """The global description of a vector space.

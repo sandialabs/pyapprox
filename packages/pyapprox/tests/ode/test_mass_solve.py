@@ -14,7 +14,7 @@ from typing import Generic, Optional, Union
 import pytest
 
 from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerHVP
-from pyapprox.ode.explicit_steppers.heun import HeunHVP
+from pyapprox.ode.explicit_steppers.heun import HeunHVP, HeunStepper
 from pyapprox.ode.mass_solve import MassSolve
 from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
 from pyapprox.ode.step_context import StepContext
@@ -280,6 +280,18 @@ class TestMassSolve:
         bkd.assert_allclose(mass.solve(rhs), bkd.solve(bkd.asarray(_MASS), rhs))
         with pytest.raises(TypeError, match="no transposed solve"):
             mass.solve_transpose(rhs)
+
+    def test_adjoint_tiers_refuse_a_solver_without_transposes(
+        self, bkd: Backend[Array]
+    ) -> None:
+        model = _model(bkd)
+        system = dense_system(model, solver=NoTransposeSolver(bkd))
+        with pytest.raises(TypeError, match="needs transposed solves"):
+            ForwardEulerHVP(model, system)
+        with pytest.raises(TypeError, match="needs transposed solves"):
+            HeunHVP(model, system)
+        # A forward-only stepper does not need them.
+        HeunStepper(model, system)
 
     def test_refuses_a_non_system(self, bkd: Backend[Array]) -> None:
         with pytest.raises(TypeError, match="MassSystemProtocol"):

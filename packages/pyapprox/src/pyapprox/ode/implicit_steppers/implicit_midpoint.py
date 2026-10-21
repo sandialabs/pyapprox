@@ -25,7 +25,6 @@ from typing import Generic, Optional, TypeVar
 from pyapprox.ode.implicit_stage_solve import (
     ImplicitStageSolve,
     newton_matrix,
-    stage_point,
 )
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
@@ -51,6 +50,7 @@ from pyapprox.ode.time_quadrature import (
 )
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import FormatProtocol
+from pyapprox.util.linalg.operators.solvers import require_transposes
 
 F = TypeVar("F", bound=FormatProtocol)
 
@@ -115,7 +115,7 @@ class ImplicitMidpointStepper(
             (state - ctx.y_prev) / ctx.deltat,
             t_mid,
             0.5 * ctx.deltat,
-            stage_point(t_mid),
+            self._stage.stage_point(t_mid),
             partial(newton_matrix, self._residual, y_mid, t_mid, 0.5 * ctx.deltat),
         )
 
@@ -184,6 +184,8 @@ class ImplicitMidpointAdjoint(
         system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual, system)
+        if system is not None:
+            require_transposes(system.solver(), type(self).__name__)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t

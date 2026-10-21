@@ -21,7 +21,7 @@ from scipy.sparse import identity as sparse_identity
 from scipy.sparse.linalg import LinearOperator, SuperLU, cg, gmres, splu
 
 from pyapprox.util.linalg.operators.algebra import Transposed
-from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor, check_column
 from pyapprox.util.linalg.operators.formats import FormatProtocol
 from pyapprox.util.linalg.operators.protocols import (
     ActionOperatorProtocol,
@@ -155,6 +155,7 @@ class NumpyVectorSpace(Generic[S]):
 
     def column(self, x: NDArray[S], k: int) -> NDArray[S]:
         self._check(x, "x")
+        check_column(k, x.shape[1])
         return x[:, k : k + 1].copy()
 
     def concatenate(self, blocks: Sequence[NDArray[S]]) -> NDArray[S]:
