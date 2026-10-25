@@ -49,10 +49,9 @@ from pyapprox.ode.time_quadrature import (
     midpoint_quadrature,
 )
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.operators import FormatProtocol
 from pyapprox.util.linalg.operators.solvers import require_transposes
 
-F = TypeVar("F", bound=FormatProtocol)
+F = TypeVar("F")
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit

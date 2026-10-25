@@ -21,13 +21,12 @@ from pyapprox.ode.protocols import ImplicitSystemProtocol, ODEResidualProtocol
 from pyapprox.ode.semi_explicit_system import dense_system
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
-    FormatProtocol,
     LinearizationPoint,
     SolveFailedError,
     SolverHandleProtocol,
 )
 
-F = TypeVar("F", bound=FormatProtocol)
+F = TypeVar("F")
 
 
 def newton_matrix(
