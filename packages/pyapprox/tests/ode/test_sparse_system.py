@@ -20,11 +20,11 @@ if not package_available("skfem"):
 
 from pyapprox.ode.implicit_stage_solve import newton_matrix
 from pyapprox.ode.protocols import ImplicitSystemProtocol, JacobianOperatorProtocol
-from pyapprox.ode.semi_explicit_system import sparse_system
 from pyapprox.ode.sparse_jacobian_operator import (
     SparseJacobianOperator,
     SparseJacobianSnapshot,
 )
+from pyapprox.ode.sparse_system import sparse_system
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
