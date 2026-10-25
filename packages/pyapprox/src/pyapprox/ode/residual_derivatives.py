@@ -7,60 +7,99 @@ a missing attribute, and consumers decide what they can do by
 None-checking the bundle once rather than by ``isinstance`` on the
 residual.
 
-Every field is an operator or an action, never a matrix, so a
-distributed or matrix-free residual fills it as easily as a dense one:
+Every field is a callable returning an **operator** between spaces of
+the stack, never a matrix. The parameter space is a space of the stack
+like the state space (a field-valued parameter is as large as the state
+and distributed like it), so the parameter derivatives are rectangular
+operators, and a large or distributed residual fills the bundle as
+easily as a small dense one. Operators act on blocks of shape
+``(size, ncols)``; states and adjoints passed to the callables are 1-D.
 
-- ``jacobian``: a :class:`~pyapprox.ode.protocols.JacobianOperatorProtocol`
-  producer of :math:`\partial f/\partial y` as labeled operators. Declare
-  one with :func:`dense_jacobian` (a private method returning the dense
-  matrix) or :func:`matrix_free_jacobian` (its two actions).
-- ``param``: :class:`ParamActions`, ``jvp(state, time, v) -> (nstates,)``
-  for :math:`(\partial f/\partial p) v` with ``v`` of shape ``(nparams,)``
-  and ``vjp(state, time, w) -> (nparams,)`` for
-  :math:`(\partial f/\partial p)^\top w`. Declare from a small matrix with
-  :func:`param_actions`.
-- ``initial_state``: :class:`InitialStateDerivatives` of :math:`y_0(p)`:
-  ``jvp(v) -> (nstates,)``, ``vjp(w) -> (nparams,)`` and, for second
-  order, ``hvp(weight, v) -> (nparams,)`` for
-  :math:`\sum_i w_i (\partial^2 y_{0,i}/\partial p^2) v`.
-- second-order contractions with an adjoint :math:`\lambda`, all four
-  together: ``state_state(state, time, adj, w) -> (nstates,)`` for
-  :math:`\lambda^\top (\partial^2 f/\partial y^2) w`,
-  ``state_param(state, time, adj, v) -> (nstates,)``,
-  ``param_state(state, time, adj, w) -> (nparams,)`` and
-  ``param_param(state, time, adj, v) -> (nparams,)``.
+- ``jacobian(state, time, point)``: :math:`\partial f/\partial y`,
+  state → state, labeled with ``point`` (a ``JacobianSnapshotProtocol``)
+  because solvers pair with it and may reuse its setup.
+- ``param(state, time)``: :math:`\partial f/\partial p`, parameter →
+  state; its transpose gives the adjoint gradient's contribution.
+- ``initial_state()``: :math:`\partial y_0/\partial p`, parameter →
+  state.
+- ``initial_state_curvature(weight)``:
+  :math:`\sum_i w_i\,\partial^2 y_{0,i}/\partial p^2`, parameter →
+  parameter.
+- ``state_state(state, time, adj)``:
+  :math:`\lambda^\top \partial^2 f/\partial y^2`, state → state
+  (symmetric).
+- ``state_param(state, time, adj)``:
+  :math:`\lambda^\top \partial^2 f/\partial y\,\partial p`, parameter →
+  state; its transpose is the parameter-state term, so the two can never
+  disagree.
+- ``param_param(state, time, adj)``:
+  :math:`\lambda^\top \partial^2 f/\partial p^2`, parameter → parameter.
 
-Vectors are 1-D backend arrays. A term known to be identically zero is
-declared with :data:`STATED_ZERO`, never by leaving it out: the
-constructor puts an exact zero in its place and records its name in
-``zeros``, so a consumer may skip it, and absence keeps meaning "not
-available". The bundle is generic over the Jacobian's format and
-covariant in it, so a system builder keeps the static pairing of format
-and solver and a consumer that ignores the format accepts any bundle.
+A term known to be identically zero is declared with :data:`STATED_ZERO`,
+never by leaving it out: the constructor puts a
+:class:`~pyapprox.util.linalg.operators.ZeroOperator` between the right
+spaces in its place, whose properties declare ``zero``, so a consumer may
+skip it, and absence keeps meaning "not available". The bundle is
+covariant in the Jacobian's format, so a system builder keeps its static
+pairing of format and solver and a consumer that ignores the format
+accepts any bundle. A bundle describes one discretization and is rebuilt
+when it changes (a remesh).
 """
 
-from dataclasses import dataclass, fields
-from typing import Callable, Generic, Optional, TypeVar, Union
+from dataclasses import dataclass
+from typing import Callable, Generic, Optional, ParamSpec, TypeVar, Union
 
 from pyapprox.ode.dense_jacobian_operator import DenseJacobianOperator
 from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
-from pyapprox.ode.protocols import JacobianOperatorProtocol
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
-from pyapprox.util.linalg.backend_dense import backend_dtype_name
-from pyapprox.util.linalg.operators import SpaceDescriptor
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseOperator,
+    BackendVectorSpace,
+    DenseFormat,
+    backend_dtype_name,
+)
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    FormatProtocol,
+    JacobianSnapshotProtocol,
+    LinearizationPoint,
+    MatrixFree,
+    OperatorProperties,
+    SpaceDescriptor,
+    VectorSpaceProtocol,
+    ZeroOperator,
+)
 
 A = TypeVar("A", bound=ArrayProtocol)
 F_co = TypeVar("F_co", covariant=True)
 G = TypeVar("G")
+P = ParamSpec("P")
 
-StateActionFn = Callable[[Array, float, Array], Array]
-InitialActionFn = Callable[[Array], Array]
-InitialHVPFn = Callable[[Array, Array], Array]
-ContractionFn = Callable[[Array, float, Array, Array], Array]
-JacobianMatrixFn = Callable[[Array, float], Array]
-JacobianBlockFn = Callable[[Array, float, Array], Array]
+DerivativeOperator = ActionOperatorProtocol[Array, FormatProtocol]
+"""A derivative that is applied but never solved with: any format."""
+JacobianFn = Callable[
+    [Array, float, LinearizationPoint], JacobianSnapshotProtocol[Array, G]
+]
+ParamFn = Callable[[Array, float], DerivativeOperator[Array]]
+InitialStateFn = Callable[[], DerivativeOperator[Array]]
+CurvatureFn = Callable[[Array], DerivativeOperator[Array]]
+SecondDerivativeFn = Callable[[Array, float, Array], DerivativeOperator[Array]]
 
-_SECOND_ORDER = ("state_state", "state_param", "param_state", "param_param")
+_FIELDS = (
+    "jacobian",
+    "param",
+    "initial_state",
+    "initial_state_curvature",
+    "state_state",
+    "state_param",
+    "param_param",
+)
+_SECOND_ORDER = (
+    "initial_state_curvature",
+    "state_state",
+    "state_param",
+    "param_param",
+)
 
 
 class _StatedZero:
@@ -74,72 +113,34 @@ STATED_ZERO = _StatedZero()
 """Declares a derivative term identically zero (not merely unavailable)."""
 
 
-def _require_callable(owner: str, name: str, value: object) -> None:
-    if value is not None and not callable(value):
-        raise TypeError(
-            f"{owner} field '{name}' must be callable or None; got "
-            f"{type(value).__name__}. Did you pass a computed value instead "
-            "of the function itself?"
-        )
+class _ZeroInitialState(Generic[Array]):
+    """``initial_state`` for a :math:`y_0` independent of :math:`p`."""
+
+    def __init__(self, op: ZeroOperator[Array]) -> None:
+        self._op = op
+
+    def __call__(self) -> ZeroOperator[Array]:
+        return self._op
 
 
-@dataclass(frozen=True)
-class ParamActions(Generic[Array]):
-    r""":math:`\partial f/\partial p` by its two actions, which come together:
-    the tangent sweep needs ``jvp``, the adjoint gradient ``vjp``."""
+class _ZeroCurvature(Generic[Array]):
+    """``initial_state_curvature`` for a :math:`y_0` affine in :math:`p`."""
 
-    jvp: StateActionFn[Array]
-    vjp: StateActionFn[Array]
+    def __init__(self, op: ZeroOperator[Array]) -> None:
+        self._op = op
 
-    def __post_init__(self) -> None:
-        for field in fields(self):
-            _require_callable("ParamActions", field.name, getattr(self, field.name))
+    def __call__(self, weight: Array) -> ZeroOperator[Array]:
+        return self._op
 
 
-@dataclass(frozen=True)
-class InitialStateDerivatives(Generic[Array]):
-    r"""Derivatives of the initial state :math:`y_0(p)`; ``hvp`` only for
-    second order."""
+class _ZeroSecondDerivative(Generic[Array]):
+    """An adjoint-weighted second derivative that is identically zero."""
 
-    jvp: InitialActionFn[Array]
-    vjp: InitialActionFn[Array]
-    hvp: Optional[InitialHVPFn[Array]] = None
+    def __init__(self, op: ZeroOperator[Array]) -> None:
+        self._op = op
 
-    def __post_init__(self) -> None:
-        for field in fields(self):
-            _require_callable(
-                "InitialStateDerivatives", field.name, getattr(self, field.name)
-            )
-
-
-class _ZeroInitialAction(Generic[Array]):
-    """An exact zero vector of length ``size`` from one vector argument."""
-
-    def __init__(self, bkd: Backend[Array], size: int) -> None:
-        self._bkd, self._size = bkd, size
-
-    def __call__(self, vec: Array) -> Array:
-        return self._bkd.zeros((self._size,))
-
-
-class _ZeroInitialHVP(Generic[Array]):
-    """An exact zero initial-state curvature, of length ``nparams``."""
-
-    def __init__(self, bkd: Backend[Array], nparams: int) -> None:
-        self._bkd, self._nparams = bkd, nparams
-
-    def __call__(self, weight: Array, vec: Array) -> Array:
-        return self._bkd.zeros((self._nparams,))
-
-
-class _ZeroContraction(Generic[Array]):
-    """An exact zero second-order contraction of length ``size``."""
-
-    def __init__(self, bkd: Backend[Array], size: int) -> None:
-        self._bkd, self._size = bkd, size
-
-    def __call__(self, state: Array, time: float, adj: Array, vec: Array) -> Array:
-        return self._bkd.zeros((self._size,))
+    def __call__(self, state: Array, time: float, adj: Array) -> ZeroOperator[Array]:
+        return self._op
 
 
 @dataclass(frozen=True)
@@ -149,56 +150,44 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
     Build with the named constructors. Frozen: a residual whose
     capability changes rebuilds its bundle, never mutates one.
 
-    Invariants: ``param`` and ``initial_state`` come together and
-    require ``jacobian``; the four second-order contractions come
-    together and require ``param`` and an ``initial_state`` with
-    ``hvp``; ``nparams`` is positive exactly when ``param`` is present.
+    Invariants: ``param`` and ``initial_state`` come together, require
+    ``jacobian`` and come with ``param_space``; the four second-order
+    fields come together and require them.
     """
 
-    jacobian: Optional[JacobianOperatorProtocol[Array, Array, F_co]] = None
-    param: Optional[ParamActions[Array]] = None
-    initial_state: Optional[InitialStateDerivatives[Array]] = None
-    state_state: Optional[ContractionFn[Array]] = None
-    state_param: Optional[ContractionFn[Array]] = None
-    param_state: Optional[ContractionFn[Array]] = None
-    param_param: Optional[ContractionFn[Array]] = None
-    nparams: int = 0
-    zeros: frozenset[str] = frozenset()
+    jacobian: Optional[JacobianFn[Array, F_co]] = None
+    param: Optional[ParamFn[Array]] = None
+    initial_state: Optional[InitialStateFn[Array]] = None
+    initial_state_curvature: Optional[CurvatureFn[Array]] = None
+    state_state: Optional[SecondDerivativeFn[Array]] = None
+    state_param: Optional[SecondDerivativeFn[Array]] = None
+    param_param: Optional[SecondDerivativeFn[Array]] = None
+    param_space: Optional[VectorSpaceProtocol[Array]] = None
 
     def __post_init__(self) -> None:
-        for name in _SECOND_ORDER:
-            _require_callable("ODEResidualDerivatives", name, getattr(self, name))
-        if self.jacobian is not None and not isinstance(
-            self.jacobian, JacobianOperatorProtocol
-        ):
-            raise TypeError(
-                "jacobian must satisfy JacobianOperatorProtocol, got "
-                f"{type(self.jacobian).__name__}; declare a matrix with "
-                "dense_jacobian or actions with matrix_free_jacobian"
-            )
+        for name in _FIELDS:
+            value = getattr(self, name)
+            if value is not None and not callable(value):
+                raise TypeError(
+                    f"ODEResidualDerivatives field '{name}' must be callable "
+                    f"or None; got {type(value).__name__}. Did you pass an "
+                    "operator or a matrix instead of the function returning it?"
+                )
         first = (self.param is not None, self.initial_state is not None)
         if first[0] != first[1]:
             raise ValueError("param and initial_state come together")
         if first[0] and self.jacobian is None:
             raise ValueError("param and initial_state require jacobian")
-        if first[0] != (self.nparams > 0):
-            raise ValueError(
-                "nparams must be positive exactly when param is present, got "
-                f"{self.nparams}"
-            )
+        if first[0] != (self.param_space is not None):
+            raise ValueError("param_space comes exactly with param")
         present = [getattr(self, name) is not None for name in _SECOND_ORDER]
         if any(present) and not all(present):
             raise ValueError(
-                "the four second-order contractions come together: "
+                "the four second-order fields come together: "
                 + ", ".join(_SECOND_ORDER)
             )
-        if all(present):
-            if self.initial_state is None or self.initial_state.hvp is None:
-                raise ValueError(
-                    "second order requires param and an initial_state with hvp"
-                )
-        elif self.initial_state is not None and self.initial_state.hvp is not None:
-            raise ValueError("initial_state.hvp is for second order only")
+        if all(present) and not first[0]:
+            raise ValueError("second order requires param and initial_state")
 
     @staticmethod
     def none() -> "ODEResidualDerivatives[A, G]":
@@ -206,109 +195,97 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
         return ODEResidualDerivatives()
 
     @staticmethod
-    def state_only(
-        jacobian: JacobianOperatorProtocol[A, A, G],
-    ) -> "ODEResidualDerivatives[A, G]":
+    def state_only(jacobian: JacobianFn[A, G]) -> "ODEResidualDerivatives[A, G]":
         """A state Jacobian and no parameters: implicit stepping, no
         parameter gradients."""
         return ODEResidualDerivatives(jacobian=jacobian)
 
     @staticmethod
     def first_order(
-        bkd: Backend[A],
-        nstates: int,
-        nparams: int,
-        jacobian: JacobianOperatorProtocol[A, A, G],
-        param: ParamActions[A],
-        initial_state: Union[InitialStateDerivatives[A], _StatedZero],
+        state_space: VectorSpaceProtocol[A],
+        param_space: VectorSpaceProtocol[A],
+        jacobian: JacobianFn[A, G],
+        param: ParamFn[A],
+        initial_state: Union[InitialStateFn[A], _StatedZero],
     ) -> "ODEResidualDerivatives[A, G]":
         """The state Jacobian and the parameter derivatives: adjoint
         gradients. ``initial_state=STATED_ZERO`` declares :math:`y_0`
         independent of :math:`p`."""
-        zeros: set[str] = set()
-        initial = _initial_state(bkd, nstates, nparams, initial_state, False, zeros)
         return ODEResidualDerivatives(
             jacobian=jacobian,
             param=param,
-            initial_state=initial,
-            nparams=nparams,
-            zeros=frozenset(zeros),
+            initial_state=_initial_state(initial_state, state_space, param_space),
+            param_space=param_space,
         )
 
     @staticmethod
     def second_order(
-        bkd: Backend[A],
-        nstates: int,
-        nparams: int,
-        jacobian: JacobianOperatorProtocol[A, A, G],
-        param: ParamActions[A],
-        initial_state: Union[InitialStateDerivatives[A], _StatedZero],
-        state_state: Union[ContractionFn[A], _StatedZero],
-        state_param: Union[ContractionFn[A], _StatedZero],
-        param_state: Union[ContractionFn[A], _StatedZero],
-        param_param: Union[ContractionFn[A], _StatedZero],
+        state_space: VectorSpaceProtocol[A],
+        param_space: VectorSpaceProtocol[A],
+        jacobian: JacobianFn[A, G],
+        param: ParamFn[A],
+        initial_state: Union[InitialStateFn[A], _StatedZero],
+        initial_state_curvature: Union[CurvatureFn[A], _StatedZero],
+        state_state: Union[SecondDerivativeFn[A], _StatedZero],
+        state_param: Union[SecondDerivativeFn[A], _StatedZero],
+        param_param: Union[SecondDerivativeFn[A], _StatedZero],
     ) -> "ODEResidualDerivatives[A, G]":
-        """First order plus the four second-order contractions: Hessian-
-        vector products. Any term may be ``STATED_ZERO``; an
-        ``initial_state`` given explicitly must include ``hvp``."""
-        zeros: set[str] = set()
-        initial = _initial_state(bkd, nstates, nparams, initial_state, True, zeros)
-        sizes = {
-            "state_state": nstates,
-            "state_param": nstates,
-            "param_state": nparams,
-            "param_param": nparams,
-        }
-        given = {
-            "state_state": state_state,
-            "state_param": state_param,
-            "param_state": param_state,
-            "param_param": param_param,
-        }
-        resolved: dict[str, ContractionFn[A]] = {}
-        for name, value in given.items():
-            if isinstance(value, _StatedZero):
-                resolved[name] = _ZeroContraction(bkd, sizes[name])
-                zeros.add(name)
-            else:
-                resolved[name] = value
+        """First order plus the second-order terms: Hessian-vector
+        products. Any term may be ``STATED_ZERO``."""
+        curvature: CurvatureFn[A] = (
+            _ZeroCurvature(ZeroOperator(param_space))
+            if isinstance(initial_state_curvature, _StatedZero)
+            else initial_state_curvature
+        )
         return ODEResidualDerivatives(
             jacobian=jacobian,
             param=param,
-            initial_state=initial,
-            state_state=resolved["state_state"],
-            state_param=resolved["state_param"],
-            param_state=resolved["param_state"],
-            param_param=resolved["param_param"],
-            nparams=nparams,
-            zeros=frozenset(zeros),
+            initial_state=_initial_state(initial_state, state_space, param_space),
+            initial_state_curvature=curvature,
+            state_state=_second_derivative(state_state, state_space, state_space),
+            state_param=_second_derivative(state_param, param_space, state_space),
+            param_param=_second_derivative(param_param, param_space, param_space),
+            param_space=param_space,
         )
 
 
 def _initial_state(
-    bkd: Backend[A],
-    nstates: int,
-    nparams: int,
-    given: Union[InitialStateDerivatives[A], _StatedZero],
-    second_order: bool,
-    zeros: set[str],
-) -> InitialStateDerivatives[A]:
-    """The initial-state group, with exact zeros for ``STATED_ZERO``."""
+    given: Union[InitialStateFn[A], _StatedZero],
+    state_space: VectorSpaceProtocol[A],
+    param_space: VectorSpaceProtocol[A],
+) -> InitialStateFn[A]:
     if isinstance(given, _StatedZero):
-        zeros.add("initial_state")
-        return InitialStateDerivatives(
-            jvp=_ZeroInitialAction(bkd, nstates),
-            vjp=_ZeroInitialAction(bkd, nparams),
-            hvp=_ZeroInitialHVP(bkd, nparams) if second_order else None,
-        )
+        return _ZeroInitialState(ZeroOperator(param_space, state_space))
     return given
+
+
+def _second_derivative(
+    given: Union[SecondDerivativeFn[A], _StatedZero],
+    domain: VectorSpaceProtocol[A],
+    range: VectorSpaceProtocol[A],
+) -> SecondDerivativeFn[A]:
+    if isinstance(given, _StatedZero):
+        return _ZeroSecondDerivative(ZeroOperator(domain, range))
+    return given
+
+
+def backend_spaces(
+    bkd: Backend[Array], nstates: int, nparams: int
+) -> tuple[BackendVectorSpace[Array], BackendVectorSpace[Array]]:
+    """The state and parameter spaces of a model on the backend stack, in
+    the backend's configured dtype."""
+    dtype = backend_dtype_name(bkd)
+    return (
+        BackendVectorSpace(SpaceDescriptor("state", nstates, dtype), bkd),
+        BackendVectorSpace(SpaceDescriptor("param", nparams, dtype), bkd),
+    )
 
 
 class _JacobianMatrixFunction(Generic[Array]):
     """A function returning the Jacobian matrix, as the model
     ``DenseJacobianOperator`` reads."""
 
-    def __init__(self, matrix: JacobianMatrixFn[Array]) -> None:
+    def __init__(self, matrix: Callable[[Array, float], Array]) -> None:
         self._matrix = matrix
 
     def jacobian(self, state: Array, time: float) -> Array:
@@ -316,8 +293,10 @@ class _JacobianMatrixFunction(Generic[Array]):
 
 
 def dense_jacobian(
-    matrix: JacobianMatrixFn[Array], nstates: int, bkd: Backend[Array]
-) -> DenseJacobianOperator[Array]:
+    matrix: Callable[[Array, float], Array],
+    state_space: VectorSpaceProtocol[Array],
+    bkd: Backend[Array],
+) -> JacobianFn[Array, DenseFormat[Array]]:
     """Declare a Jacobian given as a dense matrix.
 
     Parameters
@@ -325,13 +304,15 @@ def dense_jacobian(
     matrix : callable
         ``(state, time) -> (nstates, nstates)`` backend array; typically
         a private bound method.
-    nstates : int
-        The number of states.
+    state_space : VectorSpaceProtocol
+        The state space, as given to the bundle's constructor.
     bkd : Backend
         The backend of the states.
     """
-    descriptor = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
-    return DenseJacobianOperator(_JacobianMatrixFunction(matrix), descriptor, bkd)
+    producer = DenseJacobianOperator(
+        _JacobianMatrixFunction(matrix), state_space.descriptor(), bkd
+    )
+    return producer.jacobian_operator
 
 
 class _JacobianActionFunctions(Generic[Array]):
@@ -339,7 +320,9 @@ class _JacobianActionFunctions(Generic[Array]):
     reads."""
 
     def __init__(
-        self, apply: JacobianBlockFn[Array], apply_transpose: JacobianBlockFn[Array]
+        self,
+        apply: Callable[[Array, float, Array], Array],
+        apply_transpose: Callable[[Array, float, Array], Array],
     ) -> None:
         self._apply, self._apply_transpose = apply, apply_transpose
 
@@ -351,11 +334,10 @@ class _JacobianActionFunctions(Generic[Array]):
 
 
 def matrix_free_jacobian(
-    apply: JacobianBlockFn[Array],
-    apply_transpose: JacobianBlockFn[Array],
-    nstates: int,
-    bkd: Backend[Array],
-) -> MatrixFreeJacobianOperator[Array]:
+    apply: Callable[[Array, float, Array], Array],
+    apply_transpose: Callable[[Array, float, Array], Array],
+    state_space: VectorSpaceProtocol[Array],
+) -> JacobianFn[Array, MatrixFree]:
     r"""Declare a Jacobian given by its actions.
 
     Parameters
@@ -363,42 +345,75 @@ def matrix_free_jacobian(
     apply, apply_transpose : callable
         ``(state, time, block) -> block`` for :math:`J v` and
         :math:`J^\top w`, blocks of shape ``(nstates, ncols)``.
-    nstates : int
-        The number of states.
-    bkd : Backend
-        The backend of the states.
+    state_space : VectorSpaceProtocol
+        The state space, as given to the bundle's constructor.
     """
-    descriptor = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
-    return MatrixFreeJacobianOperator(
-        _JacobianActionFunctions(apply, apply_transpose), descriptor
+    producer = MatrixFreeJacobianOperator(
+        _JacobianActionFunctions(apply, apply_transpose), state_space.descriptor()
     )
+    return producer.jacobian_operator
 
 
-class _ParamMatrixActions(Generic[Array]):
-    r"""The actions of :math:`\partial f/\partial p` given as a matrix."""
+class _DenseOperatorFunction(Generic[P, Array]):
+    """A function returning a dense matrix, as one returning the dense
+    operator between two spaces; it takes the same arguments."""
 
-    def __init__(self, matrix: JacobianMatrixFn[Array], bkd: Backend[Array]) -> None:
+    def __init__(
+        self,
+        matrix: Callable[P, Array],
+        domain: VectorSpaceProtocol[Array],
+        range: VectorSpaceProtocol[Array],
+        bkd: Backend[Array],
+        properties: OperatorProperties,
+    ) -> None:
         self._matrix, self._bkd = matrix, bkd
+        self._domain, self._range = domain.descriptor(), range.descriptor()
+        self._properties = properties
 
-    def jvp(self, state: Array, time: float, vec: Array) -> Array:
-        return self._bkd.dot(self._matrix(state, time), vec)
+    def __call__(
+        self, *args: P.args, **kwargs: P.kwargs
+    ) -> BackendDenseOperator[Array]:
+        return BackendDenseOperator(
+            self._matrix(*args, **kwargs),
+            self._domain,
+            self._bkd,
+            range=self._range,
+            properties=self._properties,
+        )
 
-    def vjp(self, state: Array, time: float, vec: Array) -> Array:
-        return self._bkd.dot(self._matrix(state, time).T, vec)
 
+def dense_operator(
+    matrix: Callable[P, Array],
+    domain: VectorSpaceProtocol[Array],
+    range: VectorSpaceProtocol[Array],
+    bkd: Backend[Array],
+    symmetric: bool = False,
+) -> _DenseOperatorFunction[P, Array]:
+    r"""Declare any derivative but the Jacobian from a function returning
+    its dense matrix.
 
-def param_actions(
-    matrix: JacobianMatrixFn[Array], bkd: Backend[Array]
-) -> ParamActions[Array]:
-    r"""Declare :math:`\partial f/\partial p` given as a small dense matrix.
+    The result takes the same arguments as ``matrix``, so it fits the
+    field it is given to: ``param(state, time)``, ``initial_state()``,
+    ``initial_state_curvature(weight)``, or a second derivative
+    ``(state, time, adj)``. Only for small spaces: a field-valued
+    parameter supplies its operator directly.
 
     Parameters
     ----------
     matrix : callable
-        ``(state, time) -> (nstates, nparams)`` backend array; typically
-        a private bound method. Each action forms it once.
+        Returns a ``(range.size, domain.size)`` backend array; typically
+        a private bound method.
+    domain, range : VectorSpaceProtocol
+        The operator's spaces, as given to the bundle's constructor:
+        parameter → state for ``param``, ``initial_state`` and
+        ``state_param``; state → state for ``state_state``; parameter →
+        parameter for ``initial_state_curvature`` and ``param_param``.
     bkd : Backend
         The backend of the states.
+    symmetric : bool, default False
+        Declare the matrix symmetric (``state_state``, ``param_param``,
+        ``initial_state_curvature``); the dense operator verifies it.
     """
-    actions = _ParamMatrixActions(matrix, bkd)
-    return ParamActions(jvp=actions.jvp, vjp=actions.vjp)
+    return _DenseOperatorFunction(
+        matrix, domain, range, bkd, OperatorProperties(symmetric=symmetric)
+    )
