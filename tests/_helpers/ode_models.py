@@ -26,7 +26,12 @@ class LotkaVolterra(Generic[Array]):
     :math:`J = [[a - b z, -b x], [c z, c x - d]]` and
     :math:`\partial f/\partial p = [[x, -x z, 0, 0], [0, 0, x z, -z]]`;
     :math:`f` is linear in :math:`p`, so its second parameter derivative
-    is zero, and the initial state does not depend on :math:`p`.
+    is zero. The model does not own an initial state: callers pass
+    :math:`y_0` as a fixed input, so :math:`dy_0/dp = 0` is exact and
+    ``initial_param_jacobian`` / ``initial_param_hvp`` return zeros. A
+    test whose :math:`y_0` depends on :math:`p` needs a model that states
+    those derivatives (as in ``test_initial_state_parameters.py``); with
+    this one, a derivative check of such a test fails at O(1).
     States have shape (2,); the actions take and return blocks of shape
     (2, ncols).
     """
