@@ -49,6 +49,7 @@ from pyapprox.util.linalg.operators.solvers import (
     SolverHandleBase,
     SolverHandleProtocol,
 )
+from pyapprox.util.linalg.operators.zero import ZeroOperator
 
 __all__ = [
     "ActionOperatorProtocol",
@@ -81,6 +82,7 @@ __all__ = [
     "SolverHandleProtocol",
     "Transposed",
     "VectorSpaceProtocol",
+    "ZeroOperator",
     "InnerProductSpaceProtocol",
     "as_matrix_free",
     "product_properties",

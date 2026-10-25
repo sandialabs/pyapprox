@@ -69,17 +69,22 @@ class OperatorProperties:
         Only diagonal entries are nonzero. Implies ``symmetric``.
     identity : bool
         :math:`A = I`. Implies ``diagonal`` and ``spd``.
+    zero : bool
+        :math:`A = 0`, declared rather than computed, so a consumer may
+        skip the operator. Excludes ``identity``.
 
     Raises
     ------
     ValueError
-        If a property is declared without one it implies.
+        If a property is declared without one it implies, or ``zero``
+        with ``identity``.
     """
 
     symmetric: bool = False
     spd: bool = False
     diagonal: bool = False
     identity: bool = False
+    zero: bool = False
 
     def __post_init__(self) -> None:
         implications = (
@@ -91,6 +96,8 @@ class OperatorProperties:
         for name, value, implied, implied_value in implications:
             if value and not implied_value:
                 raise ValueError(f"{name}=True requires {implied}=True")
+        if self.zero and self.identity:
+            raise ValueError("zero=True excludes identity=True")
 
 
 @runtime_checkable
