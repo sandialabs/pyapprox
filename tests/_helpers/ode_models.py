@@ -4,7 +4,11 @@
 Jacobian actions, so the matrix and matrix-free wrappers can be checked
 against each other on one model. Its four coefficients are its
 parameters, with their Jacobian and second derivatives, so adjoint
-gradients and Hessian-vector products can be checked on it too.
+gradients and Hessian-vector products can be checked on it too. It
+offers its derivatives both ways: as the operator bundle from
+``derivatives()``, and as the vector methods the tiered steppers still
+read (``param_jacobian``, ``state_state_hvp``, ...), until those
+steppers consume the bundle.
 """
 
 from typing import Generic, Optional
@@ -14,7 +18,15 @@ from pyapprox.ode.mass_matrix import (
     IdentityMassMatrix,
     MassMatrixProtocol,
 )
+from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
+    ODEResidualDerivatives,
+    backend_spaces,
+    dense_jacobian,
+    dense_operator,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import DenseFormat
 
 
 class LotkaVolterra(Generic[Array]):
@@ -52,10 +64,58 @@ class LotkaVolterra(Generic[Array]):
             if mass is None
             else ConstantDenseMassMatrix(mass, bkd)
         )
+        states, params = backend_spaces(bkd, 2, 4)
+        self._derivatives: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+            ODEResidualDerivatives.second_order(
+                states,
+                params,
+                jacobian=dense_jacobian(self.jacobian, states, bkd),
+                param=dense_operator(self.param_jacobian, params, states, bkd),
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=dense_operator(
+                    self._state_state_matrix, states, states, bkd, symmetric=True
+                ),
+                state_param=dense_operator(
+                    self._state_param_matrix, params, states, bkd
+                ),
+                param_param=STATED_ZERO,
+            )
+        )
 
     def bkd(self) -> Backend[Array]:
         """The computational backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """All the model's derivatives, as operators: the Jacobian and the
+        parameter Jacobian as dense matrices, the state and mixed second
+        derivatives as dense matrices, and the initial-state terms and
+        the second parameter derivative as stated zeros."""
+        return self._derivatives
+
+    def _state_state_matrix(self, state: Array, time: float, adj: Array) -> Array:
+        r""":math:`\lambda^\top \partial^2 f/\partial y^2`, symmetric."""
+        _, b, c, _ = self._param
+        weight = -b * adj[0] + c * adj[1]
+        zero = self._bkd.zeros(())
+        return self._bkd.stack(
+            [self._bkd.stack([zero, weight]), self._bkd.stack([weight, zero])]
+        )
+
+    def _state_param_matrix(self, state: Array, time: float, adj: Array) -> Array:
+        r""":math:`\lambda^\top \partial^2 f/\partial y\,\partial p`, of shape
+        (2, 4)."""
+        x, z = state[0], state[1]
+        lx, lz = adj[0], adj[1]
+        bkd = self._bkd
+        zero = bkd.zeros(())
+        return bkd.stack(
+            [
+                bkd.stack([lx, -lx * z, lz * z, zero]),
+                bkd.stack([zero, -lx * x, lz * x, -lz]),
+            ]
+        )
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         r"""The identity, or the constant mass given, so that
