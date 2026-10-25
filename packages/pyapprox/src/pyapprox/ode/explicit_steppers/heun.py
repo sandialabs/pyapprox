@@ -88,8 +88,9 @@ class HeunStepper(
         residual: ODEResidualProtocol[Array],
         system: Optional[MassSystemProtocol[Array, F]] = None,
     ) -> None:
-        super().__init__(residual)
-        self._mass_matrix = explicit_mass(residual, system, type(self).__name__)
+        super().__init__(
+            residual, explicit_mass(residual, system, type(self).__name__)
+        )
 
     def __call__(self, state: Array) -> Array:
         # k1 = f(y_{n-1}, t_{n-1})

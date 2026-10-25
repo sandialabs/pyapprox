@@ -6,13 +6,17 @@ system's solver for its mass once and solves every right-hand side with
 that handle.
 
 The stepper-facing result is the matrix-era ``MassMatrixProtocol``,
-because the steppers and the time-step sweeps still consume it: solves
-and actions go through the system, and the matrix-forming and structural
-queries (``as_matrix``, ``add_to``, ``is_diagonal``, ...) are answered by
-the model's own mass.
+because the steppers and the time-step sweeps still consume it.
+Everything it answers comes from the system's mass operator, so a
+stepper given a system never reads a second mass: solves and actions go
+through the operator and its solver, and the matrix-forming and
+structural queries (``as_matrix``, ``add_to``, ``zero_rows``, ...) come
+from the matrix the operator's actions form, and from its declared
+properties.
 
 ``explicit_mass`` is what an explicit stepper calls at construction: it
-refuses a singular mass and returns the stepper's source of the mass.
+refuses a structurally singular mass and returns the stepper's source of
+the mass.
 """
 
 from typing import Callable, Generic, Optional, TypeVar
@@ -31,19 +35,19 @@ F = TypeVar("F")
 
 
 class MassSolve(Generic[Array, F]):
-    r""":math:`M` of an explicit stepper, solved by a handle of a mass
-    system's solver set up on first solve and reused thereafter.
+    r""":math:`M` of a mass system, solved by a handle of the system's
+    solver set up on first solve and reused thereafter.
 
     Inputs are 1-D vectors or 2-D blocks; a block goes to the operator
-    and the solver whole.
+    and the solver whole. The matrix :math:`M` is formed on first request
+    from the operator's action on the identity, and kept.
 
     Parameters
     ----------
-    residual : ODEResidualProtocol
-        The stepper's residual; its ``mass_matrix()`` answers the
-        matrix-forming and structural queries.
     system : MassSystemProtocol
         The mass operator and its solver.
+    bkd : Backend
+        The backend of the operator's blocks.
 
     Raises
     ------
@@ -52,19 +56,17 @@ class MassSolve(Generic[Array, F]):
     """
 
     def __init__(
-        self,
-        residual: ODEResidualProtocol[Array],
-        system: MassSystemProtocol[Array, F],
+        self, system: MassSystemProtocol[Array, F], bkd: Backend[Array]
     ) -> None:
         if not isinstance(system, MassSystemProtocol):
             raise TypeError(
                 f"system must satisfy MassSystemProtocol, got {type(system).__name__}"
             )
-        self._residual = residual
         self._operator: ActionOperatorProtocol[Array, F] = system.mass()
         self._solver: LinearSolverProtocol[Array, F] = system.solver()
-        self._bkd: Backend[Array] = residual.bkd()
+        self._bkd = bkd
         self._handle: Optional[SolverHandleProtocol[Array]] = None
+        self._matrix: Optional[Array] = None
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """The mass as the stepper reads it: this object."""
@@ -113,22 +115,34 @@ class MassSolve(Generic[Array, F]):
         return self._block(self._operator.apply_transpose, vec)
 
     def as_matrix(self) -> Array:
-        return self._residual.mass_matrix().as_matrix()
+        """:math:`M` as a dense backend array, formed once as
+        :math:`M I` from the operator's action (one block apply)."""
+        if self._matrix is None:
+            self._matrix = self._operator.apply(
+                self._bkd.eye(self._operator.domain().size)
+            )
+        return self._matrix
 
     def add_to(self, matrix: Array) -> Array:
-        return self._residual.mass_matrix().add_to(matrix)
+        """:math:`M` + ``matrix``, for a dense ``matrix``."""
+        return self.as_matrix() + matrix
 
     def is_diagonal(self) -> bool:
-        return self._residual.mass_matrix().is_diagonal()
+        return self._operator.properties().diagonal
 
     def is_identity(self) -> bool:
-        return self._residual.mass_matrix().is_identity()
+        return self._operator.properties().identity
 
     def is_singular(self) -> bool:
-        return self._residual.mass_matrix().is_singular()
+        """Whether :math:`M` has a zero row: structural, so False does not
+        prove :math:`M` nonsingular."""
+        return len(self.zero_rows()) > 0
 
     def zero_rows(self) -> list[int]:
-        return self._residual.mass_matrix().zero_rows()
+        """The rows of :math:`M` that are entirely zero."""
+        bkd = self._bkd
+        row_sums = bkd.sum(bkd.abs(self.as_matrix()), axis=1)
+        return [i for i in range(row_sums.shape[0]) if bkd.to_float(row_sums[i]) == 0.0]
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(solver={self._solver!r})"
@@ -142,22 +156,26 @@ def explicit_mass(
     """An explicit stepper's source of its mass.
 
     The residual's own ``mass_matrix`` when ``system`` is omitted, else a
-    :class:`MassSolve` through ``system``.
+    :class:`MassSolve` of ``system``, whose mass then replaces the
+    residual's everywhere.
 
     Raises
     ------
-    TypeError
-        If the residual's mass is singular: an explicit step solves with
-        the mass, which a differential-algebraic model's mass does not
-        allow. Such a model needs an implicit stepper.
+    ValueError
+        If the mass the stepper will use has a zero row (structurally
+        singular): an explicit step solves with the mass, which a
+        differential-algebraic model's mass does not allow. Such a model
+        needs an implicit stepper.
     """
-    mass = residual.mass_matrix()
+    if system is None:
+        source = residual.mass_matrix
+    else:
+        source = MassSolve(system, residual.bkd()).mass_matrix
+    mass = source()
     if mass.is_singular():
-        raise TypeError(
+        raise ValueError(
             f"{stepper} solves with the mass, which is singular: rows "
             f"{mass.zero_rows()} are algebraic equations. Use an implicit "
             "stepper for a differential-algebraic model."
         )
-    if system is None:
-        return residual.mass_matrix
-    return MassSolve(residual, system).mass_matrix
+    return source

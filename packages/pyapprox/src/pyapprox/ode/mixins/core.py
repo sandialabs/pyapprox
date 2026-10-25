@@ -1,7 +1,7 @@
 """Core time stepper mixin providing shared state and initialization."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic
+from typing import Any, Callable, Generic, Optional
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
@@ -17,14 +17,19 @@ class CoreStepperMixin(ABC, Generic[Array]):
 
     _residual: ODEResidualProtocol[Array]
 
-    def __init__(self, residual: ODEResidualProtocol[Array], **kwargs: Any) -> None:
+    def __init__(
+        self,
+        residual: ODEResidualProtocol[Array],
+        mass: Optional[Callable[[], MassMatrixProtocol[Array]]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """``mass`` is where the stepper reads its mass; the residual's own
+        ``mass_matrix`` when omitted."""
         super().__init__(**kwargs)
         self._residual = residual
         self._bkd: Backend[Array] = residual.bkd()
-        # Where the stepper reads its mass; a stepper solving with the
-        # mass through a system replaces it at construction.
         self._mass_matrix: Callable[[], MassMatrixProtocol[Array]] = (
-            residual.mass_matrix
+            residual.mass_matrix if mass is None else mass
         )
 
     @property

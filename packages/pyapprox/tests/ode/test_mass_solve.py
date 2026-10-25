@@ -13,9 +13,18 @@ from typing import Generic, Optional, Union
 
 import pytest
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.hessian import (
+    FunctionWithJacobianAndHVPFromCallable,
+)
 from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerHVP
 from pyapprox.ode.explicit_steppers.heun import HeunHVP, HeunStepper
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.mass_solve import MassSolve
+from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
@@ -32,80 +41,19 @@ from pyapprox.util.linalg.operators import (
     SolverHandleProtocol,
     SpaceDescriptor,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.linalg.no_transpose_solver import NoTransposeSolver
 from tests._helpers.ode_models import LotkaVolterra
 
 _MASS = [[2.0, 0.5], [0.3, 1.0]]
+_OTHER_MASS = [[1.0, -0.2], [0.4, 3.0]]
 _Stepper = Union[ForwardEulerHVP[Array], HeunHVP[Array]]
 
 
-class _ParameterizedLotkaVolterra(LotkaVolterra[Array]):
-    r"""Lotka-Volterra with :math:`p = (a, b, c, d)` as its parameters:
-    :math:`f` is linear in :math:`p`, so ``param_param_hvp`` is zero."""
-
-    def nparams(self) -> int:
-        return 4
-
-    def set_param(self, param: Array) -> None:
-        raise NotImplementedError("the coefficients are fixed at construction")
-
-    def param_jacobian(self, state: Array, time: float) -> Array:
-        x, p = state[0], state[1]
-        bkd = self._bkd
-        zero = bkd.zeros(())
-        return bkd.stack(
-            [bkd.stack([x, -x * p, zero, zero]), bkd.stack([zero, zero, x * p, -p])]
-        )
-
-    def initial_param_jacobian(self) -> Array:
-        return self._bkd.zeros((2, 4))
-
-    def state_state_hvp(
-        self, state: Array, time: float, adj_state: Array, wvec: Array
-    ) -> Array:
-        _, b, c, _ = self.coefficients()
-        weight = -b * adj_state[0] + c * adj_state[1]
-        return self._bkd.stack([weight * wvec[1], weight * wvec[0]])
-
-    def state_param_hvp(
-        self, state: Array, time: float, adj_state: Array, vvec: Array
-    ) -> Array:
-        x, p = state[0], state[1]
-        lx, lp = adj_state[0], adj_state[1]
-        v = self._bkd.flatten(vvec)
-        return self._bkd.stack(
-            [
-                lx * (v[0] - p * v[1]) + lp * p * v[2],
-                -lx * x * v[1] + lp * (x * v[2] - v[3]),
-            ]
-        )
-
-    def param_state_hvp(
-        self, state: Array, time: float, adj_state: Array, wvec: Array
-    ) -> Array:
-        x, p = state[0], state[1]
-        lx, lp = adj_state[0], adj_state[1]
-        w = self._bkd.flatten(wvec)
-        return self._bkd.stack(
-            [
-                lx * w[0],
-                -lx * (p * w[0] + x * w[1]),
-                lp * (p * w[0] + x * w[1]),
-                -lp * w[1],
-            ]
-        )
-
-    def param_param_hvp(
-        self, state: Array, time: float, adj_state: Array, vvec: Array
-    ) -> Array:
-        return self._bkd.zeros((4,))
-
-    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
-        return self._bkd.zeros((4,))
-
-
-def _model(bkd: Backend[Array]) -> _ParameterizedLotkaVolterra[Array]:
-    return _ParameterizedLotkaVolterra(bkd, mass=bkd.asarray(_MASS))
+def _model(
+    bkd: Backend[Array], mass: list[list[float]] = _MASS
+) -> LotkaVolterra[Array]:
+    return LotkaVolterra(bkd, mass=bkd.asarray(mass))
 
 
 def _gmres(bkd: Backend[Array], maxiter: int = 1000) -> GMRES[Array, Array]:
@@ -114,17 +62,22 @@ def _gmres(bkd: Backend[Array], maxiter: int = 1000) -> GMRES[Array, Array]:
 
 
 def _stepper(
-    name: str, model: _ParameterizedLotkaVolterra[Array], kind: Optional[str]
+    name: str,
+    model: LotkaVolterra[Array],
+    kind: Optional[str],
+    system_model: Optional[LotkaVolterra[Array]] = None,
 ) -> _Stepper[Array]:
     """The method's stepper, solving with the model's own mass when
-    ``kind`` is None, else through a dense or a matrix-free system."""
+    ``kind`` is None, else through a dense or a matrix-free system built
+    from ``system_model`` (default: the model)."""
     heun = name == "heun"
     if kind is None:
         return HeunHVP(model) if heun else ForwardEulerHVP(model)
+    source = model if system_model is None else system_model
     if kind == "free":
-        free = matrix_free_system(model, nstates=2, solver=_gmres(model.bkd()))
+        free = matrix_free_system(source, nstates=2, solver=_gmres(model.bkd()))
         return HeunHVP(model, free) if heun else ForwardEulerHVP(model, free)
-    dense = dense_system(model)
+    dense = dense_system(source)
     return HeunHVP(model, dense) if heun else ForwardEulerHVP(model, dense)
 
 
@@ -197,15 +150,90 @@ class TestExplicitSteppersThroughASystem:
         for actual, expected in pairs:
             bkd.assert_allclose(actual, expected, rtol=1e-10, atol=1e-12)
 
+    def test_a_systems_mass_replaces_the_models(
+        self, bkd: Backend[Array], name: str, kind: str
+    ) -> None:
+        """Given a system, the stepper never reads the model's mass: every
+        use, the matrix-forming ones included, is the system's. The system
+        comes from the same right-hand side with a different mass, so the
+        reference is the stepper of that model."""
+        model, other = _model(bkd), _model(bkd, _OTHER_MASS)
+        stepper = _stepper(name, model, kind, system_model=other)
+        reference = _stepper(name, other, None)
+        ctx = _ctx(bkd)
+        stepper.bind(ctx)
+        reference.bind(ctx)
+        state, rhs = bkd.asarray([10.0, 5.0]), bkd.asarray([1.0, -2.0])
+        adj, dqdu = bkd.asarray([0.4, -1.1]), bkd.asarray([0.3, 0.7])
+        pairs = [
+            (stepper(state), reference(state)),
+            (stepper.linsolve(state, rhs), reference.linsolve(state, rhs)),
+            (stepper.jacobian(state), reference.jacobian(state)),
+            (
+                stepper.sensitivity_off_diag_jacobian(ctx, state),
+                reference.sensitivity_off_diag_jacobian(ctx, state),
+            ),
+            (
+                stepper.adjoint_initial_condition(ctx, state, dqdu),
+                reference.adjoint_initial_condition(ctx, state, dqdu),
+            ),
+            (
+                stepper.adjoint_final_solution(ctx, state, adj, dqdu),
+                reference.adjoint_final_solution(ctx, state, adj, dqdu),
+            ),
+        ]
+        for actual, expected in pairs:
+            bkd.assert_allclose(actual, expected, rtol=1e-10, atol=1e-12)
+
+    def test_gradient_and_hvp_through_the_integrator(
+        self, bkd: Backend[Array], name: str, kind: str
+    ) -> None:
+        """The adjoint gradient and HVP of the final prey population with
+        respect to the four coefficients, by the derivative checker: finite
+        differences of Q against the gradient, and of the gradient against
+        H v, through ten steps solved with the system."""
+        y0 = bkd.asarray([10.0, 5.0])
+
+        def operator() -> TimeAdjointOperatorWithHVP[Array]:
+            stepper = _stepper(name, _model(bkd), kind)
+            newton = NewtonSolver(stepper)
+            newton.set_options(maxiters=20, atol=1e-13, rtol=0.0)
+            integrator = TimeIntegrator(0.0, 0.5, 0.05, newton)
+            return TimeAdjointOperatorWithHVP(
+                integrator, EndpointFunctional(0, 2, 4, bkd)
+            )
+
+        def fun(samples: Array) -> Array:
+            return bkd.hstack(
+                [operator()(y0, samples[:, k : k + 1]) for k in range(samples.shape[1])]
+            )
+
+        wrapper = FunctionWithJacobianAndHVPFromCallable(
+            nvars=4,
+            fun=fun,
+            jacobian=lambda sample: operator().jacobian(y0, sample),
+            hvp=lambda sample, vec: operator().hvp(y0, sample, vec),
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapper)
+        base = bkd.asarray([[1.0], [0.1], [0.075], [1.5]])
+        grad_errors, hvp_errors = checker.check_derivatives(base, relative=True)
+        # The errors fall tenfold per decade of the finite-difference step
+        # until rounding: Heun's floor is near 1.1e-7, while a missing term
+        # plateaus at O(1), which the ratio catches.
+        for errors in (grad_errors, hvp_errors):
+            assert float(bkd.to_numpy(bkd.min(errors))) <= 1e-6
+            assert float(bkd.to_numpy(checker.error_ratio(errors))) <= 5e-6
+
     def test_refuses_a_singular_mass(
         self, bkd: Backend[Array], name: str, kind: str
     ) -> None:
-        """With or without a system: the model's mass decides."""
-        singular = bkd.asarray([[1.0, 0.0], [0.0, 0.0]])
-        model = _ParameterizedLotkaVolterra(bkd, mass=singular)
-        with pytest.raises(TypeError, match=r"singular: rows \[1\]"):
+        """The mass the stepper uses decides: the system's when given (here
+        built from the same singular model), else the model's."""
+        model = _model(bkd, [[1.0, 0.0], [0.0, 0.0]])
+        with pytest.raises(ValueError, match=r"singular: rows \[1\]"):
             _stepper(name, model, kind)
-        with pytest.raises(TypeError, match=r"singular: rows \[1\]"):
+        with pytest.raises(ValueError, match=r"singular: rows \[1\]"):
             _stepper(name, model, None)
 
 
@@ -235,7 +263,7 @@ class TestMassSolve:
         a column at a time."""
         model = _model(bkd)
         system = matrix_free_system(model, nstates=2, solver=_gmres(bkd))
-        mass = MassSolve(model, system).mass_matrix()
+        mass = MassSolve(system, bkd).mass_matrix()
         matrix = bkd.asarray(_MASS)
         vector = bkd.asarray([1.0, -2.0])
         block = bkd.asarray([[1.0, 0.0, 3.0], [-2.0, 1.0, 0.5]])
@@ -267,14 +295,14 @@ class TestMassSolve:
     def test_a_failed_solve_raises(self, bkd: Backend[Array]) -> None:
         model = _model(bkd)
         system = matrix_free_system(model, nstates=2, solver=_gmres(bkd, maxiter=1))
-        mass = MassSolve(model, system).mass_matrix()
+        mass = MassSolve(system, bkd).mass_matrix()
         with pytest.raises(SolveFailedError, match="relative residual"):
             mass.solve(bkd.asarray([1.0, -2.0]))
 
     def test_a_solver_without_transposes_is_refused(self, bkd: Backend[Array]) -> None:
         model = _model(bkd)
         mass = MassSolve(
-            model, dense_system(model, solver=NoTransposeSolver(bkd))
+            dense_system(model, solver=NoTransposeSolver(bkd)), bkd
         ).mass_matrix()
         rhs = bkd.asarray([1.0, -2.0])
         bkd.assert_allclose(mass.solve(rhs), bkd.solve(bkd.asarray(_MASS), rhs))
