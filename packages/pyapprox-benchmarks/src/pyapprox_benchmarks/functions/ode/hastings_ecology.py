@@ -17,8 +17,15 @@ from pyapprox.ode.mass_matrix import IdentityMassMatrix
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
+from pyapprox.ode.residual_derivatives import (
+    ODEResidualDerivatives,
+    backend_spaces,
+    dense_jacobian,
+    dense_operator,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
+from pyapprox.util.linalg.backend_dense import DenseFormat
 
 
 class HastingsEcologyResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
@@ -47,10 +54,28 @@ class HastingsEcologyResidual(DefaultNewtonJacobianMixin[Array], Generic[Array])
         self._mass = IdentityMassMatrix(3, bkd)
         self._nparams = 9  # 6 physical params + 3 initial conditions
         self._param: Optional[Array] = None
+        states, params = backend_spaces(bkd, self._nstates, self._nparams)
+        self._derivatives = (
+            ODEResidualDerivatives.first_order(
+                states,
+                params,
+                jacobian=dense_jacobian(self.jacobian, states, bkd),
+                param=dense_operator(self.param_jacobian, params, states, bkd),
+                initial_state=dense_operator(
+                    self.initial_param_jacobian, params, states, bkd
+                ),
+            )
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """First order: the Jacobian, the parameter Jacobian and the
+        initial-state Jacobian (the last three parameters are the initial
+        state) as dense operators."""
+        return self._derivatives
 
     def nparams(self) -> int:
         """Return the number of parameters."""

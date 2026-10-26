@@ -14,8 +14,17 @@ from pyapprox.ode.mass_matrix import IdentityMassMatrix
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
+from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
+    ODEResidualDerivatives,
+    backend_spaces,
+    dense_jacobian,
+    dense_operator,
+    matrix_free_second_derivative,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
+from pyapprox.util.linalg.backend_dense import DenseFormat
 
 
 class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
@@ -55,10 +64,46 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._growth_rates: Optional[Array] = None  # r
         self._alpha: Optional[Array] = None  # A (competition matrix)
         self._mass = IdentityMassMatrix(nspecies, bkd)
+        states, params = backend_spaces(bkd, nspecies, self._nparams)
+        self._derivatives = (
+            ODEResidualDerivatives.second_order(
+                states,
+                params,
+                jacobian=dense_jacobian(self.jacobian, states, bkd),
+                param=dense_operator(self.param_jacobian, params, states, bkd),
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=matrix_free_second_derivative(
+                    self.state_state_hvp,
+                    self.state_state_hvp,
+                    states,
+                    states,
+                    bkd,
+                    symmetric=True,
+                ),
+                state_param=matrix_free_second_derivative(
+                    self.state_param_hvp, self.param_state_hvp, params, states, bkd
+                ),
+                param_param=matrix_free_second_derivative(
+                    self.param_param_hvp,
+                    self.param_param_hvp,
+                    params,
+                    params,
+                    bkd,
+                    symmetric=True,
+                ),
+            )
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """The Jacobian and parameter Jacobian as dense operators, the three
+        second derivatives through their vector methods, and stated zeros
+        for the initial-state terms (the initial state is fixed)."""
+        return self._derivatives
 
     def nparams(self) -> int:
         """Return the number of parameters."""

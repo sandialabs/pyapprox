@@ -17,8 +17,17 @@ from pyapprox.ode.mass_matrix import (
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
+from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
+    ODEResidualDerivatives,
+    backend_spaces,
+    dense_jacobian,
+    dense_operator,
+    matrix_free_second_derivative,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
+from pyapprox.util.linalg.backend_dense import DenseFormat
 
 
 def _require_1d(name: str, arr: Array) -> None:
@@ -58,10 +67,29 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._nstates = Amat.shape[0]
         self._nparams = Bmat.shape[1]
         self._mass = IdentityMassMatrix(self._nstates, bkd)
+        states, params = backend_spaces(bkd, self._nstates, self._nparams)
+        self._derivatives = (
+            ODEResidualDerivatives.second_order(
+                states,
+                params,
+                jacobian=dense_jacobian(self.jacobian, states, bkd),
+                param=dense_operator(self.param_jacobian, params, states, bkd),
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=STATED_ZERO,
+                state_param=STATED_ZERO,
+                param_param=STATED_ZERO,
+            )
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """The Jacobian A and parameter Jacobian B as dense operators; every
+        second derivative and the initial-state terms are stated zeros."""
+        return self._derivatives
 
     def nparams(self) -> int:
         """Return the number of parameters."""
@@ -246,10 +274,40 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             if mass_matrix is not None
             else IdentityMassMatrix(self._nstates, bkd)
         )
+        states, params = backend_spaces(bkd, self._nstates, self._nparams)
+        self._derivatives = (
+            ODEResidualDerivatives.second_order(
+                states,
+                params,
+                jacobian=dense_jacobian(self.jacobian, states, bkd),
+                param=dense_operator(self.param_jacobian, params, states, bkd),
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=matrix_free_second_derivative(
+                    self.state_state_hvp,
+                    self.state_state_hvp,
+                    states,
+                    states,
+                    bkd,
+                    symmetric=True,
+                ),
+                state_param=matrix_free_second_derivative(
+                    self.state_param_hvp, self.param_state_hvp, params, states, bkd
+                ),
+                param_param=STATED_ZERO,
+            )
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """The Jacobian and parameter Jacobian as dense operators, the
+        state and mixed second derivatives through their vector methods,
+        and stated zeros for the second parameter derivative and the
+        initial-state terms."""
+        return self._derivatives
 
     def nparams(self) -> int:
         """Return the number of parameters."""
