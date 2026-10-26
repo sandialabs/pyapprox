@@ -1,6 +1,6 @@
 """Shared harness pieces for adjoint/HVP DerivativeChecker tests."""
 
-from typing import Any, List
+from typing import Any, Generic, List
 
 import numpy as np
 from numpy.typing import NDArray
@@ -13,11 +13,12 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 NumpyArray = NDArray[Any]
 
 
-class NoHVPQuadraticFieldMap:
+class NoHVPQuadraticFieldMap(Generic[Array]):
     """Field map with genuine curvature but no declared hvp.
 
     The one honestly first-order case: field = mean + (W p)^2 has
@@ -26,9 +27,7 @@ class NoHVPQuadraticFieldMap:
     HVP-tier negative tests.
     """
 
-    def __init__(
-        self, bkd: NumpyBkd, mean: NumpyArray, modes: NumpyArray
-    ) -> None:
+    def __init__(self, bkd: Backend[Array], mean: Array, modes: Array) -> None:
         self._bkd = bkd
         self._mean = mean
         self._W = modes
@@ -36,11 +35,11 @@ class NoHVPQuadraticFieldMap:
     def nvars(self) -> int:
         return int(self._W.shape[1])
 
-    def __call__(self, params_1d: NumpyArray) -> NumpyArray:
+    def __call__(self, params_1d: Array) -> Array:
         z = self._bkd.dot(self._W, params_1d)
         return self._mean + z * z
 
-    def jacobian(self, params_1d: NumpyArray) -> NumpyArray:
+    def jacobian(self, params_1d: Array) -> Array:
         z = self._bkd.dot(self._W, params_1d)
         return 2.0 * z[:, None] * self._W
 
