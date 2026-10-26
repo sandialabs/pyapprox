@@ -13,7 +13,7 @@ Protocol Hierarchy
 TimeSteppingResidualProtocol
     Basic time step R(y_n) = 0.
 SensitivityStepperProtocol
-    Adds sensitivity methods (is_explicit, sensitivity_off_diag_jacobian).
+    Adds sensitivity methods (is_explicit, off_diag_operator).
 AdjointEnabledTimeSteppingResidualProtocol
     Adds adjoint methods for gradient computation.
 HVPEnabledTimeSteppingResidualProtocol
@@ -189,25 +189,6 @@ class SensitivityStepperProtocol(Protocol, Generic[Array]):
         """Return True if R_{n+1} depends on f(y_n)."""
         ...
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        """Compute dR_n/dy_{n-1} for forward sensitivity propagation.
-
-        Parameters
-        ----------
-        ctx : StepContext
-            Context for this step (t_prev, deltat, y_prev).
-        y_curr : Array
-            Solution at current time step y_n. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
-        """
-        ...
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]:
@@ -264,10 +245,6 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def has_prev_state_hessian(self) -> bool: ...
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array: ...
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]: ...
@@ -309,29 +286,6 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         -------
         LinearOperatorProtocol[Array]
             Operator whose .solve(rhs) solves (dR/dy_n)^T x = rhs.
-        """
-        ...
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        """
-        Compute the off-diagonal Jacobian for adjoint coupling.
-
-        Parameters
-        ----------
-        next_ctx : StepContext
-            Context for the NEXT step (t_prev=t_n, deltat=dt_{n+1},
-            y_prev=y_n). next_ctx.y_prev is the state at which we
-            differentiate.
-        y_curr_of_next : Array
-            Solution at time n+1 (needed for implicit midpoint).
-            Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Off-diagonal coupling term. Shape: (nstates, nstates)
         """
         ...
 
@@ -454,10 +408,6 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def has_prev_state_hessian(self) -> bool: ...
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array: ...
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]: ...
@@ -469,10 +419,6 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]: ...
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array: ...
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array

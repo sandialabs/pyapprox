@@ -154,9 +154,10 @@ $$
 $$ {#eq-transient-gradient}
 
 Those two blocks are not a derivation that lives only on paper. A stepper
-exposes them directly: `adjoint_diag_jacobian` returns $\mt{A}_n^\top$ and
-`adjoint_off_diag_jacobian` returns $\mt{B}^\top$, and the integrator's
-adjoint solve walks the recursion using them.
+exposes them directly: `adjoint_diag_jacobian` returns $\mt{A}_n^\top$, and
+`off_diag_operator` returns $\mt{B}$ as an operator whose `apply_transpose`
+applies $\mt{B}^\top$. The integrator's adjoint solve walks the recursion
+using them.
 
 A different scheme changes what the blocks contain --- Crank-Nicolson and
 Heun evaluate $f$ at more than one point, so their diagonal blocks differ ---
@@ -320,7 +321,7 @@ vector, that difference decides whether the gradient can be computed at all.
 - Forward stepping is block forward substitution; the transposed system is
   upper bidiagonal, so the adjoint sweep runs backward in time. That is the
   origin of the backward sweep, not a separate algorithm.
-- `adjoint_diag_jacobian` and `adjoint_off_diag_jacobian` are the blocks of
+- `adjoint_diag_jacobian` and the transpose of `off_diag_operator` are the blocks of
   $\mt{C}_{\vc{Y}}^\top$; changing the scheme changes the block contents, not
   the structure.
 - The discrete adjoint gives the exact gradient of the computed quantity of

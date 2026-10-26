@@ -8,7 +8,7 @@ Mixin Hierarchy (most specific leftmost in MRO)
 CoreStepperMixin          -- __init__, bind, bkd, native_residual, __repr__
 ImplicitStepperMixin      -- jacobian (abstract), linsolve
 SensitivityMixin          -- is_explicit, has_prev_state_hessian,
-                             sensitivity_off_diag_jacobian
+                             off_diag_operator
 AdjointMixin              -- adjoint methods, param_jacobian
 HVPMixin                  -- 4 same-step HVP + 3 cross-step prev_* HVP
 """

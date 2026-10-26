@@ -128,41 +128,6 @@ class HeunStepper(
     def has_prev_state_hessian(self) -> bool:
         return True
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        r"""Compute :math:`dR_n/dy_{n-1}` for forward sensitivity propagation.
-
-        For Heun with :math:`k_1 = f(y_{n-1})`,
-        :math:`k_2 = f(y_{n-1} + \Delta t \, M^{-1} k_1)`:
-
-        .. math::
-
-            \frac{dR_n}{dy_{n-1}} = -\left(M + \frac{\Delta t}{2}
-            (J_1 + J_2 (I + \Delta t \, M^{-1} J_1))\right)
-
-        One path for every mass: ``mass.solve`` is a passthrough for
-        identity mass. :math:`M^{-1} J_1` is inherently dense (inverse
-        fill-in), so sparse operands are normalized to dense before
-        mixing with it — a no-op for backend arrays.
-        """
-        mass_obj = self._mass_matrix()
-
-        k1_jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
-
-        k1 = self._residual(ctx.y_prev, ctx.t_prev)
-        k2_state = ctx.y_prev + ctx.deltat * mass_obj.solve(k1)
-
-        k2_jac = self._residual.jacobian(k2_state, ctx.t_curr)
-
-        minv_j1 = mass_obj.solve(_dense(self._bkd, k1_jac))
-        inner = (
-            _dense(self._bkd, k1_jac)
-            + _dense(self._bkd, k2_jac)
-            + ctx.deltat * (k2_jac @ minv_j1)
-        )
-        return -(_dense(self._bkd, mass_obj.as_matrix()) + 0.5 * ctx.deltat * inner)
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]:
@@ -261,17 +226,6 @@ class HeunAdjoint(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         return MassMatrixTransposeOperator(self._mass_matrix())
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        r"""Compute :math:`(dR_{n+1}/dy_n)^T` for adjoint coupling.
-
-        The transpose of the forward sensitivity off-diagonal block —
-        delegated so the two-stage chain rule (with its
-        :math:`M^{-1}` stage slope) has a single source of truth.
-        """
-        return self.sensitivity_off_diag_jacobian(next_ctx, y_curr_of_next).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array

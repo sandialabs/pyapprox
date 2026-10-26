@@ -2,11 +2,9 @@
 
 For each stepper, :math:`B_n = \\partial R_n/\\partial y_{n-1}` as an
 operator must agree with finite differences of the step residual in the
-previous state (so the formulas are checked independently), with the
-matrix the stepper returns today in both directions (forward
-sensitivity, and transposed at the next step's context for the adjoint),
-and pass a dot test. Dense on both backends with a nonsymmetric mass,
-and SciPy-sparse on a Galerkin problem.
+previous state (so the formulas are checked independently), and its
+transpose must pass a dot test against it. Dense on both backends with a
+nonsymmetric mass, and SciPy-sparse on a Galerkin problem.
 """
 
 from typing import Any
@@ -77,28 +75,18 @@ class TestDenseOffDiagonal:
             atol=1e-7,
         )
 
-    def test_matches_todays_blocks_and_transposes(
+    def test_transpose_is_the_adjoint_of_apply(
         self, bkd: Backend[Array], name: str
     ) -> None:
+        """Dot test on blocks: <B x, y> = <x, B^T y>, so the transpose the
+        adjoint sweep applies is the transpose of the block the finite
+        differences validate."""
         stepper = _stepper(name, LotkaVolterra(bkd, mass=bkd.asarray(_MASS)))
         ctx, y_curr = _ctx(bkd, [9.0, 4.5], 0.2), bkd.asarray([10.0, 5.0])
-        next_ctx, y_next = _ctx(bkd, [10.0, 5.0], 0.3), bkd.asarray([10.4, 5.3])
         rng = np.random.default_rng(3)
-        x, y = (
-            bkd.asarray(rng.normal(size=(2, 3))),
-            bkd.asarray(rng.normal(size=(2, 3))),
-        )
+        x = bkd.asarray(rng.normal(size=(2, 3)))
+        y = bkd.asarray(rng.normal(size=(2, 3)))
         op = stepper.off_diag_operator(ctx, y_curr)
-        block = stepper.sensitivity_off_diag_jacobian(ctx, y_curr)
-        bkd.assert_allclose(op.apply(x), bkd.dot(block, x), rtol=1e-12)
-        bkd.assert_allclose(op.apply_transpose(y), bkd.dot(block.T, y), rtol=1e-12)
-        adjoint = stepper.adjoint_off_diag_jacobian(next_ctx, y_next)
-        bkd.assert_allclose(
-            stepper.off_diag_operator(next_ctx, y_next).apply_transpose(y),
-            bkd.dot(adjoint, y),
-            rtol=1e-12,
-        )
-        # Dot test: <B x, y> = <x, B^T y>.
         bkd.assert_allclose(
             bkd.sum(op.apply(x) * y), bkd.sum(x * op.apply_transpose(y)), rtol=1e-12
         )
@@ -119,9 +107,8 @@ if package_available("skfem"):
 @pytest.mark.parametrize("name", ["crank-nicolson", "forward-euler", "heun"])
 def test_sparse_galerkin_blocks(numpy_bkd: "NumpyBkd", name: str) -> None:
     """With SciPy-sparse J and M (a Galerkin advection-diffusion-reaction
-    adapter), the operator applies the same block as today's matrix,
-    which is sparse for Crank-Nicolson and forward Euler and dense for
-    Heun."""
+    adapter, linear in the state), the operator matches central
+    differences of R_n in y_{n-1} and passes the dot test."""
     bkd = numpy_bkd
     mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
     physics = AdvectionDiffusionReaction(
@@ -130,14 +117,24 @@ def test_sparse_galerkin_blocks(numpy_bkd: "NumpyBkd", name: str) -> None:
     adapter = GalerkinPhysicsToODEResidualAdapter(compose_galerkin_system(physics))
     stepper = _stepper(name, adapter)
     n = adapter.mass_matrix().as_matrix().shape[0]
-    y_prev = bkd.asarray(np.linspace(0.0, 1.0, n))
+    y_prev = np.linspace(0.0, 1.0, n)
     y_curr = bkd.asarray(np.linspace(0.2, 0.9, n))
-    ctx = StepContext(t_prev=0.0, deltat=0.05, y_prev=y_prev)
-    x = np.random.default_rng(4).normal(size=(n, 2))
-    block: NDArray[Any] = np.asarray(
-        stepper.sensitivity_off_diag_jacobian(ctx, y_curr) @ x
-    )
+    rng = np.random.default_rng(4)
+    direction, step = rng.normal(size=n), 1e-6
+
+    def residual(shift: float) -> NDArray[Any]:
+        prev = bkd.asarray(y_prev + shift * direction)
+        stepper.bind(StepContext(t_prev=0.0, deltat=0.05, y_prev=prev))
+        value: NDArray[Any] = stepper(y_curr)
+        return value
+
+    difference = (residual(step) - residual(-step)) / (2 * step)
+    ctx = StepContext(t_prev=0.0, deltat=0.05, y_prev=bkd.asarray(y_prev))
     op = stepper.off_diag_operator(ctx, y_curr)
-    bkd.assert_allclose(op.apply(x), block, rtol=1e-12, atol=1e-12)
-    transposed = np.asarray(stepper.sensitivity_off_diag_jacobian(ctx, y_curr).T @ x)
-    bkd.assert_allclose(op.apply_transpose(x), transposed, rtol=1e-12, atol=1e-12)
+    bkd.assert_allclose(
+        op.apply(bkd.asarray(direction[:, None]))[:, 0], difference, atol=1e-6
+    )
+    x, y = rng.normal(size=(n, 2)), rng.normal(size=(n, 2))
+    bkd.assert_allclose(
+        bkd.sum(op.apply(x) * y), bkd.sum(x * op.apply_transpose(y)), rtol=1e-12
+    )

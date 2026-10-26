@@ -5,14 +5,14 @@ from typing import Generic
 
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
 
 
 class SensitivityMixin(ABC, Generic[Array]):
     """Mixin providing sensitivity protocol methods.
 
-    Declares is_explicit, has_prev_state_hessian, and
-    sensitivity_off_diag_jacobian as abstract methods that concrete
-    steppers must implement.
+    Declares is_explicit, has_prev_state_hessian, and off_diag_operator
+    as abstract methods that concrete steppers must implement.
     """
 
     @abstractmethod
@@ -26,8 +26,9 @@ class SensitivityMixin(ABC, Generic[Array]):
         ...
 
     @abstractmethod
-    def sensitivity_off_diag_jacobian(
+    def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        """Compute dR_n/dy_{n-1} for forward sensitivity propagation."""
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]:
+        r""":math:`B_n = dR_n/dy_{n-1}` as an operator; the forward
+        sensitivity sweep applies it, the adjoint sweep its transpose."""
         ...

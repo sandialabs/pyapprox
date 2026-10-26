@@ -71,7 +71,7 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
 
     Provides forward solve methods (bkd, bind, __call__, jacobian,
     linsolve) and sensitivity methods (is_explicit,
-    has_prev_state_hessian, sensitivity_off_diag_jacobian,
+    has_prev_state_hessian, off_diag_operator,
     native_residual). Constrained rows are replaced with
     ``R[d] = y[d] - g(t_{n+1})`` and identity Jacobian rows through the
     constraint set.
@@ -186,17 +186,6 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
     def has_prev_state_hessian(self) -> bool:
         """Return whether R_{n+1} depends on f(y_n)."""
         return bool(self._inner.has_prev_state_hessian())
-
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        """Forward sensitivity off-diagonal block with BC rows zeroed.
-
-        B_n[d,:] = 0 at constrained DOFs (constraint rows depend only on
-        the current state). The inner stepper returns the raw -M.
-        """
-        result = self._inner.sensitivity_off_diag_jacobian(ctx, y_curr)
-        return self._constraint_set.zero_rows(result)
 
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
@@ -324,17 +313,6 @@ class GalerkinBCEnforcingAdjointResidual(
         """
         self.bind(ctx)
         return self._transposed_operator(self.jacobian(y_curr))
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        """Adjoint off-diagonal block: B_{n+1}^T with constrained
-        COLUMNS zeroed (rows of B_{n+1} were replaced, so its transpose
-        has zero columns there)."""
-        result = self._adjoint_inner.adjoint_off_diag_jacobian(
-            next_ctx, y_curr_of_next
-        )
-        return self._constraint_set.zero_cols(result)
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array

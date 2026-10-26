@@ -108,15 +108,6 @@ class BackwardEulerStepper(
     def has_prev_state_hessian(self) -> bool:
         return False
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        r"""Compute :math:`dR_n/dy_{n-1} = -M`.
-
-        The :math:`f(y_n)` term does not depend on :math:`y_{n-1}`.
-        """
-        return -self._residual.mass_matrix().as_matrix()
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]:
@@ -177,12 +168,6 @@ class BackwardEulerAdjoint(
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - \Delta t \, J)^T`."""
         return TransposeLinearOperator(self._newton_operator(ctx, y_curr))
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        r"""Compute :math:`(dR_{n+1}/dy_n)^T = -M^T`."""
-        return -self._residual.mass_matrix().as_matrix().T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array

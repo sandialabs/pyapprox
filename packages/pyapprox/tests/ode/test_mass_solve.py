@@ -101,18 +101,19 @@ class TestExplicitSteppersThroughASystem:
         rhs, dqdu = bkd.asarray([1.0, -2.0]), bkd.asarray([0.3, 0.7])
         adj, wvec = bkd.asarray([0.4, -1.1]), bkd.asarray([0.6, 0.2])
         vvec = bkd.asarray([0.5, -0.3, 0.8, 0.1])
+        identity = bkd.eye(2)
         pairs = [
             (stepper(state), reference(state)),
             (stepper.linsolve(state, rhs), reference.linsolve(state, rhs)),
             (stepper.jacobian(state), reference.jacobian(state)),
             (
-                stepper.sensitivity_off_diag_jacobian(ctx, state),
-                reference.sensitivity_off_diag_jacobian(ctx, state),
+                stepper.off_diag_operator(ctx, state).apply(identity),
+                reference.off_diag_operator(ctx, state).apply(identity),
             ),
             (stepper.param_jacobian(ctx, state), reference.param_jacobian(ctx, state)),
             (
-                stepper.adjoint_off_diag_jacobian(ctx, state),
-                reference.adjoint_off_diag_jacobian(ctx, state),
+                stepper.off_diag_operator(ctx, state).apply_transpose(identity),
+                reference.off_diag_operator(ctx, state).apply_transpose(identity),
             ),
             (
                 stepper.adjoint_diag_jacobian(ctx, state).solve(rhs),
@@ -170,8 +171,8 @@ class TestExplicitSteppersThroughASystem:
             (stepper.linsolve(state, rhs), reference.linsolve(state, rhs)),
             (stepper.jacobian(state), reference.jacobian(state)),
             (
-                stepper.sensitivity_off_diag_jacobian(ctx, state),
-                reference.sensitivity_off_diag_jacobian(ctx, state),
+                stepper.off_diag_operator(ctx, state).apply(bkd.eye(2)),
+                reference.off_diag_operator(ctx, state).apply(bkd.eye(2)),
             ),
             (
                 stepper.adjoint_initial_condition(ctx, state, dqdu),
@@ -288,7 +289,9 @@ class TestMassSolve:
         stepper.bind(ctx)
         state = bkd.asarray([10.0, 5.0])
         stepper.linsolve(state, stepper(state))
-        stepper.sensitivity_off_diag_jacobian(ctx, state)
+        offdiag = stepper.off_diag_operator(ctx, state)
+        offdiag.apply(bkd.eye(2))
+        offdiag.apply_transpose(bkd.eye(2))
         stepper.adjoint_initial_condition(ctx, state, bkd.asarray([0.3, 0.7]))
         assert solver.setups() == 1
 

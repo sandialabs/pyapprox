@@ -131,18 +131,6 @@ class ImplicitMidpointStepper(
     def has_prev_state_hessian(self) -> bool:
         return True
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        r"""Compute :math:`dR_n/dy_{n-1} = -(M + (\Delta t/2) \, J(y_{\mathrm{mid}}))`.
-
-        Chain rule: :math:`dy_{\mathrm{mid}}/dy_{n-1} = 1/2`.
-        """
-        y_mid = self._midpoint_state(ctx, y_curr)
-        t_mid = self._midpoint_time(ctx)
-        jac = self._residual.jacobian(y_mid, t_mid)
-        return -self._residual.mass_matrix().add_to(0.5 * ctx.deltat * jac)
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]:
@@ -217,23 +205,6 @@ class ImplicitMidpointAdjoint(
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2)
         \, J(y_{\mathrm{mid}}))^T`."""
         return TransposeLinearOperator(self._newton_operator(ctx, y_curr))
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        r"""Compute :math:`(dR_{n+1}/dy_n)^T`.
-
-        .. math::
-
-            \Bigl(\frac{dR_{n+1}}{dy_n}\Bigr)^T
-            = -\bigl(M + \tfrac{\Delta t_{n+1}}{2} \, J(y_{\mathrm{mid},n+1})\bigr)^T
-
-        where :math:`y_{\mathrm{mid},n+1} = (y_{n+1} + y_n)/2`.
-        """
-        y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
-        t_mid = self._midpoint_time(next_ctx)
-        jac = self._residual.jacobian(y_mid, t_mid)
-        return -self._residual.mass_matrix().add_to(0.5 * next_ctx.deltat * jac).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array

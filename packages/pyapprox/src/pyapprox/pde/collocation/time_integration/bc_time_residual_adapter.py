@@ -78,7 +78,7 @@ class BCEnforcingForwardResidual(Generic[Array]):
 
     Provides forward solve methods (bkd, bind, __call__, jacobian,
     linsolve) and sensitivity methods (is_explicit, has_prev_state_hessian,
-    sensitivity_off_diag_jacobian, native_residual).
+    off_diag_operator, native_residual).
 
     Parameters
     ----------
@@ -144,21 +144,6 @@ class BCEnforcingForwardResidual(Generic[Array]):
     def native_residual(self) -> ODEResidualProtocol[Array]:
         """Access the underlying ODE residual."""
         return self._inner.native_residual
-
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        """Forward sensitivity off-diagonal block with BC rows zeroed.
-
-        B_n[b,:] = 0 at row-replaced DOFs (BCs depend only on current
-        state). The inner stepper returns the raw -M without BC enforcement,
-        so we must zero those rows explicitly.
-        """
-        result = self._inner.sensitivity_off_diag_jacobian(ctx, y_curr)
-        result = self._bkd.copy(result)
-        for idx in self._row_replaced:
-            result[idx, :] = 0.0
-        return result
 
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
@@ -374,22 +359,6 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         """
         self.bind(ctx)
         return MatrixOperator(self.jacobian(y_curr).T, self._bkd)
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        """Adjoint off-diagonal block: B_{n+1}^T with BC columns zeroed.
-
-        B_n[b,:] = 0 at DOFs where the solver replaced the residual row.
-        In the transpose, this means B_n^T[:,b] = 0 -- zero columns, not rows.
-        """
-        result = self._adjoint_inner.adjoint_off_diag_jacobian(
-            next_ctx, y_curr_of_next
-        )
-        result = self._bkd.copy(result)
-        for idx in self._row_replaced:
-            result[:, idx] = 0.0
-        return result
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array

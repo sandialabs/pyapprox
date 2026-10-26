@@ -77,7 +77,7 @@ class TestHeunWithMassMatrix:
         y_curr = bkd.asarray(np.array([0.8, -0.2, 1.9]))
         ctx = self._bind(stepper, y_prev)
 
-        analytic = stepper.sensitivity_off_diag_jacobian(ctx, y_curr)
+        analytic = stepper.off_diag_operator(ctx, y_curr).apply(bkd.eye(3))
 
         eps = 1e-7
         n = 3

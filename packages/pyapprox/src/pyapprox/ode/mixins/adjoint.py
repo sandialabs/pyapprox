@@ -85,13 +85,6 @@ class AdjointMixin(ABC, Generic[Array]):
         ...
 
     @abstractmethod
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        """Compute the off-diagonal Jacobian for adjoint coupling."""
-        ...
-
-    @abstractmethod
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:

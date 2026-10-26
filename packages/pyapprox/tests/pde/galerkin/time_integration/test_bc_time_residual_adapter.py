@@ -139,16 +139,11 @@ class _FakeExplicitStepper:
     def has_prev_state_hessian(self) -> bool:
         return False
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Any], y_curr: Any
-    ) -> Any:
-        return self._bkd.asarray(np.full((self._n, self._n), 3.0))
-
     def off_diag_operator(
         self, ctx: StepContext[Any], y_curr: Any
     ) -> BackendDenseOperator[Any]:
         return BackendDenseOperator(
-            self.sensitivity_off_diag_jacobian(ctx, y_curr),
+            self._bkd.asarray(np.full((self._n, self._n), 3.0)),
             SpaceDescriptor("state", self._n),
             self._bkd,
         )
@@ -235,11 +230,9 @@ class TestForwardWrapper:
         ctx = StepContext(t_prev=0.0, deltat=0.5, y_prev=y_prev)
         wrapper.bind(ctx)
 
-        result = wrapper.sensitivity_off_diag_jacobian(ctx, y_prev)
+        result = wrapper.off_diag_operator(ctx, y_prev).apply(bkd.eye(n))
         dofs = bkd.to_numpy(system.constraint_set().dofs())
-        result_np = (
-            result.toarray() if issparse(result) else bkd.to_numpy(result)
-        )
+        result_np = bkd.to_numpy(result)
         bkd.assert_allclose(
             bkd.asarray(result_np[dofs]),
             bkd.asarray(np.zeros((len(dofs), n))),
@@ -428,13 +421,13 @@ class TestStageBCRequirement:
 
 
 class TestOffDiagonalOperator:
-    def test_rows_zeroed_and_its_transpose_match_todays_blocks(
+    def test_rows_zeroed_and_its_transpose_columns_zeroed(
         self, numpy_bkd: NumpyBkd
     ) -> None:
         """Crank-Nicolson on the manufactured ADR problem: the wrapper's
-        operator applies the row-zeroed sensitivity block, and its
-        transpose at the next step's context the column-zeroed adjoint
-        block."""
+        operator applies the inner stepper's block with the constrained
+        rows zeroed, and its transpose applies the inner transpose to a
+        block whose constrained entries are zeroed."""
         bkd = numpy_bkd
         system, _ = _setup_adr(bkd)
         stepper = create_stepper(
@@ -444,21 +437,19 @@ class TestOffDiagonalOperator:
             stepper, system.constraint_set(), bkd
         )
         assert isinstance(wrapper, GalerkinBCEnforcingAdjointResidual)
+        assert isinstance(stepper, SensitivityStepperProtocol)
         n = system.nstates()
         ctx = StepContext(t_prev=0.1, deltat=0.05, y_prev=bkd.linspace(0.0, 1.0, n))
         y_curr = bkd.linspace(0.1, 0.9, n)
         rng = np.random.default_rng(5)
         x = bkd.asarray(rng.normal(size=(n, 2)))
         op = wrapper.off_diag_operator(ctx, y_curr)
-        block = wrapper.sensitivity_off_diag_jacobian(ctx, y_curr)
-        bkd.assert_allclose(op.apply(x), np.asarray(block @ x), atol=1e-12)
+        inner = stepper.off_diag_operator(ctx, y_curr)
         constrained = bkd.to_numpy(system.constraint_set().dofs())
-        bkd.assert_allclose(op.apply(x)[constrained], np.zeros((len(constrained), 2)))
-        next_ctx = StepContext(t_prev=0.15, deltat=0.05, y_prev=y_curr)
-        y_next = bkd.linspace(0.15, 0.95, n)
-        adjoint = wrapper.adjoint_off_diag_jacobian(next_ctx, y_next)
+        mask = np.ones((n, 1))
+        mask[constrained] = 0.0
+        assert np.abs(inner.apply(x)[constrained]).sum() > 0.0
+        bkd.assert_allclose(op.apply(x), mask * inner.apply(x), atol=1e-12)
         bkd.assert_allclose(
-            wrapper.off_diag_operator(next_ctx, y_next).apply_transpose(x),
-            np.asarray(adjoint @ x),
-            atol=1e-12,
+            op.apply_transpose(x), inner.apply_transpose(mask * x), atol=1e-12
         )

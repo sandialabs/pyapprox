@@ -121,21 +121,6 @@ class CrankNicolsonStepper(
     def has_prev_state_hessian(self) -> bool:
         return True
 
-    def sensitivity_off_diag_jacobian(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
-        r"""Compute :math:`dR_n/dy_{n-1} = -(M + (\Delta t/2) \, J_{n-1})`.
-
-        .. math::
-
-            \frac{dR_n}{dy_{n-1}}
-            = -\bigl(M + \tfrac{\Delta t}{2} \, J_{n-1}\bigr)
-
-        where :math:`J_{n-1} = (df/dy)|_{y_{n-1}, t_{n-1}}`.
-        """
-        jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
-        return -self._residual.mass_matrix().add_to(0.5 * ctx.deltat * jac)
-
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> ActionOperatorProtocol[Array, FormatProtocol]:
@@ -211,19 +196,6 @@ class CrankNicolsonAdjoint(
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2) \, J)^T`."""
         return TransposeLinearOperator(self._newton_operator(ctx, y_curr))
-
-    def adjoint_off_diag_jacobian(
-        self, next_ctx: StepContext[Array], y_curr_of_next: Array
-    ) -> Array:
-        r"""Compute :math:`(dR_{n+1}/dy_n)^T`.
-
-        .. math::
-
-            \Bigl(\frac{dR_{n+1}}{dy_n}\Bigr)^T
-            = -\bigl(M + \tfrac{\Delta t_{n+1}}{2} \, J_n\bigr)^T
-        """
-        jac = self._residual.jacobian(next_ctx.y_prev, next_ctx.t_prev)
-        return -self._residual.mass_matrix().add_to(0.5 * next_ctx.deltat * jac).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
