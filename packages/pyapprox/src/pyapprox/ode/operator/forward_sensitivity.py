@@ -15,7 +15,6 @@ from pyapprox.ode.functionals.protocols import (
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 def forward_sensitivity_jacobian(
@@ -111,15 +110,14 @@ def forward_sensitivity_jacobian(
         )
         time_residual.bind(ctx_nn)
 
-        drdy_n = time_residual.jacobian(fwd_sols[:, nn])
+        # A_n^T as an operator; its transposed solve is a solve with A_n.
+        diag_t = time_residual.adjoint_diag_jacobian(ctx_nn, fwd_sols[:, nn])
         offdiag = time_residual.off_diag_operator(ctx_nn, fwd_sols[:, nn])
         drdp_n = time_residual.param_jacobian(ctx_nn, fwd_sols[:, nn])
 
-        # B_n applies to the whole block of sensitivities at once.
-        # Sparse-aware: galerkin wrappers return sparse Jacobians, and
-        # solve_maybe_sparse handles the multi-column right-hand side.
+        # B_n and the solve apply to the whole block of sensitivities.
         rhs = offdiag.apply(w_prev) + bkd.asarray(drdp_n)
-        w_prev = -solve_maybe_sparse(bkd, drdy_n, rhs)
+        w_prev = -diag_t.solve_transpose(rhs)
         state_part = state_part + apply_state_jacobian(
             fwd_sols, param, nn, w_prev
         )

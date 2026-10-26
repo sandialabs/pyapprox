@@ -33,7 +33,6 @@ from pyapprox.ode.protocols.type_guards import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class TimeAdjointOperatorWithHVP(Generic[Array]):
@@ -273,8 +272,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             ctx_nn = self._make_ctx(times, nn, fwd_sols)
             self._time_residual.bind(ctx_nn)
 
-            # dR_n/dy_n (diagonal block)
-            drdy_n = self._time_residual.jacobian(fwd_sols[:, nn])
+            # (dR_n/dy_n)^T (diagonal block) as an operator; its
+            # transposed solve is a solve with dR_n/dy_n
+            drdy_n_t = self._time_residual.adjoint_diag_jacobian(
+                ctx_nn, fwd_sols[:, nn]
+            )
 
             # dR_n/dy_{n-1} (off-diagonal block), as an operator
             offdiag = self._time_residual.off_diag_operator(ctx_nn, fwd_sols[:, nn])
@@ -289,9 +291,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 offdiag.apply(w_sols[:, nn - 1 : nn])
                 + (drdp_n @ v_res)[:, None]
             )
-            # Sparse-aware: galerkin wrappers return sparse Jacobians.
-            w_sols[:, nn : nn + 1] = -solve_maybe_sparse(
-                self._bkd, drdy_n, self._bkd.flatten(self._bkd.asarray(rhs))
+            w_sols[:, nn : nn + 1] = -drdy_n_t.solve_transpose(
+                self._bkd.flatten(self._bkd.asarray(rhs))
             )[:, None]
 
         return w_sols
@@ -357,11 +358,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
         )
 
-        # Solve (dR/dy_N)^T · s_N = RHS (sparse-aware)
-        drdy_N = self._time_residual.jacobian(fwd_sols[:, -1])
-        s_sols[:, -1:] = solve_maybe_sparse(
-            self._bkd, drdy_N.T, self._bkd.flatten(rhs_N)
-        )[:, None]
+        # Solve (dR/dy_N)^T · s_N = RHS
+        drduT_N = self._time_residual.adjoint_diag_jacobian(ctx_N, fwd_sols[:, -1])
+        s_sols[:, -1:] = drduT_N.solve(self._bkd.flatten(rhs_N))[:, None]
 
         # Backward sweep — unified loop
         for nn in range(ntimes - 2, 0, -1):
