@@ -21,6 +21,7 @@ from pyapprox.ode.mass_matrix_system import dense_system
 from pyapprox.ode.protocols import ODEResidualProtocol, ResidualFormSystemProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
+    JacobianSnapshotProtocol,
     LinearizationPoint,
     SolveFailedError,
     SolverHandleProtocol,
@@ -49,7 +50,14 @@ class ImplicitSystemProviderProtocol(Protocol[Array, F]):
 
 class _ScaledShiftedOperator(Generic[Array, F]):
     r""":math:`c(\sigma M - J)` at one linearization, solved by a handle
-    of the system's solver, set up on first solve."""
+    of the system's solver, set up on first solve.
+
+    The system's shifted Jacobian is built on first solve or action, not
+    at construction, so a caller that only asks for ``as_matrix`` never
+    assembles it. Like the shifted Jacobian, it reads ``state`` and
+    ``state_rate`` then, so they must be left unmodified until it is
+    used.
+    """
 
     def __init__(
         self,
@@ -64,12 +72,19 @@ class _ScaledShiftedOperator(Generic[Array, F]):
     ) -> None:
         self._system = system
         self._coefficient = coefficient
-        self._operator = system.shifted_jacobian(
-            state, state_rate, time, 1.0 / coefficient, point
-        )
+        self._linearization = (state, state_rate, time, point)
+        self._operator: Optional[JacobianSnapshotProtocol[Array, F]] = None
         self._matrix = matrix
         self._bkd = bkd
         self._handle: Optional[SolverHandleProtocol[Array]] = None
+
+    def _shifted(self) -> JacobianSnapshotProtocol[Array, F]:
+        if self._operator is None:
+            state, state_rate, time, point = self._linearization
+            self._operator = self._system.shifted_jacobian(
+                state, state_rate, time, 1.0 / self._coefficient, point
+            )
+        return self._operator
 
     def _solve_with(self, handle: SolverHandleProtocol[Array], rhs: Array) -> Array:
         column = rhs.ndim == 1
@@ -82,7 +97,7 @@ class _ScaledShiftedOperator(Generic[Array, F]):
 
     def _setup(self) -> SolverHandleProtocol[Array]:
         if self._handle is None:
-            self._handle = self._system.solver().setup(self._operator)
+            self._handle = self._system.solver().setup(self._shifted())
         return self._handle
 
     def solve(self, rhs: Array) -> Array:
@@ -105,10 +120,10 @@ class _ScaledShiftedOperator(Generic[Array, F]):
         return self._bkd.reshape(result, (vec.shape[0],)) if column else result
 
     def apply(self, vec: Array) -> Array:
-        return self._apply_with(self._operator.apply, vec)
+        return self._apply_with(self._shifted().apply, vec)
 
     def apply_transpose(self, vec: Array) -> Array:
-        return self._apply_with(self._operator.apply_transpose, vec)
+        return self._apply_with(self._shifted().apply_transpose, vec)
 
     def as_matrix(self) -> Array:
         """:math:`dR/dy` as a matrix, formed by the stepper's function."""

@@ -16,7 +16,7 @@ Hessian-vector products, explicit methods included). It is required
 here, and assembled only when asked for.
 """
 
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -108,6 +108,8 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
         self._space: VectorSpaceProtocol[V] = stack.space(descriptor)
         self._jacobian = GalerkinJacobianOperator(jacobian_assembler, self._rows)
         self._mass_assembler = mass_assembler
+        self._mass_source: Optional[ActionOperatorProtocol[V, F]] = None
+        self._mass: Optional[RowReplacedOperator[V, F]] = None
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """The discretized system."""
@@ -143,8 +145,16 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
 
     def mass(self) -> RowReplacedOperator[V, F]:
         """The mass with the essential rows replaced by identity rows: the
-        mass time integration steps with."""
-        return RowReplacedOperator(self.unconstrained_mass(), self._rows)
+        mass time integration steps with.
+
+        Built again only when the assembler returns a different mass, so
+        repeated calls share one operator and its row-replaced storage.
+        """
+        unconstrained = self.unconstrained_mass()
+        if self._mass is None or self._mass_source is not unconstrained:
+            self._mass = RowReplacedOperator(unconstrained, self._rows)
+            self._mass_source = unconstrained
+        return self._mass
 
     def __repr__(self) -> str:
         return (

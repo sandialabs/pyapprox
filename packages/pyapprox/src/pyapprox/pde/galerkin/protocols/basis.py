@@ -5,6 +5,9 @@ Defines interfaces for finite element bases that wrap scikit-fem (skfem).
 
 from typing import Any, Callable, Generic, Optional, Protocol, runtime_checkable
 
+import numpy as np
+from numpy.typing import NDArray
+
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -104,6 +107,18 @@ class GalerkinBasisProtocol(Protocol, Generic[Array]):
         -------
         Array
             DOF coordinates. Shape: (ndim, ndofs)
+        """
+        ...
+
+    def element_dofs(self) -> NDArray[np.int64]:
+        """Return each element's DOFs, the pattern assembly into a stack
+        is built from. Integer indices, not a backend array: they select
+        entries and carry no derivative.
+
+        Returns
+        -------
+        NDArray[np.int64]
+            Element DOF maps. Shape: (nelems, ndofs_per_element)
         """
         ...
 

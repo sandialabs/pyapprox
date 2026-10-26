@@ -8,7 +8,7 @@ matrix-free one with GMRES; the matrix the sweeps read is exactly
 ``NewtonJacobianSystem``.
 """
 
-from typing import Union
+from typing import Generic, TypeVar, Union
 
 import pytest
 
@@ -22,6 +22,7 @@ from pyapprox.ode.implicit_steppers import (
 from pyapprox.ode.mass_matrix_system import dense_system, matrix_free_system
 from pyapprox.ode.mixins.default_newton_jacobian import DefaultNewtonJacobianMixin
 from pyapprox.ode.newton_jacobian_system import NewtonJacobianSystem
+from pyapprox.ode.protocols import ResidualFormSystemProtocol
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -32,12 +33,16 @@ from pyapprox.util.linalg.backend_dense import (
 from pyapprox.util.linalg.operators import (
     GMRES,
     CachingSolver,
+    JacobianSnapshotProtocol,
     LinearizationPoint,
+    LinearSolverProtocol,
     SolveFailedError,
     SpaceDescriptor,
 )
 from tests._helpers.linalg.no_transpose_solver import NoTransposeSolver
 from tests._helpers.ode_models import LotkaVolterra
+
+F = TypeVar("F")
 
 _MASS = [[2.0, 0.5], [0.5, 1.0]]
 _DT = 0.1
@@ -66,6 +71,34 @@ def _linearization(
 
 
 _NAMES = ["backward-euler", "crank-nicolson", "midpoint"]
+
+
+class _CountingSystem(Generic[Array, F]):
+    """A residual-form system that counts its shifted Jacobians."""
+
+    def __init__(self, inner: ResidualFormSystemProtocol[Array, Array, F]) -> None:
+        self._inner = inner
+        self._builds = 0
+
+    def builds(self) -> int:
+        return self._builds
+
+    def residual(self, state: Array, state_rate: Array, time: float) -> Array:
+        return self._inner.residual(state, state_rate, time)
+
+    def shifted_jacobian(
+        self,
+        state: Array,
+        state_rate: Array,
+        time: float,
+        shift: float,
+        point: LinearizationPoint,
+    ) -> JacobianSnapshotProtocol[Array, F]:
+        self._builds += 1
+        return self._inner.shifted_jacobian(state, state_rate, time, shift, point)
+
+    def solver(self) -> LinearSolverProtocol[Array, F]:
+        return self._inner.solver()
 
 
 def _stepper(
@@ -136,6 +169,30 @@ class TestImplicitStageSolve:
         x = bkd.asarray([[1.0, 0.0], [0.5, 2.0]])
         bkd.assert_allclose(op.apply(x), bkd.dot(newton, x), rtol=1e-12)
         bkd.assert_allclose(op.apply_transpose(x), bkd.dot(newton.T, x), rtol=1e-12)
+
+    def test_the_shifted_jacobian_is_built_on_first_use_only(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Asking for the matrix alone never assembles the shifted
+        Jacobian; solves and actions build it once and share it."""
+        model = _model(bkd)
+        system = _CountingSystem(dense_system(model))
+        op = ImplicitStageSolve(model, system).newton_operator(
+            bkd.asarray([10.0, 5.0]),
+            bkd.zeros((2,)),
+            0.0,
+            _DT,
+            LinearizationPoint(0),
+            lambda: bkd.eye(2),
+        )
+        op.as_matrix()
+        assert system.builds() == 0
+        rhs = bkd.asarray([1.0, -2.0])
+        newton = newton_matrix(model, bkd.asarray([10.0, 5.0]), 0.0, _DT)
+        bkd.assert_allclose(op.solve(rhs), bkd.solve(newton, rhs), rtol=1e-12)
+        op.apply(rhs)
+        op.solve_transpose(rhs)
+        assert system.builds() == 1
 
     def test_a_failed_solve_raises(self, bkd: Backend[Array]) -> None:
         model = _model(bkd)

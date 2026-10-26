@@ -21,6 +21,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.pde.assembly import ElementDofMapProtocol
+from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
 )
@@ -44,7 +46,9 @@ from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
 from pyapprox.util.linalg.scipy_stack import CSRFormat
 from tests._helpers.galerkin_systems import (
     SYSTEM_NAMES,
+    MassScaledSystem,
     NpSystem,
+    adr_system,
     galerkin_system,
 )
 from tests._helpers.linalg.mock_stack import (
@@ -157,6 +161,51 @@ def _mock_discretization(
         SkfemMassAssembler(system, stack, basis, descriptor),
         descriptor,
     )
+
+
+@pytest.mark.parametrize("lumped", [False, True])
+class TestMassCaching:
+    def test_repeated_calls_share_one_mass(
+        self, numpy_bkd: NumpyBkd, lumped: bool
+    ) -> None:
+        system, basis, _ = galerkin_system("burgers", numpy_bkd)
+        disc = skfem_discretization(system, basis, lumped_mass=lumped)
+        assert disc.mass() is disc.mass()
+        assert disc.unconstrained_mass() is disc.unconstrained_mass()
+
+    def test_a_new_mass_is_assembled_again(
+        self, numpy_bkd: NumpyBkd, lumped: bool
+    ) -> None:
+        """Rescaling the system's mass yields new operators with the new
+        values; the earlier ones keep theirs."""
+        inner, basis, _ = galerkin_system("burgers", numpy_bkd)
+        system = MassScaledSystem(inner)
+        disc = skfem_discretization(system, basis, lumped_mass=lumped)
+        first, first_unconstrained = disc.mass(), disc.unconstrained_mass()
+        before = _csr(first_unconstrained.format()).copy()
+        system.scale(2.0)
+        second, second_unconstrained = disc.mass(), disc.unconstrained_mass()
+        assert second is not first
+        assert second_unconstrained is not first_unconstrained
+        numpy_bkd.assert_allclose(_csr(second_unconstrained.format()), 2.0 * before)
+        numpy_bkd.assert_allclose(_csr(first_unconstrained.format()), before)
+        essential = numpy_bkd.to_numpy(inner.constraint_set().dofs())
+        numpy_bkd.assert_allclose(
+            _csr(second.format())[essential],
+            np.eye(inner.nstates())[essential],
+        )
+
+
+def test_a_basis_typed_by_its_protocol_feeds_the_builder(
+    numpy_bkd: NumpyBkd,
+) -> None:
+    """Physics hand out their basis as a ``GalerkinBasisProtocol``, which
+    carries the element DOF maps the builder needs."""
+    system, lagrange = adr_system(numpy_bkd)
+    basis: GalerkinBasisProtocol[_Np] = lagrange
+    assert isinstance(basis, ElementDofMapProtocol)
+    disc = skfem_discretization(system, basis)
+    assert disc.nstates() == system.nstates()
 
 
 class TestOnAnotherStack:

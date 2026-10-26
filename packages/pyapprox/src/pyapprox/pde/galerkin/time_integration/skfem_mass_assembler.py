@@ -9,10 +9,11 @@ diagonal, so it needs no capability of the stack beyond element adds. It
 satisfies :class:`~pyapprox.pde.assembly.protocols.MassAssemblerProtocol`.
 """
 
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import spmatrix
 
 from pyapprox.pde.assembly.protocols import (
     BulkCapableAssemblyStackProtocol,
@@ -116,11 +117,26 @@ class SkfemMassAssembler(Generic[Array, V, F]):
         self._lumped_sink: MatrixSinkProtocol[V, F, _Dofs, _Values] = stack.matrix_sink(
             descriptor, descriptor, self._diagonal, self._diagonal
         )
+        # The system's mass matrix the cached operator was built from,
+        # held so that identity identifies it.
+        self._source: Optional[spmatrix] = None
+        self._assembled: Optional[ActionOperatorProtocol[V, F]] = None
 
     def assemble_mass(self) -> ActionOperatorProtocol[V, F]:
         """The mass, consistent or lumped as constructed, independent of
-        later calls. Shape: (nstates, nstates)."""
+        later calls. Shape: (nstates, nstates).
+
+        Built again only when the system returns a different mass matrix
+        object: mass suppliers cache their matrix and assemble a new one
+        when it changes, so repeated calls reuse the stack operator.
+        """
         matrix = require_sparse(self._system.mass_matrix(), "mass")
+        if self._assembled is None or matrix is not self._source:
+            self._assembled = self._assemble(matrix)
+            self._source = matrix
+        return self._assembled
+
+    def _assemble(self, matrix: spmatrix) -> ActionOperatorProtocol[V, F]:
         if not self._lumped:
             self._sink.zero()
             self._sink.bulk().add_assembled(matrix)

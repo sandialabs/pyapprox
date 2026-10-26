@@ -11,8 +11,9 @@ from typing import Any, Callable, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.protocols import SpatialOperatorProtocol
 from pyapprox.pde.assembly import ElementDofMapProtocol
-from pyapprox.pde.boundary import BoundaryConditionRole
+from pyapprox.pde.boundary import BoundaryConditionRole, ConstraintSetProtocol
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis, MixedBasis
 from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
@@ -24,7 +25,9 @@ from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.steady_view import SteadyView
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.operators import SpaceDescriptor
 
 NpArray = NDArray[Any]
@@ -96,6 +99,44 @@ _BUILDERS: dict[str, _Builder] = {
     "burgers": burgers_system,
     "stokes": stokes_system,
 }
+
+
+class MassScaledSystem:
+    """A system whose mass can be rescaled, delegating everything else.
+
+    Its mass matrix is the same object on every call until ``scale``
+    assembles a new one, as mass suppliers cache theirs, so a consumer
+    keyed on that object sees exactly one change per ``scale``.
+    """
+
+    def __init__(self, inner: NpSystem) -> None:
+        self._inner = inner
+        self._mass = inner.mass_matrix()
+
+    def scale(self, factor: float) -> None:
+        """Replace the mass by ``factor`` times the inner system's."""
+        self._mass = factor * self._inner.mass_matrix()
+
+    def bkd(self) -> Backend[NpArray]:
+        return self._inner.bkd()
+
+    def nstates(self) -> int:
+        return self._inner.nstates()
+
+    def spatial_operator(self) -> SpatialOperatorProtocol[NpArray]:
+        return self._inner.spatial_operator()
+
+    def constraint_set(self) -> ConstraintSetProtocol[NpArray]:
+        return self._inner.constraint_set()
+
+    def steady(self) -> SteadyView[NpArray]:
+        return self._inner.steady()
+
+    def steady_snapshot(self, time: float) -> SteadyView[NpArray]:
+        return self._inner.steady_snapshot(time)
+
+    def mass_matrix(self) -> NpArray:
+        return self._mass
 
 
 def galerkin_system(
