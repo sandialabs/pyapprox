@@ -9,6 +9,9 @@ if not package_available("skfem"):
 
 from typing import Any, Generic
 
+import numpy as np
+from numpy.typing import NDArray
+
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet, NaturalBCOperator
 from pyapprox.pde.galerkin.boundary import (
@@ -64,6 +67,17 @@ class _ScaledMass(Generic[Array]):
         return self._scale * self._bkd.eye(self._nstates)
 
 
+class _StubBasis:
+    """Linear elements on a line of ``nstates`` nodes."""
+
+    def __init__(self, nstates: int) -> None:
+        self._nstates = nstates
+
+    def element_dofs(self) -> NDArray[np.int64]:
+        nodes = np.arange(self._nstates, dtype=np.int64)
+        return np.stack([nodes[:-1], nodes[1:]], axis=1)
+
+
 def _operator(
     bkd: Backend[Array], nstates: int = 4
 ) -> ComposedSpatialOperator[Array]:
@@ -89,16 +103,20 @@ class TestGalerkinSystem:
     def test_transient_system_satisfies_both(
         self, bkd: Backend[Array]
     ) -> None:
+        basis = _StubBasis(4)
         system = GalerkinSystem(
-            _operator(bkd), _constraints(bkd), _ScaledMass(4, bkd)
+            _operator(bkd), _constraints(bkd), _ScaledMass(4, bkd), basis
         )
         assert isinstance(system, GalerkinTransientSystemProtocol)
         assert isinstance(system, GalerkinSteadySystemProtocol)
+        assert system.basis() is basis
 
     def test_mass_is_read_on_every_call(self, bkd: Backend[Array]) -> None:
         """A parameterized mass is never a stale copy."""
         mass = _ScaledMass(4, bkd)
-        system = GalerkinSystem(_operator(bkd), _constraints(bkd), mass)
+        system = GalerkinSystem(
+            _operator(bkd), _constraints(bkd), mass, _StubBasis(4)
+        )
         mass.set_scale(3.0)
         bkd.assert_allclose(system.mass_matrix(), 3.0 * bkd.eye(4))
 
@@ -106,11 +124,23 @@ class TestGalerkinSystem:
         self, bkd: Backend[Array]
     ) -> None:
         with pytest.raises(TypeError, match="spatial_operator"):
-            GalerkinSteadySystem(object(), _constraints(bkd))
+            GalerkinSteadySystem(object(), _constraints(bkd))  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="constraint_set"):
-            GalerkinSteadySystem(_operator(bkd), object())
+            GalerkinSteadySystem(_operator(bkd), object())  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="mass"):
-            GalerkinSystem(_operator(bkd), _constraints(bkd), object())
+            GalerkinSystem(
+                _operator(bkd),
+                _constraints(bkd),
+                object(),  # type: ignore[arg-type]
+                _StubBasis(4),
+            )
+        with pytest.raises(TypeError, match="basis"):
+            GalerkinSystem(
+                _operator(bkd),
+                _constraints(bkd),
+                _ScaledMass(4, bkd),
+                object(),  # type: ignore[arg-type]
+            )
 
     def test_rejects_constraint_outside_operator(
         self, bkd: Backend[Array]
@@ -122,7 +152,7 @@ class TestGalerkinSystem:
 
     def test_rejects_mass_of_wrong_shape(self, bkd: Backend[Array]) -> None:
         system = GalerkinSystem(
-            _operator(bkd), _constraints(bkd), _ScaledMass(3, bkd)
+            _operator(bkd), _constraints(bkd), _ScaledMass(3, bkd), _StubBasis(4)
         )
         with pytest.raises(ValueError, match="mass matrix has shape"):
             system.mass_matrix()

@@ -10,7 +10,11 @@ boundary conditions.
 
 from typing import Generic
 
+import numpy as np
+from numpy.typing import NDArray
+
 from pyapprox.ode.protocols import SpatialOperatorProtocol
+from pyapprox.pde.assembly.protocols import ElementDofMapProtocol
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.galerkin.protocols.system import GalerkinMassProtocol
 from pyapprox.pde.ownership import owns
@@ -120,6 +124,9 @@ class GalerkinSystem(GalerkinSteadySystem[Array]):
         The essential constraints on rows of ``F``.
     mass : GalerkinMassProtocol
         Supplies ``M``; read on every call, so it is never stale.
+    basis : ElementDofMapProtocol
+        The basis the state lives in; its element DOF maps give the
+        pattern of the assembled operators.
     """
 
     def __init__(
@@ -127,13 +134,24 @@ class GalerkinSystem(GalerkinSteadySystem[Array]):
         spatial_operator: SpatialOperatorProtocol[Array],
         constraint_set: ConstraintSetProtocol[Array],
         mass: GalerkinMassProtocol[Array],
+        basis: ElementDofMapProtocol[NDArray[np.int64]],
     ) -> None:
         super().__init__(spatial_operator, constraint_set)
         if not isinstance(mass, GalerkinMassProtocol):
             raise TypeError(
                 f"mass must satisfy GalerkinMassProtocol, got {type(mass).__name__}"
             )
+        if not isinstance(basis, ElementDofMapProtocol):
+            raise TypeError(
+                "basis must satisfy ElementDofMapProtocol, got "
+                f"{type(basis).__name__}"
+            )
         self._mass = mass
+        self._basis = basis
+
+    def basis(self) -> ElementDofMapProtocol[NDArray[np.int64]]:
+        """Return the basis the state lives in."""
+        return self._basis
 
     def mass_matrix(self) -> Array:
         """Return the mass matrix ``M`` of ``M du/dt = F(u, t)``.

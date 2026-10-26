@@ -138,6 +138,9 @@ class MassScaledSystem:
     def mass_matrix(self) -> NpArray:
         return self._mass
 
+    def basis(self) -> ElementDofMapProtocol[Dofs]:
+        return self._inner.basis()
+
 
 def galerkin_system(
     name: str, bkd: NumpyBkd

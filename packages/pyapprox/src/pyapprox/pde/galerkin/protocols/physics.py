@@ -11,7 +11,11 @@ ParameterizationProtocol layer, not embedded in physics.
 
 from typing import Generic, Protocol, runtime_checkable
 
+import numpy as np
+from numpy.typing import NDArray
+
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.assembly.protocols import ElementDofMapProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -76,4 +80,9 @@ class GalerkinPhysicsProtocol(
 
         Shape: (nstates, nstates).
         """
+        ...
+
+    def basis(self) -> ElementDofMapProtocol[NDArray[np.int64]]:
+        """Return the basis the state lives in; its element DOF maps give
+        the pattern of the assembled operators."""
         ...

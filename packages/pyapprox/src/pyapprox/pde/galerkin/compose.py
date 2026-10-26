@@ -57,4 +57,5 @@ def compose_galerkin_system(
             roles.essentials(), physics.nstates(), physics.bkd()
         ),
         physics,
+        physics.basis(),
     )

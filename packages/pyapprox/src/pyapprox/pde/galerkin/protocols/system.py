@@ -11,7 +11,11 @@ raise.
 
 from typing import Generic, Protocol, runtime_checkable
 
+import numpy as np
+from numpy.typing import NDArray
+
 from pyapprox.ode.protocols import SpatialOperatorProtocol
+from pyapprox.pde.assembly.protocols import ElementDofMapProtocol
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.steady_view import SteadyView
 from pyapprox.util.backends.protocols import Array, Array_co, Backend
@@ -70,4 +74,9 @@ class GalerkinTransientSystemProtocol(
 
     def mass_matrix(self) -> Array:
         """Return the mass matrix. Shape: (nstates, nstates)."""
+        ...
+
+    def basis(self) -> ElementDofMapProtocol[NDArray[np.int64]]:
+        """Return the basis the state lives in; its element DOF maps give
+        the pattern of the assembled operators."""
         ...
