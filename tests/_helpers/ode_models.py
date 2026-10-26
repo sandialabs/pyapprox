@@ -65,7 +65,7 @@ class LotkaVolterra(Generic[Array]):
             else ConstantDenseMassMatrix(mass, bkd)
         )
         states, params = backend_spaces(bkd, 2, 4)
-        self._derivatives: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+        self._derivatives = (
             ODEResidualDerivatives.second_order(
                 states,
                 params,
