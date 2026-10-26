@@ -29,6 +29,7 @@ from pyapprox.ode.protocols.ode_residual import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
 
 
 @runtime_checkable
@@ -207,6 +208,26 @@ class SensitivityStepperProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]:
+        r""":math:`B_n = dR_n/dy_{n-1}` as an operator on blocks of shape
+        ``(nstates, ncols)``.
+
+        The forward-sensitivity sweep applies it; the adjoint sweep
+        applies its transpose, :math:`B_{n+1}^\top` from the next step's
+        context. It may refer to ``ctx``'s states and ``y_curr`` rather
+        than copy them.
+
+        Parameters
+        ----------
+        ctx : StepContext
+            Context for this step (t_prev, deltat, y_prev).
+        y_curr : Array
+            Solution at the current time step y_n. Shape: (nstates,)
+        """
+        ...
+
 
 @runtime_checkable
 class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
@@ -246,6 +267,10 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def sensitivity_off_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> Array: ...
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]: ...
 
     def param_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
@@ -432,6 +457,10 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def sensitivity_off_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> Array: ...
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]: ...
 
     def param_jacobian(
         self, ctx: StepContext[Array], y_curr: Array

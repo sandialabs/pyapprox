@@ -30,6 +30,7 @@ from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.off_diagonal import MassPlusJacobianOffDiagonal
 from pyapprox.ode.protocols.implicit_system import ImplicitSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
@@ -133,6 +134,19 @@ class CrankNicolsonStepper(
         """
         jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
         return -self._residual.mass_matrix().add_to(0.5 * ctx.deltat * jac)
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> MassPlusJacobianOffDiagonal[Array]:
+        r""":math:`dR_n/dy_{n-1} = -(M + (\Delta t/2)\,J_{n-1})` as an
+        operator; its transpose is the adjoint's off-diagonal block."""
+        return MassPlusJacobianOffDiagonal(
+            self._residual.mass_matrix(),
+            self._residual.jacobian(ctx.y_prev, ctx.t_prev),
+            0.5 * ctx.deltat,
+            y_curr.shape[0],
+            self._bkd,
+        )
 
     # -- QuadratureMixin --
 

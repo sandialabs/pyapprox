@@ -44,6 +44,8 @@ from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendRowSet
+from pyapprox.util.linalg.operators import FormatProtocol, RowsZeroedOperator
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
@@ -195,6 +197,20 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
         """
         result = self._inner.sensitivity_off_diag_jacobian(ctx, y_curr)
         return self._constraint_set.zero_rows(result)
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> RowsZeroedOperator[Array, FormatProtocol]:
+        r"""The inner block with the constrained rows zeroed, as an
+        operator: :math:`P B_n`. Its transpose :math:`B_n^\top P` zeroes
+        the constrained entries of its input, which is the adjoint
+        block's zeroed columns."""
+        inner = self._inner.off_diag_operator(ctx, y_curr)
+        # The constrained DOFs are integer data: no derivative flows
+        # through them.
+        dofs = self._bkd.to_numpy(self._constraint_set.dofs())
+        rows = BackendRowSet(inner.range(), [int(dof) for dof in dofs], self._bkd)
+        return RowsZeroedOperator(inner, rows)
 
     def zero_adjoint_rhs(
         self, dqdu: Array, zero_essential: bool = True

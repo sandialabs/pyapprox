@@ -36,6 +36,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
+    GalerkinBCEnforcingAdjointResidual,
     GalerkinBCEnforcingForwardResidual,
     create_galerkin_bc_enforcing_residual,
 )
@@ -43,6 +44,8 @@ from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator
+from pyapprox.util.linalg.operators import SpaceDescriptor
 
 
 def _setup_adr(
@@ -140,6 +143,15 @@ class _FakeExplicitStepper:
         self, ctx: StepContext[Any], y_curr: Any
     ) -> Any:
         return self._bkd.asarray(np.full((self._n, self._n), 3.0))
+
+    def off_diag_operator(
+        self, ctx: StepContext[Any], y_curr: Any
+    ) -> BackendDenseOperator[Any]:
+        return BackendDenseOperator(
+            self.sensitivity_off_diag_jacobian(ctx, y_curr),
+            SpaceDescriptor("state", self._n),
+            self._bkd,
+        )
 
 
 class TestForwardWrapper:
@@ -413,3 +425,40 @@ class TestStageBCRequirement:
             create_galerkin_bc_enforcing_residual(
                 stepper, system.constraint_set(), numpy_bkd
             )
+
+
+class TestOffDiagonalOperator:
+    def test_rows_zeroed_and_its_transpose_match_todays_blocks(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Crank-Nicolson on the manufactured ADR problem: the wrapper's
+        operator applies the row-zeroed sensitivity block, and its
+        transpose at the next step's context the column-zeroed adjoint
+        block."""
+        bkd = numpy_bkd
+        system, _ = _setup_adr(bkd)
+        stepper = create_stepper(
+            "crank_nicolson", GalerkinPhysicsToODEResidualAdapter(system)
+        )
+        wrapper = create_galerkin_bc_enforcing_residual(
+            stepper, system.constraint_set(), bkd
+        )
+        assert isinstance(wrapper, GalerkinBCEnforcingAdjointResidual)
+        n = system.nstates()
+        ctx = StepContext(t_prev=0.1, deltat=0.05, y_prev=bkd.linspace(0.0, 1.0, n))
+        y_curr = bkd.linspace(0.1, 0.9, n)
+        rng = np.random.default_rng(5)
+        x = bkd.asarray(rng.normal(size=(n, 2)))
+        op = wrapper.off_diag_operator(ctx, y_curr)
+        block = wrapper.sensitivity_off_diag_jacobian(ctx, y_curr)
+        bkd.assert_allclose(op.apply(x), np.asarray(block @ x), atol=1e-12)
+        constrained = bkd.to_numpy(system.constraint_set().dofs())
+        bkd.assert_allclose(op.apply(x)[constrained], np.zeros((len(constrained), 2)))
+        next_ctx = StepContext(t_prev=0.15, deltat=0.05, y_prev=y_curr)
+        y_next = bkd.linspace(0.15, 0.95, n)
+        adjoint = wrapper.adjoint_off_diag_jacobian(next_ctx, y_next)
+        bkd.assert_allclose(
+            wrapper.off_diag_operator(next_ctx, y_next).apply_transpose(x),
+            np.asarray(adjoint @ x),
+            atol=1e-12,
+        )

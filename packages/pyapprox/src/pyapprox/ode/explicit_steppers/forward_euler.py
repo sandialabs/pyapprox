@@ -21,6 +21,7 @@ from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.off_diagonal import MassPlusJacobianOffDiagonal
 from pyapprox.ode.protocols.mass_system import MassSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
@@ -113,6 +114,19 @@ class ForwardEulerStepper(
         """
         jac = self._residual.jacobian(ctx.y_prev, ctx.t_prev)
         return -self._mass_matrix().add_to(ctx.deltat * jac)
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> MassPlusJacobianOffDiagonal[Array]:
+        r""":math:`dR_n/dy_{n-1} = -(M + \Delta t\,J_{n-1})` as an operator;
+        its transpose is the adjoint's off-diagonal block."""
+        return MassPlusJacobianOffDiagonal(
+            self._mass_matrix(),
+            self._residual.jacobian(ctx.y_prev, ctx.t_prev),
+            ctx.deltat,
+            y_curr.shape[0],
+            self._bkd,
+        )
 
     # -- QuadratureMixin --
 

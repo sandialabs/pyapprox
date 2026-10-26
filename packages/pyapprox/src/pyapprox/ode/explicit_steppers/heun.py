@@ -25,6 +25,7 @@ from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.off_diagonal import HeunOffDiagonal
 from pyapprox.ode.protocols.mass_system import MassSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
@@ -160,6 +161,24 @@ class HeunStepper(
             + ctx.deltat * (k2_jac @ minv_j1)
         )
         return -(_dense(self._bkd, mass_obj.as_matrix()) + 0.5 * ctx.deltat * inner)
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> HeunOffDiagonal[Array]:
+        r""":math:`dR_n/dy_{n-1}` as an operator applied through actions, so
+        :math:`M^{-1} J_1` is never formed; its transpose is the adjoint's
+        off-diagonal block."""
+        mass = self._mass_matrix()
+        k1 = self._residual(ctx.y_prev, ctx.t_prev)
+        predictor = ctx.y_prev + ctx.deltat * mass.solve(k1)
+        return HeunOffDiagonal(
+            mass,
+            self._residual.jacobian(ctx.y_prev, ctx.t_prev),
+            self._residual.jacobian(predictor, ctx.t_curr),
+            ctx.deltat,
+            y_curr.shape[0],
+            self._bkd,
+        )
 
     # -- QuadratureMixin --
 

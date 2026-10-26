@@ -35,6 +35,7 @@ from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
+from pyapprox.ode.off_diagonal import MassPlusJacobianOffDiagonal
 from pyapprox.ode.protocols.implicit_system import ImplicitSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
@@ -140,6 +141,22 @@ class ImplicitMidpointStepper(
         t_mid = self._midpoint_time(ctx)
         jac = self._residual.jacobian(y_mid, t_mid)
         return -self._residual.mass_matrix().add_to(0.5 * ctx.deltat * jac)
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> MassPlusJacobianOffDiagonal[Array]:
+        r""":math:`dR_n/dy_{n-1} = -(M + (\Delta t/2)\,J(y_{\mathrm{mid}}))`
+        as an operator; its transpose is the adjoint's off-diagonal
+        block."""
+        return MassPlusJacobianOffDiagonal(
+            self._residual.mass_matrix(),
+            self._residual.jacobian(
+                self._midpoint_state(ctx, y_curr), self._midpoint_time(ctx)
+            ),
+            0.5 * ctx.deltat,
+            y_curr.shape[0],
+            self._bkd,
+        )
 
     # -- QuadratureMixin --
 

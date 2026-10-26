@@ -45,6 +45,8 @@ from pyapprox.pde.collocation.protocols.boundary import (
 )
 from pyapprox.pde.collocation.protocols.physics import PhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendRowSet
+from pyapprox.util.linalg.operators import FormatProtocol, RowsZeroedOperator
 
 
 @runtime_checkable
@@ -157,6 +159,17 @@ class BCEnforcingForwardResidual(Generic[Array]):
         for idx in self._row_replaced:
             result[idx, :] = 0.0
         return result
+
+    def off_diag_operator(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> RowsZeroedOperator[Array, FormatProtocol]:
+        r"""The inner block with the row-replaced rows zeroed, as an
+        operator: :math:`P B_n`. Its transpose :math:`B_n^\top P` zeroes
+        the row-replaced entries of its input, which is the adjoint
+        block's zeroed columns."""
+        inner = self._inner.off_diag_operator(ctx, y_curr)
+        rows = BackendRowSet(inner.range(), list(self._row_replaced), self._bkd)
+        return RowsZeroedOperator(inner, rows)
 
     def is_explicit(self) -> bool:
         """Return whether scheme is explicit."""
