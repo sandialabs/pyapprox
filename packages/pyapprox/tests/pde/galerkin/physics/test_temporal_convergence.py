@@ -40,6 +40,7 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
 
@@ -75,7 +76,9 @@ _BC_BUILDERS: Dict[
 ] = {"D": _dirichlet, "N": _neumann, "R": _robin}
 
 
-def _compute_convergence_rates(dt_values, errors):
+def _compute_convergence_rates(
+    dt_values: List[float], errors: List[float]
+) -> NDArray[np.floating[Any]]:
     """Compute convergence rates from dt refinement study.
 
     Parameters
@@ -92,7 +95,9 @@ def _compute_convergence_rates(dt_values, errors):
     """
     dt_arr = np.array(dt_values)
     err_arr = np.array(errors)
-    rates = np.log(err_arr[:-1] / err_arr[1:]) / np.log(dt_arr[:-1] / dt_arr[1:])
+    rates: NDArray[np.floating[Any]] = np.log(err_arr[:-1] / err_arr[1:]) / np.log(
+        dt_arr[:-1] / dt_arr[1:]
+    )
     return rates
 
 
@@ -154,9 +159,12 @@ def _setup_physics_and_model(
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
     def exact_at_time(t: float) -> NDArray[np.floating[Any]]:
-        u = exact_sol_func(dof_coords, t)
-        if hasattr(u, "shape") and u.ndim > 1:
-            return u[:, 0] if u.shape[1] == 1 else u.flatten()
+        u: NDArray[np.floating[Any]] = exact_sol_func(dof_coords, t)
+        if u.ndim > 1:
+            column: NDArray[np.floating[Any]] = (
+                u[:, 0] if u.shape[1] == 1 else u.flatten()
+            )
+            return column
         return u
 
     return model, exact_at_time
@@ -197,7 +205,7 @@ class TestTemporalConvergenceImplicit:
     )
     def test_convergence_homogeneous_dirichlet(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         method: str,
         expected_order: float,
     ) -> None:
@@ -216,7 +224,7 @@ class TestTemporalConvergenceImplicit:
 
         for dt in dt_values:
             y0 = bkd.asarray(exact_at_time(0.0))
-            config = TimeIntegrationConfig(
+            config: TimeIntegrationConfig[NDArray[Any]] = TimeIntegrationConfig(
                 method=method,
                 init_time=0.0,
                 final_time=final_time,
@@ -231,7 +239,7 @@ class TestTemporalConvergenceImplicit:
             u_exact = exact_at_time(float(times[-1]))
             u_num = bkd.to_numpy(solutions[:, -1])
             error = np.linalg.norm(u_num - u_exact)
-            errors.append(error)
+            errors.append(float(error))
 
         rates = _compute_convergence_rates(dt_values, errors)
 
@@ -256,7 +264,7 @@ class TestTemporalConvergenceExplicit:
     )
     def test_convergence_homogeneous_dirichlet(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         method: str,
         expected_order: float,
     ) -> None:
@@ -275,7 +283,7 @@ class TestTemporalConvergenceExplicit:
 
         for dt in dt_values:
             y0 = bkd.asarray(exact_at_time(0.0))
-            config = TimeIntegrationConfig(
+            config: TimeIntegrationConfig[NDArray[Any]] = TimeIntegrationConfig(
                 method=method,
                 init_time=0.0,
                 final_time=final_time,
@@ -290,7 +298,7 @@ class TestTemporalConvergenceExplicit:
             u_exact = exact_at_time(float(times[-1]))
             u_num = bkd.to_numpy(solutions[:, -1])
             error = np.linalg.norm(u_num - u_exact)
-            errors.append(error)
+            errors.append(float(error))
 
         rates = _compute_convergence_rates(dt_values, errors)
 
@@ -323,7 +331,7 @@ class TestTemporalConvergenceNonzeroDirichlet:
     )
     def test_convergence_nonzero_dirichlet(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         method: str,
         expected_order: float,
     ) -> None:
@@ -342,7 +350,7 @@ class TestTemporalConvergenceNonzeroDirichlet:
 
         for dt in dt_values:
             y0 = bkd.asarray(exact_at_time(0.0))
-            config = TimeIntegrationConfig(
+            config: TimeIntegrationConfig[NDArray[Any]] = TimeIntegrationConfig(
                 method=method,
                 init_time=0.0,
                 final_time=final_time,
@@ -357,11 +365,80 @@ class TestTemporalConvergenceNonzeroDirichlet:
             u_exact = exact_at_time(float(times[-1]))
             u_num = bkd.to_numpy(solutions[:, -1])
             error = np.linalg.norm(u_num - u_exact)
-            errors.append(error)
+            errors.append(float(error))
 
         rates = _compute_convergence_rates(dt_values, errors)
 
         min_expected = expected_order - 0.15
         assert np.all(rates > min_expected), (
             f"{method}: rates={rates}, errors={errors}, expected > {min_expected}"
+        )
+
+
+# =========================================================================
+# Test 3: Time-varying Dirichlet data with stiffness coupling
+# u(x,t) = (x + x*(1-x))*(1+T^3) — P2 exact on nx=4, cubic in time
+# u(0,t) = 0, u(1,t) = 1+t^3; u_xx = -2(1+t^3), so the boundary values
+# enter the interior through the stiffness as well as the mass.
+# =========================================================================
+
+_COUPLED_SOLUTION = "(x+x*(1-x))*(1+T**3)"
+
+
+def _final_time_errors(
+    bkd: Backend[Array], method: str, dt_values: List[float]
+) -> List[float]:
+    """Error at t = 1 of each step size, for the coupled solution."""
+    model, exact_at_time = _setup_physics_and_model(
+        bkd,
+        sol_str=_COUPLED_SOLUTION,
+        diff_str="0.1+1e-16*x",
+        vel_strs=["0+1e-16*x"],
+        bndry_types=["D", "D"],
+    )
+    errors = []
+    for dt in dt_values:
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
+            method=method,
+            init_time=0.0,
+            final_time=1.0,
+            deltat=dt,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
+        )
+        solutions, times = model.solve_transient(
+            bkd.asarray(exact_at_time(0.0)), config
+        )
+        u_exact = exact_at_time(float(times[-1]))
+        errors.append(
+            float(np.linalg.norm(bkd.to_numpy(solutions[:, -1]) - u_exact))
+        )
+    return errors
+
+
+class TestTemporalConvergenceCoupledDirichlet:
+    """Every method keeps its order with time-varying Dirichlet data that
+    reaches the interior through the stiffness, not only the mass.
+
+    Not marked slow, so it runs on every push: it is the oracle against
+    which boundary-condition strategies are compared. Implicit methods use
+    dt in {0.1, 0.05, 0.025}; explicit ones the CFL-limited
+    {0.01, 0.005, 0.0025} (D = 0.1, P2 on nx = 4).
+    """
+
+    @pytest.mark.parametrize(
+        "method,expected_order",
+        IMPLICIT_CONVERGENCE_CASES + EXPLICIT_CONVERGENCE_CASES,
+    )
+    def test_order(
+        self, numpy_bkd: NumpyBkd, method: str, expected_order: float
+    ) -> None:
+        explicit = (method, expected_order) in EXPLICIT_CONVERGENCE_CASES
+        dt_values = [0.01, 0.005, 0.0025] if explicit else [0.1, 0.05, 0.025]
+        errors = _final_time_errors(numpy_bkd, method, dt_values)
+        rates = _compute_convergence_rates(dt_values, errors)
+        assert np.all(rates > expected_order - 0.15), (
+            f"{method}: rates={rates}, errors={errors}"
         )
