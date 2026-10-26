@@ -19,7 +19,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 from pyapprox.ode.implicit_stage_solve import newton_matrix
-from pyapprox.ode.protocols import ImplicitSystemProtocol, JacobianOperatorProtocol
+from pyapprox.ode.protocols import JacobianOperatorProtocol, ResidualFormSystemProtocol
 from pyapprox.ode.sparse_jacobian_operator import (
     SparseJacobianOperator,
     SparseJacobianSnapshot,
@@ -53,7 +53,7 @@ class TestSparseSystem:
         self, numpy_bkd: NumpyBkd
     ) -> None:
         adapter = _adapter(numpy_bkd)
-        system: ImplicitSystemProtocol[_Np, _Np, CSRFormat] = sparse_system(adapter)
+        system: ResidualFormSystemProtocol[_Np, _Np, CSRFormat] = sparse_system(adapter)
         n = adapter.mass_matrix().as_matrix().shape[0]
         state = np.linspace(0.0, 1.0, n)
         coefficient = 0.05

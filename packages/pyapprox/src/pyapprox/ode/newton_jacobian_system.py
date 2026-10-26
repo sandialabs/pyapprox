@@ -1,7 +1,7 @@
-r"""An implicit system backed by a residual's own Newton matrix.
+r"""A residual-form system backed by a residual's own Newton matrix.
 
 ``NewtonJacobianSystem`` satisfies
-:class:`~pyapprox.ode.protocols.ImplicitSystemProtocol` for a residual
+:class:`~pyapprox.ode.protocols.ResidualFormSystemProtocol` for a residual
 that builds its Newton operator :math:`M - cJ` itself, through
 ``newton_jacobian(state, time, coefficient)``: the shifted Jacobian is
 :math:`\sigma M - J = \sigma\,(M - J/\sigma)`, applied and solved with
@@ -10,7 +10,7 @@ Jacobian is ``MatrixFree`` and pairs only with its own solver.
 
 It adapts residuals that already build their own Newton operator and
 have no stack-typed system; it is not a way to define new models.
-New models give their mass and Jacobian to a ``SemiExplicitSystem``
+New models give their mass and Jacobian to a ``MassMatrixSystem``
 (see ``dense_system``, ``sparse_system``, ``matrix_free_system``).
 """
 
@@ -139,7 +139,7 @@ class NewtonJacobianSolver(Generic[Array]):
 class NewtonJacobianSystem(Generic[Array]):
     r""":math:`F = M \dot y - f(y, t)` with the residual's own Newton matrix.
 
-    Satisfies :class:`~pyapprox.ode.protocols.ImplicitSystemProtocol`
+    Satisfies :class:`~pyapprox.ode.protocols.ResidualFormSystemProtocol`
     with ``MatrixFree`` shifted Jacobians.
 
     Parameters

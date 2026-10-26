@@ -1,9 +1,9 @@
-r"""Linear algebra of an implicit stage, through an implicit system.
+r"""Linear algebra of an implicit stage, through a residual-form system.
 
 A stage of an implicit one-step method has Newton matrix
 :math:`dR/dy = M - cJ`, which is :math:`c(\sigma M - J)` with
 :math:`\sigma = 1/c`: the shifted Jacobian of an
-:class:`~pyapprox.ode.protocols.ImplicitSystemProtocol` scaled by
+:class:`~pyapprox.ode.protocols.ResidualFormSystemProtocol` scaled by
 :math:`c`. ``ImplicitStageSolve`` turns a system into the operators a
 stepper solves with, so the stepper holds one and needs no knowledge of
 the system's stack or format.
@@ -17,8 +17,8 @@ forms a matrix, from a function the stepper passes.
 from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol
-from pyapprox.ode.protocols import ImplicitSystemProtocol, ODEResidualProtocol
-from pyapprox.ode.semi_explicit_system import dense_system
+from pyapprox.ode.mass_matrix_system import dense_system
+from pyapprox.ode.protocols import ODEResidualProtocol, ResidualFormSystemProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
     LinearizationPoint,
@@ -40,10 +40,10 @@ def newton_matrix(
 
 @runtime_checkable
 class ImplicitSystemProviderProtocol(Protocol[Array, F]):
-    """A model that supplies its own implicit system."""
+    """A model that supplies its own residual-form system."""
 
-    def implicit_system(self) -> ImplicitSystemProtocol[Array, Array, F]:
-        """The model's implicit system, in its natural stack and format."""
+    def implicit_system(self) -> ResidualFormSystemProtocol[Array, Array, F]:
+        """The model's residual-form system, in its natural stack and format."""
         ...
 
 
@@ -53,7 +53,7 @@ class _ScaledShiftedOperator(Generic[Array, F]):
 
     def __init__(
         self,
-        system: ImplicitSystemProtocol[Array, Array, F],
+        system: ResidualFormSystemProtocol[Array, Array, F],
         state: Array,
         state_rate: Array,
         time: float,
@@ -119,10 +119,10 @@ class _SystemLinearizer(Generic[Array, F]):
     """Binds a system, so each linearization pairs its shifted Jacobian
     with a solver of the same format; the stepper sees neither ``F``."""
 
-    def __init__(self, system: ImplicitSystemProtocol[Array, Array, F]) -> None:
-        if not isinstance(system, ImplicitSystemProtocol):
+    def __init__(self, system: ResidualFormSystemProtocol[Array, Array, F]) -> None:
+        if not isinstance(system, ResidualFormSystemProtocol):
             raise TypeError(
-                "system must satisfy ImplicitSystemProtocol, "
+                "system must satisfy ResidualFormSystemProtocol, "
                 f"got {type(system).__name__}"
             )
         self._system = system
@@ -163,8 +163,8 @@ class ImplicitStageSolve(Generic[Array]):
     residual : ODEResidualProtocol
         The stepper's residual; it supplies the system when ``system``
         is not given.
-    system : ImplicitSystemProtocol, optional
-        The implicit system to solve with. When omitted, the residual's
+    system : ResidualFormSystemProtocol, optional
+        The residual-form system to solve with. When omitted, the residual's
         own ``implicit_system()`` is used if it has one, and otherwise
         ``dense_system(residual)``; the choice is made on first use, so
         constructing a stepper costs nothing.
@@ -173,7 +173,7 @@ class ImplicitStageSolve(Generic[Array]):
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         self._residual = residual
         self._bkd = residual.bkd()

@@ -30,12 +30,12 @@ from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.off_diagonal import MassPlusJacobianOffDiagonal
-from pyapprox.ode.protocols.implicit_system import ImplicitSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
     ODEResidualProtocol,
 )
+from pyapprox.ode.protocols.residual_form_system import ResidualFormSystemProtocol
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
     OneStepMassTelescope,
@@ -72,7 +72,7 @@ class BackwardEulerStepper(
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual)
         self._stage = ImplicitStageSolve(residual, system)
@@ -153,7 +153,7 @@ class BackwardEulerAdjoint(
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual, system)
         if system is not None:
@@ -204,7 +204,7 @@ class BackwardEulerHVP(
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual, system)
 

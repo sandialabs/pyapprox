@@ -15,13 +15,13 @@ pytest.importorskip("torch")
 import torch
 
 from pyapprox.ode.dense_jacobian_operator import DenseJacobianOperator
-from pyapprox.ode.mass_solve import MassSolve
-from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
-from pyapprox.ode.semi_explicit_system import (
-    SemiExplicitSystem,
+from pyapprox.ode.mass_matrix_system import (
+    MassMatrixSystem,
     dense_system,
     matrix_free_system,
 )
+from pyapprox.ode.mass_solve import MassSolve
+from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.linalg.operators import (
@@ -74,15 +74,15 @@ class TestTorchAutograd:
             torch_bkd.assert_allclose(actual, expected, rtol=1e-14)
 
 
-class TestSemiExplicitSystemAutograd:
-    r"""The implicit system against autodiff of its own residual
+class TestMassMatrixSystemAutograd:
+    r"""The residual-form system against autodiff of its own residual
     :math:`F(y, \dot y) = M \dot y - f(y)`, with a nontrivial mass."""
 
     def _system(
         self, bkd: TorchBkd
     ) -> list[
-        SemiExplicitSystem[torch.Tensor, DenseFormat[torch.Tensor]]
-        | SemiExplicitSystem[torch.Tensor, MatrixFree]
+        MassMatrixSystem[torch.Tensor, DenseFormat[torch.Tensor]]
+        | MassMatrixSystem[torch.Tensor, MatrixFree]
     ]:
         model = LotkaVolterra(bkd, mass=bkd.asarray([[2.0, 0.5], [0.5, 1.0]]))
         return [dense_system(model), matrix_free_system(model, nstates=2)]

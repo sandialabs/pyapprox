@@ -2,7 +2,7 @@ r"""Protocol for the mass an explicit time step solves with.
 
 An explicit step of :math:`M \dot y = f(y, t)` evaluates :math:`f` at
 known states and solves only with :math:`M`, so it needs the mass as an
-operator and a solver for it. Every semi-explicit system has both.
+operator and a solver for it. Every mass-matrix system has both.
 """
 
 from typing import Protocol, TypeVar, runtime_checkable

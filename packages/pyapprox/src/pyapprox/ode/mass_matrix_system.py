@@ -1,7 +1,8 @@
-r"""The implicit system of a semi-explicit model :math:`M \dot y = f(y, t)`.
+r"""The residual-form system of a model in mass-matrix form,
+:math:`M \dot y = f(y, t)`.
 
-``SemiExplicitSystem`` satisfies
-:class:`~pyapprox.ode.protocols.ImplicitSystemProtocol` with
+``MassMatrixSystem`` satisfies
+:class:`~pyapprox.ode.protocols.ResidualFormSystemProtocol` with
 :math:`F = M \dot y - f(y, t)`, so the shifted Jacobian is
 :math:`\sigma M - J`. The mass is an operator in the same stack and
 format as the Jacobian, so the sum is stored when they are and pairs
@@ -65,10 +66,10 @@ class RightHandSideProtocol(Protocol[Array]):
         ...
 
 
-class SemiExplicitSystem(Generic[Array, F]):
+class MassMatrixSystem(Generic[Array, F]):
     r""":math:`F(t, y, \dot y) = M \dot y - f(y, t)` and its shifted Jacobian.
 
-    Satisfies :class:`~pyapprox.ode.protocols.ImplicitSystemProtocol`
+    Satisfies :class:`~pyapprox.ode.protocols.ResidualFormSystemProtocol`
     with the stack's vectors being backend arrays of shape
     ``(nstates, ncols)``; states are 1-D backend arrays.
 
@@ -184,8 +185,8 @@ def mass_properties(mass: MassMatrixProtocol[Array]) -> OperatorProperties:
 def dense_system(
     model: ODEResidualProtocol[Array],
     solver: Optional[LinearSolverProtocol[Array, DenseFormat[Array]]] = None,
-) -> SemiExplicitSystem[Array, DenseFormat[Array]]:
-    """The implicit system of a model whose Jacobian is a dense array.
+) -> MassMatrixSystem[Array, DenseFormat[Array]]:
+    """The residual-form system of a model whose Jacobian is a dense array.
 
     The mass, the Jacobian and the shifted Jacobian are dense operators
     of the backend stack; the solver defaults to the backend's dense LU.
@@ -201,7 +202,7 @@ def dense_system(
     bkd = model.bkd()
     mass = model.mass_matrix()
     matrix, descriptor = _state_space(mass, bkd)
-    return SemiExplicitSystem(
+    return MassMatrixSystem(
         model,
         BackendDenseOperator(
             matrix, descriptor, bkd, properties=mass_properties(mass)
@@ -275,8 +276,8 @@ def matrix_free_system(
     model: MatrixFreeModelProtocol[Array],
     nstates: int,
     solver: Optional[LinearSolverProtocol[Array, MatrixFree]] = None,
-) -> SemiExplicitSystem[Array, MatrixFree]:
-    r"""The implicit system of a model whose Jacobian is given by its
+) -> MassMatrixSystem[Array, MatrixFree]:
+    r"""The residual-form system of a model whose Jacobian is given by its
     actions.
 
     Neither the Jacobian nor the mass is formed: both are applied through
@@ -296,7 +297,7 @@ def matrix_free_system(
     bkd = model.bkd()
     descriptor = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
     space = BackendVectorSpace(descriptor, bkd)
-    return SemiExplicitSystem(
+    return MassMatrixSystem(
         model,
         _MassAction(model.mass_matrix(), descriptor, bkd),
         MatrixFreeJacobianOperator(model, descriptor),

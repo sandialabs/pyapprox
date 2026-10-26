@@ -15,13 +15,13 @@ from typing import Generic, Optional
 from pyapprox.interface.functions.derivatives import JacobianBatchFn
 from pyapprox.ode.linear_operator import BlockDiagonalLinearOperator
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
+from pyapprox.ode.mass_matrix_system import MassMatrixSystem
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     ODEResidualDerivatives,
     backend_spaces,
     dense_operator,
 )
-from pyapprox.ode.semi_explicit_system import SemiExplicitSystem
 from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
@@ -174,8 +174,8 @@ class BatchedBoundODEResidual(Generic[Array]):
 
     def implicit_system(
         self,
-    ) -> SemiExplicitSystem[Array, BlockDiagonalFormat[Array]]:
-        """The implicit system implicit steppers solve with: identity
+    ) -> MassMatrixSystem[Array, BlockDiagonalFormat[Array]]:
+        """The residual-form system implicit steppers solve with: identity
         mass and Jacobian as one block per trajectory, so the shifted
         Jacobian stays block-diagonal and the batched LU solves it."""
         identity = BackendBlockDiagonalOperator(
@@ -184,7 +184,7 @@ class BatchedBoundODEResidual(Generic[Array]):
             self._bkd,
             OperatorProperties(symmetric=True, spd=True, diagonal=True, identity=True),
         )
-        return SemiExplicitSystem(
+        return MassMatrixSystem(
             self,
             identity,
             self,

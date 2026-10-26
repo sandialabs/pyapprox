@@ -207,7 +207,7 @@ class GalerkinPhysicsToODEResidualAdapter(
         return self._mass
 
     def implicit_system(self) -> NewtonJacobianSystem[Array]:
-        """The implicit system implicit steppers solve with: this
+        """The residual-form system implicit steppers solve with: this
         adapter's own Newton matrix, in its SciPy storage."""
         return NewtonJacobianSystem(self)
 

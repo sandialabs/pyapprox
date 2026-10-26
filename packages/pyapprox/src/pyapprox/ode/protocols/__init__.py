@@ -24,7 +24,6 @@ Post-hoc methods (adjoint, HVP, param_jacobian) take their
 ``StepContext`` as explicit parameters — no mutable state reads.
 """
 
-from .implicit_system import ImplicitSystemProtocol
 from .jacobian_operator import JacobianOperatorProtocol
 from .mass_system import MassSystemProtocol
 from .ode_residual import (
@@ -35,6 +34,7 @@ from .ode_residual import (
     ODEResidualWithHVPProtocol,
     ODEResidualWithParamJacobianProtocol,
 )
+from .residual_form_system import ResidualFormSystemProtocol
 from .spatial_operator import SpatialOperatorProtocol
 from .time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
@@ -61,7 +61,7 @@ __all__ = [
     "SpatialOperatorProtocol",
     # Operator-valued Jacobian and implicit-system Protocols
     "JacobianOperatorProtocol",
-    "ImplicitSystemProtocol",
+    "ResidualFormSystemProtocol",
     "MassSystemProtocol",
     # Base Classes and Mixins
 ]

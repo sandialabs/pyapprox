@@ -1,4 +1,4 @@
-"""SemiExplicitSystem and its builders, on Lotka-Volterra with a mass.
+"""MassMatrixSystem and its builders, on Lotka-Volterra with a mass.
 
 The shifted Jacobian is checked as the directional derivative of the
 residual along :math:`(d, \\sigma d)`, which needs no derivation; the
@@ -13,13 +13,13 @@ import numpy as np
 import pytest
 
 from pyapprox.ode.dense_jacobian_operator import DenseJacobianOperator
-from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
-from pyapprox.ode.protocols import ImplicitSystemProtocol
-from pyapprox.ode.semi_explicit_system import (
-    SemiExplicitSystem,
+from pyapprox.ode.mass_matrix_system import (
+    MassMatrixSystem,
     dense_system,
     matrix_free_system,
 )
+from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
+from pyapprox.ode.protocols import ResidualFormSystemProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
@@ -56,8 +56,8 @@ def _state(bkd: Backend[Array]) -> tuple[Array, Array]:
 def _systems(
     bkd: Backend[Array], mass: list[list[float]]
 ) -> tuple[
-    SemiExplicitSystem[Array, DenseFormat[Array]],
-    SemiExplicitSystem[Array, MatrixFree],
+    MassMatrixSystem[Array, DenseFormat[Array]],
+    MassMatrixSystem[Array, MatrixFree],
 ]:
     model = _model(bkd, mass)
     return dense_system(model), matrix_free_system(model, nstates=2)
@@ -65,7 +65,7 @@ def _systems(
 
 def _assert_solves(
     bkd: Backend[Array],
-    system: SemiExplicitSystem[Array, F],
+    system: MassMatrixSystem[Array, F],
     y: Array,
     ydot: Array,
     b: Array,
@@ -78,12 +78,12 @@ def _assert_solves(
     bkd.assert_allclose(x, expected, rtol=1e-9)
 
 
-class TestSemiExplicitSystem:
+class TestMassMatrixSystem:
     def test_satisfies_the_protocol(self, bkd: Backend[Array]) -> None:
         dense, free = _systems(bkd, _MASS)
-        stepped: ImplicitSystemProtocol[Array, Array, DenseFormat[Array]] = dense
-        assert isinstance(stepped, ImplicitSystemProtocol)
-        assert isinstance(free, ImplicitSystemProtocol)
+        stepped: ResidualFormSystemProtocol[Array, Array, DenseFormat[Array]] = dense
+        assert isinstance(stepped, ResidualFormSystemProtocol)
+        assert isinstance(free, ResidualFormSystemProtocol)
 
     def test_residual_is_mass_rate_minus_rhs(self, bkd: Backend[Array]) -> None:
         y, ydot = _state(bkd)
@@ -147,11 +147,11 @@ class TestSemiExplicitSystem:
             bkd.eye(3, dtype=bkd.default_dtype()), SpaceDescriptor("w", 3), bkd
         )
         with pytest.raises(SpaceMismatchError):
-            SemiExplicitSystem(
+            MassMatrixSystem(
                 model, other, jacobian, dense.space(), BackendDenseLU(bkd)
             )
         with pytest.raises(TypeError, match="solver"):
-            SemiExplicitSystem(
+            MassMatrixSystem(
                 model,
                 dense.mass(),
                 jacobian,
@@ -167,7 +167,7 @@ class TestSemiExplicitSystem:
         model = _model(bkd, _MASS)
         dense, _ = _systems(bkd, _MASS)
         matrix_free = MatrixFreeJacobianOperator(model, _STATE)
-        mixed = SemiExplicitSystem(  # type: ignore[misc]
+        mixed = MassMatrixSystem(  # type: ignore[misc]
             model,
             dense.mass(),
             matrix_free,

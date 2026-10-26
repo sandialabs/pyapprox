@@ -23,9 +23,9 @@ from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerHVP
 from pyapprox.ode.explicit_steppers.heun import HeunHVP, HeunStepper
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.mass_matrix_system import dense_system, matrix_free_system
 from pyapprox.ode.mass_solve import MassSolve
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
-from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (

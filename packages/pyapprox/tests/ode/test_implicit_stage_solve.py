@@ -1,4 +1,4 @@
-"""Implicit steppers solving through implicit systems.
+"""Implicit steppers solving through residual-form systems.
 
 Each implicit stepper's Newton solve, transposed diagonal solve and
 adjoint initial condition must agree with a dense solve with
@@ -19,9 +19,9 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
     ImplicitMidpointHVP,
 )
+from pyapprox.ode.mass_matrix_system import dense_system, matrix_free_system
 from pyapprox.ode.mixins.default_newton_jacobian import DefaultNewtonJacobianMixin
 from pyapprox.ode.newton_jacobian_system import NewtonJacobianSystem
-from pyapprox.ode.semi_explicit_system import dense_system, matrix_free_system
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (

@@ -31,12 +31,12 @@ from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.off_diagonal import MassPlusJacobianOffDiagonal
-from pyapprox.ode.protocols.implicit_system import ImplicitSystemProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
     ODEResidualProtocol,
 )
+from pyapprox.ode.protocols.residual_form_system import ResidualFormSystemProtocol
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
     OneStepMassTelescope,
@@ -75,7 +75,7 @@ class CrankNicolsonStepper(
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual)
         self._stage = ImplicitStageSolve(residual, system)
@@ -89,7 +89,7 @@ class CrankNicolsonStepper(
 
         The rate passed is the backward difference
         :math:`(y_n - y_{n-1})/\Delta t`, not the trapezoidal stage rate;
-        semi-explicit systems do not read it, a system whose shifted
+        mass-matrix systems do not read it, a system whose shifted
         Jacobian depends on :math:`\dot y` would need the stage rate.
         """
         return self._stage.newton_operator(
@@ -170,7 +170,7 @@ class CrankNicolsonAdjoint(
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual, system)
         if system is not None:
@@ -240,7 +240,7 @@ class CrankNicolsonHVP(
     def __init__(
         self,
         residual: ODEResidualProtocol[Array],
-        system: Optional[ImplicitSystemProtocol[Array, Array, F]] = None,
+        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
     ) -> None:
         super().__init__(residual, system)
 

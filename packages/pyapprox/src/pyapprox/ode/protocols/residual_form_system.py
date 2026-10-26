@@ -8,11 +8,11 @@ with :math:`\sigma = 1/\Delta t`. The step then solves
 the shifted Jacobian
 :math:`\sigma\,\partial F/\partial \dot y + \partial F/\partial y`.
 
-Stating the step in this implicit form keeps the stepper independent of
-how :math:`F` is built. A semi-explicit system :math:`M \dot y = f(y, t)`,
+Stating the step in this residual form keeps the stepper independent of
+how :math:`F` is built. A mass-matrix system :math:`M \dot y = f(y, t)`,
 including a differential-algebraic one with a singular mass, has
 :math:`F = M \dot y - f` and shifted Jacobian :math:`\sigma M - J`; a fully
-implicit system (a state-dependent mass, or :math:`F` nonlinear in
+implicit model (a state-dependent mass, or :math:`F` nonlinear in
 :math:`\dot y`) supplies its two derivatives directly. Both satisfy this
 protocol, so neither needs a stepper of its own.
 """
@@ -31,7 +31,7 @@ F = TypeVar("F")
 
 
 @runtime_checkable
-class ImplicitSystemProtocol(Protocol[Array, V, F]):
+class ResidualFormSystemProtocol(Protocol[Array, V, F]):
     r""":math:`F(t, y, \dot y) = 0`, its shifted Jacobian, and a solver for it.
 
     ``Array`` is the backend array type of states, ``V`` the vector type
