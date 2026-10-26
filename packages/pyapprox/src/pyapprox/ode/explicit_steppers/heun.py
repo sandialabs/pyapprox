@@ -36,6 +36,7 @@ from pyapprox.ode.time_quadrature import (
     trapezoidal_quadrature,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
 from pyapprox.util.linalg.operators.solvers import require_transposes
 
 F = TypeVar("F")
@@ -164,7 +165,7 @@ class HeunStepper(
 
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
-    ) -> HeunOffDiagonal[Array]:
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]:
         r""":math:`dR_n/dy_{n-1}` as an operator applied through actions, so
         :math:`M^{-1} J_1` is never formed; its transpose is the adjoint's
         off-diagonal block."""

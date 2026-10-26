@@ -112,14 +112,13 @@ def forward_sensitivity_jacobian(
         time_residual.bind(ctx_nn)
 
         drdy_n = time_residual.jacobian(fwd_sols[:, nn])
-        drdy_nm1 = time_residual.sensitivity_off_diag_jacobian(
-            ctx_nn, fwd_sols[:, nn]
-        )
+        offdiag = time_residual.off_diag_operator(ctx_nn, fwd_sols[:, nn])
         drdp_n = time_residual.param_jacobian(ctx_nn, fwd_sols[:, nn])
 
+        # B_n applies to the whole block of sensitivities at once.
         # Sparse-aware: galerkin wrappers return sparse Jacobians, and
         # solve_maybe_sparse handles the multi-column right-hand side.
-        rhs = bkd.asarray(drdy_nm1 @ w_prev) + bkd.asarray(drdp_n)
+        rhs = offdiag.apply(w_prev) + bkd.asarray(drdp_n)
         w_prev = -solve_maybe_sparse(bkd, drdy_n, rhs)
         state_part = state_part + apply_state_jacobian(
             fwd_sols, param, nn, w_prev

@@ -34,6 +34,7 @@ from pyapprox.ode.time_quadrature import (
     left_rectangle_quadrature,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
 from pyapprox.util.linalg.operators.solvers import require_transposes
 
 F = TypeVar("F")
@@ -117,7 +118,7 @@ class ForwardEulerStepper(
 
     def off_diag_operator(
         self, ctx: StepContext[Array], y_curr: Array
-    ) -> MassPlusJacobianOffDiagonal[Array]:
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]:
         r""":math:`dR_n/dy_{n-1} = -(M + \Delta t\,J_{n-1})` as an operator;
         its transpose is the adjoint's off-diagonal block."""
         return MassPlusJacobianOffDiagonal(

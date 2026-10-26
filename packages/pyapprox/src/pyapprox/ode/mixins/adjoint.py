@@ -13,6 +13,7 @@ from pyapprox.ode.protocols.ode_residual import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
 
 
 class AdjointMixin(ABC, Generic[Array]):
@@ -31,6 +32,13 @@ class AdjointMixin(ABC, Generic[Array]):
         _bkd: Backend[Array]
         _ctx: StepContext[Array]
         _mass_matrix: Callable[[], MassMatrixProtocol[Array]]
+        # B_n = dR_n/dy_{n-1} as an operator, from the stepper class this
+        # mixin is combined with (declared here, not abstract, so it does
+        # not shadow that class's method in the MRO).
+        off_diag_operator: Callable[
+            [StepContext[Array], Array],
+            ActionOperatorProtocol[Array, FormatProtocol],
+        ]
 
     @property
     def _adjoint_residual(
@@ -120,6 +128,9 @@ class AdjointMixin(ABC, Generic[Array]):
         (the first forward step), ctx.y_prev = y_0, y_curr = y_1.
         """
         mass = self._mass_matrix()
-        drduT_offdiag = self.adjoint_off_diag_jacobian(ctx, y_curr)
-        rhs = -drduT_offdiag @ asol_1 - dqdu_0
+        offdiag = self.off_diag_operator(ctx, y_curr)
+        coupling = offdiag.apply_transpose(
+            self._bkd.reshape(asol_1, (asol_1.shape[0], 1))
+        )[:, 0]
+        rhs = -coupling - dqdu_0
         return mass.solve_transpose(rhs)

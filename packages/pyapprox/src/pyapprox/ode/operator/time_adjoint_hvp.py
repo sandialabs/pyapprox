@@ -276,10 +276,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # dR_n/dy_n (diagonal block)
             drdy_n = self._time_residual.jacobian(fwd_sols[:, nn])
 
-            # dR_n/dy_{n-1} (off-diagonal block)
-            drdy_nm1 = self._time_residual.sensitivity_off_diag_jacobian(
-                ctx_nn, fwd_sols[:, nn]
-            )
+            # dR_n/dy_{n-1} (off-diagonal block), as an operator
+            offdiag = self._time_residual.off_diag_operator(ctx_nn, fwd_sols[:, nn])
 
             # dR_n/dp
             drdp_n = self._time_residual.param_jacobian(
@@ -288,7 +286,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
             # w_n = -(dR_n/dy_n)^{-1} · [dR_n/dy_{n-1} · w_{n-1} + dR_n/dp · v]
             rhs = (
-                drdy_nm1 @ w_sols[:, nn - 1 : nn]
+                offdiag.apply(w_sols[:, nn - 1 : nn])
                 + (drdp_n @ v_res)[:, None]
             )
             # Sparse-aware: galerkin wrappers return sparse Jacobians.
@@ -381,8 +379,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 ctx_n, fwd_sols[:, nn]
             )
 
-            # Off-diagonal block (dR_{n+1}/dy_n)^T
-            drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
+            # Off-diagonal block dR_{n+1}/dy_n, applied transposed below
+            offdiag = self._time_residual.off_diag_operator(
                 next_ctx, fwd_sols[:, nn + 1]
             )
 
@@ -424,7 +422,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             rsp_hvp = rsp_hvp_n + rsp_hvp_np1
 
             rhs = (
-                -drduT_offdiag @ s_sols[:, nn + 1]
+                -offdiag.apply_transpose(s_sols[:, nn + 1 : nn + 2])[:, 0]
                 - (self._bkd.flatten(qss_hvp) + rss_hvp)
                 - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
             )
@@ -440,9 +438,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         self._time_residual.bind(ctx_1)
         mass = self._time_residual.native_residual.mass_matrix()
 
-        drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
-            ctx_1, fwd_sols[:, 1]
-        )
+        offdiag = self._time_residual.off_diag_operator(ctx_1, fwd_sols[:, 1])
 
         qss_hvp = self._state_state_hvp(fwd_sols, param, 0, w_sols[:, 0:1])
         qsp_hvp = self._state_param_hvp(fwd_sols, param, 0, vvec)
@@ -462,7 +458,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         rss_hvp_1 = rss_hvp_1 + mixed_cross_1
 
         rhs = (
-            -drduT_offdiag @ s_sols[:, 1]
+            -offdiag.apply_transpose(s_sols[:, 1:2])[:, 0]
             - (self._bkd.flatten(qss_hvp) + rss_hvp_1)
             - (self._bkd.flatten(qsp_hvp) + rsp_hvp_1)
         )
@@ -524,10 +520,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         dqdu_0 = self._time_residual.zero_adjoint_rhs(
             self._state_jacobian(fwd_sols, param)[:, 0]
         )
-        drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
-            ctx_0, fwd_sols[:, 1]
-        )
-        init_weight = drduT_offdiag @ adj_sols[:, 1] + dqdu_0
+        offdiag = self._time_residual.off_diag_operator(ctx_0, fwd_sols[:, 1])
+        init_weight = offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0
         init_hvp = init_hvp + self._bkd.reshape(
             hvp_residual.initial_param_hvp(init_weight, v_res), (-1, 1)
         )

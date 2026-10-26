@@ -368,8 +368,10 @@ class GalerkinBCEnforcingAdjointResidual(
         """
         mass = self._adjoint_inner.native_residual.mass_matrix()
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
-        drdu_offdiag_t = self.adjoint_off_diag_jacobian(ctx, y_curr)
-        rhs = -self._matvec(drdu_offdiag_t, asol_1) - dqdu_0
+        coupling = self.off_diag_operator(ctx, y_curr).apply_transpose(
+            self._bkd.reshape(asol_1, (asol_1.shape[0], 1))
+        )[:, 0]
+        rhs = -coupling - dqdu_0
         if not mass.is_singular():
             return mass.solve_transpose(rhs)
 
@@ -394,14 +396,6 @@ class GalerkinBCEnforcingAdjointResidual(
             self._bkd, regularized.T, self._bkd.asarray(rhs_np)
         )
         return solution
-
-    def _matvec(
-        self, matrix: Union[spmatrix, Array], vec: Array
-    ) -> Array:
-        """Sparse-aware matrix-vector product returning a backend array."""
-        if issparse(matrix):
-            return self._bkd.asarray(matrix @ self._bkd.to_numpy(vec))
-        return self._bkd.dot(matrix, vec)
 
     def trajectory_quadrature(
         self, times: Array

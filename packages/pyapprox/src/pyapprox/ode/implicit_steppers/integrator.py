@@ -260,9 +260,13 @@ class TimeIntegrator(Generic[Array]):
         """
         residual = self._require_adjoint()
         drduT_diag = residual.adjoint_diag_jacobian(ctx, fsol_n)
-        drduT_offdiag = residual.adjoint_off_diag_jacobian(next_ctx, y_curr_of_next)
+        # B_{n+1}^T lambda_{n+1}: the operator acts on one-column blocks.
+        offdiag = residual.off_diag_operator(next_ctx, y_curr_of_next)
+        coupling = offdiag.apply_transpose(
+            self._bkd.reshape(asol_np1, (asol_np1.shape[0], 1))
+        )[:, 0]
 
-        rhs = -drduT_offdiag @ asol_np1 - dqdu_n
+        rhs = -coupling - dqdu_n
         return drduT_diag.solve(rhs)
 
     def solve_adjoint(self, fwd_sols: Array, times: Array, param: Array) -> Array:
@@ -436,8 +440,8 @@ class TimeIntegrator(Generic[Array]):
 
         dy0dp = residual.initial_param_jacobian()
         dqdu_0 = residual.zero_adjoint_rhs(state_jacobian(fwd_sols, param)[:, 0])
-        drduT_offdiag = residual.adjoint_off_diag_jacobian(ctx_init, fwd_sols[:, 1])
-        init_sensitivity = drduT_offdiag @ adj_sols[:, 1] + dqdu_0
+        offdiag = residual.off_diag_operator(ctx_init, fwd_sols[:, 1])
+        init_sensitivity = offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0
         grad_init = self._bkd.reshape(init_sensitivity @ dy0dp, (1, -1))
         # Prepend zeros for functional-only parameters
         n_unique = functional.nunique_params()

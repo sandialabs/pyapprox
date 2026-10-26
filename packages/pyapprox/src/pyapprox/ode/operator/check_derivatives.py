@@ -455,9 +455,10 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             y_nm1_1d = self._from_2d(y_nm1_2d)
             ctx = StepContext(t_prev=time, deltat=deltat, y_prev=y_nm1_1d)
             self._time_residual.bind(ctx)
-            result = (
-                self._time_residual.adjoint_off_diag_jacobian(ctx, fsol_n_1d).T @ adj_1d
-            )
+            # B_n lambda: the off-diagonal block applied forward.
+            result = self._time_residual.off_diag_operator(ctx, fsol_n_1d).apply(
+                self._to_2d(adj_1d)
+            )[:, 0]
             return self._to_2d(result)
 
         def jvp(y_nm1_2d: Array, w_2d: Array) -> Array:
@@ -560,9 +561,10 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
-            result = (
-                self._time_residual.adjoint_off_diag_jacobian(ctx, fsol_n_1d).T @ adj_1d
-            )
+            # B_n lambda: the off-diagonal block applied forward.
+            result = self._time_residual.off_diag_operator(ctx, fsol_n_1d).apply(
+                self._to_2d(adj_1d)
+            )[:, 0]
             return self._to_2d(result)
 
         def jvp(p_2d: Array, v_2d: Array) -> Array:
