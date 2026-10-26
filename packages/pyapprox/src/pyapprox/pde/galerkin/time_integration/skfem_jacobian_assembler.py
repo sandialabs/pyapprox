@@ -39,12 +39,19 @@ _Dofs = NDArray[np.int64]
 _Values = NDArray[np.float64]
 
 
-def require_sparse(matrix: Array) -> spmatrix:
-    """Return a Jacobian as the sparse matrix skfem assembles.
+def require_sparse(matrix: Array, name: str = "Jacobian") -> spmatrix:
+    """Return a Jacobian or mass as the sparse matrix skfem assembles.
 
-    The spatial operators are typed as returning ``Array`` and return a
-    SciPy sparse matrix for skfem physics; this is the one place that
-    checks it.
+    The spatial operators and systems are typed as returning ``Array``
+    and return a SciPy sparse matrix for skfem physics; this is the one
+    place that checks it.
+
+    Parameters
+    ----------
+    matrix : Array
+        The matrix to check.
+    name : str, default "Jacobian"
+        What the matrix is, for the error message.
 
     Raises
     ------
@@ -53,7 +60,7 @@ def require_sparse(matrix: Array) -> spmatrix:
     """
     if not isinstance(matrix, spmatrix):
         raise TypeError(
-            "the stack Jacobian needs the sparse Jacobian of an skfem "
+            f"the stack {name} needs the sparse {name} of an skfem "
             f"physics, got {type(matrix).__name__}"
         )
     return matrix

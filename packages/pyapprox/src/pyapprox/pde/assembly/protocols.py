@@ -266,3 +266,16 @@ class JacobianAssemblerProtocol(Protocol[Array_contra, V, F_co]):
     ) -> ActionOperatorProtocol[V, F_co]:
         """The Jacobian at ``(state, time)``, independent of later calls."""
         ...
+
+
+@runtime_checkable
+class MassAssemblerProtocol(Protocol[V, F_co]):
+    """Assembles a mass into a stack operator.
+
+    Which mass (consistent, or lumped to a diagonal) and how its entries
+    reach the stack are the assembler's own, chosen at construction.
+    """
+
+    def assemble_mass(self) -> ActionOperatorProtocol[V, F_co]:
+        """The mass, independent of later calls."""
+        ...
