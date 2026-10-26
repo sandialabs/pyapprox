@@ -51,7 +51,7 @@ def _make_expansion(
 
 
 class TestBatchedBoundODEResidual:
-    def test_protocol_conformance(self, bkd):
+    def test_protocol_conformance(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=2, nqoi=2)
         assert isinstance(expansion, LearnedFunctionProtocol)
         wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2)
@@ -132,13 +132,13 @@ class TestBatchedBoundODEResidual:
         nactive = wrapper.nparams()
         assert pjac.shape == (2 * k, nactive)
 
-    def test_invalid_nvars_raises(self, bkd):
+    def test_invalid_nvars_raises(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=2, nqoi=2)
         mu_batch = bkd.array([[1.0]])
         with pytest.raises(ValueError, match="nvars"):
             BatchedBoundODEResidual(expansion, n_dynamic=2, mu_batch=mu_batch)
 
-    def test_invalid_nqoi_raises(self, bkd):
+    def test_invalid_nqoi_raises(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=2, nqoi=3)
         with pytest.raises(ValueError, match="nqoi"):
             BatchedBoundODEResidual(expansion, n_dynamic=2)
@@ -211,3 +211,46 @@ class TestBatchedJacobianOperator:
         assert info.converged
         expected = residual.newton_jacobian(state, 0.0, coefficient).solve(rhs[:, 0])
         bkd.assert_allclose(x[:, 0], expected, rtol=1e-12)
+
+
+class TestBatchedDerivativesBundle:
+    def test_bundle_keeps_the_block_diagonal_jacobian(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The bundle's Jacobian is the residual's own block-diagonal
+        producer (so its format pairs with the batched LU), and its
+        parameter and initial-state operators reproduce the matrix
+        methods."""
+        residual, state = _four_trajectories(bkd)
+        bundle = residual.derivatives()
+        assert bundle.jacobian is not None and bundle.param is not None
+        assert bundle.initial_state is not None and bundle.state_state is None
+        point = LinearizationPoint(0, ("step", 1))
+        jacobian = bundle.jacobian(state, 0.0, point)
+        assert isinstance(jacobian.format(), BlockDiagonalFormat)
+        assert jacobian.linearization() == point
+        rng = np.random.RandomState(17)
+        nactive = residual.nparams()
+        v = bkd.array(rng.randn(nactive, 2))
+        w = bkd.array(rng.randn(8, 2))
+        matrix = residual.param_jacobian(state, 0.0)
+        param = bundle.param(state, 0.0)
+        assert (param.domain().size, param.range().size) == (nactive, 8)
+        bkd.assert_allclose(param.apply(v), bkd.dot(matrix, v), rtol=1e-12)
+        bkd.assert_allclose(param.apply_transpose(w), bkd.dot(matrix.T, w), rtol=1e-12)
+        initial = bundle.initial_state()
+        assert initial.properties().zero
+
+    def test_bundle_follows_the_active_coefficients(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Built per call, so fixing coefficients shrinks its parameter
+        space."""
+        residual, _ = _four_trajectories(bkd)
+        hyp_list = residual.learned_function().hyp_list()
+        before = residual.derivatives().param_space
+        assert before is not None
+        hyp_list.set_active_indices(bkd.arange(1, hyp_list.nparams()))
+        after = residual.derivatives().param_space
+        assert after is not None
+        assert after.descriptor().size == before.descriptor().size - 1

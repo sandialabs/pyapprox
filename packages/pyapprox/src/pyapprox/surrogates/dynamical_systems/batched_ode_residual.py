@@ -15,6 +15,12 @@ from typing import Generic, Optional
 from pyapprox.interface.functions.derivatives import JacobianBatchFn
 from pyapprox.ode.linear_operator import BlockDiagonalLinearOperator
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
+from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
+    ODEResidualDerivatives,
+    backend_spaces,
+    dense_operator,
+)
 from pyapprox.ode.semi_explicit_system import SemiExplicitSystem
 from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
@@ -184,6 +190,29 @@ class BatchedBoundODEResidual(Generic[Array]):
             self,
             BackendVectorSpace(self._descriptor, self._bkd),
             BlockDiagonalLU(self._bkd),
+        )
+
+    def derivatives(
+        self,
+    ) -> ODEResidualDerivatives[Array, BlockDiagonalFormat[Array]]:
+        """First order: the block-diagonal Jacobian producer
+        (:meth:`jacobian_operator`), the parameter Jacobian as a dense
+        operator over the surrogate's active coefficients, and a
+        stated-zero initial state (it is supplied by the caller).
+
+        Built on each call, because the number of active coefficients can
+        change after construction (``hyp_list().set_active_indices``).
+        """
+        states = BackendVectorSpace(self._descriptor, self._bkd)
+        _, params = backend_spaces(
+            self._bkd, self._descriptor.size, self.nparams()
+        )
+        return ODEResidualDerivatives.first_order(
+            states,
+            params,
+            jacobian=self.jacobian_operator,
+            param=dense_operator(self.param_jacobian, params, states, self._bkd),
+            initial_state=STATED_ZERO,
         )
 
     def state_descriptor(self) -> SpaceDescriptor:
