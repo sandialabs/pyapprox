@@ -24,6 +24,7 @@ from pyapprox.ode.residual_derivatives import (
     dense_jacobian,
     dense_operator,
     matrix_free_jacobian,
+    matrix_free_second_derivative,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
@@ -198,6 +199,45 @@ class TestDeclarations:
             model.state_state_hvp(state, 0.0, adj, w),
             rtol=1e-12,
         )
+
+
+class TestMatrixFreeSecondDerivative:
+    def test_vector_functions_match_the_dense_second_derivatives(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The model's vector methods, wrapped as operators, equal its
+        dense second derivatives on a block, both ways."""
+        model = LotkaVolterra(bkd)
+        states, params = backend_spaces(bkd, 2, 4)
+        dense = model.derivatives()
+        state, adj = bkd.asarray(_STATE), bkd.asarray(_ADJ)
+        free_mixed = matrix_free_second_derivative(
+            model.state_param_hvp, model.param_state_hvp, params, states, bkd
+        )(state, 0.0, adj)
+        free_curvature = matrix_free_second_derivative(
+            model.state_state_hvp,
+            model.state_state_hvp,
+            states,
+            states,
+            bkd,
+            symmetric=True,
+        )(state, 0.0, adj)
+        assert dense.state_param is not None and dense.state_state is not None
+        mixed = dense.state_param(state, 0.0, adj)
+        curvature = dense.state_state(state, 0.0, adj)
+        v = bkd.asarray(
+            [[0.5, 1.0, 0.0], [-0.3, 0.0, 2.0], [0.8, 0.1, 0.0], [0.1, 0.0, -1.0]]
+        )
+        w = bkd.asarray([[0.6, 1.0, -0.2], [0.2, 0.0, 0.7]])
+        bkd.assert_allclose(free_mixed.apply(v), mixed.apply(v), rtol=1e-12)
+        bkd.assert_allclose(
+            free_mixed.apply_transpose(w), mixed.apply_transpose(w), rtol=1e-12
+        )
+        bkd.assert_allclose(free_curvature.apply(w), curvature.apply(w), rtol=1e-12)
+        assert free_curvature.properties().symmetric
+        assert (free_mixed.domain().size, free_mixed.range().size) == (4, 2)
+        with pytest.raises(ValueError, match="shape"):
+            free_mixed.apply(w)
 
 
 class TestInvariants:

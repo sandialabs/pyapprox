@@ -354,6 +354,128 @@ def matrix_free_jacobian(
     return producer.jacobian_operator
 
 
+SecondDerivativeActionFn = Callable[[Array, float, Array, Array], Array]
+"""``(state, time, adj, vec) -> vec``: one column of a second derivative."""
+
+
+class _SecondDerivativeOperator(Generic[Array]):
+    """A second derivative at one ``(state, time, adj)``, applied a column
+    at a time through the model's vector functions; ``MatrixFree``.
+    ``out`` is ignored."""
+
+    def __init__(
+        self,
+        actions: tuple[
+            SecondDerivativeActionFn[Array], SecondDerivativeActionFn[Array]
+        ],
+        point: tuple[Array, float, Array],
+        spaces: tuple[SpaceDescriptor, SpaceDescriptor],
+        properties: OperatorProperties,
+        bkd: Backend[Array],
+    ) -> None:
+        self._apply, self._apply_transpose = actions
+        self._state, self._time, self._adj = point
+        self._domain, self._range = spaces
+        self._properties = properties
+        self._bkd = bkd
+
+    def domain(self) -> SpaceDescriptor:
+        return self._domain
+
+    def range(self) -> SpaceDescriptor:
+        return self._range
+
+    def properties(self) -> OperatorProperties:
+        return self._properties
+
+    def format(self) -> MatrixFree:
+        return MatrixFree()
+
+    def _columns(
+        self, action: SecondDerivativeActionFn[Array], block: Array, size: int
+    ) -> Array:
+        if block.ndim != 2 or block.shape[0] != size:
+            raise ValueError(
+                f"input must have shape ({size}, ncols), got {tuple(block.shape)}"
+            )
+        return self._bkd.stack(
+            [
+                action(self._state, self._time, self._adj, block[:, k])
+                for k in range(block.shape[1])
+            ],
+            axis=1,
+        )
+
+    def apply(self, x: Array, out: Optional[Array] = None) -> Array:
+        return self._columns(self._apply, x, self._domain.size)
+
+    def apply_transpose(self, y: Array, out: Optional[Array] = None) -> Array:
+        return self._columns(self._apply_transpose, y, self._range.size)
+
+
+class _MatrixFreeSecondDerivative(Generic[Array]):
+    """A second derivative from its two vector functions."""
+
+    def __init__(
+        self,
+        apply: SecondDerivativeActionFn[Array],
+        apply_transpose: SecondDerivativeActionFn[Array],
+        domain: VectorSpaceProtocol[Array],
+        range: VectorSpaceProtocol[Array],
+        bkd: Backend[Array],
+        properties: OperatorProperties,
+    ) -> None:
+        self._actions = (apply, apply_transpose)
+        self._spaces = (domain.descriptor(), range.descriptor())
+        self._bkd, self._properties = bkd, properties
+
+    def __call__(
+        self, state: Array, time: float, adj: Array
+    ) -> _SecondDerivativeOperator[Array]:
+        return _SecondDerivativeOperator(
+            self._actions, (state, time, adj), self._spaces, self._properties, self._bkd
+        )
+
+
+def matrix_free_second_derivative(
+    apply: SecondDerivativeActionFn[Array],
+    apply_transpose: SecondDerivativeActionFn[Array],
+    domain: VectorSpaceProtocol[Array],
+    range: VectorSpaceProtocol[Array],
+    bkd: Backend[Array],
+    symmetric: bool = False,
+) -> SecondDerivativeFn[Array]:
+    r"""Declare an adjoint-weighted second derivative given by its actions.
+
+    For a model whose second derivatives are vector functions
+    ``(state, time, adj, vec) -> vec`` rather than matrices. The result
+    applies them one column at a time; it refers to the state and
+    adjoint it was made at rather than copying them.
+
+    Parameters
+    ----------
+    apply, apply_transpose : callable
+        The operator and its transpose on one vector: for
+        ``state_param``, :math:`\lambda^\top f_{yp} v` and
+        :math:`\lambda^\top f_{py} w`; for a symmetric ``state_state`` or
+        ``param_param``, the same function twice.
+    domain, range : VectorSpaceProtocol
+        The operator's spaces, as for :func:`dense_operator`.
+    bkd : Backend
+        The backend of the states.
+    symmetric : bool, default False
+        Declare the operator symmetric; not verified.
+    """
+    return _MatrixFreeSecondDerivative(
+        apply,
+        apply_transpose,
+        domain,
+        range,
+        bkd,
+        OperatorProperties(symmetric=symmetric),
+    )
+
+
 class _DenseOperatorFunction(Generic[P, Array]):
     """A function returning a dense matrix, as one returning the dense
     operator between two spaces; it takes the same arguments."""
