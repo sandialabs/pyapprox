@@ -29,7 +29,9 @@ from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
 from pyapprox.ode.protocols.time_stepping import (
     TimeSteppingResidualProtocol,
 )
+from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import MatrixFree
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
@@ -128,6 +130,11 @@ class FlowODEResidual(Generic[Array]):
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return identity mass matrix."""
         return self._mass
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, MatrixFree]:
+        """None: the vector field supplies no derivatives, so the flow can
+        be stepped explicitly but not differentiated."""
+        return ODEResidualDerivatives.none()
 
 
 def _batched_vf_eval(
