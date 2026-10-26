@@ -15,14 +15,20 @@ models layer owns everything that requires both a physics and a
 parameterization.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
+from pyapprox.ode.residual_derivatives import (
+    ODEResidualDerivatives,
+    backend_state_space,
+    dense_jacobian,
+)
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendVectorSpace, DenseFormat
 
 
 class CollocationPhysicsToODEResidualAdapter(
@@ -67,10 +73,33 @@ class CollocationPhysicsToODEResidualAdapter(
         self._physics = physics
         self._bkd = bkd
         self._mass = create_mass_matrix(physics.mass_matrix(), bkd)
+        self._derivatives: Optional[
+            ODEResidualDerivatives[Array, DenseFormat[Array]]
+        ] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """The residual's derivatives as operators, built on first request
+        (a parameterized tier needs its parameterization set first) and
+        kept: here the dense state Jacobian only."""
+        if self._derivatives is None:
+            self._derivatives = self._build_derivatives()
+        return self._derivatives
+
+    def _state_space(self) -> BackendVectorSpace[Array]:
+        """The state space on the backend stack."""
+        return backend_state_space(self._bkd, self._mass.as_matrix().shape[0])
+
+    def _build_derivatives(
+        self,
+    ) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """This tier's bundle; each parameterized tier overrides it."""
+        return ODEResidualDerivatives.state_only(
+            dense_jacobian(self.jacobian, self._state_space(), self._bkd)
+        )
 
     def physics(self) -> PhysicsProtocol[Array]:
         """Return the wrapped physics object."""

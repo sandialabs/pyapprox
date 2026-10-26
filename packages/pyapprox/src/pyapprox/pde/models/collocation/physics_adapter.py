@@ -31,6 +31,17 @@ capability discovery (the ode stepper stack) sees real methods.
 
 from typing import Optional, overload
 
+from pyapprox.ode.residual_derivatives import (
+    InitialStateFn,
+    JacobianFn,
+    ODEResidualDerivatives,
+    ParamFn,
+    backend_spaces,
+    dense_jacobian,
+    dense_operator,
+    matrix_free_initial_state_curvature,
+    matrix_free_second_derivative,
+)
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.collocation.protocols.physics import (
     PhysicsWithStateStateHVPProtocol,
@@ -50,6 +61,7 @@ from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendVectorSpace, DenseFormat
 
 
 class CollocationPhysicsToODEResidualWithSetParamAdapter(
@@ -186,6 +198,37 @@ class CollocationPhysicsToODEResidualWithParamJacobianAdapter(
         """
         return self._initial_param_jacobian_fn(self._require_params())
 
+    def _first_order_parts(
+        self,
+    ) -> tuple[
+        BackendVectorSpace[Array],
+        BackendVectorSpace[Array],
+        JacobianFn[Array, DenseFormat[Array]],
+        ParamFn[Array],
+        InitialStateFn[Array],
+    ]:
+        """The spaces and the first-order fields of the bundle."""
+        states, params = backend_spaces(
+            self._bkd, self._state_space().descriptor().size, self.nparams()
+        )
+        return (
+            states,
+            params,
+            dense_jacobian(self.jacobian, states, self._bkd),
+            dense_operator(self.param_jacobian, params, states, self._bkd),
+            dense_operator(self.initial_param_jacobian, params, states, self._bkd),
+        )
+
+    def _build_derivatives(
+        self,
+    ) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """First order: the state, parameter and initial-state Jacobians as
+        dense operators over their matrix methods."""
+        states, params, jacobian, param, initial = self._first_order_parts()
+        return ODEResidualDerivatives.first_order(
+            states, params, jacobian=jacobian, param=param, initial_state=initial
+        )
+
     def bc_flux_param_sensitivity(
         self,
         state: Array,
@@ -254,6 +297,33 @@ class CollocationPhysicsToODEResidualWithHVPAdapter(
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
         self._initial_param_hvp_fn: InitialParamHVPFn[Array] = initial_param_hvp
+
+    def _build_derivatives(
+        self,
+    ) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        """Second order: the first-order fields, and the second
+        derivatives through the existing vector methods."""
+        states, params, jacobian, param, initial = self._first_order_parts()
+        bkd = self._bkd
+        return ODEResidualDerivatives.second_order(
+            states,
+            params,
+            jacobian=jacobian,
+            param=param,
+            initial_state=initial,
+            initial_state_curvature=matrix_free_initial_state_curvature(
+                self.initial_param_hvp, params, bkd
+            ),
+            state_state=matrix_free_second_derivative(
+                self.state_state_hvp, self.state_state_hvp, states, states, bkd, True
+            ),
+            state_param=matrix_free_second_derivative(
+                self.state_param_hvp, self.param_state_hvp, params, states, bkd
+            ),
+            param_param=matrix_free_second_derivative(
+                self.param_param_hvp, self.param_param_hvp, params, params, bkd, True
+            ),
+        )
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
         """sum_i weight_i (d^2 y_0,i/dp^2) v. Shape: (nparams,)."""

@@ -269,16 +269,20 @@ def _second_derivative(
     return given
 
 
+def backend_state_space(bkd: Backend[Array], nstates: int) -> BackendVectorSpace[Array]:
+    """The state space of a model on the backend stack, in the backend's
+    configured dtype."""
+    descriptor = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
+    return BackendVectorSpace(descriptor, bkd)
+
+
 def backend_spaces(
     bkd: Backend[Array], nstates: int, nparams: int
 ) -> tuple[BackendVectorSpace[Array], BackendVectorSpace[Array]]:
     """The state and parameter spaces of a model on the backend stack, in
     the backend's configured dtype."""
-    dtype = backend_dtype_name(bkd)
-    return (
-        BackendVectorSpace(SpaceDescriptor("state", nstates, dtype), bkd),
-        BackendVectorSpace(SpaceDescriptor("param", nparams, dtype), bkd),
-    )
+    descriptor = SpaceDescriptor("param", nparams, backend_dtype_name(bkd))
+    return backend_state_space(bkd, nstates), BackendVectorSpace(descriptor, bkd)
 
 
 class _JacobianMatrixFunction(Generic[Array]):
@@ -474,6 +478,87 @@ def matrix_free_second_derivative(
         bkd,
         OperatorProperties(symmetric=symmetric),
     )
+
+
+CurvatureActionFn = Callable[[Array, Array], Array]
+"""``(weight, vec) -> vec``: one column of the initial-state curvature."""
+
+
+class _InitialStateCurvatureOperator(Generic[Array]):
+    r""":math:`\sum_i w_i\,\partial^2 y_{0,i}/\partial p^2` at one weight,
+    applied a column at a time; symmetric, ``MatrixFree``. ``out`` is
+    ignored."""
+
+    def __init__(
+        self,
+        hvp: CurvatureActionFn[Array],
+        weight: Array,
+        param_space: SpaceDescriptor,
+        bkd: Backend[Array],
+    ) -> None:
+        self._hvp, self._weight = hvp, weight
+        self._space, self._bkd = param_space, bkd
+
+    def domain(self) -> SpaceDescriptor:
+        return self._space
+
+    def range(self) -> SpaceDescriptor:
+        return self._space
+
+    def properties(self) -> OperatorProperties:
+        return OperatorProperties(symmetric=True)
+
+    def format(self) -> MatrixFree:
+        return MatrixFree()
+
+    def apply(self, x: Array, out: Optional[Array] = None) -> Array:
+        size = self._space.size
+        if x.ndim != 2 or x.shape[0] != size:
+            raise ValueError(
+                f"input must have shape ({size}, ncols), got {tuple(x.shape)}"
+            )
+        return self._bkd.stack(
+            [self._hvp(self._weight, x[:, k]) for k in range(x.shape[1])], axis=1
+        )
+
+    def apply_transpose(self, y: Array, out: Optional[Array] = None) -> Array:
+        return self.apply(y)
+
+
+class _MatrixFreeInitialStateCurvature(Generic[Array]):
+    """The initial-state curvature from its vector function."""
+
+    def __init__(
+        self,
+        hvp: CurvatureActionFn[Array],
+        param_space: VectorSpaceProtocol[Array],
+        bkd: Backend[Array],
+    ) -> None:
+        self._hvp, self._space, self._bkd = hvp, param_space.descriptor(), bkd
+
+    def __call__(self, weight: Array) -> _InitialStateCurvatureOperator[Array]:
+        return _InitialStateCurvatureOperator(self._hvp, weight, self._space, self._bkd)
+
+
+def matrix_free_initial_state_curvature(
+    hvp: CurvatureActionFn[Array],
+    param_space: VectorSpaceProtocol[Array],
+    bkd: Backend[Array],
+) -> CurvatureFn[Array]:
+    r"""Declare the initial-state curvature given by its action.
+
+    Parameters
+    ----------
+    hvp : callable
+        ``(weight, vec) -> vec`` for
+        :math:`\sum_i w_i\,(\partial^2 y_{0,i}/\partial p^2)\,v`; the
+        operator is symmetric, so the same function is its transpose.
+    param_space : VectorSpaceProtocol
+        The parameter space, as given to the bundle's constructor.
+    bkd : Backend
+        The backend of the states.
+    """
+    return _MatrixFreeInitialStateCurvature(hvp, param_space, bkd)
 
 
 class _DenseOperatorFunction(Generic[P, Array]):
