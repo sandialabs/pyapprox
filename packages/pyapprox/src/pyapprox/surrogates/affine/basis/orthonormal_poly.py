@@ -4,7 +4,7 @@ This module provides OrthonormalPolynomialBasis, which extends MultiIndexBasis
 for orthonormal polynomial bases with quadrature support.
 """
 
-from typing import Generic, List, Optional, Tuple
+from typing import Generic, List, Optional, Sequence, Tuple
 
 from pyapprox.surrogates.affine.basis.multiindex import MultiIndexBasis
 from pyapprox.surrogates.affine.protocols import (
@@ -24,7 +24,7 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
 
     Parameters
     ----------
-    bases_1d : List[PhysicalDomainBasis1DProtocol[Array]]
+    bases_1d : Sequence[PhysicalDomainBasis1DProtocol[Array]]
         List of physical-domain polynomial bases (TransformedBasis1D or
         NativeBasis1D), one per variable. Use create_basis_1d() to create
         bases from marginal distributions.
@@ -42,7 +42,7 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
 
     def __init__(
         self,
-        bases_1d: List[PhysicalDomainBasis1DProtocol[Array]],
+        bases_1d: Sequence[PhysicalDomainBasis1DProtocol[Array]],
         bkd: Backend[Array],
         indices: Optional[Array] = None,
     ):
