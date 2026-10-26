@@ -8,7 +8,7 @@ mass is singular). The row-replaced mass keeps the CSR format, so it
 pairs with sparse LU.
 """
 
-from typing import Any, Callable, Sequence, TypeVar
+from typing import Any, Callable, TypeVar
 
 import pytest
 
@@ -19,25 +19,10 @@ if not package_available("skfem"):
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import issparse
+from scipy.sparse import csr_matrix
 
-from pyapprox.pde.assembly import (
-    ElementDofMapProtocol,
-    MassAssemblerProtocol,
-    ScipyAssemblyStack,
-)
+from pyapprox.pde.assembly import MassAssemblerProtocol, ScipyAssemblyStack
 from pyapprox.pde.assembly.protocols import AssemblyStackProtocol
-from pyapprox.pde.boundary import BoundaryConditionRole
-from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
-from pyapprox.pde.galerkin.basis import LagrangeBasis, MixedBasis
-from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
-from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
-from pyapprox.pde.galerkin.boundary import DirichletBC
-from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
-from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
@@ -59,6 +44,7 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
 )
 from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+from tests._helpers.galerkin_systems import galerkin_system
 from tests._helpers.linalg.mock_stack import MockAssemblyStack, MockFormat
 from tests._helpers.linalg.no_bulk_stack import NoBulkAssemblyStack
 
@@ -70,75 +56,9 @@ V = TypeVar("V")
 F = TypeVar("F", bound=FormatProtocol)
 
 
-def _zero(x: _Np) -> _Np:
-    return np.zeros(x.shape[1])
-
-
-def _ones(x: _Np) -> _Np:
-    return np.ones(x.shape[-1])
-
-
-def _zero_velocity(x: _Np) -> _Np:
-    return np.zeros((2, x.shape[1]))
-
-
-def _adr(bkd: NumpyBkd) -> tuple[_System, LagrangeBasis[_Np]]:
-    """Linear diffusion-reaction, P1 on a 3x2 mesh, Dirichlet on the left."""
-    mesh = StructuredMesh2D(3, 2, [(0.0, 1.0), (0.0, 1.0)], bkd)
-    basis = LagrangeBasis(mesh, degree=1)
-    physics = AdvectionDiffusionReaction(
-        basis=basis,
-        diffusivity=0.5,
-        bkd=bkd,
-        reaction=2.0,
-        forcing=TimeIndependent(_zero),
-    )
-    bc = DirichletBC(basis, "left", TimeIndependent(_zero), bkd)
-    return compose_galerkin_system(physics, [bc]), basis
-
-
-def _burgers(bkd: NumpyBkd) -> tuple[_System, LagrangeBasis[_Np]]:
-    """Viscous Burgers, P2 on 6 elements, Dirichlet at both ends."""
-    mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
-    basis = LagrangeBasis(mesh, degree=2)
-    physics = BurgersPhysics(
-        basis=basis, viscosity=0.1, bkd=bkd, forcing=TimeIndependent(_ones)
-    )
-    bcs: Sequence[BoundaryConditionRole[_Np]] = [
-        DirichletBC(basis, name, TimeIndependent(_zero), bkd)
-        for name in ("left", "right")
-    ]
-    return compose_galerkin_system(physics, bcs), basis
-
-
-def _stokes(bkd: NumpyBkd) -> tuple[_System, MixedBasis[_Np]]:
-    """Taylor-Hood Stokes on a 3x3 mesh, velocity fixed on the left."""
-    mesh = StructuredMesh2D(nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
-    fields: list[tuple[str, MixedFieldBasisProtocol[_Np]]] = [
-        ("velocity", VectorLagrangeBasis(mesh, degree=2)),
-        ("pressure", LagrangeBasis(mesh, degree=1)),
-    ]
-    basis = MixedBasis(fields)
-    bc = DirichletBC(
-        basis.field("velocity"), "left", TimeIndependent(_zero_velocity), bkd
-    )
-    return compose_galerkin_system(StokesPhysics(basis, bkd), [bc]), basis
-
-
-_Builder = Callable[[NumpyBkd], tuple[_System, ElementDofMapProtocol[_Dofs]]]
-_BUILDERS: dict[str, _Builder] = {"adr": _adr, "burgers": _burgers, "stokes": _stokes}
-
-
-def _system(
-    physics: str, bkd: NumpyBkd
-) -> tuple[_System, ElementDofMapProtocol[_Dofs], SpaceDescriptor]:
-    system, basis = _BUILDERS[physics](bkd)
-    return system, basis, SpaceDescriptor("state", system.nstates())
-
-
-def _dense(matrix: Any) -> _Np:
+def _dense(matrix: _Np) -> _Np:
     """A mass matrix the adapter holds, sparse or dense, as an array."""
-    dense: _Np = matrix.toarray() if issparse(matrix) else np.asarray(matrix)
+    dense: _Np = csr_matrix(matrix).toarray()
     return dense
 
 
@@ -196,7 +116,7 @@ class TestMatchesTheAdaptersMass:
     def test_on_the_scipy_stack(
         self, numpy_bkd: NumpyBkd, physics: str, lumped: bool
     ) -> None:
-        system, basis, descriptor = _system(physics, numpy_bkd)
+        system, basis, descriptor = galerkin_system(physics, numpy_bkd)
         stack = ScipyAssemblyStack(np.float64)
         _check_against_adapter(
             SkfemMassAssembler(system, stack, basis, descriptor, lumped=lumped),
@@ -212,7 +132,7 @@ class TestMatchesTheAdaptersMass:
     def test_on_the_mock_stack(
         self, numpy_bkd: NumpyBkd, physics: str, lumped: bool
     ) -> None:
-        system, basis, descriptor = _system(physics, numpy_bkd)
+        system, basis, descriptor = galerkin_system(physics, numpy_bkd)
         stack = MockAssemblyStack()
         _check_against_adapter(
             SkfemMassAssembler(system, stack, basis, descriptor, lumped=lumped),
@@ -233,7 +153,7 @@ def test_row_replaced_mass_pairs_with_sparse_lu(
 ) -> None:
     """Nonsingular once its essential rows are replaced (the mixed mass
     stays singular: its pressure block is zero), so it solves directly."""
-    system, basis, descriptor = _system(physics, numpy_bkd)
+    system, basis, descriptor = galerkin_system(physics, numpy_bkd)
     stack = ScipyAssemblyStack(np.float64)
     mass = SkfemMassAssembler(
         system, stack, basis, descriptor, lumped=lumped
@@ -246,7 +166,7 @@ def test_row_replaced_mass_pairs_with_sparse_lu(
 
 
 def test_results_are_independent_of_later_calls(numpy_bkd: NumpyBkd) -> None:
-    system, basis, descriptor = _system("burgers", numpy_bkd)
+    system, basis, descriptor = galerkin_system("burgers", numpy_bkd)
     stack = MockAssemblyStack()
     assembler = SkfemMassAssembler(system, stack, basis, descriptor)
     first = assembler.assemble_mass()
@@ -258,7 +178,7 @@ def test_results_are_independent_of_later_calls(numpy_bkd: NumpyBkd) -> None:
 class TestErrors:
     def test_refuses_a_stack_without_bulk_adds(self, numpy_bkd: NumpyBkd) -> None:
         """A type error, and refused at construction, before assembly."""
-        system, basis, descriptor = _system("adr", numpy_bkd)
+        system, basis, descriptor = galerkin_system("adr", numpy_bkd)
         with pytest.raises(TypeError, match="whole assembled matrices"):
             SkfemMassAssembler(
                 system,
@@ -268,13 +188,13 @@ class TestErrors:
             )
 
     def test_refuses_a_descriptor_of_another_size(self, numpy_bkd: NumpyBkd) -> None:
-        system, basis, descriptor = _system("adr", numpy_bkd)
+        system, basis, descriptor = galerkin_system("adr", numpy_bkd)
         wrong = SpaceDescriptor("state", system.nstates() + 1)
         with pytest.raises(ValueError, match="size"):
             SkfemMassAssembler(system, MockAssemblyStack(), basis, wrong)
 
     def test_refuses_objects_without_their_protocols(self, numpy_bkd: NumpyBkd) -> None:
-        system, basis, descriptor = _system("adr", numpy_bkd)
+        system, basis, descriptor = galerkin_system("adr", numpy_bkd)
         stack = MockAssemblyStack()
         with pytest.raises(TypeError, match="system"):
             SkfemMassAssembler(basis, stack, basis, descriptor)  # type: ignore[arg-type]
