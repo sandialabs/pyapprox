@@ -323,6 +323,14 @@ def create_galerkin_physics_ode_residual(
     system's StateDerivatives bundle once, then everything above sees
     unconditional fixed-tier methods.
 
+    Essential boundary data are not parameterized: a parameterization
+    writes coefficients of the physics, never a boundary condition's
+    values, and the derivatives treat those values as independent of
+    the parameters. A boundary-value supplier that reads state the
+    parameterization writes (by a closure, or by being the same
+    coefficient object the physics holds) therefore gives wrong
+    derivatives, and neither route can be detected here.
+
     Parameters
     ----------
     discretization : GalerkinStackDiscretization
