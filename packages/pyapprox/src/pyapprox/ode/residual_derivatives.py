@@ -102,14 +102,14 @@ _SECOND_ORDER = (
 )
 
 
-class _StatedZero:
+class StatedZero:
     """The type of :data:`STATED_ZERO`."""
 
     def __repr__(self) -> str:
         return "STATED_ZERO"
 
 
-STATED_ZERO = _StatedZero()
+STATED_ZERO = StatedZero()
 """Declares a derivative term identically zero (not merely unavailable)."""
 
 
@@ -206,7 +206,7 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
         param_space: VectorSpaceProtocol[A],
         jacobian: JacobianFn[A, G],
         param: ParamFn[A],
-        initial_state: Union[InitialStateFn[A], _StatedZero],
+        initial_state: Union[InitialStateFn[A], StatedZero],
     ) -> "ODEResidualDerivatives[A, G]":
         """The state Jacobian and the parameter derivatives: adjoint
         gradients. ``initial_state=STATED_ZERO`` declares :math:`y_0`
@@ -224,17 +224,17 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
         param_space: VectorSpaceProtocol[A],
         jacobian: JacobianFn[A, G],
         param: ParamFn[A],
-        initial_state: Union[InitialStateFn[A], _StatedZero],
-        initial_state_curvature: Union[CurvatureFn[A], _StatedZero],
-        state_state: Union[SecondDerivativeFn[A], _StatedZero],
-        state_param: Union[SecondDerivativeFn[A], _StatedZero],
-        param_param: Union[SecondDerivativeFn[A], _StatedZero],
+        initial_state: Union[InitialStateFn[A], StatedZero],
+        initial_state_curvature: Union[CurvatureFn[A], StatedZero],
+        state_state: Union[SecondDerivativeFn[A], StatedZero],
+        state_param: Union[SecondDerivativeFn[A], StatedZero],
+        param_param: Union[SecondDerivativeFn[A], StatedZero],
     ) -> "ODEResidualDerivatives[A, G]":
         """First order plus the second-order terms: Hessian-vector
         products. Any term may be ``STATED_ZERO``."""
         curvature: CurvatureFn[A] = (
             _ZeroCurvature(ZeroOperator(param_space))
-            if isinstance(initial_state_curvature, _StatedZero)
+            if isinstance(initial_state_curvature, StatedZero)
             else initial_state_curvature
         )
         return ODEResidualDerivatives(
@@ -242,29 +242,38 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
             param=param,
             initial_state=_initial_state(initial_state, state_space, param_space),
             initial_state_curvature=curvature,
-            state_state=_second_derivative(state_state, state_space, state_space),
-            state_param=_second_derivative(state_param, param_space, state_space),
-            param_param=_second_derivative(param_param, param_space, param_space),
+            state_state=second_derivative_or_zero(
+                state_state, state_space, state_space
+            ),
+            state_param=second_derivative_or_zero(
+                state_param, param_space, state_space
+            ),
+            param_param=second_derivative_or_zero(
+                param_param, param_space, param_space
+            ),
             param_space=param_space,
         )
 
 
 def _initial_state(
-    given: Union[InitialStateFn[A], _StatedZero],
+    given: Union[InitialStateFn[A], StatedZero],
     state_space: VectorSpaceProtocol[A],
     param_space: VectorSpaceProtocol[A],
 ) -> InitialStateFn[A]:
-    if isinstance(given, _StatedZero):
+    if isinstance(given, StatedZero):
         return _ZeroInitialState(ZeroOperator(param_space, state_space))
     return given
 
 
-def _second_derivative(
-    given: Union[SecondDerivativeFn[A], _StatedZero],
+def second_derivative_or_zero(
+    given: Union[SecondDerivativeFn[A], StatedZero],
     domain: VectorSpaceProtocol[A],
     range: VectorSpaceProtocol[A],
 ) -> SecondDerivativeFn[A]:
-    if isinstance(given, _StatedZero):
+    """``given``, or for :data:`STATED_ZERO` a second derivative returning
+    a :class:`~pyapprox.util.linalg.operators.ZeroOperator` from
+    ``domain`` to ``range``, for any bundle built from such fields."""
+    if isinstance(given, StatedZero):
         return _ZeroSecondDerivative(ZeroOperator(domain, range))
     return given
 
