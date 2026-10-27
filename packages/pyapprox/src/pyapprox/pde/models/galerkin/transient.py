@@ -34,6 +34,10 @@ from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
+    NeutralizedRows,
+    RowTreatmentFactory,
+)
 from pyapprox.pde.galerkin.time_integration.stack_discretization import (
     GalerkinStackDiscretization,
 )
@@ -95,6 +99,10 @@ class GalerkinTransientForwardModel(Generic[Array]):
         ``pyapprox.ode.operator``. The functional must support the
         chosen method. Default: ``adjoint_jacobian`` when nqoi = 1,
         ``forward_sensitivity_jacobian`` otherwise.
+    row_treatment : RowTreatmentFactory, optional
+        The essential-row strategy; defaults to ``NeutralizedRows``,
+        which with this model's end pinning conserves content exactly for
+        steppers whose step result is solved.
     """
 
     def __init__(
@@ -108,6 +116,7 @@ class GalerkinTransientForwardModel(Generic[Array]):
             None
         ),
         jacobian_method: Optional[TransientQoIJacobianMethod[Array]] = None,
+        row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
@@ -117,7 +126,7 @@ class GalerkinTransientForwardModel(Generic[Array]):
         # The adapter checks that the parameterization's targets belong
         # to the system.
         adapter = create_galerkin_physics_ode_residual(
-            discretization, solver, parameterization
+            discretization, solver, parameterization, row_treatment
         )
         system = discretization.system()
         bkd = system.bkd()

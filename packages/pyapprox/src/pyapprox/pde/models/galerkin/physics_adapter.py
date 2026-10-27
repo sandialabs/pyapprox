@@ -22,6 +22,10 @@ parameterization's :class:`ParamDerivatives` bundle and the system's
 from typing import Optional, TypeVar, overload
 
 from pyapprox.ode.state_derivatives import StateStateHVPFn
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
+    NeutralizedRows,
+    RowTreatmentFactory,
+)
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
@@ -66,6 +70,10 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
     parameterization : ParameterizationProtocol
         Maps parameter vectors to coefficients of objects the system
         holds.
+    row_treatment : RowTreatmentFactory, optional
+        The essential-row strategy; defaults to ``NeutralizedRows``. The
+        parameter derivatives are the same under either strategy: the
+        terms they move are independent of the parameters.
     """
 
     def __init__(
@@ -73,6 +81,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
         discretization: GalerkinStackDiscretization[Array, Array, F],
         solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
+        row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
@@ -80,7 +89,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
                 f"got {type(parameterization).__name__}"
             )
         require_owned_targets(parameterization, discretization.system())
-        super().__init__(discretization, solver)
+        super().__init__(discretization, solver, row_treatment)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
 
@@ -135,8 +144,9 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         discretization: GalerkinStackDiscretization[Array, Array, F],
         solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
+        row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
-        super().__init__(discretization, solver, parameterization)
+        super().__init__(discretization, solver, parameterization, row_treatment)
         derivs = constrain_param_derivatives(
             parameterization.param_derivatives(), self._constraint_set
         )
@@ -217,6 +227,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         discretization: GalerkinStackDiscretization[Array, Array, F],
         solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
+        row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
         state_state_hvp = (
             discretization.system()
@@ -231,7 +242,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
                 "create_galerkin_physics_ode_residual to select the right "
                 "tier"
             )
-        super().__init__(discretization, solver, parameterization)
+        super().__init__(discretization, solver, parameterization, row_treatment)
         derivs = constrain_param_derivatives(
             parameterization.param_derivatives(), self._constraint_set
         )
@@ -300,6 +311,7 @@ def create_galerkin_physics_ode_residual(
     discretization: GalerkinStackDiscretization[Array, Array, F],
     solver: LinearSolverProtocol[Array, F],
     parameterization: None = None,
+    row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
 ) -> GalerkinPhysicsToODEResidualAdapter[Array, F]: ...
 
 
@@ -308,6 +320,7 @@ def create_galerkin_physics_ode_residual(
     discretization: GalerkinStackDiscretization[Array, Array, F],
     solver: LinearSolverProtocol[Array, F],
     parameterization: ParameterizationProtocol[Array],
+    row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
 ) -> GalerkinPhysicsToODEResidualWithSetParamAdapter[Array, F]: ...
 
 
@@ -315,6 +328,7 @@ def create_galerkin_physics_ode_residual(
     discretization: GalerkinStackDiscretization[Array, Array, F],
     solver: LinearSolverProtocol[Array, F],
     parameterization: Optional[ParameterizationProtocol[Array]] = None,
+    row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
 ) -> GalerkinPhysicsToODEResidualAdapter[Array, F]:
     """Create the widest adapter tier the inputs support.
 
@@ -341,6 +355,9 @@ def create_galerkin_physics_ode_residual(
     parameterization : ParameterizationProtocol, optional
         Maps parameter vectors to coefficients of objects the system
         holds.
+    row_treatment : RowTreatmentFactory, optional
+        The essential-row strategy, passed to whichever tier is chosen;
+        defaults to ``NeutralizedRows``.
 
     Returns
     -------
@@ -349,7 +366,9 @@ def create_galerkin_physics_ode_residual(
     """
     system = discretization.system()
     if parameterization is None:
-        return GalerkinPhysicsToODEResidualAdapter(discretization, solver)
+        return GalerkinPhysicsToODEResidualAdapter(
+            discretization, solver, row_treatment
+        )
     if not isinstance(parameterization, ParameterizationProtocol):
         raise TypeError(
             f"parameterization must satisfy ParameterizationProtocol, "
@@ -366,11 +385,11 @@ def create_galerkin_physics_ode_residual(
             is not None
         ):
             return GalerkinPhysicsToODEResidualWithHVPAdapter(
-                discretization, solver, parameterization
+                discretization, solver, parameterization, row_treatment
             )
         return GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
-            discretization, solver, parameterization
+            discretization, solver, parameterization, row_treatment
         )
     return GalerkinPhysicsToODEResidualWithSetParamAdapter(
-        discretization, solver, parameterization
+        discretization, solver, parameterization, row_treatment
     )
