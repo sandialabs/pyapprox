@@ -225,20 +225,6 @@ class TimeIntegrator(Generic[Array]):
             )
         return self._unprojected
 
-    def refuse_state_constraint(self, what: str) -> None:
-        """Refuse a constraint where a sweep does not apply it yet.
-
-        Raises
-        ------
-        NotImplementedError
-            If a constraint was given.
-        """
-        if self._constraint is not None:
-            raise NotImplementedError(
-                f"{what} does not apply a state constraint yet; the "
-                "tangent-linear jacobian and the adjoint gradient do"
-            )
-
     def _sweep_tangent(
         self,
         fwd_sols: Array,

@@ -31,6 +31,7 @@ from pyapprox.ode.protocols.time_stepping import (
 from pyapprox.ode.protocols.type_guards import (
     is_hvp_enabled,
 )
+from pyapprox.ode.state_constraint import TangentFn, sweep_tangent
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -203,7 +204,6 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 "Ensure the ODE residual implements state_state_hvp, etc."
             )
         hvp_residual = self._time_residual
-        self._integrator.refuse_state_constraint("the Hessian-vector product")
 
         if vvec.shape != (self.nparams(), 1):
             raise ValueError(
@@ -213,20 +213,61 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Get forward and adjoint trajectories
         fwd_sols, times = self._get_forward_trajectory(init_state, param)
         adj_sols = self._get_adjoint_trajectory(init_state, param)
+        # Steps are linearized at their own unknowns z_n; the functional
+        # and the steps' previous states read the stored y_n = Pi(z_n).
+        lin_sols = self._integrator.linearization_states(fwd_sols)
+        tangent = self._constraint_tangent(fwd_sols, times)
 
-        # Solve forward sensitivity equations
-        w_sols = self._solve_forward_sensitivity(fwd_sols, times, param, vvec)
+        # Solve forward sensitivity equations: stored tangents w, and the
+        # unprojected dz the steps' own unknowns move by.
+        w_sols, dz_sols = self._solve_forward_sensitivity(
+            fwd_sols, lin_sols, times, vvec, tangent
+        )
 
         # Solve second adjoint equations
         s_sols = self._solve_second_adjoint(
-            fwd_sols, adj_sols, w_sols, times, param, vvec, hvp_residual,
+            fwd_sols, lin_sols, adj_sols, w_sols, dz_sols, times, param, vvec,
+            hvp_residual, tangent,
         )
 
         # Accumulate HVP
         return self._accumulate_hvp(
-            fwd_sols, adj_sols, w_sols, s_sols, times, param, vvec,
-            hvp_residual,
+            fwd_sols, lin_sols, adj_sols, w_sols, dz_sols, s_sols, times,
+            param, vvec, hvp_residual, tangent,
         )
+
+    def _constraint_tangent(self, fwd_sols: Array, times: Array) -> TangentFn[Array]:
+        """The integrator's constraint tangent, refusing a constraint the
+        second-order sweep cannot apply: one without second derivatives, or
+        with parameter-dependent or curved (non-affine) second derivatives."""
+        nres = self.nparams() - self._functional.nunique_params()
+        derivs = self._integrator.state_constraint(
+            fwd_sols.shape[0], nres
+        ).derivatives()
+        time_0 = self._bkd.to_float(times[0])
+        tangent = sweep_tangent(derivs, fwd_sols[:, 0], time_0)
+        seconds = (derivs.state_state, derivs.state_param, derivs.param_param)
+        state_state, state_param, param_param = seconds
+        if state_state is None or state_param is None or param_param is None:
+            raise TypeError(
+                "the Hessian-vector product needs the state constraint's "
+                "second derivatives; its derivatives() lacks them"
+            )
+        adj = self._bkd.zeros((fwd_sols.shape[0],))
+        for second in (state_state, state_param, param_param):
+            if not second(fwd_sols[:, 0], time_0, adj).properties().zero:
+                raise NotImplementedError(
+                    "the Hessian-vector product supports only constraints "
+                    "whose second derivatives are stated zeros (affine)"
+                )
+        return tangent
+
+    def _tangent_transpose(
+        self, tangent: TangentFn[Array], state: Array, time: Array, vec: Array
+    ) -> Array:
+        r""":math:`\Pi'(state)^\top` applied to a 1-D vector."""
+        block = self._bkd.reshape(vec, (vec.shape[0], 1))
+        return tangent(state, self._bkd.to_float(time)).apply_transpose(block)[:, 0]
 
     # =========================================================================
     # Forward Sensitivity (Tangent Linear Model)
@@ -235,22 +276,30 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
     def _solve_forward_sensitivity(
         self,
         fwd_sols: Array,
+        lin_sols: Array,
         times: Array,
-        param: Array,
         vvec: Array,
-    ) -> Array:
-        """
-        Solve the tangent linear model: w = (dy/dp)·v.
+        tangent: TangentFn[Array],
+    ) -> Tuple[Array, Array]:
+        r"""
+        Solve the tangent linear model along direction v.
 
-        For each time step, the sensitivity satisfies:
-            dR_n/dy_n · w_n + dR_n/dy_{n-1} · w_{n-1} + dR_n/dp · v = 0
+        Each step moves its unknown :math:`z_n` by
+        :math:`dz_n = -(\partial R_n/\partial z_n)^{-1}
+        [\partial R_n/\partial y_{n-1}\, w_{n-1} + \partial R_n/\partial p\, v]`,
+        linearized at :math:`z_n` and the stored :math:`y_{n-1}`, and the
+        stored state by :math:`w_n = \Pi'(z_n)\, dz_n`;
+        :math:`dz_0 = (dy_0/dp) v` for the initial state as given.
 
-        So:
-            w_n = -(dR_n/dy_n)^{-1} · [dR_n/dy_{n-1} · w_{n-1} + dR_n/dp · v]
+        Returns
+        -------
+        Tuple[Array, Array]
+            The stored tangents :math:`w` and the unprojected :math:`dz`.
+            Shape: (nstates, ntimes) each.
         """
         ntimes = fwd_sols.shape[1]
-        w_sols = self._bkd.zeros(fwd_sols.shape)
-        w_sols = self._bkd.copy(w_sols)
+        w_sols = self._bkd.copy(self._bkd.zeros(fwd_sols.shape))
+        dz_sols = self._bkd.copy(self._bkd.zeros(fwd_sols.shape))
 
         # Initial condition: w_0 = (dy_0/dp)·v
         ctx_0 = StepContext(
@@ -266,37 +315,41 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         v_res = self._bkd.flatten(
             vvec[n_unique:] if n_unique > 0 else vvec
         )
-        w_sols[:, 0] = dy0dp @ v_res
+        dz_sols[:, 0:1] = (dy0dp @ v_res)[:, None]
+        w_sols[:, 0:1] = tangent(
+            lin_sols[:, 0], self._bkd.to_float(times[0])
+        ).apply(dz_sols[:, 0:1])
 
         # Forward sweep: propagate sensitivity
         for nn in range(1, ntimes):
             ctx_nn = self._make_ctx(times, nn, fwd_sols)
             self._time_residual.bind(ctx_nn)
 
-            # (dR_n/dy_n)^T (diagonal block) as an operator; its
-            # transposed solve is a solve with dR_n/dy_n
+            # (dR_n/dz_n)^T (diagonal block) as an operator; its
+            # transposed solve is a solve with dR_n/dz_n
             drdy_n_t = self._time_residual.adjoint_diag_jacobian(
-                ctx_nn, fwd_sols[:, nn]
+                ctx_nn, lin_sols[:, nn]
             )
 
             # dR_n/dy_{n-1} (off-diagonal block), as an operator
-            offdiag = self._time_residual.off_diag_operator(ctx_nn, fwd_sols[:, nn])
+            offdiag = self._time_residual.off_diag_operator(ctx_nn, lin_sols[:, nn])
 
             # dR_n/dp
-            drdp_n = self._time_residual.param_jacobian(
-                ctx_nn, fwd_sols[:, nn]
-            )
+            drdp_n = self._time_residual.param_jacobian(ctx_nn, lin_sols[:, nn])
 
-            # w_n = -(dR_n/dy_n)^{-1} · [dR_n/dy_{n-1} · w_{n-1} + dR_n/dp · v]
+            # dz_n = -(dR_n/dz_n)^{-1} · [dR_n/dy_{n-1} · w_{n-1} + dR_n/dp · v]
             rhs = (
                 offdiag.apply(w_sols[:, nn - 1 : nn])
                 + (drdp_n @ v_res)[:, None]
             )
-            w_sols[:, nn : nn + 1] = -drdy_n_t.solve_transpose(
+            dz_sols[:, nn : nn + 1] = -drdy_n_t.solve_transpose(
                 self._bkd.flatten(self._bkd.asarray(rhs))
             )[:, None]
+            w_sols[:, nn : nn + 1] = tangent(
+                lin_sols[:, nn], self._bkd.to_float(times[nn])
+            ).apply(dz_sols[:, nn : nn + 1])
 
-        return w_sols
+        return w_sols, dz_sols
 
     # =========================================================================
     # Second Adjoint (for Hessian)
@@ -305,15 +358,29 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
     def _solve_second_adjoint(
         self,
         fwd_sols: Array,
+        lin_sols: Array,
         adj_sols: Array,
         w_sols: Array,
+        dz_sols: Array,
         times: Array,
         param: Array,
         vvec: Array,
         hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
+        tangent: TangentFn[Array],
     ) -> Array:
-        """
+        r"""
         Solve the second adjoint equations for HVP computation.
+
+        For the unknown :math:`z_n` of step :math:`n`,
+        :math:`(\partial R_n/\partial z_n)^\top s_n = -[\Pi'(z_n)^\top a_n
+        + b_n]`, where :math:`a_n` collects what reaches :math:`z_n`
+        through the stored :math:`y_n` (the coupling
+        :math:`B_{n+1}^\top s_{n+1}`, the functional's terms and step
+        :math:`n+1`'s previous-state terms) and :math:`b_n` step
+        :math:`n`'s own terms in its unknown. Directions follow the
+        variable: the stored tangent :math:`w` for stored states, the
+        unprojected :math:`dz` for a step's unknown. :math:`s_0` is
+        unchanged: :math:`y_0` is projected data, not an unknown.
 
         Uses a unified loop: every stepper now has prev_* methods, so
         no is_explicit/is_crank_nicolson branching is needed.
@@ -332,35 +399,36 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         ctx_N = self._make_ctx(times, ntimes - 1, fwd_sols)
         self._time_residual.bind(ctx_N)
 
-        # Functional Hessian terms at final time
-        qss_hvp = self._state_state_hvp(
-            fwd_sols, param, ntimes - 1, w_sols[:, -1:]
+        # Functional Hessian terms at final time, through y_N
+        through_stored = self._bkd.flatten(
+            self._state_state_hvp(fwd_sols, param, ntimes - 1, w_sols[:, -1:])
+        ) + self._bkd.flatten(
+            self._state_param_hvp(fwd_sols, param, ntimes - 1, vvec)
         )
-        qsp_hvp = self._state_param_hvp(fwd_sols, param, ntimes - 1, vvec)
 
         # Residual Hessian at final time: R_N same-step contribution
-        rss_hvp = hvp_residual.state_state_hvp(
-            ctx_N, fwd_sols[:, -1], adj_sols[:, -1], w_sols[:, -1],
-        )
-        rsp_hvp = hvp_residual.state_param_hvp(
-            ctx_N, fwd_sols[:, -1], adj_sols[:, -1], v_res,
+        own = hvp_residual.state_state_hvp(
+            ctx_N, lin_sols[:, -1], adj_sols[:, -1], dz_sols[:, -1],
+        ) + hvp_residual.state_param_hvp(
+            ctx_N, lin_sols[:, -1], adj_sols[:, -1], v_res,
         )
 
-        # Mixed derivative: d²R_N/(dy_N dy_{N-1}) · w_{N-1}
+        # Mixed derivative: d²R_N/(dz_N dy_{N-1}) · w_{N-1}
         # Nonzero for IM (both endpoints enter f through shared midpoint)
         if ntimes > 2:
-            mixed_N = hvp_residual.state_prev_state_hvp(
-                ctx_N, fwd_sols[:, -1], adj_sols[:, -1], w_sols[:, -2],
+            own = own + hvp_residual.state_prev_state_hvp(
+                ctx_N, lin_sols[:, -1], adj_sols[:, -1], w_sols[:, -2],
             )
-            rss_hvp = rss_hvp + mixed_N
 
-        rhs_N = (
-            -(self._bkd.flatten(qss_hvp) + rss_hvp)
-            - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
+        rhs_N = -(
+            self._tangent_transpose(
+                tangent, lin_sols[:, -1], times[-1], through_stored
+            )
+            + own
         )
 
-        # Solve (dR/dy_N)^T · s_N = RHS
-        drduT_N = self._time_residual.adjoint_diag_jacobian(ctx_N, fwd_sols[:, -1])
+        # Solve (dR/dz_N)^T · s_N = RHS
+        drduT_N = self._time_residual.adjoint_diag_jacobian(ctx_N, lin_sols[:, -1])
         s_sols[:, -1:] = drduT_N.solve(self._bkd.flatten(rhs_N))[:, None]
 
         # Backward sweep — unified loop
@@ -374,57 +442,57 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
             self._time_residual.bind(ctx_n)
 
-            # Diagonal block (dR_n/dy_n)^T
+            # Diagonal block (dR_n/dz_n)^T
             drduT_diag = self._time_residual.adjoint_diag_jacobian(
-                ctx_n, fwd_sols[:, nn]
+                ctx_n, lin_sols[:, nn]
             )
 
             # Off-diagonal block dR_{n+1}/dy_n, applied transposed below
             offdiag = self._time_residual.off_diag_operator(
-                next_ctx, fwd_sols[:, nn + 1]
+                next_ctx, lin_sols[:, nn + 1]
             )
 
-            # Functional Hessian terms at y_n
-            qss_hvp = self._state_state_hvp(
-                fwd_sols, param, nn, w_sols[:, nn : nn + 1]
-            )
-            qsp_hvp = self._state_param_hvp(fwd_sols, param, nn, vvec)
-
-            # R_n same-step contribution
-            rss_hvp_n = hvp_residual.state_state_hvp(
-                ctx_n, fwd_sols[:, nn], adj_sols[:, nn], w_sols[:, nn],
-            )
-            rsp_hvp_n = hvp_residual.state_param_hvp(
-                ctx_n, fwd_sols[:, nn], adj_sols[:, nn], v_res,
-            )
-
-            # R_{n+1} contribution (cross-step, via prev_* methods)
-            rss_hvp_np1 = hvp_residual.prev_state_state_hvp(
-                next_ctx, fwd_sols[:, nn + 1],
-                adj_sols[:, nn + 1], w_sols[:, nn],
-            )
-            rsp_hvp_np1 = hvp_residual.prev_state_param_hvp(
-                next_ctx, fwd_sols[:, nn + 1],
-                adj_sols[:, nn + 1], v_res,
-            )
-
-            # Mixed derivatives (nonzero for IM)
-            mixed_same = hvp_residual.state_prev_state_hvp(
-                ctx_n, fwd_sols[:, nn],
-                adj_sols[:, nn], w_sols[:, nn - 1],
-            )
-            mixed_cross = hvp_residual.prev_state_curr_state_hvp(
-                next_ctx, fwd_sols[:, nn + 1],
-                adj_sols[:, nn + 1], w_sols[:, nn + 1],
+            # Through the stored y_n: the coupling, the functional's
+            # Hessian terms, and R_{n+1}'s previous-state terms (the mixed
+            # one in the direction step n+1's unknown moves, dz_{n+1}).
+            through_stored = (
+                offdiag.apply_transpose(s_sols[:, nn + 1 : nn + 2])[:, 0]
+                + self._bkd.flatten(
+                    self._state_state_hvp(
+                        fwd_sols, param, nn, w_sols[:, nn : nn + 1]
+                    )
+                )
+                + self._bkd.flatten(self._state_param_hvp(fwd_sols, param, nn, vvec))
+                + hvp_residual.prev_state_state_hvp(
+                    next_ctx, lin_sols[:, nn + 1], adj_sols[:, nn + 1], w_sols[:, nn],
+                )
+                + hvp_residual.prev_state_param_hvp(
+                    next_ctx, lin_sols[:, nn + 1], adj_sols[:, nn + 1], v_res,
+                )
+                + hvp_residual.prev_state_curr_state_hvp(
+                    next_ctx, lin_sols[:, nn + 1],
+                    adj_sols[:, nn + 1], dz_sols[:, nn + 1],
+                )
             )
 
-            rss_hvp = rss_hvp_n + rss_hvp_np1 + mixed_same + mixed_cross
-            rsp_hvp = rsp_hvp_n + rsp_hvp_np1
+            # R_n's own terms in its unknown z_n (mixed: nonzero for IM)
+            own = (
+                hvp_residual.state_state_hvp(
+                    ctx_n, lin_sols[:, nn], adj_sols[:, nn], dz_sols[:, nn],
+                )
+                + hvp_residual.state_param_hvp(
+                    ctx_n, lin_sols[:, nn], adj_sols[:, nn], v_res,
+                )
+                + hvp_residual.state_prev_state_hvp(
+                    ctx_n, lin_sols[:, nn], adj_sols[:, nn], w_sols[:, nn - 1],
+                )
+            )
 
-            rhs = (
-                -offdiag.apply_transpose(s_sols[:, nn + 1 : nn + 2])[:, 0]
-                - (self._bkd.flatten(qss_hvp) + rss_hvp)
-                - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
+            rhs = -(
+                self._tangent_transpose(
+                    tangent, lin_sols[:, nn], times[nn], through_stored
+                )
+                + own
             )
 
             s_sols[:, nn] = drduT_diag.solve(rhs)
@@ -438,22 +506,23 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         self._time_residual.bind(ctx_1)
         mass = self._time_residual.native_residual.mass_matrix()
 
-        offdiag = self._time_residual.off_diag_operator(ctx_1, fwd_sols[:, 1])
+        offdiag = self._time_residual.off_diag_operator(ctx_1, lin_sols[:, 1])
 
         qss_hvp = self._state_state_hvp(fwd_sols, param, 0, w_sols[:, 0:1])
         qsp_hvp = self._state_param_hvp(fwd_sols, param, 0, vvec)
 
-        # Cross-step HVP: R_1 depends on y_0 as prev_state
+        # Cross-step HVP: R_1 depends on y_0 as prev_state. y_0 is projected
+        # data, not an unknown, so no tangent applies here.
         rss_hvp_1 = hvp_residual.prev_state_state_hvp(
-            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], w_sols[:, 0],
+            ctx_1, lin_sols[:, 1], adj_sols[:, 1], w_sols[:, 0],
         )
         rsp_hvp_1 = hvp_residual.prev_state_param_hvp(
-            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], v_res,
+            ctx_1, lin_sols[:, 1], adj_sols[:, 1], v_res,
         )
 
-        # Mixed derivative: d²R_1/(dy_0 dy_1) · w_1
+        # Mixed derivative: d²R_1/(dy_0 dz_1) · dz_1
         mixed_cross_1 = hvp_residual.prev_state_curr_state_hvp(
-            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], w_sols[:, 1],
+            ctx_1, lin_sols[:, 1], adj_sols[:, 1], dz_sols[:, 1],
         )
         rss_hvp_1 = rss_hvp_1 + mixed_cross_1
 
@@ -473,13 +542,16 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
     def _accumulate_hvp(
         self,
         fwd_sols: Array,
+        lin_sols: Array,
         adj_sols: Array,
         w_sols: Array,
+        dz_sols: Array,
         s_sols: Array,
         times: Array,
         param: Array,
         vvec: Array,
         hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
+        tangent: TangentFn[Array],
     ) -> Array:
         """
         Accumulate the Hessian-vector product from all contributions.
@@ -492,7 +564,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         term g^T dy_0/dp, with g = dQ/dy_0 + B_1^T lambda_1 = -M^T lambda_0:
         the first through s_0 (the direction derivative of lambda_0), the
         second through the curvature of y_0(p), which the residual must
-        state via ``initial_param_hvp`` (zero for an affine y_0).
+        state via ``initial_param_hvp`` (zero for an affine y_0). With a
+        constraint the stored y_0 is Pi(given y_0), so dy_0/dp carries
+        Pi' and the curvature's weight is Pi'^T g. Each step's terms are
+        taken at its unknown z_n, its own current-state direction being
+        dz_n and its previous state's the stored w_{n-1}.
         """
         nparams = self.nparams()
         hvp = self._bkd.zeros((nparams, 1))
@@ -511,17 +587,25 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         ctx_0 = self._make_ctx(times, 1, fwd_sols)
         self._time_residual.bind(ctx_0)
         mass = self._time_residual.native_residual.mass_matrix()
-        dy0dp = self._time_residual.initial_param_jacobian()
+        dy0dp = tangent(lin_sols[:, 0], self._bkd.to_float(times[0])).apply(
+            self._time_residual.initial_param_jacobian()
+        )
         init_hvp = -self._bkd.reshape(
             mass.apply_transpose(s_sols[:, 0]) @ dy0dp, (-1, 1)
         )
         # Curvature of y_0(p), weighted by the gradient's initial-state
-        # sensitivity g = dQ/dy_0 + B_1^T lambda_1 (as in the gradient).
+        # sensitivity g = dQ/dy_0 + B_1^T lambda_1 (as in the gradient),
+        # carried back through the constraint to the given state.
         dqdu_0 = self._time_residual.zero_adjoint_rhs(
             self._state_jacobian(fwd_sols, param)[:, 0]
         )
-        offdiag = self._time_residual.off_diag_operator(ctx_0, fwd_sols[:, 1])
-        init_weight = offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0
+        offdiag = self._time_residual.off_diag_operator(ctx_0, lin_sols[:, 1])
+        init_weight = self._tangent_transpose(
+            tangent,
+            lin_sols[:, 0],
+            times[0],
+            offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0,
+        )
         init_hvp = init_hvp + self._bkd.reshape(
             hvp_residual.initial_param_hvp(init_weight, v_res), (-1, 1)
         )
@@ -535,7 +619,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Cross-step contribution at y_0: R_1 depends on y_0 as prev_state
         ctx_1 = self._make_ctx(times, 1, fwd_sols)
         rps_hvp_0 = hvp_residual.prev_param_state_hvp(
-            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], w_sols[:, 0],
+            ctx_1, lin_sols[:, 1], adj_sols[:, 1], w_sols[:, 0],
         )
         if rps_hvp_0.ndim == 1:
             rps_hvp_0 = self._bkd.reshape(rps_hvp_0, (-1, 1))
@@ -552,9 +636,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             self._time_residual.bind(ctx_nn)
 
             # (dR_n/dp)^T · s_n
-            drdp = self._time_residual.param_jacobian(
-                ctx_nn, fwd_sols[:, nn]
-            )
+            drdp = self._time_residual.param_jacobian(ctx_nn, lin_sols[:, nn])
             if n_unique > 0:
                 zeros = self._bkd.zeros((drdp.shape[0], n_unique))
                 drdp = self._bkd.hstack((zeros, drdp))
@@ -564,9 +646,10 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             qps_hvp = self._param_state_hvp(
                 fwd_sols, param, nn, w_sols[:, nn : nn + 1],
             )
+            # Step n's own current-state direction is dz_n.
             rps_hvp = hvp_residual.param_state_hvp(
-                ctx_nn, fwd_sols[:, nn],
-                adj_sols[:, nn], w_sols[:, nn],
+                ctx_nn, lin_sols[:, nn],
+                adj_sols[:, nn], dz_sols[:, nn],
             )
 
             # Cross-step contribution via prev_param_state_hvp
@@ -577,7 +660,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                     y_prev=fwd_sols[:, nn],
                 )
                 rps_hvp_np1 = hvp_residual.prev_param_state_hvp(
-                    next_ctx, fwd_sols[:, nn + 1],
+                    next_ctx, lin_sols[:, nn + 1],
                     adj_sols[:, nn + 1], w_sols[:, nn],
                 )
                 rps_hvp = rps_hvp + rps_hvp_np1
@@ -594,7 +677,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
             # L_pp = d²Q/dp² + λ^T · d²R/dp² (functional part already above)
             rpp_hvp = hvp_residual.param_param_hvp(
-                ctx_nn, fwd_sols[:, nn],
+                ctx_nn, lin_sols[:, nn],
                 adj_sols[:, nn], v_res,
             )
             if rpp_hvp.ndim == 1:

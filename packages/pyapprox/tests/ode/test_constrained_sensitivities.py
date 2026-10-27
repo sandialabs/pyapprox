@@ -18,6 +18,9 @@ import pytest
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.fromcallable.hessian import (
+    FunctionWithJacobianAndHVPFromCallable,
+)
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
@@ -34,6 +37,7 @@ from pyapprox.ode.operator.qoi_jacobian import (
     adjoint_jacobian,
 )
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
+from pyapprox.ode.protocols import StateConstraintProtocol
 from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_spaces
 from pyapprox.ode.state_constraint import StateConstraintDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
@@ -117,8 +121,51 @@ class _TangentAtProjection(_PinAndRescale[Array]):
         return super()._tangent(self.constrain(state, time), time)
 
 
+class _Pin(Generic[Array]):
+    r""":math:`\Pi_t(y) = (1 + t,\; y_1)`: affine, so its tangent
+    :math:`\mathrm{diag}(0, 1)` is constant and its second derivatives are
+    stated zeros, as the Hessian-vector product requires."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+        self._states, params = backend_spaces(bkd, _NSTATES, _NPARAMS)
+        self._derivs = StateConstraintDerivatives.second_order(
+            self._states,
+            params,
+            self._tangent,
+            param=STATED_ZERO,
+            state_state=STATED_ZERO,
+            state_param=STATED_ZERO,
+            param_param=STATED_ZERO,
+        )
+
+    def constrain(self, state: Array, time: float) -> Array:
+        return self._bkd.concatenate([self._bkd.asarray([1.0 + time]), state[1:2]])
+
+    def _tangent(
+        self, state: Array, time: float
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]:
+        return BackendDenseOperator(
+            self._bkd.asarray([[0.0, 0.0], [0.0, 1.0]]),
+            self._states.descriptor(),
+            self._bkd,
+        )
+
+    def derivatives(self) -> StateConstraintDerivatives[Array]:
+        return self._derivs
+
+
+class _PinDroppedTangent(_Pin[Array]):
+    """Control: the pin declaring the identity tangent."""
+
+    def _tangent(
+        self, state: Array, time: float
+    ) -> ActionOperatorProtocol[Array, FormatProtocol]:
+        return IdentityOperator(self._states)
+
+
 def _integrator(
-    model: LotkaVolterra[Array], constraint: _PinAndRescale[Array]
+    model: LotkaVolterra[Array], constraint: StateConstraintProtocol[Array]
 ) -> TimeIntegrator[Array]:
     newton = NewtonSolver(BackwardEulerHVP(model))
     newton.set_options(maxiters=20, atol=1e-13, rtol=0.0)
@@ -238,6 +285,63 @@ def _assert_detected(
     assert bkd.to_float(bkd.min(errors)) > 1e-3
 
 
+def _hvp_operator(
+    bkd: Backend[Array], constraint: StateConstraintProtocol[Array]
+) -> TimeAdjointOperatorWithHVP[Array]:
+    """The second state at the final time, as a scalar QoI of the
+    parameters, on a fresh constrained integrator."""
+    functional = AllStatesEndpointFunctional(_NSTATES, _NPARAMS, bkd).row_functional(1)
+    return TimeAdjointOperatorWithHVP(
+        _integrator(LotkaVolterra(bkd), constraint), functional
+    )
+
+
+def _hvp_errors(
+    bkd: Backend[Array], constraint: StateConstraintProtocol[Array]
+) -> tuple[Array, Array]:
+    """DerivativeChecker's gradient and HVP error sweeps: finite
+    differences of Q against the adjoint gradient, and of the gradient
+    against the Hessian-vector product."""
+
+    def fun(samples: Array) -> Array:
+        return bkd.hstack(
+            [
+                _hvp_operator(bkd, constraint)(
+                    _init_state(bkd), samples[:, ii : ii + 1]
+                )
+                for ii in range(samples.shape[1])
+            ]
+        )
+
+    def jacobian(sample: Array) -> Array:
+        return _hvp_operator(bkd, constraint).jacobian(_init_state(bkd), sample)
+
+    def hvp(sample: Array, vec: Array) -> Array:
+        return _hvp_operator(bkd, constraint).hvp(_init_state(bkd), sample, vec)
+
+    checker = DerivativeChecker(
+        FunctionWithJacobianAndHVPFromCallable(
+            nvars=_NPARAMS, fun=fun, jacobian=jacobian, hvp=hvp, bkd=bkd
+        )
+    )
+    grad_errors, hvp_errors = checker.check_derivatives(_sample(bkd), relative=True)
+    return grad_errors, hvp_errors
+
+
+class TestSecondOrder:
+    def test_hvp_matches_finite_differences_of_the_gradient(
+        self, bkd: Backend[Array]
+    ) -> None:
+        for errors in _hvp_errors(bkd, _Pin(bkd)):
+            assert bkd.to_float(bkd.min(errors)) <= 1e-6
+
+    def test_dropping_the_tangent_is_detected(self, bkd: Backend[Array]) -> None:
+        """Control: the HVP of a sweep that drops the tangent is off by
+        more than any finite-difference step size explains."""
+        _, hvp_errors = _hvp_errors(bkd, _PinDroppedTangent(bkd))
+        assert bkd.to_float(bkd.min(hvp_errors)) > 1e-3
+
+
 class TestRefusals:
     def _solved(
         self, bkd: Backend[Array], constraint: _PinAndRescale[Array]
@@ -248,13 +352,11 @@ class TestRefusals:
         states, times = integrator.solve(_init_state(bkd))
         return integrator, states, times
 
-    def test_hvp_refuses_a_constraint(self, bkd: Backend[Array]) -> None:
-        integrator, _, _ = self._solved(bkd, _PinAndRescale(bkd))
-        functional = AllStatesEndpointFunctional(
-            _NSTATES, _NPARAMS, bkd
-        ).row_functional(1)
-        operator = TimeAdjointOperatorWithHVP(integrator, functional)
-        with pytest.raises(NotImplementedError, match="Hessian-vector product"):
+    def test_hvp_refuses_a_constraint_without_second_derivatives(
+        self, bkd: Backend[Array]
+    ) -> None:
+        operator = _hvp_operator(bkd, _PinAndRescale(bkd))
+        with pytest.raises(TypeError, match="second derivatives"):
             operator.hvp(_init_state(bkd), _sample(bkd), bkd.ones((_NPARAMS, 1)))
 
     def test_refuses_another_trajectory(self, bkd: Backend[Array]) -> None:
