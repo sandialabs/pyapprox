@@ -1,10 +1,14 @@
-"""Galerkin state constraints: the essential pin.
+"""Galerkin state constraints: the essential pin and the mass-consistent
+projection.
 
 1D advection-diffusion, P1 on 8 cells, with the time-varying Dirichlet
 value g(t) = (1 + x) t^2 on the left. The pin sets the essential entries
-to g(t) and leaves the rest; it is a projection, and since it is affine
-its tangent is exact for any perturbation, which the checks use instead
-of finite differences.
+to g(t) and leaves the rest; the mass-consistent projection also moves
+the interior so that M_II (y_I - z_I) = M_ID (z_D - g), checked against
+blocks of the dense consistent mass, with either row treatment's mass
+doing the solves. Both are projections, and since both are affine their
+tangents are exact for any perturbation, which the checks use instead of
+finite differences.
 """
 
 import pytest
@@ -18,6 +22,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import spmatrix
 
 from pyapprox.ode.protocols import StateConstraintProtocol
 from pyapprox.pde.boundary import BoundarySignal
@@ -28,8 +33,15 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.galerkin.time_integration import (
+    NeutralizedRows,
+    RowTreatmentFactory,
+    SymmetricNeutralizedRows,
+    skfem_ode_residual,
+)
 from pyapprox.pde.galerkin.time_integration.state_constraints import (
     EssentialPin,
+    MassConsistentProjection,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -127,3 +139,101 @@ class TestEssentialPin:
         assert param(state, 0.0).properties().zero
         for second in (state_state, state_param, param_param):
             assert second(state, 0.0, adj).properties().zero
+
+
+_TREATMENTS = pytest.mark.parametrize(
+    "treatment",
+    [NeutralizedRows, SymmetricNeutralizedRows],
+    ids=["coupled_mass", "symmetric_mass"],
+)
+
+
+def _projection(
+    system: GalerkinSystem[_Np],
+    treatment: RowTreatmentFactory[_Np],
+    lumped_mass: bool = False,
+) -> MassConsistentProjection[_Np]:
+    adapter = skfem_ode_residual(
+        system, lumped_mass=lumped_mass, row_treatment=treatment
+    )
+    return MassConsistentProjection(adapter, _NPARAMS)
+
+
+class TestMassConsistentProjection:
+    @_TREATMENTS
+    def test_interior_rows_hold_with_the_exact_increment(
+        self, numpy_bkd: NumpyBkd, treatment: RowTreatmentFactory[_Np]
+    ) -> None:
+        """y_D = g and M_II (y_I - z_I) = M_ID (z_D - g); a projection."""
+        system = _system(numpy_bkd)
+        projection = _projection(system, treatment)
+        assert isinstance(projection, StateConstraintProtocol)
+        raw_mass = system.mass_matrix()
+        # Typed as a backend array; skfem assembles SciPy sparse.
+        mass = (
+            np.asarray(raw_mass.toarray())
+            if isinstance(raw_mass, spmatrix)
+            else np.asarray(raw_mass)
+        )
+        dofs = np.asarray(system.constraint_set().dofs())
+        interior = np.setdiff1d(np.arange(system.nstates()), dofs)
+        state = _vectors(system.nstates(), 1, 5)[:, 0]
+        time = 0.7
+        gvals = np.asarray(system.constraint_set().values(time))
+        projected = projection.constrain(state, time)
+        numpy_bkd.assert_allclose(projected[dofs], gvals, rtol=0.0)
+        numpy_bkd.assert_allclose(
+            mass[np.ix_(interior, interior)] @ (projected - state)[interior],
+            mass[np.ix_(interior, dofs)] @ (state[dofs] - gvals),
+            rtol=1e-10,
+            atol=1e-14,
+        )
+        numpy_bkd.assert_allclose(
+            projection.constrain(projected, time), projected, rtol=1e-13, atol=1e-15
+        )
+
+    @_TREATMENTS
+    def test_tangent_is_exact_and_its_transpose_adjoint(
+        self, numpy_bkd: NumpyBkd, treatment: RowTreatmentFactory[_Np]
+    ) -> None:
+        system = _system(numpy_bkd)
+        projection = _projection(system, treatment)
+        tangent = projection.derivatives().tangent
+        assert tangent is not None
+        n = system.nstates()
+        state, direction = _vectors(n, 1, 6)[:, 0], _vectors(n, 3, 7)
+        op = tangent(state, 0.4)
+        applied = op.apply(direction)
+        for jj in range(3):
+            difference = projection.constrain(
+                state + direction[:, jj], 0.4
+            ) - projection.constrain(state, 0.4)
+            numpy_bkd.assert_allclose(
+                applied[:, jj], difference, rtol=1e-12, atol=1e-14
+            )
+        x, y = _vectors(n, 2, 8), _vectors(n, 2, 9)
+        numpy_bkd.assert_allclose(
+            np.sum(op.apply(x) * y), np.sum(x * op.apply_transpose(y)), rtol=1e-12
+        )
+
+    def test_lumped_mass_is_the_pin(self, numpy_bkd: NumpyBkd) -> None:
+        """A lumped mass has M_ID = 0: nothing to correct."""
+        system = _system(numpy_bkd)
+        projection = _projection(system, SymmetricNeutralizedRows, lumped_mass=True)
+        pin = EssentialPin(system, _NPARAMS)
+        state = _vectors(system.nstates(), 1, 10)[:, 0]
+        numpy_bkd.assert_allclose(
+            projection.constrain(state, 0.6), pin.constrain(state, 0.6), rtol=0.0
+        )
+        assert "corrects=False" in repr(projection)
+
+    def test_differs_from_the_pin_with_a_consistent_mass(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Control: the interior correction is not negligible here."""
+        system = _system(numpy_bkd)
+        projection = _projection(system, SymmetricNeutralizedRows)
+        pin = EssentialPin(system, _NPARAMS)
+        state = _vectors(system.nstates(), 1, 11)[:, 0]
+        gap = np.abs(projection.constrain(state, 0.6) - pin.constrain(state, 0.6))
+        assert gap.max() > 1e-2
