@@ -12,18 +12,21 @@ from pyapprox.ode.functionals.protocols import (
     TransientFunctionalProtocol,
     TransientJacobianFn,
 )
+from pyapprox.ode.protocols.state_constraint import StateConstraintProtocol
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
     TimeSteppingResidualProtocol,
 )
+from pyapprox.ode.residual_derivatives import backend_state_space
+from pyapprox.ode.state_constraint import IdentityConstraint
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TimeIntegrator(Generic[Array]):
-    """
+    r"""
     Time integrator with optional adjoint and HVP support.
 
     Forward solve works with any TimeSteppingResidualProtocol. Adjoint
@@ -43,6 +46,13 @@ class TimeIntegrator(Generic[Array]):
         Newton solver for solving the residual equations.
     verbosity : int, optional
         Verbosity level. Defaults to 0.
+    constraint : StateConstraintProtocol, optional
+        The constraint :math:`\Pi_t` applied to every stored state: the
+        initial state is :math:`\Pi_{t_0}(y_0)` and each step stores
+        :math:`y_{n+1} = \Pi_{t_{n+1}}(z_{n+1})`, :math:`z_{n+1}` being
+        the step's Newton solution. Every step starts from the stored
+        state :math:`y_n`, never from :math:`z_n`. Defaults to the
+        identity, which stores exactly what it is given.
     """
 
     def __init__(
@@ -52,6 +62,7 @@ class TimeIntegrator(Generic[Array]):
         deltat: float,
         newton_solver: NewtonSolver[Array],
         verbosity: int = 0,
+        constraint: Optional[StateConstraintProtocol[Array]] = None,
     ):
         residual = newton_solver.residual()
         if not isinstance(residual, TimeSteppingResidualProtocol):
@@ -60,6 +71,15 @@ class TimeIntegrator(Generic[Array]):
                 "TimeSteppingResidualProtocol, "
                 f"got {type(residual).__name__}"
             )
+        if constraint is not None and not isinstance(
+            constraint, StateConstraintProtocol
+        ):
+            raise TypeError(
+                "constraint must satisfy StateConstraintProtocol, "
+                f"got {type(constraint).__name__}"
+            )
+        self._constraint = constraint
+        self._unprojected: Optional[Array] = None
         self._time_residual: TimeSteppingResidualProtocol[Array] = residual
         self._bkd = self._time_residual.bkd()
         self._init_time = init_time
@@ -135,15 +155,52 @@ class TimeIntegrator(Generic[Array]):
         Returns
         -------
         Array
-            State at the next time step. Shape: (nstates,)
+            State at the next time step, constrained. Shape: (nstates,)
         """
+        return self._step(state, deltat, self._constraint_for(int(state.shape[0])))[1]
+
+    def _step(
+        self,
+        state: Array,
+        deltat: float,
+        constraint: StateConstraintProtocol[Array],
+    ) -> Tuple[Array, Array]:
+        """One step: the Newton solution and the constrained state stored."""
         ctx = StepContext(t_prev=self._time, deltat=deltat, y_prev=state)
         self._time_residual.bind(ctx)
-        state = self._newton_solver.solve(state)
+        unprojected = self._newton_solver.solve(state)
         self._time += deltat
         if self._verbosity >= 1:
             print("Time:", self._time)
-        return state
+        return unprojected, constraint.constrain(unprojected, self._time)
+
+    def _constraint_for(self, nstates: int) -> StateConstraintProtocol[Array]:
+        """The given constraint, or the identity on ``nstates`` states."""
+        if self._constraint is not None:
+            return self._constraint
+        return IdentityConstraint(backend_state_space(self._bkd, nstates))
+
+    def unprojected_states(self) -> Array:
+        r"""The last solve's states before the constraint was applied.
+
+        Column 0 is the initial state as given, column :math:`n+1` the
+        Newton solution :math:`z_{n+1}` of step :math:`n`. Under the
+        identity constraint they are the stored states. Linearizations
+        of the steps are taken here, not at the stored states.
+
+        Returns
+        -------
+        Array
+            Shape: (nstates, ntimes)
+
+        Raises
+        ------
+        RuntimeError
+            Before the first :meth:`solve`.
+        """
+        if self._unprojected is None:
+            raise RuntimeError("unprojected_states is available after solve()")
+        return self._unprojected
 
     def solve(self, init_state: Array) -> Tuple[Array, Array]:
         """
@@ -162,18 +219,22 @@ class TimeIntegrator(Generic[Array]):
             times : Array
                 Time points. Shape: (ntimes,)
         """
+        constraint = self._constraint_for(int(init_state.shape[0]))
         states_list: list[Array] = []
+        unprojected_list: list[Array] = [init_state]
         times_list: list[float] = []
         self._time = self._init_time
         times_list.append(self._time)
-        state = init_state
-        states_list.append(init_state)
+        state = constraint.constrain(init_state, self._time)
+        states_list.append(state)
         while self._time < self._final_time - 1e-12:
             deltat = min(self._deltat, self._final_time - self._time)
-            state = self.step(state, deltat)
+            unprojected, state = self._step(state, deltat, constraint)
+            unprojected_list.append(unprojected)
             states_list.append(state)
             times_list.append(self._time)
         states = self._bkd.stack(states_list, axis=1)
+        self._unprojected = self._bkd.stack(unprojected_list, axis=1)
         times = self._bkd.asarray(times_list)
         if self._functional is not None:
             self._functional.set_time_quadrature(
