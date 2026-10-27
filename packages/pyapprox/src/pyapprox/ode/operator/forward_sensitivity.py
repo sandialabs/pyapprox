@@ -13,8 +13,36 @@ from pyapprox.ode.functionals.protocols import (
     TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.protocols.state_constraint import StateConstraintProtocol
+from pyapprox.ode.state_constraint import TangentFn
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
+
+
+def _constraint_tangent(
+    constraint: StateConstraintProtocol[Array], state: Array, time: float
+) -> TangentFn[Array]:
+    """The constraint's tangent, refusing what the sweep cannot apply."""
+    derivs = constraint.derivatives()
+    tangent, param = derivs.tangent, derivs.param
+    if tangent is None or param is None:
+        raise TypeError(
+            "the tangent-linear jacobian needs the state constraint's tangent "
+            f"and parameter derivative; {type(constraint).__name__} lacks them"
+        )
+    if not param(state, time).properties().zero:
+        raise NotImplementedError(
+            "constraint data depending on the parameters is not supported: "
+            "the constraint's parameter derivative must be a stated zero"
+        )
+    return tangent
+
+
+def _project(
+    tangent: TangentFn[Array], state: Array, time: float, block: Array
+) -> Array:
+    r""":math:`\Pi'` at ``state`` applied to a block of sensitivities."""
+    return tangent(state, time).apply(block)
 
 
 def forward_sensitivity_jacobian(
@@ -42,6 +70,15 @@ def forward_sensitivity_jacobian(
         \\frac{dQ}{dp} = \\sum_n \\frac{\\partial Q}{\\partial y_n} W_n
         + \\frac{\\partial Q}{\\partial p}.
 
+    With the integrator's state constraint :math:`\\Pi_t`, the stored state
+    is :math:`y_n = \\Pi_{t_n}(z_n)` for the step's Newton solution
+    :math:`z_n`, so the step gives :math:`dz_n/dp` by the formula above,
+    with :math:`\\partial R_n/\\partial y_n` taken at :math:`z_n` and
+    :math:`\\partial R_n/\\partial y_{n-1}` at the stored :math:`y_{n-1}`,
+    and :math:`W_n = \\Pi'(z_n)\\, dz_n/dp`; likewise
+    :math:`W_0 = \\Pi'(y_0)\\, dy_0/dp` for the initial state as given.
+    Under the identity constraint this is the unconstrained sweep.
+
     Each :math:`W_n` is applied through the functional's
     ``apply_state_jacobian`` before the next step overwrites
     it, so memory does not grow with the number of times the functional
@@ -68,6 +105,16 @@ def forward_sensitivity_jacobian(
     -------
     Array
         :math:`dQ/dp`. Shape: ``(nqoi, nparams)``.
+
+    Raises
+    ------
+    TypeError
+        If the constraint provides no tangent or parameter derivative.
+    NotImplementedError
+        If the constraint's parameter derivative is not a stated zero.
+    ValueError
+        With a constraint, if ``fwd_sols`` is not the integrator's last
+        solve.
     """
     derivs = functional.derivatives()
     apply_state_jacobian = derivs.apply_state_jacobian
@@ -100,6 +147,15 @@ def forward_sensitivity_jacobian(
             f"functional has {action.nparams()} parameters, expected "
             f"{n_unique} of its own plus the residual's {w_prev.shape[1]}"
         )
+    tangent = _constraint_tangent(
+        integrator.state_constraint(fwd_sols.shape[0], w_prev.shape[1]),
+        fwd_sols[:, 0],
+        bkd.to_float(times[0]),
+    )
+    # Each step is linearized at its own unknown z_n; the previous state
+    # and the functional read the stored states.
+    lin_sols = integrator.linearization_states(fwd_sols)
+    w_prev = _project(tangent, lin_sols[:, 0], bkd.to_float(times[0]), w_prev)
     state_part = apply_state_jacobian(fwd_sols, param, 0, w_prev)
 
     for nn in range(1, ntimes):
@@ -111,13 +167,18 @@ def forward_sensitivity_jacobian(
         time_residual.bind(ctx_nn)
 
         # A_n^T as an operator; its transposed solve is a solve with A_n.
-        diag_t = time_residual.adjoint_diag_jacobian(ctx_nn, fwd_sols[:, nn])
-        offdiag = time_residual.off_diag_operator(ctx_nn, fwd_sols[:, nn])
-        drdp_n = time_residual.param_jacobian(ctx_nn, fwd_sols[:, nn])
+        diag_t = time_residual.adjoint_diag_jacobian(ctx_nn, lin_sols[:, nn])
+        offdiag = time_residual.off_diag_operator(ctx_nn, lin_sols[:, nn])
+        drdp_n = time_residual.param_jacobian(ctx_nn, lin_sols[:, nn])
 
         # B_n and the solve apply to the whole block of sensitivities.
         rhs = offdiag.apply(w_prev) + bkd.asarray(drdp_n)
-        w_prev = -diag_t.solve_transpose(rhs)
+        w_prev = _project(
+            tangent,
+            lin_sols[:, nn],
+            bkd.to_float(times[nn]),
+            -diag_t.solve_transpose(rhs),
+        )
         state_part = state_part + apply_state_jacobian(
             fwd_sols, param, nn, w_prev
         )

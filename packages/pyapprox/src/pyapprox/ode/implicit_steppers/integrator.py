@@ -18,7 +18,7 @@ from pyapprox.ode.protocols.time_stepping import (
     HVPEnabledTimeSteppingResidualProtocol,
     TimeSteppingResidualProtocol,
 )
-from pyapprox.ode.residual_derivatives import backend_state_space
+from pyapprox.ode.residual_derivatives import backend_spaces, backend_state_space
 from pyapprox.ode.state_constraint import IdentityConstraint
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
@@ -80,6 +80,7 @@ class TimeIntegrator(Generic[Array]):
             )
         self._constraint = constraint
         self._unprojected: Optional[Array] = None
+        self._stored: Optional[Array] = None
         self._time_residual: TimeSteppingResidualProtocol[Array] = residual
         self._bkd = self._time_residual.bkd()
         self._init_time = init_time
@@ -157,7 +158,7 @@ class TimeIntegrator(Generic[Array]):
         Array
             State at the next time step, constrained. Shape: (nstates,)
         """
-        return self._step(state, deltat, self._constraint_for(int(state.shape[0])))[1]
+        return self._step(state, deltat, self.state_constraint(int(state.shape[0])))[1]
 
     def _step(
         self,
@@ -174,11 +175,59 @@ class TimeIntegrator(Generic[Array]):
             print("Time:", self._time)
         return unprojected, constraint.constrain(unprojected, self._time)
 
-    def _constraint_for(self, nstates: int) -> StateConstraintProtocol[Array]:
-        """The given constraint, or the identity on ``nstates`` states."""
+    def state_constraint(
+        self, nstates: int, nparams: Optional[int] = None
+    ) -> StateConstraintProtocol[Array]:
+        """The given constraint, or the identity on ``nstates`` states.
+
+        The identity has parameter derivatives (stated zeros) when
+        ``nparams`` is given, as the sensitivity sweeps need.
+        """
         if self._constraint is not None:
             return self._constraint
-        return IdentityConstraint(backend_state_space(self._bkd, nstates))
+        if nparams is None:
+            return IdentityConstraint(backend_state_space(self._bkd, nstates))
+        return IdentityConstraint(*backend_spaces(self._bkd, nstates, nparams))
+
+    def linearization_states(self, stored: Array) -> Array:
+        r"""The states the steps of trajectory ``stored`` are linearized at.
+
+        Step :math:`n` solves for :math:`z_{n+1}` from the stored
+        :math:`y_n`, so its derivatives in its unknown are taken at
+        :math:`z_{n+1}`. With no constraint that is ``stored`` itself;
+        with one it is :meth:`unprojected_states`, which belongs to the
+        last solve only.
+
+        Raises
+        ------
+        ValueError
+            With a constraint, if ``stored`` is not the last solve's
+            trajectory: its unprojected states are not kept.
+        """
+        if self._constraint is None:
+            return stored
+        last = self._stored
+        if (
+            last is None
+            or self._unprojected is None
+            or tuple(stored.shape) != tuple(last.shape)
+            or self._bkd.to_float(self._bkd.max(self._bkd.abs(stored - last)))
+            != 0.0
+        ):
+            raise ValueError(
+                "with a state constraint, sensitivities need the trajectory "
+                "of the integrator's last solve, whose unprojected states it "
+                "keeps; re-solve before differentiating another trajectory"
+            )
+        return self._unprojected
+
+    def _refuse_constraint(self, what: str) -> None:
+        """Refuse a constraint where the sweep does not apply it yet."""
+        if self._constraint is not None:
+            raise NotImplementedError(
+                f"{what} does not apply a state constraint yet; only the "
+                "tangent-linear jacobian (forward_sensitivity_jacobian) does"
+            )
 
     def unprojected_states(self) -> Array:
         r"""The last solve's states before the constraint was applied.
@@ -219,7 +268,7 @@ class TimeIntegrator(Generic[Array]):
             times : Array
                 Time points. Shape: (ntimes,)
         """
-        constraint = self._constraint_for(int(init_state.shape[0]))
+        constraint = self.state_constraint(int(init_state.shape[0]))
         states_list: list[Array] = []
         unprojected_list: list[Array] = [init_state]
         times_list: list[float] = []
@@ -235,6 +284,7 @@ class TimeIntegrator(Generic[Array]):
             times_list.append(self._time)
         states = self._bkd.stack(states_list, axis=1)
         self._unprojected = self._bkd.stack(unprojected_list, axis=1)
+        self._stored = states
         times = self._bkd.asarray(times_list)
         if self._functional is not None:
             self._functional.set_time_quadrature(
@@ -349,6 +399,7 @@ class TimeIntegrator(Generic[Array]):
             Adjoint solution trajectory. Shape: (nstates, ntimes)
         """
         residual = self._require_adjoint()
+        self._refuse_constraint("the adjoint solve")
 
         if not self._bkd.allclose(
             times[-1], self._bkd.asarray(self._final_time), atol=1e-12
@@ -475,6 +526,7 @@ class TimeIntegrator(Generic[Array]):
             Gradient dQ/dp. Shape: (1, nparams)
         """
         residual = self._require_adjoint()
+        self._refuse_constraint("the adjoint gradient")
 
         functional = self._functional
         state_jacobian = self._functional_state_jacobian
