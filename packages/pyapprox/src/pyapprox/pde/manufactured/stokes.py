@@ -139,8 +139,16 @@ class ManufacturedStokes(
                 copy.deepcopy(self._expressions["forcing"]),
                 self._sol_strs[0],
             )
+            sol_dots = [
+                self._expressions["solution"][ii].diff(self.time_symbol()[0])
+                for ii in range(self.ncomponents())
+            ]
+            # Analytic du/dT for every component, pressure included:
+            # boundary data on any field need their rate. Marked transient
+            # so the callable takes (pts, time).
+            self._set_expression_from_bool(
+                "solution_time_derivative", sol_dots, True
+            )
             # Only add temporal derivative for velocity, NOT pressure
             for ii in range(self._nvars):
-                self._expressions["forcing"][ii] += self._expressions["solution"][
-                    ii
-                ].diff(self.time_symbol()[0])
+                self._expressions["forcing"][ii] += sol_dots[ii]

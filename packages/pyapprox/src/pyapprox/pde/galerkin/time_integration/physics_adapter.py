@@ -10,8 +10,11 @@ The adapter presents a BC-NEUTRALIZED, well-posed ODE:
              time-invariant constraint sets)
   jacobian = spatial_jacobian with essential rows zeroed
 
-The neutralization, and why raw rows are not used, is
-:class:`~pyapprox.pde.galerkin.time_integration.neutralized_rows.NeutralizedRows`.
+The row treatment is an injected strategy: the default keeps the mass's
+coupling columns (exact discrete conservation with the wrapper); the
+symmetric one zeros them and moves -M_ID g_dot into f. Both, and why raw
+rows are not used, are in
+:mod:`~pyapprox.pde.galerkin.time_integration.neutralized_rows`.
 Constraint VALUES for the end-of-step system stay out of this layer:
 the BC-enforcing time residual wrapper replaces the constrained rows
 of the residual/Jacobian with R[d] = y[d] - g(t_{n+1}), J[d,:] = e_d,
@@ -39,6 +42,8 @@ from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
 )
 from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
+    RowTreatmentFactory,
+    RowTreatmentProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.stack_discretization import (
     GalerkinStackDiscretization,
@@ -48,7 +53,6 @@ from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
     LinearSolverProtocol,
-    RowReplacedOperator,
 )
 
 F = TypeVar("F", bound=FormatProtocol)
@@ -78,6 +82,8 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
     - jacobian(y) = spatial_jacobian with essential rows zeroed
     - mass_matrix() = mass with identity rows at essential DOFs
 
+    as the injected row treatment defines them.
+
     and, for implicit steppers, the same ODE as a residual-form system
     of the discretization's stack operators (:meth:`implicit_system`),
     with the essential rows applied here: the discretization applies
@@ -92,6 +98,18 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
     solver : LinearSolverProtocol
         Solves the implicit system's shifted Jacobians; pairs with the
         stack's format ``F``.
+    row_treatment : RowTreatmentFactory, optional
+        Builds the essential-row strategy from the constraint set,
+        backend, lumping and raw mass. Defaults to
+        :class:`~pyapprox.pde.galerkin.time_integration.neutralized_rows.NeutralizedRows`;
+        :class:`~pyapprox.pde.galerkin.time_integration.neutralized_rows.SymmetricNeutralizedRows`
+        gives the symmetric mass.
+
+    Raises
+    ------
+    TypeError
+        If the row treatment refuses the system (the symmetric one, for a
+        consistent mass with time-varying data and no analytic g_dot).
 
     Examples
     --------
@@ -103,6 +121,7 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         self,
         discretization: GalerkinStackDiscretization[Array, Array, F],
         solver: LinearSolverProtocol[Array, F],
+        row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
         if not isinstance(discretization, GalerkinStackDiscretization):
             raise TypeError(
@@ -130,15 +149,15 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         # The lumping is the discretization's mass assembler's choice; the
         # matrix-era mass follows it, so the two masses agree.
         self._lumped_mass = discretization.assemble_mass().properties().diagonal
-        self._rows = NeutralizedRows(
-            self._constraint_set, self._bkd, self._lumped_mass
+        self._rows: RowTreatmentProtocol[Array] = row_treatment(
+            self._constraint_set, self._bkd, self._lumped_mass, system.mass_matrix()
         )
-        self._mass = self._rows.mass(system.mass_matrix())
+        self._mass = self._rows.mass()
         self._essential_jacobian = GalerkinJacobianOperator(
             discretization, discretization.essential_rows()
         )
         self._stack_mass_source: Optional[ActionOperatorProtocol[Array, F]] = None
-        self._stack_mass: Optional[RowReplacedOperator[Array, F]] = None
+        self._stack_mass: Optional[ActionOperatorProtocol[Array, F]] = None
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -157,11 +176,11 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         """Evaluate the BC-neutralized residual f(y, t).
 
         Essential rows carry the boundary velocity g_dot(t) (exact
-        zeros for time-invariant sets), so stage solves against the
-        BC-neutralized mass are the constrained stage systems. When no
-        analytic g_dot is available (permitted for one-step steppers —
-        the wrapper replaces these rows anyway) the essential rows are
-        zeroed.
+        zeros for time-invariant sets), and with the symmetric row
+        treatment interior rows carry -M_ID g_dot(t), so stage solves
+        against the BC-neutralized mass are the constrained stage systems.
+        Without an analytic g_dot (permitted by the default treatment) the
+        essential rows are zeroed.
 
         Parameters
         ----------
@@ -203,12 +222,12 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         """Return the FEM mass matrix as a value-object."""
         return self._mass
 
-    def _row_replaced_mass(self) -> RowReplacedOperator[Array, F]:
-        """The stack mass with the essential rows replaced by identity rows,
-        rebuilt only when the discretization's mass changes."""
+    def _neutralized_stack_mass(self) -> ActionOperatorProtocol[Array, F]:
+        """The stack mass with the row treatment's essential rows, rebuilt
+        only when the discretization's mass changes."""
         assembled = self._discretization.assemble_mass()
         if self._stack_mass is None or self._stack_mass_source is not assembled:
-            self._stack_mass = RowReplacedOperator(
+            self._stack_mass = self._rows.stack_mass(
                 assembled, self._discretization.essential_rows()
             )
             self._stack_mass_source = assembled
@@ -216,12 +235,11 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
 
     def implicit_system(self) -> MassMatrixSystem[Array, F]:
         """The residual-form system implicit steppers solve with: the
-        BC-neutralized ODE as stack operators (identity essential rows in
-        the mass, zeroed essential rows in the Jacobian) and the
-        adapter's solver."""
+        BC-neutralized ODE as stack operators (the row treatment's mass,
+        zeroed essential rows in the Jacobian) and the adapter's solver."""
         return MassMatrixSystem(
             self,
-            self._row_replaced_mass(),
+            self._neutralized_stack_mass(),
             self._essential_jacobian,
             self._discretization.space(),
             self._solver,

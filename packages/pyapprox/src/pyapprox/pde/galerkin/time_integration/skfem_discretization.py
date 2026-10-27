@@ -14,6 +14,10 @@ from pyapprox.pde.assembly import ScipyAssemblyStack
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
+    NeutralizedRows,
+    RowTreatmentFactory,
+)
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
@@ -64,6 +68,7 @@ def skfem_ode_residual(
     system: GalerkinTransientSystemProtocol[_Np],
     lumped_mass: bool = False,
     solver: Optional[LinearSolverProtocol[_Np, CSRFormat]] = None,
+    row_treatment: RowTreatmentFactory[_Np] = NeutralizedRows,
 ) -> GalerkinPhysicsToODEResidualAdapter[_Np, CSRFormat]:
     """The time-integration adapter of an skfem system on the SciPy stack.
 
@@ -77,8 +82,12 @@ def skfem_ode_residual(
     solver : LinearSolverProtocol, optional
         Solves the implicit steps' shifted Jacobians. Defaults to sparse
         LU.
+    row_treatment : RowTreatmentFactory, optional
+        The essential-row strategy; defaults to
+        :class:`~pyapprox.pde.galerkin.time_integration.neutralized_rows.NeutralizedRows`.
     """
     return GalerkinPhysicsToODEResidualAdapter(
         skfem_discretization(system, lumped_mass),
         ScipySparseLU() if solver is None else solver,
+        row_treatment,
     )

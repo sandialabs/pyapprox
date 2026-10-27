@@ -28,6 +28,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
+from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
@@ -162,36 +163,44 @@ def _build_stokes_from_manufactured(
     bc_names = _boundary_names(nvars)
 
     def _make_vel_bc(
-        funcs: _ManufacturedFuncs, nvars: int, transient: bool
+        funcs: _ManufacturedFuncs, nvars: int, transient: bool, key: str
     ) -> Callable[..., _NumpyArray]:
         def vel_bc(coords: _NumpyArray, time: float = 0.0) -> _NumpyArray:
             x_eval = coords[0] if nvars == 1 else coords
             if transient:
-                vals = funcs["solution"](x_eval, time)
+                vals = funcs[key](x_eval, time)
             else:
-                vals = funcs["solution"](x_eval)
+                vals = funcs[key](x_eval)
             # One row per component (a 1D velocity is scalar-valued).
             if nvars == 1:
                 return np.asarray(vals[:, 0])
             return np.asarray(vals[:, :nvars].T)
 
-        return (
-            TimeDependent(vel_bc) if transient else TimeIndependent(vel_bc)
-        )
+        return vel_bc
 
     def _make_pres_bc(
-        funcs: _ManufacturedFuncs, nvars: int, transient: bool
+        funcs: _ManufacturedFuncs, nvars: int, transient: bool, key: str
     ) -> Callable[..., _NumpyArray]:
         def pres_bc(coords: _NumpyArray, time: float = 0.0) -> _NumpyArray:
             x_eval = coords[0] if nvars == 1 else coords
             if transient:
-                vals = funcs["solution"](x_eval, time)
+                vals = funcs[key](x_eval, time)
             else:
-                vals = funcs["solution"](x_eval)
+                vals = funcs[key](x_eval)
             return np.asarray(vals[:, nvars])
 
-        return (
-            TimeDependent(pres_bc) if transient else TimeIndependent(pres_bc)
+        return pres_bc
+
+    def _boundary_data(
+        make: Callable[..., Callable[..., _NumpyArray]],
+    ) -> Union[BoundarySignal, TimeIndependent]:
+        """Time-varying data carry their analytic rate, which a consistent
+        mass couples into the interior rows."""
+        if not transient:
+            return TimeIndependent(make(funcs, nvars, transient, "solution"))
+        return BoundarySignal(
+            TimeDependent(make(funcs, nvars, transient, "solution")),
+            [TimeDependent(make(funcs, nvars, transient, "solution_time_derivative"))],
         )
 
     if transient:
@@ -231,8 +240,8 @@ def _build_stokes_from_manufactured(
 
             return pres_forcing
 
-    vel_bc = _make_vel_bc(funcs, nvars, transient)
-    pres_bc = _make_pres_bc(funcs, nvars, transient)
+    vel_bc = _boundary_data(_make_vel_bc)
+    pres_bc = _boundary_data(_make_pres_bc)
     vel_forcing = _make_vel_forcing(funcs, nvars)
     pres_forcing = _make_pres_forcing(funcs, nvars)
 
