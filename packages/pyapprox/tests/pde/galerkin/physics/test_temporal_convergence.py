@@ -26,6 +26,9 @@ from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.protocols import StateConstraintProtocol
+from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
@@ -37,12 +40,19 @@ from pyapprox.pde.galerkin.manufactured.adapter import (
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
+    GalerkinPhysicsToODEResidualAdapter,
     GalerkinTransientModel,
+    SymmetricNeutralizedRows,
     TimeIntegrationConfig,
     skfem_ode_residual,
 )
+from pyapprox.pde.galerkin.time_integration.state_constraints import (
+    EssentialPin,
+    MassConsistentProjection,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.markers import slow_test
 
 _BOUNDARY_NAMES = ["left", "right"]
@@ -389,17 +399,27 @@ class TestTemporalConvergenceNonzeroDirichlet:
 _COUPLED_SOLUTION = "(x+x*(1-x))*(1+T**3)"
 
 
-def _final_time_errors(
-    bkd: NumpyBkd, method: str, dt_values: List[float]
-) -> List[float]:
-    """Error at t = 1 of each step size, for the coupled solution."""
-    model, exact_at_time = _setup_physics_and_model(
+def _coupled_setup(
+    bkd: NumpyBkd,
+) -> Tuple[
+    GalerkinTransientModel[NDArray[Any]],
+    Callable[[float], NDArray[np.floating[Any]]],
+]:
+    """The coupled-Dirichlet oracle problem: its model and exact DOFs."""
+    return _setup_physics_and_model(
         bkd,
         sol_str=_COUPLED_SOLUTION,
         diff_str="0.1+1e-16*x",
         vel_strs=["0+1e-16*x"],
         bndry_types=["D", "D"],
     )
+
+
+def _final_time_errors(
+    bkd: NumpyBkd, method: str, dt_values: List[float]
+) -> List[float]:
+    """Error at t = 1 of each step size, for the coupled solution."""
+    model, exact_at_time = _coupled_setup(bkd)
     errors = []
     for dt in dt_values:
         config: TimeIntegrationConfig[NDArray[Any]] = TimeIntegrationConfig(
@@ -442,6 +462,81 @@ class TestTemporalConvergenceCoupledDirichlet:
         explicit = (method, expected_order) in EXPLICIT_CONVERGENCE_CASES
         dt_values = [0.01, 0.005, 0.0025] if explicit else [0.1, 0.05, 0.025]
         errors = _final_time_errors(numpy_bkd, method, dt_values)
+        rates = _compute_convergence_rates(dt_values, errors)
+        assert np.all(rates > expected_order - 0.15), (
+            f"{method}: rates={rates}, errors={errors}"
+        )
+
+
+_Constraint = StateConstraintProtocol[NDArray[Any]]
+
+
+def _projection(
+    adapter: GalerkinPhysicsToODEResidualAdapter[NDArray[Any], Any],
+) -> _Constraint:
+    return MassConsistentProjection(adapter, 0)
+
+
+def _pin(
+    adapter: GalerkinPhysicsToODEResidualAdapter[NDArray[Any], Any],
+) -> _Constraint:
+    return EssentialPin(adapter.system(), 0)
+
+
+def _strategy_errors(
+    bkd: NumpyBkd,
+    method: str,
+    dt_values: List[float],
+    constraint_of: Callable[
+        [GalerkinPhysicsToODEResidualAdapter[NDArray[Any], Any]], _Constraint
+    ],
+) -> List[float]:
+    """Error at t = 1 of each step size, stepping the symmetric row
+    treatment without the BC wrapper, the stored states constrained."""
+    model, exact_at_time = _coupled_setup(bkd)
+    adapter = skfem_ode_residual(
+        model.system(), row_treatment=SymmetricNeutralizedRows
+    )
+    constraint = constraint_of(adapter)
+    errors = []
+    for dt in dt_values:
+        newton = NewtonSolver(create_stepper(method, adapter))
+        newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
+        integrator = TimeIntegrator(0.0, 1.0, dt, newton, constraint=constraint)
+        solutions, times = integrator.solve(bkd.asarray(exact_at_time(0.0)))
+        u_exact = exact_at_time(float(times[-1]))
+        errors.append(
+            float(np.linalg.norm(bkd.to_numpy(solutions[:, -1]) - u_exact))
+        )
+    return errors
+
+
+class TestTemporalConvergenceStrategies:
+    """The symmetric row treatment keeps every method's order, with either
+    the mass-consistent projection (exactly conservative for explicit
+    steppers) or the plain pin: the same oracle, rates and step sizes as
+    :class:`TestTemporalConvergenceCoupledDirichlet`, which covers
+    today's strategy."""
+
+    @pytest.mark.parametrize(
+        "constraint_of", [_projection, _pin], ids=["projection", "pin"]
+    )
+    @pytest.mark.parametrize(
+        "method,expected_order",
+        IMPLICIT_CONVERGENCE_CASES + EXPLICIT_CONVERGENCE_CASES,
+    )
+    def test_order(
+        self,
+        numpy_bkd: NumpyBkd,
+        method: str,
+        expected_order: float,
+        constraint_of: Callable[
+            [GalerkinPhysicsToODEResidualAdapter[NDArray[Any], Any]], _Constraint
+        ],
+    ) -> None:
+        explicit = (method, expected_order) in EXPLICIT_CONVERGENCE_CASES
+        dt_values = [0.01, 0.005, 0.0025] if explicit else [0.1, 0.05, 0.025]
+        errors = _strategy_errors(numpy_bkd, method, dt_values, constraint_of)
         rates = _compute_convergence_rates(dt_values, errors)
         assert np.all(rates > expected_order - 0.15), (
             f"{method}: rates={rates}, errors={errors}"
