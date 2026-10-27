@@ -12,7 +12,7 @@ Algorithm:
 5. Accumulate HVP from Lagrangian terms at each time step
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalProtocol,
@@ -31,6 +31,7 @@ from pyapprox.ode.protocols.time_stepping import (
 from pyapprox.ode.protocols.type_guards import (
     is_hvp_enabled,
 )
+from pyapprox.ode.residual_derivatives import SecondDerivativeFn
 from pyapprox.ode.state_constraint import TangentFn, sweep_tangent
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
@@ -216,7 +217,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Steps are linearized at their own unknowns z_n; the functional
         # and the steps' previous states read the stored y_n = Pi(z_n).
         lin_sols = self._integrator.linearization_states(fwd_sols)
-        tangent = self._constraint_tangent(fwd_sols, times)
+        tangent, constraint_curvature = self._constraint_terms(fwd_sols, times)
 
         # Solve forward sensitivity equations: stored tangents w, and the
         # unprojected dz the steps' own unknowns move by.
@@ -227,19 +228,30 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Solve second adjoint equations
         s_sols = self._solve_second_adjoint(
             fwd_sols, lin_sols, adj_sols, w_sols, dz_sols, times, param, vvec,
-            hvp_residual, tangent,
+            hvp_residual, tangent, constraint_curvature,
         )
 
         # Accumulate HVP
         return self._accumulate_hvp(
             fwd_sols, lin_sols, adj_sols, w_sols, dz_sols, s_sols, times,
-            param, vvec, hvp_residual, tangent,
+            param, vvec, hvp_residual, tangent, constraint_curvature,
         )
 
-    def _constraint_tangent(self, fwd_sols: Array, times: Array) -> TangentFn[Array]:
-        """The integrator's constraint tangent, refusing a constraint the
-        second-order sweep cannot apply: one without second derivatives, or
-        with parameter-dependent or curved (non-affine) second derivatives."""
+    def _constraint_terms(
+        self, fwd_sols: Array, times: Array
+    ) -> Tuple[TangentFn[Array], Optional[SecondDerivativeFn[Array]]]:
+        r"""The integrator's constraint tangent :math:`\Pi'` and curvature
+        :math:`\lambda^\top \Pi''`, the latter ``None`` when it is a stated
+        zero (an affine constraint), so the sweep skips it.
+
+        Raises
+        ------
+        TypeError
+            If the constraint declares no second derivatives.
+        NotImplementedError
+            If its mixed or parameter second derivative is not a stated
+            zero (constraint data depending on the parameters).
+        """
         nres = self.nparams() - self._functional.nunique_params()
         derivs = self._integrator.state_constraint(
             fwd_sols.shape[0], nres
@@ -254,13 +266,30 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 "second derivatives; its derivatives() lacks them"
             )
         adj = self._bkd.zeros((fwd_sols.shape[0],))
-        for second in (state_state, state_param, param_param):
+        for second in (state_param, param_param):
             if not second(fwd_sols[:, 0], time_0, adj).properties().zero:
                 raise NotImplementedError(
-                    "the Hessian-vector product supports only constraints "
-                    "whose second derivatives are stated zeros (affine)"
+                    "constraint data depending on the parameters is not "
+                    "supported: the constraint's mixed and parameter second "
+                    "derivatives must be stated zeros"
                 )
-        return tangent
+        if state_state(fwd_sols[:, 0], time_0, adj).properties().zero:
+            return tangent, None
+        return tangent, state_state
+
+    def _constraint_curvature_term(
+        self,
+        constraint_curvature: SecondDerivativeFn[Array],
+        state: Array,
+        time: Array,
+        weight: Array,
+        direction: Array,
+    ) -> Array:
+        r""":math:`(\mathrm{weight}^\top \Pi''(state))` applied to
+        ``direction``; 1-D vectors in and out."""
+        op = constraint_curvature(state, self._bkd.to_float(time), weight)
+        block = self._bkd.reshape(direction, (direction.shape[0], 1))
+        return op.apply(block)[:, 0]
 
     def _tangent_transpose(
         self, tangent: TangentFn[Array], state: Array, time: Array, vec: Array
@@ -367,18 +396,23 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         vvec: Array,
         hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
         tangent: TangentFn[Array],
+        constraint_curvature: Optional[SecondDerivativeFn[Array]],
     ) -> Array:
         r"""
         Solve the second adjoint equations for HVP computation.
 
         For the unknown :math:`z_n` of step :math:`n`,
         :math:`(\partial R_n/\partial z_n)^\top s_n = -[\Pi'(z_n)^\top a_n
-        + b_n]`, where :math:`a_n` collects what reaches :math:`z_n`
-        through the stored :math:`y_n` (the coupling
-        :math:`B_{n+1}^\top s_{n+1}`, the functional's terms and step
-        :math:`n+1`'s previous-state terms) and :math:`b_n` step
-        :math:`n`'s own terms in its unknown. Directions follow the
-        variable: the stored tangent :math:`w` for stored states, the
+        + b_n + (g_n^\top \Pi''(z_n))\, dz_n]`, where :math:`a_n` collects
+        what reaches :math:`z_n` through the stored :math:`y_n` (the
+        coupling :math:`B_{n+1}^\top s_{n+1}`, the functional's terms and
+        step :math:`n+1`'s previous-state terms), :math:`b_n` step
+        :math:`n`'s own terms in its unknown, and
+        :math:`g_n = dQ/dy_n + B_{n+1}^\top \lambda_{n+1}` is the bracket
+        of the first adjoint, weighting the constraint's curvature (skipped
+        when ``constraint_curvature`` is ``None``, an affine constraint).
+        Directions follow the variable: the stored tangent :math:`w` for
+        stored states, the
         unprojected :math:`dz` for a step's unknown. :math:`s_0` is
         unchanged: :math:`y_0` is projected data, not an unknown.
 
@@ -418,6 +452,17 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         if ntimes > 2:
             own = own + hvp_residual.state_prev_state_hvp(
                 ctx_N, lin_sols[:, -1], adj_sols[:, -1], w_sols[:, -2],
+            )
+
+        # The constraint's curvature, weighted by g_N = dQ/dy_N.
+        if constraint_curvature is not None:
+            dqdu = self._state_jacobian(fwd_sols, param)
+            own = own + self._constraint_curvature_term(
+                constraint_curvature,
+                lin_sols[:, -1],
+                times[-1],
+                self._time_residual.zero_adjoint_rhs(dqdu[:, -1]),
+                dz_sols[:, -1],
             )
 
         rhs_N = -(
@@ -487,6 +532,20 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                     ctx_n, lin_sols[:, nn], adj_sols[:, nn], w_sols[:, nn - 1],
                 )
             )
+            # The constraint's curvature, weighted by the first adjoint's
+            # bracket g_n = dQ/dy_n + B_{n+1}^T lambda_{n+1}.
+            if constraint_curvature is not None:
+                weight = (
+                    self._time_residual.zero_adjoint_rhs(dqdu[:, nn])
+                    + offdiag.apply_transpose(adj_sols[:, nn + 1 : nn + 2])[:, 0]
+                )
+                own = own + self._constraint_curvature_term(
+                    constraint_curvature,
+                    lin_sols[:, nn],
+                    times[nn],
+                    weight,
+                    dz_sols[:, nn],
+                )
 
             rhs = -(
                 self._tangent_transpose(
@@ -552,6 +611,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         vvec: Array,
         hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
         tangent: TangentFn[Array],
+        constraint_curvature: Optional[SecondDerivativeFn[Array]],
     ) -> Array:
         """
         Accumulate the Hessian-vector product from all contributions.
@@ -566,7 +626,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         second through the curvature of y_0(p), which the residual must
         state via ``initial_param_hvp`` (zero for an affine y_0). With a
         constraint the stored y_0 is Pi(given y_0), so dy_0/dp carries
-        Pi' and the curvature's weight is Pi'^T g. Each step's terms are
+        Pi', the curvature's weight is Pi'^T g, and the constraint's own
+        curvature adds (dy_0/dp)^T (g^T Pi'') dz_0, dy_0/dp and
+        dz_0 = (dy_0/dp) v being the given state's. Each step's terms are
         taken at its unknown z_n, its own current-state direction being
         dz_n and its previous state's the stored w_{n-1}.
         """
@@ -587,8 +649,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         ctx_0 = self._make_ctx(times, 1, fwd_sols)
         self._time_residual.bind(ctx_0)
         mass = self._time_residual.native_residual.mass_matrix()
+        given_dy0dp = self._time_residual.initial_param_jacobian()
         dy0dp = tangent(lin_sols[:, 0], self._bkd.to_float(times[0])).apply(
-            self._time_residual.initial_param_jacobian()
+            given_dy0dp
         )
         init_hvp = -self._bkd.reshape(
             mass.apply_transpose(s_sols[:, 0]) @ dy0dp, (-1, 1)
@@ -600,15 +663,25 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             self._state_jacobian(fwd_sols, param)[:, 0]
         )
         offdiag = self._time_residual.off_diag_operator(ctx_0, lin_sols[:, 1])
+        sensitivity_0 = offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0
         init_weight = self._tangent_transpose(
-            tangent,
-            lin_sols[:, 0],
-            times[0],
-            offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0,
+            tangent, lin_sols[:, 0], times[0], sensitivity_0
         )
         init_hvp = init_hvp + self._bkd.reshape(
             hvp_residual.initial_param_hvp(init_weight, v_res), (-1, 1)
         )
+        if constraint_curvature is not None:
+            init_hvp = init_hvp + self._bkd.reshape(
+                self._constraint_curvature_term(
+                    constraint_curvature,
+                    lin_sols[:, 0],
+                    times[0],
+                    sensitivity_0,
+                    dz_sols[:, 0],
+                )
+                @ given_dy0dp,
+                (-1, 1),
+            )
         if n_unique > 0:
             init_full = self._bkd.zeros((nparams, 1))
             init_full = self._bkd.copy(init_full)
