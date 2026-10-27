@@ -1,12 +1,13 @@
 """Sensitivities of a trajectory whose stored states are constrained.
 
-Lotka-Volterra under backward Euler, with a constraint pinning the first
-state entry to :math:`1 + t` (affine, so :math:`\\Pi' = \\mathrm{diag}(0,
-1)` everywhere). The tangent-linear Jacobian of the final state is
-DerivativeChecker-validated against finite differences of constrained
-solves. Control: a constraint that pins identically but declares an
-identity tangent, so the sweep drops :math:`\\Pi'`, is off at O(1); the
-sweeps that do not apply a constraint yet refuse one.
+Lotka-Volterra under backward Euler, with a curved projection whose
+tangent depends on the state (``_PinAndRescale``). The tangent-linear and
+adjoint Jacobians of the final state are DerivativeChecker-validated
+against finite differences of constrained solves, and agree with each
+other to near round-off. Controls: a dropped tangent, and the tangent
+evaluated at the projected state, are caught by both methods. The
+Hessian-vector product, which does not apply a constraint yet, refuses
+one.
 """
 
 from typing import Generic
@@ -23,11 +24,16 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
-from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerAdjoint
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerHVP
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.forward_sensitivity import (
     forward_sensitivity_jacobian,
 )
+from pyapprox.ode.operator.qoi_jacobian import (
+    TransientQoIJacobianMethod,
+    adjoint_jacobian,
+)
+from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_spaces
 from pyapprox.ode.state_constraint import StateConstraintDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
@@ -114,7 +120,7 @@ class _TangentAtProjection(_PinAndRescale[Array]):
 def _integrator(
     model: LotkaVolterra[Array], constraint: _PinAndRescale[Array]
 ) -> TimeIntegrator[Array]:
-    newton = NewtonSolver(BackwardEulerAdjoint(model))
+    newton = NewtonSolver(BackwardEulerHVP(model))
     newton.set_options(maxiters=20, atol=1e-13, rtol=0.0)
     return TimeIntegrator(0.0, _FINAL_TIME, _DELTAT, newton, constraint=constraint)
 
@@ -125,13 +131,30 @@ def _init_state(bkd: Backend[Array]) -> Array:
     return bkd.asarray([1.0, 5.0])
 
 
+def _jacobian(
+    bkd: Backend[Array],
+    constraint: _PinAndRescale[Array],
+    method: TransientQoIJacobianMethod[Array],
+    sample: Array,
+) -> Array:
+    """The final state's parameter Jacobian by ``method``, after a
+    constrained solve at ``sample``."""
+    model = LotkaVolterra(bkd)
+    model.set_param(sample[:, 0])
+    integrator = _integrator(model, constraint)
+    states, times = integrator.solve(_init_state(bkd))
+    functional = AllStatesEndpointFunctional(_NSTATES, _NPARAMS, bkd)
+    return method(integrator, functional, states, times, sample)
+
+
 def _checker(
-    bkd: Backend[Array], constraint: _PinAndRescale[Array]
+    bkd: Backend[Array],
+    constraint: _PinAndRescale[Array],
+    method: TransientQoIJacobianMethod[Array],
 ) -> DerivativeChecker[Array]:
     """Final state against parameters: constrained solves, and their
-    tangent-linear Jacobian."""
+    Jacobian by ``method``."""
     model = LotkaVolterra(bkd)
-    functional = AllStatesEndpointFunctional(_NSTATES, _NPARAMS, bkd)
 
     def final_states(samples: Array) -> Array:
         columns = []
@@ -141,51 +164,77 @@ def _checker(
             columns.append(states[:, -1])
         return bkd.stack(columns, axis=1)
 
-    def tangent_jacobian(sample: Array) -> Array:
-        model.set_param(sample[:, 0])
-        integrator = _integrator(model, constraint)
-        states, times = integrator.solve(_init_state(bkd))
-        return forward_sensitivity_jacobian(
-            integrator, functional, states, times, sample
-        )
+    def jacobian(sample: Array) -> Array:
+        return _jacobian(bkd, constraint, method, sample)
 
     return DerivativeChecker(
         FunctionWithJacobianFromCallable(
             nqoi=_NSTATES,
             nvars=_NPARAMS,
             fun=final_states,
-            jacobian=tangent_jacobian,
+            jacobian=jacobian,
             bkd=bkd,
         )
     )
+
+
+_METHODS = pytest.mark.parametrize(
+    "method",
+    [forward_sensitivity_jacobian, adjoint_jacobian],
+    ids=["tangent_linear", "adjoint"],
+)
 
 
 def _sample(bkd: Backend[Array]) -> Array:
     return bkd.asarray(np.reshape(_PARAM, (-1, 1)))
 
 
-class TestTangentLinear:
-    def test_matches_finite_differences(self, bkd: Backend[Array]) -> None:
-        checker = _checker(bkd, _PinAndRescale(bkd))
+class TestFirstOrder:
+    @_METHODS
+    def test_matches_finite_differences(
+        self, bkd: Backend[Array], method: TransientQoIJacobianMethod[Array]
+    ) -> None:
+        checker = _checker(bkd, _PinAndRescale(bkd), method)
         errors = checker.check_derivatives(_sample(bkd), relative=True)[0]
         # One-sided differences of the Newton solves bottom out near 1e-8;
         # a wrong tangent plateaus far above (the controls below).
         assert bkd.to_float(bkd.min(errors)) <= 1e-6
 
-    def test_dropping_the_tangent_is_detected(self, bkd: Backend[Array]) -> None:
-        """Control: an error no finite-difference step size removes."""
-        _assert_detected(bkd, _DroppedTangent(bkd))
-
-    def test_the_tangent_at_the_projected_state_is_detected(
+    def test_adjoint_agrees_with_the_tangent_linear_model(
         self, bkd: Backend[Array]
+    ) -> None:
+        """Two independent sweeps, one forward, one backward, through the
+        same discrete equations: they agree to near round-off."""
+        constraint, sample = _PinAndRescale(bkd), _sample(bkd)
+        bkd.assert_allclose(
+            _jacobian(bkd, constraint, adjoint_jacobian, sample),
+            _jacobian(bkd, constraint, forward_sensitivity_jacobian, sample),
+            rtol=1e-10,
+        )
+
+    @_METHODS
+    def test_dropping_the_tangent_is_detected(
+        self, bkd: Backend[Array], method: TransientQoIJacobianMethod[Array]
+    ) -> None:
+        """Control: an error no finite-difference step size removes."""
+        _assert_detected(bkd, _DroppedTangent(bkd), method)
+
+    @_METHODS
+    def test_the_tangent_at_the_projected_state_is_detected(
+        self, bkd: Backend[Array], method: TransientQoIJacobianMethod[Array]
     ) -> None:
         """Control: linearizing at the stored state rather than the
         Newton solution is caught too."""
-        _assert_detected(bkd, _TangentAtProjection(bkd))
+        _assert_detected(bkd, _TangentAtProjection(bkd), method)
 
 
-def _assert_detected(bkd: Backend[Array], constraint: _PinAndRescale[Array]) -> None:
-    errors = _checker(bkd, constraint).check_derivatives(_sample(bkd), relative=True)[0]
+def _assert_detected(
+    bkd: Backend[Array],
+    constraint: _PinAndRescale[Array],
+    method: TransientQoIJacobianMethod[Array],
+) -> None:
+    checker = _checker(bkd, constraint, method)
+    errors = checker.check_derivatives(_sample(bkd), relative=True)[0]
     assert bkd.to_float(bkd.min(errors)) > 1e-3
 
 
@@ -199,11 +248,14 @@ class TestRefusals:
         states, times = integrator.solve(_init_state(bkd))
         return integrator, states, times
 
-    def test_adjoint_gradient_refuses_a_constraint(self, bkd: Backend[Array]) -> None:
-        integrator, states, times = self._solved(bkd, _PinAndRescale(bkd))
-        integrator.set_functional(AllStatesEndpointFunctional(1, _NPARAMS, bkd))
-        with pytest.raises(NotImplementedError, match="adjoint solve"):
-            integrator.gradient(states, times, _sample(bkd))
+    def test_hvp_refuses_a_constraint(self, bkd: Backend[Array]) -> None:
+        integrator, _, _ = self._solved(bkd, _PinAndRescale(bkd))
+        functional = AllStatesEndpointFunctional(
+            _NSTATES, _NPARAMS, bkd
+        ).row_functional(1)
+        operator = TimeAdjointOperatorWithHVP(integrator, functional)
+        with pytest.raises(NotImplementedError, match="Hessian-vector product"):
+            operator.hvp(_init_state(bkd), _sample(bkd), bkd.ones((_NPARAMS, 1)))
 
     def test_refuses_another_trajectory(self, bkd: Backend[Array]) -> None:
         integrator, states, times = self._solved(bkd, _PinAndRescale(bkd))

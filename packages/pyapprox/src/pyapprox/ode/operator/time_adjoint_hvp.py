@@ -203,6 +203,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 "Ensure the ODE residual implements state_state_hvp, etc."
             )
         hvp_residual = self._time_residual
+        self._integrator.refuse_state_constraint("the Hessian-vector product")
 
         if vvec.shape != (self.nparams(), 1):
             raise ValueError(

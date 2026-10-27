@@ -19,7 +19,11 @@ from pyapprox.ode.protocols.time_stepping import (
     TimeSteppingResidualProtocol,
 )
 from pyapprox.ode.residual_derivatives import backend_spaces, backend_state_space
-from pyapprox.ode.state_constraint import IdentityConstraint
+from pyapprox.ode.state_constraint import (
+    IdentityConstraint,
+    TangentFn,
+    sweep_tangent,
+)
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -221,13 +225,35 @@ class TimeIntegrator(Generic[Array]):
             )
         return self._unprojected
 
-    def _refuse_constraint(self, what: str) -> None:
-        """Refuse a constraint where the sweep does not apply it yet."""
+    def refuse_state_constraint(self, what: str) -> None:
+        """Refuse a constraint where a sweep does not apply it yet.
+
+        Raises
+        ------
+        NotImplementedError
+            If a constraint was given.
+        """
         if self._constraint is not None:
             raise NotImplementedError(
-                f"{what} does not apply a state constraint yet; only the "
-                "tangent-linear jacobian (forward_sensitivity_jacobian) does"
+                f"{what} does not apply a state constraint yet; the "
+                "tangent-linear jacobian and the adjoint gradient do"
             )
+
+    def _sweep_tangent(
+        self,
+        fwd_sols: Array,
+        times: Array,
+        param: Array,
+        functional: TransientFunctionalProtocol[Array],
+    ) -> TangentFn[Array]:
+        """The constraint's tangent for the adjoint sweeps (the identity's
+        when none is given), sized by the residual's parameters."""
+        nparams = int(param.shape[0]) - functional.nunique_params()
+        return sweep_tangent(
+            self.state_constraint(int(fwd_sols.shape[0]), nparams).derivatives(),
+            fwd_sols[:, 0],
+            float(times[0]),
+        )
 
     def unprojected_states(self) -> Array:
         r"""The last solve's states before the constraint was applied.
@@ -343,11 +369,17 @@ class TimeIntegrator(Generic[Array]):
         asol_np1: Array,
         dqdu_n: Array,
         y_curr_of_next: Array,
+        tangent: TangentFn[Array],
+        time_n: float,
     ) -> Array:
-        """
+        r"""
         Perform a single backward adjoint step.
 
-        Solves: (dR/dy_n)^T · λ_n = -(dR/dy_{n+1})^T · λ_{n+1} - dQ/dy_n
+        Solves :math:`(\partial R_n/\partial z_n)^\top \lambda_n =
+        -\Pi'(z_n)^\top [B_{n+1}^\top \lambda_{n+1} + dQ/dy_n]`, where
+        :math:`B_{n+1} = \partial R_{n+1}/\partial y_n` and the stored
+        state is :math:`y_n = \Pi(z_n)`; :math:`\Pi' = I` without a
+        constraint.
 
         Parameters
         ----------
@@ -356,13 +388,19 @@ class TimeIntegrator(Generic[Array]):
         next_ctx : StepContext
             Context for step n+1.
         fsol_n : Array
-            Forward solution at time step n. Shape: (nstates,)
+            The state step n is linearized at, :math:`z_n`.
+            Shape: (nstates,)
         asol_np1 : Array
             Adjoint solution at time step n+1. Shape: (nstates,)
         dqdu_n : Array
             Gradient dQ/dy at time step n. Shape: (nstates,)
         y_curr_of_next : Array
-            Solution at time n+1. Shape: (nstates,)
+            The state step n+1 is linearized at, :math:`z_{n+1}`.
+            Shape: (nstates,)
+        tangent : TangentFn
+            The constraint's tangent :math:`\Pi'`.
+        time_n : float
+            The time of step n's result, where :math:`\Pi` was applied.
 
         Returns
         -------
@@ -375,9 +413,9 @@ class TimeIntegrator(Generic[Array]):
         offdiag = residual.off_diag_operator(next_ctx, y_curr_of_next)
         coupling = offdiag.apply_transpose(
             self._bkd.reshape(asol_np1, (asol_np1.shape[0], 1))
-        )[:, 0]
-
-        rhs = -coupling - dqdu_n
+        )
+        dqdu_block = self._bkd.reshape(dqdu_n, (dqdu_n.shape[0], 1))
+        rhs = -tangent(fsol_n, time_n).apply_transpose(coupling + dqdu_block)[:, 0]
         return drduT_diag.solve(rhs)
 
     def solve_adjoint(self, fwd_sols: Array, times: Array, param: Array) -> Array:
@@ -399,19 +437,24 @@ class TimeIntegrator(Generic[Array]):
             Adjoint solution trajectory. Shape: (nstates, ntimes)
         """
         residual = self._require_adjoint()
-        self._refuse_constraint("the adjoint solve")
 
         if not self._bkd.allclose(
             times[-1], self._bkd.asarray(self._final_time), atol=1e-12
         ):
             raise ValueError("times array is inconsistent with final_time")
 
+        functional = self._functional
         state_jacobian = self._functional_state_jacobian
-        if state_jacobian is None:
+        if functional is None or state_jacobian is None:
             raise RuntimeError("Must call set_functional() first")
 
         # Compute dQ/dy at all time steps
         dqdu = state_jacobian(fwd_sols, param)
+
+        # Steps are linearized at their own unknowns z_n; contexts carry
+        # the stored previous states.
+        lin_sols = self.linearization_states(fwd_sols)
+        tangent = self._sweep_tangent(fwd_sols, times, param, functional)
 
         adj_sols = self._bkd.zeros(fwd_sols.shape)
 
@@ -422,10 +465,13 @@ class TimeIntegrator(Generic[Array]):
         )
 
         dqdu_final = residual.zero_adjoint_rhs(dqdu[:, -1])
+        dqdu_final = tangent(lin_sols[:, -1], float(times[-1])).apply_transpose(
+            self._bkd.reshape(dqdu_final, (dqdu_final.shape[0], 1))
+        )[:, 0]
 
         adj_sols = self._bkd.copy(adj_sols)
         adj_sols[:, -1] = residual.adjoint_initial_condition(
-            ctx_final, fwd_sols[:, -1], dqdu_final
+            ctx_final, lin_sols[:, -1], dqdu_final
         )
 
         # Backward sweep from N-2 to 1
@@ -449,10 +495,12 @@ class TimeIntegrator(Generic[Array]):
             adj_sols[:, nn] = self.adjoint_step(
                 ctx_n,
                 next_ctx,
-                fwd_sols[:, nn],
+                lin_sols[:, nn],
                 adj_sols[:, nn + 1],
                 dqdu_n,
-                fwd_sols[:, nn + 1],
+                lin_sols[:, nn + 1],
+                tangent,
+                float(times[nn]),
             )
 
         # Final adjoint step at t=0
@@ -467,9 +515,11 @@ class TimeIntegrator(Generic[Array]):
 
         dqdu_0 = residual.zero_adjoint_rhs(dqdu[:, 0])
 
+        # y_0 = Pi(given y_0) is projected data, not a projected unknown, so
+        # no tangent here: it enters once, in the gradient's t = 0 term.
         adj_sols[:, 0] = residual.adjoint_final_solution(
             ctx_1,
-            fwd_sols[:, 1],
+            lin_sols[:, 1],
             adj_sols[:, 1],
             dqdu_0,
         )
@@ -526,7 +576,6 @@ class TimeIntegrator(Generic[Array]):
             Gradient dQ/dp. Shape: (1, nparams)
         """
         residual = self._require_adjoint()
-        self._refuse_constraint("the adjoint gradient")
 
         functional = self._functional
         state_jacobian = self._functional_state_jacobian
@@ -544,6 +593,11 @@ class TimeIntegrator(Generic[Array]):
         # equation M^T lambda_0 = -B_1^T lambda_1 - dQ/dy_0, so the term
         # equals -lambda_0^T M dy_0/dp; forming it from the right-hand
         # side avoids a mass solve and uses exactly what that equation uses.
+        # With a constraint the stored y_0 is Pi(given y_0), so dy_0/dp is
+        # Pi' times the given state's derivative: the only place the
+        # tangent enters at t = 0.
+        lin_sols = self.linearization_states(fwd_sols)
+        tangent = self._sweep_tangent(fwd_sols, times, param, functional)
         ctx_init = StepContext(
             t_prev=float(times[0]),
             deltat=float(times[1] - times[0]),
@@ -551,9 +605,11 @@ class TimeIntegrator(Generic[Array]):
         )
         self._time_residual.bind(ctx_init)
 
-        dy0dp = residual.initial_param_jacobian()
+        dy0dp = tangent(lin_sols[:, 0], float(times[0])).apply(
+            residual.initial_param_jacobian()
+        )
         dqdu_0 = residual.zero_adjoint_rhs(state_jacobian(fwd_sols, param)[:, 0])
-        offdiag = residual.off_diag_operator(ctx_init, fwd_sols[:, 1])
+        offdiag = residual.off_diag_operator(ctx_init, lin_sols[:, 1])
         init_sensitivity = offdiag.apply_transpose(adj_sols[:, 1:2])[:, 0] + dqdu_0
         grad_init = self._bkd.reshape(init_sensitivity @ dy0dp, (1, -1))
         # Prepend zeros for functional-only parameters
@@ -571,7 +627,7 @@ class TimeIntegrator(Generic[Array]):
                 y_prev=fwd_sols[:, ii],
             )
 
-            drdp = residual.param_jacobian(ctx_ii, fwd_sols[:, ii + 1])
+            drdp = residual.param_jacobian(ctx_ii, lin_sols[:, ii + 1])
             # Prepend zeros for functional-only parameters
             n_unique = functional.nunique_params()
             if n_unique > 0:

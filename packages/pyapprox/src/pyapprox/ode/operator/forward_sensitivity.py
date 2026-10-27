@@ -13,36 +13,9 @@ from pyapprox.ode.functionals.protocols import (
     TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
-from pyapprox.ode.protocols.state_constraint import StateConstraintProtocol
-from pyapprox.ode.state_constraint import TangentFn
+from pyapprox.ode.state_constraint import sweep_tangent
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
-
-
-def _constraint_tangent(
-    constraint: StateConstraintProtocol[Array], state: Array, time: float
-) -> TangentFn[Array]:
-    """The constraint's tangent, refusing what the sweep cannot apply."""
-    derivs = constraint.derivatives()
-    tangent, param = derivs.tangent, derivs.param
-    if tangent is None or param is None:
-        raise TypeError(
-            "the tangent-linear jacobian needs the state constraint's tangent "
-            f"and parameter derivative; {type(constraint).__name__} lacks them"
-        )
-    if not param(state, time).properties().zero:
-        raise NotImplementedError(
-            "constraint data depending on the parameters is not supported: "
-            "the constraint's parameter derivative must be a stated zero"
-        )
-    return tangent
-
-
-def _project(
-    tangent: TangentFn[Array], state: Array, time: float, block: Array
-) -> Array:
-    r""":math:`\Pi'` at ``state`` applied to a block of sensitivities."""
-    return tangent(state, time).apply(block)
 
 
 def forward_sensitivity_jacobian(
@@ -147,15 +120,15 @@ def forward_sensitivity_jacobian(
             f"functional has {action.nparams()} parameters, expected "
             f"{n_unique} of its own plus the residual's {w_prev.shape[1]}"
         )
-    tangent = _constraint_tangent(
-        integrator.state_constraint(fwd_sols.shape[0], w_prev.shape[1]),
+    tangent = sweep_tangent(
+        integrator.state_constraint(fwd_sols.shape[0], w_prev.shape[1]).derivatives(),
         fwd_sols[:, 0],
         bkd.to_float(times[0]),
     )
     # Each step is linearized at its own unknown z_n; the previous state
     # and the functional read the stored states.
     lin_sols = integrator.linearization_states(fwd_sols)
-    w_prev = _project(tangent, lin_sols[:, 0], bkd.to_float(times[0]), w_prev)
+    w_prev = tangent(lin_sols[:, 0], bkd.to_float(times[0])).apply(w_prev)
     state_part = apply_state_jacobian(fwd_sols, param, 0, w_prev)
 
     for nn in range(1, ntimes):
@@ -173,11 +146,8 @@ def forward_sensitivity_jacobian(
 
         # B_n and the solve apply to the whole block of sensitivities.
         rhs = offdiag.apply(w_prev) + bkd.asarray(drdp_n)
-        w_prev = _project(
-            tangent,
-            lin_sols[:, nn],
-            bkd.to_float(times[nn]),
-            -diag_t.solve_transpose(rhs),
+        w_prev = tangent(lin_sols[:, nn], bkd.to_float(times[nn])).apply(
+            -diag_t.solve_transpose(rhs)
         )
         state_part = state_part + apply_state_jacobian(
             fwd_sols, param, nn, w_prev

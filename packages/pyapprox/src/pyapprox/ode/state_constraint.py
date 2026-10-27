@@ -175,6 +175,37 @@ def _param(
     return given
 
 
+def sweep_tangent(
+    derivs: StateConstraintDerivatives[A], state: A, time: float
+) -> TangentFn[A]:
+    r"""A constraint's tangent :math:`\Pi'`, from its bundle, for a
+    first-order sweep.
+
+    The tangent-linear and adjoint sweeps apply :math:`\Pi'` and its
+    transpose; they do not yet apply a parameter derivative, so it must be
+    a stated zero (checked at ``state``, ``time``).
+
+    Raises
+    ------
+    TypeError
+        If the bundle has no tangent or parameter derivative.
+    NotImplementedError
+        If its parameter derivative is not a stated zero.
+    """
+    tangent, param = derivs.tangent, derivs.param
+    if tangent is None or param is None:
+        raise TypeError(
+            "sensitivities need the state constraint's tangent and parameter "
+            "derivative; its derivatives() lacks them"
+        )
+    if not param(state, time).properties().zero:
+        raise NotImplementedError(
+            "constraint data depending on the parameters is not supported: "
+            "the constraint's parameter derivative must be a stated zero"
+        )
+    return tangent
+
+
 class _IdentityTangent(Generic[Array]):
     """The identity constraint's tangent."""
 
