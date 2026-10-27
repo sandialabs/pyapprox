@@ -36,6 +36,7 @@ from .ode_residual import (
 )
 from .residual_form_system import ResidualFormSystemProtocol
 from .spatial_operator import SpatialOperatorProtocol
+from .state_constraint import StateConstraintProtocol
 from .time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
@@ -63,5 +64,7 @@ __all__ = [
     "JacobianOperatorProtocol",
     "ResidualFormSystemProtocol",
     "MassSystemProtocol",
+    # Constraint applied to stored states
+    "StateConstraintProtocol",
     # Base Classes and Mixins
 ]
