@@ -17,8 +17,10 @@ from pyapprox.util.linalg.operators.caching import CachingSolver, ReuseKey, reus
 from pyapprox.util.linalg.operators.constraints import (
     RowReplacedOperator,
     RowsZeroedOperator,
+    SymmetricEliminatedOperator,
     rows_replaced_properties,
     rows_zeroed_properties,
+    symmetric_eliminated_properties,
 )
 from pyapprox.util.linalg.operators.descriptor import (
     SpaceDescriptor,
@@ -82,6 +84,7 @@ __all__ = [
     "SolverCapabilities",
     "SolverHandleBase",
     "SolverHandleProtocol",
+    "SymmetricEliminatedOperator",
     "Transposed",
     "VectorSpaceProtocol",
     "ZeroOperator",
@@ -91,4 +94,5 @@ __all__ = [
     "rows_replaced_properties",
     "rows_zeroed_properties",
     "scaled_sum_properties",
+    "symmetric_eliminated_properties",
 ]

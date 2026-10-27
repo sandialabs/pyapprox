@@ -22,9 +22,11 @@ from pyapprox.util.linalg.operators import (
     RowsZeroedOperator,
     SpaceDescriptor,
     SpaceMismatchError,
+    SymmetricEliminatedOperator,
     Transposed,
     rows_replaced_properties,
     rows_zeroed_properties,
+    symmetric_eliminated_properties,
 )
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipyCSROperator
 from tests._helpers.linalg.stacks import (
@@ -209,6 +211,63 @@ class TestRowsZeroedOperator:
             )
 
 
+def _eliminated(a: NDArray[np.float64], rows: list[int]) -> NDArray[np.float64]:
+    """P A P + (I - P), from masks."""
+    keep = _keep(a.shape[0], rows)
+    result: NDArray[np.float64] = keep * a * keep.T + np.diag(1.0 - keep[:, 0])
+    return result
+
+
+class TestSymmetricEliminatedOperator:
+    def test_matches_the_dense_elimination(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """Action, transpose and stored format all equal P A P + (I - P),
+        on an unsymmetric A so a transpose slip shows."""
+        bkd = case.bkd
+        a = random_matrix(5, 5, 21)
+        reference = case.dense(_eliminated(a, [0, 3]))
+        op = SymmetricEliminatedOperator(case.build(a, _U), case.rows(_U, _ROWS))
+        x = case.vec(_U, 2, 22)
+        case.assert_vector(op.apply(x), case.times(reference, x), rtol=1e-12)
+        case.assert_vector(
+            op.apply_transpose(x), case.times(reference.T, x), rtol=1e-12
+        )
+        assert isinstance(op.format(), case.format_type)
+        bkd.assert_allclose(case.format_dense(op.format()), reference)
+        case.assert_dot_identity(op, 23)
+
+    def test_keeps_spd(self, case: TypedStackCase[V, F, A]) -> None:
+        """An SPD operand stays SPD, so its stored form factors by
+        Cholesky, where row replacement alone would clear the property."""
+        bkd = case.bkd
+        stored = case.build(spd_matrix(5, 24), _U, properties=_SPD)
+        op = SymmetricEliminatedOperator(stored, case.rows(_U, _ROWS))
+        assert op.properties() == _SPD
+        np.linalg.cholesky(bkd.to_numpy(case.format_dense(op.format())))
+
+    def test_empty_set_is_the_operator(self, case: TypedStackCase[V, F, A]) -> None:
+        bkd = case.bkd
+        a = random_matrix(5, 5, 25)
+        stored = case.build(a, _U)
+        op = SymmetricEliminatedOperator(stored, case.rows(_U, []))
+        x = case.vec(_U, 2, 26)
+        case.assert_vector(op.apply(x), case.array(stored.apply(x)))
+        bkd.assert_allclose(case.format_dense(op.format()), case.dense(a))
+
+    def test_rejects_rectangular_and_foreign_rows(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        with pytest.raises(SpaceMismatchError, match="symmetric elimination"):
+            SymmetricEliminatedOperator(
+                case.build(random_matrix(3, 5, 27), _U, _P), case.rows(_P, [0])
+            )
+        with pytest.raises(SpaceMismatchError, match="row set"):
+            SymmetricEliminatedOperator(
+                case.identity(_U), case.rows(SpaceDescriptor("v", 5), [0])
+            )
+
+
 class TestPropertyRules:
     @pytest.mark.parametrize(
         "props, nrows, replaced, zeroed",
@@ -242,6 +301,24 @@ class TestPropertyRules:
     ) -> None:
         assert rows_replaced_properties(props, nrows) == replaced
         assert rows_zeroed_properties(props, nrows) == zeroed
+
+    @pytest.mark.parametrize(
+        "props, nrows, eliminated",
+        [
+            (_SPD, 0, _SPD),
+            (_SPD, 2, _SPD),
+            (_DIAG_SPD, 2, _DIAG_SPD),
+            (OperatorProperties(symmetric=True), 2, OperatorProperties(symmetric=True)),
+            (OperatorProperties(), 2, OperatorProperties()),
+            # The unit diagonal on the set is not zero.
+            (OperatorProperties(zero=True), 2, OperatorProperties()),
+            (OperatorProperties(zero=True), 0, OperatorProperties(zero=True)),
+        ],
+    )
+    def test_symmetric_elimination_keeps_structure(
+        self, props: OperatorProperties, nrows: int, eliminated: OperatorProperties
+    ) -> None:
+        assert symmetric_eliminated_properties(props, nrows) == eliminated
 
 
 class TestScipyRowEdits:
