@@ -417,7 +417,6 @@ class TestADRTransient:
             deltat=0.005,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 

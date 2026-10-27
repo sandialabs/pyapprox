@@ -180,7 +180,6 @@ def _initial_state_and_config(
         deltat=0.02,
         newton_tol=1e-12,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
     return init_state, config

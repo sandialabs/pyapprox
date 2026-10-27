@@ -233,7 +233,6 @@ class TestCollocationModel:
             deltat=0.01,  # Smaller dt for better accuracy,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -263,7 +262,6 @@ class TestCollocationModel:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -291,7 +289,6 @@ class TestCollocationModel:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -320,7 +317,6 @@ class TestCollocationModel:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -372,7 +368,6 @@ class TestCollocationModel:
                 deltat=deltat,
                 newton_tol=1e-12,
                 newton_maxiter=20,
-                lumped_mass=False,
                 verbosity=0,
             )
             solutions, _ = model.solve_transient(u0, config)
@@ -420,7 +415,6 @@ class TestCollocationModel:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -451,7 +445,6 @@ class TestCollocationModel:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 

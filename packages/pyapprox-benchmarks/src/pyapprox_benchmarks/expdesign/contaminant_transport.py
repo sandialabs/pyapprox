@@ -412,7 +412,6 @@ class ContaminantTransportOEDProblem:
             deltat=deltat,
             newton_tol=1e-10,
             newton_maxiter=10,
-            lumped_mass=False,
             verbosity=0,
         )
         coords = self._basis.dof_coordinates()

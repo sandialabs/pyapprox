@@ -109,7 +109,6 @@ def _time_config(method: str) -> TimeIntegrationConfig[NumpyArray]:
         deltat=0.02,
         newton_tol=1e-12,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
 
@@ -650,7 +649,6 @@ class TestTimeModulatedControl:
                 deltat=0.02,
                 newton_tol=1e-12,
                 newton_maxiter=20,
-                lumped_mass=False,
                 verbosity=0,
             ),
             functional=WeightedEndpointFunctional(weights, param.nparams(), bkd))

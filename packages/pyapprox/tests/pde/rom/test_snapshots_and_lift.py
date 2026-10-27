@@ -169,7 +169,6 @@ def _transient_problem(
         deltat=0.005,
         newton_tol=1e-13,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
     model = GalerkinTransientForwardModel(

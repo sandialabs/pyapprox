@@ -69,8 +69,7 @@ class CollocationModel(Generic[Array]):
     >>> # Solve transient problem
     >>> config = TimeIntegrationConfig(
     ...     method="backward_euler", init_time=0.0, final_time=1.0,
-    ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20,
-    ...     lumped_mass=False, verbosity=0,
+    ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20, verbosity=0,
     ... )
     >>> u_all, times = model.solve_transient(u0, config)
     """
@@ -291,21 +290,13 @@ class CollocationModel(Generic[Array]):
         ------
         ValueError
             If config.method is not a recognized time integration
-            method, or if ``config.lumped_mass`` is True (the
-            collocation mass matrix is the identity; lumping is a
-            finite-element concept with no collocation counterpart).
+            method.
         TypeError
             If the physics is second order in time: integrating it as
             ``du/dt = f(u, t)`` is a relaxation, not dynamics (see
             ``pyapprox.pde.time_order``).
         """
         refuse_second_order_in_time(self._physics)
-        if config.lumped_mass:
-            raise ValueError(
-                "lumped_mass=True is not supported for collocation: "
-                "the collocation mass matrix is the identity, so "
-                "lumping has no effect to request"
-            )
         # Build pipeline: adapter → stepper → BC residual → Newton → integrator
         stepper = create_stepper(config.method, self._adapter)
         if not isinstance(stepper, SensitivityStepperProtocol):

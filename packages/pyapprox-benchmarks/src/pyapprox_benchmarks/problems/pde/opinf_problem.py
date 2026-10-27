@@ -194,8 +194,8 @@ class PDEOpInfProblem:
         """Build the transient FEM model at the given parameters.
 
         Rebuilds the system per parameter value on the SHARED basis
-        and wraps it in a solvable ``GalerkinTransientModel`` whose mass
-        matches the default configuration's ``lumped_mass``; the caller
+        and wraps it in a solvable ``GalerkinTransientModel`` with the
+        consistent mass; the caller
         drives it (``model.solve_transient(problem.initial_condition(),
         problem.time_config())``) and reaches the semi-discrete
         operator through ``model.system()``.  Downstream recovery
@@ -217,8 +217,5 @@ class PDEOpInfProblem:
         if parameters is None:
             parameters = self._nominal_parameters
         return GalerkinTransientModel(
-            skfem_ode_residual(
-                self._system_factory(parameters),
-                lumped_mass=self._time_config.lumped_mass,
-            )
+            skfem_ode_residual(self._system_factory(parameters))
         )

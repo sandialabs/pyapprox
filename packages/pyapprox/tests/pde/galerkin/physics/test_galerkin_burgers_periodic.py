@@ -111,7 +111,6 @@ class TestDiscreteConservation:
             deltat=1e-4,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         system = compose_galerkin_system(physics)
@@ -132,7 +131,6 @@ class TestDiscreteConservation:
             deltat=5e-3,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         system = compose_galerkin_system(physics)
@@ -175,7 +173,6 @@ class TestManufacturedSolutionRecovery:
                 final_time=final_time, deltat=1e-3,
                 newton_tol=1e-10,
                 newton_maxiter=20,
-                lumped_mass=False,
                 verbosity=0,
             )
             system = compose_galerkin_system(physics)

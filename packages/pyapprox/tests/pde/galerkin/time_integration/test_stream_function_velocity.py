@@ -90,7 +90,6 @@ def test_velocity_map_drives_transient_solve(numpy_bkd: NumpyBkd) -> None:
         deltat=0.025,
         newton_tol=1e-10,
         newton_maxiter=10,
-        lumped_mass=False,
         verbosity=0,
     )
     model = GalerkinTransientForwardModel(

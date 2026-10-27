@@ -204,7 +204,6 @@ class TestTransientDiffusionZoo:
             deltat=0.02,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 

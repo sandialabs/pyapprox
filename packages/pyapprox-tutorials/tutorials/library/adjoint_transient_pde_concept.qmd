@@ -373,7 +373,7 @@ def build_model(method, deltat):
     """A transient forward model with its adjoint gradient attached."""
     config = TimeIntegrationConfig(
         method=method, init_time=0.0, final_time=FINAL_TIME, deltat=deltat,
-        newton_tol=1e-12, newton_maxiter=20, lumped_mass=False, verbosity=0,
+        newton_tol=1e-12, newton_maxiter=20, verbosity=0,
     )
     return GalerkinTransientForwardModel(
         skfem_discretization(system), ScipySparseLU(), parameterization,
@@ -386,8 +386,9 @@ print(f"Q = {float(bkd.to_numpy(model(param))[0, 0]):.6e}")
 print(f"grad Q = {bkd.to_numpy(model.derivatives().jacobian(param)).ravel()}")
 ```
 
-`lumped_mass=False` is the choice that matters here: it keeps the
-**consistent** mass matrix. Setting it `True` replaces $M$ with a diagonal
+`skfem_discretization(system)` keeps the **consistent** mass matrix, and
+that is the choice that matters here. Building it with
+`skfem_discretization(system, lumped_mass=True)` replaces $M$ with a diagonal
 approximation, which is cheaper and destroys the $M_{id}$ coupling this
 tutorial is about --- a lumped $M$ has no off-diagonal entries, so
 @eq-reduced loses its forcing term entirely.

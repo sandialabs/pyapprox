@@ -174,9 +174,7 @@ class _Problem:
             functional=functional,
             jacobian_method=jacobian_method)
 
-    def config(
-        self, method: str, lumped_mass: bool = False
-    ) -> TimeIntegrationConfig[Any]:
+    def config(self, method: str) -> TimeIntegrationConfig[Any]:
         return TimeIntegrationConfig(
             method=method,
             init_time=0.0,
@@ -184,7 +182,6 @@ class _Problem:
             deltat=0.002,
             newton_tol=1e-13,
             newton_maxiter=20,
-            lumped_mass=lumped_mass,
             verbosity=0,
         )
 
@@ -218,7 +215,7 @@ def _balance(problem: _Problem, traj: NumpyArray, quadrature: Any) -> float:
     bkd = problem.bkd
     rule = quadrature.step_residual_rule()
     assert rule is not None
-    source = sum(
+    source: float = sum(
         bkd.to_float(rule.weights()[jj])
         * 1.5
         * (1.0 + np.sin(5.0 * bkd.to_float(rule.sample_times()[jj])))
@@ -256,7 +253,7 @@ class TestDiscreteConservation:
             skfem_ode_residual(problem.system, lumped_mass=True)
         )
         traj, times = model.solve_transient(
-            problem.init_state, problem.config("forward_euler", lumped_mass=True)
+            problem.init_state, problem.config("forward_euler")
         )
         quadrature = (
             model.last_integrator().time_residual().trajectory_quadrature(times)

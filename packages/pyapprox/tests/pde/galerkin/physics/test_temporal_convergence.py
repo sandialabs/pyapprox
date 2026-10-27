@@ -245,7 +245,6 @@ class TestTemporalConvergenceImplicit:
                 deltat=dt,
                 newton_tol=1e-10,
                 newton_maxiter=20,
-                lumped_mass=False,
                 verbosity=0,
             )
             solutions, times = model.solve_transient(y0, config)
@@ -304,7 +303,6 @@ class TestTemporalConvergenceExplicit:
                 deltat=dt,
                 newton_tol=1e-10,
                 newton_maxiter=20,
-                lumped_mass=False,
                 verbosity=0,
             )
             solutions, times = model.solve_transient(y0, config)
@@ -371,7 +369,6 @@ class TestTemporalConvergenceNonzeroDirichlet:
                 deltat=dt,
                 newton_tol=1e-10,
                 newton_maxiter=20,
-                lumped_mass=False,
                 verbosity=0,
             )
             solutions, times = model.solve_transient(y0, config)
@@ -429,7 +426,6 @@ def _final_time_errors(
             deltat=dt,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(

@@ -101,7 +101,7 @@ class TestPeriodicBurgersOpInfProblem:
         config = TimeIntegrationConfig(
             method="forward_euler", init_time=0.0, final_time=0.02,
             deltat=1e-4, newton_tol=1e-10, newton_maxiter=20,
-            lumped_mass=False, verbosity=0,
+            verbosity=0,
         )
         states, _ = model.solve_transient(
             problem.initial_condition(), config
@@ -136,7 +136,7 @@ class TestPeriodicBurgersOpInfProblem:
             config = TimeIntegrationConfig(
                 method="crank_nicolson", init_time=0.0,
                 final_time=0.1, deltat=1e-3, newton_tol=1e-10,
-                newton_maxiter=20, lumped_mass=False, verbosity=0,
+                newton_maxiter=20, verbosity=0,
             )
             states, times = GalerkinTransientModel(
                 skfem_ode_residual(compose_galerkin_system(physics))
@@ -186,7 +186,7 @@ class TestChafeeInfanteOpInfProblem:
         config = TimeIntegrationConfig(
             method="crank_nicolson", init_time=0.0, final_time=0.5,
             deltat=5e-3, newton_tol=1e-10, newton_maxiter=20,
-            lumped_mass=False, verbosity=0,
+            verbosity=0,
         )
         u0 = problem.initial_condition()
         states, _ = model.solve_transient(u0, config)
@@ -226,7 +226,7 @@ class TestChafeeInfanteOpInfProblem:
             config = TimeIntegrationConfig(
                 method="crank_nicolson", init_time=0.0,
                 final_time=0.1, deltat=1e-3, newton_tol=1e-10,
-                newton_maxiter=20, lumped_mass=False, verbosity=0,
+                newton_maxiter=20, verbosity=0,
             )
             states, times = GalerkinTransientModel(
                 skfem_ode_residual(system)

@@ -174,7 +174,6 @@ class TestPlumbing:
             deltat=_DELTAT,
             newton_tol=1e-12,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         model = GalerkinTransientForwardModel(

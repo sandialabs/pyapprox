@@ -269,7 +269,6 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             deltat=0.005,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -352,7 +351,6 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             deltat=0.01,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -494,7 +492,6 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
             deltat=0.01,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 

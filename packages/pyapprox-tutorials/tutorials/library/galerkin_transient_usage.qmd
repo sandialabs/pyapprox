@@ -118,8 +118,8 @@ Two consequences follow, and the rest of this tutorial is about them.
 **Every step needs a linear solve.** @eq-semidiscrete gives
 $\dot{\vc{u}} = M^{-1}(\vc{f} - K\vc{u})$. Even a fully explicit method must
 invert $M$. Lumping --- replacing $M$ by a diagonal matrix with the same row
-sums --- is the standard way to avoid this, and is available as
-`lumped_mass=True`.
+sums --- is the standard way to avoid this, and is a discretization choice:
+`skfem_discretization(system, lumped_mass=True)`.
 
 **$M$ can be worse than non-diagonal.** It can be singular. The closing
 section is about what happens then.
@@ -236,7 +236,6 @@ config = TimeIntegrationConfig(
     deltat=0.04,
     newton_tol=1e-8,
     newton_maxiter=20,
-    lumped_mass=False,
     verbosity=0,
 )
 
@@ -437,7 +436,6 @@ cyl_config = TimeIntegrationConfig(
     deltat=0.1,
     newton_tol=1e-7,
     newton_maxiter=20,
-    lumped_mass=False,
     verbosity=0,
 )
 

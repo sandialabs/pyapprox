@@ -115,7 +115,6 @@ class TestGalerkinTransientModelImplicit:
             deltat=1.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -163,7 +162,6 @@ class TestGalerkinTransientModelExplicit:
             deltat=1e-5,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -238,7 +236,6 @@ class TestExplicitUnifiedPipeline:
             deltat=0.05,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=lumped,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -304,7 +301,6 @@ class TestExplicitUnifiedPipeline:
             deltat=0.05,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -343,25 +339,3 @@ class TestModelConstruction:
         assert model.system() is system
         assert model.bkd() is system.bkd()
         assert model.nstates() == system.nstates()
-
-    @pytest.mark.parametrize("lumped", [False, True])
-    def test_lumping_comes_from_the_adapter(
-        self, numpy_bkd: NumpyBkd, lumped: bool
-    ) -> None:
-        """A config whose lumping disagrees with the adapter's mass is
-        refused, rather than silently integrating a different mass."""
-        bkd = numpy_bkd
-        system, exact_at_time = _setup_adr_system(bkd, nx=4)
-        model = GalerkinTransientModel(skfem_ode_residual(system, lumped_mass=lumped))
-        config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
-            method="backward_euler",
-            init_time=0.0,
-            final_time=0.1,
-            deltat=0.05,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            lumped_mass=not lumped,
-            verbosity=0,
-        )
-        with pytest.raises(ValueError, match="lumped_mass"):
-            model.solve_transient(bkd.asarray(exact_at_time(0.0)), config)

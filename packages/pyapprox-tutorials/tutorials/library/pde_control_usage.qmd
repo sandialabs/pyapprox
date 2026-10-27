@@ -277,7 +277,7 @@ def build_model(reaction, reaction_map, weight):
         TimeIntegrationConfig(
             method="crank_nicolson", init_time=0.0,
             final_time=FINAL_TIME, deltat=DELTAT, newton_tol=1e-12,
-            newton_maxiter=5, lumped_mass=False, verbosity=0,
+            newton_maxiter=5, verbosity=0,
         ),
         functional=functional,
     )

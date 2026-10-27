@@ -555,7 +555,6 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             deltat=0.002,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -607,7 +606,6 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             deltat=0.01,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -695,7 +693,6 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             deltat=0.01,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -964,7 +961,6 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
             deltat=0.1,
             newton_maxiter=50,
             newton_tol=1e-10,
-            lumped_mass=False,
             verbosity=0,
         )
 

@@ -232,7 +232,6 @@ class TestTransientADR1D:
             deltat=1.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -343,7 +342,6 @@ class TestTransientADR2D:
             deltat=1.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -409,7 +407,6 @@ class TestTransientADR1D_CN:
             deltat=1.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -510,7 +507,6 @@ class TestTransientADR2D_CN:
             deltat=1.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
@@ -587,7 +583,6 @@ class TestTransientADRExplicit1D:
             deltat=0.01,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)

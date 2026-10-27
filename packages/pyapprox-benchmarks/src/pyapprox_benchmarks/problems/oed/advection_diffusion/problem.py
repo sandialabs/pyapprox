@@ -444,7 +444,6 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
             deltat=self._deltat,
             newton_tol=1e-6,
             newton_maxiter=1,
-            lumped_mass=False,
             verbosity=0,
         )
         return model.solve_transient(bkd.asarray(ic), config)

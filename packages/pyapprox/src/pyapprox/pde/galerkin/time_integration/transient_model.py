@@ -51,8 +51,7 @@ class GalerkinTransientModel(Generic[Array]):
     >>> model = GalerkinTransientModel(skfem_ode_residual(system))
     >>> config = TimeIntegrationConfig(
     ...     method="backward_euler", init_time=0.0, final_time=1.0,
-    ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20,
-    ...     lumped_mass=False, verbosity=0,
+    ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20, verbosity=0,
     ... )
     >>> solutions, times = model.solve_transient(u0, config)
     """
@@ -148,9 +147,8 @@ class GalerkinTransientModel(Generic[Array]):
         applied via the system's constraint set) -> Newton.
         Explicit steppers are one-step solvable (the constraint rows
         are linear), so Newton reduces to a single linear solve with a
-        cached factorization of the constant BC-modified mass. The
-        adapter's mass decides lumping; ``config.lumped_mass`` must agree
-        with it.
+        cached factorization of the constant BC-modified mass. Lumping
+        is a discretization choice, read from the adapter's mass.
 
         Parameters
         ----------
@@ -166,23 +164,12 @@ class GalerkinTransientModel(Generic[Array]):
                 Solution trajectory. Shape: (nstates, ntimes)
             times : Array
                 Time points. Shape: (ntimes,)
-
-        Raises
-        ------
-        ValueError
-            If ``config.lumped_mass`` disagrees with the adapter's mass.
         """
         # One pipeline for all methods: adapter -> stepper -> BC
         # residual -> Newton -> integrator (custom StepperFactory
         # handles share this path; unknown string names error inside
         # create_stepper).
         adapter = self._adapter
-        if config.lumped_mass != adapter.lumped_mass():
-            raise ValueError(
-                f"config.lumped_mass={config.lumped_mass} disagrees with the "
-                f"adapter's mass (lumped: {adapter.lumped_mass()}); lumping is "
-                "chosen when the adapter is built"
-            )
         stepper = create_stepper(config.method, adapter)
         bc_residual = create_galerkin_bc_enforcing_residual(
             stepper, adapter.system().constraint_set(), self.bkd()

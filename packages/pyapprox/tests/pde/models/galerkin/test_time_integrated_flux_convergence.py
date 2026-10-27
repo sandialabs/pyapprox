@@ -137,7 +137,6 @@ def _fluxes(
         deltat=deltat,
         newton_tol=1e-12,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
     model = GalerkinTransientModel(skfem_ode_residual(system))

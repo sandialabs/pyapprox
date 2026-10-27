@@ -653,7 +653,6 @@ class TestParametrizedTransientStokes:
             deltat=0.1,
             newton_tol=1e-12,
             newton_maxiter=50,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)

@@ -146,7 +146,6 @@ def _solve_with_unknowns(
             deltat=deltat,
             newton_tol=1e-13,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         traj, times = model.solve_transient(heat.init_state, config)

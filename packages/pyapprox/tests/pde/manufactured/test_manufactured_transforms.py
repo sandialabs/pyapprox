@@ -516,7 +516,6 @@ class TestTransientPolarADR:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 
@@ -565,7 +564,6 @@ class TestTransientPolarADR:
             init_time=0.0,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
 

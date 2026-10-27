@@ -111,7 +111,6 @@ def _config(deltat=0.5, final_time=2.0):
         deltat=deltat,
         newton_tol=1e-12,
         newton_maxiter=30,
-        lumped_mass=False,
         verbosity=0,
     )
 

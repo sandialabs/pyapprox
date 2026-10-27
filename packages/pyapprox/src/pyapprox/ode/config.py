@@ -41,9 +41,6 @@ class TimeIntegrationConfig(Generic[Array]):
         Newton solver tolerance for implicit methods.
     newton_maxiter : int
         Newton solver maximum iterations.
-    lumped_mass : bool
-        Use a lumped (diagonal) mass matrix for explicit Galerkin
-        stepping instead of the consistent mass.
     verbosity : int
         Verbosity level.
     """
@@ -54,5 +51,4 @@ class TimeIntegrationConfig(Generic[Array]):
     deltat: float
     newton_tol: float
     newton_maxiter: int
-    lumped_mass: bool
     verbosity: int

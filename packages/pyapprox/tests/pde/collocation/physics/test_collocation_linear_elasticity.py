@@ -62,7 +62,6 @@ def _time_config() -> TimeIntegrationConfig[Any]:
         deltat=0.01,
         newton_tol=1e-10,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
 

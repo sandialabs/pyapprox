@@ -109,7 +109,6 @@ def _robin_problem(bkd: Backend[Array], method: str, npts: int = 15) -> Any:
         deltat=0.02,
         newton_tol=1e-12,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
     return physics, param, initial_state, time_config

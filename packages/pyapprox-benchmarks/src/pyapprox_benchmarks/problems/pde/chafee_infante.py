@@ -158,7 +158,6 @@ def build_chafee_infante_opinf_problem(
             deltat=deltat,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         ),
         initial_condition=initial_condition,

@@ -386,7 +386,6 @@ class ObstructedFlowControlProblem:
             deltat=deltat,
             newton_tol=1e-12,
             newton_maxiter=5,
-            lumped_mass=False,
             verbosity=0,
         )
         self._model: "GalerkinTransientForwardModel[_Np]" = (

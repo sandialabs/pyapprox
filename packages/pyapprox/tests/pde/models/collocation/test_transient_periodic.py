@@ -59,14 +59,13 @@ def _model(bkd: Backend[Array], method: str, qoi_node: str) -> Any:
         bkd.to_int(left[0]) if qoi_node == "primary" else nstates // 3
     )
     functional = EndpointFunctional(state_idx, nstates, param.nparams(), bkd)
-    time_config = TimeIntegrationConfig(
+    time_config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
         method=method,
         init_time=0.0,
         final_time=0.1,
         deltat=0.02,
         newton_tol=1e-12,
         newton_maxiter=20,
-        lumped_mass=False,
         verbosity=0,
     )
     # A periodic initial state that is not an equilibrium.

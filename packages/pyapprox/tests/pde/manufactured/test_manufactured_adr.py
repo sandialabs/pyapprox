@@ -758,7 +758,6 @@ class TestManufacturedADRTransient:
             final_time=time_end,
             newton_tol=1e-10,
             newton_maxiter=20,
-            lumped_mass=False,
             verbosity=0,
         )
         solutions, times = model.solve_transient(u0, config)

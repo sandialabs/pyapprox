@@ -49,7 +49,7 @@ _NumpyArray = NDArray[Any]
 _REFUSAL = "second order in time"
 
 
-def _time_config(lumped_mass: bool = False) -> TimeIntegrationConfig[_NumpyArray]:
+def _time_config() -> TimeIntegrationConfig[_NumpyArray]:
     return TimeIntegrationConfig(
         method="backward_euler",
         init_time=0.0,
@@ -57,7 +57,6 @@ def _time_config(lumped_mass: bool = False) -> TimeIntegrationConfig[_NumpyArray
         deltat=0.05,
         newton_tol=1e-10,
         newton_maxiter=5,
-        lumped_mass=lumped_mass,
         verbosity=0,
     )
 
