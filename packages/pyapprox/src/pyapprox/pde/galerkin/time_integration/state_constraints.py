@@ -23,11 +23,13 @@ parameters, so their parameter and second derivatives are stated zeros
 and the sensitivity sweeps apply only their tangents.
 """
 
-from typing import Generic, Optional, Protocol, Union
+from typing import Any, Generic, Optional, Protocol, Union
 
-from scipy.sparse import spmatrix
+import numpy as np
+from numpy.typing import NDArray
+from scipy.sparse import csr_matrix, diags, spmatrix
 
-from pyapprox.ode.mass_matrix import MassMatrixProtocol
+from pyapprox.ode.mass_matrix import create_mass_matrix
 from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_spaces
 from pyapprox.ode.state_constraint import StateConstraintDerivatives
 from pyapprox.pde.boundary import ConstraintSetProtocol
@@ -114,26 +116,58 @@ class EssentialPin(Generic[Array]):
 
 class _InteriorCorrection(Generic[Array]):
     r"""The map :math:`d \mapsto M_{II}^{-1} M_{ID} d` and its transpose,
-    on full-length vectors (zero on the essential entries).
+    on full-length vectors, over the differential interior DOFs only.
 
-    ``mass`` is a neutralized mass with identity essential rows, with or
-    without its coupling columns: solving it on a right-hand side that is
-    zero on the essential rows gives :math:`M_{II}^{-1}` on the interior
-    and zero on the boundary either way. ``raw_mass`` supplies
+    Interior rows with no mass (a saddle-point system's constraint rows,
+    such as Stokes's pressure) evolve with no time derivative, so they
+    have no :math:`M_{ID}` coupling to correct and :math:`M_{II}` is
+    singular there; the correction is zero on them and is solved on the
+    differential block alone. The solve matrix is the raw consistent mass
+    with the essential and massless rows and columns eliminated
+    symmetrically (a unit diagonal on them), positive definite when the
+    mass is on the differential block. ``raw_mass`` also supplies
     :math:`M_{ID}` and :math:`M_{DI} = M_{ID}^\top`.
     """
 
     def __init__(
         self,
         constraint_set: ConstraintSetProtocol[Array],
-        mass: MassMatrixProtocol[Array],
         raw_mass: Union[spmatrix, Array],
         bkd: Backend[Array],
     ) -> None:
         self._constraint_set = constraint_set
-        self._mass = mass
         self._raw_mass = raw_mass
         self._bkd = bkd
+        dense_rows = (
+            np.asarray(abs(raw_mass).sum(axis=1)).ravel()
+            if isinstance(raw_mass, spmatrix)
+            else bkd.to_numpy(bkd.sum(bkd.abs(raw_mass), axis=1))
+        )
+        differential = np.asarray(dense_rows > 0.0, dtype=float)
+        differential[bkd.to_numpy(constraint_set.dofs()).astype(int)] = 0.0
+        # 1 on the differential interior DOFs, 0 on essential and massless.
+        self._mask = bkd.asarray(differential)
+        self._mass = create_mass_matrix(
+            self._eliminated(raw_mass, differential), bkd
+        )
+
+    def _eliminated(
+        self, raw_mass: Union[spmatrix, Array], differential: NDArray[Any]
+    ) -> Union[spmatrix, Array]:
+        """The raw mass on the differential block, a unit diagonal
+        elsewhere."""
+        if isinstance(raw_mass, spmatrix):
+            keep = diags(differential)
+            eliminated: spmatrix = csr_matrix(
+                keep @ raw_mass @ keep + diags(1.0 - differential)
+            )
+            return eliminated
+        bkd = self._bkd
+        keep_b = bkd.asarray(differential)
+        return (
+            keep_b[:, None] * raw_mass * keep_b[None, :]
+            + bkd.diag(bkd.asarray(1.0 - differential))
+        )
 
     def _times_raw(self, vec: Array) -> Array:
         raw_mass = self._raw_mass
@@ -147,16 +181,14 @@ class _InteriorCorrection(Generic[Array]):
 
     def apply(self, vec: Array) -> Array:
         r""":math:`(M_{II}^{-1} M_{ID} v_D, 0)` from the essential entries
-        of ``vec``."""
-        cs = self._constraint_set
-        coupled = cs.zero_entries(self._times_raw(self._boundary_only(vec)))
-        return cs.zero_entries(self._mass.solve(coupled))
+        of ``vec``, zero on the massless interior rows."""
+        coupled = self._mask * self._times_raw(self._boundary_only(vec))
+        return self._mask * self._mass.solve(coupled)
 
     def apply_transpose(self, vec: Array) -> Array:
-        r""":math:`(0, M_{DI} M_{II}^{-\top} v_I)` from the interior entries
-        of ``vec``."""
-        cs = self._constraint_set
-        solved = cs.zero_entries(self._mass.solve_transpose(cs.zero_entries(vec)))
+        r""":math:`(0, M_{DI} M_{II}^{-\top} v_I)` from the differential
+        interior entries of ``vec``."""
+        solved = self._mask * self._mass.solve_transpose(self._mask * vec)
         return self._boundary_only(self._times_raw(solved))
 
 
@@ -243,8 +275,9 @@ class MassConsistentProjection(Generic[Array]):
     ----------
     adapter : GalerkinODEResidualProtocol
         The time-integration adapter the stepper uses: its system gives the
-        essential DOFs, data and consistent mass, its mass the solves with
-        :math:`M_{II}` (either row treatment's), and its lumping whether a
+        essential DOFs, data and the consistent mass the correction solves
+        with (on its differential block: rows with no mass, such as
+        Stokes's pressure, get no correction), and its lumping whether a
         correction is needed at all.
     nparams : int
         The residual's number of parameters, sizing the derivatives'
@@ -264,7 +297,7 @@ class MassConsistentProjection(Generic[Array]):
             None
             if adapter.lumped_mass()
             else _InteriorCorrection(
-                self._constraint_set, adapter.mass_matrix(), system.mass_matrix(), bkd
+                self._constraint_set, system.mass_matrix(), bkd
             )
         )
         if self._correction is None:
