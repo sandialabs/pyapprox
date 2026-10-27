@@ -35,6 +35,7 @@ from pyapprox.pde.galerkin.basis import (
     MixedBasis,
     VectorLagrangeBasis,
 )
+from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -43,11 +44,15 @@ from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.physics_adapter import (
     create_galerkin_physics_ode_residual,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.adjoint_checks import NumpyArray
 
@@ -88,10 +93,10 @@ class _ViscosityForcingParameterization:
     def physics(self) -> StokesPhysics[NumpyArray]:
         return self._physics
 
-    def targets(self):
+    def targets(self) -> Tuple[object, ...]:
         return (self._physics,)
 
-    def owned_coefficients(self):
+    def owned_coefficients(self) -> Tuple[str, ...]:
         return ("mock_coef",)
 
     def param_derivatives(self) -> ParamDerivatives[NumpyArray]:
@@ -149,12 +154,11 @@ def _build_pipeline(
     GalerkinSystem[NumpyArray],
 ]:
     mesh = StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd)
-    basis = MixedBasis(
-        [
-            ("velocity", VectorLagrangeBasis(mesh, degree=2)),
-            ("pressure", LagrangeBasis(mesh, degree=1)),
-        ]
-    )
+    fields: list[tuple[str, MixedFieldBasisProtocol[NumpyArray]]] = [
+        ("velocity", VectorLagrangeBasis(mesh, degree=2)),
+        ("pressure", LagrangeBasis(mesh, degree=1)),
+    ]
+    basis = MixedBasis(fields)
     amplitude = {"value": 1.0}
 
     def vel_forcing(x: NumpyArray) -> NumpyArray:
@@ -176,7 +180,9 @@ def _build_pipeline(
         ],
     )
     param_obj = param_cls(physics, amplitude, bkd)
-    adapter = create_galerkin_physics_ode_residual(system, param_obj)
+    adapter = create_galerkin_physics_ode_residual(
+        skfem_discretization(system), ScipySparseLU(), param_obj
+    )
     stepper = create_stepper(method, adapter)
     wrapper = create_galerkin_bc_enforcing_residual(
         stepper, system.constraint_set(), bkd

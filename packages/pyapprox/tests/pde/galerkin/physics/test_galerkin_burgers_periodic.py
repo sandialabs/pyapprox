@@ -34,8 +34,9 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinModel,
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinTransientModel,
+    skfem_ode_residual,
 )
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
@@ -114,7 +115,8 @@ class TestDiscreteConservation:
             verbosity=0,
         )
         system = compose_galerkin_system(physics)
-        states, _ = GalerkinModel(system, bkd).solve_transient(u0, config)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
+        states, _ = model.solve_transient(u0, config)
         row_sums = _mass_row_sums(physics, bkd)
         momenta = bkd.sum(row_sums[:, None] * states, axis=0)
         drift = bkd.to_float(bkd.max(bkd.abs(momenta - momenta[0])))
@@ -134,7 +136,8 @@ class TestDiscreteConservation:
             verbosity=0,
         )
         system = compose_galerkin_system(physics)
-        states, _ = GalerkinModel(system, bkd).solve_transient(u0, config)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
+        states, _ = model.solve_transient(u0, config)
         # M @ states is the skfem-seam contraction; analysis stays bkd
         weighted = bkd.asarray(
             physics.mass_matrix() @ np.asarray(bkd.to_numpy(states))
@@ -176,9 +179,8 @@ class TestManufacturedSolutionRecovery:
                 verbosity=0,
             )
             system = compose_galerkin_system(physics)
-            states, times = GalerkinModel(system, bkd).solve_transient(
-                u0, config
-            )
+            model = GalerkinTransientModel(skfem_ode_residual(system))
+            states, times = model.solve_transient(u0, config)
             exact = bkd.ravel(solution(coords, bkd.to_float(times[-1])))
             errors.append(
                 bkd.to_float(

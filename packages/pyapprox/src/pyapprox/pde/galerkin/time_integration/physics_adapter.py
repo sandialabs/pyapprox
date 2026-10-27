@@ -24,72 +24,121 @@ layer owns everything that requires both a physics and a
 parameterization.
 """
 
-from typing import Generic
+from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.mass_matrix import (
     MassMatrixProtocol,
 )
-from pyapprox.ode.mixins.default_newton_jacobian import (
-    DefaultNewtonJacobianMixin,
-)
-from pyapprox.ode.newton_jacobian_system import NewtonJacobianSystem
+from pyapprox.ode.mass_matrix_system import MassMatrixSystem
+from pyapprox.ode.protocols import ODEResidualProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
+)
+from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
+    GalerkinJacobianOperator,
 )
 from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
 )
+from pyapprox.pde.galerkin.time_integration.stack_discretization import (
+    GalerkinStackDiscretization,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    FormatProtocol,
+    LinearSolverProtocol,
+    RowReplacedOperator,
+)
+
+F = TypeVar("F", bound=FormatProtocol)
 
 
-class GalerkinPhysicsToODEResidualAdapter(
-    DefaultNewtonJacobianMixin[Array], Generic[Array]
-):
-    """Adapter from a transient Galerkin system to ODEResidualProtocol
-    (base tier).
+@runtime_checkable
+class GalerkinODEResidualProtocol(ODEResidualProtocol[Array], Protocol[Array]):
+    """What a Galerkin model needs of its time-integration adapter,
+    whatever stack it was built on: the ODE residual, the system it
+    adapts, and whether its mass is lumped."""
+
+    def system(self) -> GalerkinTransientSystemProtocol[Array]:
+        """Return the adapted system."""
+        ...
+
+    def lumped_mass(self) -> bool:
+        """Whether the mass is lumped (diagonal)."""
+        ...
+
+
+class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
+    """Adapter from a transient Galerkin system on a stack to
+    ODEResidualProtocol (base tier).
 
     Presents the BC-neutralized ODE (see module docstring):
     - f(y) = spatial_residual with essential rows carrying g_dot(t)
     - jacobian(y) = spatial_jacobian with essential rows zeroed
     - mass_matrix() = mass with identity rows at essential DOFs
 
-    The constraint VALUES g(t) for the end-of-step system are applied
-    externally by the BC-enforcing time residual wrapper.
+    and, for implicit steppers, the same ODE as a residual-form system
+    of the discretization's stack operators (:meth:`implicit_system`),
+    with the essential rows applied here: the discretization applies
+    none. The constraint VALUES g(t) for the end-of-step system are
+    applied externally by the BC-enforcing time residual wrapper.
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
-        The composed system to adapt: spatial operator, constraint set
-        and mass (``compose_galerkin_system(physics, bcs)``).
-    lumped_mass : bool, default False
-        If True, use the row-sum lumped (diagonal) mass matrix instead
-        of the consistent mass. Cheaper per solve, less accurate — an
-        option on the one pipeline, not a separate code path.
+    discretization : GalerkinStackDiscretization
+        The system on a stack; states are the stack's vectors.
+        Consistent or lumped mass is the discretization's choice.
+    solver : LinearSolverProtocol
+        Solves the implicit system's shifted Jacobians; pairs with the
+        stack's format ``F``.
 
     Examples
     --------
-    >>> system = compose_galerkin_system(physics, bcs)
-    >>> ode_residual = GalerkinPhysicsToODEResidualAdapter(system)
+    >>> ode_residual = skfem_ode_residual(compose_galerkin_system(physics, bcs))
     >>> time_stepper = BackwardEulerHVP(ode_residual)
     """
 
     def __init__(
         self,
-        system: GalerkinTransientSystemProtocol[Array],
-        lumped_mass: bool = False,
+        discretization: GalerkinStackDiscretization[Array, Array, F],
+        solver: LinearSolverProtocol[Array, F],
     ) -> None:
+        if not isinstance(discretization, GalerkinStackDiscretization):
+            raise TypeError(
+                "discretization must be a GalerkinStackDiscretization, got "
+                f"{type(discretization).__name__}"
+            )
+        if not isinstance(solver, LinearSolverProtocol):
+            raise TypeError(
+                "solver must satisfy LinearSolverProtocol, got "
+                f"{type(solver).__name__}"
+            )
+        system = discretization.system()
         if not isinstance(system, GalerkinTransientSystemProtocol):
             raise TypeError(
                 "system must satisfy GalerkinTransientSystemProtocol, "
                 f"got {type(system).__name__}"
             )
         self._system = system
+        self._discretization = discretization
+        self._solver = solver
         self._spatial_operator = system.spatial_operator()
         self._bkd = system.bkd()
         # Read by the parameterized subclasses' derivative constraints.
         self._constraint_set = system.constraint_set()
-        self._rows = NeutralizedRows(self._constraint_set, self._bkd, lumped_mass)
+        # The lumping is the discretization's mass assembler's choice; the
+        # matrix-era mass follows it, so the two masses agree.
+        self._lumped_mass = discretization.assemble_mass().properties().diagonal
+        self._rows = NeutralizedRows(
+            self._constraint_set, self._bkd, self._lumped_mass
+        )
         self._mass = self._rows.mass(system.mass_matrix())
+        self._essential_jacobian = GalerkinJacobianOperator(
+            discretization, discretization.essential_rows()
+        )
+        self._stack_mass_source: Optional[ActionOperatorProtocol[Array, F]] = None
+        self._stack_mass: Optional[RowReplacedOperator[Array, F]] = None
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -98,6 +147,11 @@ class GalerkinPhysicsToODEResidualAdapter(
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """Return the adapted system."""
         return self._system
+
+    def lumped_mass(self) -> bool:
+        """Whether the mass is lumped (diagonal), as the discretization's
+        mass assembler declares."""
+        return self._lumped_mass
 
     def __call__(self, state: Array, time: float) -> Array:
         """Evaluate the BC-neutralized residual f(y, t).
@@ -149,10 +203,32 @@ class GalerkinPhysicsToODEResidualAdapter(
         """Return the FEM mass matrix as a value-object."""
         return self._mass
 
-    def implicit_system(self) -> NewtonJacobianSystem[Array]:
-        """The residual-form system implicit steppers solve with: this
-        adapter's own Newton matrix, in its SciPy storage."""
-        return NewtonJacobianSystem(self)
+    def _row_replaced_mass(self) -> RowReplacedOperator[Array, F]:
+        """The stack mass with the essential rows replaced by identity rows,
+        rebuilt only when the discretization's mass changes."""
+        assembled = self._discretization.assemble_mass()
+        if self._stack_mass is None or self._stack_mass_source is not assembled:
+            self._stack_mass = RowReplacedOperator(
+                assembled, self._discretization.essential_rows()
+            )
+            self._stack_mass_source = assembled
+        return self._stack_mass
+
+    def implicit_system(self) -> MassMatrixSystem[Array, F]:
+        """The residual-form system implicit steppers solve with: the
+        BC-neutralized ODE as stack operators (identity essential rows in
+        the mass, zeroed essential rows in the Jacobian) and the
+        adapter's solver."""
+        return MassMatrixSystem(
+            self,
+            self._row_replaced_mass(),
+            self._essential_jacobian,
+            self._discretization.space(),
+            self._solver,
+        )
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(system={self._system!r})"
+        return (
+            f"{type(self).__name__}(system={self._system!r}, "
+            f"solver={self._solver!r})"
+        )

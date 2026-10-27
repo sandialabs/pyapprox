@@ -180,7 +180,7 @@ class EulerBernoulliBeamFEM(Generic[Array]):
             beam, [DirichletBC(basis, "left", 0.0, bkd)]
         )
 
-    and solve the system (``GalerkinModel(system, bkd).solve_steady``).
+    and solve the system (``GalerkinSteadyModel(system).solve_steady``).
     An end with no condition is free (zero moment and shear, natural in
     the weak form). Read results through the basis:
     ``basis.values(u)``, ``basis.slopes(u)``, ``basis.evaluate(u, x)``.

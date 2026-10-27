@@ -4,8 +4,7 @@ Each implicit stepper's Newton solve, transposed diagonal solve and
 adjoint initial condition must agree with a dense solve with
 :math:`M - cJ`, whether the system is the dense default or an injected
 matrix-free one with GMRES; the matrix the sweeps read is exactly
-:math:`M - cJ`. Also the stage solve's own contract and
-``NewtonJacobianSystem``.
+:math:`M - cJ`. Also the stage solve's own contract.
 """
 
 from typing import Generic, TypeVar, Union
@@ -20,14 +19,11 @@ from pyapprox.ode.implicit_steppers import (
     ImplicitMidpointHVP,
 )
 from pyapprox.ode.mass_matrix_system import dense_system, matrix_free_system
-from pyapprox.ode.mixins.default_newton_jacobian import DefaultNewtonJacobianMixin
-from pyapprox.ode.newton_jacobian_system import NewtonJacobianSystem
 from pyapprox.ode.protocols import ResidualFormSystemProtocol
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
-    BackendDenseOperator,
     BackendVectorSpace,
 )
 from pyapprox.util.linalg.operators import (
@@ -267,43 +263,3 @@ class TestStagePointsAndCapabilities:
                 BackwardEulerHVP(model, system)
         # A forward-only stepper does not need them.
         BackwardEulerStepper(model, system)
-
-
-class _MixinModel(LotkaVolterra[Array], DefaultNewtonJacobianMixin[Array]):
-    """Lotka-Volterra that also builds its own Newton matrix (the model
-    first, so its concrete methods satisfy the mixin's abstract ones)."""
-
-
-class TestNewtonJacobianSystem:
-    """The adapter for residuals that build their own Newton matrix; these
-    tests go with ``NewtonJacobianSystem``."""
-
-    def test_shifted_jacobian_and_solver(self, bkd: Backend[Array]) -> None:
-        model = _MixinModel(bkd, mass=bkd.asarray(_MASS))
-        system = NewtonJacobianSystem(model)
-        state, shift = bkd.asarray([10.0, 5.0]), 1.0 / _DT
-        op = system.shifted_jacobian(
-            state, bkd.zeros((2,)), 0.0, shift, LinearizationPoint(0)
-        )
-        reference = shift * bkd.asarray(_MASS) - model.jacobian(state, 0.0)
-        x = bkd.asarray([[1.0], [-0.5]])
-        bkd.assert_allclose(op.apply(x), bkd.dot(reference, x), rtol=1e-12)
-        bkd.assert_allclose(op.apply_transpose(x), bkd.dot(reference.T, x), rtol=1e-12)
-        handle = system.solver().setup(op)
-        solution, info = handle.solve(x)
-        assert info.converged
-        bkd.assert_allclose(solution, bkd.solve(reference, x), rtol=1e-12)
-        transposed = handle.transpose()
-        assert transposed is not None
-        solution, _ = transposed.solve(x)
-        bkd.assert_allclose(solution, bkd.solve(reference.T, x), rtol=1e-12)
-
-    def test_refuses_other_operators_and_residuals(self, bkd: Backend[Array]) -> None:
-        model = _MixinModel(bkd, mass=bkd.asarray(_MASS))
-        other = BackendDenseOperator(
-            bkd.eye(2, dtype=bkd.default_dtype()), SpaceDescriptor("state", 2), bkd
-        )
-        with pytest.raises(TypeError, match="NewtonJacobianSystem"):
-            NewtonJacobianSystem(model).solver().setup(other)  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="ImplicitODEResidualProtocol"):
-            NewtonJacobianSystem(_model(bkd))  # type: ignore[arg-type]

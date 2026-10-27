@@ -30,8 +30,9 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
-    GalerkinPhysicsToODEResidualAdapter,
+    GalerkinSteadyModel,
+    skfem_discretization,
+    skfem_ode_residual,
 )
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
@@ -41,6 +42,7 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 )
 from pyapprox.pde.time_order import SecondOrderInTimeProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
 _NumpyArray = NDArray[Any]
 
@@ -124,31 +126,24 @@ class TestGalerkinLinearElasticityTimeOrder:
     ) -> None:
         _, system, _ = _setup(numpy_bkd)
         with pytest.raises(TypeError, match=_REFUSAL):
-            GalerkinPhysicsToODEResidualAdapter(system, lumped_mass=lumped_mass)
-
-    @pytest.mark.parametrize("lumped_mass", [False, True])
-    def test_model_solve_transient_is_refused(
-        self, numpy_bkd: NumpyBkd, lumped_mass: bool
-    ) -> None:
-        _, system, exact = _setup(numpy_bkd)
-        model = GalerkinModel(system, numpy_bkd)
-        with pytest.raises(TypeError, match=_REFUSAL):
-            model.solve_transient(exact, _time_config(lumped_mass))
-        with pytest.raises(TypeError, match=_REFUSAL):
-            model.adapter()
+            skfem_ode_residual(system, lumped_mass=lumped_mass)
 
     def test_forward_model_is_refused(self, numpy_bkd: NumpyBkd) -> None:
         physics, system, exact = _setup(numpy_bkd)
         parameterization = create_galerkin_lame_parameterization(physics, numpy_bkd)
         with pytest.raises(TypeError, match=_REFUSAL):
             GalerkinTransientForwardModel(
-                system, parameterization, exact, _time_config(), numpy_bkd
+                skfem_discretization(system),
+                ScipySparseLU(),
+                parameterization,
+                exact,
+                _time_config(),
             )
 
     def test_steady_solve_still_works(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         _, system, exact = _setup(bkd)
-        solution = GalerkinModel(system, bkd).solve_steady(
+        solution = GalerkinSteadyModel(system).solve_steady(
             bkd.zeros((system.nstates(),))
         )
         bkd.assert_allclose(solution, exact, atol=1e-10)

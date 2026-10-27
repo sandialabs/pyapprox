@@ -48,6 +48,7 @@ from pyapprox.pde.galerkin.observations import (
     probe_observation_functional,
 )
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
@@ -56,6 +57,7 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
 # Interior, on an edge, and on a vertex (incl. the domain corner).
 _POINTS = np.array(
@@ -154,13 +156,13 @@ def _models(bkd: NumpyBkd, which: str) -> tuple[Any, Any]:
         )
     init_state, config = _initial_state_and_config(bkd, basis)
     tangent = GalerkinTransientForwardModel(
-        system, parameterization, init_state, config, bkd,
-        functional=functional,
-    )
+        skfem_discretization(system),
+        ScipySparseLU(), parameterization, init_state, config,
+        functional=functional)
     adjoint = GalerkinTransientForwardModel(
-        system, parameterization, init_state, config, bkd,
-        functional=functional, jacobian_method=adjoint_jacobian,
-    )
+        skfem_discretization(system),
+        ScipySparseLU(), parameterization, init_state, config,
+        functional=functional, jacobian_method=adjoint_jacobian)
     return tangent, adjoint
 
 
@@ -273,7 +275,11 @@ class TestFunctionalTimeDependence:
             TypeError, match="TransientFunctionalProtocol"
         ):
             GalerkinTransientForwardModel(
-                system, parameterization, init_state, config, bkd,
+                skfem_discretization(system),
+                ScipySparseLU(),
+                parameterization,
+                init_state,
+                config,
                 functional=steady,  # type: ignore[arg-type]
             )
 
@@ -286,11 +292,11 @@ class TestFunctionalTimeDependence:
         basis, system, parameterization = _problem(bkd)
         init_state, config = _initial_state_and_config(bkd, basis)
         model = GalerkinTransientForwardModel(
-            system, parameterization, init_state, config, bkd,
+            skfem_discretization(system),
+            ScipySparseLU(), parameterization, init_state, config,
             functional=_FinalStateSum(
                 basis.ndofs(), parameterization.nparams(), bkd
-            ),
-        )
+            ))
         assert model.derivatives().jacobian is None
         sample = bkd.zeros((model.nvars(), 1))
         assert model(sample).shape == (1, 1)

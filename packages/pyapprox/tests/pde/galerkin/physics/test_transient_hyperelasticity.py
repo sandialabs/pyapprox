@@ -37,8 +37,9 @@ from pyapprox.pde.galerkin.physics import (
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
-    GalerkinPhysicsToODEResidualAdapter,
+    GalerkinSteadyModel,
+    skfem_discretization,
+    skfem_ode_residual,
 )
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
@@ -48,6 +49,7 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 )
 from pyapprox.pde.time_order import SecondOrderInTimeProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
 _NumpyArray = NDArray[Any]
 _Physics = Union[
@@ -123,16 +125,7 @@ class TestGalerkinHyperelasticityTimeOrder:
     ) -> None:
         _, system, _ = _setup(numpy_bkd, physics_name)
         with pytest.raises(TypeError, match=physics_name):
-            GalerkinPhysicsToODEResidualAdapter(system)
-
-    @pytest.mark.parametrize("physics_name", _PHYSICS_NAMES)
-    def test_model_solve_transient_is_refused(
-        self, numpy_bkd: NumpyBkd, physics_name: str
-    ) -> None:
-        _, system, exact = _setup(numpy_bkd, physics_name)
-        model = GalerkinModel(system, numpy_bkd)
-        with pytest.raises(TypeError, match=_REFUSAL):
-            model.solve_transient(exact, _time_config())
+            skfem_ode_residual(system)
 
     def test_forward_model_is_refused(self, numpy_bkd: NumpyBkd) -> None:
         """Only the composite physics has a Galerkin parameterization."""
@@ -141,7 +134,11 @@ class TestGalerkinHyperelasticityTimeOrder:
         parameterization = create_galerkin_lame_parameterization(physics, numpy_bkd)
         with pytest.raises(TypeError, match=_REFUSAL):
             GalerkinTransientForwardModel(
-                system, parameterization, exact, _time_config(), numpy_bkd
+                skfem_discretization(system),
+                ScipySparseLU(),
+                parameterization,
+                exact,
+                _time_config(),
             )
 
     @pytest.mark.parametrize("physics_name", _PHYSICS_NAMES)
@@ -150,7 +147,7 @@ class TestGalerkinHyperelasticityTimeOrder:
     ) -> None:
         bkd = numpy_bkd
         _, system, exact = _setup(bkd, physics_name)
-        solution = GalerkinModel(system, bkd).solve_steady(
+        solution = GalerkinSteadyModel(system).solve_steady(
             bkd.zeros((system.nstates(),))
         )
         bkd.assert_allclose(solution, exact, atol=1e-6)

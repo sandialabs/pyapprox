@@ -31,7 +31,9 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
+    skfem_ode_residual,
 )
+from pyapprox.util.linalg.scipy_stack import CSRFormat
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
 from pyapprox.util.linalg.scipy_stack import CSRFormat
@@ -40,12 +42,12 @@ _Np = NDArray[Any]
 _POINT = LinearizationPoint(0, ("step", 1))
 
 
-def _adapter(bkd: NumpyBkd) -> GalerkinPhysicsToODEResidualAdapter[_Np]:
+def _adapter(bkd: NumpyBkd) -> GalerkinPhysicsToODEResidualAdapter[_Np, CSRFormat]:
     mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
     physics = AdvectionDiffusionReaction(
         basis=LagrangeBasis(mesh, degree=2), diffusivity=0.5, bkd=bkd, reaction=2.0
     )
-    return GalerkinPhysicsToODEResidualAdapter(compose_galerkin_system(physics))
+    return skfem_ode_residual(compose_galerkin_system(physics))
 
 
 class TestSparseSystem:

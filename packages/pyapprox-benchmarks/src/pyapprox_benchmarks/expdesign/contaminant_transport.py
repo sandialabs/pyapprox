@@ -37,6 +37,7 @@ not under reflection in either axis.
 
 import math
 from typing import (
+    Any,
     Callable,
     Generic,
     List,
@@ -48,6 +49,7 @@ from typing import (
 )
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -69,6 +71,7 @@ from pyapprox.pde.galerkin.observations import (
     probe_observation_functional,
 )
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
@@ -77,9 +80,14 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
 )
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
+
+# The problem is bound to NumPy: its Galerkin solves assemble with skfem.
+_Np = NDArray[Any]
 
 
 class CellsPlusUniformStreamFunction(Generic[Array]):
@@ -279,7 +287,7 @@ class UncertainVelocity(Generic[Array]):
         return inputs
 
 
-class ContaminantTransportOEDProblem(Generic[Array]):
+class ContaminantTransportOEDProblem:
     r"""Contaminant transport prediction OED problem.
 
     See the module docstring for the model. No ground truth, so this is a
@@ -287,9 +295,9 @@ class ContaminantTransportOEDProblem(Generic[Array]):
 
     Parameters
     ----------
-    bkd : Backend[Array]
+    bkd : NumpyBkd
         Computational backend.
-    velocity_model : VelocityModelProtocol[Array]
+    velocity_model : VelocityModelProtocol[_Np]
         Whether the velocity is fixed or a nuisance.
     nelements_per_dim : int
         Elements per side of the structured triangular mesh.
@@ -310,15 +318,15 @@ class ContaminantTransportOEDProblem(Generic[Array]):
         Correlation length of the log-diffusivity prior.
     log_diffusivity_std : float
         Free-space standard deviation of the log-diffusivity prior.
-    initial_condition : Callable[[Array], Array], optional
+    initial_condition : Callable[[_Np], _Np], optional
         Map from points (2, npts) to values (npts,). Default:
         :class:`GaussianPlume`.
     """
 
     def __init__(
         self,
-        bkd: Backend[Array],
-        velocity_model: VelocityModelProtocol[Array],
+        bkd: NumpyBkd,
+        velocity_model: VelocityModelProtocol[_Np],
         *,
         nelements_per_dim: int = 39,
         deltat: float = 0.01,
@@ -330,7 +338,7 @@ class ContaminantTransportOEDProblem(Generic[Array]):
         correlation_length: float = math.sqrt(0.1),
         log_diffusivity_std: float = 1.0
         / math.sqrt(4.0 * math.pi * (10.0 / 39.0) * (100.0 / 39.0)),
-        initial_condition: Optional[Callable[[Array], Array]] = None,
+        initial_condition: Optional[Callable[[_Np], _Np]] = None,
     ) -> None:
         if not isinstance(velocity_model, VelocityModelProtocol):
             raise TypeError(
@@ -397,7 +405,7 @@ class ContaminantTransportOEDProblem(Generic[Array]):
                 physics, diffusivity_map=diffusivity_map, bkd=bkd
             )
         system = compose_galerkin_system(physics, [])
-        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
             method="crank_nicolson",
             init_time=0.0,
             final_time=final_time,
@@ -437,20 +445,21 @@ class ContaminantTransportOEDProblem(Generic[Array]):
             nvars,
             bkd,
         )
+        discretization = skfem_discretization(system)
         self._obs_model = GalerkinTransientForwardModel(
-            system,
+            discretization,
+            ScipySparseLU(),
             parameterization,
             init_state,
             config,
-            bkd,
             functional=self._obs_functional,
         )
         self._qoi_model = GalerkinTransientForwardModel(
-            system,
+            discretization,
+            ScipySparseLU(),
             parameterization,
             init_state,
             config,
-            bkd,
             functional=self._qoi_functional,
         )
 
@@ -502,7 +511,7 @@ class ContaminantTransportOEDProblem(Generic[Array]):
             steps.append(step)
         return steps
 
-    def _design_conditions(self, deltat: float) -> Array:
+    def _design_conditions(self, deltat: float) -> _Np:
         """Rows x, y, t of each observation, sensor index fastest."""
         bkd = self._bkd
         nsensors = int(self._sensor_locations.shape[1])
@@ -518,32 +527,32 @@ class ContaminantTransportOEDProblem(Generic[Array]):
         )
         return bkd.vstack([locations, times[None, :]])
 
-    def _velocity(self, sample: Array) -> Array:
+    def _velocity(self, sample: _Np) -> _Np:
         """Velocity DOFs for one input sample (nvars, 1). Shape: (nveldofs,)"""
         nuisance = sample[self._nparams :, 0]
         return self._velocity_map(self._velocity_model.coefficients(nuisance))
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         """Get the computational backend."""
         return self._bkd
 
-    def problem(self) -> PredictionOEDProblem[Array]:
+    def problem(self) -> PredictionOEDProblem[_Np]:
         """Get the prediction OED problem."""
         return self._problem
 
-    def obs_map(self) -> GalerkinTransientForwardModel[Array]:
+    def obs_map(self) -> GalerkinTransientForwardModel[_Np]:
         """Map inputs (nvars, nsamples) to observations (nobs, nsamples)."""
         return self._obs_model
 
-    def qoi_map(self) -> GalerkinTransientForwardModel[Array]:
+    def qoi_map(self) -> GalerkinTransientForwardModel[_Np]:
         """Map inputs (nvars, nsamples) to the outflux (nqoi, nsamples)."""
         return self._qoi_model
 
-    def prior(self) -> IndependentJoint[Array]:
+    def prior(self) -> IndependentJoint[_Np]:
         """Standard Gaussian prior over the inputs."""
         return self._prior
 
-    def noise_variances(self) -> Array:
+    def noise_variances(self) -> _Np:
         """Observation noise variances. Shape: (nobs,)"""
         return self._noise_variances
 
@@ -555,7 +564,7 @@ class ContaminantTransportOEDProblem(Generic[Array]):
         """Total number of inputs, log-diffusivity then nuisance."""
         return self._nparams + self._velocity_model.nvars()
 
-    def log_diffusivity(self, samples: Array) -> Array:
+    def log_diffusivity(self, samples: _Np) -> _Np:
         r"""Nodal :math:`\kappa = \kappa_0 + W\zeta` of input samples.
 
         Parameters
@@ -570,14 +579,15 @@ class ContaminantTransportOEDProblem(Generic[Array]):
             Shape: (nnodes, nsamples)
         """
         zeta = samples[: self._nparams]
-        return self._log_mean[:, None] + self._log_factor @ zeta
+        kappa: _Np = self._log_mean[:, None] + self._log_factor @ zeta
+        return kappa
 
-    def log_diffusivity_prior(self) -> BiLaplacianPrior[Array]:
+    def log_diffusivity_prior(self) -> BiLaplacianPrior[_Np]:
         """The bi-Laplacian prior of the log-diffusivity, whose
         ``covariance()`` is the exact nodal prior covariance."""
         return self._log_prior
 
-    def evaluate_both(self, samples: Array) -> Tuple[Array, Array]:
+    def evaluate_both(self, samples: _Np) -> Tuple[_Np, _Np]:
         """Observations and outflux from one solve per sample.
 
         Parameters
@@ -600,24 +610,24 @@ class ContaminantTransportOEDProblem(Generic[Array]):
             qoi_values.append(self._qoi_functional(states, sample))
         return self._bkd.hstack(obs_values), self._bkd.hstack(qoi_values)
 
-    def solve_trajectory(self, sample: Array) -> Tuple[Array, Array]:
+    def solve_trajectory(self, sample: _Np) -> Tuple[_Np, _Np]:
         """Nodal states (nnodes, nsteps + 1) and times (nsteps + 1,)."""
         return self._obs_model.forward_solve(sample)
 
-    def velocity_field(self, sample: Array) -> Array:
+    def velocity_field(self, sample: _Np) -> _Np:
         """Velocity at the mesh nodes for one sample. Shape: (2, nnodes)"""
         dofs = self._velocity(sample)
         return self._bkd.transpose(self._bkd.reshape(dofs, (-1, 2)))
 
-    def mesh(self) -> StructuredMesh2D[Array]:
+    def mesh(self) -> StructuredMesh2D[_Np]:
         """The structured triangular mesh."""
         return self._mesh
 
-    def basis(self) -> LagrangeBasis[Array]:
+    def basis(self) -> LagrangeBasis[_Np]:
         """The P1 basis of the concentration and log-diffusivity."""
         return self._basis
 
-    def sensor_locations(self) -> Array:
+    def sensor_locations(self) -> _Np:
         """Sensor coordinates. Shape: (2, nsensors)"""
         return self._sensor_locations
 
@@ -625,11 +635,11 @@ class ContaminantTransportOEDProblem(Generic[Array]):
         """Time steps at which sensors and outflux are recorded."""
         return list(self._observation_steps)
 
-    def outflow_nodes(self) -> Array:
+    def outflow_nodes(self) -> _Np:
         """Right-boundary node indices, sorted by height. Shape: (nout,)"""
         return self._outflow_dofs
 
-    def truth(self, seed: int) -> Tuple[Array, Array]:
+    def truth(self, seed: int) -> Tuple[_Np, _Np]:
         """Draw data-generating inputs from the full prior.
 
         Draws the log-diffusivity inputs and all stream-function

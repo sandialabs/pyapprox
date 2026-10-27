@@ -40,8 +40,8 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsToODEResidualAdapter,
     create_galerkin_bc_enforcing_residual,
+    skfem_ode_residual,
 )
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
@@ -305,7 +305,7 @@ class TestParametrizedBurgersTransient:
     """Parametrized 1D Burgers transient tests with P2 + backward Euler.
 
     Replicates legacy test_finite_elements.py test_transient_burgers DD case.
-    Uses GalerkinPhysicsToODEResidualAdapter + BackwardEulerHVP for time stepping
+    Uses skfem_ode_residual + BackwardEulerHVP for time stepping
     with Newton iteration at each step.
     """
 
@@ -350,7 +350,7 @@ class TestParametrizedBurgersTransient:
         system = compose_galerkin_system(physics, bcs)
 
         # Create ODE adapter and time stepper with constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        ode_adapter = skfem_ode_residual(system)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:

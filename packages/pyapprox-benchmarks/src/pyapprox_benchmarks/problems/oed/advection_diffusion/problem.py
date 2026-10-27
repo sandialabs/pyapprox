@@ -23,13 +23,11 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Generic,
     List,
     Literal,
     Optional,
     Tuple,
     Union,
-    cast,
 )
 
 if TYPE_CHECKING:
@@ -41,6 +39,7 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
@@ -53,7 +52,7 @@ from pyapprox.pde.zoo.obstructed_flow import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox_benchmarks.problems.oed.advection_diffusion._kle import (
     _create_subdomain_kle_forcing,
@@ -62,14 +61,15 @@ from pyapprox_benchmarks.problems.oed.prediction_problem import (
     PredictionOEDProblem,
 )
 
+# Bound to NumPy: the Stokes and transport solves assemble with skfem.
+_Np = NDArray[Any]
+
 # ---------------------------------------------------------------------------
 # AdvectionDiffusionOEDProblem
 # ---------------------------------------------------------------------------
 
 
-class AdvectionDiffusionOEDProblem(
-    PredictionOEDProblem[Array], Generic[Array],
-):
+class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
     """Prediction OED problem for obstructed advection-diffusion.
 
     Couples Stokes flow with transient advection-diffusion on an
@@ -117,7 +117,7 @@ class AdvectionDiffusionOEDProblem(
 
     def __init__(
         self,
-        bkd: Backend[Array],
+        bkd: NumpyBkd,
         *,
         noise_std: float = 0.1,
         nstokes_refine: int = 3,
@@ -150,8 +150,6 @@ class AdvectionDiffusionOEDProblem(
                 f"time_integrator must be 'backward_euler' or "
                 f"'crank_nicolson', got {time_integrator!r}"
             )
-        from pyapprox.util.backends.numpy import NumpyBkd
-
         if not isinstance(bkd, NumpyBkd):
             raise TypeError(
                 "AdvectionDiffusionOEDProblem requires NumpyBkd because "
@@ -161,12 +159,7 @@ class AdvectionDiffusionOEDProblem(
                 "at the boundary. Gradients will not propagate through "
                 "the forward solve."
             )
-
-        # mypy narrows ``bkd`` to ``NumpyBkd`` (i.e. ``Backend[ndarray]``)
-        # after the ``isinstance`` check, which is incompatible with the
-        # class's generic ``Backend[Array]``. The runtime check above
-        # already guarantees NumpyBkd, so re-widen with ``cast``.
-        self._bkd: Backend[Array] = cast("Backend[Array]", bkd)
+        self._bkd = bkd
         self._noise_std = float(noise_std)
         self._nstokes_refine = nstokes_refine
         self._nadvec_diff_refine = nadvec_diff_refine
@@ -217,7 +210,7 @@ class AdvectionDiffusionOEDProblem(
 
         # Build prior: [kle_params (10), vel_shape (2), reynolds (1)]
         marginals: List[
-            Union[GaussianMarginal[Array], UniformMarginal[Array]]
+            Union[GaussianMarginal[_Np], UniformMarginal[_Np]]
         ] = []
         for _ in range(self._nkle_terms):
             marginals.append(GaussianMarginal(0.0, 1.0, bkd))
@@ -332,10 +325,10 @@ class AdvectionDiffusionOEDProblem(
         vel_shape_b: float,
         reynolds_num: float,
     ) -> Tuple[
-        Array,
-        "StokesPhysics[Array]",
-        "VectorLagrangeBasis[Array]",
-        "LagrangeBasis[Array]",
+        _Np,
+        "StokesPhysics[_Np]",
+        "VectorLagrangeBasis[_Np]",
+        "LagrangeBasis[_Np]",
     ]:
         """Solve Stokes on the problem's Stokes mesh.
 
@@ -358,12 +351,12 @@ class AdvectionDiffusionOEDProblem(
         self,
         kle_params: np.ndarray,
         stokes_result: Tuple[
-            Array,
-            "StokesPhysics[Array]",
-            "VectorLagrangeBasis[Array]",
-            "LagrangeBasis[Array]",
+            _Np,
+            "StokesPhysics[_Np]",
+            "VectorLagrangeBasis[_Np]",
+            "LagrangeBasis[_Np]",
         ],
-    ) -> Tuple[Array, Array]:
+    ) -> Tuple[_Np, _Np]:
         """Run the ADR transient using a precomputed Stokes result."""
         from pyapprox.ode.config import TimeIntegrationConfig
         from pyapprox.pde.constitutive.coefficient_functions import (
@@ -374,8 +367,9 @@ class AdvectionDiffusionOEDProblem(
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
-        from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-            GalerkinModel,
+        from pyapprox.pde.galerkin.time_integration import (
+            GalerkinTransientModel,
+            skfem_ode_residual,
         )
 
         bkd = self._bkd
@@ -412,7 +406,7 @@ class AdvectionDiffusionOEDProblem(
             forcing_func = None
 
         alpha = 0.1
-        robin_bcs: List["BoundaryConditionRole[Array]"] = [
+        robin_bcs: List["BoundaryConditionRole[_Np]"] = [
             RobinBC(self._adr_basis, "left", alpha, 0.0, bkd),
             RobinBC(self._adr_basis, "right", alpha, 0.0, bkd),
         ]
@@ -427,7 +421,9 @@ class AdvectionDiffusionOEDProblem(
             ),
         )
 
-        model = GalerkinModel(compose_galerkin_system(adr, robin_bcs), bkd)
+        model = GalerkinTransientModel(
+            skfem_ode_residual(compose_galerkin_system(adr, robin_bcs))
+        )
         if self._source_mode == "initial_condition":
             ic = kle_nodal.astype(np.float64)
         else:
@@ -441,7 +437,7 @@ class AdvectionDiffusionOEDProblem(
         # one step, orders of magnitude above newton_tol, and raises
         # RuntimeError. newton_tol=1e-6 gives headroom for linear-solve
         # roundoff without masking genuine nonlinearity.
-        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
             method=self._time_integrator,
             init_time=0.0,
             final_time=self._final_time,
@@ -490,7 +486,7 @@ class AdvectionDiffusionOEDProblem(
 
     def _solve_forward(
         self, params_np: np.ndarray,
-    ) -> Tuple[Array, Array]:
+    ) -> Tuple[_Np, _Np]:
         """Full forward solve for a single parameter vector."""
         result = self._solve_forward_full(params_np)
         return result["adr_solutions"], result["adr_times"]
@@ -534,7 +530,7 @@ class AdvectionDiffusionOEDProblem(
         }
 
     def solve_for_plotting(
-        self, sample: Array,
+        self, sample: _Np,
     ) -> Dict[str, Any]:
         """Solve for a single parameter sample, returning plotting data."""
         params_np = self._bkd.to_numpy(sample).ravel()
@@ -544,19 +540,19 @@ class AdvectionDiffusionOEDProblem(
 
     # ---- obs/pred extraction --------------------------------------------
 
-    def _extract_obs(self, solutions: Array) -> np.ndarray:
+    def _extract_obs(self, solutions: _Np) -> np.ndarray:
         """Extract observations from a forward solve solution."""
         final_sol = self._bkd.to_numpy(solutions[:, -1])
         return final_sol[self._sensor_indices]
 
-    def _extract_pred(self, solutions: Array) -> np.ndarray:
+    def _extract_pred(self, solutions: _Np) -> np.ndarray:
         """Extract predictions from a forward solve solution."""
         nodes_np = self._bkd.to_numpy(self._adr_mesh.nodes())
         target_mask = nodes_np[0, :] >= self._target_threshold
         final_sol = self._bkd.to_numpy(solutions[:, -1])
         return np.array([np.mean(final_sol[target_mask])])
 
-    def _evaluate_observation(self, samples: Array) -> Array:
+    def _evaluate_observation(self, samples: _Np) -> _Np:
         """Evaluate observation model. samples: ``(nparams, nsamples)``."""
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -567,7 +563,7 @@ class AdvectionDiffusionOEDProblem(
             results.append(self._extract_obs(solutions))
         return bkd.asarray(np.column_stack(results))
 
-    def _evaluate_prediction(self, samples: Array) -> Array:
+    def _evaluate_prediction(self, samples: _Np) -> _Np:
         """Evaluate prediction model. samples: ``(nparams, nsamples)``."""
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -581,8 +577,8 @@ class AdvectionDiffusionOEDProblem(
     # ---- public PDE evaluation API --------------------------------------
 
     def evaluate_both(
-        self, samples: Array,
-    ) -> Tuple[Array, Array]:
+        self, samples: _Np,
+    ) -> Tuple[_Np, _Np]:
         """Evaluate observation and prediction maps with a single solve."""
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -598,7 +594,7 @@ class AdvectionDiffusionOEDProblem(
             bkd.asarray(np.column_stack(pred_results)),
         )
 
-    def evaluate_nodal(self, samples: Array) -> Array:
+    def evaluate_nodal(self, samples: _Np) -> _Np:
         """Evaluate full nodal concentration at the final time."""
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -610,7 +606,7 @@ class AdvectionDiffusionOEDProblem(
             results.append(final_sol)
         return bkd.asarray(np.column_stack(results))
 
-    def mesh_nodes(self) -> Array:
+    def mesh_nodes(self) -> _Np:
         """Return all ADR mesh node coordinates. Shape: ``(2, nnodes)``."""
         return self._adr_mesh.nodes()
 
@@ -624,9 +620,7 @@ class AdvectionDiffusionOEDProblem(
 # ---------------------------------------------------------------------------
 
 
-class FixedVelocityAdvectionDiffusionOEDProblem(
-    AdvectionDiffusionOEDProblem[Array], Generic[Array],
-):
+class FixedVelocityAdvectionDiffusionOEDProblem(AdvectionDiffusionOEDProblem):
     """Fixed-velocity variant of :class:`AdvectionDiffusionOEDProblem`.
 
     Pins ``(vel_shape_a, vel_shape_b, reynolds_num)`` at construction,
@@ -639,7 +633,7 @@ class FixedVelocityAdvectionDiffusionOEDProblem(
 
     def __init__(
         self,
-        bkd: Backend[Array],
+        bkd: NumpyBkd,
         *,
         vel_shape_a: float = 2.5,
         vel_shape_b: float = 2.5,
@@ -744,7 +738,7 @@ class FixedVelocityAdvectionDiffusionOEDProblem(
         }
 
     def solve_for_plotting(
-        self, sample: Array,
+        self, sample: _Np,
     ) -> Dict[str, Any]:
         """Plot a reduced KLE sample using the cached Stokes result."""
         kle_np = self._bkd.to_numpy(sample).ravel()

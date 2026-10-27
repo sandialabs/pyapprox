@@ -35,7 +35,7 @@ from pyapprox.pde.galerkin.physics.euler_bernoulli import (
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinModel,
+    GalerkinSteadyModel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -167,7 +167,7 @@ def _cantilever(beam: EulerBernoulliBeamFEM[Array]) -> GalerkinSystem[Array]:
 
 def _solve(system: GalerkinSystem[Array]) -> Array:
     bkd = system.bkd()
-    return GalerkinModel(system, bkd).solve_steady(
+    return GalerkinSteadyModel(system).solve_steady(
         bkd.zeros((system.nstates(),))
     )
 

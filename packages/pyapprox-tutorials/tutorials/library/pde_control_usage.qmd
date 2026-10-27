@@ -226,12 +226,14 @@ from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox_benchmarks.problems.optimization.obstructed_flow_control import (
     _InletNormalSpeed,
 )
@@ -268,7 +270,8 @@ def build_model(reaction, reaction_map, weight):
         weight=bkd.asarray(weight),
     )
     return GalerkinTransientForwardModel(
-        system,
+        skfem_discretization(system),
+        ScipySparseLU(),
         parameterization,
         bkd.zeros((physics.nstates(),)),
         TimeIntegrationConfig(
@@ -276,7 +279,6 @@ def build_model(reaction, reaction_map, weight):
             final_time=FINAL_TIME, deltat=DELTAT, newton_tol=1e-12,
             newton_maxiter=5, lumped_mass=False, verbosity=0,
         ),
-        bkd,
         functional=functional,
     )
 ```

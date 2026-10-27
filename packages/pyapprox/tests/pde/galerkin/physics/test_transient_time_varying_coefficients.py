@@ -45,8 +45,9 @@ from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
+    GalerkinTransientModel,
     TimeIntegrationConfig,
+    skfem_ode_residual,
 )
 
 
@@ -99,7 +100,7 @@ def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
             )
         return values
 
-    return GalerkinModel(system, bkd), exact_at_time
+    return GalerkinTransientModel(skfem_ode_residual(system)), exact_at_time
 
 
 def _config(deltat=0.5, final_time=2.0):

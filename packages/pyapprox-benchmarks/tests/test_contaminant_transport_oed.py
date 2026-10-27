@@ -39,7 +39,7 @@ class _ZeroStreamFunction:
 
 def _coarse(
     bkd: NumpyBkd, velocity_model: Any, **kwargs: Any
-) -> ContaminantTransportOEDProblem[Any]:
+) -> ContaminantTransportOEDProblem:
     """A 10x10-node mesh and 20 steps."""
     return ContaminantTransportOEDProblem(
         bkd, velocity_model, nelements_per_dim=9, deltat=0.05, **kwargs
@@ -52,7 +52,7 @@ def _flow(bkd: NumpyBkd) -> StreamFunctionFlow[Any]:
 
 def _still(
     bkd: NumpyBkd, center: tuple[float, float] = (0.5, 0.25)
-) -> ContaminantTransportOEDProblem[Any]:
+) -> ContaminantTransportOEDProblem:
     """Coarse problem with zero velocity."""
     flow = StreamFunctionFlow(bkd, _ZeroStreamFunction(bkd))
     return _coarse(

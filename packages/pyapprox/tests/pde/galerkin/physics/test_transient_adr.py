@@ -8,8 +8,8 @@ This module contains:
 4. Explicit integrator tests (Forward Euler + Heun, with/without advection)
 5. Low-level manual Newton test using the BC-enforcing residual wrapper
 
-Implicit cases use GalerkinModel.solve_transient() with backward Euler or
-Crank-Nicolson. Explicit cases use GalerkinModel with CFL-constrained dt.
+Implicit cases use GalerkinTransientModel.solve_transient() with backward Euler or
+Crank-Nicolson. Explicit cases use GalerkinTransientModel with CFL-constrained dt.
 """
 
 import pytest
@@ -41,10 +41,10 @@ from pyapprox.pde.galerkin.manufactured import (
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
-    GalerkinPhysicsToODEResidualAdapter,
+    GalerkinTransientModel,
     TimeIntegrationConfig,
     create_galerkin_bc_enforcing_residual,
+    skfem_ode_residual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slow_test
@@ -158,7 +158,7 @@ def _setup_1d_problem(
         physics, _manufactured_bcs(ms, physics, bndry_types)
     )
 
-    model = GalerkinModel(system, bkd)
+    model = GalerkinTransientModel(skfem_ode_residual(system))
 
     exact_sol_func = functions["solution"]
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -195,7 +195,7 @@ class TestTransientADR1D:
 
     Replicates legacy test_finite_elements.py
     test_transient_advection_diffusion_reaction (8 cases).
-    Uses GalerkinModel.solve_transient() for time integration.
+    Uses GalerkinTransientModel.solve_transient() for time integration.
     """
 
     @pytest.mark.parametrize(
@@ -270,7 +270,7 @@ TRANSIENT_ADR_2D_CASES: List[Tuple[str, List[str], List[str]]] = [
 class TestTransientADR2D:
     """Parametrized 2D transient ADR tests with P2 + backward Euler.
 
-    Uses GalerkinModel.solve_transient() for time integration.
+    Uses GalerkinTransientModel.solve_transient() for time integration.
     """
 
     @pytest.mark.parametrize(
@@ -324,7 +324,7 @@ class TestTransientADR2D:
             physics, _manufactured_bcs(ms, physics, bndry_types)
         )
 
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
 
         exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -373,7 +373,7 @@ TRANSIENT_ADR_1D_CN_CASES: List[Tuple[str, List[str], List[str], str]] = [
 class TestTransientADR1D_CN:
     """1D transient ADR tests with P2 + Crank-Nicolson.
 
-    Uses GalerkinModel.solve_transient() for time integration.
+    Uses GalerkinTransientModel.solve_transient() for time integration.
     """
 
     @pytest.mark.parametrize(
@@ -438,7 +438,7 @@ TRANSIENT_ADR_2D_CN_CASES: List[Tuple[str, List[str], List[str]]] = [
 class TestTransientADR2D_CN:
     """2D transient ADR tests with P2 + Crank-Nicolson.
 
-    Uses GalerkinModel.solve_transient() for time integration.
+    Uses GalerkinTransientModel.solve_transient() for time integration.
     """
 
     @pytest.mark.parametrize(
@@ -491,7 +491,7 @@ class TestTransientADR2D_CN:
             physics, _manufactured_bcs(ms, physics, bndry_types)
         )
 
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
 
         exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -549,7 +549,7 @@ TRANSIENT_ADR_1D_EXPLICIT_CASES: List[Tuple[str, str, List[str], bool]] = [
 class TestTransientADRExplicit1D:
     """1D transient ADR tests with P2 + explicit methods (FE, Heun).
 
-    Uses GalerkinModel.solve_transient() with CFL-constrained dt.
+    Uses GalerkinTransientModel.solve_transient() with CFL-constrained dt.
     P2 on nx=4 exactly represents u=(1-x)*x*(1+T), so spatial error is
     zero. Remaining error is purely temporal discretization.
     """
@@ -655,7 +655,7 @@ class TestManualNewtonWithConstraint:
         )
 
         # Manual setup: adapter + stepper + constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        ode_adapter = skfem_ode_residual(system)
         stepper = BackwardEulerHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), bkd
@@ -733,7 +733,7 @@ class TestManualNewtonWithConstraint:
                 return u[:, 0] if u.shape[1] == 1 else u.flatten()
             return u
 
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        ode_adapter = skfem_ode_residual(system)
         stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), bkd

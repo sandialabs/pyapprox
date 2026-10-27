@@ -9,7 +9,9 @@ reduced operators exactly.
 from __future__ import annotations
 
 import math
-from typing import Generic
+from typing import Any
+
+from numpy.typing import NDArray
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -19,7 +21,10 @@ from pyapprox.pde.galerkin.protocols.system import (
 )
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.numpy import NumpyBkd
+
+# Bound to NumPy: the systems assemble with skfem.
+_Np = NDArray[Any]
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.pde.burgers import (
     build_periodic_burgers_physics,
@@ -28,18 +33,18 @@ from pyapprox_benchmarks.functions.pde.burgers import (
 from pyapprox_benchmarks.problems.pde.opinf_problem import PDEOpInfProblem
 
 
-class _PeriodicBurgersSystemFactory(Generic[Array]):
+class _PeriodicBurgersSystemFactory:
     """Rebuild the Burgers system per viscosity on the shared basis."""
 
     def __init__(
-        self, basis: GalerkinBasisProtocol[Array], bkd: Backend[Array]
+        self, basis: GalerkinBasisProtocol[_Np], bkd: NumpyBkd
     ) -> None:
         self._basis = basis
         self._bkd = bkd
 
     def __call__(
-        self, parameters: Array
-    ) -> GalerkinTransientSystemProtocol[Array]:
+        self, parameters: _Np
+    ) -> GalerkinTransientSystemProtocol[_Np]:
         viscosity = float(self._bkd.to_numpy(parameters)[0, 0])
         # Periodic topology: no boundary conditions.
         return compose_galerkin_system(
@@ -48,7 +53,7 @@ class _PeriodicBurgersSystemFactory(Generic[Array]):
 
 
 def build_periodic_burgers_opinf_problem(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     *,
     nx: int = 128,
     degree: int = 1,
@@ -58,12 +63,12 @@ def build_periodic_burgers_opinf_problem(
     ic_amplitude: float = 0.2,
     final_time: float = 1.0,
     deltat: float = 1e-3,
-) -> PDEOpInfProblem[Array]:
+) -> PDEOpInfProblem:
     """Create the periodic Burgers operator-inference problem.
 
     Parameters
     ----------
-    bkd : Backend[Array]
+    bkd : NumpyBkd
         Computational backend.
     nx : int, optional
         Number of elements (= P1 dofs on the periodic mesh).

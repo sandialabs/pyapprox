@@ -351,9 +351,11 @@ from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
 FINAL_TIME = 3.0
 
@@ -374,8 +376,8 @@ def build_model(method, deltat):
         newton_tol=1e-12, newton_maxiter=20, lumped_mass=False, verbosity=0,
     )
     return GalerkinTransientForwardModel(
-        system, parameterization, bkd.zeros((physics.nstates(),)),
-        config, bkd, functional=functional,
+        skfem_discretization(system), ScipySparseLU(), parameterization,
+        bkd.zeros((physics.nstates(),)), config, functional=functional,
     )
 
 
@@ -441,7 +443,7 @@ adjoint one from the storage the operator keeps.
 
 ```{python}
 solutions, solution_times = model.forward_solve(param)
-operator = model.hvp_operator(functional)
+operator = model.transient_model().hvp_operator(functional)
 operator.jacobian(bkd.zeros((physics.nstates(),)), param)
 adjoints = operator.storage().get_adjoint_trajectory()
 

@@ -20,9 +20,7 @@ from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsToODEResidualAdapter,
-)
+from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -37,11 +35,9 @@ class TestPhysicsAdapterBase:
         self.physics = LinearAdvectionDiffusionReaction(
             basis=self.basis, diffusivity=0.01, bkd=bkd
         )
-        self.adapter = GalerkinPhysicsToODEResidualAdapter(
-            compose_galerkin_system(self.physics)
-        )
+        self.adapter = skfem_ode_residual(compose_galerkin_system(self.physics))
 
-    def test_adapter_has_required_methods(self, numpy_bkd) -> None:
+    def test_adapter_has_required_methods(self, numpy_bkd: NumpyBkd) -> None:
         """Test adapter exposes required ODEResidualProtocol methods."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -50,7 +46,7 @@ class TestPhysicsAdapterBase:
         assert callable(getattr(self.adapter, "jacobian"))
         assert callable(getattr(self.adapter, "mass_matrix"))
 
-    def test_residual_call(self, numpy_bkd) -> None:
+    def test_residual_call(self, numpy_bkd: NumpyBkd) -> None:
         """Test calling adapter returns residual with correct shape."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -58,7 +54,7 @@ class TestPhysicsAdapterBase:
         residual = self.adapter(u0, 0.0)
         assert residual.shape == (self.physics.nstates(),)
 
-    def test_jacobian_shape(self, numpy_bkd) -> None:
+    def test_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has correct shape."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -66,7 +62,7 @@ class TestPhysicsAdapterBase:
         jac = self.adapter.jacobian(u0, 0.0)
         assert jac.shape == (self.physics.nstates(), self.physics.nstates())
 
-    def test_mass_matrix_shape(self, numpy_bkd) -> None:
+    def test_mass_matrix_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test mass matrix has correct shape."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -74,7 +70,7 @@ class TestPhysicsAdapterBase:
         M = self.adapter.mass_matrix().as_matrix()
         assert M.shape == (n, n)
 
-    def test_mass_matrix_cached(self, numpy_bkd) -> None:
+    def test_mass_matrix_cached(self, numpy_bkd: NumpyBkd) -> None:
         """Test mass matrix is cached."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -82,13 +78,13 @@ class TestPhysicsAdapterBase:
         M2 = self.adapter.mass_matrix()
         assert M1 is M2
 
-    def test_bkd_returns_backend(self, numpy_bkd) -> None:
+    def test_bkd_returns_backend(self, numpy_bkd: NumpyBkd) -> None:
         """Test bkd returns correct backend."""
         bkd = numpy_bkd
         self._setup(bkd)
         assert self.adapter.bkd() is bkd
 
-    def test_with_backward_euler(self, numpy_bkd) -> None:
+    def test_with_backward_euler(self, numpy_bkd: NumpyBkd) -> None:
         """Test adapter works with BackwardEulerHVP."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -110,7 +106,7 @@ class TestPhysicsAdapterBase:
         jac = stepper.jacobian(u0)
         assert jac.shape == (self.physics.nstates(), self.physics.nstates())
 
-    def test_time_stepping_single_step(self, numpy_bkd) -> None:
+    def test_time_stepping_single_step(self, numpy_bkd: NumpyBkd) -> None:
         """Test taking a single time step with Newton's method."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -137,7 +133,7 @@ class TestPhysicsAdapterBase:
         u_new_np = bkd.to_numpy(u_new)
         assert np.linalg.norm(u_new_np - u0_np) > 1e-10
 
-    def test_newton_convergence(self, numpy_bkd) -> None:
+    def test_newton_convergence(self, numpy_bkd: NumpyBkd) -> None:
         """Test Newton iteration converges for a single time step."""
         bkd = numpy_bkd
         self._setup(bkd)

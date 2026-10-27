@@ -59,7 +59,11 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration.galerkin_model import GalerkinModel
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinTransientModel,
+    skfem_discretization,
+    skfem_ode_residual,
+)
 from pyapprox.pde.models.galerkin import (
     GalerkinParameterizedResidual,
     GalerkinSteadyForwardModel,
@@ -70,6 +74,7 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.adjoint_checks import (
     NumpyArray,
     solve_based_derivatives_pass_fd,
@@ -161,14 +166,13 @@ class _Problem:
         jacobian_method: Any = None,
     ) -> GalerkinTransientForwardModel[NumpyArray]:
         return GalerkinTransientForwardModel(
-            self.system,
+            skfem_discretization(self.system),
+            ScipySparseLU(),
             self.param_obj,
             self.init_state,
             self.config(method),
-            self.bkd,
             functional=functional,
-            jacobian_method=jacobian_method,
-        )
+            jacobian_method=jacobian_method)
 
     def config(
         self, method: str, lumped_mass: bool = False
@@ -196,7 +200,12 @@ def _solve(problem: _Problem, method: str) -> Tuple[Any, NumpyArray, NumpyArray,
     model = problem.model(method, functional)
     param = problem.bkd.asarray(_PARAM)
     traj, times = model.forward_solve(param)
-    quadrature = model.last_integrator().time_residual().trajectory_quadrature(times)
+    quadrature = (
+        model.transient_model()
+        .last_integrator()
+        .time_residual()
+        .trajectory_quadrature(times)
+    )
     return functional, traj, param, quadrature
 
 
@@ -237,13 +246,15 @@ class TestDiscreteConservation:
     ) -> None:
         """Forward Euler with a lumped mass: the functional takes the
         lumped mass from the scheme, so the balance still holds. The
-        parameterized model has no lumping option, so the plain model
-        solves with the parameters applied directly."""
+        plain transient model solves with the parameters applied
+        directly."""
         bkd = numpy_bkd
         problem = _Problem(bkd)
         param = bkd.asarray(_PARAM)
         problem.param_obj.apply(param[:, 0])
-        model = GalerkinModel(problem.system, bkd)
+        model = GalerkinTransientModel(
+            skfem_ode_residual(problem.system, lumped_mass=True)
+        )
         traj, times = model.solve_transient(
             problem.init_state, problem.config("forward_euler", lumped_mass=True)
         )

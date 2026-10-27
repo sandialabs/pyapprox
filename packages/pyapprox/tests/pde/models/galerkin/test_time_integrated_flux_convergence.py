@@ -43,7 +43,10 @@ from pyapprox.pde.galerkin.manufactured import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration.galerkin_model import GalerkinModel
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinTransientModel,
+    skfem_ode_residual,
+)
 from pyapprox.pde.models.galerkin import (
     GalerkinParameterizedResidual,
     TimeIntegratedEssentialBoundaryFluxFunctional,
@@ -103,7 +106,7 @@ def _fluxes(
     bkd: NumpyBkd, sol_str: str, nx: int, degree: int, method: str, deltat: float
 ) -> Tuple[float, float, float]:
     """(the functional's Q, the steady flux integrated by the rule, Q*)."""
-    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd)
+    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[(-1.0, 1.0), (-1.0, 1.0)], bkd=bkd)
     basis = LagrangeBasis(mesh, degree=degree)
     functions = _functions(bkd, sol_str)
     ms = GalerkinManufacturedSolution(basis, functions, bkd)
@@ -137,7 +140,7 @@ def _fluxes(
         lumped_mass=False,
         verbosity=0,
     )
-    model = GalerkinModel(system, bkd)
+    model = GalerkinTransientModel(skfem_ode_residual(system))
     traj, times = model.solve_transient(init_state, config)
     quadrature = model.last_integrator().time_residual().trajectory_quadrature(times)
     residual = GalerkinParameterizedResidual(
@@ -182,7 +185,8 @@ def _fluxes(
 
 def _rates(errors: List[float]) -> NumpyArray:
     errs = np.asarray(errors)
-    return np.log2(errs[:-1] / errs[1:])
+    rates: NumpyArray = np.log2(errs[:-1] / errs[1:])
+    return rates
 
 
 class TestTemporalConvergence:

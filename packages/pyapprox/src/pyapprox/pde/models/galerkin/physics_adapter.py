@@ -19,14 +19,14 @@ parameterization's :class:`ParamDerivatives` bundle and the system's
   ``state_state_hvp`` (from the system's state-derivatives bundle).
 """
 
-from typing import Optional, overload
+from typing import Optional, TypeVar, overload
 
 from pyapprox.ode.state_derivatives import StateStateHVPFn
-from pyapprox.pde.galerkin.protocols.system import (
-    GalerkinTransientSystemProtocol,
-)
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
+)
+from pyapprox.pde.galerkin.time_integration.stack_discretization import (
+    GalerkinStackDiscretization,
 )
 from pyapprox.pde.models.galerkin.constrained_derivatives import (
     constrain_param_derivatives,
@@ -43,10 +43,13 @@ from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.operators import FormatProtocol, LinearSolverProtocol
+
+F = TypeVar("F", bound=FormatProtocol)
 
 
 class GalerkinPhysicsToODEResidualWithSetParamAdapter(
-    GalerkinPhysicsToODEResidualAdapter[Array]
+    GalerkinPhysicsToODEResidualAdapter[Array, F]
 ):
     """Adapter with a parameterization (evaluation-only tier).
 
@@ -56,8 +59,10 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
-        The composed system to adapt (``compose_galerkin_system(physics, bcs)``).
+    discretization : GalerkinStackDiscretization
+        The system to adapt, on a stack.
+    solver : LinearSolverProtocol
+        Solves the implicit system's shifted Jacobians.
     parameterization : ParameterizationProtocol
         Maps parameter vectors to coefficients of objects the system
         holds.
@@ -65,7 +70,8 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
 
     def __init__(
         self,
-        system: GalerkinTransientSystemProtocol[Array],
+        discretization: GalerkinStackDiscretization[Array, Array, F],
+        solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
@@ -73,8 +79,8 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        require_owned_targets(parameterization, system)
-        super().__init__(system)
+        require_owned_targets(parameterization, discretization.system())
+        super().__init__(discretization, solver)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
 
@@ -114,7 +120,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
 
 
 class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
-    GalerkinPhysicsToODEResidualWithSetParamAdapter[Array]
+    GalerkinPhysicsToODEResidualWithSetParamAdapter[Array, F]
 ):
     """Adapter with first-order parameter derivatives.
 
@@ -126,10 +132,11 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
 
     def __init__(
         self,
-        system: GalerkinTransientSystemProtocol[Array],
+        discretization: GalerkinStackDiscretization[Array, Array, F],
+        solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
-        super().__init__(system, parameterization)
+        super().__init__(discretization, solver, parameterization)
         derivs = constrain_param_derivatives(
             parameterization.param_derivatives(), self._constraint_set
         )
@@ -184,7 +191,7 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
 
 
 class GalerkinPhysicsToODEResidualWithHVPAdapter(
-    GalerkinPhysicsToODEResidualWithParamJacobianAdapter[Array]
+    GalerkinPhysicsToODEResidualWithParamJacobianAdapter[Array, F]
 ):
     """Adapter with second-order parameter derivatives.
 
@@ -207,10 +214,16 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
 
     def __init__(
         self,
-        system: GalerkinTransientSystemProtocol[Array],
+        discretization: GalerkinStackDiscretization[Array, Array, F],
+        solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
-        state_state_hvp = system.spatial_operator().state_derivatives().state_state_hvp
+        state_state_hvp = (
+            discretization.system()
+            .spatial_operator()
+            .state_derivatives()
+            .state_state_hvp
+        )
         if state_state_hvp is None:
             raise TypeError(
                 f"{type(self).__name__} requires a system whose spatial "
@@ -218,7 +231,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
                 "create_galerkin_physics_ode_residual to select the right "
                 "tier"
             )
-        super().__init__(system, parameterization)
+        super().__init__(discretization, solver, parameterization)
         derivs = constrain_param_derivatives(
             parameterization.param_derivatives(), self._constraint_set
         )
@@ -284,22 +297,25 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
 
 @overload
 def create_galerkin_physics_ode_residual(
-    system: GalerkinTransientSystemProtocol[Array],
+    discretization: GalerkinStackDiscretization[Array, Array, F],
+    solver: LinearSolverProtocol[Array, F],
     parameterization: None = None,
-) -> GalerkinPhysicsToODEResidualAdapter[Array]: ...
+) -> GalerkinPhysicsToODEResidualAdapter[Array, F]: ...
 
 
 @overload
 def create_galerkin_physics_ode_residual(
-    system: GalerkinTransientSystemProtocol[Array],
+    discretization: GalerkinStackDiscretization[Array, Array, F],
+    solver: LinearSolverProtocol[Array, F],
     parameterization: ParameterizationProtocol[Array],
-) -> GalerkinPhysicsToODEResidualWithSetParamAdapter[Array]: ...
+) -> GalerkinPhysicsToODEResidualWithSetParamAdapter[Array, F]: ...
 
 
 def create_galerkin_physics_ode_residual(
-    system: GalerkinTransientSystemProtocol[Array],
+    discretization: GalerkinStackDiscretization[Array, Array, F],
+    solver: LinearSolverProtocol[Array, F],
     parameterization: Optional[ParameterizationProtocol[Array]] = None,
-) -> GalerkinPhysicsToODEResidualAdapter[Array]:
+) -> GalerkinPhysicsToODEResidualAdapter[Array, F]:
     """Create the widest adapter tier the inputs support.
 
     Capability enters the stepper stack exactly here: the factory
@@ -309,8 +325,11 @@ def create_galerkin_physics_ode_residual(
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
-        The composed system to adapt (``compose_galerkin_system(physics, bcs)``).
+    discretization : GalerkinStackDiscretization
+        The system to adapt, on a stack (for skfem systems,
+        ``skfem_discretization(system)``).
+    solver : LinearSolverProtocol
+        Solves the implicit system's shifted Jacobians.
     parameterization : ParameterizationProtocol, optional
         Maps parameter vectors to coefficients of objects the system
         holds.
@@ -320,8 +339,9 @@ def create_galerkin_physics_ode_residual(
     GalerkinPhysicsToODEResidualAdapter
         The widest tier supported by the bundles.
     """
+    system = discretization.system()
     if parameterization is None:
-        return GalerkinPhysicsToODEResidualAdapter(system)
+        return GalerkinPhysicsToODEResidualAdapter(discretization, solver)
     if not isinstance(parameterization, ParameterizationProtocol):
         raise TypeError(
             f"parameterization must satisfy ParameterizationProtocol, "
@@ -337,8 +357,12 @@ def create_galerkin_physics_ode_residual(
             and system.spatial_operator().state_derivatives().state_state_hvp
             is not None
         ):
-            return GalerkinPhysicsToODEResidualWithHVPAdapter(system, parameterization)
+            return GalerkinPhysicsToODEResidualWithHVPAdapter(
+                discretization, solver, parameterization
+            )
         return GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
-            system, parameterization
+            discretization, solver, parameterization
         )
-    return GalerkinPhysicsToODEResidualWithSetParamAdapter(system, parameterization)
+    return GalerkinPhysicsToODEResidualWithSetParamAdapter(
+        discretization, solver, parameterization
+    )

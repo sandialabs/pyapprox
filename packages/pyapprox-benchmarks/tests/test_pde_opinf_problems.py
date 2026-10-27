@@ -30,8 +30,9 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     create_adr_manufactured_test,
 )
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinModel,
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinTransientModel,
+    skfem_ode_residual,
 )
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
@@ -137,8 +138,8 @@ class TestPeriodicBurgersOpInfProblem:
                 final_time=0.1, deltat=1e-3, newton_tol=1e-10,
                 newton_maxiter=20, lumped_mass=False, verbosity=0,
             )
-            states, times = GalerkinModel(
-                compose_galerkin_system(physics), bkd
+            states, times = GalerkinTransientModel(
+                skfem_ode_residual(compose_galerkin_system(physics))
             ).solve_transient(u0, config)
             exact = bkd.ravel(
                 solution(coords, bkd.to_float(times[-1]))
@@ -227,9 +228,9 @@ class TestChafeeInfanteOpInfProblem:
                 final_time=0.1, deltat=1e-3, newton_tol=1e-10,
                 newton_maxiter=20, lumped_mass=False, verbosity=0,
             )
-            states, times = GalerkinModel(system, bkd).solve_transient(
-                u0, config
-            )
+            states, times = GalerkinTransientModel(
+                skfem_ode_residual(system)
+            ).solve_transient(u0, config)
             exact = bkd.ravel(
                 solution(coords, bkd.to_float(times[-1]))
             )

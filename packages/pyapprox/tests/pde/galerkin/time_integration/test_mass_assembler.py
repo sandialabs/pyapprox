@@ -24,9 +24,7 @@ from scipy.sparse import csr_matrix
 from pyapprox.pde.assembly import MassAssemblerProtocol, ScipyAssemblyStack
 from pyapprox.pde.assembly.protocols import AssemblyStackProtocol
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsToODEResidualAdapter,
-)
+from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
 from pyapprox.pde.galerkin.time_integration.constrained_mass import (
     ConstrainedMassMatrixProtocol,
 )
@@ -64,7 +62,7 @@ def _dense(matrix: _Np) -> _Np:
 
 def _adapter_masses(system: _System, lumped: bool) -> tuple[_Np, _Np]:
     """The adapter's (unconstrained, constrained) mass, as arrays."""
-    mass = GalerkinPhysicsToODEResidualAdapter(system, lumped_mass=lumped).mass_matrix()
+    mass = skfem_ode_residual(system, lumped_mass=lumped).mass_matrix()
     assert isinstance(mass, ConstrainedMassMatrixProtocol)
     return _dense(mass.unconstrained().as_matrix()), _dense(mass.as_matrix())
 

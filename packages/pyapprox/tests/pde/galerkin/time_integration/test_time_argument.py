@@ -7,7 +7,8 @@ midpoint, Heun at each stage), so each check alternates times and
 compares every evaluation against the spatial operator evaluated
 directly at the time it was asked for. The forcing and the Dirichlet
 signal both vary in time, so the interior and the essential rows each
-expose a wrong time.
+expose a wrong time. The adapter is built on the SciPy stack, so these
+run on the NumPy backend.
 """
 
 import pytest
@@ -36,22 +37,24 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsToODEResidualAdapter,
-)
+from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _forcing(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return np.sin(np.pi * x[0]) * (1.0 + 3.0 * t)
+    value: NDArray[Any] = np.sin(np.pi * x[0]) * (1.0 + 3.0 * t)
+    return value
 
 
 def _ramp(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return (1.0 + x[0]) * t**2
+    value: NDArray[Any] = (1.0 + x[0]) * t**2
+    return value
 
 
 def _ramp_dot(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return 2.0 * (1.0 + x[0]) * t
+    value: NDArray[Any] = 2.0 * (1.0 + x[0]) * t
+    return value
 
 
 def _system(bkd: Backend[Array]) -> GalerkinSystem[Array]:
@@ -89,9 +92,10 @@ def _state(system: GalerkinSystem[Array], scale: float) -> Array:
 
 
 class TestTimeArgument:
-    def test_adapter_answers_each_time_asked(self, bkd: Backend[Array]) -> None:
+    def test_adapter_answers_each_time_asked(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
         system = _system(bkd)
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         state = _state(system, 1.0)
         for time in (0.2, 0.9, 0.2, 0.55):
             bkd.assert_allclose(
@@ -106,10 +110,11 @@ class TestTimeArgument:
         assert bkd.to_float(gap) > 1e-2
 
     def test_crank_nicolson_evaluates_each_end_at_its_time(
-        self, bkd: Backend[Array]
+        self, numpy_bkd: NumpyBkd
     ) -> None:
+        bkd = numpy_bkd
         system = _system(bkd)
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         y_prev, y_curr = _state(system, 1.0), _state(system, 1.3)
         t_prev, deltat = 0.2, 0.3
         stepper = CrankNicolsonStepper(adapter)
@@ -128,10 +133,11 @@ class TestTimeArgument:
         assert bkd.to_float(bkd.norm(stale - expected)) > 1e-3
 
     def test_implicit_midpoint_evaluates_at_the_midpoint_time(
-        self, bkd: Backend[Array]
+        self, numpy_bkd: NumpyBkd
     ) -> None:
+        bkd = numpy_bkd
         system = _system(bkd)
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         y_prev, y_curr = _state(system, 1.0), _state(system, 1.3)
         t_prev, deltat = 0.2, 0.3
         stepper = ImplicitMidpointStepper(adapter)
@@ -143,9 +149,10 @@ class TestTimeArgument:
         )
         bkd.assert_allclose(stepper(y_curr), expected, rtol=1e-12, atol=1e-14)
 
-    def test_heun_evaluates_each_stage_at_its_time(self, bkd: Backend[Array]) -> None:
+    def test_heun_evaluates_each_stage_at_its_time(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
         system = _system(bkd)
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         mass = adapter.mass_matrix()
         y_prev, y_curr = _state(system, 1.0), _state(system, 1.3)
         t_prev, deltat = 0.2, 0.3

@@ -2,8 +2,10 @@
 
 :class:`GalerkinStackDiscretization` holds what time integration needs
 of a system on a stack: the stack's state space, the essential rows as
-the stack's row set, the state Jacobian with those rows zeroed, and the
-mass with those rows replaced by identity rows. It is generic over the
+the stack's row set, the assembled state Jacobian and the assembled
+mass. It applies no boundary condition: how the essential rows enter
+the time-integration system is the adapter's choice, so strategies for
+it can be swapped over one discretization. It is generic over the
 stack and holds no solver: which mass (consistent or lumped) and how
 entries reach the stack are the injected assemblers' choices, and how
 the resulting systems are solved is the caller's. Builders bind it to a
@@ -16,7 +18,7 @@ Hessian-vector products, explicit methods included). It is required
 here, and assembled only when asked for.
 """
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -30,7 +32,6 @@ from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
-    GalerkinJacobianOperator,
     check_state_space,
     essential_rows,
 )
@@ -38,9 +39,6 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
-    LinearizationPoint,
-    LinearizedOperator,
-    RowReplacedOperator,
     RowSetProtocol,
     SpaceDescriptor,
     VectorSpaceProtocol,
@@ -62,10 +60,12 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
     vectors are NumPy arrays; a builder pairs them.
 
     The essential rows come from the system's constraint set, once, as
-    the stack's row set, so every
-    consumer (the forward residual, a boundary-condition wrapper, the
-    sensitivity and adjoint sweeps) edits the same rows, and an adjoint
-    solve is the exact transpose of the forward one.
+    the stack's row set, so every consumer (the forward residual, a
+    boundary-condition wrapper, the sensitivity and adjoint sweeps)
+    edits the same rows, and an adjoint solve is the exact transpose of
+    the forward one. It satisfies
+    :class:`~pyapprox.pde.assembly.protocols.JacobianAssemblerProtocol`
+    and :class:`~pyapprox.pde.assembly.protocols.MassAssemblerProtocol`.
 
     Parameters
     ----------
@@ -106,10 +106,13 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
         self._descriptor = descriptor
         self._rows: RowSetProtocol[V] = essential_rows(system, stack, descriptor)
         self._space: VectorSpaceProtocol[V] = stack.space(descriptor)
-        self._jacobian = GalerkinJacobianOperator(jacobian_assembler, self._rows)
+        if not isinstance(jacobian_assembler, JacobianAssemblerProtocol):
+            raise TypeError(
+                "jacobian_assembler must satisfy JacobianAssemblerProtocol, "
+                f"got {type(jacobian_assembler).__name__}"
+            )
+        self._jacobian_assembler = jacobian_assembler
         self._mass_assembler = mass_assembler
-        self._mass_source: Optional[ActionOperatorProtocol[V, F]] = None
-        self._mass: Optional[RowReplacedOperator[V, F]] = None
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """The discretized system."""
@@ -131,30 +134,17 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
         """The essential rows, as the stack's row set of the state space."""
         return self._rows
 
-    def jacobian_operator(
-        self, state: Array, time: float, point: LinearizationPoint
-    ) -> LinearizedOperator[V, F]:
-        """The state Jacobian at ``(state, time)`` with the essential rows
-        zeroed, labeled with ``point``, independent of later calls."""
-        return self._jacobian.jacobian_operator(state, time, point)
+    def assemble_jacobian(
+        self, state: Array, time: float
+    ) -> ActionOperatorProtocol[V, F]:
+        """The state Jacobian at ``(state, time)`` as assembled, essential
+        rows included, independent of later calls."""
+        return self._jacobian_assembler.assemble_jacobian(state, time)
 
-    def unconstrained_mass(self) -> ActionOperatorProtocol[V, F]:
-        """The mass as assembled, essential rows included: for quantities
-        read on those rows, such as a boundary reaction."""
+    def assemble_mass(self) -> ActionOperatorProtocol[V, F]:
+        """The mass as assembled, essential rows included; the assembler
+        reuses it while the system's mass is unchanged."""
         return self._mass_assembler.assemble_mass()
-
-    def mass(self) -> RowReplacedOperator[V, F]:
-        """The mass with the essential rows replaced by identity rows: the
-        mass time integration steps with.
-
-        Built again only when the assembler returns a different mass, so
-        repeated calls share one operator and its row-replaced storage.
-        """
-        unconstrained = self.unconstrained_mass()
-        if self._mass is None or self._mass_source is not unconstrained:
-            self._mass = RowReplacedOperator(unconstrained, self._rows)
-            self._mass_source = unconstrained
-        return self._mass
 
     def __repr__(self) -> str:
         return (

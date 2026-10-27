@@ -136,8 +136,9 @@ import numpy as np
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
+    GalerkinTransientModel,
     TimeIntegrationConfig,
+    skfem_ode_residual,
 )
 from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -239,7 +240,9 @@ config = TimeIntegrationConfig(
     verbosity=0,
 )
 
-solutions, times = GalerkinModel(system, bkd).solve_transient(
+solutions, times = GalerkinTransientModel(
+    skfem_ode_residual(system)
+).solve_transient(
     bkd.asarray(np.zeros(system.nstates())), config
 )
 print(f"{len(times)} steps to t = {times[-1]:.1f}")
@@ -389,7 +392,7 @@ there is the natural condition derived earlier: vortices convect out of the
 domain instead of reflecting off a prescribed boundary.
 
 The cost of all this is easiest to see as a table. Both columns use the same
-`GalerkinModel`, the same `TimeIntegrationConfig`, and the same
+`GalerkinTransientModel`, the same `TimeIntegrationConfig`, and the same
 `solve_transient` call.
 
 | | Transport (above) | Navier--Stokes |
@@ -438,7 +441,9 @@ cyl_config = TimeIntegrationConfig(
     verbosity=0,
 )
 
-cyl_solutions, cyl_times = GalerkinModel(cyl_system, bkd).solve_transient(
+cyl_solutions, cyl_times = GalerkinTransientModel(
+    skfem_ode_residual(cyl_system)
+).solve_transient(
     bkd.asarray(np.zeros(cyl_physics.nstates())), cyl_config
 )
 print(f"{len(cyl_times)} steps to t = {cyl_times[-1]:.0f}")

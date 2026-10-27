@@ -15,7 +15,9 @@ follow-on problems of increasing complexity.
 from __future__ import annotations
 
 import math
-from typing import Generic
+from typing import Any
+
+from numpy.typing import NDArray
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -24,7 +26,10 @@ from pyapprox.pde.galerkin.protocols.system import (
 )
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.numpy import NumpyBkd
+
+# Bound to NumPy: the systems assemble with skfem.
+_Np = NDArray[Any]
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.pde.chafee_infante import (
     build_chafee_infante_system,
@@ -33,14 +38,14 @@ from pyapprox_benchmarks.functions.pde.chafee_infante import (
 from pyapprox_benchmarks.problems.pde.opinf_problem import PDEOpInfProblem
 
 
-class _ChafeeInfanteSystemFactory(Generic[Array]):
+class _ChafeeInfanteSystemFactory:
     """Rebuild the Chafee-Infante system per (gamma, lambda) on the shared
     basis."""
 
     def __init__(
         self,
-        basis: GalerkinBasisProtocol[Array],
-        bkd: Backend[Array],
+        basis: GalerkinBasisProtocol[_Np],
+        bkd: NumpyBkd,
         bc_kind: str,
     ) -> None:
         self._basis = basis
@@ -48,8 +53,8 @@ class _ChafeeInfanteSystemFactory(Generic[Array]):
         self._bc_kind = bc_kind
 
     def __call__(
-        self, parameters: Array
-    ) -> GalerkinTransientSystemProtocol[Array]:
+        self, parameters: _Np
+    ) -> GalerkinTransientSystemProtocol[_Np]:
         parameters_np = self._bkd.to_numpy(parameters)
         diffusivity = float(parameters_np[0, 0])
         bifurcation = float(parameters_np[1, 0])
@@ -63,7 +68,7 @@ class _ChafeeInfanteSystemFactory(Generic[Array]):
 
 
 def build_chafee_infante_opinf_problem(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     *,
     nx: int = 128,
     degree: int = 1,
@@ -75,12 +80,12 @@ def build_chafee_infante_opinf_problem(
     ic_amplitude: float = 0.5,
     final_time: float = 1.0,
     deltat: float = 1e-3,
-) -> PDEOpInfProblem[Array]:
+) -> PDEOpInfProblem:
     """Create the homogeneous Chafee-Infante operator-inference problem.
 
     Parameters
     ----------
-    bkd : Backend[Array]
+    bkd : NumpyBkd
         Computational backend.
     nx : int, optional
         Number of elements (``nx + 1`` P1 dofs; the Dirichlet dof is

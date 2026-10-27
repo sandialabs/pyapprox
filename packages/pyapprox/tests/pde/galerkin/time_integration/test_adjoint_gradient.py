@@ -51,6 +51,9 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingHVPResidual,
     create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.physics_adapter import (
     create_galerkin_physics_ode_residual,
 )
@@ -58,6 +61,7 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.adjoint_checks import HVPOperatorFunction
 
@@ -113,7 +117,9 @@ def _build_pipeline(
     param = AdvectionDiffusionParameterization(
         physics, bkd=bkd, diffusivity_map=diffusivity_map
     )
-    adapter = create_galerkin_physics_ode_residual(system, param)
+    adapter = create_galerkin_physics_ode_residual(
+        skfem_discretization(system), ScipySparseLU(), param
+    )
     stepper = create_stepper(method, adapter)
     wrapper = create_galerkin_bc_enforcing_residual(
         stepper, system.constraint_set(), bkd

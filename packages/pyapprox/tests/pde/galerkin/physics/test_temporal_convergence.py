@@ -37,11 +37,12 @@ from pyapprox.pde.galerkin.manufactured.adapter import (
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
+    GalerkinTransientModel,
     TimeIntegrationConfig,
+    skfem_ode_residual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 from tests._helpers.markers import slow_test
 
 _BOUNDARY_NAMES = ["left", "right"]
@@ -102,19 +103,22 @@ def _compute_convergence_rates(
 
 
 def _setup_physics_and_model(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     sol_str: str,
     diff_str: str,
     vel_strs: List[str],
     bndry_types: List[str],
     nx: int = 4,
     diffusivity: float = 0.1,
-) -> Tuple[GalerkinModel[Array], Callable[[float], NDArray[np.floating[Any]]]]:
+) -> Tuple[
+    GalerkinTransientModel[NDArray[Any]],
+    Callable[[float], NDArray[np.floating[Any]]],
+]:
     """Create Galerkin physics and model for a 1D diffusion problem.
 
     Returns
     -------
-    model : GalerkinModel
+    model : GalerkinTransientModel
     exact_at_time : callable
         Returns exact DOF values at given time.
     """
@@ -153,7 +157,7 @@ def _setup_physics_and_model(
     ]
     system = compose_galerkin_system(physics, bcs)
 
-    model = GalerkinModel(system, bkd)
+    model = GalerkinTransientModel(skfem_ode_residual(system))
 
     exact_sol_func = functions["solution"]
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -386,7 +390,7 @@ _COUPLED_SOLUTION = "(x+x*(1-x))*(1+T**3)"
 
 
 def _final_time_errors(
-    bkd: Backend[Array], method: str, dt_values: List[float]
+    bkd: NumpyBkd, method: str, dt_values: List[float]
 ) -> List[float]:
     """Error at t = 1 of each step size, for the coupled solution."""
     model, exact_at_time = _setup_physics_and_model(
@@ -398,7 +402,7 @@ def _final_time_errors(
     )
     errors = []
     for dt in dt_values:
-        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[NDArray[Any]] = TimeIntegrationConfig(
             method=method,
             init_time=0.0,
             final_time=1.0,

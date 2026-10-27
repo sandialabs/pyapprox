@@ -40,8 +40,8 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingForwardResidual,
     create_galerkin_bc_enforcing_residual,
 )
-from pyapprox.pde.galerkin.time_integration.physics_adapter import (
-    GalerkinPhysicsToODEResidualAdapter,
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_ode_residual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import BackendDenseOperator
@@ -84,7 +84,7 @@ def _wrapped_backward_euler(
     GalerkinSystem[NDArray[Any]],
 ]:
     system, _ = _setup_adr(bkd, nx)
-    ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
+    ode_adapter = skfem_ode_residual(system)
     stepper = create_stepper("backward_euler", ode_adapter)
     wrapper = create_galerkin_bc_enforcing_residual(
         stepper, system.constraint_set(), bkd
@@ -329,7 +329,7 @@ class TestStageBCRequirement:
         system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=False
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         with pytest.raises(TypeError, match="analytic boundary velocity"):
             create_galerkin_bc_enforcing_residual(
@@ -340,7 +340,7 @@ class TestStageBCRequirement:
         system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=False
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         stepper = create_stepper("backward_euler", adapter)
         create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), numpy_bkd
@@ -350,7 +350,7 @@ class TestStageBCRequirement:
         system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=False
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(
+        adapter = skfem_ode_residual(
             system, lumped_mass=True
         )
         stepper = create_stepper("heun", adapter)
@@ -362,7 +362,7 @@ class TestStageBCRequirement:
         self, numpy_bkd: NumpyBkd
     ) -> None:
         system, _ = _setup_adr(numpy_bkd)  # static + manufactured g_dot
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), numpy_bkd
@@ -372,7 +372,7 @@ class TestStageBCRequirement:
         system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=True
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), numpy_bkd
@@ -400,7 +400,7 @@ class TestStageBCRequirement:
         system = self._system_with_dirichlet(
             numpy_bkd, TimeIndependent(_left_value)
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), numpy_bkd
@@ -412,7 +412,7 @@ class TestStageBCRequirement:
         system = self._system_with_dirichlet(
             numpy_bkd, TimeDependent(_left_ramp)
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         with pytest.raises(TypeError, match="DirichletBC\\(boundary='left'"):
             create_galerkin_bc_enforcing_residual(
@@ -431,7 +431,7 @@ class TestOffDiagonalOperator:
         bkd = numpy_bkd
         system, _ = _setup_adr(bkd)
         stepper = create_stepper(
-            "crank_nicolson", GalerkinPhysicsToODEResidualAdapter(system)
+            "crank_nicolson", skfem_ode_residual(system)
         )
         wrapper = create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), bkd

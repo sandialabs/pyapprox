@@ -24,6 +24,7 @@ from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
@@ -31,6 +32,7 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
 
 class _CellsPlusUniform:
@@ -92,8 +94,8 @@ def test_velocity_map_drives_transient_solve(numpy_bkd: NumpyBkd) -> None:
         verbosity=0,
     )
     model = GalerkinTransientForwardModel(
-        system, parameterization, bkd.zeros((basis.ndofs(),)), config, bkd
-    )
+        skfem_discretization(system),
+        ScipySparseLU(), parameterization, bkd.zeros((basis.ndofs(),)), config)
     eta = bkd.asarray(np.random.default_rng(0).standard_normal(npsi**2))
     final_state = model(eta[:, None])
     assert tuple(final_state.shape) == (basis.ndofs(), 1)

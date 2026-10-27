@@ -46,6 +46,7 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin import (
     GalerkinParameterizedResidual,
     GalerkinTransientForwardModel,
@@ -66,6 +67,7 @@ from pyapprox.pde.rom import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.adjoint_checks import NumpyArray
 
 _Points = NDArray[np.floating[Any]]
@@ -171,12 +173,11 @@ def _transient_problem(
         verbosity=0,
     )
     model = GalerkinTransientForwardModel(
-        system,
+        skfem_discretization(system),
+        ScipySparseLU(),
         param_obj,
         bkd.asarray(0.3 * np.sin(np.pi * x)),
-        config,
-        bkd,
-    )
+        config)
     return model, system, basis
 
 

@@ -12,7 +12,7 @@ The whole pipeline (parameterized adapter tier, model) is constructed
 once; per evaluation only the parameter values are rebound.
 """
 
-from typing import Optional, Tuple
+from typing import Generic, Optional, Tuple, TypeVar
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.config import TimeIntegrationConfig
@@ -29,25 +29,31 @@ from pyapprox.ode.operator.qoi_jacobian import (
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
+from pyapprox.ode.protocols import ODEResidualWithParamJacobianProtocol
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinModel,
+from pyapprox.pde.galerkin.time_integration.stack_discretization import (
+    GalerkinStackDiscretization,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithHVPAdapter,
-    GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
     create_galerkin_physics_ode_residual,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import FormatProtocol, LinearSolverProtocol
+
+F = TypeVar("F", bound=FormatProtocol)
 
 
-class GalerkinTransientForwardModel(GalerkinModel[Array]):
+class GalerkinTransientForwardModel(Generic[Array]):
     """Transient parameterized galerkin PDE forward model.
 
     Satisfies ``FunctionProtocol``: ``__call__`` maps parameter samples
@@ -58,24 +64,27 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
     bundle and the functional's ``derivatives()`` bundle under this
     model's time quadrature — never by ``hasattr`` or protocol tier.
 
-    Extends :class:`GalerkinModel`, so the plain ``solve_steady`` /
-    ``solve_transient`` surface remains available.
+    Its transient solves run through a
+    :class:`~pyapprox.pde.galerkin.time_integration.transient_model.GalerkinTransientModel`
+    it holds (:meth:`transient_model`); steady solves are a separate
+    ``GalerkinSteadyModel``.
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
-        The composed Galerkin system. Each parameterized coefficient of
-        its physics must be in its differentiable representation
+    discretization : GalerkinStackDiscretization
+        The composed Galerkin system on a stack (for skfem systems,
+        ``skfem_discretization(system)``). Each parameterized coefficient
+        of its physics must be in its differentiable representation
         (validated by the parameterization's facade at its construction).
+    solver : LinearSolverProtocol
+        Solves the implicit steps' shifted Jacobians.
     parameterization : ParameterizationProtocol
         Maps parameter vectors to coefficients; its targets must belong
-        to ``system``.
+        to the system.
     init_state : Array
         Initial condition for the transient solve. Shape: (nstates,).
     time_config : TimeIntegrationConfig
         Time integration configuration.
-    bkd : Backend
-        Computational backend.
     functional : transient functional, optional
         QoI functional. Defaults to ``AllStatesEndpointFunctional``
         (nqoi = nstates: the full final-time state).
@@ -90,11 +99,11 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
 
     def __init__(
         self,
-        system: GalerkinTransientSystemProtocol[Array],
+        discretization: GalerkinStackDiscretization[Array, Array, F],
+        solver: LinearSolverProtocol[Array, F],
         parameterization: ParameterizationProtocol[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
-        bkd: Backend[Array],
         functional: Optional[TransientFunctionalProtocol[Array]] = (
             None
         ),
@@ -108,9 +117,13 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         # The adapter checks that the parameterization's targets belong
         # to the system.
         adapter = create_galerkin_physics_ode_residual(
-            system, parameterization
+            discretization, solver, parameterization
         )
-        super().__init__(system, bkd, adapter=adapter)
+        system = discretization.system()
+        bkd = system.bkd()
+        self._system = system
+        self._bkd = bkd
+        self._transient = GalerkinTransientModel(adapter)
         self._parameterization = parameterization
         # Inject Dirichlet values ONCE so every consumer of the initial
         # state (solve_transient re-injects idempotently; the HVP
@@ -179,9 +192,7 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         elif (
             self._functional.nqoi() == 1
             and functional_hvp is not None
-            and isinstance(
-                self.adapter(), GalerkinPhysicsToODEResidualWithHVPAdapter
-            )
+            and isinstance(adapter, GalerkinPhysicsToODEResidualWithHVPAdapter)
         ):
             self._derivs = Derivatives.second_order(
                 jacobian=self._jacobian, hvp=self._hvp
@@ -195,6 +206,18 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         """Return the derivative bundle (w.r.t. parameters)."""
         return self._derivs
 
+    def transient_model(self) -> GalerkinTransientModel[Array]:
+        """Return the transient driver this model solves through."""
+        return self._transient
+
+    def system(self) -> GalerkinTransientSystemProtocol[Array]:
+        """Return the composed system."""
+        return self._system
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
     def nvars(self) -> int:
         """Return the number of input variables (parameters)."""
         return self._nparams
@@ -203,13 +226,9 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         """Return the number of output quantities of interest."""
         return self._functional.nqoi()
 
-    def _param_adapter(
-        self,
-    ) -> GalerkinPhysicsToODEResidualWithParamJacobianAdapter[Array]:
-        adapter = self.adapter()
-        if not isinstance(
-            adapter, GalerkinPhysicsToODEResidualWithParamJacobianAdapter
-        ):
+    def _param_adapter(self) -> ODEResidualWithParamJacobianProtocol[Array]:
+        adapter = self._transient.adapter()
+        if not isinstance(adapter, ODEResidualWithParamJacobianProtocol):
             raise TypeError(
                 "derivative evaluation requires a param-jacobian adapter "
                 f"tier; got {type(adapter).__name__}"
@@ -241,14 +260,16 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         param_1d = sample[:, 0]
         self._parameterization.apply(param_1d)
         self._param_adapter().set_param(param_1d)
-        solutions, times = self.solve_transient(
+        solutions, times = self._transient.solve_transient(
             self._init_state, self._time_config
         )
         # Inject the scheme-implied rule from the stepper and times of
         # THIS solve (never a precomputed grid, which could drift from
         # the integrator's actual stepping).
         self._functional.set_time_quadrature(
-            self.last_integrator().time_residual().trajectory_quadrature(times)
+            self._transient.last_integrator()
+            .time_residual()
+            .trajectory_quadrature(times)
         )
         return solutions, times
 
@@ -287,7 +308,11 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         """
         fwd_sols, times = self.forward_solve(sample)
         return self._jacobian_method(
-            self.last_integrator(), self._functional, fwd_sols, times, sample
+            self._transient.last_integrator(),
+            self._functional,
+            fwd_sols,
+            times,
+            sample,
         )
 
     def _hvp(self, sample: Array, vvec: Array) -> Array:
@@ -299,7 +324,7 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         """
         self.forward_solve(sample)
         operator = TimeAdjointOperatorWithHVP(
-            self.last_integrator(), self._functional
+            self._transient.last_integrator(), self._functional
         )
         return operator.hvp(self._init_state, sample, vvec)
 

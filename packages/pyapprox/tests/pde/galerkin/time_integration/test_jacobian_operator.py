@@ -34,9 +34,7 @@ from pyapprox.pde.assembly.protocols import (
     MatrixSinkProtocol,
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsToODEResidualAdapter,
-)
+from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
     GalerkinJacobianOperator,
     essential_rows,
@@ -111,7 +109,7 @@ def _state(system: _System, seed: int) -> _Np:
 
 def _reference(system: _System, state: _Np) -> _Np:
     """The adapter's Jacobian, essential rows zeroed, as a dense array."""
-    jacobian = GalerkinPhysicsToODEResidualAdapter(system).jacobian(state, 0.0)
+    jacobian = skfem_ode_residual(system).jacobian(state, 0.0)
     dense: _Np = require_sparse(jacobian).toarray()
     return dense
 
@@ -246,7 +244,7 @@ class TestNonlinear:
         """Central difference of the residual: essential rows of the
         residual carry no state, so they differentiate to zero too."""
         system, producer = _burgers_on_the_mock(numpy_bkd)
-        residual = GalerkinPhysicsToODEResidualAdapter(system)
+        residual = skfem_ode_residual(system)
         state, direction = _state(system, 2), _state(system, 3)
         step = 1e-6
         difference = (

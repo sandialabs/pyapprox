@@ -1,170 +1,52 @@
-"""Galerkin model for time-dependent PDE problems.
+"""Galerkin model for steady PDE problems.
 
-Provides a high-level interface for solving time-dependent PDEs using
-Galerkin finite element methods with various time integration methods.
-
-Analogous to CollocationModel but for weak-form (Galerkin) physics.
+Provides a high-level interface for steady solves of a composed Galerkin
+system. Transient solves are
+:class:`~pyapprox.pde.galerkin.time_integration.transient_model.GalerkinTransientModel`.
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Generic
 
-from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalProtocol,
-)
-from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
-from pyapprox.ode.operator.time_adjoint_hvp import (
-    TimeAdjointOperatorWithHVP,
-)
-from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.galerkin.protocols.system import (
-    GalerkinTransientSystemProtocol,
+    GalerkinSteadySystemProtocol,
 )
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
-    create_galerkin_bc_enforcing_residual,
-)
-from pyapprox.pde.galerkin.time_integration.physics_adapter import (
-    GalerkinPhysicsToODEResidualAdapter,
-)
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
-class GalerkinModel(Generic[Array]):
-    """High-level model for Galerkin FEM PDE problems.
+class GalerkinSteadyModel(Generic[Array]):
+    """Steady solves of a Galerkin system: ``F(u) = 0`` with its essential
+    constraints.
 
-    Provides a unified interface for solving steady and time-dependent
-    PDE problems using Galerkin finite element methods.
-
-    Reuses existing time stepping residuals from pde.time and the
-    GalerkinPhysicsToODEResidualAdapter for mass matrix handling.
+    Transient solves are a different object with different inputs:
+    :class:`~pyapprox.pde.galerkin.time_integration.transient_model.GalerkinTransientModel`,
+    built from a time-integration adapter.
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
-        The composed system ``M du/dt = F(u, t)`` with its essential
-        constraints, e.g. from ``compose_galerkin_system``.
-    bkd : Backend
-        Computational backend.
-    adapter : GalerkinPhysicsToODEResidualAdapter, optional
-        ODE-residual adapter to drive the time integration, wrapping this
-        same ``system``. Omitted for pure forward solves (the model builds
-        the base adapter); the models layer injects a parameterized tier
-        here so ``gradient``/``hvp_operator`` gain the dR/dp surface.
+    system : GalerkinSteadySystemProtocol
+        The composed system with its essential constraints, e.g. from
+        ``compose_galerkin_system``. Its backend is the model's.
 
     Examples
     --------
-    >>> model = GalerkinModel(compose_galerkin_system(physics, bcs), bkd)
-    >>> config = TimeIntegrationConfig(
-    ...     method="backward_euler", init_time=0.0, final_time=1.0,
-    ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20,
-    ...     lumped_mass=False, verbosity=0,
-    ... )
-    >>> solutions, times = model.solve_transient(u0, config)
+    >>> model = GalerkinSteadyModel(compose_galerkin_system(physics, bcs))
+    >>> solution = model.solve_steady(initial_guess)
     """
 
-    def __init__(
-        self,
-        system: GalerkinTransientSystemProtocol[Array],
-        bkd: Backend[Array],
-        adapter: Optional[GalerkinPhysicsToODEResidualAdapter[Array]] = None,
-    ):
-        if not isinstance(system, GalerkinTransientSystemProtocol):
+    def __init__(self, system: GalerkinSteadySystemProtocol[Array]) -> None:
+        if not isinstance(system, GalerkinSteadySystemProtocol):
             raise TypeError(
-                "system must satisfy GalerkinTransientSystemProtocol, got "
+                "system must satisfy GalerkinSteadySystemProtocol, got "
                 f"{type(system).__name__}"
             )
-        if adapter is not None:
-            if not isinstance(adapter, GalerkinPhysicsToODEResidualAdapter):
-                raise TypeError(
-                    "adapter must be a GalerkinPhysicsToODEResidualAdapter, "
-                    f"got {type(adapter).__name__}"
-                )
-            if adapter.system() is not system:
-                raise ValueError(
-                    "adapter wraps a different system than the one passed "
-                    "to GalerkinModel"
-                )
         self._system = system
-        self._bkd = bkd
-        self._adapter_injected = adapter is not None
-        # The base adapter reads the mass, which only a transient solve
-        # needs; built on first use so a steady solve never touches it.
-        self._adapter: Optional[GalerkinPhysicsToODEResidualAdapter[Array]] = adapter
-        self._last_integrator: Optional[TimeIntegrator[Array]] = None
-
-    def adapter(self) -> GalerkinPhysicsToODEResidualAdapter[Array]:
-        """Return the ODE residual adapter, building the base one if none
-        was injected.
-
-        Raises
-        ------
-        TypeError
-            If the system's mass is second order in time (see
-            ``pyapprox.pde.time_order``).
-        """
-        if self._adapter is None:
-            self._adapter = GalerkinPhysicsToODEResidualAdapter(self._system)
-        return self._adapter
-
-    def last_integrator(self) -> TimeIntegrator[Array]:
-        """Return the TimeIntegrator from the most recent transient solve."""
-        if self._last_integrator is None:
-            raise RuntimeError(
-                "no transient solve has been run yet; call solve_transient first"
-            )
-        return self._last_integrator
-
-    def set_functional(self, functional: TransientFunctionalProtocol[Array]) -> None:
-        """Set the QoI functional on the most recent solve's integrator.
-
-        Forwarded to :meth:`TimeIntegrator.set_functional`; required
-        before :meth:`gradient`.
-        """
-        self.last_integrator().set_functional(functional)
-
-    def gradient(self, fwd_sols: Array, times: Array, param: Array) -> Array:
-        """Compute dQ/dp by the adjoint method on the last solve.
-
-        Delegates to :meth:`TimeIntegrator.gradient`; the integrator
-        raises an actionable TypeError when the stepper was created
-        without adjoint support.
-
-        Parameters
-        ----------
-        fwd_sols : Array
-            Forward trajectory from solve_transient.
-            Shape: (nstates, ntimes)
-        times : Array
-            Time points. Shape: (ntimes,)
-        param : Array
-            Parameters. Shape: (nparams, 1)
-
-        Returns
-        -------
-        Array
-            Gradient dQ/dp. Shape: (1, nparams)
-        """
-        return self.last_integrator().gradient(fwd_sols, times, param)
-
-    def hvp_operator(
-        self,
-        functional: TransientFunctionalProtocol[Array],
-    ) -> TimeAdjointOperatorWithHVP[Array]:
-        """Build the second-order adjoint operator on the last solve.
-
-        The returned operator exposes ``jacobian`` and ``hvp``. It raises
-        an actionable TypeError when the functional's ``derivatives()``
-        has no HVPs or the stepper was created without HVP support.
-        """
-        return TimeAdjointOperatorWithHVP(self.last_integrator(), functional)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
-        return self._bkd
+        return self._system.bkd()
 
-    def system(self) -> GalerkinTransientSystemProtocol[Array]:
+    def system(self) -> GalerkinSteadySystemProtocol[Array]:
         """Return the composed system this model solves."""
         return self._system
 
@@ -218,86 +100,6 @@ class GalerkinModel(Generic[Array]):
         if not result.converged:
             raise RuntimeError(f"Newton iteration failed to converge: {result.message}")
         return result.solution
-
-    def solve_transient(
-        self,
-        initial_condition: Array,
-        config: TimeIntegrationConfig[Array],
-    ) -> Tuple[Array, Array]:
-        """Solve the time-dependent problem.
-
-        Integrates M * du/dt = F(u, t) from init_time to final_time.
-
-        All methods run one TimeIntegrator pipeline: raw ODE adapter ->
-        stepper -> BC-enforcing residual wrapper (constraint rows
-        applied via the system's constraint set) -> Newton.
-        Explicit steppers are one-step solvable (the constraint rows
-        are linear), so Newton reduces to a single linear solve with a
-        cached factorization of the constant BC-modified mass;
-        ``config.lumped_mass`` swaps in the row-sum lumped mass.
-
-        Parameters
-        ----------
-        initial_condition : Array
-            Initial state u(t=0). Shape: (nstates,)
-        config : TimeIntegrationConfig
-            Time integration configuration.
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            solutions : Array
-                Solution trajectory. Shape: (nstates, ntimes)
-            times : Array
-                Time points. Shape: (ntimes,)
-
-        Raises
-        ------
-        TypeError
-            If the system's mass is second order in time: integrating
-            it as ``M du/dt = F(u, t)`` is a relaxation, not dynamics
-            (see ``pyapprox.pde.time_order``).
-        """
-        # One pipeline for all methods: adapter -> stepper -> BC
-        # residual -> Newton -> integrator (custom StepperFactory
-        # handles share this path; unknown string names error inside
-        # create_stepper).
-        if config.lumped_mass:
-            if self._adapter_injected:
-                raise ValueError(
-                    "config.lumped_mass=True would discard the injected "
-                    "adapter; construct the injected adapter with "
-                    "lumped_mass=True instead"
-                )
-            adapter = GalerkinPhysicsToODEResidualAdapter(
-                self._system, lumped_mass=True
-            )
-        else:
-            adapter = self.adapter()
-        stepper = create_stepper(config.method, adapter)
-        bc_residual = create_galerkin_bc_enforcing_residual(
-            stepper, adapter.system().constraint_set(), self._bkd
-        )
-        newton = NewtonSolver(bc_residual)
-        newton.set_options(
-            maxiters=config.newton_maxiter,
-            atol=config.newton_tol,
-            rtol=0.0,
-            verbosity=max(0, config.verbosity - 1),
-        )
-        integrator = TimeIntegrator(
-            config.init_time,
-            config.final_time,
-            config.deltat,
-            newton,
-            verbosity=config.verbosity,
-        )
-        init_state = self._system.constraint_set().inject(
-            initial_condition, config.init_time
-        )
-        solutions, times = integrator.solve(init_state)
-        self._last_integrator = integrator
-        return solutions, times
 
     def __repr__(self) -> str:
         return (

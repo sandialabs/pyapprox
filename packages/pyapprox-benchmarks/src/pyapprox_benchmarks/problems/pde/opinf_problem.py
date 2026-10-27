@@ -5,28 +5,34 @@ metadata operator inference needs: the monomial degree set of the
 exact reduced dynamics, the input dimension, the boundary lift, and
 the time-integration defaults.  Composition, not inheritance --
 mirrors ``ODEForwardUQProblem``: the problem returns a solvable
-``GalerkinModel`` and the caller drives it (``model.solve_transient``,
+``GalerkinTransientModel`` and the caller drives it (``model.solve_transient``,
 ``model.system()``); the problem itself never solves.
 """
 
 from __future__ import annotations
 
-from typing import Callable, Generic, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
+
+from numpy.typing import NDArray
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinModel,
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinTransientModel,
+    skfem_ode_residual,
 )
 from pyapprox.probability.protocols.distribution import DistributionProtocol
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.protocols import DomainProtocol
 
+# Bound to NumPy: the systems assemble with skfem.
+_Np = NDArray[Any]
 
-class PDEOpInfProblem(Generic[Array]):
+
+class PDEOpInfProblem:
     """Parameterized PDE problem for operator-inference recovery.
 
     The semi-discrete FOM is ``M du/dt = f(u; mu)`` on a FIXED basis:
@@ -38,20 +44,20 @@ class PDEOpInfProblem(Generic[Array]):
     ----------
     name : str
         Problem name.
-    system_factory : Callable[[Array], GalerkinTransientSystemProtocol[Array]]
+    system_factory : Callable[[_Np], GalerkinTransientSystemProtocol[_Np]]
         Builds the system (physics with its boundary conditions) for
         parameters of shape ``(nparams, 1)`` on the shared basis.
-    basis : GalerkinBasisProtocol[Array]
+    basis : GalerkinBasisProtocol[_Np]
         The shared finite element basis.
-    prior : DistributionProtocol[Array]
+    prior : DistributionProtocol[_Np]
         Prior distribution over the parameters.
-    domain : DomainProtocol[Array]
+    domain : DomainProtocol[_Np]
         Parameter domain (bounds).
     time_config : TimeIntegrationConfig
         Default time integration configuration for FOM solves.
-    initial_condition : Array
+    initial_condition : _Np
         Initial state.  Shape: ``(nstates,)``.
-    nominal_parameters : Array
+    nominal_parameters : _Np
         Nominal parameter values.  Shape: ``(nparams, 1)``.
     degree_set : tuple[int, ...]
         Monomial degrees present in the EXACT reduced dynamics (e.g.
@@ -60,11 +66,11 @@ class PDEOpInfProblem(Generic[Array]):
     ninputs : int
         Number of exogenous inputs entering the reduced dynamics
         (0 for the homogeneous problems).
-    lift_vector : Array
+    lift_vector : _Np
         Boundary lift ``l`` such that ``u = u_hom + l*g`` homogenizes
         the Dirichlet data.  Shape: ``(nstates,)``; zero when the
         boundary data is homogeneous.
-    bkd : Backend[Array]
+    bkd : NumpyBkd
         Computational backend.
     input_func : Callable[[float], float], optional
         Exogenous input ``g(t)``; ``None`` when ``ninputs == 0``.
@@ -80,18 +86,18 @@ class PDEOpInfProblem(Generic[Array]):
         self,
         name: str,
         system_factory: Callable[
-            [Array], GalerkinTransientSystemProtocol[Array]
+            [_Np], GalerkinTransientSystemProtocol[_Np]
         ],
-        basis: GalerkinBasisProtocol[Array],
-        prior: DistributionProtocol[Array],
-        domain: DomainProtocol[Array],
-        time_config: TimeIntegrationConfig[Array],
-        initial_condition: Array,
-        nominal_parameters: Array,
+        basis: GalerkinBasisProtocol[_Np],
+        prior: DistributionProtocol[_Np],
+        domain: DomainProtocol[_Np],
+        time_config: TimeIntegrationConfig[_Np],
+        initial_condition: _Np,
+        nominal_parameters: _Np,
         degree_set: Tuple[int, ...],
         ninputs: int,
-        lift_vector: Array,
-        bkd: Backend[Array],
+        lift_vector: _Np,
+        bkd: NumpyBkd,
         input_func: Optional[Callable[[float], float]] = None,
         input_deriv_func: Optional[Callable[[float], float]] = None,
         description: str = "",
@@ -118,7 +124,7 @@ class PDEOpInfProblem(Generic[Array]):
         """Return the problem name."""
         return self._name
 
-    def basis(self) -> GalerkinBasisProtocol[Array]:
+    def basis(self) -> GalerkinBasisProtocol[_Np]:
         """Return the shared finite element basis."""
         return self._basis
 
@@ -126,23 +132,23 @@ class PDEOpInfProblem(Generic[Array]):
         """Return the number of state variables (dofs)."""
         return self._basis.ndofs()
 
-    def prior(self) -> DistributionProtocol[Array]:
+    def prior(self) -> DistributionProtocol[_Np]:
         """Return prior distribution over parameters."""
         return self._prior
 
-    def domain(self) -> DomainProtocol[Array]:
+    def domain(self) -> DomainProtocol[_Np]:
         """Return parameter domain."""
         return self._domain
 
-    def time_config(self) -> TimeIntegrationConfig[Array]:
+    def time_config(self) -> TimeIntegrationConfig[_Np]:
         """Return the default time integration configuration."""
         return self._time_config
 
-    def initial_condition(self) -> Array:
+    def initial_condition(self) -> _Np:
         """Return initial state. Shape: ``(nstates,)``."""
         return self._initial_condition
 
-    def nominal_parameters(self) -> Array:
+    def nominal_parameters(self) -> _Np:
         """Return nominal parameter values. Shape: ``(nparams, 1)``."""
         return self._nominal_parameters
 
@@ -166,11 +172,11 @@ class PDEOpInfProblem(Generic[Array]):
         """Return the input derivative ``g'(t)``, or ``None``."""
         return self._input_deriv_func
 
-    def lift_vector(self) -> Array:
+    def lift_vector(self) -> _Np:
         """Return the boundary lift. Shape: ``(nstates,)``."""
         return self._lift_vector
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         """Return the computational backend."""
         return self._bkd
 
@@ -183,12 +189,13 @@ class PDEOpInfProblem(Generic[Array]):
         return self._reference
 
     def model(
-        self, parameters: Optional[Array] = None
-    ) -> GalerkinModel[Array]:
+        self, parameters: Optional[_Np] = None
+    ) -> GalerkinTransientModel[_Np]:
         """Build the transient FEM model at the given parameters.
 
         Rebuilds the system per parameter value on the SHARED basis
-        and wraps it in a solvable ``GalerkinModel``; the caller
+        and wraps it in a solvable ``GalerkinTransientModel`` whose mass
+        matches the default configuration's ``lumped_mass``; the caller
         drives it (``model.solve_transient(problem.initial_condition(),
         problem.time_config())``) and reaches the semi-discrete
         operator through ``model.system()``.  Downstream recovery
@@ -198,17 +205,20 @@ class PDEOpInfProblem(Generic[Array]):
 
         Parameters
         ----------
-        parameters : Array, optional
+        parameters : _Np, optional
             Parameter values of shape ``(nparams, 1)``.  ``None`` uses
             the nominal parameters.
 
         Returns
         -------
-        GalerkinModel
+        GalerkinTransientModel
             The solvable model at the requested parameters.
         """
         if parameters is None:
             parameters = self._nominal_parameters
-        return GalerkinModel(
-            self._system_factory(parameters), self._bkd
+        return GalerkinTransientModel(
+            skfem_ode_residual(
+                self._system_factory(parameters),
+                lumped_mass=self._time_config.lumped_mass,
+            )
         )

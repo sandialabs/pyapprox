@@ -97,9 +97,7 @@ if package_available("skfem"):
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import StructuredMesh1D
     from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-    from pyapprox.pde.galerkin.time_integration import (
-        GalerkinPhysicsToODEResidualAdapter,
-    )
+    from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
     from pyapprox.util.backends.numpy import NumpyBkd
 
 
@@ -114,9 +112,9 @@ def test_sparse_galerkin_blocks(numpy_bkd: "NumpyBkd", name: str) -> None:
     physics = AdvectionDiffusionReaction(
         basis=LagrangeBasis(mesh, degree=2), diffusivity=0.5, bkd=bkd, reaction=2.0
     )
-    adapter = GalerkinPhysicsToODEResidualAdapter(compose_galerkin_system(physics))
+    adapter = skfem_ode_residual(compose_galerkin_system(physics))
     stepper = _stepper(name, adapter)
-    n = adapter.mass_matrix().as_matrix().shape[0]
+    n: int = adapter.mass_matrix().as_matrix().shape[0]
     y_prev = np.linspace(0.0, 1.0, n)
     y_curr = bkd.asarray(np.linspace(0.2, 0.9, n))
     rng = np.random.default_rng(4)

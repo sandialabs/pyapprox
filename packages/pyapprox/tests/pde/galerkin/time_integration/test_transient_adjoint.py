@@ -70,6 +70,7 @@ from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
     QuasilinearDiffusion,
 )
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
@@ -80,6 +81,7 @@ from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.linalg.symmetric_weight import ScipySparseWeight
 from tests._helpers.adjoint_checks import NumpyArray
 
@@ -243,13 +245,12 @@ def _make_model(
             bkd,
         )
     return GalerkinTransientForwardModel(
-        system,
+        skfem_discretization(system),
+        ScipySparseLU(),
         param_obj,
         _gaussian_bump_ic(bkd, physics),
         _time_config(method),
-        bkd,
-        functional=functional,
-    )
+        functional=functional)
 
 
 def _sample_and_direction(nparams: int):
@@ -372,18 +373,19 @@ class TestTransientAdjointWorkedExample:
         ic = _gaussian_bump_ic(bkd, physics)
         config = _time_config("backward_euler")
         scalar_model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param_obj,
             ic,
             config,
-            bkd,
             functional=WeightedEndpointFunctional(
                 _subdomain_average_weights(bkd, physics),
                 param_obj.nparams(),
                 bkd,
-            ),
+            ))
+        vector_model = GalerkinTransientForwardModel(
+            skfem_discretization(system), ScipySparseLU(), param_obj, ic, config
         )
-        vector_model = GalerkinTransientForwardModel(system, param_obj, ic, config, bkd)
         sample_np, _ = _sample_and_direction(scalar_model.nvars())
         sample = bkd.asarray(sample_np)
         scalar_jac = scalar_model.derivatives().jacobian
@@ -416,13 +418,12 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
-            bkd,
-            functional=functional,
-        )
+            functional=functional)
         sample = bkd.zeros((model.nvars(), 1))
         direction = bkd.asarray(
             np.random.default_rng(13).normal(0.0, 1.0, (model.nvars(), 1))
@@ -458,13 +459,12 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
-            bkd,
-            functional=functional,
-        )
+            functional=functional)
         _check_gradient_and_hvp(bkd, model)
 
     def test_model_injects_scheme_consistent_quadrature(
@@ -481,13 +481,12 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
-            bkd,
-            functional=inner,
-        )
+            functional=inner)
         model(bkd.zeros((model.nvars(), 1)))
         config = _time_config("backward_euler")
         nsteps = round((config.final_time - config.init_time) / config.deltat)
@@ -518,13 +517,12 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
-            bkd,
-            functional=functional,
-        )
+            functional=functional)
         assert model.derivatives().hvp is not None
         # Linear forcing map + linear QoI: exactly zero Hessian, as in
         # the Dirichlet variant of this configuration.
@@ -562,13 +560,12 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
-            bkd,
-            functional=functional,
-        )
+            functional=functional)
         assert model.derivatives().hvp is not None
         _check_gradient_and_hvp(bkd, model)
 
@@ -642,7 +639,8 @@ class TestTimeModulatedControl:
         weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
         weights[free[len(free) // 2]] = 1.0
         model = GalerkinTransientForwardModel(
-            system,
+            skfem_discretization(system),
+            ScipySparseLU(),
             param,
             bkd.zeros((physics.nstates(),)),
             TimeIntegrationConfig(
@@ -655,9 +653,7 @@ class TestTimeModulatedControl:
                 lumped_mass=False,
                 verbosity=0,
             ),
-            bkd,
-            functional=WeightedEndpointFunctional(weights, param.nparams(), bkd),
-        )
+            functional=WeightedEndpointFunctional(weights, param.nparams(), bkd))
         return bkd, model, reaction, param
 
     @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])

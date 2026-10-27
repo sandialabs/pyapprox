@@ -234,7 +234,7 @@ def solve_obstructed_stokes(
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
     from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-        GalerkinModel,
+        GalerkinSteadyModel,
     )
 
     vel_basis = VectorLagrangeBasis(mesh, degree=2)
@@ -263,13 +263,12 @@ def solve_obstructed_stokes(
 
     # Start from the linear Stokes flow with the same boundary data.
     zero_guess = bkd.zeros((basis.ndofs(),))
-    init_guess = GalerkinModel(
+    init_guess = GalerkinSteadyModel(
         compose_galerkin_system(
             StokesPhysics(basis, bkd, viscosity=viscosity), bcs
-        ),
-        bkd,
+        )
     ).solve_steady(zero_guess)
-    model = GalerkinModel(compose_galerkin_system(stokes, bcs), bkd)
+    model = GalerkinSteadyModel(compose_galerkin_system(stokes, bcs))
     sol = model.solve_steady(init_guess, tol=1e-10, maxiter=50)
 
     return sol, stokes, vel_basis, pres_basis

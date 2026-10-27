@@ -21,9 +21,9 @@ from __future__ import annotations
 
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Dict,
-    Generic,
     List,
     Optional,
     Tuple,
@@ -38,8 +38,12 @@ if TYPE_CHECKING:
     )
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.numpy import NumpyBkd
+
+# Bound to NumPy: the Stokes and transport solves assemble with skfem.
+_Np = NDArray[Any]
 
 # Extraction-device layout: label -> center. Footprints sit in the gap
 # channels and along the flow path; two deliberately low-leverage
@@ -80,7 +84,7 @@ class _InletNormalSpeed:
         return np.asarray(y ** (self._a - 1.0) * (1.0 - y) ** (self._b - 1.0))
 
 
-class ObstructedFlowControlProblem(Generic[Array]):
+class ObstructedFlowControlProblem:
     """Extraction-rate control of transport through an obstructed
     channel.
 
@@ -99,9 +103,9 @@ class ObstructedFlowControlProblem(Generic[Array]):
 
     Parameters
     ----------
-    bkd : Backend
-        Computational backend. Must be NumpyBkd: the forward solve
-        uses skfem, which is NumPy-only.
+    bkd : NumpyBkd
+        Computational backend. The forward solve uses skfem, which is
+        NumPy-only.
     nstokes_refine : int
         Uniform refinements of the Navier-Stokes mesh.
     ntransport_refine : int
@@ -153,7 +157,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
 
     def __init__(
         self,
-        bkd: Backend[Array],
+        bkd: NumpyBkd,
         *,
         nstokes_refine: int = 2,
         ntransport_refine: int = 2,
@@ -169,16 +173,11 @@ class ObstructedFlowControlProblem(Generic[Array]):
         actuator_centers: Optional[Dict[str, Tuple[float, float]]] = None,
         actuator_width: float = 0.05,
         control_bound: float = 10.0,
-        zone_weight: Optional["ZoneWeightProtocol[Array]"] = None,
+        zone_weight: Optional["ZoneWeightProtocol[_Np]"] = None,
         inlet_bc: str = "danckwerts",
         time_integrator: str = "crank_nicolson",
     ) -> None:
-        from pyapprox.util.backends.numpy import NumpyBkd
-
-        # Assigned before the isinstance guard so the runtime
-        # narrowing does not leak the concrete backend into the
-        # generic Array parameter.
-        self._bkd: Backend[Array] = bkd
+        self._bkd = bkd
         if not isinstance(bkd, NumpyBkd):
             raise TypeError(
                 "ObstructedFlowControlProblem requires NumpyBkd because "
@@ -256,7 +255,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         diffusivity: float,
         final_time: float,
         deltat: float,
-        zone_weight: Optional["ZoneWeightProtocol[Array]"],
+        zone_weight: Optional["ZoneWeightProtocol[_Np]"],
         time_integrator: str,
     ) -> None:
         from pyapprox.ode.config import TimeIntegrationConfig
@@ -281,6 +280,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
+        from pyapprox.pde.galerkin.time_integration import skfem_discretization
         from pyapprox.pde.galerkin.zone_weights import (
             ElementAlignedRectangleZone,
         )
@@ -295,6 +295,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
             extract_velocity_callable,
             solve_obstructed_stokes,
         )
+        from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
         bkd = self._bkd
 
@@ -305,7 +306,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         )
 
         transport_mesh = build_obstructed_mesh(bkd, ntransport_refine)
-        self._basis: "LagrangeBasis[Array]" = LagrangeBasis(transport_mesh, degree=1)
+        self._basis: "LagrangeBasis[_Np]" = LagrangeBasis(transport_mesh, degree=1)
         self._velocity = extract_velocity_callable(
             stokes_sol, stokes, vel_basis, pres_basis, self._basis, bkd
         )
@@ -352,7 +353,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         # there). Outflow must be neither Dirichlet (artificial
         # boundary layer reflecting the plume) nor zero-total-flux
         # (traps all contaminant).
-        boundary_conditions: List[BoundaryConditionRole[Array]] = [
+        boundary_conditions: List[BoundaryConditionRole[_Np]] = [
             RobinBC(
                 self._basis,
                 "left",
@@ -369,7 +370,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
 
         if zone_weight is None:
             zone_weight = ElementAlignedRectangleZone(_ZONE_XLIM, _ZONE_YLIM)
-        self._zone_weight: "ZoneWeightProtocol[Array]" = zone_weight
+        self._zone_weight: "ZoneWeightProtocol[_Np]" = zone_weight
         zone_mass = zone_weight.assemble_weighted_mass(self._basis, bkd)
 
         functional = TikhonovAugmentedFunctional(
@@ -378,7 +379,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
             bkd,
         )
 
-        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
             method=time_integrator,
             init_time=0.0,
             final_time=final_time,
@@ -388,18 +389,20 @@ class ObstructedFlowControlProblem(Generic[Array]):
             lumped_mass=False,
             verbosity=0,
         )
-        self._model: "GalerkinTransientForwardModel[Array]" = (
+        self._model: "GalerkinTransientForwardModel[_Np]" = (
             GalerkinTransientForwardModel(
-                compose_galerkin_system(physics, boundary_conditions),
+                skfem_discretization(
+                    compose_galerkin_system(physics, boundary_conditions)
+                ),
+                ScipySparseLU(),
                 parameterization,
                 bkd.zeros((physics.nstates(),)),
                 config,
-                bkd,
                 functional=functional,
             )
         )
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         """Return the backend."""
         return self._bkd
 
@@ -407,7 +410,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         """Return the number of actuator amplitudes K."""
         return len(self._actuator_labels)
 
-    def model(self) -> "GalerkinTransientForwardModel[Array]":
+    def model(self) -> "GalerkinTransientForwardModel[_Np]":
         """Return the control objective J(p).
 
         Satisfies ``ObjectiveProtocol``: adjoint gradient and
@@ -415,7 +418,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         """
         return self._model
 
-    def bounds(self) -> Array:
+    def bounds(self) -> _Np:
         """Return extraction-rate bounds. Shape: ``(ncontrols, 2)``.
 
         The lower bound 0 is structural: extraction removes only, so
@@ -463,11 +466,11 @@ class ObstructedFlowControlProblem(Generic[Array]):
         """Return actuator centers. Shape: ``(2, ncontrols)``."""
         return self._actuator_centers
 
-    def zone_weight(self) -> "ZoneWeightProtocol[Array]":
+    def zone_weight(self) -> "ZoneWeightProtocol[_Np]":
         """Return the protected-zone weighting."""
         return self._zone_weight
 
-    def basis(self) -> "LagrangeBasis[Array]":
+    def basis(self) -> "LagrangeBasis[_Np]":
         """Return the transport basis (for plotting)."""
         return self._basis
 

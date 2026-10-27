@@ -13,16 +13,28 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
 )
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinModel,
+    GalerkinSteadyModel,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
+    GalerkinODEResidualProtocol,
     GalerkinPhysicsToODEResidualAdapter,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+    skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 
 __all__ = [
+    "GalerkinODEResidualProtocol",
     "GalerkinPhysicsToODEResidualAdapter",
+    "skfem_discretization",
+    "skfem_ode_residual",
     "GalerkinBCEnforcingForwardResidual",
-    "GalerkinModel",
+    "GalerkinSteadyModel",
+    "GalerkinTransientModel",
     "TimeIntegrationConfig",
     "create_galerkin_bc_enforcing_residual",
 ]

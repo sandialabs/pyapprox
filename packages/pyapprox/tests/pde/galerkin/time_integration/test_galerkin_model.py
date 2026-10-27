@@ -1,7 +1,8 @@
-"""Smoke tests for GalerkinModel.
+"""Smoke tests for the Galerkin steady and transient models.
 
-Validates that GalerkinModel.solve_transient produces the same results
-as the manual time-stepping loop for all 4 integration methods.
+Validates that GalerkinTransientModel.solve_transient produces the same
+results as the manual time-stepping loop for all 4 integration methods,
+and how both models are constructed.
 """
 
 
@@ -27,9 +28,10 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
-    GalerkinPhysicsToODEResidualAdapter,
+    GalerkinSteadyModel,
+    GalerkinTransientModel,
     TimeIntegrationConfig,
+    skfem_ode_residual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slow_test
@@ -91,19 +93,19 @@ IMPLICIT_CASES = [
 ]
 
 
-class TestGalerkinModelImplicit:
-    """Test GalerkinModel with implicit methods."""
+class TestGalerkinTransientModelImplicit:
+    """Test GalerkinTransientModel with implicit methods."""
 
     @pytest.mark.parametrize(
         "method",
         IMPLICIT_CASES,
     )
     def test_solve_transient_implicit(self, numpy_bkd: NumpyBkd, method: str) -> None:
-        """GalerkinModel matches exact solution for time-linear problem."""
+        """GalerkinTransientModel matches exact solution for time-linear problem."""
         bkd = numpy_bkd
         system, exact_at_time = _setup_adr_system(bkd)
 
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
 
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
@@ -134,15 +136,15 @@ EXPLICIT_CASES = [
 
 
 @slow_test
-class TestGalerkinModelExplicit:
-    """Test GalerkinModel with explicit methods (CFL-constrained)."""
+class TestGalerkinTransientModelExplicit:
+    """Test GalerkinTransientModel with explicit methods (CFL-constrained)."""
 
     @pytest.mark.parametrize(
         "method",
         EXPLICIT_CASES,
     )
     def test_solve_transient_explicit(self, numpy_bkd: NumpyBkd, method: str) -> None:
-        """GalerkinModel matches exact solution for time-linear problem.
+        """GalerkinTransientModel matches exact solution for time-linear problem.
 
         Uses nx=4, P2 which exactly represents u=(1-x)*x*(1+T).
         Zero spatial error + linear-in-time → machine precision.
@@ -151,7 +153,7 @@ class TestGalerkinModelExplicit:
         bkd = numpy_bkd
         system, exact_at_time = _setup_adr_system(bkd, nx=4)
 
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
 
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
@@ -227,7 +229,7 @@ class TestExplicitUnifiedPipeline:
         to machine precision (row-sum lumping preserves constants)."""
         bkd = numpy_bkd
         system, exact_at_time = self._setup_constant_in_space(bkd)
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system, lumped_mass=lumped))
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
             method="forward_euler",
@@ -293,7 +295,7 @@ class TestExplicitUnifiedPipeline:
         exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
         y0 = bkd.asarray(exact_sol_func(dof_coords, 0.0).flatten())
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
             method="heun",
@@ -313,28 +315,53 @@ class TestExplicitUnifiedPipeline:
         assert rel_error < 1e-12
 
 
-class TestGalerkinModelConstruction:
-    def test_rejects_a_non_system(self, numpy_bkd: NumpyBkd) -> None:
-        with pytest.raises(TypeError, match="GalerkinTransientSystemProtocol"):
-            GalerkinModel(object(), numpy_bkd)  # type: ignore[arg-type]
+class TestModelConstruction:
+    def test_steady_model_rejects_a_non_system(self) -> None:
+        with pytest.raises(TypeError, match="GalerkinSteadySystemProtocol"):
+            GalerkinSteadyModel(object())  # type: ignore[arg-type]
 
-    def test_rejects_adapter_of_another_system(
+    def test_steady_model_takes_its_backend_from_the_system(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """An injected adapter must wrap the very system the model solves,
-        or the model would integrate one system and report another."""
         system, _ = _setup_adr_system(numpy_bkd, nx=4)
-        other, _ = _setup_adr_system(numpy_bkd, nx=4)
-        with pytest.raises(ValueError, match="different system"):
-            GalerkinModel(
-                system,
-                numpy_bkd,
-                adapter=GalerkinPhysicsToODEResidualAdapter(other),
-            )
+        assert GalerkinSteadyModel(system).bkd() is system.bkd()
 
-    def test_accepts_adapter_of_its_system(self, numpy_bkd: NumpyBkd) -> None:
+    def test_transient_model_rejects_a_non_adapter(self, numpy_bkd: NumpyBkd) -> None:
         system, _ = _setup_adr_system(numpy_bkd, nx=4)
-        adapter = GalerkinPhysicsToODEResidualAdapter(system)
-        model = GalerkinModel(system, numpy_bkd, adapter=adapter)
-        assert model.system() is system
+        with pytest.raises(TypeError, match="GalerkinODEResidualProtocol"):
+            GalerkinTransientModel(system)  # type: ignore[arg-type]
+
+    def test_transient_model_takes_everything_from_its_adapter(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The system and backend come from the adapter, so they are
+        never passed twice."""
+        system, _ = _setup_adr_system(numpy_bkd, nx=4)
+        adapter = skfem_ode_residual(system)
+        model = GalerkinTransientModel(adapter)
         assert model.adapter() is adapter
+        assert model.system() is system
+        assert model.bkd() is system.bkd()
+        assert model.nstates() == system.nstates()
+
+    @pytest.mark.parametrize("lumped", [False, True])
+    def test_lumping_comes_from_the_adapter(
+        self, numpy_bkd: NumpyBkd, lumped: bool
+    ) -> None:
+        """A config whose lumping disagrees with the adapter's mass is
+        refused, rather than silently integrating a different mass."""
+        bkd = numpy_bkd
+        system, exact_at_time = _setup_adr_system(bkd, nx=4)
+        model = GalerkinTransientModel(skfem_ode_residual(system, lumped_mass=lumped))
+        config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
+            method="backward_euler",
+            init_time=0.0,
+            final_time=0.1,
+            deltat=0.05,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=not lumped,
+            verbosity=0,
+        )
+        with pytest.raises(ValueError, match="lumped_mass"):
+            model.solve_transient(bkd.asarray(exact_at_time(0.0)), config)

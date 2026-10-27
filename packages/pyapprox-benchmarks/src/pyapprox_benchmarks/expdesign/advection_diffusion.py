@@ -15,7 +15,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    Generic,
     Literal,
     Optional,
     Tuple,
@@ -25,7 +24,9 @@ if TYPE_CHECKING:
     from pyapprox.interface.functions.protocols import FunctionProtocol
     from pyapprox.probability.protocols import DistributionProtocol
 
-from pyapprox.util.backends.protocols import Array, Backend
+from numpy.typing import NDArray
+
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
@@ -35,8 +36,11 @@ from pyapprox_benchmarks.problems.oed.advection_diffusion import (
 # ObstructedAdvectionDiffusionOEDProblemWrapper (Pattern A forwarders preserved)
 # ---------------------------------------------------------------------------
 
+# Bound to NumPy: the wrapped problems assemble with skfem.
+_Np = NDArray[Any]
 
-class ObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
+
+class ObstructedAdvectionDiffusionOEDProblemWrapper:
     """Obstructed advection-diffusion prediction OED problem wrapper.
 
     No analytical ground truth — this is a Problem wrapper, not a
@@ -45,25 +49,25 @@ class ObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
 
     Parameters
     ----------
-    problem : AdvectionDiffusionOEDProblem[Array]
+    problem : AdvectionDiffusionOEDProblem
         The prediction OED problem.
-    bkd : Backend[Array]
+    bkd : NumpyBkd
         Computational backend.
     """
 
     def __init__(
         self,
-        problem: AdvectionDiffusionOEDProblem[Array],
-        bkd: Backend[Array],
+        problem: AdvectionDiffusionOEDProblem,
+        bkd: NumpyBkd,
     ) -> None:
         self._problem = problem
         self._bkd = bkd
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         """Get the computational backend."""
         return self._bkd
 
-    def problem(self) -> AdvectionDiffusionOEDProblem[Array]:
+    def problem(self) -> AdvectionDiffusionOEDProblem:
         """Get the prediction OED problem."""
         return self._problem
 
@@ -79,19 +83,19 @@ class ObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
     # Transitional Pattern A forwarders (to be removed in a later commit)
     # ------------------------------------------------------------------
 
-    def prior(self) -> "DistributionProtocol[Array]":
+    def prior(self) -> "DistributionProtocol[_Np]":
         """Return the prior distribution (transitional forwarder)."""
         return self._problem.prior()
 
-    def obs_map(self) -> "FunctionProtocol[Array]":
+    def obs_map(self) -> "FunctionProtocol[_Np]":
         """Return the observation map (transitional forwarder)."""
         return self._problem.obs_map()
 
-    def qoi_map(self) -> "FunctionProtocol[Array]":
+    def qoi_map(self) -> "FunctionProtocol[_Np]":
         """Return the QoI map (transitional forwarder)."""
         return self._problem.qoi_map()
 
-    def design_conditions(self) -> Array:
+    def design_conditions(self) -> _Np:
         """Return sensor locations (transitional forwarder)."""
         return self._problem.design_conditions()
 
@@ -103,23 +107,23 @@ class ObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
         """Return number of observation sensors (transitional forwarder)."""
         return self._problem.nobs()
 
-    def evaluate_nodal(self, samples: Array) -> Array:
+    def evaluate_nodal(self, samples: _Np) -> _Np:
         """Evaluate full nodal concentration (transitional forwarder)."""
         return self._problem.evaluate_nodal(samples)
 
     def evaluate_both(
-        self, samples: Array,
-    ) -> Tuple[Array, Array]:
+        self, samples: _Np,
+    ) -> Tuple[_Np, _Np]:
         """Evaluate obs and prediction maps (transitional forwarder)."""
         return self._problem.evaluate_both(samples)
 
     def solve_for_plotting(
-        self, sample: Array,
+        self, sample: _Np,
     ) -> Dict[str, Any]:
         """Plotting-data forward solve (transitional forwarder)."""
         return self._problem.solve_for_plotting(sample)
 
-    def mesh_nodes(self) -> Array:
+    def mesh_nodes(self) -> _Np:
         """Return ADR mesh node coordinates (transitional forwarder)."""
         return self._problem.mesh_nodes()
 
@@ -129,7 +133,7 @@ class ObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
 
 
 def build_obstructed_advection_diffusion_oed_problem(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     *,
     noise_std: float = 0.1,
     nstokes_refine: int = 3,
@@ -148,7 +152,7 @@ def build_obstructed_advection_diffusion_oed_problem(
     time_integrator: Literal[
         "backward_euler", "crank_nicolson"
     ] = "crank_nicolson",
-) -> ObstructedAdvectionDiffusionOEDProblemWrapper[Array]:
+) -> ObstructedAdvectionDiffusionOEDProblemWrapper:
     """Build an :class:`ObstructedAdvectionDiffusionOEDProblemWrapper`."""
     problem = AdvectionDiffusionOEDProblem(
         bkd,
@@ -177,7 +181,7 @@ def build_obstructed_advection_diffusion_oed_problem(
 # ---------------------------------------------------------------------------
 
 
-class FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
+class FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
     """Fixed-velocity advection-diffusion OED problem wrapper.
 
     No analytical ground truth — this is a Problem wrapper, not a
@@ -185,27 +189,27 @@ class FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array])
 
     Parameters
     ----------
-    problem : FixedVelocityAdvectionDiffusionOEDProblem[Array]
+    problem : FixedVelocityAdvectionDiffusionOEDProblem
         The prediction OED problem.
-    bkd : Backend[Array]
+    bkd : NumpyBkd
         Computational backend.
     """
 
     def __init__(
         self,
-        problem: FixedVelocityAdvectionDiffusionOEDProblem[Array],
-        bkd: Backend[Array],
+        problem: FixedVelocityAdvectionDiffusionOEDProblem,
+        bkd: NumpyBkd,
     ) -> None:
         self._problem = problem
         self._bkd = bkd
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         """Get the computational backend."""
         return self._bkd
 
     def problem(
         self,
-    ) -> FixedVelocityAdvectionDiffusionOEDProblem[Array]:
+    ) -> FixedVelocityAdvectionDiffusionOEDProblem:
         """Get the prediction OED problem."""
         return self._problem
 
@@ -219,7 +223,7 @@ class FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array])
 
 
 def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     *,
     vel_shape_a: float = 2.5,
     vel_shape_b: float = 2.5,
@@ -241,7 +245,7 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
     time_integrator: Literal[
         "backward_euler", "crank_nicolson"
     ] = "crank_nicolson",
-) -> FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper[Array]:
+) -> FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
     """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper`."""
     problem = FixedVelocityAdvectionDiffusionOEDProblem(
         bkd,

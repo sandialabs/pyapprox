@@ -49,6 +49,9 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingHVPResidual,
     create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithHVPAdapter,
     create_galerkin_physics_ode_residual,
@@ -57,6 +60,7 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.adjoint_checks import HVPOperatorFunction, NumpyArray
 
@@ -90,6 +94,10 @@ def _lognormal_kle_map(
     return TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
 
 
+def _unit_forcing(x: NumpyArray) -> NumpyArray:
+    return np.ones(x.shape[1])
+
+
 def _build_pipeline(
     bkd: NumpyBkd,
     method: str,
@@ -116,7 +124,7 @@ def _build_pipeline(
         diffusivity=NodalFieldDiffusion(basis),
         bkd=bkd,
         reaction=reaction,
-        forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+        forcing=TimeIndependent(_unit_forcing),
     )
     system = compose_galerkin_system(
         physics,
@@ -128,7 +136,9 @@ def _build_pipeline(
     param = AdvectionDiffusionParameterization(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
-    adapter = create_galerkin_physics_ode_residual(system, param)
+    adapter = create_galerkin_physics_ode_residual(
+        skfem_discretization(system), ScipySparseLU(), param
+    )
     assert isinstance(adapter, GalerkinPhysicsToODEResidualWithHVPAdapter)
     stepper = create_stepper(method, adapter)
     wrapper = create_galerkin_bc_enforcing_residual(

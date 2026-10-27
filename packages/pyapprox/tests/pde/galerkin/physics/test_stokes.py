@@ -43,8 +43,9 @@ from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinModel,
+    GalerkinTransientModel,
     TimeIntegrationConfig,
+    skfem_ode_residual,
 )
 from pyapprox.pde.manufactured.stokes import (
     ManufacturedStokes,
@@ -624,7 +625,7 @@ class TestParametrizedTransientStokes:
         )
 
         # Time stepping through the unified DAE pipeline
-        model = GalerkinModel(system, bkd)
+        model = GalerkinTransientModel(skfem_ode_residual(system))
         y0 = bkd.asarray(
             _get_exact_state(
                 funcs,
