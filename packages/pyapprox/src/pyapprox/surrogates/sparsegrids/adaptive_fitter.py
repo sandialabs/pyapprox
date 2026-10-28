@@ -161,6 +161,10 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         self._first_step = True
         self._nqoi: Optional[int] = None
         self._nsteps = 0
+        # Set while the queue does not reflect the current indicator and
+        # selected set: scoring raised, or the indicator was replaced.
+        # step_samples refuses until rescore clears it.
+        self._needs_rescore = False
 
     def _get_config_idx(self, full_index: Array) -> ConfigIdx:
         """Extract config index from full multi-index."""
@@ -219,7 +223,21 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         -------
         Optional[Dict[ConfigIdx, Array]]
             Dict mapping config_idx to sample arrays, or None if converged.
+
+        Raises
+        ------
+        RuntimeError
+            If the candidates need re-scoring, because the error
+            indicator raised during the last scoring or was replaced
+            since. Call ``rescore`` first.
         """
+        if self._needs_rescore:
+            raise RuntimeError(
+                "candidates are not scored by the current error indicator: "
+                "scoring raised, or the indicator was replaced. Every "
+                "value is kept; call rescore() (after set_error_indicator "
+                "if the indicator must change) before step_samples()."
+            )
         if self._first_step:
             return self._first_step_samples()
         return self._next_step_samples()
@@ -343,6 +361,13 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         values : Dict[ConfigIdx, Array]
             Dict mapping config_idx to value arrays of shape
             (nqoi, n_samples).
+
+        Notes
+        -----
+        The values are absorbed before candidates are scored. If the
+        error indicator raises while scoring, the values are kept, the
+        exception propagates, and ``step_samples`` refuses until
+        ``rescore`` succeeds.
         """
         for cfg, vals in values.items():
             self._trackers[cfg].append_new_values(vals)
@@ -371,33 +396,95 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         Every candidate is re-scored each round: a promotion changes the
         selected set, so scores computed against an earlier set are
         stale. Only per-subspace statistics are memoized, never errors.
+
+        Scoring is atomic: every candidate is scored into locals before
+        the queue and errors are replaced. If the indicator or priority
+        raises, the old queue is dropped, nothing else changes, and the
+        fitter stays marked as needing a re-score.
         """
         if self._nqoi is None:
             raise RuntimeError("nqoi not set; call step_values first")
 
-        self._candidate_queue = PriorityQueue(max_priority=True)
+        # Mark first so any exception below, of any type, leaves it set.
+        self._needs_rescore = True
+        self._candidate_queue = None
 
+        scored: List[Tuple[float, float, int]] = []
         cand_indices = self._index_gen.get_candidate_indices()
-        if cand_indices is None:
-            return
+        if cand_indices is not None:
+            for j in range(cand_indices.shape[1]):
+                cand_index = cand_indices[:, j]
+                cand_key = _index_to_tuple(cand_index, self._bkd)
 
-        for j in range(cand_indices.shape[1]):
-            cand_index = cand_indices[:, j]
-            cand_key = _index_to_tuple(cand_index, self._bkd)
+                cand_subspace = self._subspace_by_key.get(cand_key)
+                if cand_subspace is None or cand_subspace.get_values() is None:
+                    continue
 
-            cand_subspace = self._subspace_by_key.get(cand_key)
-            if cand_subspace is None or cand_subspace.get_values() is None:
-                continue
+                candidate = self._build_candidate(cand_index, cand_subspace)
+                error = self._error_indicator(candidate, self)
+                priority = self._priority(error, candidate)
 
-            candidate = self._build_candidate(cand_index, cand_subspace)
-            error = self._error_indicator(candidate, self)
-            priority = self._priority(error, candidate)
+                idx_id = self._index_gen._cand_indices_dict[
+                    self._index_gen._hash_index(cand_index)
+                ]
+                scored.append((priority, error, idx_id))
 
-            idx_id = self._index_gen._cand_indices_dict[
-                self._index_gen._hash_index(cand_index)
-            ]
-            self._candidate_queue.put(priority, error, idx_id)
+        queue: PriorityQueue[Array] = PriorityQueue(max_priority=True)
+        for priority, error, idx_id in scored:
+            queue.put(priority, error, idx_id)
             self._subspace_errors[idx_id] = error
+        self._candidate_queue = queue
+        self._needs_rescore = False
+
+    def set_error_indicator(
+        self, error_indicator: ErrorIndicatorProtocol[Array]
+    ) -> None:
+        """Replace the error indicator.
+
+        Once candidates have been scored, the queue reflects the old
+        indicator, so ``step_samples`` refuses until ``rescore``. Between
+        ``step_samples`` and ``step_values`` no re-score is needed:
+        ``step_values`` scores with the new indicator.
+
+        Parameters
+        ----------
+        error_indicator : ErrorIndicatorProtocol[Array]
+            The indicator used for every later scoring.
+        """
+        if not isinstance(error_indicator, ErrorIndicatorProtocol):
+            raise TypeError(
+                "error_indicator must satisfy ErrorIndicatorProtocol, got "
+                f"{type(error_indicator).__name__}"
+            )
+        self._error_indicator = error_indicator
+        if self._nqoi is not None:
+            self._needs_rescore = True
+
+    def rescore(self) -> None:
+        """Score every candidate again and rebuild the queue.
+
+        Scores against the unchanged selected set with the current
+        indicator, and evaluates no model. Use it to continue after the
+        indicator raised during ``step_values``, or after
+        ``set_error_indicator``. If scoring raises again, the fitter
+        stays as it was and ``step_samples`` keeps refusing.
+
+        Raises
+        ------
+        RuntimeError
+            If no values have been supplied yet, or if the last
+            ``step_samples`` batch still awaits ``step_values``.
+        """
+        if self._nqoi is None:
+            raise RuntimeError(
+                "nothing to rescore: call step_values with the first batch"
+            )
+        if any(t.npending() != 0 for t in self._trackers.values()):
+            raise RuntimeError(
+                "a batch from step_samples awaits values; call step_values, "
+                "which scores the candidates itself"
+            )
+        self._reprioritize_candidates()
 
     def _build_candidate(
         self,
@@ -793,6 +880,22 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
             Values of shape (nqoi, n_samples).
         """
         self._fitter.step_values({_SF_KEY: values})
+
+    def set_error_indicator(
+        self, error_indicator: ErrorIndicatorProtocol[Array]
+    ) -> None:
+        """Replace the error indicator.
+
+        See ``MultiFidelityAdaptiveSparseGridFitter.set_error_indicator``.
+        """
+        self._fitter.set_error_indicator(error_indicator)
+
+    def rescore(self) -> None:
+        """Score every candidate again.
+
+        See ``MultiFidelityAdaptiveSparseGridFitter.rescore``.
+        """
+        self._fitter.rescore()
 
     def current_error(self) -> float:
         """Return sum of errors for candidate subspaces."""
