@@ -22,7 +22,7 @@ class TestImplicitTimeIntegration:
         """
         raise NotImplementedError("Derived classes must implement this method.")
 
-    def test_decoupled_nonlinear_ode_backward_euler(self, bkd) -> None:
+    def test_decoupled_nonlinear_ode_backward_euler(self, bkd: Backend[Array]) -> None:
         """
         Test implicit time integration for a decoupled nonlinear ODE using
         Backward Euler.
@@ -35,7 +35,7 @@ class TestImplicitTimeIntegration:
 
         # Create the residual
         residual = NonLinearDecoupledODE(nstates, True, bkd)
-        residual.set_parameters(param)
+        residual.set_param(param)
 
         # Wrap the residual with Backward Euler
         backward_euler_residual = BackwardEulerHVP(residual)
@@ -53,16 +53,16 @@ class TestImplicitTimeIntegration:
         )
 
         # Initial state
-        init_state = bkd.full((nstates,), param[1])
+        init_state = param[1] * bkd.ones((nstates,))
 
         # Solve the time integration problem
         states, times = time_integrator.solve(init_state)
 
         # Compute exact states
         scale = bkd.arange(1, nstates + 1, dtype=bkd.double_dtype())
-        deltat1, deltat2 = times[1:] - times[:-1]
-        t0, t1, t2 = times
-        exact_states_list = [bkd.full((nstates,), param[1])]
+        t1, t2 = times[1], times[2]
+        deltat1, deltat2 = t1 - times[0], t2 - t1
+        exact_states_list = [param[1] * bkd.ones((nstates,))]
         exact_states_list.append(
             (
                 bkd.sqrt(
