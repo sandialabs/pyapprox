@@ -13,6 +13,12 @@ from pyapprox.util.linalg.operators.algebra import (
     product_properties,
     scaled_sum_properties,
 )
+from pyapprox.util.linalg.operators.blocks import (
+    BlockLowerTriangularHandle,
+    BlockOperator,
+    BlockVector,
+    BlockVectorSpace,
+)
 from pyapprox.util.linalg.operators.caching import CachingSolver, ReuseKey, reuse_key
 from pyapprox.util.linalg.operators.constraints import (
     RowReplacedOperator,
@@ -56,6 +62,10 @@ from pyapprox.util.linalg.operators.zero import ZeroOperator
 
 __all__ = [
     "ActionOperatorProtocol",
+    "BlockLowerTriangularHandle",
+    "BlockOperator",
+    "BlockVector",
+    "BlockVectorSpace",
     "CachingSolver",
     "ConjugateGradient",
     "GMRES",
