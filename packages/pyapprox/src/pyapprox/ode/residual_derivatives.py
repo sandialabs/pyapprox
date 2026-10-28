@@ -44,6 +44,12 @@ covariant in the Jacobian's format, so a system builder keeps its static
 pairing of format and solver and a consumer that ignores the format
 accepts any bundle. A bundle describes one discretization and is rebuilt
 when it changes (a remesh).
+
+A bundle is valid for the parameters set when it was fetched: after
+``set_param`` a consumer fetches ``derivatives()`` again, so a residual
+may build fields that hold data computed for one parameter value (an
+assembled operator, say). Which fields are present must not depend on
+the parameter values.
 """
 
 from dataclasses import dataclass

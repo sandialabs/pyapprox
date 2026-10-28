@@ -18,7 +18,6 @@ import pytest
 
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
-    DerivativeOperator,
     ODEResidualDerivatives,
     backend_spaces,
     dense_jacobian,
@@ -292,62 +291,6 @@ class TestInvariants:
             ODEResidualDerivatives(jacobian=snapshot)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="function returning it"):
             ODEResidualDerivatives(jacobian=bkd.eye(2))  # type: ignore[arg-type]
-
-
-class TestLotkaVolterraBundle:
-    def test_bundle_agrees_with_the_models_vector_methods(
-        self, bkd: Backend[Array]
-    ) -> None:
-        """The shared test model offers its derivatives both ways; the
-        operators must reproduce the vector methods the tiered steppers
-        read, with each transpose giving the transposed term."""
-        model = LotkaVolterra(bkd)
-        bundle = model.derivatives()
-        state, adj = bkd.asarray(_STATE), bkd.asarray(_ADJ)
-        v, w = bkd.asarray([0.5, -0.3, 0.8, 0.1]), bkd.asarray([0.6, 0.2])
-
-        def applied(op: DerivativeOperator[Array], vec: Array) -> Array:
-            return op.apply(bkd.reshape(vec, (vec.shape[0], 1)))[:, 0]
-
-        def transposed(op: DerivativeOperator[Array], vec: Array) -> Array:
-            return op.apply_transpose(bkd.reshape(vec, (vec.shape[0], 1)))[:, 0]
-
-        assert bundle.jacobian is not None and bundle.param is not None
-        assert bundle.state_state is not None and bundle.state_param is not None
-        assert bundle.param_param is not None and bundle.initial_state is not None
-        jacobian = bundle.jacobian(state, 0.0, _POINT)
-        bkd.assert_allclose(
-            applied(jacobian, w), bkd.dot(model.jacobian(state, 0.0), w)
-        )
-        param = bundle.param(state, 0.0)
-        matrix = model.param_jacobian(state, 0.0)
-        bkd.assert_allclose(applied(param, v), bkd.dot(matrix, v))
-        bkd.assert_allclose(transposed(param, w), bkd.dot(matrix.T, w))
-        cases = [
-            (
-                applied(bundle.state_state(state, 0.0, adj), w),
-                model.state_state_hvp(state, 0.0, adj, w),
-            ),
-            (
-                applied(bundle.state_param(state, 0.0, adj), v),
-                model.state_param_hvp(state, 0.0, adj, v),
-            ),
-            (
-                transposed(bundle.state_param(state, 0.0, adj), w),
-                model.param_state_hvp(state, 0.0, adj, w),
-            ),
-            (
-                applied(bundle.param_param(state, 0.0, adj), v),
-                model.param_param_hvp(state, 0.0, adj, v),
-            ),
-            (
-                transposed(bundle.initial_state(), w),
-                bkd.dot(model.initial_param_jacobian().T, w),
-            ),
-        ]
-        for actual, expected in cases:
-            bkd.assert_allclose(actual, expected, rtol=1e-12, atol=1e-14)
-        assert bundle.param_param(state, 0.0, adj).properties().zero
 
 
 class TestPicklingAndVariance:

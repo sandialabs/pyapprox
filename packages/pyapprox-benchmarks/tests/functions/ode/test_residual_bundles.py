@@ -1,10 +1,9 @@
-"""Each ODE benchmark residual's derivatives bundle against its methods.
+"""Each ODE benchmark residual's derivatives bundle, by finite differences.
 
-The residuals offer their derivatives both as the operator bundle from
-``derivatives()`` and as the matrix and vector methods the tiered
-steppers read. At a random state and parameter, every populated operator
-of the bundle must reproduce the corresponding method, applied and
-transposed, and the terms a bundle states as zero must be declared zero.
+At a random state, adjoint and parameter (seed 7; states in [0.2, 1.5],
+parameters in [0.2, 1.0], t = 0.3), every term the bundle declares
+passes the bundle checker: forward-difference errors below 1e-6, dot
+tests below 1e-12, stated zeros zero.
 """
 
 from typing import Callable, Union
@@ -12,9 +11,8 @@ from typing import Callable, Union
 import numpy as np
 import pytest
 
-from pyapprox.ode.residual_derivatives import DerivativeOperator
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.operators import LinearizationPoint
 from pyapprox_benchmarks.functions.ode.chemical_reaction import (
     ChemicalReactionResidual,
 )
@@ -57,75 +55,15 @@ def _factories() -> dict[str, Callable[[Backend[Array]], _Residual[Array]]]:
     }
 
 
-def _column(bkd: Backend[Array], vec: Array) -> Array:
-    return bkd.reshape(vec, (vec.shape[0], 1))
-
-
-def _applied(bkd: Backend[Array], op: DerivativeOperator[Array], vec: Array) -> Array:
-    return op.apply(_column(bkd, vec))[:, 0]
-
-
-def _transposed(
-    bkd: Backend[Array], op: DerivativeOperator[Array], vec: Array
-) -> Array:
-    return op.apply_transpose(_column(bkd, vec))[:, 0]
-
-
 @pytest.mark.parametrize("name", list(_factories()))
-def test_bundle_reproduces_the_residuals_methods(
-    bkd: Backend[Array], name: str
-) -> None:
+def test_bundle_passes_the_checker(bkd: Backend[Array], name: str) -> None:
     residual = _factories()[name](bkd)
     nparams = residual.nparams()
     rng = np.random.default_rng(7)
-    residual.set_param(bkd.asarray(rng.uniform(0.2, 1.0, nparams)))
+    param = bkd.asarray(rng.uniform(0.2, 1.0, nparams))
     nstates = residual.mass_matrix().as_matrix().shape[0]
     state = bkd.asarray(rng.uniform(0.2, 1.5, nstates))
     adj = bkd.asarray(rng.normal(size=nstates))
-    v = bkd.asarray(rng.normal(size=nparams))
-    w = bkd.asarray(rng.normal(size=nstates))
-    time = 0.3
-    bundle = residual.derivatives()
-    assert bundle.jacobian is not None and bundle.param is not None
-    assert bundle.initial_state is not None
-    jacobian = bundle.jacobian(state, time, LinearizationPoint(0))
-    matrix = residual.jacobian(state, time)
-    param_matrix = residual.param_jacobian(state, time)
-    initial = residual.initial_param_jacobian()
-    pairs = [
-        (_applied(bkd, jacobian, w), bkd.dot(matrix, w)),
-        (_transposed(bkd, jacobian, w), bkd.dot(matrix.T, w)),
-        (_applied(bkd, bundle.param(state, time), v), bkd.dot(param_matrix, v)),
-        (_transposed(bkd, bundle.param(state, time), w), bkd.dot(param_matrix.T, w)),
-        (_applied(bkd, bundle.initial_state(), v), bkd.dot(initial, v)),
-        (_transposed(bkd, bundle.initial_state(), w), bkd.dot(initial.T, w)),
-    ]
-    if bundle.state_state is not None:
-        assert bundle.state_param is not None and bundle.param_param is not None
-        assert isinstance(
-            residual,
-            (
-                LinearODEResidual,
-                QuadraticODEResidual,
-                TimeModulatedQuadraticODE,
-                LotkaVolterraResidual,
-            ),
-        )
-        mixed = bundle.state_param(state, time, adj)
-        pairs += [
-            (
-                _applied(bkd, bundle.state_state(state, time, adj), w),
-                residual.state_state_hvp(state, time, adj, w),
-            ),
-            (_applied(bkd, mixed, v), residual.state_param_hvp(state, time, adj, v)),
-            (
-                _transposed(bkd, mixed, w),
-                residual.param_state_hvp(state, time, adj, w),
-            ),
-            (
-                _applied(bkd, bundle.param_param(state, time, adj), v),
-                residual.param_param_hvp(state, time, adj, v),
-            ),
-        ]
-    for actual, expected in pairs:
-        bkd.assert_allclose(actual, expected, rtol=1e-12, atol=1e-14)
+    report = ODEResidualBundleChecker(residual).check(state, 0.3, adj, param)
+    assert "param" in report.fd_errors
+    assert report.failures() == []
