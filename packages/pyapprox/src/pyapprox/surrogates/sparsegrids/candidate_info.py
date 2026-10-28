@@ -4,21 +4,19 @@ A candidate carries its own backward box, which is everything needed to
 score it: the change any linear functional of the interpolant undergoes
 when the candidate is added is a signed sum over that box.
 
-Indicators that need more than the candidate take a second argument, a
-read-only view of the grid. Each declares the narrowest protocol it
-actually uses, so its signature states its dependencies.
+Indicators also take a second argument, the grid, typed as
+``AdaptiveGridViewProtocol``: what any indicator may read from it.
 """
 
 from dataclasses import dataclass
 from typing import (
     Dict,
     Generic,
+    Literal,
     Optional,
     Protocol,
     Sequence,
     Tuple,
-    TypeVar,
-    Union,
     runtime_checkable,
 )
 
@@ -30,8 +28,10 @@ from pyapprox.util.backends.protocols import Array
 # Type alias for config indices (tuple of ints)
 ConfigIdx = Tuple[int, ...]
 
-# Covariant counterpart of Array, for protocols that only return arrays.
-ArrayCov = TypeVar("ArrayCov", covariant=True)
+# Which subspaces a grid accessor reports on. The grid view protocol
+# takes this rather than str so the fitter, which accepts only these
+# values, satisfies it.
+SubsetType = Literal["selected", "candidate", "all"]
 
 
 @dataclass(frozen=True)
@@ -86,53 +86,21 @@ class SmolyakSelection(Generic[Array]):
 
 
 @runtime_checkable
-class SampleSourceProtocol(Protocol[ArrayCov]):
-    """Supplies the grid's samples.
-
-    The multi-fidelity fitter returns one array per config; the
-    single-fidelity wrapper returns a bare array. Consumers that do not
-    care which must handle both.
-
-    The type variable is covariant because the array appears only in
-    return position: something that supplies arrays of a subtype is a
-    valid supplier of the supertype. The invariant project-wide
-    ``Array`` cannot express that in a protocol this shape.
-    """
-
-    def get_samples(
-        self, subset: str = "all"
-    ) -> Union[ArrayCov, Dict[ConfigIdx, ArrayCov]]: ...
-
-
-@runtime_checkable
-class SelectionSourceProtocol(Protocol[Array]):
-    """Supplies the current selected-set snapshot."""
-
-    def selection(self) -> SmolyakSelection[Array]: ...
-
-
-@runtime_checkable
 class AdaptiveGridViewProtocol(Protocol[Array]):
-    """Read-only view of an adaptive grid, passed to error indicators.
+    """What an error indicator may read from the grid.
 
-    The fitter satisfies this and passes itself. Indicators should type
-    their ``grid`` parameter with the narrowest protocol they use --- or
-    with ``object`` when they need nothing from the grid --- rather than
-    with this one.
+    Every indicator's ``grid`` parameter has this type, whether or not
+    it reads anything, so all indicators share one call signature and a
+    wrapper passes ``grid`` through unchanged. The fitter satisfies it
+    and passes itself. It lists the methods indicators use; one that
+    needs more of the grid adds a method here, which the fitter must
+    then provide.
     """
 
-    def get_samples(
-        self, subset: str = "all"
-    ) -> Union[Array, Dict[ConfigIdx, Array]]: ...
+    def get_samples(self, subset: SubsetType = "all") -> Dict[ConfigIdx, Array]:
+        """Return the grid's unique samples, one array per config."""
+        ...
 
-    def get_values(
-        self, subset: str = "all"
-    ) -> Union[Optional[Array], Dict[ConfigIdx, Optional[Array]]]: ...
-
-    def get_selected_indices(self) -> Array: ...
-
-    def get_candidate_indices(self) -> Optional[Array]: ...
-
-    def nvars_physical(self) -> int: ...
-
-    def selection(self) -> SmolyakSelection[Array]: ...
+    def selection(self) -> SmolyakSelection[Array]:
+        """Return the selected set's Smolyak terms for this round."""
+        ...

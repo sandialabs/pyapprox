@@ -25,8 +25,8 @@ Available indicators:
 from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.surrogates.sparsegrids.candidate_info import (
+    AdaptiveGridViewProtocol,
     Candidate,
-    SampleSourceProtocol,
 )
 from pyapprox.surrogates.sparsegrids.smolyak import _index_to_tuple, evaluate_box
 from pyapprox.surrogates.sparsegrids.statistics.cache import (
@@ -161,9 +161,10 @@ class ErrorIndicatorProtocol(Protocol[Array]):
     ----------
     candidate : Candidate[Array]
         The candidate and its backward box.
-    grid : object
-        Read-only view of the grid. Implementations should narrow this
-        to the protocol they use.
+    grid : AdaptiveGridViewProtocol[Array]
+        What an indicator may read from the grid; the fitter passes
+        itself. Every implementation takes this type, so wrappers can
+        pass it through.
 
     Returns
     -------
@@ -172,7 +173,9 @@ class ErrorIndicatorProtocol(Protocol[Array]):
         more. Cost is not applied here.
     """
 
-    def __call__(self, candidate: Candidate[Array], grid: object) -> float: ...
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float: ...
 
 
 def _rms(diff: Array, bkd: Backend[Array]) -> float:
@@ -209,7 +212,9 @@ class L2SurplusIndicator(Generic[Array]):
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
 
-    def __call__(self, candidate: Candidate[Array], grid: object) -> float:
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float:
         """Return the RMS surplus on the candidate's new samples."""
         samples = candidate.subspace.get_samples()
         local = self._bkd.asarray(
@@ -240,15 +245,13 @@ class L2GlobalSurplusIndicator(Generic[Array]):
         self._bkd = bkd
 
     def __call__(
-        self, candidate: Candidate[Array], grid: SampleSourceProtocol[Array]
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
     ) -> float:
         """Return the RMS surplus over the grid's samples."""
-        samples = grid.get_samples("all")
-        if isinstance(samples, dict):
-            # Multi-fidelity: score against this candidate's own
-            # fidelity, whose subspaces are the ones its box holds.
-            cfg = candidate.config_idx
-            samples = samples[cfg if cfg is not None else ()]
+        # Score against this candidate's own fidelity, whose subspaces
+        # are the ones its box holds; single fidelity is config ().
+        cfg = candidate.config_idx
+        samples = grid.get_samples("all")[cfg if cfg is not None else ()]
         return _rms(evaluate_box(candidate.box, samples), self._bkd)
 
 
@@ -331,7 +334,9 @@ class SummedSubspaceVarianceIndicator(Generic[Array]):
             [subspace_mean(subspace), subspace_variance(subspace)], axis=0
         )
 
-    def __call__(self, candidate: Candidate[Array], grid: object) -> float:
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float:
         """Return |Delta m| + sqrt(|Delta V|) for the dominant QoI."""
         delta = box_sum(self._cache, candidate.box)
         delta_mean, delta_variance = delta[0], delta[1]

@@ -31,7 +31,11 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
 )
-from pyapprox.surrogates.sparsegrids.candidate_info import Candidate, ConfigIdx
+from pyapprox.surrogates.sparsegrids.candidate_info import (
+    AdaptiveGridViewProtocol,
+    Candidate,
+    ConfigIdx,
+)
 from pyapprox.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
     L2SurplusIndicator,
@@ -59,7 +63,9 @@ class _StopsOnCall(Generic[Array]):
         """Raise on the ``nth_call``-th call from now, once."""
         self._countdown = nth_call
 
-    def __call__(self, candidate: Candidate[Array], grid: object) -> float:
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float:
         if self._countdown is not None:
             self._countdown -= 1
             if self._countdown == 0:

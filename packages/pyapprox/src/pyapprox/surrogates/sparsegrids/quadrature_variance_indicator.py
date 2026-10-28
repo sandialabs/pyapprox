@@ -15,8 +15,8 @@ from typing import Generic, Optional
 from weakref import WeakKeyDictionary
 
 from pyapprox.surrogates.sparsegrids.candidate_info import (
+    AdaptiveGridViewProtocol,
     Candidate,
-    SelectionSourceProtocol,
     SmolyakSelection,
 )
 from pyapprox.surrogates.sparsegrids.error_indicators import (
@@ -132,7 +132,7 @@ class QuadratureVarianceIndicator(Generic[Array]):
     def __call__(
         self,
         candidate: Candidate[Array],
-        grid: SelectionSourceProtocol[Array],
+        grid: AdaptiveGridViewProtocol[Array],
     ) -> float:
         """Return the combined mean and variance change."""
         selected = self._selected_moments(grid.selection())

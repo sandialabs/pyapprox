@@ -20,8 +20,8 @@ from pyapprox.surrogates.affine.protocols import (
     PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.surrogates.sparsegrids.candidate_info import (
+    AdaptiveGridViewProtocol,
     Candidate,
-    SelectionSourceProtocol,
     SmolyakSelection,
 )
 from pyapprox.surrogates.sparsegrids.converters.pce import (
@@ -220,7 +220,7 @@ class PCEVarianceIndicator(Generic[Array]):
     def __call__(
         self,
         candidate: Candidate[Array],
-        grid: SelectionSourceProtocol[Array],
+        grid: AdaptiveGridViewProtocol[Array],
     ) -> float:
         """Return the combined mean and standard deviation change."""
         selected = self._selected_coefficients(grid.selection())

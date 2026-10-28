@@ -7,7 +7,7 @@ Provides two classes:
   adapts the Array <-> Dict boundary for single-fidelity use.
 """
 
-from typing import Dict, Generic, List, Literal, Optional, Set, Tuple
+from typing import Dict, Generic, List, Optional, Set, Tuple
 
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.surrogates.affine.indices import (
@@ -19,6 +19,7 @@ from pyapprox.surrogates.sparsegrids.candidate_info import (
     Candidate,
     ConfigIdx,
     SmolyakSelection,
+    SubsetType,
 )
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
@@ -60,8 +61,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 # Sentinel key for single-fidelity grids (nconfig_vars=0)
 _SF_KEY: ConfigIdx = ()
-
-SubsetType = Literal["selected", "candidate", "all"]
 
 
 class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):

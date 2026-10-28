@@ -12,7 +12,6 @@ Hierarchical (h-adaptive):
 from .adaptive_fitter import (
     MultiFidelityAdaptiveSparseGridFitter,
     SingleFidelityAdaptiveSparseGridFitter,
-    SubsetType,
 )
 from .basis.hierarchical_basis_1d import HierarchicalBasis1D
 from .basis.hierarchical_basis_nd import HierarchicalBasisND
@@ -31,9 +30,8 @@ from .candidate_info import (
     AdaptiveGridViewProtocol,
     Candidate,
     ConfigIdx,
-    SampleSourceProtocol,
-    SelectionSourceProtocol,
     SmolyakSelection,
+    SubsetType,
 )
 
 # New fitter/surrogate architecture
@@ -147,8 +145,6 @@ __all__ = [
     "Candidate",
     "SmolyakSelection",
     "AdaptiveGridViewProtocol",
-    "SampleSourceProtocol",
-    "SelectionSourceProtocol",
     "PriorityProtocol",
     "CostWeightedPriority",
     "ConfigIdx",

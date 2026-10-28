@@ -25,7 +25,9 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
 )
 from pyapprox.surrogates.sparsegrids.candidate_info import (
     Candidate,
+    ConfigIdx,
     SmolyakSelection,
+    SubsetType,
 )
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
@@ -75,14 +77,15 @@ def _compositions(nvars: int, total: int) -> List[Tuple[int, ...]]:
 class _Grid:
     """Minimal stand-in for the fitter's read-only view.
 
-    Supplies get_samples, which is all L2GlobalSurplusIndicator needs.
+    Supplies get_samples, which is all L2GlobalSurplusIndicator needs,
+    keyed by config as the fitter does; single fidelity is config ().
     """
 
     def __init__(self, samples) -> None:
         self._samples = samples
 
     def get_samples(self, subset: str = "all"):
-        return self._samples
+        return {(): self._samples}
 
 
 def _build_candidate(
@@ -218,7 +221,7 @@ class TestL2GlobalSurplus:
         candidate, grid, selected, sel_plus = _build_candidate(
             bkd, 2, 1, (2, 0), target_fn
         )
-        samples = grid.get_samples("all")
+        samples = grid.get_samples("all")[()]
         diff = sel_plus(samples) - selected(samples)
         expected = bkd.to_float(
             bkd.sqrt(bkd.sum(diff * diff) / samples.shape[1])
@@ -373,19 +376,14 @@ class TestCacheReuse:
 
 
 class _SelectionGrid(Generic[Array]):
-    """Grid view supplying samples and the selected-set snapshot.
-
-    Covers both quadrature-scored indicators: the summed-variance one
-    reads nothing from the grid, the quadrature-variance one reads
-    ``selection``.
-    """
+    """Grid view built from data, satisfying AdaptiveGridViewProtocol."""
 
     def __init__(self, samples: Array, selection: SmolyakSelection[Array]) -> None:
         self._samples = samples
         self._selection = selection
 
-    def get_samples(self, subset: str = "all") -> Array:
-        return self._samples
+    def get_samples(self, subset: SubsetType = "all") -> Dict[ConfigIdx, Array]:
+        return {(): self._samples}
 
     def selection(self) -> SmolyakSelection[Array]:
         return self._selection
@@ -451,17 +449,11 @@ def _stall_candidate(
     return candidate, _SelectionGrid(all_samples, selection)
 
 
-# Typed by the grid they are called with here: QuadratureVarianceIndicator
-# narrows its grid parameter to SelectionSourceProtocol, which
-# ErrorIndicatorProtocol (grid: object) does not admit statically.
-_StallScorer = Callable[[Candidate[Array], _SelectionGrid[Array]], float]
-
-
-def _summed(bkd: Backend[Array]) -> _StallScorer[Array]:
+def _summed(bkd: Backend[Array]) -> ErrorIndicatorProtocol[Array]:
     return SummedSubspaceVarianceIndicator(bkd)
 
 
-def _quadrature(bkd: Backend[Array]) -> _StallScorer[Array]:
+def _quadrature(bkd: Backend[Array]) -> ErrorIndicatorProtocol[Array]:
     return QuadratureVarianceIndicator(bkd)
 
 
@@ -485,7 +477,7 @@ class TestStalledRefinementDetection:
     def test_raises_when_new_points_carry_no_weight(
         self,
         bkd: Backend[Array],
-        make_indicator: Callable[[Backend[Array]], _StallScorer[Array]],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
     ) -> None:
         candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
         with pytest.raises(QuadratureRefinementStalledError, match="zero error"):
@@ -495,7 +487,7 @@ class TestStalledRefinementDetection:
     def test_raises_every_time_not_once(
         self,
         bkd: Backend[Array],
-        make_indicator: Callable[[Backend[Array]], _StallScorer[Array]],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
     ) -> None:
         """No reported-once state: a handler sees every stalled candidate."""
         candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
@@ -532,7 +524,7 @@ class TestStalledRefinementDetection:
     def test_zero_score_with_weighted_points_is_silent(
         self,
         bkd: Backend[Array],
-        make_indicator: Callable[[Backend[Array]], _StallScorer[Array]],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
     ) -> None:
         """A target that ignores the refined dimension is not a stall.
 
@@ -551,7 +543,7 @@ class TestStalledRefinementDetection:
     def test_target_ignoring_dimension_is_silent(
         self,
         bkd: Backend[Array],
-        make_indicator: Callable[[Backend[Array]], _StallScorer[Array]],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
     ) -> None:
         """Refining x for a y-only target scores near zero and does not raise."""
 
@@ -565,7 +557,7 @@ class TestStalledRefinementDetection:
     def test_gauss_new_points_are_silent(
         self,
         bkd: Backend[Array],
-        make_indicator: Callable[[Backend[Array]], _StallScorer[Array]],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
     ) -> None:
         """A Gauss rule gives every point weight; the same candidate scores."""
         candidate, grid = _stall_candidate(bkd, "gauss", (1, 1), _sum_of_squares(bkd))
@@ -575,7 +567,7 @@ class TestStalledRefinementDetection:
     def test_nonzero_score_is_silent(
         self,
         bkd: Backend[Array],
-        make_indicator: Callable[[Backend[Array]], _StallScorer[Array]],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
     ) -> None:
         """The level-2 Leja candidate scores, so there is no stall to report."""
         candidate, grid = _stall_candidate(bkd, "leja", (2, 0), _sum_of_squares(bkd))
