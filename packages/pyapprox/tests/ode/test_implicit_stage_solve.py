@@ -4,7 +4,8 @@ Each implicit stepper's Newton solve, transposed diagonal solve and
 adjoint initial condition must agree with a dense solve with
 :math:`M - cJ`, whether the system is the dense default or an injected
 matrix-free one with GMRES; the matrix the sweeps read is exactly
-:math:`M - cJ`. Also the stage solve's own contract.
+:math:`M - cJ`. Also the stage solve's own contract, including the
+parameter version its labels carry.
 """
 
 from typing import Generic, TypeVar, Union
@@ -18,6 +19,7 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
     ImplicitMidpointHVP,
 )
+from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.mass_matrix_system import dense_system, matrix_free_system
 from pyapprox.ode.protocols import ResidualFormSystemProtocol
 from pyapprox.ode.step_context import StepContext
@@ -49,6 +51,25 @@ _Stepper = Union[
 
 def _model(bkd: Backend[Array]) -> LotkaVolterra[Array]:
     return LotkaVolterra(bkd, mass=bkd.asarray(_MASS))
+
+
+class _Unparameterized(Generic[Array]):
+    """A residual with no parameters: the model without ``set_param``."""
+
+    def __init__(self, model: LotkaVolterra[Array]) -> None:
+        self._model = model
+
+    def bkd(self) -> Backend[Array]:
+        return self._model.bkd()
+
+    def __call__(self, state: Array, time: float) -> Array:
+        return self._model(state, time)
+
+    def jacobian(self, state: Array, time: float) -> Array:
+        return self._model.jacobian(state, time)
+
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        return self._model.mass_matrix()
 
 
 def _ctx(bkd: Backend[Array]) -> StepContext[Array]:
@@ -247,6 +268,24 @@ class TestStagePointsAndCapabilities:
         stepper.linsolve(state, rhs)
         stepper.linsolve(state, rhs)
         assert cache.setups() == 2 and cache.hits() == 0
+
+    def test_labels_carry_the_parameter_version(self, bkd: Backend[Array]) -> None:
+        """Every set_param bumps the version the labels carry, even with
+        an unchanged value."""
+        model = _model(bkd)
+        stage = ImplicitStageSolve(model)
+        assert stage.stage_point(0.3).parameters_version == 0
+        param = bkd.asarray([1.0, 0.1, 0.075, 1.5])
+        model.set_param(param)
+        assert stage.stage_point(0.3).parameters_version == 1
+        model.set_param(param)
+        assert stage.stage_point(0.3).parameters_version == 2
+
+    def test_a_residual_without_parameters_labels_version_zero(
+        self, bkd: Backend[Array]
+    ) -> None:
+        stage = ImplicitStageSolve(_Unparameterized(_model(bkd)))
+        assert stage.stage_point(0.3).parameters_version == 0
 
     @pytest.mark.parametrize("name", _NAMES)
     def test_adjoint_tiers_refuse_a_solver_without_transposes(

@@ -18,7 +18,11 @@ from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_check
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.mass_matrix_system import dense_system
-from pyapprox.ode.protocols import ODEResidualProtocol, ResidualFormSystemProtocol
+from pyapprox.ode.protocols import (
+    ODEResidualProtocol,
+    ParameterizedODEResidualProtocol,
+    ResidualFormSystemProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
     JacobianSnapshotProtocol,
@@ -46,6 +50,11 @@ class ImplicitSystemProviderProtocol(Protocol[Array, F]):
     def implicit_system(self) -> ResidualFormSystemProtocol[Array, Array, F]:
         """The model's residual-form system, in its natural stack and format."""
         ...
+
+
+def _unparameterized() -> int:
+    """The parameter version of a residual without parameters."""
+    return 0
 
 
 class _ScaledShiftedOperator(Generic[Array, F]):
@@ -196,17 +205,26 @@ class ImplicitStageSolve(Generic[Array]):
             None if system is None else _SystemLinearizer(system)
         )
         self._linearizations = 0
+        self._parameters_version: Callable[[], int] = (
+            residual.parameters_version
+            if isinstance(residual, ParameterizedODEResidualProtocol)
+            else _unparameterized
+        )
 
     def stage_point(self, time: float) -> LinearizationPoint:
         """A label for one linearization of a stage at ``time``.
 
-        Each call returns a new label. A caching solver reuses a setup
-        only for an equal label, so implicit stages are never reused:
-        not across Newton iterates, nor across parameter values.
+        The label carries the residual's parameter version (0 for a
+        residual without parameters). Each call returns a new label: a
+        caching solver reuses a setup only for an equal label, so
+        implicit stages are never reused, not across Newton iterates nor
+        across parameter values.
         """
         self._linearizations += 1
         return LinearizationPoint(
-            0, ("implicit stage", time, self._linearizations), provisional=True
+            self._parameters_version(),
+            ("implicit stage", time, self._linearizations),
+            provisional=True,
         )
 
     def _resolve(self) -> _LinearizerProtocol[Array]:

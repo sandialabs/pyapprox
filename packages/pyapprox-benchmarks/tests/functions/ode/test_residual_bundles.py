@@ -12,6 +12,7 @@ from typing import Callable, Union
 import numpy as np
 import pytest
 
+from pyapprox.ode.protocols import ParameterizedODEResidualProtocol
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.functions.ode.chemical_reaction import (
@@ -74,6 +75,21 @@ def test_bundle_passes_the_checker(bkd: Backend[Array], name: str) -> None:
     report = ODEResidualBundleChecker(residual).check(state, 0.3, adj, param)
     assert "param" in report.fd_errors
     assert report.failures() == []
+
+
+@pytest.mark.parametrize("name", list(_factories()))
+def test_set_param_bumps_the_parameter_version(
+    bkd: Backend[Array], name: str
+) -> None:
+    """Every set_param increments the version, even with an unchanged
+    value; the residual satisfies the parameterized protocol."""
+    residual = _factories()[name](bkd)
+    assert isinstance(residual, ParameterizedODEResidualProtocol)
+    start = residual.parameters_version()
+    param = bkd.asarray(np.linspace(0.2, 1.0, residual.nparams()))
+    residual.set_param(param)
+    residual.set_param(param)
+    assert residual.parameters_version() == start + 2
 
 
 def test_decoupled_initial_state(bkd: Backend[Array]) -> None:

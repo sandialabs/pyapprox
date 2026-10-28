@@ -65,7 +65,10 @@ class TestCollocationBundles:
         )
         assert not isinstance(adapter, CollocationPhysicsToODEResidualWithHVPAdapter)
         param = bkd.asarray([0.5])
+        assert adapter.parameters_version() == 0
         adapter.set_param(param)
+        adapter.set_param(param)
+        assert adapter.parameters_version() == 2
         bundle = adapter.derivatives()
         assert bundle.state_state is None
         assert bundle.param is not None and bundle.initial_state is not None

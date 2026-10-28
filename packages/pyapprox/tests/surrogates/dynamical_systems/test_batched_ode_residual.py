@@ -132,6 +132,17 @@ class TestBatchedBoundODEResidual:
         nactive = wrapper.nparams()
         assert pjac.shape == (2 * k, nactive)
 
+    def test_set_param_bumps_the_parameter_version(self, bkd: Backend[Array]) -> None:
+        """Every set_param increments the version, even with an unchanged
+        value."""
+        expansion = _make_expansion(bkd, nvars=2, nqoi=2)
+        wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2)
+        assert wrapper.parameters_version() == 0
+        coefficients = expansion.hyp_list().get_active_values()
+        wrapper.set_param(coefficients)
+        wrapper.set_param(coefficients)
+        assert wrapper.parameters_version() == 2
+
     def test_invalid_nvars_raises(self, bkd: Backend[Array]) -> None:
         expansion = _make_expansion(bkd, nvars=2, nqoi=2)
         mu_batch = bkd.array([[1.0]])

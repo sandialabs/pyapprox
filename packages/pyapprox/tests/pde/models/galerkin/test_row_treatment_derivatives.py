@@ -165,6 +165,15 @@ class TestPlumbing:
         adapter = _Heat(numpy_bkd).adapter()
         assert _is_symmetric(adapter.mass_matrix().as_matrix())
 
+    def test_set_param_bumps_the_parameter_version(self, numpy_bkd: NumpyBkd) -> None:
+        """Every set_param increments the version, even with an unchanged
+        value."""
+        adapter = _Heat(numpy_bkd).adapter()
+        assert adapter.parameters_version() == 0
+        adapter.set_param(numpy_bkd.asarray(_PARAM[:, 0]))
+        adapter.set_param(numpy_bkd.asarray(_PARAM[:, 0]))
+        assert adapter.parameters_version() == 2
+
     def test_forward_model_passes_it_on(self, numpy_bkd: NumpyBkd) -> None:
         heat = _Heat(numpy_bkd)
         config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(

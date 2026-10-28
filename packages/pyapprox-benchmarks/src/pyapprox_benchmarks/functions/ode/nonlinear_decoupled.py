@@ -54,6 +54,7 @@ class NonLinearDecoupledODE(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
 
     def __init__(self, nstates: int, transient_coef: bool, bkd: Backend[Array]):
+        self._parameters_version = 0
         self._nstates = nstates
         self._transient_coef = transient_coef
         self._bkd = bkd
@@ -117,6 +118,11 @@ class NonLinearDecoupledODE(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         self._coef = param[0]
         self._init_cond = param[1]
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
         """Every first and second derivative as a dense operator; the

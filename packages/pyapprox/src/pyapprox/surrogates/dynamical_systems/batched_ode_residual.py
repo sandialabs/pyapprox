@@ -100,6 +100,7 @@ class BatchedBoundODEResidual(Generic[Array]):
         mu_batch: Optional[Array] = None,
         has_time_input: bool = False,
     ) -> None:
+        self._parameters_version = 0
         self._lf = learned_function
         lf_jac_batch = learned_function.derivatives().jacobian_batch
         if lf_jac_batch is None:
@@ -153,6 +154,11 @@ class BatchedBoundODEResidual(Generic[Array]):
 
     def set_param(self, param: Array) -> None:
         self._lf.hyp_list().set_active_values(param)
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def learned_function(self) -> "LearnedFunctionProtocol[Array]":
         return self._lf

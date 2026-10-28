@@ -43,14 +43,16 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Protocol,
     TypeVar,
-    runtime_checkable,
 )
 
 import numpy as np
 
 from pyapprox.interface.functions.derivative_checks.base import JVPChecker
+from pyapprox.ode.protocols import (
+    DifferentiableODEResidualProtocol,
+    ParameterizedODEResidualProtocol,
+)
 from pyapprox.ode.residual_derivatives import (
     DerivativeOperator,
     ODEResidualDerivatives,
@@ -61,31 +63,6 @@ from pyapprox.util.linalg.operators import FormatProtocol, LinearizationPoint
 T = TypeVar("T")
 _Bundle = ODEResidualDerivatives[Array, FormatProtocol]
 _Term = tuple[str, Array, Callable[[Array], Array], Callable[[Array, Array], Array]]
-
-
-@runtime_checkable
-class DifferentiableODEResidualProtocol(Protocol, Generic[Array]):
-    """A residual :math:`f(y, t)` with a derivatives bundle."""
-
-    def bkd(self) -> Backend[Array]: ...
-
-    def __call__(self, state: Array, time: float) -> Array: ...
-
-    def derivatives(self) -> ODEResidualDerivatives[Array, FormatProtocol]: ...
-
-
-@runtime_checkable
-class ParameterizedODEResidualProtocol(Protocol, Generic[Array]):
-    """A residual :math:`f(y, t; p)` with a derivatives bundle whose
-    parameters can be set."""
-
-    def bkd(self) -> Backend[Array]: ...
-
-    def __call__(self, state: Array, time: float) -> Array: ...
-
-    def derivatives(self) -> ODEResidualDerivatives[Array, FormatProtocol]: ...
-
-    def set_param(self, param: Array) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -116,6 +93,11 @@ class ODEResidualBundleReport:
             for name, error in self.transpose_errors.items()
             if not error <= transpose_tol
         ]
+
+
+def _unparameterized() -> int:
+    """The parameter version of a residual without parameters."""
+    return 0
 
 
 def _present(field: Optional[T], name: str) -> T:
@@ -207,7 +189,11 @@ class ODEResidualBundleChecker(Generic[Array]):
         self._fd_eps = fd_eps
         self._central = central
         self._seed = seed
-        self._version = 0
+        self._parameters_version: Callable[[], int] = (
+            residual.parameters_version
+            if isinstance(residual, ParameterizedODEResidualProtocol)
+            else _unparameterized
+        )
         self._points = count()
 
     def check(
@@ -266,17 +252,16 @@ class ODEResidualBundleChecker(Generic[Array]):
             if not isinstance(self._residual, ParameterizedODEResidualProtocol):
                 raise TypeError(
                     "the bundle has parameter derivatives, so the residual must "
-                    "satisfy ParameterizedODEResidualProtocol (set_param), got "
-                    f"{type(self._residual).__name__}"
+                    "satisfy ParameterizedODEResidualProtocol (set_param and "
+                    f"parameters_version), got {type(self._residual).__name__}"
                 )
             self._residual.set_param(param)
-            self._version += 1
         return self._residual.derivatives()
 
     def _jacobian(
         self, bundle: _Bundle[Array], state: Array, time: float
     ) -> DerivativeOperator[Array]:
-        point = LinearizationPoint(self._version, next(self._points))
+        point = LinearizationPoint(self._parameters_version(), next(self._points))
         return _present(bundle.jacobian, "jacobian")(state, time, point)
 
     def _terms(

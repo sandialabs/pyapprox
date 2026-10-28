@@ -60,6 +60,7 @@ class TimeModulatedQuadraticODE(DefaultNewtonJacobianMixin[Array], Generic[Array
     """
 
     def __init__(self, Amat: Array, bkd: Backend[Array]) -> None:
+        self._parameters_version = 0
         validate_backend(bkd)
         self._Amat = Amat
         self._bkd = bkd
@@ -118,6 +119,11 @@ class TimeModulatedQuadraticODE(DefaultNewtonJacobianMixin[Array], Generic[Array
                 f"{tuple(param.shape)}"
             )
         self._param = param
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def __call__(self, state: Array, time: float) -> Array:
         r"""Evaluate f(y, t) = g(t) * (A·y + p[0]·y² + p[1])."""

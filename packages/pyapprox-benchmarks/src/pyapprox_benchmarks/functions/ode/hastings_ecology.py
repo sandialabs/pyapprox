@@ -48,6 +48,7 @@ class HastingsEcologyResidual(DefaultNewtonJacobianMixin[Array], Generic[Array])
     """
 
     def __init__(self, bkd: Backend[Array]):
+        self._parameters_version = 0
         validate_backend(bkd)
         self._bkd = bkd
         self._nstates = 3
@@ -93,6 +94,11 @@ class HastingsEcologyResidual(DefaultNewtonJacobianMixin[Array], Generic[Array])
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"
             )
         self._param = param
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def get_initial_condition(self) -> Array:
         """Return initial condition from parameters."""

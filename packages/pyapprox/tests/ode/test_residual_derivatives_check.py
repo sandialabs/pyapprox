@@ -20,6 +20,7 @@ import pytest
 
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
+    JacobianFn,
     ODEResidualDerivatives,
     backend_spaces,
     dense_jacobian,
@@ -31,7 +32,11 @@ from pyapprox.ode.residual_derivatives import (
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
-from pyapprox.util.linalg.operators import FormatProtocol
+from pyapprox.util.linalg.operators import (
+    FormatProtocol,
+    JacobianSnapshotProtocol,
+    LinearizationPoint,
+)
 from tests._helpers.ode_models import LotkaVolterra
 
 _Bundle = ODEResidualDerivatives[Array, FormatProtocol]
@@ -54,8 +59,44 @@ class _Edited(Generic[Array]):
     def set_param(self, param: Array) -> None:
         self._model.set_param(param)
 
+    def parameters_version(self) -> int:
+        return self._model.parameters_version()
+
     def derivatives(self) -> _Bundle[Array]:
         return self._edit(self._model.derivatives(), self._model)
+
+
+class _Unversioned(Generic[Array]):
+    """The model with ``set_param`` but no parameter version."""
+
+    def __init__(self, model: LotkaVolterra[Array]) -> None:
+        self._model = model
+
+    def bkd(self) -> Backend[Array]:
+        return self._model.bkd()
+
+    def __call__(self, state: Array, time: float) -> Array:
+        return self._model(state, time)
+
+    def set_param(self, param: Array) -> None:
+        self._model.set_param(param)
+
+    def derivatives(self) -> _Bundle[Array]:
+        return self._model.derivatives()
+
+
+class _RecordingJacobian(Generic[Array]):
+    """A Jacobian field recording the parameter version of each label."""
+
+    def __init__(self, field: JacobianFn[Array, FormatProtocol]) -> None:
+        self._field = field
+        self.versions: list[int] = []
+
+    def __call__(
+        self, state: Array, time: float, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[Array, FormatProtocol]:
+        self.versions.append(point.parameters_version)
+        return self._field(state, time, point)
 
 
 def _point(bkd: Backend[Array]) -> tuple[Array, Array, Array]:
@@ -211,6 +252,24 @@ class TestCorrectBundles:
         report = _checker(bkd, central=True).check(state, _TIME, adj, param)
         assert report.failures(fd_tol=1e-9) == []
 
+    def test_jacobian_labels_carry_the_residuals_version(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The checker labels with the residual's parameter version, which
+        its parameter moves bump, rather than keeping a count of its own."""
+        model = LotkaVolterra(bkd)
+        jacobian = model.derivatives().jacobian
+        assert jacobian is not None
+        recording = _RecordingJacobian(jacobian)
+        residual = _Edited(model, lambda bundle, _: replace(bundle, jacobian=recording))
+        state, adj, param = _point(bkd)
+        ODEResidualBundleChecker(residual).check(state, _TIME, adj, param)
+        # The final restore of the parameters bumps once more after the
+        # last label was made.
+        assert recording.versions[0] >= 1
+        assert max(recording.versions) == model.parameters_version() - 1
+        assert len(set(recording.versions)) > 1
+
     def test_the_parameters_are_left_at_the_point(self, bkd: Backend[Array]) -> None:
         model = LotkaVolterra(bkd)
         state, adj, param = _point(bkd)
@@ -320,6 +379,14 @@ class TestRefusals:
         state, _, param = _point(bkd)
         with pytest.raises(ValueError, match="pass adj"):
             _checker(bkd).check(state, _TIME, param=param)
+
+    def test_a_residual_without_a_parameter_version_is_refused(
+        self, bkd: Backend[Array]
+    ) -> None:
+        state, adj, param = _point(bkd)
+        residual = _Unversioned(LotkaVolterra(bkd))
+        with pytest.raises(TypeError, match="parameters_version"):
+            ODEResidualBundleChecker(residual).check(state, _TIME, adj, param)
 
     def test_a_field_lost_after_set_param_is_refused(self, bkd: Backend[Array]) -> None:
         """Which fields are present must not depend on the parameters."""

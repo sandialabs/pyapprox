@@ -57,6 +57,7 @@ class LotkaVolterra(Generic[Array]):
         d: float = 1.5,
         mass: Optional[Array] = None,
     ) -> None:
+        self._parameters_version = 0
         self._bkd = bkd
         self._param = bkd.asarray([a, b, c, d])
         self._mass: MassMatrixProtocol[Array] = (
@@ -128,6 +129,11 @@ class LotkaVolterra(Generic[Array]):
     def set_param(self, param: Array) -> None:
         """Set :math:`(a, b, c, d)`. Shape: (4,) or (4, 1)"""
         self._param = self._bkd.flatten(param)
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def __call__(self, state: Array, time: float) -> Array:
         a, b, c, d = self._param

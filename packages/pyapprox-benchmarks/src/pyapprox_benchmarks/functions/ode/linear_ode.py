@@ -59,6 +59,7 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         Bmat: Array,
         bkd: Backend[Array],
     ):
+        self._parameters_version = 0
         validate_backend(bkd)
         self._Amat = Amat
         self._Bmat = Bmat
@@ -110,6 +111,11 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
                 f"{tuple(param.shape)}"
             )
         self._param = param
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def __call__(self, state: Array, time: float) -> Array:
         """
@@ -263,6 +269,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         bkd: Backend[Array],
         mass_matrix: Optional[MassMatrixProtocol[Array]] = None,
     ):
+        self._parameters_version = 0
         validate_backend(bkd)
         self._Amat = Amat
         self._bkd = bkd
@@ -328,6 +335,11 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
                 f"{tuple(param.shape)}"
             )
         self._param = param
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def __call__(self, state: Array, time: float) -> Array:
         """

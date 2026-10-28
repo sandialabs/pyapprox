@@ -56,6 +56,7 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         nspecies: int,
         bkd: Backend[Array],
     ):
+        self._parameters_version = 0
         validate_backend(bkd)
         self._bkd = bkd
         self._nspecies = nspecies
@@ -132,6 +133,11 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         n = self._nspecies
         self._growth_rates = param[:n]
         self._alpha = self._bkd.reshape(param[n:], (n, n))
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def __call__(self, state: Array, time: float) -> Array:
         """

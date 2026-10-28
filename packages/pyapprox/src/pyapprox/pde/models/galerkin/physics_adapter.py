@@ -83,6 +83,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
         parameterization: ParameterizationProtocol[Array],
         row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
+        self._parameters_version = 0
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
                 f"parameterization must satisfy ParameterizationProtocol, "
@@ -118,6 +119,11 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
             )
         self._current_params_1d = param
         self._parameterization.apply(param)
+        self._parameters_version += 1
+
+    def parameters_version(self) -> int:
+        """The number of ``set_param`` calls so far."""
+        return self._parameters_version
 
     def _require_params(self) -> Array:
         """Return the current parameters or raise if set_param not called."""
