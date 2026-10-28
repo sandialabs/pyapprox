@@ -3,6 +3,9 @@
 from dataclasses import dataclass
 from typing import Generic
 
+from pyapprox.surrogates.sparsegrids.combination_surrogate import (
+    CombinationSurrogate,
+)
 from pyapprox.util.backends.protocols import Array
 
 
@@ -12,8 +15,8 @@ class IsotropicSparseGridFitResult(Generic[Array]):
 
     Attributes
     ----------
-    surrogate : object
-        The fitted CombinationSurrogate.
+    surrogate : CombinationSurrogate[Array]
+        The fitted surrogate.
     indices : Array
         Subspace indices, shape (nvars, nsubspaces).
     coefficients : Array
@@ -22,7 +25,7 @@ class IsotropicSparseGridFitResult(Generic[Array]):
         Total number of unique samples used.
     """
 
-    surrogate: object
+    surrogate: CombinationSurrogate[Array]
     indices: Array
     coefficients: Array
     nsamples: int
@@ -34,8 +37,8 @@ class AdaptiveSparseGridFitResult(Generic[Array]):
 
     Attributes
     ----------
-    surrogate : object
-        The fitted CombinationSurrogate.
+    surrogate : CombinationSurrogate[Array]
+        The fitted surrogate.
     indices : Array
         Selected subspace indices, shape (nvars, nselected).
     coefficients : Array
@@ -50,7 +53,7 @@ class AdaptiveSparseGridFitResult(Generic[Array]):
         Whether the fitter converged to tolerance.
     """
 
-    surrogate: object
+    surrogate: CombinationSurrogate[Array]
     indices: Array
     coefficients: Array
     nsamples: int
