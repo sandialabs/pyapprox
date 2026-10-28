@@ -12,8 +12,12 @@ the stack, never a matrix. The parameter space is a space of the stack
 like the state space (a field-valued parameter is as large as the state
 and distributed like it), so the parameter derivatives are rectangular
 operators, and a large or distributed residual fills the bundle as
-easily as a small dense one. Operators act on blocks of shape
-``(size, ncols)``; states and adjoints passed to the callables are 1-D.
+easily as a small dense one. A few scalar parameters are a small space of
+the same stack, so states, adjoints and parameters are all vectors of
+one type ``V``: the bundle is ``ODEResidualDerivatives[V, F]``, and on
+the backend stack ``V`` is the backend array. Operators act on blocks of
+shape ``(size, ncols)``; states and adjoints passed to the callables are
+1-D.
 
 - ``jacobian(state, time, point)``: :math:`\partial f/\partial y`,
   state → state, labeled with ``point`` (a ``JacobianSnapshotProtocol``)
@@ -57,7 +61,7 @@ from typing import Callable, Generic, Optional, ParamSpec, TypeVar, Union
 
 from pyapprox.ode.dense_jacobian_operator import DenseJacobianOperator
 from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
-from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseOperator,
     BackendVectorSpace,
@@ -76,20 +80,20 @@ from pyapprox.util.linalg.operators import (
     ZeroOperator,
 )
 
-A = TypeVar("A", bound=ArrayProtocol)
+V = TypeVar("V")
+"""The vector type of states, adjoints and parameters: one stack's."""
+W = TypeVar("W")
 F_co = TypeVar("F_co", covariant=True)
 G = TypeVar("G")
 P = ParamSpec("P")
 
-DerivativeOperator = ActionOperatorProtocol[Array, FormatProtocol]
+DerivativeOperator = ActionOperatorProtocol[V, FormatProtocol]
 """A derivative that is applied but never solved with: any format."""
-JacobianFn = Callable[
-    [Array, float, LinearizationPoint], JacobianSnapshotProtocol[Array, G]
-]
-ParamFn = Callable[[Array, float], DerivativeOperator[Array]]
-InitialStateFn = Callable[[], DerivativeOperator[Array]]
-CurvatureFn = Callable[[Array], DerivativeOperator[Array]]
-SecondDerivativeFn = Callable[[Array, float, Array], DerivativeOperator[Array]]
+JacobianFn = Callable[[V, float, LinearizationPoint], JacobianSnapshotProtocol[V, G]]
+ParamFn = Callable[[V, float], DerivativeOperator[V]]
+InitialStateFn = Callable[[], DerivativeOperator[V]]
+CurvatureFn = Callable[[V], DerivativeOperator[V]]
+SecondDerivativeFn = Callable[[V, float, V], DerivativeOperator[V]]
 
 _FIELDS = (
     "jacobian",
@@ -119,38 +123,38 @@ STATED_ZERO = StatedZero()
 """Declares a derivative term identically zero (not merely unavailable)."""
 
 
-class _ZeroInitialState(Generic[Array]):
+class _ZeroInitialState(Generic[V]):
     """``initial_state`` for a :math:`y_0` independent of :math:`p`."""
 
-    def __init__(self, op: ZeroOperator[Array]) -> None:
+    def __init__(self, op: ZeroOperator[V]) -> None:
         self._op = op
 
-    def __call__(self) -> ZeroOperator[Array]:
+    def __call__(self) -> ZeroOperator[V]:
         return self._op
 
 
-class _ZeroCurvature(Generic[Array]):
+class _ZeroCurvature(Generic[V]):
     """``initial_state_curvature`` for a :math:`y_0` affine in :math:`p`."""
 
-    def __init__(self, op: ZeroOperator[Array]) -> None:
+    def __init__(self, op: ZeroOperator[V]) -> None:
         self._op = op
 
-    def __call__(self, weight: Array) -> ZeroOperator[Array]:
+    def __call__(self, weight: V) -> ZeroOperator[V]:
         return self._op
 
 
-class _ZeroSecondDerivative(Generic[Array]):
+class _ZeroSecondDerivative(Generic[V]):
     """An adjoint-weighted second derivative that is identically zero."""
 
-    def __init__(self, op: ZeroOperator[Array]) -> None:
+    def __init__(self, op: ZeroOperator[V]) -> None:
         self._op = op
 
-    def __call__(self, state: Array, time: float, adj: Array) -> ZeroOperator[Array]:
+    def __call__(self, state: V, time: float, adj: V) -> ZeroOperator[V]:
         return self._op
 
 
 @dataclass(frozen=True)
-class ODEResidualDerivatives(Generic[Array, F_co]):
+class ODEResidualDerivatives(Generic[V, F_co]):
     """The optional derivatives of an ODE residual.
 
     Build with the named constructors. Frozen: a residual whose
@@ -161,14 +165,14 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
     fields come together and require them.
     """
 
-    jacobian: Optional[JacobianFn[Array, F_co]] = None
-    param: Optional[ParamFn[Array]] = None
-    initial_state: Optional[InitialStateFn[Array]] = None
-    initial_state_curvature: Optional[CurvatureFn[Array]] = None
-    state_state: Optional[SecondDerivativeFn[Array]] = None
-    state_param: Optional[SecondDerivativeFn[Array]] = None
-    param_param: Optional[SecondDerivativeFn[Array]] = None
-    param_space: Optional[VectorSpaceProtocol[Array]] = None
+    jacobian: Optional[JacobianFn[V, F_co]] = None
+    param: Optional[ParamFn[V]] = None
+    initial_state: Optional[InitialStateFn[V]] = None
+    initial_state_curvature: Optional[CurvatureFn[V]] = None
+    state_state: Optional[SecondDerivativeFn[V]] = None
+    state_param: Optional[SecondDerivativeFn[V]] = None
+    param_param: Optional[SecondDerivativeFn[V]] = None
+    param_space: Optional[VectorSpaceProtocol[V]] = None
 
     def __post_init__(self) -> None:
         for name in _FIELDS:
@@ -196,24 +200,24 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
             raise ValueError("second order requires param and initial_state")
 
     @staticmethod
-    def none() -> "ODEResidualDerivatives[A, G]":
+    def none() -> "ODEResidualDerivatives[W, G]":
         """No derivatives: the residual can be stepped explicitly only."""
         return ODEResidualDerivatives()
 
     @staticmethod
-    def state_only(jacobian: JacobianFn[A, G]) -> "ODEResidualDerivatives[A, G]":
+    def state_only(jacobian: JacobianFn[W, G]) -> "ODEResidualDerivatives[W, G]":
         """A state Jacobian and no parameters: implicit stepping, no
         parameter gradients."""
         return ODEResidualDerivatives(jacobian=jacobian)
 
     @staticmethod
     def first_order(
-        state_space: VectorSpaceProtocol[A],
-        param_space: VectorSpaceProtocol[A],
-        jacobian: JacobianFn[A, G],
-        param: ParamFn[A],
-        initial_state: Union[InitialStateFn[A], StatedZero],
-    ) -> "ODEResidualDerivatives[A, G]":
+        state_space: VectorSpaceProtocol[W],
+        param_space: VectorSpaceProtocol[W],
+        jacobian: JacobianFn[W, G],
+        param: ParamFn[W],
+        initial_state: Union[InitialStateFn[W], StatedZero],
+    ) -> "ODEResidualDerivatives[W, G]":
         """The state Jacobian and the parameter derivatives: adjoint
         gradients. ``initial_state=STATED_ZERO`` declares :math:`y_0`
         independent of :math:`p`."""
@@ -226,19 +230,19 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
 
     @staticmethod
     def second_order(
-        state_space: VectorSpaceProtocol[A],
-        param_space: VectorSpaceProtocol[A],
-        jacobian: JacobianFn[A, G],
-        param: ParamFn[A],
-        initial_state: Union[InitialStateFn[A], StatedZero],
-        initial_state_curvature: Union[CurvatureFn[A], StatedZero],
-        state_state: Union[SecondDerivativeFn[A], StatedZero],
-        state_param: Union[SecondDerivativeFn[A], StatedZero],
-        param_param: Union[SecondDerivativeFn[A], StatedZero],
-    ) -> "ODEResidualDerivatives[A, G]":
+        state_space: VectorSpaceProtocol[W],
+        param_space: VectorSpaceProtocol[W],
+        jacobian: JacobianFn[W, G],
+        param: ParamFn[W],
+        initial_state: Union[InitialStateFn[W], StatedZero],
+        initial_state_curvature: Union[CurvatureFn[W], StatedZero],
+        state_state: Union[SecondDerivativeFn[W], StatedZero],
+        state_param: Union[SecondDerivativeFn[W], StatedZero],
+        param_param: Union[SecondDerivativeFn[W], StatedZero],
+    ) -> "ODEResidualDerivatives[W, G]":
         """First order plus the second-order terms: Hessian-vector
         products. Any term may be ``STATED_ZERO``."""
-        curvature: CurvatureFn[A] = (
+        curvature: CurvatureFn[W] = (
             _ZeroCurvature(ZeroOperator(param_space))
             if isinstance(initial_state_curvature, StatedZero)
             else initial_state_curvature
@@ -262,20 +266,20 @@ class ODEResidualDerivatives(Generic[Array, F_co]):
 
 
 def _initial_state(
-    given: Union[InitialStateFn[A], StatedZero],
-    state_space: VectorSpaceProtocol[A],
-    param_space: VectorSpaceProtocol[A],
-) -> InitialStateFn[A]:
+    given: Union[InitialStateFn[W], StatedZero],
+    state_space: VectorSpaceProtocol[W],
+    param_space: VectorSpaceProtocol[W],
+) -> InitialStateFn[W]:
     if isinstance(given, StatedZero):
         return _ZeroInitialState(ZeroOperator(param_space, state_space))
     return given
 
 
 def second_derivative_or_zero(
-    given: Union[SecondDerivativeFn[A], StatedZero],
-    domain: VectorSpaceProtocol[A],
-    range: VectorSpaceProtocol[A],
-) -> SecondDerivativeFn[A]:
+    given: Union[SecondDerivativeFn[W], StatedZero],
+    domain: VectorSpaceProtocol[W],
+    range: VectorSpaceProtocol[W],
+) -> SecondDerivativeFn[W]:
     """``given``, or for :data:`STATED_ZERO` a second derivative returning
     a :class:`~pyapprox.util.linalg.operators.ZeroOperator` from
     ``domain`` to ``range``, for any bundle built from such fields."""

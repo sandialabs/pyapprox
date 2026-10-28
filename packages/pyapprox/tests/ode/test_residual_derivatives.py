@@ -5,7 +5,8 @@ partial tiers and operators or matrices given where a function belongs;
 ``STATED_ZERO`` becomes a zero operator between the right spaces; the
 dense declarations reproduce the Lotka-Volterra model's derivatives, and
 the transpose of ``state_param`` is the model's separate parameter-state
-term; a bundle pickles; and it is covariant in the Jacobian's format.
+term; a bundle pickles; it is covariant in the Jacobian's format; and it
+holds a stack's vectors that are not arrays (the mock stack's handles).
 
 The reference matrices are built from the model's vector methods applied
 to identity columns, so they share no code with the declarations.
@@ -14,6 +15,7 @@ to identity columns, so they share no code with the declarations.
 import pickle
 from typing import Callable, Generic
 
+import numpy as np
 import pytest
 
 from pyapprox.ode.residual_derivatives import (
@@ -27,7 +29,20 @@ from pyapprox.ode.residual_derivatives import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
-from pyapprox.util.linalg.operators import FormatProtocol, LinearizationPoint
+from pyapprox.util.linalg.operators import (
+    FormatProtocol,
+    LinearizationPoint,
+    LinearizedOperator,
+    SpaceDescriptor,
+)
+from tests._helpers.linalg.mock_stack import (
+    MockFormat,
+    MockOperator,
+    MockVector,
+    MockVectorSpace,
+    peek,
+    wrap,
+)
 from tests._helpers.ode_models import LotkaVolterra
 
 _POINT = LinearizationPoint(0)
@@ -317,3 +332,57 @@ class TestPicklingAndVariance:
             return bundle.jacobian is not None
 
         assert reads_any(_second_order(LotkaVolterra(bkd)))
+
+
+_MOCK_STATES = SpaceDescriptor("state", 2, "float64")
+_MOCK_PARAMS = SpaceDescriptor("param", 1, "float64")
+_MOCK_J = np.array([[-1.0, 0.5], [0.0, -2.0]])
+_MOCK_B = np.array([[3.0], [-1.0]])
+
+
+def _mock_jacobian(
+    state: MockVector, time: float, point: LinearizationPoint
+) -> LinearizedOperator[MockVector, MockFormat]:
+    return LinearizedOperator(MockOperator.from_dense(_MOCK_J, _MOCK_STATES), point)
+
+
+def _mock_param(state: MockVector, time: float) -> MockOperator:
+    return MockOperator.from_dense(_MOCK_B, _MOCK_PARAMS, _MOCK_STATES)
+
+
+class TestOnAStackVector:
+    def test_a_bundle_over_vectors_that_are_not_arrays(self) -> None:
+        """States, adjoints and parameters are one stack's vectors: here
+        mock handles that refuse indexing and arithmetic. The parameter
+        Jacobian maps parameter vectors to state vectors, and the stated
+        zeros become zero operators between the mock spaces."""
+        states = MockVectorSpace(_MOCK_STATES)
+        params = MockVectorSpace(_MOCK_PARAMS)
+        bundle: ODEResidualDerivatives[MockVector, MockFormat] = (
+            ODEResidualDerivatives.second_order(
+                states,
+                params,
+                jacobian=_mock_jacobian,
+                param=_mock_param,
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=STATED_ZERO,
+                state_param=STATED_ZERO,
+                param_param=STATED_ZERO,
+            )
+        )
+        assert bundle.param is not None and bundle.state_param is not None
+        assert bundle.jacobian is not None and bundle.initial_state is not None
+        state = wrap(np.array([[1.0], [2.0]]), _MOCK_STATES)
+        direction = wrap(np.array([[2.0]]), _MOCK_PARAMS)
+        np.testing.assert_allclose(
+            peek(bundle.param(state, 0.0).apply(direction)), _MOCK_B @ [[2.0]]
+        )
+        point = LinearizationPoint(3, "here")
+        assert bundle.jacobian(state, 0.0, point).linearization() == point
+        mixed = bundle.state_param(state, 0.0, state)
+        assert mixed.properties().zero
+        assert (mixed.domain(), mixed.range()) == (_MOCK_PARAMS, _MOCK_STATES)
+        np.testing.assert_array_equal(peek(mixed.apply(direction)), [[0.0], [0.0]])
+        initial = bundle.initial_state()
+        assert (initial.domain(), initial.range()) == (_MOCK_PARAMS, _MOCK_STATES)
