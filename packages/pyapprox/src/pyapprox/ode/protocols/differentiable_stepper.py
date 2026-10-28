@@ -1,0 +1,84 @@
+r"""Protocol for a stepper whose step equation the sweeps differentiate.
+
+The step's unknown :math:`u_n` and residual :math:`R_n` are block
+vectors of the stepper's unknown and residual spaces (see
+:mod:`pyapprox.ode.stepper_derivatives`); a stored state and the
+parameters are one-block vectors of their own spaces. The required
+members are the step residual, its diagonal block
+:math:`\partial R_n/\partial u_n` with that block's solver handle, and
+the readout of the new state from :math:`u_n`; the optional derivatives
+come in a bundle.
+
+The spaces are inner-product spaces, so generic code (the sweeps, the
+derivative checker) measures and compares step vectors on any stack;
+``A`` is the type of their reductions, small dense arrays.
+"""
+
+from typing import Optional, Protocol, TypeVar, runtime_checkable
+
+from pyapprox.ode.stepper_derivatives import (
+    StepOperator,
+    StepperDerivatives,
+    StepWindow,
+)
+from pyapprox.util.backends.protocols import ArrayProtocol
+from pyapprox.util.linalg.operators import (
+    BlockInnerProductSpace,
+    BlockVector,
+    SolverHandleProtocol,
+)
+
+V = TypeVar("V")
+A = TypeVar("A", bound=ArrayProtocol)
+
+
+@runtime_checkable
+class DifferentiableStepperProtocol(Protocol[V, A]):
+    """A stepper exposing its step equation and its derivatives."""
+
+    def depth(self) -> int:
+        """The number of past stored states a step reads (its largest
+        lag)."""
+        ...
+
+    def unknown_space(self) -> BlockInnerProductSpace[V, A]:
+        """The space of a step's unknown :math:`u_n`."""
+        ...
+
+    def residual_space(self) -> BlockInnerProductSpace[V, A]:
+        """The space of a step's residual :math:`R_n`."""
+        ...
+
+    def state_space(self) -> BlockInnerProductSpace[V, A]:
+        """The stored states, as one-block vectors (a window holds each
+        as that block's single-column vector)."""
+        ...
+
+    def param_space(self) -> Optional[BlockInnerProductSpace[V, A]]:
+        """The parameters, as one-block vectors; ``None`` without them."""
+        ...
+
+    def readout(self) -> StepOperator[V]:
+        """The map from :math:`u_n` to the new stored state."""
+        ...
+
+    def step_residual(self, window: StepWindow[V]) -> BlockVector[V]:
+        """:math:`R_n` at the window's unknown, past states and the
+        current parameters."""
+        ...
+
+    def diag(self, window: StepWindow[V]) -> StepOperator[V]:
+        r""":math:`\partial R_n/\partial u_n`, block lower triangular."""
+        ...
+
+    def diag_handle(
+        self, window: StepWindow[V]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """A solver handle for :meth:`diag`; its ``transpose()`` serves
+        the adjoint sweep."""
+        ...
+
+    def derivatives(self) -> StepperDerivatives[V]:
+        """The optional derivatives, valid for the parameters set when
+        fetched."""
+        ...

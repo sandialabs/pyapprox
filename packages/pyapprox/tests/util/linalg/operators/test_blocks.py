@@ -20,10 +20,12 @@ from numpy.typing import NDArray
 
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
+    BlockInnerProductSpace,
     BlockLowerTriangularHandle,
     BlockOperator,
     BlockVector,
     BlockVectorSpace,
+    InnerProductSpaceProtocol,
     LinearMapProtocol,
     MatrixFree,
     SolveInfo,
@@ -163,6 +165,22 @@ class TestBlockVectorSpace:
             _stacked(case, space.divide_entries(x, d)), xa / _stacked(case, d)
         )
         assert space.all_finite(x)
+
+    def test_inner_product_sums_the_components(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """The block dot and norm equal those of the stacked arrays."""
+        space = BlockInnerProductSpace([case.space(_U1), case.space(_U2)], "product")
+        assert isinstance(space, InnerProductSpaceProtocol)
+        x = _block_vec(case, [_U1, _U2], 2, 0)
+        y = _block_vec(case, [_U1, _U2], 3, 5)
+        bkd = case.bkd
+        xa, ya = _stacked(case, x), _stacked(case, y)
+        bkd.assert_allclose(space.dot(x, y), bkd.dot(xa.T, ya), rtol=1e-12)
+        bkd.assert_allclose(
+            space.norm(x), bkd.sqrt(bkd.sum(xa * xa, axis=0, keepdims=True)), rtol=1e-12
+        )
+        assert space.component(1).descriptor() == _U2
 
     def test_refusals(self, case: TypedStackCase[V, F, A]) -> None:
         space = _product(case, [_U1, _U2])

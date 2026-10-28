@@ -14,6 +14,7 @@ from pyapprox.util.linalg.operators.algebra import (
     scaled_sum_properties,
 )
 from pyapprox.util.linalg.operators.blocks import (
+    BlockInnerProductSpace,
     BlockLowerTriangularHandle,
     BlockOperator,
     BlockVector,
@@ -62,6 +63,7 @@ from pyapprox.util.linalg.operators.zero import ZeroOperator
 
 __all__ = [
     "ActionOperatorProtocol",
+    "BlockInnerProductSpace",
     "BlockLowerTriangularHandle",
     "BlockOperator",
     "BlockVector",

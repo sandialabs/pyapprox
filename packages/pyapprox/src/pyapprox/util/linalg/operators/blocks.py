@@ -30,9 +30,11 @@ substitution,
 from dataclasses import dataclass
 from typing import Generic, Optional, Sequence, TypeVar
 
+from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import MatrixFree
 from pyapprox.util.linalg.operators.protocols import (
+    InnerProductSpaceProtocol,
     LinearMapProtocol,
     OperatorProperties,
     VectorSpaceProtocol,
@@ -44,6 +46,8 @@ from pyapprox.util.linalg.operators.solvers import (
 )
 
 V = TypeVar("V")
+A = TypeVar("A", bound=ArrayProtocol)
+"""The reduction type: small dense arrays, replicated."""
 
 
 @dataclass(frozen=True)
@@ -215,6 +219,59 @@ class BlockVectorSpace(Generic[V]):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._descriptor!r})"
+
+
+class BlockInnerProductSpace(BlockVectorSpace[V], Generic[V, A]):
+    r"""The product of inner-product spaces, with the inner product
+    :math:`\langle x, y\rangle = \sum_i \langle x_i, y_i\rangle`.
+
+    Satisfies :class:`~.protocols.InnerProductSpaceProtocol` over block
+    vectors. Each component's reductions are small dense arrays, combined
+    here by array arithmetic, so the result is replicated wherever the
+    components' are.
+
+    Parameters
+    ----------
+    spaces : sequence of InnerProductSpaceProtocol
+        Nonempty; the component spaces, all of one dtype and one
+        reduction type ``A``.
+    name : str
+        The product space's name.
+    """
+
+    def __init__(
+        self, spaces: Sequence[InnerProductSpaceProtocol[V, A]], name: str
+    ) -> None:
+        super().__init__(spaces, name)
+        self._inner_spaces = tuple(spaces)
+
+    def component(self, i: int) -> InnerProductSpaceProtocol[V, A]:
+        """The ``i``-th component space."""
+        return self._inner_spaces[i]
+
+    def dot(self, x: BlockVector[V], y: BlockVector[V]) -> A:
+        r"""The block inner product, the components' summed. Shape
+        ``(ncols(x), ncols(y))``."""
+        self._check(x, "x")
+        self._check(y, "y")
+        terms = [
+            space.dot(xb, yb)
+            for space, xb, yb in zip(self._inner_spaces, x.blocks, y.blocks)
+        ]
+        total = terms[0]
+        for term in terms[1:]:
+            total = total + term
+        return total
+
+    def norm(self, x: BlockVector[V]) -> A:
+        r"""The Euclidean norm of each vector of ``x``,
+        :math:`(\sum_i \|x_i\|^2)^{1/2}`. Shape ``(1, ncols(x))``."""
+        self._check(x, "x")
+        norms = [space.norm(b) for space, b in zip(self._inner_spaces, x.blocks)]
+        total = norms[0] * norms[0]
+        for norm in norms[1:]:
+            total = total + norm * norm
+        return total**0.5
 
 
 class BlockOperator(Generic[V]):
