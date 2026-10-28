@@ -20,8 +20,13 @@ Available indicators:
   resolved, diluting the average.
 - ``SummedSubspaceVarianceIndicator``: change in mean and in the summed
   per-subspace variance.
+
+``ZeroWeightFallback`` wraps a quadrature-scored indicator and scores
+the candidates it cannot, those whose new points carry no quadrature
+weight, with another indicator.
 """
 
+import warnings
 from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.surrogates.sparsegrids.candidate_info import (
@@ -144,11 +149,14 @@ def _raise_if_new_points_carry_no_weight(
         "this dimension would never be refined again. Adding points two "
         "or more at a time avoids this, because it never forms the "
         "weightless 2-point rule: use a growth rule such as "
-        "LinearGrowthRule(scale=2, shift=1). Otherwise score with an "
-        "indicator that does not read quadrature weights, such as "
-        "L2SurplusIndicator or PCEVarianceIndicator. The fitter keeps "
-        "every value: call its set_error_indicator(...) and then "
-        "rescore() to continue without evaluating anything again."
+        "LinearGrowthRule(scale=2, shift=1). Otherwise score such "
+        "candidates another way: wrap the indicator as "
+        "ZeroWeightFallback(indicator, fallback), where the fallback "
+        "does not read quadrature weights, such as L2SurplusIndicator "
+        "or PCEVarianceIndicator. The "
+        "fitter keeps every value: call its set_error_indicator(...) "
+        "with the wrapped indicator and then rescore() to continue "
+        "without evaluating anything again."
     )
     raise QuadratureRefinementStalledError(message, candidate, fraction)
 
@@ -352,3 +360,84 @@ class SummedSubspaceVarianceIndicator(Generic[Array]):
             candidate, error, type(self).__name__, self._bkd
         )
         return error
+
+
+def _require_indicator(indicator: object, name: str) -> None:
+    """Raise TypeError unless ``indicator`` satisfies the protocol."""
+    if not isinstance(indicator, ErrorIndicatorProtocol):
+        raise TypeError(
+            f"{name} must satisfy ErrorIndicatorProtocol, got "
+            f"{type(indicator).__name__}"
+        )
+
+
+class ZeroWeightFallback(Generic[Array]):
+    """Score candidates with weightless new points by another indicator.
+
+    Calls ``inner``; when it raises ``QuadratureRefinementStalledError``,
+    scores that candidate with ``fallback`` instead. Every other
+    candidate keeps ``inner``'s score, so ranking stays driven by
+    ``inner`` except at the stalled candidates, about one per
+    dimension.
+
+    The fallback's score shares the queue with ``inner``'s. Both are in
+    the target's units (|Delta m| + sqrt(|Delta V|), |Delta m| +
+    |Delta sigma|, or an RMS surplus), so the fallback's score is of the
+    order of its neighbors rather than an arbitrary constant. Scores set
+    queue order only; reported statistics come from the moments classes
+    and the grid's own weights.
+
+    Warns once per wrapper, with ``QuadratureRefinementStalled``, the
+    first time it falls back.
+
+    Parameters
+    ----------
+    inner : ErrorIndicatorProtocol[Array]
+        The indicator to use where it can score.
+    fallback : ErrorIndicatorProtocol[Array]
+        Scores the candidates ``inner`` cannot. It must not read
+        quadrature weights, or it raises on the same candidates:
+        ``L2SurplusIndicator`` works for every basis, and
+        ``PCEVarianceIndicator`` keeps the score variance-based.
+
+    Raises
+    ------
+    QuadratureRefinementStalledError
+        From ``__call__``, if ``fallback`` raises it too.
+    """
+
+    def __init__(
+        self,
+        inner: ErrorIndicatorProtocol[Array],
+        fallback: ErrorIndicatorProtocol[Array],
+    ) -> None:
+        _require_indicator(inner, "inner")
+        _require_indicator(fallback, "fallback")
+        self._inner = inner
+        self._fallback = fallback
+        self._warned = False
+
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float:
+        """Return ``inner``'s score, or ``fallback``'s if ``inner`` stalls."""
+        try:
+            return self._inner(candidate, grid)
+        except QuadratureRefinementStalledError as stalled:
+            if not self._warned:
+                self._warned = True
+                warnings.warn(
+                    f"{type(self._inner).__name__} cannot score a candidate "
+                    f"whose new points hold {stalled.weight_fraction():.1e} "
+                    "of the quadrature rule's weight; scoring it, and every "
+                    "later such candidate, with "
+                    f"{type(self._fallback).__name__}. Two points "
+                    "per level, e.g. LinearGrowthRule(scale=2, shift=1), "
+                    "never forms the weightless rule.",
+                    QuadratureRefinementStalled,
+                    stacklevel=2,
+                )
+            return self._fallback(candidate, grid)
+
+    def __repr__(self) -> str:
+        return f"ZeroWeightFallback({self._inner!r}, {self._fallback!r})"

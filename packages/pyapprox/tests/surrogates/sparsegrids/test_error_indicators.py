@@ -13,6 +13,7 @@ checked against the surrogate difference they stand in for.
 Tests run on both NumPy and PyTorch backends.
 """
 
+import warnings
 from typing import Callable, Dict, Generic, List, Tuple
 
 import pytest
@@ -24,6 +25,7 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
 )
 from pyapprox.surrogates.sparsegrids.candidate_info import (
+    AdaptiveGridViewProtocol,
     Candidate,
     ConfigIdx,
     SmolyakSelection,
@@ -36,8 +38,10 @@ from pyapprox.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
     L2GlobalSurplusIndicator,
     L2SurplusIndicator,
+    QuadratureRefinementStalled,
     QuadratureRefinementStalledError,
     SummedSubspaceVarianceIndicator,
+    ZeroWeightFallback,
 )
 from pyapprox.surrogates.sparsegrids.quadrature_variance_indicator import (
     QuadratureVarianceIndicator,
@@ -52,6 +56,7 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from tests._helpers.stalled_refinement import IgnoreZeroWeight
 
 
 def _level_set(nvars: int, level: int) -> List[Tuple[int, ...]]:
@@ -515,6 +520,7 @@ class TestStalledRefinementDetection:
             "LinearGrowthRule(scale=2, shift=1)",
             "L2SurplusIndicator",
             "PCEVarianceIndicator",
+            "ZeroWeightFallback",
             "set_error_indicator",
             "rescore",
         ):
@@ -572,3 +578,180 @@ class TestStalledRefinementDetection:
         """The level-2 Leja candidate scores, so there is no stall to report."""
         candidate, grid = _stall_candidate(bkd, "leja", (2, 0), _sum_of_squares(bkd))
         assert make_indicator(bkd)(candidate, grid) > 0.0
+
+
+class _FixedScore(Generic[Array]):
+    """Indicator returning a fixed score and recording what it scored."""
+
+    def __init__(self, score: float) -> None:
+        self._score = score
+        self._calls: List[Candidate[Array]] = []
+
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float:
+        self._calls.append(candidate)
+        return self._score
+
+    def calls(self) -> List[Candidate[Array]]:
+        return self._calls
+
+
+class _RaisesValueError(Generic[Array]):
+    """Indicator failing for a reason other than a stall."""
+
+    def __call__(
+        self, candidate: Candidate[Array], grid: AdaptiveGridViewProtocol[Array]
+    ) -> float:
+        raise ValueError("unrelated failure")
+
+
+class TestZeroWeightFallback:
+    """Stalled candidates are scored by the fallback, the rest by inner."""
+
+    @_QUADRATURE_SCORED
+    def test_stalled_candidate_gets_fallback_score(
+        self,
+        bkd: Backend[Array],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
+    ) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
+        fallback: _FixedScore[Array] = _FixedScore(0.125)
+        wrapper = ZeroWeightFallback(make_indicator(bkd), fallback)
+        with pytest.warns(QuadratureRefinementStalled, match="_FixedScore"):
+            assert wrapper(candidate, grid) == 0.125
+        assert fallback.calls() == [candidate]
+
+    @_QUADRATURE_SCORED
+    def test_other_candidates_get_inner_score(
+        self,
+        bkd: Backend[Array],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
+    ) -> None:
+        """The fallback is not consulted unless inner stalls."""
+        candidate, grid = _stall_candidate(bkd, "leja", (2, 0), _sum_of_squares(bkd))
+        fallback: _FixedScore[Array] = _FixedScore(0.125)
+        wrapper = ZeroWeightFallback(make_indicator(bkd), fallback)
+        expected = make_indicator(bkd)(candidate, grid)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", QuadratureRefinementStalled)
+            assert wrapper(candidate, grid) == expected
+        assert fallback.calls() == []
+
+    def test_l2_surplus_fallback(self, bkd: Backend[Array]) -> None:
+        """The recommended fallback scores the stalled candidate nonzero.
+
+        The target needs an x-y interaction: candidate (1, 1) adds only
+        mixed terms, so an additive target leaves it no surplus.
+        """
+
+        def product(samples: Array) -> Array:
+            return bkd.reshape(samples[0] * samples[1], (1, -1))
+
+        candidate, grid = _stall_candidate(bkd, "leja", (1, 1), product)
+        wrapper = ZeroWeightFallback(
+            SummedSubspaceVarianceIndicator(bkd), L2SurplusIndicator(bkd)
+        )
+        with pytest.warns(QuadratureRefinementStalled):
+            error = wrapper(candidate, grid)
+        bkd.assert_allclose(
+            bkd.asarray([error]),
+            bkd.asarray([L2SurplusIndicator(bkd)(candidate, grid)]),
+            rtol=1e-12,
+        )
+        assert error > 0.0
+
+    def test_warns_once_per_wrapper(self, bkd: Backend[Array]) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
+        first = ZeroWeightFallback(
+            SummedSubspaceVarianceIndicator(bkd), _FixedScore(0.125)
+        )
+        second = ZeroWeightFallback(
+            SummedSubspaceVarianceIndicator(bkd), _FixedScore(0.125)
+        )
+        with pytest.warns(QuadratureRefinementStalled) as record:
+            for _ in range(3):
+                first(candidate, grid)
+                second(candidate, grid)
+        assert len(record) == 2
+
+    def test_fallback_that_stalls_propagates(self, bkd: Backend[Array]) -> None:
+        """A quadrature-scored fallback cannot rescue the candidate."""
+        candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
+        wrapper = ZeroWeightFallback(
+            SummedSubspaceVarianceIndicator(bkd), QuadratureVarianceIndicator(bkd)
+        )
+        with pytest.warns(QuadratureRefinementStalled):
+            with pytest.raises(QuadratureRefinementStalledError):
+                wrapper(candidate, grid)
+
+    def test_other_errors_propagate(self, bkd: Backend[Array]) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (2, 0), _sum_of_squares(bkd))
+        inner: _RaisesValueError[Array] = _RaisesValueError()
+        wrapper = ZeroWeightFallback(inner, _FixedScore(0.125))
+        with pytest.raises(ValueError, match="unrelated"):
+            wrapper(candidate, grid)
+
+    def test_satisfies_protocol(self, bkd: Backend[Array]) -> None:
+        wrapper = ZeroWeightFallback(
+            SummedSubspaceVarianceIndicator(bkd), L2SurplusIndicator(bkd)
+        )
+        assert isinstance(wrapper, ErrorIndicatorProtocol)
+
+    def test_rejects_non_indicators(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(TypeError, match="inner"):
+            ZeroWeightFallback(3.0, L2SurplusIndicator(bkd))  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="fallback"):
+            ZeroWeightFallback(
+                SummedSubspaceVarianceIndicator(bkd),
+                3.0,  # type: ignore[arg-type]
+            )
+
+
+class TestIgnoreZeroWeight:
+    """The test helper reproducing a stall: weightless candidates score zero."""
+
+    @_QUADRATURE_SCORED
+    def test_stalled_candidate_scores_zero(
+        self,
+        bkd: Backend[Array],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
+    ) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
+        wrapper = IgnoreZeroWeight(make_indicator(bkd))
+        with pytest.warns(QuadratureRefinementStalled, match="zero"):
+            assert wrapper(candidate, grid) == 0.0
+
+    @_QUADRATURE_SCORED
+    def test_other_candidates_get_inner_score(
+        self,
+        bkd: Backend[Array],
+        make_indicator: Callable[[Backend[Array]], ErrorIndicatorProtocol[Array]],
+    ) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (2, 0), _sum_of_squares(bkd))
+        wrapper = IgnoreZeroWeight(make_indicator(bkd))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", QuadratureRefinementStalled)
+            assert wrapper(candidate, grid) == make_indicator(bkd)(candidate, grid)
+
+    def test_warns_once(self, bkd: Backend[Array]) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (1, 1), _sum_of_squares(bkd))
+        wrapper = IgnoreZeroWeight(SummedSubspaceVarianceIndicator(bkd))
+        with pytest.warns(QuadratureRefinementStalled) as record:
+            for _ in range(3):
+                wrapper(candidate, grid)
+        assert len(record) == 1
+
+    def test_other_errors_propagate(self, bkd: Backend[Array]) -> None:
+        candidate, grid = _stall_candidate(bkd, "leja", (2, 0), _sum_of_squares(bkd))
+        with pytest.raises(ValueError, match="unrelated"):
+            inner: _RaisesValueError[Array] = _RaisesValueError()
+            IgnoreZeroWeight(inner)(candidate, grid)
+
+    def test_satisfies_protocol(self, bkd: Backend[Array]) -> None:
+        wrapper = IgnoreZeroWeight(SummedSubspaceVarianceIndicator(bkd))
+        assert isinstance(wrapper, ErrorIndicatorProtocol)
+
+    def test_rejects_non_indicator(self) -> None:
+        with pytest.raises(TypeError, match="inner"):
+            IgnoreZeroWeight(3.0)  # type: ignore[arg-type]

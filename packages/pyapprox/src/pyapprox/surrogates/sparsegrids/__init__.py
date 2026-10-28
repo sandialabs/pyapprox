@@ -50,7 +50,10 @@ from .error_indicators import (
     ErrorIndicatorProtocol,
     L2GlobalSurplusIndicator,
     L2SurplusIndicator,
+    QuadratureRefinementStalled,
+    QuadratureRefinementStalledError,
     SummedSubspaceVarianceIndicator,
+    ZeroWeightFallback,
 )
 from .fit_result import (
     AdaptiveSparseGridFitResult,
@@ -141,6 +144,9 @@ __all__ = [
     "PCEVarianceIndicator",
     "QuadratureVarianceIndicator",
     "SummedSubspaceVarianceIndicator",
+    "ZeroWeightFallback",
+    "QuadratureRefinementStalledError",
+    "QuadratureRefinementStalled",
     # Data classes and utilities
     "Candidate",
     "SmolyakSelection",
