@@ -34,6 +34,7 @@ from pyapprox.ode.mass_matrix import (
 )
 from pyapprox.ode.mass_matrix_system import MassMatrixSystem
 from pyapprox.ode.protocols import ODEResidualProtocol
+from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
@@ -158,10 +159,32 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         )
         self._stack_mass_source: Optional[ActionOperatorProtocol[Array, F]] = None
         self._stack_mass: Optional[ActionOperatorProtocol[Array, F]] = None
+        self._derivatives: Optional[ODEResidualDerivatives[Array, F]] = None
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
         return self._bkd
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, F]:
+        """The derivatives of the BC-neutralized ``f`` as operators, built
+        on first request (a parameterized tier needs its parameterization
+        bound first) and kept: the fields read the adapter's current
+        parameters, so the bundle stays valid after ``set_param``.
+
+        The Jacobian is the stack operator with the essential rows zeroed,
+        in the discretization's format, the same operator the implicit
+        system solves with; it equals :meth:`jacobian` under either row
+        treatment, whose essential-row terms do not depend on the state."""
+        if self._derivatives is None:
+            self._derivatives = self._build_derivatives()
+        return self._derivatives
+
+    def _build_derivatives(self) -> ODEResidualDerivatives[Array, F]:
+        """This tier's bundle, the state Jacobian only; each tier with
+        parameter derivatives overrides it."""
+        return ODEResidualDerivatives.state_only(
+            self._essential_jacobian.jacobian_operator
+        )
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """Return the adapted system."""

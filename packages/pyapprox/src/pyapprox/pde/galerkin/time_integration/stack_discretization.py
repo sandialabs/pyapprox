@@ -104,6 +104,7 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
             )
         self._system = system
         self._descriptor = descriptor
+        self._stack = stack
         self._rows: RowSetProtocol[V] = essential_rows(system, stack, descriptor)
         self._space: VectorSpaceProtocol[V] = stack.space(descriptor)
         if not isinstance(jacobian_assembler, JacobianAssemblerProtocol):
@@ -129,6 +130,15 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
     def space(self) -> VectorSpaceProtocol[V]:
         """The state space's vector operations."""
         return self._space
+
+    def parameter_space(self, nparams: int) -> VectorSpaceProtocol[V]:
+        """A space of ``nparams`` parameters on the same stack as the
+        states, in the state space's dtype: parameters and states are
+        vectors of one stack, so parameter derivatives are rectangular
+        operators between its spaces."""
+        return self._stack.space(
+            SpaceDescriptor("param", nparams, self._descriptor.dtype)
+        )
 
     def essential_rows(self) -> RowSetProtocol[V]:
         """The essential rows, as the stack's row set of the state space."""

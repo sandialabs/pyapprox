@@ -17,10 +17,23 @@ parameterization's :class:`ParamDerivatives` bundle and the system's
 - :class:`GalerkinPhysicsToODEResidualWithHVPAdapter` — adds the three
   parameterization HVP contractions (second-order bundle) and
   ``state_state_hvp`` (from the system's state-derivatives bundle).
+
+Each tier's ``derivatives()`` returns the residual bundle matching its
+capability: the stack Jacobian alone for the first two, the parameter
+and initial-state Jacobians added for the third, the second derivatives
+for the fourth. Parameters live in a space of the discretization's stack.
 """
 
 from typing import Optional, TypeVar, overload
 
+from pyapprox.ode.residual_derivatives import (
+    InitialStateFn,
+    ODEResidualDerivatives,
+    ParamFn,
+    dense_operator,
+    matrix_free_initial_state_curvature,
+    matrix_free_second_derivative,
+)
 from pyapprox.ode.state_derivatives import StateStateHVPFn
 from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
@@ -47,7 +60,11 @@ from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.operators import FormatProtocol, LinearSolverProtocol
+from pyapprox.util.linalg.operators import (
+    FormatProtocol,
+    LinearSolverProtocol,
+    VectorSpaceProtocol,
+)
 
 F = TypeVar("F", bound=FormatProtocol)
 
@@ -205,6 +222,38 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         """
         return self._initial_param_jacobian_fn(self._require_params())
 
+    def _first_order_parts(
+        self,
+    ) -> tuple[
+        VectorSpaceProtocol[Array],
+        VectorSpaceProtocol[Array],
+        ParamFn[Array],
+        InitialStateFn[Array],
+    ]:
+        """The state and parameter spaces, both of the discretization's
+        stack, and the parameter and initial-state Jacobians as dense
+        operators over their matrix methods."""
+        states = self._discretization.space()
+        params = self._discretization.parameter_space(self.nparams())
+        return (
+            states,
+            params,
+            dense_operator(self.param_jacobian, params, states, self._bkd),
+            dense_operator(self.initial_param_jacobian, params, states, self._bkd),
+        )
+
+    def _build_derivatives(self) -> ODEResidualDerivatives[Array, F]:
+        """First order: the stack Jacobian, and the parameter and
+        initial-state Jacobians."""
+        states, params, param, initial = self._first_order_parts()
+        return ODEResidualDerivatives.first_order(
+            states,
+            params,
+            jacobian=self._essential_jacobian.jacobian_operator,
+            param=param,
+            initial_state=initial,
+        )
+
 
 class GalerkinPhysicsToODEResidualWithHVPAdapter(
     GalerkinPhysicsToODEResidualWithParamJacobianAdapter[Array, F]
@@ -275,6 +324,32 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
         self._initial_param_hvp_fn: InitialParamHVPFn[Array] = initial_param_hvp
+
+    def _build_derivatives(self) -> ODEResidualDerivatives[Array, F]:
+        """Second order: the first-order fields, and the second
+        derivatives through the vector methods, applied a column at a
+        time."""
+        states, params, param, initial = self._first_order_parts()
+        bkd = self._bkd
+        return ODEResidualDerivatives.second_order(
+            states,
+            params,
+            jacobian=self._essential_jacobian.jacobian_operator,
+            param=param,
+            initial_state=initial,
+            initial_state_curvature=matrix_free_initial_state_curvature(
+                self.initial_param_hvp, params, bkd
+            ),
+            state_state=matrix_free_second_derivative(
+                self.state_state_hvp, self.state_state_hvp, states, states, bkd, True
+            ),
+            state_param=matrix_free_second_derivative(
+                self.state_param_hvp, self.param_state_hvp, params, states, bkd
+            ),
+            param_param=matrix_free_second_derivative(
+                self.param_param_hvp, self.param_param_hvp, params, params, bkd, True
+            ),
+        )
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
         """sum_i weight_i (d^2 y_0,i/dp^2) v, essential entries zeroed.
