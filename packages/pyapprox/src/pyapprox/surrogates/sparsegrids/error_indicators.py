@@ -22,14 +22,13 @@ Available indicators:
   per-subspace variance.
 """
 
-import warnings
 from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.surrogates.sparsegrids.candidate_info import (
     Candidate,
     SampleSourceProtocol,
 )
-from pyapprox.surrogates.sparsegrids.smolyak import evaluate_box
+from pyapprox.surrogates.sparsegrids.smolyak import _index_to_tuple, evaluate_box
 from pyapprox.surrogates.sparsegrids.statistics.cache import (
     SubspaceCache,
     box_sum,
@@ -51,30 +50,47 @@ _NEGLIGIBLE_WEIGHT_FRACTION = 1e-12
 class QuadratureRefinementStalled(UserWarning):
     """A candidate's new points carry no quadrature weight.
 
-    Refinement continues, but declines to refine the affected
-    dimension. Indicators take ``raise_on_stall`` to turn this into
-    ``QuadratureRefinementStalledError`` instead.
+    The warning category for code that handles a
+    ``QuadratureRefinementStalledError`` and continues rather than
+    letting it stop the run.
     """
 
 
-class QuadratureRefinementStalledError(RuntimeError):
-    """``QuadratureRefinementStalled`` raised rather than warned.
+class QuadratureRefinementStalledError(RuntimeError, Generic[Array]):
+    """A quadrature-scored indicator cannot score a candidate.
 
-    Requested through an indicator's ``raise_on_stall``, so a run that
-    would spend its remaining budget without refining the affected
-    dimension stops instead of finishing.
+    Raised when the candidate's score is exactly zero only because its
+    new points carry no quadrature weight. Scoring it zero would leave
+    it unpromoted for the rest of the run, so its dimension would never
+    be refined and the remaining budget would go to the others.
+
+    The adaptive fitter keeps every value when this escapes
+    ``step_values``; the message says how to continue.
     """
 
+    def __init__(
+        self, message: str, candidate: Candidate[Array], weight_fraction: float
+    ) -> None:
+        super().__init__(message)
+        self._candidate = candidate
+        self._weight_fraction = weight_fraction
 
-def _check_new_points_carry_weight(
+    def candidate(self) -> Candidate[Array]:
+        """Return the candidate that could not be scored."""
+        return self._candidate
+
+    def weight_fraction(self) -> float:
+        """Return the fraction of the rule's weight its new points hold."""
+        return self._weight_fraction
+
+
+def _raise_if_new_points_carry_no_weight(
     candidate: Candidate[Array],
     error: float,
-    already_reported: bool,
     indicator_name: str,
     bkd: Backend[Array],
-    raise_on_stall: bool,
-) -> bool:
-    """Report when zero error is caused by weightless new points.
+) -> None:
+    """Raise when zero error is caused by weightless new points.
 
     An indicator scored from quadrature moments reports no change when
     the candidate's new points carry no quadrature weight: the rule
@@ -89,50 +105,52 @@ def _check_new_points_carry_weight(
     error alone. Both conditions together identify the pathology; the
     error alone would misreport a genuinely resolved candidate.
 
-    A nested sequence grown one point at a time is the common case,
-    since a lone new point placed near an already-resolved location,
-    typically a domain endpoint, takes almost none of the weight.
+    A nested sequence grown one point at a time is the common case: a
+    Leja sequence on U[0,1] takes the midpoint and then an endpoint,
+    and the 2-point interpolatory rule on those gives the endpoint
+    weight zero, since the midpoint alone integrates every linear
+    function.
 
-    Returns whether the condition has now been reported, so a caller
-    can keep this to once per indicator rather than once per candidate.
+    Checked on every call, with no reported-once state, so a handler
+    wrapping the indicator sees every such candidate.
 
     Raises
     ------
     QuadratureRefinementStalledError
-        If raise_on_stall is set. Refinement that continues from here
-        spends its remaining budget without refining this dimension,
-        so a caller who knows that is not worth paying for can ask to
-        stop instead.
+        If ``error`` is exactly zero and the candidate's new points
+        hold less than ``_NEGLIGIBLE_WEIGHT_FRACTION`` of its rule's
+        weight.
     """
-    if already_reported or error != 0.0:
-        return already_reported
+    if error != 0.0:
+        return
     local_indices = list(candidate.new_sample_local_indices)
     if len(local_indices) == 0:
-        return already_reported
+        return
     weights = bkd.abs(bkd.flatten(candidate.subspace.get_quadrature_weights()))
-    total = float(bkd.sum(weights))
+    total = bkd.to_float(bkd.sum(weights))
     if total <= 0.0:
-        return already_reported
-    new_weight = float(
+        return
+    new_weight = bkd.to_float(
         bkd.sum(weights[bkd.asarray(local_indices, dtype=bkd.int64_dtype())])
     )
-    if new_weight / total >= _NEGLIGIBLE_WEIGHT_FRACTION:
-        return already_reported
+    fraction = new_weight / total
+    if fraction >= _NEGLIGIBLE_WEIGHT_FRACTION:
+        return
+    key = _index_to_tuple(candidate.index, bkd)
     message = (
-        f"{indicator_name} scored a candidate as zero error because its "
-        f"new points hold {new_weight / total:.1e} of the quadrature "
-        "rule's weight, so every moment the rule computes is unchanged "
-        "and this dimension will not be refined further. Adding points "
-        "more than one at a time usually avoids this: use a growth "
-        "rule with a step of two or more, such as "
-        "LinearGrowthRule(scale=2, shift=1), or a two-point Leja "
-        "sequence. A surplus indicator such as L2SurplusIndicator does "
-        "not use quadrature weights and is unaffected."
+        f"{indicator_name} scored candidate {key} as zero error because "
+        f"its new points hold {fraction:.1e} of the quadrature rule's "
+        "weight: the rule integrates as though they were absent, so "
+        "this dimension would never be refined again. Adding points two "
+        "or more at a time avoids this, because it never forms the "
+        "weightless 2-point rule: use a growth rule such as "
+        "LinearGrowthRule(scale=2, shift=1). Otherwise score with an "
+        "indicator that does not read quadrature weights, such as "
+        "L2SurplusIndicator or PCEVarianceIndicator. The fitter keeps "
+        "every value: call its set_error_indicator(...) and then "
+        "rescore() to continue without evaluating anything again."
     )
-    if raise_on_stall:
-        raise QuadratureRefinementStalledError(message)
-    warnings.warn(message, QuadratureRefinementStalled, stacklevel=3)
-    return True
+    raise QuadratureRefinementStalledError(message, candidate, fraction)
 
 
 @runtime_checkable
@@ -289,26 +307,23 @@ class SummedSubspaceVarianceIndicator(Generic[Array]):
         Supplies each subspace's stacked [mean, variance]. Pass one to
         share memoized statistics across indicators; by default each
         indicator keeps its own.
-    raise_on_stall : bool, optional
-        Raise ``QuadratureRefinementStalledError`` instead of warning
-        when a candidate's new points carry no quadrature weight. That
-        dimension is then never refined, so the rest of the budget is
-        spent without it; set this to stop rather than pay for a run
-        whose outcome is already determined. Default False.
+
+    Raises
+    ------
+    QuadratureRefinementStalledError
+        From ``__call__``, when a candidate scores exactly zero because
+        its new points carry no quadrature weight.
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
         cache: Optional["SubspaceCache[Array, Array]"] = None,
-        raise_on_stall: bool = False,
     ) -> None:
         self._bkd = bkd
         if cache is None:
             cache = SubspaceCache(self._moments)
         self._cache = cache
-        self._raise_on_stall = raise_on_stall
-        self._reported_stall = False
 
     def _moments(self, subspace: TensorProductSubspace[Array]) -> Array:
         """Stack [mean, variance] so one box sum yields both changes."""
@@ -328,12 +343,7 @@ class SummedSubspaceVarianceIndicator(Generic[Array]):
             self._bkd.sqrt(self._bkd.abs(delta_variance[qstar]))
         )
         error = mean_change + root_variance_change
-        self._reported_stall = _check_new_points_carry_weight(
-            candidate,
-            error,
-            self._reported_stall,
-            type(self).__name__,
-            self._bkd,
-            self._raise_on_stall,
+        _raise_if_new_points_carry_no_weight(
+            candidate, error, type(self).__name__, self._bkd
         )
         return error

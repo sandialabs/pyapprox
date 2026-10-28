@@ -19,6 +19,9 @@ from pyapprox.surrogates.sparsegrids.candidate_info import (
     SelectionSourceProtocol,
     SmolyakSelection,
 )
+from pyapprox.surrogates.sparsegrids.error_indicators import (
+    _raise_if_new_points_carry_no_weight,
+)
 from pyapprox.surrogates.sparsegrids.statistics.cache import (
     SubspaceCache,
     box_sum,
@@ -83,6 +86,12 @@ class QuadratureVarianceIndicator(Generic[Array]):
     cache : SubspaceCache[Array, Array], optional
         Supplies each subspace's stacked [mean, second raw moment].
         Pass one to share memoized statistics across indicators.
+
+    Raises
+    ------
+    QuadratureRefinementStalledError
+        From ``__call__``, when a candidate scores exactly zero because
+        its new points carry no quadrature weight.
     """
 
     def __init__(
@@ -146,7 +155,11 @@ class QuadratureVarianceIndicator(Generic[Array]):
             self._bkd.abs(variance[qstar] + delta_variance[qstar])
         )
         sigma_term = self._bkd.to_float(self._bkd.abs(sigma_new - sigma_old))
-        return mean_term + sigma_term
+        error = mean_term + sigma_term
+        _raise_if_new_points_carry_no_weight(
+            candidate, error, type(self).__name__, self._bkd
+        )
+        return error
 
     def __repr__(self) -> str:
         return "QuadratureVarianceIndicator()"
