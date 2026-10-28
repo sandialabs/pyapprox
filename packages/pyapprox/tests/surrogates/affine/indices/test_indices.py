@@ -11,6 +11,9 @@ from pyapprox.surrogates.affine.indices.admissibility import (
     MaxIndicesCriteria,
     MaxLevelCriteria,
 )
+from pyapprox.surrogates.affine.indices.basis_generator import (
+    BasisIndexGenerator,
+)
 from pyapprox.surrogates.affine.indices.generators import (
     HyperbolicIndexGenerator,
     HyperbolicIndexSequence,
@@ -38,6 +41,7 @@ from pyapprox.surrogates.affine.indices.utils import (
 from pyapprox.surrogates.affine.protocols.index import (
     IndexSequenceProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestHashIndex:
@@ -1164,3 +1168,14 @@ class TestRestrictIndicesToLeadingVars:
         )
         with pytest.raises(ValueError, match="duplicate indices"):
             restrict_indices_to_leading_vars(indices, 1, bkd)
+
+
+class TestBasisIndexGeneratorRepr:
+    """repr names the generator's per-dimension growth rules."""
+
+    def test_repr(self, bkd: Backend[Array]) -> None:
+        gen: BasisIndexGenerator[Array] = BasisIndexGenerator(
+            bkd, nvars=2, growth_rules=LinearGrowthRule(scale=1, shift=1)
+        )
+        text = repr(gen)
+        assert text.startswith("BasisIndexGenerator(nvars=2, growth_rules=[")

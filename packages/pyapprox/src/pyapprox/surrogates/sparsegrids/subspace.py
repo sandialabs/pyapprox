@@ -7,7 +7,7 @@ This module wraps TensorProductInterpolant with sparse-grid-specific
 functionality: multi-index tracking, growth rules, and quadrature.
 """
 
-from typing import Generic, List, Optional, Union
+from typing import Generic, List, Optional, Sequence, Union
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.protocols import (
@@ -42,7 +42,7 @@ class TensorProductSubspace(Generic[Array]):
         Computational backend.
     index : Array
         Multi-index identifying this subspace, shape (nvars,)
-    basis_factories : List[BasisFactoryProtocol[Array]]
+    basis_factories : Sequence[BasisFactoryProtocol[Array]]
         Factories for creating univariate bases for each dimension.
         Each factory's create_basis() is called to get fresh basis instances.
     growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
@@ -73,7 +73,7 @@ class TensorProductSubspace(Generic[Array]):
         self,
         bkd: Backend[Array],
         index: Array,
-        basis_factories: List[BasisFactoryProtocol[Array]],
+        basis_factories: Sequence[BasisFactoryProtocol[Array]],
         growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ):
         # Runtime protocol validation

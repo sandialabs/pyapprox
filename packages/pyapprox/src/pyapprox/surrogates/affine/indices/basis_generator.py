@@ -366,5 +366,6 @@ class BasisIndexGenerator(Generic[Array]):
 
     def __repr__(self) -> str:
         return (
-            f"BasisIndexGenerator(nvars={self._nvars}, growth_rule={self._growth_rule})"
+            f"BasisIndexGenerator(nvars={self._nvars}, "
+            f"growth_rules={self._growth_rules})"
         )

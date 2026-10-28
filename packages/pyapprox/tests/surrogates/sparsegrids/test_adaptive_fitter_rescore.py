@@ -27,10 +27,7 @@ from pyapprox.surrogates.sparsegrids.adaptive_fitter import (
     MultiFidelityAdaptiveSparseGridFitter,
     SingleFidelityAdaptiveSparseGridFitter,
 )
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    BasisFactoryProtocol,
-    GaussLagrangeFactory,
-)
+from pyapprox.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
 from pyapprox.surrogates.sparsegrids.candidate_info import (
     AdaptiveGridViewProtocol,
     Candidate,
@@ -85,9 +82,7 @@ def _make_fitter(
     bkd: Backend[Array], indicator: ErrorIndicatorProtocol[Array]
 ) -> SingleFidelityAdaptiveSparseGridFitter[Array]:
     marginal = UniformMarginal(-1.0, 1.0, bkd)
-    factories: List[BasisFactoryProtocol[Array]] = [
-        GaussLagrangeFactory(marginal, bkd) for _ in range(_NVARS)
-    ]
+    factories = [GaussLagrangeFactory(marginal, bkd) for _ in range(_NVARS)]
     growth = LinearGrowthRule(scale=1, shift=1)
     tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
     admis = MaxLevelCriteria(max_level=5, pnorm=1.0, bkd=bkd)

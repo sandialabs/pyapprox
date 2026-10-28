@@ -39,6 +39,7 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     Type,
     runtime_checkable,
@@ -658,7 +659,7 @@ def get_bounds_from_marginal(
 
 
 def create_basis_factories(
-    marginals: List[MarginalProtocol[Array]],
+    marginals: Sequence[MarginalProtocol[Array]],
     bkd: Backend[Array],
     basis_type: str = "gauss",
     **kwargs: Any,
@@ -671,7 +672,7 @@ def create_basis_factories(
 
     Parameters
     ----------
-    marginals : List[MarginalProtocol]
+    marginals : Sequence[MarginalProtocol]
         Univariate marginal distributions for each dimension.
     bkd : Backend[Array]
         Computational backend.
@@ -759,7 +760,7 @@ def create_basis_factories(
 
 
 def create_bases_from_marginals(
-    marginals: List[MarginalProtocol[Array]],
+    marginals: Sequence[MarginalProtocol[Array]],
     bkd: Backend[Array],
     basis_type: str = "gauss",
     **kwargs: Any,
@@ -771,7 +772,7 @@ def create_bases_from_marginals(
 
     Parameters
     ----------
-    marginals : List[MarginalProtocol]
+    marginals : Sequence[MarginalProtocol]
         Univariate marginal distributions for each dimension.
     bkd : Backend[Array]
         Computational backend.

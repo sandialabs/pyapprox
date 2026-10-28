@@ -4,7 +4,7 @@ Extracts subspace creation logic from the old CombinationSparseGrid class
 into a standalone factory, enabling clean separation of build and evaluate.
 """
 
-from typing import Generic, List, Protocol, Union, runtime_checkable
+from typing import Generic, List, Protocol, Sequence, Union, runtime_checkable
 
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
@@ -60,7 +60,7 @@ class TensorProductSubspaceFactory(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    basis_factories : List[BasisFactoryProtocol[Array]]
+    basis_factories : Sequence[BasisFactoryProtocol[Array]]
         One factory per physical dimension.
     growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
         Growth rule(s) for mapping level to number of points.
@@ -69,7 +69,7 @@ class TensorProductSubspaceFactory(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        basis_factories: List[BasisFactoryProtocol[Array]],
+        basis_factories: Sequence[BasisFactoryProtocol[Array]],
         growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ) -> None:
         self._bkd = bkd

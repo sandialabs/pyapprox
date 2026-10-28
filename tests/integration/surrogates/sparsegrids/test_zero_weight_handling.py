@@ -15,8 +15,6 @@ asserted, as a bound well inside that gap; wall time varies too much
 across machines to assert.
 """
 
-from typing import List
-
 import numpy as np
 import pytest
 
@@ -29,10 +27,7 @@ from pyapprox.surrogates.affine.indices import (
 from pyapprox.surrogates.sparsegrids.adaptive_fitter import (
     SingleFidelityAdaptiveSparseGridFitter,
 )
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    BasisFactoryProtocol,
-    LejaLagrangeFactory,
-)
+from pyapprox.surrogates.sparsegrids.basis_factory import LejaLagrangeFactory
 from pyapprox.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
     L2SurplusIndicator,
@@ -57,9 +52,8 @@ def _refine(bkd: Backend[Array], indicator: ErrorIndicatorProtocol[Array]) -> fl
     # One factory shared by every dimension, so they share one Leja
     # sequence rather than each optimizing the same points.
     leja = LejaLagrangeFactory(UniformMarginal(0.0, 1.0, bkd), bkd)
-    factories: List[BasisFactoryProtocol[Array]] = [leja] * _NVARS
     growth = LinearGrowthRule(scale=1, shift=1)
-    factory = TensorProductSubspaceFactory(bkd, factories, growth)
+    factory = TensorProductSubspaceFactory(bkd, [leja] * _NVARS, growth)
     admissibility = MaxLevelCriteria(
         max_level_for_univariate_npoints(growth, _BUDGET), 1.0, bkd
     )
