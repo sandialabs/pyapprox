@@ -43,12 +43,18 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Sequence,
     TypeVar,
 )
 
 import numpy as np
 
-from pyapprox.interface.functions.derivative_checks.base import JVPChecker
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJVPFromCallable,
+)
 from pyapprox.ode.protocols import (
     DifferentiableODEResidualProtocol,
     ParameterizedODEResidualProtocol,
@@ -58,7 +64,11 @@ from pyapprox.ode.residual_derivatives import (
     ODEResidualDerivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.operators import FormatProtocol, LinearizationPoint
+from pyapprox.util.linalg.operators import (
+    FormatProtocol,
+    LinearizationPoint,
+    LinearMapProtocol,
+)
 
 T = TypeVar("T")
 _Bundle = ODEResidualDerivatives[Array, FormatProtocol]
@@ -66,8 +76,9 @@ _Term = tuple[str, Array, Callable[[Array], Array], Callable[[Array, Array], Arr
 
 
 @dataclass(frozen=True)
-class ODEResidualBundleReport:
-    """Result of :meth:`ODEResidualBundleChecker.check`.
+class BundleCheckReport:
+    """Result of a bundle check (:meth:`ODEResidualBundleChecker.check`,
+    and the stepper checker's).
 
     Attributes
     ----------
@@ -110,37 +121,109 @@ def _present(field: Optional[T], name: str) -> T:
     return field
 
 
-class _TermView(Generic[Array]):
-    """One term as the finite-difference engine reads it: a quantity of a
-    1-D input and the derivative's action on a direction block."""
+class _PointTerm(Generic[Array]):
+    """A quantity of one 1-D point and its derivative's action, in the
+    batch form :class:`FunctionWithJVPFromCallable` takes."""
 
     def __init__(
         self,
         bkd: Backend[Array],
-        sizes: tuple[int, int],
         value: Callable[[Array], Array],
         action: Callable[[Array, Array], Array],
     ) -> None:
         self._bkd = bkd
-        self._nvars, self._nqoi = sizes
         self._value, self._action = value, action
 
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def nvars(self) -> int:
-        return self._nvars
-
-    def nqoi(self) -> int:
-        return self._nqoi
-
-    def __call__(self, samples: Array) -> Array:
+    def values(self, samples: Array) -> Array:
         return self._bkd.stack(
             [self._value(samples[:, k]) for k in range(samples.shape[1])], axis=1
         )
 
     def jvp(self, sample: Array, vec: Array) -> Array:
         return self._action(sample[:, 0], vec)
+
+
+def smallest_fd_error(
+    bkd: Backend[Array],
+    point: Array,
+    value: Callable[[Array], Array],
+    action: Callable[[Array, Array], Array],
+    rng: np.random.Generator,
+    fd_eps: Optional[Array] = None,
+    central: bool = False,
+) -> float:
+    """Smallest finite-difference error of one term along a random
+    direction, by :class:`DerivativeChecker` on the term as a function
+    carrying its ``jvp`` in its bundle.
+
+    ``value`` maps a 1-D point to a 1-D quantity and ``action`` a 1-D
+    point and a direction block to a block; both are evaluated at
+    ``point`` first, so a term that moves parameters starts there. A zero
+    action is compared in absolute terms, so a false stated zero fails.
+    """
+    nvars = point.shape[0]
+    nqoi = value(point).shape[0]
+    term = _PointTerm(bkd, value, action)
+    direction = bkd.asarray(rng.normal(size=(nvars, 1)))
+    checker = DerivativeChecker(
+        FunctionWithJVPFromCallable(nqoi, nvars, term.values, term.jvp, bkd)
+    )
+    errors = checker.check_derivatives(
+        bkd.reshape(point, (nvars, 1)),
+        fd_eps=fd_eps,
+        direction=direction / bkd.norm(direction),
+        central=central,
+    )[0]
+    return bkd.to_float(bkd.min(errors))
+
+
+def _random_column(
+    bkd: Backend[Array], size: int, rng: np.random.Generator
+) -> Array:
+    return bkd.asarray(rng.normal(size=(size, 1)))
+
+
+def dot_test_error(
+    bkd: Backend[Array], op: LinearMapProtocol[Array], rng: np.random.Generator
+) -> float:
+    r"""The relative difference of :math:`\langle w, A v\rangle` and
+    :math:`\langle A^\top w, v\rangle` for random ``v`` and ``w``."""
+    v = _random_column(bkd, op.domain().size, rng)
+    w = _random_column(bkd, op.range().size, rng)
+    av, atw = op.apply(v), op.apply_transpose(w)
+    scale = max(
+        bkd.to_float(bkd.norm(w) * bkd.norm(av)),
+        bkd.to_float(bkd.norm(v) * bkd.norm(atw)),
+    )
+    difference = bkd.to_float(bkd.sum(w * av) - bkd.sum(atw * v))
+    return 0.0 if scale == 0.0 else abs(difference) / scale
+
+
+def symmetry_error(
+    bkd: Backend[Array], op: LinearMapProtocol[Array], rng: np.random.Generator
+) -> float:
+    r"""The relative difference of :math:`A v` and :math:`A^\top v` for a
+    random ``v``."""
+    v = _random_column(bkd, op.domain().size, rng)
+    av, atv = op.apply(v), op.apply_transpose(v)
+    scale = max(bkd.to_float(bkd.norm(av)), bkd.to_float(bkd.norm(atv)))
+    difference = bkd.to_float(bkd.norm(av - atv))
+    return 0.0 if scale == 0.0 else difference / scale
+
+
+def transpose_errors(
+    bkd: Backend[Array],
+    operators: Sequence[tuple[str, LinearMapProtocol[Array]]],
+    rng: np.random.Generator,
+) -> Dict[str, float]:
+    """Each operator's dot-test error, and its symmetry error under
+    ``"<name> (symmetric)"`` when it declares itself symmetric."""
+    errors: Dict[str, float] = {}
+    for name, op in operators:
+        errors[name] = dot_test_error(bkd, op, rng)
+        if op.properties().symmetric:
+            errors[f"{name} (symmetric)"] = symmetry_error(bkd, op, rng)
+    return errors
 
 
 class ODEResidualBundleChecker(Generic[Array]):
@@ -202,7 +285,7 @@ class ODEResidualBundleChecker(Generic[Array]):
         time: float,
         adj: Optional[Array] = None,
         param: Optional[Array] = None,
-    ) -> ODEResidualBundleReport:
+    ) -> BundleCheckReport:
         """Check every term the bundle declares at one point.
 
         Parameters
@@ -239,12 +322,12 @@ class ODEResidualBundleChecker(Generic[Array]):
                     bundle, state, time, weight, param
                 )
             }
-            transpose_errors = self._transpose_errors(
+            dot_errors = self._transpose_errors(
                 self._fetch(param), state, time, weight, rng
             )
         finally:
             self._fetch(param)
-        return ODEResidualBundleReport(fd_errors, transpose_errors)
+        return BundleCheckReport(fd_errors, dot_errors)
 
     def _fetch(self, param: Optional[Array]) -> _Bundle[Array]:
         """The bundle, after setting ``param`` if given."""
@@ -376,20 +459,9 @@ class ODEResidualBundleChecker(Generic[Array]):
         action: Callable[[Array, Array], Array],
         rng: np.random.Generator,
     ) -> float:
-        """Smallest finite-difference error of one term along a random
-        direction. The quantity and the action are both evaluated at the
-        point first, so a term varying the parameters starts there."""
-        bkd = self._bkd
-        nvars = point.shape[0]
-        nqoi = value(point).shape[0]
-        direction = bkd.asarray(rng.normal(size=(nvars, 1)))
-        checker = JVPChecker(
-            _TermView(bkd, (nvars, nqoi), value, action),
-            fd_eps=self._fd_eps,
-            direction=direction / bkd.norm(direction),
-            central=self._central,
+        return smallest_fd_error(
+            self._bkd, point, value, action, rng, self._fd_eps, self._central
         )
-        return bkd.to_float(bkd.min(checker.check(bkd.reshape(point, (nvars, 1)))))
 
     def _transpose_errors(
         self,
@@ -419,36 +491,4 @@ class ODEResidualBundleChecker(Generic[Array]):
                 ("param_param", bundle.param_param(state, time, adj)),
                 ("initial_state_curvature", bundle.initial_state_curvature(adj)),
             ]
-        errors: Dict[str, float] = {}
-        for name, op in operators:
-            errors[name] = self._dot_test(op, rng)
-            if op.properties().symmetric:
-                errors[f"{name} (symmetric)"] = self._symmetry_error(op, rng)
-        return errors
-
-    def _random_column(self, size: int, rng: np.random.Generator) -> Array:
-        return self._bkd.asarray(rng.normal(size=(size, 1)))
-
-    def _dot_test(
-        self, op: DerivativeOperator[Array], rng: np.random.Generator
-    ) -> float:
-        bkd = self._bkd
-        v = self._random_column(op.domain().size, rng)
-        w = self._random_column(op.range().size, rng)
-        av, atw = op.apply(v), op.apply_transpose(w)
-        scale = max(
-            bkd.to_float(bkd.norm(w) * bkd.norm(av)),
-            bkd.to_float(bkd.norm(v) * bkd.norm(atw)),
-        )
-        difference = bkd.to_float(bkd.sum(w * av) - bkd.sum(atw * v))
-        return 0.0 if scale == 0.0 else abs(difference) / scale
-
-    def _symmetry_error(
-        self, op: DerivativeOperator[Array], rng: np.random.Generator
-    ) -> float:
-        bkd = self._bkd
-        v = self._random_column(op.domain().size, rng)
-        av, atv = op.apply(v), op.apply_transpose(v)
-        scale = max(bkd.to_float(bkd.norm(av)), bkd.to_float(bkd.norm(atv)))
-        difference = bkd.to_float(bkd.norm(av - atv))
-        return 0.0 if scale == 0.0 else difference / scale
+        return transpose_errors(self._bkd, operators, rng)
