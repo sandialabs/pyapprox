@@ -12,7 +12,15 @@ included,
     \qquad y_{n+1} = \Pi_{t_{n+1}}(E\, u_n),
 
 where :math:`E` is the stepper's readout; the unknown :math:`u_n` is
-recorded unconstrained, since it is where step :math:`n` is linearized.
+recorded unconstrained, since it is where step :math:`n` is linearized,
+and so is the value :math:`\Pi` was applied to (:math:`\hat y_0` and
+:math:`E u_n`), where the sweeps linearize :math:`\Pi`.
+
+This is one of two places a constraint enters. The other is inside the
+step: a stepper may replace rows of its own equations (boundary rows set
+to their data at the end of a step, or at every stage), and then the
+step's derivative operators carry that treatment, so the sweeps see it
+without a branch of their own.
 
 States are stack vectors throughout. A constraint written for the
 residual's own state form (:class:`~pyapprox.ode.protocols.StateConstraintProtocol`)
@@ -20,10 +28,13 @@ is called through :class:`ResidualFormConstraint`, as the stepper calls
 the residual.
 """
 
+from dataclasses import dataclass
 from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.ode.protocols import ForwardStepperProtocol, StateConstraintProtocol
+from pyapprox.ode.residual_derivatives import DerivativeOperator, SecondDerivativeFn
 from pyapprox.ode.residual_form import ResidualFormProtocol
+from pyapprox.ode.state_constraint import StateConstraintDerivatives, TangentFn
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.util.backends.protocols import Array
 
@@ -37,6 +48,57 @@ class StackConstraintProtocol(Protocol[V]):
     def constrain(self, state: V, time: float) -> V:
         """The state satisfying the constraints at ``time``."""
         ...
+
+
+@runtime_checkable
+class DifferentiableStackConstraintProtocol(StackConstraintProtocol[V], Protocol[V]):
+    r""":math:`\Pi_t` on stack vectors, with its derivatives.
+
+    The bundle's callables take stack vectors (states and adjoints as
+    single columns) and return operators of the stack; see
+    :mod:`pyapprox.ode.state_constraint`.
+    """
+
+    def derivatives(self) -> StateConstraintDerivatives[V]:
+        """The constraint's optional derivatives."""
+        ...
+
+
+@dataclass(frozen=True)
+class _AtStackState(Generic[V]):
+    """A ``(state, time)`` derivative of a residual-form constraint,
+    called with a stack vector."""
+
+    field: TangentFn[V]
+    form: ResidualFormProtocol[V, V]
+
+    def __call__(self, state: V, time: float) -> DerivativeOperator[V]:
+        return self.field(self.form.to_residual(state), time)
+
+
+@dataclass(frozen=True)
+class _AtStackStateAndAdjoint(Generic[V]):
+    """A ``(state, time, adj)`` second derivative of a residual-form
+    constraint, called with stack vectors."""
+
+    field: SecondDerivativeFn[V]
+    form: ResidualFormProtocol[V, V]
+
+    def __call__(self, state: V, time: float, adj: V) -> DerivativeOperator[V]:
+        to_residual = self.form.to_residual
+        return self.field(to_residual(state), time, to_residual(adj))
+
+
+def _at_state(
+    field: Optional[TangentFn[V]], form: ResidualFormProtocol[V, V]
+) -> Optional[TangentFn[V]]:
+    return None if field is None else _AtStackState(field, form)
+
+
+def _at_state_and_adjoint(
+    field: Optional[SecondDerivativeFn[V]], form: ResidualFormProtocol[V, V]
+) -> Optional[SecondDerivativeFn[V]]:
+    return None if field is None else _AtStackStateAndAdjoint(field, form)
 
 
 class ResidualFormConstraint(Generic[Array]):
@@ -61,6 +123,19 @@ class ResidualFormConstraint(Generic[Array]):
         form = self._form
         return form.from_residual(
             self._constraint.constrain(form.to_residual(state), time)
+        )
+
+    def derivatives(self) -> StateConstraintDerivatives[Array]:
+        """The wrapped constraint's derivatives, field for field, taking
+        stack vectors; absent fields stay absent."""
+        inner, form = self._constraint.derivatives(), self._form
+        return StateConstraintDerivatives(
+            tangent=_at_state(inner.tangent, form),
+            param=_at_state(inner.param, form),
+            state_state=_at_state_and_adjoint(inner.state_state, form),
+            state_param=_at_state_and_adjoint(inner.state_param, form),
+            param_param=_at_state_and_adjoint(inner.param_param, form),
+            param_space=inner.param_space,
         )
 
     def constraint(self) -> StateConstraintProtocol[Array]:
@@ -161,13 +236,22 @@ class Integrator(Generic[V]):
         if store.ntimes() != 0:
             raise ValueError("the store must be empty")
         stepper = self._stepper
+        # With a constraint, each stored state is recorded with the value
+        # the constraint was applied to, where the sweeps linearize it.
+        constrained = self._constraint is not None
         state = self._constrained(init_state, times[0])
-        store.append(times[0], state)
+        store.append(times[0], state, init_state if constrained else None)
         for time, next_time in zip(times, times[1:]):
             unknown = stepper.step(state, time, next_time - time)
             readout = stepper.readout().apply(unknown).blocks[0]
             state = self._constrained(readout, next_time)
-            store.append_step(next_time, state, unknown, stepper.parameters_version())
+            store.append_step(
+                next_time,
+                state,
+                unknown,
+                stepper.parameters_version(),
+                readout if constrained else None,
+            )
         return store
 
     def __repr__(self) -> str:

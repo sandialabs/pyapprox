@@ -100,3 +100,8 @@ class DifferentiableStepperProtocol(Protocol[V, A]):
         """The optional derivatives, valid for the parameters set when
         fetched."""
         ...
+
+    def parameters_version(self) -> int:
+        """The current parameter version; a window recorded at another
+        version is not differentiated at the current parameters."""
+        ...

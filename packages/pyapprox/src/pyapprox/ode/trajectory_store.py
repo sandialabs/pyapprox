@@ -37,8 +37,10 @@ class TrajectoryStoreProtocol(Protocol, Generic[V]):
     Indices follow Python's convention: ``-1`` is the last state.
     """
 
-    def append(self, time: float, state: V) -> None:
-        """Add ``state`` at ``time``, later than every stored time."""
+    def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
+        """Add ``state`` at ``time``, later than every stored time, with
+        the value the state constraint was applied to, when there is
+        one."""
         ...
 
     def ntimes(self) -> int:
@@ -57,15 +59,23 @@ class TrajectoryStoreProtocol(Protocol, Generic[V]):
         """State ``index``. Not to be modified."""
         ...
 
+    def unconstrained(self, index: int) -> V:
+        r"""The value the state constraint mapped to state ``index``,
+        where the sweeps linearize :math:`\Pi`; the state itself when it
+        was appended without one. Not to be modified."""
+        ...
+
     def append_step(
         self,
         time: float,
         state: V,
         unknown: BlockVector[V],
         parameters_version: int,
+        unconstrained: Optional[V] = None,
     ) -> None:
         """Add the state a step produced at ``time``, with the step's
-        unknown and the parameter version it was taken at."""
+        unknown, the parameter version it was taken at and the value the
+        state constraint was applied to, when there is one."""
         ...
 
     def nsteps(self) -> int:
@@ -99,8 +109,11 @@ class InMemoryTrajectoryStore(Generic[V]):
         # Step n's unknown and parameter version, aligned with the steps
         # (state n + 1); None for a state appended without a step.
         self._steps: list[Optional[tuple[BlockVector[V], int]]] = []
+        # The value the constraint was applied to, aligned with the
+        # states; None where the state was appended without one.
+        self._unconstrained: list[Optional[V]] = []
 
-    def append(self, time: float, state: V) -> None:
+    def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
         if self._times and not time > self._times[-1]:
             raise ValueError(
                 f"times must strictly increase: {time} after {self._times[-1]}"
@@ -109,6 +122,7 @@ class InMemoryTrajectoryStore(Generic[V]):
             self._steps.append(None)
         self._times.append(float(time))
         self._states.append(state)
+        self._unconstrained.append(unconstrained)
 
     def append_step(
         self,
@@ -116,6 +130,7 @@ class InMemoryTrajectoryStore(Generic[V]):
         state: V,
         unknown: BlockVector[V],
         parameters_version: int,
+        unconstrained: Optional[V] = None,
     ) -> None:
         """Add the state a step produced, with the step's unknown.
 
@@ -127,7 +142,7 @@ class InMemoryTrajectoryStore(Generic[V]):
         """
         if not self._times:
             raise ValueError("a step starts from a stored state; append one first")
-        self.append(time, state)
+        self.append(time, state, unconstrained)
         self._steps[-1] = (unknown, parameters_version)
 
     def nsteps(self) -> int:
@@ -183,6 +198,10 @@ class InMemoryTrajectoryStore(Generic[V]):
 
     def state(self, index: int) -> V:
         return self._states[index]
+
+    def unconstrained(self, index: int) -> V:
+        given = self._unconstrained[index]
+        return self._states[index] if given is None else given
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(ntimes={self.ntimes()})"

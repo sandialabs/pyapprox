@@ -118,6 +118,9 @@ class _Planted(Generic[Array]):
         derivs = self._stepper.derivatives()
         return derivs if self._edit is None else self._edit(derivs, self._stepper)
 
+    def parameters_version(self) -> int:
+        return self._stepper.parameters_version()
+
 
 def _scaled(
     scale: float,

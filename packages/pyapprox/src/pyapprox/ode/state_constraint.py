@@ -43,33 +43,34 @@ from pyapprox.ode.residual_derivatives import (
     StatedZero,
     second_derivative_or_zero,
 )
-from pyapprox.util.backends.protocols import Array, ArrayProtocol
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import (
     IdentityOperator,
     VectorSpaceProtocol,
     ZeroOperator,
 )
 
-A = TypeVar("A", bound=ArrayProtocol)
+V = TypeVar("V")
+W = TypeVar("W")
 
-TangentFn = Callable[[Array, float], DerivativeOperator[Array]]
+TangentFn = Callable[[V, float], DerivativeOperator[V]]
 
 _FIELDS = ("tangent", "param", "state_state", "state_param", "param_param")
 _SECOND_ORDER = ("state_state", "state_param", "param_param")
 
 
-class _ZeroParam(Generic[Array]):
+class _ZeroParam(Generic[V]):
     """``param`` for constraint data independent of the parameters."""
 
-    def __init__(self, op: ZeroOperator[Array]) -> None:
+    def __init__(self, op: ZeroOperator[V]) -> None:
         self._op = op
 
-    def __call__(self, state: Array, time: float) -> ZeroOperator[Array]:
+    def __call__(self, state: V, time: float) -> ZeroOperator[V]:
         return self._op
 
 
 @dataclass(frozen=True)
-class StateConstraintDerivatives(Generic[Array]):
+class StateConstraintDerivatives(Generic[V]):
     """The optional derivatives of a state constraint.
 
     Build with the named constructors. Frozen: a constraint whose
@@ -80,12 +81,12 @@ class StateConstraintDerivatives(Generic[Array]):
     require ``param``.
     """
 
-    tangent: Optional[TangentFn[Array]] = None
-    param: Optional[ParamFn[Array]] = None
-    state_state: Optional[SecondDerivativeFn[Array]] = None
-    state_param: Optional[SecondDerivativeFn[Array]] = None
-    param_param: Optional[SecondDerivativeFn[Array]] = None
-    param_space: Optional[VectorSpaceProtocol[Array]] = None
+    tangent: Optional[TangentFn[V]] = None
+    param: Optional[ParamFn[V]] = None
+    state_state: Optional[SecondDerivativeFn[V]] = None
+    state_param: Optional[SecondDerivativeFn[V]] = None
+    param_param: Optional[SecondDerivativeFn[V]] = None
+    param_space: Optional[VectorSpaceProtocol[V]] = None
 
     def __post_init__(self) -> None:
         for name in _FIELDS:
@@ -110,24 +111,24 @@ class StateConstraintDerivatives(Generic[Array]):
             raise ValueError("second order requires param")
 
     @staticmethod
-    def none() -> "StateConstraintDerivatives[A]":
+    def none() -> "StateConstraintDerivatives[W]":
         """No derivatives: the constraint can be applied only, so forward
         solves work and sensitivities do not."""
         return StateConstraintDerivatives()
 
     @staticmethod
-    def state_only(tangent: TangentFn[A]) -> "StateConstraintDerivatives[A]":
+    def state_only(tangent: TangentFn[W]) -> "StateConstraintDerivatives[W]":
         """The tangent and no parameters: forward sensitivities in the
         state, no parameter gradients."""
         return StateConstraintDerivatives(tangent=tangent)
 
     @staticmethod
     def first_order(
-        state_space: VectorSpaceProtocol[A],
-        param_space: VectorSpaceProtocol[A],
-        tangent: TangentFn[A],
-        param: Union[ParamFn[A], StatedZero],
-    ) -> "StateConstraintDerivatives[A]":
+        state_space: VectorSpaceProtocol[W],
+        param_space: VectorSpaceProtocol[W],
+        tangent: TangentFn[W],
+        param: Union[ParamFn[W], StatedZero],
+    ) -> "StateConstraintDerivatives[W]":
         """The tangent and the parameter derivative: adjoint gradients.
         ``param=STATED_ZERO`` declares constraint data independent of
         :math:`p`."""
@@ -139,14 +140,14 @@ class StateConstraintDerivatives(Generic[Array]):
 
     @staticmethod
     def second_order(
-        state_space: VectorSpaceProtocol[A],
-        param_space: VectorSpaceProtocol[A],
-        tangent: TangentFn[A],
-        param: Union[ParamFn[A], StatedZero],
-        state_state: Union[SecondDerivativeFn[A], StatedZero],
-        state_param: Union[SecondDerivativeFn[A], StatedZero],
-        param_param: Union[SecondDerivativeFn[A], StatedZero],
-    ) -> "StateConstraintDerivatives[A]":
+        state_space: VectorSpaceProtocol[W],
+        param_space: VectorSpaceProtocol[W],
+        tangent: TangentFn[W],
+        param: Union[ParamFn[W], StatedZero],
+        state_state: Union[SecondDerivativeFn[W], StatedZero],
+        state_param: Union[SecondDerivativeFn[W], StatedZero],
+        param_param: Union[SecondDerivativeFn[W], StatedZero],
+    ) -> "StateConstraintDerivatives[W]":
         """First order plus the second-order terms: Hessian-vector
         products. Any term but the tangent may be ``STATED_ZERO``."""
         return StateConstraintDerivatives(
@@ -166,18 +167,18 @@ class StateConstraintDerivatives(Generic[Array]):
 
 
 def _param(
-    given: Union[ParamFn[A], StatedZero],
-    state_space: VectorSpaceProtocol[A],
-    param_space: VectorSpaceProtocol[A],
-) -> ParamFn[A]:
+    given: Union[ParamFn[W], StatedZero],
+    state_space: VectorSpaceProtocol[W],
+    param_space: VectorSpaceProtocol[W],
+) -> ParamFn[W]:
     if isinstance(given, StatedZero):
         return _ZeroParam(ZeroOperator(param_space, state_space))
     return given
 
 
 def sweep_tangent(
-    derivs: StateConstraintDerivatives[A], state: A, time: float
-) -> TangentFn[A]:
+    derivs: StateConstraintDerivatives[W], state: W, time: float
+) -> TangentFn[W]:
     r"""A constraint's tangent :math:`\Pi'`, from its bundle, for a
     first-order sweep.
 
