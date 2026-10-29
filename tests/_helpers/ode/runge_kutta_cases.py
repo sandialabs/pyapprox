@@ -231,7 +231,7 @@ def lotka_volterra_step(
     model.set_param(param)
     stepper = rk_stepper(tableau, dense_mass_form_system(model))
     state = bkd.asarray([[10.0], [5.0]])
-    unknown = stepper.step(state, 0.2, 0.05)
+    unknown = stepper.step((state,), 0.2, 0.05)
     window = StepWindow(0.2, 0.05, (state,), unknown, model.parameters_version())
     residual = stepper.residual_space()
     sample = backend_sample(bkd)

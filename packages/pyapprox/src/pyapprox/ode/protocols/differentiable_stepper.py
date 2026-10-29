@@ -14,7 +14,7 @@ derivative checker) measures and compares step vectors on any stack;
 ``A`` is the type of their reductions, small dense arrays.
 """
 
-from typing import Optional, Protocol, TypeVar, runtime_checkable
+from typing import Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
@@ -36,9 +36,17 @@ A = TypeVar("A", bound=ArrayProtocol)
 class ForwardStepperProtocol(Protocol[V]):
     """What an integrator needs of a stepper to march forward."""
 
-    def step(self, state: V, time: float, deltat: float) -> BlockVector[V]:
-        """Solve one step from ``state`` (a single column of the state
-        space) at ``time``; returns the step's unknown."""
+    def depth(self) -> int:
+        """The number of past stored states a step reads at most."""
+        ...
+
+    def step(
+        self, past_states: Sequence[V], time: float, deltat: float
+    ) -> BlockVector[V]:
+        """Solve one step at ``time`` from the stored states it reads,
+        most recent first (single columns of the state space): the
+        stepper's depth of them, or all there are at a startup step.
+        Returns the step's unknown."""
         ...
 
     def readout(self) -> StepOperator[V]:

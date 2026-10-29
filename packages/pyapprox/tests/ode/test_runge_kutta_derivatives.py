@@ -116,7 +116,7 @@ class TestStepMap:
         tableau, deltat = make(), 0.1
         stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
         state = bkd.asarray([[1.0], [-0.5], [2.0]])
-        window = StepWindow(0.3, deltat, (state,), stepper.step(state, 0.3, deltat))
+        window = StepWindow(0.3, deltat, (state,), stepper.step((state,), 0.3, deltat))
         derivs = stepper.derivatives()
         assert derivs.off_diag is not None
         off_diag = derivs.off_diag(window, 1)

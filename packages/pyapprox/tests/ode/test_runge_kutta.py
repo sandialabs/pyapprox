@@ -129,7 +129,7 @@ class TestLinearStep:
         tableau = make()
         stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
         y = np.array([1.0, -0.5, 2.0])
-        unknown = stepper.step(bkd.asarray(y[:, None]), 0.3, 0.1)
+        unknown = stepper.step((bkd.asarray(y[:, None]),), 0.3, 0.1)
         bkd.assert_allclose(
             new_state(stepper, unknown)[:, 0],
             bkd.asarray(_closed_form_step(tableau, y, 0.1)),
@@ -154,7 +154,7 @@ class TestNonlinearStep:
             make(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
         y = bkd.asarray([[10.0], [5.0]])
-        unknown = stepper.step(y, 0.2, 0.05)
+        unknown = stepper.step((y,), 0.2, 0.05)
         window = StepWindow(0.2, 0.05, (y,), unknown)
         residual = stepper.residual_space().norm(stepper.step_residual(window))
         assert bkd.to_float(residual[0, 0]) < 1e-10
@@ -173,7 +173,7 @@ class TestNonlinearStep:
             y = bkd.asarray([[10.0], [5.0]])
             nsteps = round(0.2 / deltat)
             for n in range(nsteps):
-                y = new_state(stepper, stepper.step(y, n * deltat, deltat))
+                y = new_state(stepper, stepper.step((y,), n * deltat, deltat))
             return y
 
         reference = solve(classical_rk4(), 0.2 / 1600)
@@ -193,7 +193,7 @@ class TestOnAnOpaqueStack:
         tableau = make()
         stepper = mock_stepper(tableau)
         y = np.array([[1.0], [-0.5], [2.0]])
-        unknown = stepper.step(wrap(y, MOCK_STATE), 0.0, 0.1)
+        unknown = stepper.step((wrap(y, MOCK_STATE),), 0.0, 0.1)
         k = np.array(LINEAR_K)
         expected = (
             y + 0.1 * k @ y

@@ -29,8 +29,17 @@ is called through :class:`ResidualFormConstraint`, as the stepper calls
 the residual.
 """
 
+from collections import deque
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
+from typing import (
+    Deque,
+    Generic,
+    Optional,
+    Protocol,
+    Sequence,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.ode.protocols import ForwardStepperProtocol, StateConstraintProtocol
 from pyapprox.ode.residual_derivatives import DerivativeOperator, SecondDerivativeFn
@@ -238,10 +247,14 @@ class Integrator(Generic[V]):
         constrained = self._constraint is not None
         state = self._constrained(init_state, times[0])
         sink.append(times[0], state, init_state if constrained else None)
+        # The states the next step reads, most recent first: the
+        # stepper's depth of them once there are that many.
+        recent: Deque[V] = deque([state], maxlen=stepper.depth())
         for time, next_time in zip(times, times[1:]):
-            unknown = stepper.step(state, time, next_time - time)
+            unknown = stepper.step(tuple(recent), time, next_time - time)
             readout = stepper.readout().apply(unknown).blocks[0]
             state = self._constrained(readout, next_time)
+            recent.appendleft(state)
             sink.append_step(
                 next_time,
                 state,

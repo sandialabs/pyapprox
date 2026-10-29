@@ -30,7 +30,15 @@ where :math:`f` and :math:`J` are called.
 """
 
 from itertools import count
-from typing import Generic, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.stepper_derivatives import (
@@ -268,13 +276,16 @@ class RungeKuttaStepper(Generic[V, A, F]):
     # The forward step
     # ------------------------------------------------------------------
 
-    def step(self, state: V, time: float, deltat: float) -> BlockVector[V]:
-        r"""Solve step :math:`n` from :math:`y_n` = ``state``.
+    def step(
+        self, past_states: Sequence[V], time: float, deltat: float
+    ) -> BlockVector[V]:
+        r"""Solve step :math:`n` from :math:`y_n`.
 
         Parameters
         ----------
-        state : V
-            :math:`y_n`, a single column of the state space.
+        past_states : sequence of V
+            :math:`(y_n,)`: a one-step method reads one state, a single
+            column of the state space.
         time : float
             :math:`t_n`.
         deltat : float
@@ -288,9 +299,16 @@ class RungeKuttaStepper(Generic[V, A, F]):
 
         Raises
         ------
+        ValueError
+            If ``past_states`` is not one state.
         SolveFailedError
             If a stage's nonlinear solve or a mass solve fails.
         """
+        if len(past_states) != 1:
+            raise ValueError(
+                f"a one-step method reads one state, got {len(past_states)}"
+            )
+        state = past_states[0]
         tableau, space = self._tableau, self._system.space
         stages: List[V] = []
         slopes: List[V] = []
