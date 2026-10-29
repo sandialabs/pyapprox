@@ -218,13 +218,17 @@ class RungeKuttaStepper(Generic[V, A, F]):
         form = self._system.form
         return form.from_residual(self._system.rhs(form.to_residual(state), time))
 
+    def parameters_version(self) -> int:
+        """The residual's parameter version; 0 for a residual without
+        parameters, which has one version for its whole life."""
+        rhs = self._system.rhs
+        return rhs.parameters_version() if isinstance(rhs, _VersionedProtocol) else 0
+
     def _point(self) -> LinearizationPoint:
         """A new label for a linearization at a Newton iterate: never
         reused, since an iterate is not a converged point."""
-        rhs = self._system.rhs
-        version = rhs.parameters_version() if isinstance(rhs, _VersionedProtocol) else 0
         return LinearizationPoint(
-            version, ("stage", next(self._points)), provisional=True
+            self.parameters_version(), ("stage", next(self._points)), provisional=True
         )
 
     def stage_operator(

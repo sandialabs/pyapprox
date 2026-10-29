@@ -11,11 +11,21 @@ changing a sweep.
 A store keeps the states it is given, without copying: a state, once
 appended, must not be modified, so a buffer reused through an ``out``
 argument must never be appended.
+
+A store also keeps each step's unknown :math:`u_n` (the stage values the
+step solved for) with the state it produced, so a sweep can rebuild step
+:math:`n`'s :class:`~pyapprox.ode.stepper_derivatives.StepWindow`: the
+step's time and size, the stored states it read, its unknown, and the
+parameter version it was taken at. Sweeps ask for windows in reverse
+step order, which lets a checkpointing store recompute instead of
+holding every step.
 """
 
-from typing import Generic, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import BlockVector
 
 V = TypeVar("V")
 
@@ -47,6 +57,26 @@ class TrajectoryStoreProtocol(Protocol, Generic[V]):
         """State ``index``. Not to be modified."""
         ...
 
+    def append_step(
+        self,
+        time: float,
+        state: V,
+        unknown: BlockVector[V],
+        parameters_version: int,
+    ) -> None:
+        """Add the state a step produced at ``time``, with the step's
+        unknown and the parameter version it was taken at."""
+        ...
+
+    def nsteps(self) -> int:
+        """The number of recorded steps."""
+        ...
+
+    def window(self, step: int, depth: int = 1) -> StepWindow[V]:
+        """Step ``step``'s window: from state ``step`` to state
+        ``step + 1``, reading the ``depth`` states up to state ``step``."""
+        ...
+
 
 class InMemoryTrajectoryStore(Generic[V]):
     """A trajectory held in memory as lists of times and states.
@@ -59,20 +89,88 @@ class InMemoryTrajectoryStore(Generic[V]):
         From :meth:`append`, if the time does not exceed the last stored
         time.
     IndexError
-        From :meth:`time` and :meth:`state`, for an index out of range.
+        From :meth:`time`, :meth:`state` and :meth:`window`, for an index
+        out of range.
     """
 
     def __init__(self) -> None:
         self._times: list[float] = []
         self._states: list[V] = []
+        # Step n's unknown and parameter version, aligned with the steps
+        # (state n + 1); None for a state appended without a step.
+        self._steps: list[Optional[tuple[BlockVector[V], int]]] = []
 
     def append(self, time: float, state: V) -> None:
         if self._times and not time > self._times[-1]:
             raise ValueError(
                 f"times must strictly increase: {time} after {self._times[-1]}"
             )
+        if self._times:
+            self._steps.append(None)
         self._times.append(float(time))
         self._states.append(state)
+
+    def append_step(
+        self,
+        time: float,
+        state: V,
+        unknown: BlockVector[V],
+        parameters_version: int,
+    ) -> None:
+        """Add the state a step produced, with the step's unknown.
+
+        Raises
+        ------
+        ValueError
+            If the store is empty (a step starts from a stored state) or
+            ``time`` does not exceed the last stored time.
+        """
+        if not self._times:
+            raise ValueError("a step starts from a stored state; append one first")
+        self.append(time, state)
+        self._steps[-1] = (unknown, parameters_version)
+
+    def nsteps(self) -> int:
+        return len(self._steps)
+
+    def window(self, step: int, depth: int = 1) -> StepWindow[V]:
+        """Step ``step``'s window.
+
+        Parameters
+        ----------
+        step : int
+            The step, from state ``step`` to state ``step + 1``; ``-1`` is
+            the last step.
+        depth : int, default 1
+            How many stored states the step reads, most recent first.
+
+        Raises
+        ------
+        IndexError
+            If ``step`` is out of range.
+        ValueError
+            If the step was recorded without its unknown, or fewer than
+            ``depth`` states precede it.
+        """
+        if not -len(self._steps) <= step < len(self._steps):
+            raise IndexError(f"step {step} is out of range for {self.nsteps()} steps")
+        step = step % len(self._steps)
+        recorded = self._steps[step]
+        if recorded is None:
+            raise ValueError(f"step {step} was recorded without its unknown")
+        if depth > step + 1:
+            raise ValueError(
+                f"step {step} is preceded by {step + 1} states, not {depth}"
+            )
+        unknown, version = recorded
+        past = tuple(self._states[step - lag] for lag in range(depth))
+        return StepWindow(
+            self._times[step],
+            self._times[step + 1] - self._times[step],
+            past,
+            unknown,
+            version,
+        )
 
     def ntimes(self) -> int:
         return len(self._times)

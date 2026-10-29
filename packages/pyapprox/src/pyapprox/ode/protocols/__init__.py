@@ -28,7 +28,10 @@ from .differentiable_residual import (
     DifferentiableODEResidualProtocol,
     ParameterizedODEResidualProtocol,
 )
-from .differentiable_stepper import DifferentiableStepperProtocol
+from .differentiable_stepper import (
+    DifferentiableStepperProtocol,
+    ForwardStepperProtocol,
+)
 from .jacobian_operator import JacobianOperatorProtocol
 from .mass_system import MassSystemProtocol
 from .ode_residual import (
@@ -63,6 +66,7 @@ __all__ = [
     "ParameterizedODEResidualProtocol",
     # Steppers whose step equation is differentiated
     "DifferentiableStepperProtocol",
+    "ForwardStepperProtocol",
     # Time Stepping Residual Protocols
     "TimeSteppingResidualProtocol",
     "SensitivityStepperProtocol",

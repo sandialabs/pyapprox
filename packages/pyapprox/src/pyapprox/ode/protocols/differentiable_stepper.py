@@ -33,6 +33,24 @@ A = TypeVar("A", bound=ArrayProtocol)
 
 
 @runtime_checkable
+class ForwardStepperProtocol(Protocol[V]):
+    """What an integrator needs of a stepper to march forward."""
+
+    def step(self, state: V, time: float, deltat: float) -> BlockVector[V]:
+        """Solve one step from ``state`` (a single column of the state
+        space) at ``time``; returns the step's unknown."""
+        ...
+
+    def readout(self) -> StepOperator[V]:
+        """The map from a step's unknown to the new stored state."""
+        ...
+
+    def parameters_version(self) -> int:
+        """The parameter version steps are taken at."""
+        ...
+
+
+@runtime_checkable
 class DifferentiableStepperProtocol(Protocol[V, A]):
     """A stepper exposing its step equation and its derivatives."""
 
