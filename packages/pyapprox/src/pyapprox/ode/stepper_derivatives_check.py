@@ -420,7 +420,9 @@ class StepperBundleChecker(Generic[V, A]):
     ) -> List[_Term[V, A]]:
         """``diag``, ``off_diag[k]`` for every lag and, with parameters,
         ``param``."""
-        nlags = self._stepper.depth() if derivs.off_diag is not None else 0
+        # The lags the window read: a multistep startup step reads fewer
+        # states than the stepper's depth.
+        nlags = len(window.past_states) if derivs.off_diag is not None else 0
         terms = [
             self._first_order_term(
                 "diag" if lag == 0 else f"off_diag[{lag}]",
@@ -446,7 +448,7 @@ class StepperBundleChecker(Generic[V, A]):
     ) -> List[_Term[V, A]]:
         """Every second-derivative block, declared or not (see the table
         in the module docstring)."""
-        lags = range(self._stepper.depth() + 1)
+        lags = range(len(window.past_states) + 1)
         params = self._param_argument(window, param)
         lag_args = {lag: self._lag_argument(window, lag, param) for lag in lags}
 
@@ -594,7 +596,7 @@ class StepperBundleChecker(Generic[V, A]):
             ("readout", stepper.readout(), (unknown, state)),
         ]
         if derivs.off_diag is not None:
-            for lag in range(1, stepper.depth() + 1):
+            for lag in range(1, len(window.past_states) + 1):
                 operators.append(
                     (
                         f"off_diag[{lag}]",
@@ -612,7 +614,11 @@ class StepperBundleChecker(Generic[V, A]):
             and derivs.state_param is not None
             and derivs.param_param is not None
         ):
+            # The declared blocks among the lags the window read.
+            read = len(window.past_states)
             for a, b in sorted(derivs.state_pairs):
+                if a > read or b > read:
+                    continue
                 operators.append(
                     (
                         f"state_state[{a},{b}]",
@@ -621,6 +627,8 @@ class StepperBundleChecker(Generic[V, A]):
                     )
                 )
             for a in sorted(derivs.param_lags):
+                if a > read:
+                    continue
                 operators.append(
                     (
                         f"state_param[{a}]",
