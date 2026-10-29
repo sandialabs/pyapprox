@@ -44,7 +44,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.explicit_steppers import ForwardEulerHVP, HeunHVP
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
-from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
@@ -54,7 +53,6 @@ from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.integration import Integrator, ResidualFormConstraint
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
-from pyapprox.ode.multistep_methods import MultistepMethod
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.protocols import TimeSteppingResidualProtocol
 from pyapprox.ode.residual_derivatives import (
@@ -62,8 +60,6 @@ from pyapprox.ode.residual_derivatives import (
     DerivativeOperator,
     ODEResidualDerivatives,
     SecondDerivativeFn,
-    backend_spaces,
-    dense_operator,
 )
 from pyapprox.ode.residual_form import BackendColumnForm, IdentityForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -87,7 +83,7 @@ from pyapprox.ode.trajectory_functional import (
     BackendSecondOrderTrajectoryFunctional,
     BackendTrajectoryFunctional,
 )
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
@@ -109,354 +105,53 @@ from tests._helpers.linalg.mock_stack import (
     peek,
     wrap,
 )
-from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
 from tests._helpers.ode.runge_kutta_cases import (
     LINEAR_K,
     LV_PARAM,
     MOCK_STATE,
-    TABLEAU_IDS,
-    TABLEAUX,
     LinearMassModel,
     lotka_volterra_with_mass,
     rk_stepper,
 )
+from tests._helpers.ode.trajectory_cases import (
+    ALL_IDS,
+    ALL_METHODS,
+    MULTISTEP,
+    SOME_IDS,
+    SOME_METHODS,
+    TIMES,
+    CurvedPin,
+    Method,
+    ScaledStart,
+    TrajectoryProblem,
+    hvp_symmetry_error,
+    min_gradient_fd_error,
+    min_hvp_fd_error,
+    random_direction,
+    tikhonov_mse,
+)
 from tests._helpers.ode_models import LotkaVolterra
-
-_TIMES = [0.05 * n for n in range(11)]
-_START = [[10.0], [5.0]]
-_Method = Union[ButcherTableau, MultistepMethod]
-_MULTISTEP = [make for make, *_ in METHODS]
-# Every one-step and multistep method: the sweeps are generic in both.
-_ALL_METHODS: List[Callable[[], _Method]] = [
-    *(make for make, *_ in TABLEAUX),
-    *_MULTISTEP,
-]
-_ALL_IDS = TABLEAU_IDS + METHOD_IDS
-# A one-step pair (explicit and implicit) and every multistep method, for
-# the costlier checks.
-_SOME_METHODS: List[Callable[[], _Method]] = [backward_euler, heun, *_MULTISTEP]
-_SOME_IDS = [make().name for make in _SOME_METHODS]
-_Stepper = Union[
-    RungeKuttaStepper[Array, Array, DenseFormat[Array]],
-    LinearMultistepStepper[Array, Array, DenseFormat[Array]],
-]
-
-
-def _make_stepper(
-    method: _Method, system: MassFormSystem[Array, Array, DenseFormat[Array]]
-) -> _Stepper[Array]:
-    """The stepper of a tableau or of a multistep method."""
-    stepper: _Stepper[Array] = (
-        rk_stepper(method, system)
-        if isinstance(method, ButcherTableau)
-        else lm_stepper(method, system)
-    )
-    return stepper
-
-
-def _functional(bkd: Backend[Array]) -> TikhonovAugmentedFunctional[Array]:
-    """The Tikhonov-augmented MSE of the module docstring."""
-    mse = TransientMSEFunctional(
-        2,
-        4,
-        [
-            (0, bkd.asarray([2, 5, 10], dtype=int)),
-            (1, bkd.asarray([3, 10], dtype=int)),
-        ],
-        bkd,
-        noise_std=0.5,
-    )
-    mse.set_observations(bkd.asarray([9.0, 8.0, 7.5, 6.0, 5.5]))
-    return TikhonovAugmentedFunctional(mse, 0.3, bkd)
-
-
-class _CurvedPin(Generic[Array]):
-    r""":math:`\Pi_t(x, z;\, p) = (x,\ 3 + 0.1\, a \sin(x + 2t))` on 1-D
-    states, with its first and second derivatives; its parameters are set
-    beside the model's. The tangent depends on :math:`a` and :math:`t`,
-    the parameter derivative on the state and :math:`t`, so either
-    evaluated at the wrong state, parameters or time is caught; the
-    second derivatives :math:`\Pi_{xx}` and :math:`\Pi_{xa}` are nonzero
-    (:math:`\Pi_{aa}` is a stated zero)."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-        self._a = bkd.asarray([1.0])
-        states, params = backend_spaces(bkd, 2, 4)
-        self._derivs: StateConstraintDerivatives[Array] = (
-            StateConstraintDerivatives.second_order(
-                states,
-                params,
-                tangent=dense_operator(self._tangent, states, states, bkd),
-                param=dense_operator(self._param, params, states, bkd),
-                state_state=dense_operator(
-                    self._state_state, states, states, bkd, symmetric=True
-                ),
-                state_param=dense_operator(self._state_param, params, states, bkd),
-                param_param=STATED_ZERO,
-            )
-        )
-
-    def set_param(self, param: Array) -> None:
-        self._a = self._bkd.flatten(param)[0:1]
-
-    def constrain(self, state: Array, time: float) -> Array:
-        pinned = 3.0 + 0.1 * self._a * self._bkd.sin(state[0:1] + 2.0 * time)
-        return self._bkd.concatenate([state[0:1], pinned])
-
-    def _tangent(self, state: Array, time: float) -> Array:
-        bkd = self._bkd
-        slope = 0.1 * self._a * bkd.cos(state[0:1] + 2.0 * time)
-        return bkd.stack(
-            [
-                bkd.concatenate([bkd.ones((1,)), bkd.zeros((1,))]),
-                bkd.concatenate([slope, bkd.zeros((1,))]),
-            ]
-        )
-
-    def _param(self, state: Array, time: float) -> Array:
-        # d(3 + 0.1 a sin(x + 2t))/da in the second row; nothing else
-        # depends on p.
-        matrix = self._bkd.zeros((2, 4))
-        matrix[1, 0] = 0.1 * self._bkd.sin(state[0] + 2.0 * time)
-        return matrix
-
-    def _state_state(self, state: Array, time: float, adj: Array) -> Array:
-        # adj_1 d^2(0.1 a sin(x + 2t))/dx^2 in the (x, x) entry.
-        matrix = self._bkd.zeros((2, 2))
-        matrix[0, 0] = -0.1 * self._a[0] * self._bkd.sin(state[0] + 2.0 * time) * adj[1]
-        return matrix
-
-    def _state_param(self, state: Array, time: float, adj: Array) -> Array:
-        # adj_1 d^2(0.1 a sin(x + 2t))/dx da in the (x, a) entry.
-        matrix = self._bkd.zeros((2, 4))
-        matrix[0, 0] = 0.1 * self._bkd.cos(state[0] + 2.0 * time) * adj[1]
-        return matrix
-
-    def derivatives(self) -> StateConstraintDerivatives[Array]:
-        return self._derivs
-
-
-class _ScaledStart(Generic[Array]):
-    r""":math:`\hat y_0 = (10 a,\ 5 e^{a b - 0.1})` and its derivative,
-    (10, 5) at the nominal parameters. The second entry is a
-    non-polynomial function of two parameters, so its derivative depends
-    on both and has two nonzero columns, and every entry of its curvature
-    (aa, ab, bb) is nonzero."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-        self._param = bkd.asarray(LV_PARAM)
-        states, params = backend_spaces(bkd, 2, 4)
-        self._derivative = dense_operator(self._matrix, params, states, bkd)
-        self._curvature = dense_operator(
-            self._curvature_matrix, params, params, bkd, symmetric=True
-        )
-
-    def set_param(self, param: Array) -> None:
-        self._param = param
-
-    def start(self, param: Array) -> Array:
-        a, b = param[0:1], param[1:2]
-        return self._bkd.concatenate([10.0 * a, 5.0 * self._bkd.exp(a * b - 0.1)])
-
-    def _matrix(self) -> Array:
-        # d(10 a, 5 exp(a b - 0.1))/d(a, b, c, d) at the parameters set.
-        a, b = self._param[0, 0], self._param[1, 0]
-        growth = 5.0 * self._bkd.exp(a * b - 0.1)
-        matrix = self._bkd.zeros((2, 4))
-        matrix[0, 0] = 10.0
-        matrix[1, 0] = b * growth
-        matrix[1, 1] = a * growth
-        return matrix
-
-    def _curvature_matrix(self, weight: Array) -> Array:
-        # weight_1 times the Hessian of G = 5 exp(a b - 0.1) in (a, b):
-        # G_aa = b^2 G, G_ab = (1 + a b) G, G_bb = a^2 G.
-        a, b = self._param[0, 0], self._param[1, 0]
-        scaled = 5.0 * self._bkd.exp(a * b - 0.1) * weight[1, 0]
-        matrix = self._bkd.zeros((4, 4))
-        matrix[0, 0] = b * b * scaled
-        matrix[0, 1] = (1.0 + a * b) * scaled
-        matrix[1, 0] = (1.0 + a * b) * scaled
-        matrix[1, 1] = a * a * scaled
-        return matrix
-
-    def param_derivative(self) -> DerivativeOperator[Array]:
-        return self._derivative()
-
-    def curvature(self, weight: Array) -> Optional[DerivativeOperator[Array]]:
-        return self._curvature(weight)
-
-
-class _Problem(Generic[Array]):
-    r""":math:`p \mapsto Q(y(p), p)` on Lotka-Volterra, with its gradient
-    and tangent from the new sweeps.
-
-    Parameters
-    ----------
-    bkd : Backend
-        The backend.
-    method : ButcherTableau or MultistepMethod
-        The method.
-    pin : _CurvedPin, optional
-        A constraint at stored states.
-    start : _ScaledStart, optional
-        A parameter-dependent initial state; (10, 5) otherwise.
-    system : callable, optional
-        Builds the stepper's system from the model; the dense mass-form
-        system by default.
-    """
-
-    def __init__(
-        self,
-        bkd: Backend[Array],
-        method: _Method,
-        pin: Optional[_CurvedPin[Array]] = None,
-        start: Optional[_ScaledStart[Array]] = None,
-        system: Optional[
-            Callable[
-                [LotkaVolterra[Array]],
-                MassFormSystem[Array, Array, DenseFormat[Array]],
-            ]
-        ] = None,
-    ) -> None:
-        self._bkd, self._pin, self._start = bkd, pin, start
-        self._model = lotka_volterra_with_mass(bkd)
-        build = dense_mass_form_system if system is None else system
-        self._stepper: _Stepper[Array] = _make_stepper(method, build(self._model))
-        constraint = (
-            None if pin is None else ResidualFormConstraint(pin, BackendColumnForm(bkd))
-        )
-        self._integrator = Integrator(self._stepper, constraint)
-        self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
-            self._stepper, constraint, start
-        )
-        self._functional = _functional(bkd)
-
-    def stepper(self) -> _Stepper[Array]:
-        return self._stepper
-
-    def pin(self) -> _CurvedPin[Array]:
-        if self._pin is None:
-            raise AssertionError("this problem has no constraint")
-        return self._pin
-
-    def start(self) -> _ScaledStart[Array]:
-        if self._start is None:
-            raise AssertionError("this problem has a fixed initial state")
-        return self._start
-
-    def solve(self, param: Array) -> InMemoryTrajectoryStore[Array]:
-        self._model.set_param(param)
-        if self._pin is not None:
-            self._pin.set_param(param)
-        if self._start is not None:
-            self._start.set_param(param)
-        start = (
-            self._bkd.asarray(_START)
-            if self._start is None
-            else self._start.start(param)
-        )
-        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        self._integrator.solve(start, _TIMES, store)
-        return store
-
-    def value(self, samples: Array) -> Array:
-        """Q at each column of ``samples``. Shape: (1, nsamples)."""
-        values = []
-        for k in range(samples.shape[1]):
-            param = samples[:, k : k + 1]
-            store = self.solve(param)
-            values.append(self._functional(trajectory_array(store, self._bkd), param))
-        return self._bkd.hstack(values)
-
-    def coupling(
-        self, store: InMemoryTrajectoryStore[Array], param: Array
-    ) -> BackendTrajectoryFunctional[Array]:
-        return BackendTrajectoryFunctional(self._functional, store, param)
-
-    def gradient(self, sample: Array) -> Array:
-        """dQ/dp by the adjoint sweep. Shape: (1, 4)."""
-        store = self.solve(sample)
-        return self._sweeps.gradient(store, self.coupling(store, sample)).T
-
-    def tangent(self, sample: Array, direction: Array) -> Array:
-        """dQ/dp v by the tangent sweep. Shape: (1, 1)."""
-        store = self.solve(sample)
-        return self._sweeps.tangent(store, self.coupling(store, sample), direction)
-
-    def gradients(self, samples: Array) -> Array:
-        """dQ/dp at each column of ``samples``. Shape: (4, nsamples)."""
-        return self._bkd.hstack(
-            [self.gradient(samples[:, k : k + 1]).T for k in range(samples.shape[1])]
-        )
-
-    def hvp(self, sample: Array, direction: Array) -> Array:
-        """(d^2Q/dp^2) v by the tangent and adjoint sweeps. Shape: (4, 1)."""
-        store = self.solve(sample)
-        functional = BackendSecondOrderTrajectoryFunctional(
-            self._functional, store, sample
-        )
-        return self._sweeps.hvp(store, functional, direction)
-
-
-def _direction(bkd: Backend[Array], seed: int = 7) -> Array:
-    return bkd.asarray(np.random.default_rng(seed).normal(size=(4, 1)))
-
-
-def _min_hvp_fd_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
-    """The smallest central-difference error of the HVP, differencing the
-    adjoint gradient along a random direction."""
-    wrapper = FunctionWithJVPFromCallable(
-        nqoi=4, nvars=4, fun=problem.gradients, jvp=problem.hvp, bkd=bkd
-    )
-    errors = DerivativeChecker(wrapper).check_derivatives(
-        bkd.asarray(LV_PARAM), relative=True, central=True
-    )[0]
-    return bkd.to_float(bkd.min(errors))
-
-
-def _symmetry_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
-    """|u^T H v - v^T H u| relative to their size, for two random
-    directions: the Hessian is symmetric, so a one-sided fault shows."""
-    param = bkd.asarray(LV_PARAM)
-    u, v = _direction(bkd, 3), _direction(bkd, 5)
-    uhv = bkd.to_float((u.T @ problem.hvp(param, v))[0, 0])
-    vhu = bkd.to_float((v.T @ problem.hvp(param, u))[0, 0])
-    return abs(uhv - vhu) / max(abs(uhv), abs(vhu))
-
-
-def _min_fd_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
-    """The smallest central-difference error of the gradient."""
-    wrapper = FunctionWithJacobianFromCallable(
-        nqoi=1, nvars=4, fun=problem.value, jacobian=problem.gradient, bkd=bkd
-    )
-    errors = DerivativeChecker(wrapper).check_derivatives(
-        bkd.asarray(LV_PARAM), relative=True, central=True
-    )[0]
-    return bkd.to_float(bkd.min(errors))
 
 
 class TestGradient:
-    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
+    @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
     def test_matches_finite_differences(
-        self, bkd: Backend[Array], make: Callable[[], _Method]
+        self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        assert _min_fd_error(bkd, _Problem(bkd, make())) < 1e-7
+        assert min_gradient_fd_error(bkd, TrajectoryProblem(bkd, make())) < 1e-7
 
-    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
+    @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
     def test_tangent_is_the_gradient_in_a_direction(
-        self, bkd: Backend[Array], make: Callable[[], _Method]
+        self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        problem = _Problem(bkd, make())
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        problem = TrajectoryProblem(bkd, make())
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         expected = problem.gradient(param) @ direction
         bkd.assert_allclose(problem.tangent(param, direction), expected, rtol=1e-12)
 
 
 # The old path's stepper class for each tableau, for the same method.
-_OLD_STEPPERS: list[tuple[Callable[[], _Method], Callable[..., object]]] = [
+_OLD_STEPPERS: list[tuple[Callable[[], Method], Callable[..., object]]] = [
     (backward_euler, BackwardEulerHVP),
     (forward_euler, ForwardEulerHVP),
     (crank_nicolson, CrankNicolsonHVP),
@@ -472,7 +167,7 @@ class TestAgainstTheOldPath:
     def test_same_gradient(
         self,
         bkd: Backend[Array],
-        make: Callable[[], _Method],
+        make: Callable[[], Method],
         old: Callable[..., object],
     ) -> None:
         param = bkd.asarray(LV_PARAM)
@@ -482,19 +177,19 @@ class TestAgainstTheOldPath:
         newton: NewtonSolver[Array] = NewtonSolver(old_stepper)
         newton.set_options(atol=1e-13, rtol=0.0, maxiters=30)
         operator = TimeAdjointOperatorWithHVP(
-            TimeIntegrator(0.0, 0.5, 0.05, newton), _functional(bkd)
+            TimeIntegrator(0.0, 0.5, 0.05, newton), tikhonov_mse(bkd)
         )
         old_gradient = operator.jacobian(bkd.asarray([10.0, 5.0]), param)
         bkd.assert_allclose(
-            _Problem(bkd, make()).gradient(param), old_gradient, rtol=1e-10
+            TrajectoryProblem(bkd, make()).gradient(param), old_gradient, rtol=1e-10
         )
 
 
-_CONSTRAINED: List[Callable[[], _Method]] = [
+_CONSTRAINED: List[Callable[[], Method]] = [
     backward_euler,
     heun,
     classical_rk4,
-    *_MULTISTEP,
+    *MULTISTEP,
 ]
 _CONSTRAINED_IDS = [make().name for make in _CONSTRAINED]
 # Which parameter-dependent pieces a case has: (constraint, initial state).
@@ -504,14 +199,14 @@ _PIECES = {"constraint": (True, False), "start": (False, True), "both": (True, T
 
 
 def _pieces_problem(
-    bkd: Backend[Array], make: Callable[[], _Method], pieces: str
-) -> _Problem[Array]:
+    bkd: Backend[Array], make: Callable[[], Method], pieces: str
+) -> TrajectoryProblem[Array]:
     pin, start = _PIECES[pieces]
-    return _Problem(
+    return TrajectoryProblem(
         bkd,
         make(),
-        _CurvedPin(bkd) if pin else None,
-        _ScaledStart(bkd) if start else None,
+        CurvedPin(bkd) if pin else None,
+        ScaledStart(bkd) if start else None,
     )
 
 
@@ -519,27 +214,27 @@ class TestConstraintAndInitialState:
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_matches_finite_differences(
-        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], Method], pieces: str
     ) -> None:
-        assert _min_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
+        assert min_gradient_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
 
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_tangent_is_the_gradient_in_a_direction(
-        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], Method], pieces: str
     ) -> None:
         problem = _pieces_problem(bkd, make, pieces)
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         expected = problem.gradient(param) @ direction
         bkd.assert_allclose(problem.tangent(param, direction), expected, rtol=1e-12)
 
     def test_store_records_where_the_constraint_was_applied(
         self, bkd: Backend[Array]
     ) -> None:
-        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
+        problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
         param = bkd.asarray(LV_PARAM)
         store = problem.solve(param)
-        bkd.assert_allclose(store.unconstrained(0), _ScaledStart(bkd).start(param))
+        bkd.assert_allclose(store.unconstrained(0), ScaledStart(bkd).start(param))
         readout = problem.stepper().readout()
         for n in range(store.nsteps()):
             stepped = readout.apply(store.window(n).unknown).blocks[0]
@@ -548,7 +243,7 @@ class TestConstraintAndInitialState:
     def test_the_residual_initial_state_is_its_stated_zero(
         self, bkd: Backend[Array]
     ) -> None:
-        initial = ResidualInitialState(
+        initial: ResidualInitialState[Array] = ResidualInitialState(
             lotka_volterra_with_mass(bkd), BackendColumnForm(bkd)
         )
         assert isinstance(initial, InitialStateDerivativeProtocol)
@@ -558,28 +253,28 @@ class TestConstraintAndInitialState:
 
 
 class TestHessianVectorProduct:
-    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
+    @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
     def test_matches_finite_differences_of_the_gradient(
-        self, bkd: Backend[Array], make: Callable[[], _Method]
+        self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        assert _min_hvp_fd_error(bkd, _Problem(bkd, make())) < 1e-7
+        assert min_hvp_fd_error(bkd, TrajectoryProblem(bkd, make())) < 1e-7
 
-    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
+    @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
     def test_is_symmetric(
-        self, bkd: Backend[Array], make: Callable[[], _Method]
+        self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        assert _symmetry_error(bkd, _Problem(bkd, make())) < 1e-10
+        assert hvp_symmetry_error(bkd, TrajectoryProblem(bkd, make())) < 1e-10
 
     def test_the_tangent_store_holds_the_tangent_trajectory(
         self, bkd: Backend[Array]
     ) -> None:
         """The tangents recorded for the HVP give the tangent sweep's
         directional derivative: sum_m <Q_y_m, w_m> + <Q_p, v>."""
-        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         store = problem.solve(param)
         functional = BackendSecondOrderTrajectoryFunctional(
-            _functional(bkd), store, param
+            tikhonov_mse(bkd), store, param
         )
         tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
@@ -602,11 +297,11 @@ class TestHessianVectorProduct:
 
 class TestHessianVectorProductContracts:
     def test_gradient_and_hvp_gives_the_gradient(self, bkd: Backend[Array]) -> None:
-        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         store = problem.solve(param)
         functional = BackendSecondOrderTrajectoryFunctional(
-            _functional(bkd), store, param
+            tikhonov_mse(bkd), store, param
         )
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper(),
@@ -621,8 +316,8 @@ class TestHessianVectorProductContracts:
         """From the tangent recorded at step 4, tangent_step reproduces
         the rest of the recorded tangent trajectory: what a checkpointing
         store does to recompute a segment."""
-        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         store = problem.solve(param)
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper(),
@@ -631,7 +326,7 @@ class TestHessianVectorProductContracts:
         )
         tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         functional = BackendSecondOrderTrajectoryFunctional(
-            _functional(bkd), store, param
+            tikhonov_mse(bkd), store, param
         )
         sweeps.hvp(store, functional, direction, tangents)
         initial = sweeps.tangent_initial(store, direction)
@@ -656,20 +351,20 @@ class TestHessianVectorProductAgainstTheOldPath:
     def test_same_hvp(
         self,
         bkd: Backend[Array],
-        make: Callable[[], _Method],
+        make: Callable[[], Method],
         old: Callable[..., object],
     ) -> None:
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         old_stepper = old(lotka_volterra_with_mass(bkd))
         assert isinstance(old_stepper, TimeSteppingResidualProtocol)
         newton: NewtonSolver[Array] = NewtonSolver(old_stepper)
         newton.set_options(atol=1e-13, rtol=0.0, maxiters=30)
         operator = TimeAdjointOperatorWithHVP(
-            TimeIntegrator(0.0, 0.5, 0.05, newton), _functional(bkd)
+            TimeIntegrator(0.0, 0.5, 0.05, newton), tikhonov_mse(bkd)
         )
         old_hvp = operator.hvp(bkd.asarray([10.0, 5.0]), param, direction)
         bkd.assert_allclose(
-            _Problem(bkd, make()).hvp(param, direction),
+            TrajectoryProblem(bkd, make()).hvp(param, direction),
             bkd.reshape(old_hvp, (-1, 1)),
             rtol=1e-10,
         )
@@ -679,20 +374,20 @@ class TestHessianVectorProductConstraintAndInitialState:
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_matches_finite_differences_of_the_gradient(
-        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], Method], pieces: str
     ) -> None:
-        assert _min_hvp_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
+        assert min_hvp_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
 
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_is_symmetric(
-        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], Method], pieces: str
     ) -> None:
-        assert _symmetry_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-10
+        assert hvp_symmetry_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-10
 
 
-class _FlatStart(_ScaledStart[Array]):
-    """:class:`_ScaledStart` without its curvature."""
+class _FlatStart(ScaledStart[Array]):
+    """:class:`ScaledStart` without its curvature."""
 
     def curvature(self, weight: Array) -> Optional[DerivativeOperator[Array]]:
         return None
@@ -700,19 +395,19 @@ class _FlatStart(_ScaledStart[Array]):
 
 class TestHessianVectorProductRefusals:
     def test_a_functional_without_second_derivatives(self, bkd: Backend[Array]) -> None:
-        problem = _Problem(bkd, heun())
+        problem = TrajectoryProblem(bkd, heun())
         param = bkd.asarray(LV_PARAM)
         store = problem.solve(param)
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper()
         )
         with pytest.raises(TypeError, match="SecondOrderTrajectoryFunctional"):
-            sweeps.hvp(store, problem.coupling(store, param), _direction(bkd))  # type: ignore[arg-type]
+            sweeps.hvp(store, problem.coupling(store, param), random_direction(bkd))  # type: ignore[arg-type]
 
     def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:
-        problem = _Problem(bkd, heun(), start=_FlatStart(bkd))
+        problem = TrajectoryProblem(bkd, heun(), start=_FlatStart(bkd))
         with pytest.raises(TypeError, match="no curvature"):
-            problem.hvp(bkd.asarray(LV_PARAM), _direction(bkd))
+            problem.hvp(bkd.asarray(LV_PARAM), random_direction(bkd))
 
 
 class _OneColumn(Generic[Array]):
@@ -824,13 +519,13 @@ def _one_column_system(
 
 
 class TestNoStateByParameterMatrix:
-    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
+    @pytest.mark.parametrize("make", SOME_METHODS, ids=SOME_IDS)
     def test_parameter_terms_are_applied_one_column_at_a_time(
-        self, bkd: Backend[Array], make: Callable[[], _Method]
+        self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        refusing = _Problem(bkd, make(), system=_one_column_system)
-        plain = _Problem(bkd, make())
-        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        refusing = TrajectoryProblem(bkd, make(), system=_one_column_system)
+        plain = TrajectoryProblem(bkd, make())
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         bkd.assert_allclose(refusing.gradient(param), plain.gradient(param), rtol=1e-14)
         bkd.assert_allclose(
             refusing.tangent(param, direction),
@@ -1129,7 +824,7 @@ def _mock_value(
 
 
 def _mock_problem(
-    make: Callable[[], _Method],
+    make: Callable[[], Method],
     pin: Optional[_MockPin] = None,
 ) -> tuple[_MockStepper, Callable[[NDArray[Any]], InMemoryTrajectoryStore[MockVector]]]:
     """The mock-stack stepper of :class:`_MockAffineRhs`, and a solve from
@@ -1139,7 +834,7 @@ def _mock_problem(
     newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
     jacobian = rhs.derivatives().jacobian
     assert jacobian is not None
-    system = MassFormSystem(
+    system: MassFormSystem[MockVector, NDArray[Any], MockFormat] = MassFormSystem(
         rhs=rhs,
         mass=MockOperator.identity(MOCK_STATE),
         jacobian=jacobian,
@@ -1161,7 +856,7 @@ def _mock_problem(
         if pin is not None:
             pin.set_param(param)
         store: InMemoryTrajectoryStore[MockVector] = InMemoryTrajectoryStore()
-        Integrator(stepper, pin).solve(wrap(start.copy(), MOCK_STATE), _TIMES, store)
+        Integrator(stepper, pin).solve(wrap(start.copy(), MOCK_STATE), TIMES, store)
         return store
 
     return stepper, solve
@@ -1220,7 +915,7 @@ class _MockDerivatives:
 
     def __init__(
         self,
-        make: Callable[[], _Method],
+        make: Callable[[], Method],
         functional: _MockFunctional,
         value: _MockValue,
         pin: Optional[_MockPin] = None,
@@ -1298,8 +993,8 @@ _MOCK_DIRECTION = np.array([[0.6], [1.3]])
 
 
 class TestMockStack:
-    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
-    def test_linear_functional(self, make: Callable[[], _Method]) -> None:
+    @pytest.mark.parametrize("make", SOME_METHODS, ids=SOME_IDS)
+    def test_linear_functional(self, make: Callable[[], Method]) -> None:
         r""":math:`Q = c^\top y_N + d^\top p` on an affine model: the gradient
         passes the checker, and the tangent is the gradient in a
         direction."""
@@ -1314,16 +1009,16 @@ class TestMockStack:
             rtol=1e-12,
         )
 
-    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
-    def test_quadratic_in_the_last_state(self, make: Callable[[], _Method]) -> None:
+    @pytest.mark.parametrize("make", SOME_METHODS, ids=SOME_IDS)
+    def test_quadratic_in_the_last_state(self, make: Callable[[], Method]) -> None:
         r""":math:`Q = \tfrac12 |y_N|^2 + d^\top p`: the Hessian
         :math:`(dy_N/dp)^\top (dy_N/dp)` comes from the sweeps alone."""
         problem = _MockDerivatives(make, _quadratic_last, _quadratic_last_value)
         gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
         assert gradient_error < 1e-8 and hvp_error < 1e-8
 
-    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
-    def test_parameter_terms(self, make: Callable[[], _Method]) -> None:
+    @pytest.mark.parametrize("make", SOME_METHODS, ids=SOME_IDS)
+    def test_parameter_terms(self, make: Callable[[], Method]) -> None:
         """:class:`_MockCross`: every second derivative of Q nonzero."""
         problem = _MockDerivatives(make, _MockCross, _mock_value)
         gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
@@ -1351,8 +1046,8 @@ class TestMockStack:
         np.testing.assert_array_equal(peek(gradient), peek(expected_gradient))
         np.testing.assert_array_equal(peek(hvp), peek(expected_hvp))
 
-    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
-    def test_constraint(self, make: Callable[[], _Method]) -> None:
+    @pytest.mark.parametrize("make", SOME_METHODS, ids=SOME_IDS)
+    def test_constraint(self, make: Callable[[], Method]) -> None:
         """The constraint's first and second derivatives on a stack that
         writes ``out`` in place: the gradient and HVP pass the checker,
         and the tangent is the gradient in a direction."""
@@ -1370,7 +1065,7 @@ class TestRefusals:
     def test_a_trajectory_recorded_at_other_parameters(
         self, bkd: Backend[Array]
     ) -> None:
-        problem = _Problem(bkd, heun())
+        problem = TrajectoryProblem(bkd, heun())
         param = bkd.asarray(LV_PARAM)
         store = problem.solve(param)
         coupling = problem.coupling(store, param)
@@ -1384,7 +1079,7 @@ class TestRefusals:
     def test_a_stepper_without_parameters(self, bkd: Backend[Array]) -> None:
         stepper = rk_stepper(heun(), dense_mass_form_system(LinearMassModel(bkd)))
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(bkd.ones((3, 1)), _TIMES, store)
+        Integrator(stepper).solve(bkd.ones((3, 1)), TIMES, store)
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(stepper)
         functional = _ZeroFunctional(bkd)
         with pytest.raises(TypeError, match="no parameter"):
@@ -1393,7 +1088,7 @@ class TestRefusals:
             TrajectoryDerivatives(object())  # type: ignore[arg-type]
 
     def test_functionals_the_adapter_cannot_serve(self, bkd: Backend[Array]) -> None:
-        store = _Problem(bkd, heun()).solve(bkd.asarray(LV_PARAM))
+        store = TrajectoryProblem(bkd, heun()).solve(bkd.asarray(LV_PARAM))
         with_sigma = TransientMSEFunctional(
             2, 4, [(0, bkd.asarray([2], dtype=int))], bkd
         )
@@ -1401,7 +1096,7 @@ class TestRefusals:
             BackendTrajectoryFunctional(with_sigma, store, bkd.asarray(LV_PARAM))
         with pytest.raises(ValueError, match="shape"):
             BackendTrajectoryFunctional(
-                _functional(bkd), store, bkd.flatten(bkd.asarray(LV_PARAM))
+                tikhonov_mse(bkd), store, bkd.flatten(bkd.asarray(LV_PARAM))
             )
         with pytest.raises(TypeError, match="TransientFunctionalProtocol"):
             BackendTrajectoryFunctional(object(), store, bkd.asarray(LV_PARAM))  # type: ignore[arg-type]
