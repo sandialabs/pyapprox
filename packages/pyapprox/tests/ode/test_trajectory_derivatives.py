@@ -29,7 +29,7 @@ directly.
   parameters, and functionals the adapter cannot serve.
 """
 
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Callable, Generic, List, Optional, Union
 
 import numpy as np
 import pytest
@@ -52,7 +52,9 @@ from pyapprox.ode.implicit_steppers import (
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.integration import Integrator, ResidualFormConstraint
+from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
+from pyapprox.ode.multistep_methods import MultistepMethod
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.protocols import TimeSteppingResidualProtocol
 from pyapprox.ode.residual_derivatives import (
@@ -107,6 +109,7 @@ from tests._helpers.linalg.mock_stack import (
     peek,
     wrap,
 )
+from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
 from tests._helpers.ode.runge_kutta_cases import (
     LINEAR_K,
     LV_PARAM,
@@ -121,8 +124,34 @@ from tests._helpers.ode_models import LotkaVolterra
 
 _TIMES = [0.05 * n for n in range(11)]
 _START = [[10.0], [5.0]]
-_ALL_TABLEAUX = [make for make, *_ in TABLEAUX]
-_Stepper = RungeKuttaStepper[Array, Array, DenseFormat[Array]]
+_Method = Union[ButcherTableau, MultistepMethod]
+_MULTISTEP = [make for make, *_ in METHODS]
+# Every one-step and multistep method: the sweeps are generic in both.
+_ALL_METHODS: List[Callable[[], _Method]] = [
+    *(make for make, *_ in TABLEAUX),
+    *_MULTISTEP,
+]
+_ALL_IDS = TABLEAU_IDS + METHOD_IDS
+# A one-step pair (explicit and implicit) and every multistep method, for
+# the costlier checks.
+_SOME_METHODS: List[Callable[[], _Method]] = [backward_euler, heun, *_MULTISTEP]
+_SOME_IDS = [make().name for make in _SOME_METHODS]
+_Stepper = Union[
+    RungeKuttaStepper[Array, Array, DenseFormat[Array]],
+    LinearMultistepStepper[Array, Array, DenseFormat[Array]],
+]
+
+
+def _make_stepper(
+    method: _Method, system: MassFormSystem[Array, Array, DenseFormat[Array]]
+) -> _Stepper[Array]:
+    """The stepper of a tableau or of a multistep method."""
+    stepper: _Stepper[Array] = (
+        rk_stepper(method, system)
+        if isinstance(method, ButcherTableau)
+        else lm_stepper(method, system)
+    )
+    return stepper
 
 
 def _functional(bkd: Backend[Array]) -> TikhonovAugmentedFunctional[Array]:
@@ -268,7 +297,7 @@ class _Problem(Generic[Array]):
     ----------
     bkd : Backend
         The backend.
-    tableau : ButcherTableau
+    method : ButcherTableau or MultistepMethod
         The method.
     pin : _CurvedPin, optional
         A constraint at stored states.
@@ -282,7 +311,7 @@ class _Problem(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        tableau: ButcherTableau,
+        method: _Method,
         pin: Optional[_CurvedPin[Array]] = None,
         start: Optional[_ScaledStart[Array]] = None,
         system: Optional[
@@ -295,7 +324,7 @@ class _Problem(Generic[Array]):
         self._bkd, self._pin, self._start = bkd, pin, start
         self._model = lotka_volterra_with_mass(bkd)
         build = dense_mass_form_system if system is None else system
-        self._stepper: _Stepper[Array] = rk_stepper(tableau, build(self._model))
+        self._stepper: _Stepper[Array] = _make_stepper(method, build(self._model))
         constraint = (
             None if pin is None else ResidualFormConstraint(pin, BackendColumnForm(bkd))
         )
@@ -410,15 +439,15 @@ def _min_fd_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
 
 
 class TestGradient:
-    @pytest.mark.parametrize("make", _ALL_TABLEAUX, ids=TABLEAU_IDS)
+    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
     def test_matches_finite_differences(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self, bkd: Backend[Array], make: Callable[[], _Method]
     ) -> None:
         assert _min_fd_error(bkd, _Problem(bkd, make())) < 1e-7
 
-    @pytest.mark.parametrize("make", _ALL_TABLEAUX, ids=TABLEAU_IDS)
+    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
     def test_tangent_is_the_gradient_in_a_direction(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self, bkd: Backend[Array], make: Callable[[], _Method]
     ) -> None:
         problem = _Problem(bkd, make())
         param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
@@ -427,7 +456,7 @@ class TestGradient:
 
 
 # The old path's stepper class for each tableau, for the same method.
-_OLD_STEPPERS: list[tuple[Callable[[], ButcherTableau], Callable[..., object]]] = [
+_OLD_STEPPERS: list[tuple[Callable[[], _Method], Callable[..., object]]] = [
     (backward_euler, BackwardEulerHVP),
     (forward_euler, ForwardEulerHVP),
     (crank_nicolson, CrankNicolsonHVP),
@@ -443,7 +472,7 @@ class TestAgainstTheOldPath:
     def test_same_gradient(
         self,
         bkd: Backend[Array],
-        make: Callable[[], ButcherTableau],
+        make: Callable[[], _Method],
         old: Callable[..., object],
     ) -> None:
         param = bkd.asarray(LV_PARAM)
@@ -461,7 +490,12 @@ class TestAgainstTheOldPath:
         )
 
 
-_CONSTRAINED = [backward_euler, heun, classical_rk4]
+_CONSTRAINED: List[Callable[[], _Method]] = [
+    backward_euler,
+    heun,
+    classical_rk4,
+    *_MULTISTEP,
+]
 _CONSTRAINED_IDS = [make().name for make in _CONSTRAINED]
 # Which parameter-dependent pieces a case has: (constraint, initial state).
 # Each is checked alone, so a wrong term in one cannot hide behind the
@@ -470,7 +504,7 @@ _PIECES = {"constraint": (True, False), "start": (False, True), "both": (True, T
 
 
 def _pieces_problem(
-    bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+    bkd: Backend[Array], make: Callable[[], _Method], pieces: str
 ) -> _Problem[Array]:
     pin, start = _PIECES[pieces]
     return _Problem(
@@ -485,14 +519,14 @@ class TestConstraintAndInitialState:
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_matches_finite_differences(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
     ) -> None:
         assert _min_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
 
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_tangent_is_the_gradient_in_a_direction(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
     ) -> None:
         problem = _pieces_problem(bkd, make, pieces)
         param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
@@ -524,15 +558,15 @@ class TestConstraintAndInitialState:
 
 
 class TestHessianVectorProduct:
-    @pytest.mark.parametrize("make", _ALL_TABLEAUX, ids=TABLEAU_IDS)
+    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
     def test_matches_finite_differences_of_the_gradient(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self, bkd: Backend[Array], make: Callable[[], _Method]
     ) -> None:
         assert _min_hvp_fd_error(bkd, _Problem(bkd, make())) < 1e-7
 
-    @pytest.mark.parametrize("make", _ALL_TABLEAUX, ids=TABLEAU_IDS)
+    @pytest.mark.parametrize("make", _ALL_METHODS, ids=_ALL_IDS)
     def test_is_symmetric(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self, bkd: Backend[Array], make: Callable[[], _Method]
     ) -> None:
         assert _symmetry_error(bkd, _Problem(bkd, make())) < 1e-10
 
@@ -622,7 +656,7 @@ class TestHessianVectorProductAgainstTheOldPath:
     def test_same_hvp(
         self,
         bkd: Backend[Array],
-        make: Callable[[], ButcherTableau],
+        make: Callable[[], _Method],
         old: Callable[..., object],
     ) -> None:
         param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
@@ -645,14 +679,14 @@ class TestHessianVectorProductConstraintAndInitialState:
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_matches_finite_differences_of_the_gradient(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
     ) -> None:
         assert _min_hvp_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
 
     @pytest.mark.parametrize("pieces", list(_PIECES))
     @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
     def test_is_symmetric(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+        self, bkd: Backend[Array], make: Callable[[], _Method], pieces: str
     ) -> None:
         assert _symmetry_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-10
 
@@ -790,9 +824,9 @@ def _one_column_system(
 
 
 class TestNoStateByParameterMatrix:
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
+    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
     def test_parameter_terms_are_applied_one_column_at_a_time(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self, bkd: Backend[Array], make: Callable[[], _Method]
     ) -> None:
         refusing = _Problem(bkd, make(), system=_one_column_system)
         plain = _Problem(bkd, make())
@@ -1013,7 +1047,10 @@ class _OneBuffer:
         return self._into(self._param, self._inner.param_param(v))
 
 
-_MockStepper = RungeKuttaStepper[MockVector, NDArray[Any], MockFormat]
+_MockStepper = Union[
+    RungeKuttaStepper[MockVector, NDArray[Any], MockFormat],
+    LinearMultistepStepper[MockVector, NDArray[Any], MockFormat],
+]
 
 
 class _MockPin:
@@ -1092,7 +1129,7 @@ def _mock_value(
 
 
 def _mock_problem(
-    make: Callable[[], ButcherTableau],
+    make: Callable[[], _Method],
     pin: Optional[_MockPin] = None,
 ) -> tuple[_MockStepper, Callable[[NDArray[Any]], InMemoryTrajectoryStore[MockVector]]]:
     """The mock-stack stepper of :class:`_MockAffineRhs`, and a solve from
@@ -1110,9 +1147,12 @@ def _mock_problem(
         solver=MockLU(),
         form=IdentityForm(),
     )
-    tableau = make()
-    stepper: _MockStepper = RungeKuttaStepper(
-        tableau, system, None if tableau.is_explicit() else newton
+    method = make()
+    solver = None if method.is_explicit() else newton
+    stepper: _MockStepper = (
+        RungeKuttaStepper(method, system, solver)
+        if isinstance(method, ButcherTableau)
+        else LinearMultistepStepper(method, system, solver)
     )
     start = np.array([[1.0], [-0.5], [0.8]])
 
@@ -1180,7 +1220,7 @@ class _MockDerivatives:
 
     def __init__(
         self,
-        make: Callable[[], ButcherTableau],
+        make: Callable[[], _Method],
         functional: _MockFunctional,
         value: _MockValue,
         pin: Optional[_MockPin] = None,
@@ -1258,8 +1298,8 @@ _MOCK_DIRECTION = np.array([[0.6], [1.3]])
 
 
 class TestMockStack:
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
-    def test_linear_functional(self, make: Callable[[], ButcherTableau]) -> None:
+    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
+    def test_linear_functional(self, make: Callable[[], _Method]) -> None:
         r""":math:`Q = c^\top y_N + d^\top p` on an affine model: the gradient
         passes the checker, and the tangent is the gradient in a
         direction."""
@@ -1274,18 +1314,16 @@ class TestMockStack:
             rtol=1e-12,
         )
 
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
-    def test_quadratic_in_the_last_state(
-        self, make: Callable[[], ButcherTableau]
-    ) -> None:
+    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
+    def test_quadratic_in_the_last_state(self, make: Callable[[], _Method]) -> None:
         r""":math:`Q = \tfrac12 |y_N|^2 + d^\top p`: the Hessian
         :math:`(dy_N/dp)^\top (dy_N/dp)` comes from the sweeps alone."""
         problem = _MockDerivatives(make, _quadratic_last, _quadratic_last_value)
         gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
         assert gradient_error < 1e-8 and hvp_error < 1e-8
 
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
-    def test_parameter_terms(self, make: Callable[[], ButcherTableau]) -> None:
+    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
+    def test_parameter_terms(self, make: Callable[[], _Method]) -> None:
         """:class:`_MockCross`: every second derivative of Q nonzero."""
         problem = _MockDerivatives(make, _MockCross, _mock_value)
         gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
@@ -1313,8 +1351,8 @@ class TestMockStack:
         np.testing.assert_array_equal(peek(gradient), peek(expected_gradient))
         np.testing.assert_array_equal(peek(hvp), peek(expected_hvp))
 
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
-    def test_constraint(self, make: Callable[[], ButcherTableau]) -> None:
+    @pytest.mark.parametrize("make", _SOME_METHODS, ids=_SOME_IDS)
+    def test_constraint(self, make: Callable[[], _Method]) -> None:
         """The constraint's first and second derivatives on a stack that
         writes ``out`` in place: the gradient and HVP pass the checker,
         and the tangent is the gradient in a direction."""
