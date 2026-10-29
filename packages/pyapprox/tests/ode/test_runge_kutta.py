@@ -26,69 +26,41 @@ equal their closed forms, so the stepper uses only the space, the
 operators, the solvers and the form.
 """
 
-from typing import Any, Callable, Generic, List
+from typing import Any, Callable
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
-from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix
-from pyapprox.ode.residual_derivatives import (
-    ODEResidualDerivatives,
-    backend_state_space,
-    dense_jacobian,
-)
-from pyapprox.ode.residual_form import IdentityForm
+from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import (
     ButcherTableau,
-    alexander_sdirk3,
     backward_euler,
     classical_rk4,
-    crank_nicolson,
     forward_euler,
-    heun,
-    implicit_midpoint,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
-from pyapprox.util.linalg.operators import (
-    BlockVector,
-    LinearizationPoint,
-    LinearizedOperator,
-    SpaceDescriptor,
-)
-from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.linalg.mock_stack import (
-    MockFormat,
-    MockLU,
-    MockOperator,
-    MockVector,
-    MockVectorSpace,
     peek,
     wrap,
 )
-from tests._helpers.ode_models import LotkaVolterra
+from tests._helpers.ode.runge_kutta_cases import (
+    LINEAR_K,
+    LINEAR_MASS,
+    MOCK_STATE,
+    TABLEAU_IDS,
+    TABLEAUX,
+    LinearMassModel,
+    lotka_volterra_with_mass,
+    mock_stepper,
+    new_state,
+    rk_stepper,
+)
 
 _Np = NDArray[np.float64]
-
-# (tableau, order, explicit, trivial first stage, stiffly accurate)
-_TABLEAUX: List[tuple[Callable[[], ButcherTableau], int, bool, bool, bool]] = [
-    (forward_euler, 1, True, True, False),
-    (backward_euler, 1, False, False, True),
-    (crank_nicolson, 2, False, True, True),
-    (implicit_midpoint, 2, False, False, False),
-    (heun, 2, True, True, False),
-    (classical_rk4, 4, True, True, False),
-    (alexander_sdirk3, 3, False, False, True),
-]
-_IDS = [make().name for make, *_ in _TABLEAUX]
-
-_MASS = [[2.0, 0.5, 0.0], [0.5, 1.5, 0.2], [0.0, 0.2, 1.0]]
-_K = [[-1.0, 0.3, 0.0], [0.2, -0.8, 0.1], [0.0, 0.4, -1.2]]
 
 
 def _arrays(tableau: ButcherTableau) -> tuple[_Np, _Np, _Np]:
@@ -97,7 +69,7 @@ def _arrays(tableau: ButcherTableau) -> tuple[_Np, _Np, _Np]:
 
 class TestTableaux:
     @pytest.mark.parametrize(
-        "make, order, explicit, trivial, stiff", _TABLEAUX, ids=_IDS
+        "make, order, explicit, trivial, stiff", TABLEAUX, ids=TABLEAU_IDS
     )
     def test_order_conditions_and_structure(
         self,
@@ -138,48 +110,10 @@ class TestTableaux:
             ButcherTableau(a=((1.0,),), b=(1.0,), c=(0.5,), name="bad")
 
 
-class _LinearModel(Generic[Array]):
-    """:math:`M \\dot y = K y` on the backend, with a dense Jacobian."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-        self._k = bkd.asarray(_K)
-        self._mass = ConstantDenseMassMatrix(bkd.asarray(_MASS), bkd)
-        states = backend_state_space(bkd, 3)
-        self._derivatives: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
-            ODEResidualDerivatives.state_only(
-                dense_jacobian(self.jacobian, states, bkd)
-            )
-        )
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def __call__(self, state: Array, time: float) -> Array:
-        return self._bkd.dot(self._k, state)
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        return self._k
-
-    def mass_matrix(self) -> ConstantDenseMassMatrix[Array]:
-        return self._mass
-
-    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
-        return self._derivatives
-
-
-def _stepper(
-    tableau: ButcherTableau,
-    system: MassFormSystem[Array, Array, DenseFormat[Array]],
-) -> RungeKuttaStepper[Array, Array, DenseFormat[Array]]:
-    newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
-    return RungeKuttaStepper(tableau, system, None if tableau.is_explicit() else newton)
-
-
 def _closed_form_step(tableau: ButcherTableau, y: _Np, deltat: float) -> _Np:
     """The Runge-Kutta update of a linear system from the tableau alone."""
     a, b, _ = _arrays(tableau)
-    z = np.linalg.solve(np.array(_MASS), np.array(_K))
+    z = np.linalg.solve(np.array(LINEAR_MASS), np.array(LINEAR_K))
     n, s = z.shape[0], len(b)
     stages = np.linalg.solve(
         np.eye(s * n) - deltat * np.kron(a, z), np.kron(np.ones(s), y)
@@ -187,24 +121,17 @@ def _closed_form_step(tableau: ButcherTableau, y: _Np, deltat: float) -> _Np:
     return y + deltat * np.kron(b, z) @ stages
 
 
-def _new_state(
-    stepper: RungeKuttaStepper[Array, Array, DenseFormat[Array]],
-    unknown: BlockVector[Array],
-) -> Array:
-    return stepper.readout().apply(unknown).blocks[0]
-
-
 class TestLinearStep:
-    @pytest.mark.parametrize("make", [make for make, *_ in _TABLEAUX], ids=_IDS)
+    @pytest.mark.parametrize("make", [make for make, *_ in TABLEAUX], ids=TABLEAU_IDS)
     def test_one_step_is_the_closed_form_update(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
         tableau = make()
-        stepper = _stepper(tableau, dense_mass_form_system(_LinearModel(bkd)))
+        stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
         y = np.array([1.0, -0.5, 2.0])
         unknown = stepper.step(bkd.asarray(y[:, None]), 0.3, 0.1)
         bkd.assert_allclose(
-            _new_state(stepper, unknown)[:, 0],
+            new_state(stepper, unknown)[:, 0],
             bkd.asarray(_closed_form_step(tableau, y, 0.1)),
             rtol=1e-11,
         )
@@ -214,20 +141,18 @@ class TestLinearStep:
     ) -> None:
         with pytest.raises(TypeError, match="needs a nonlinear solver"):
             RungeKuttaStepper(
-                backward_euler(), dense_mass_form_system(_LinearModel(bkd))
+                backward_euler(), dense_mass_form_system(LinearMassModel(bkd))
             )
 
 
-def _lotka_volterra(bkd: Backend[Array]) -> LotkaVolterra[Array]:
-    return LotkaVolterra(bkd, mass=bkd.asarray([[2.0, 0.5], [0.5, 1.0]]))
-
-
 class TestNonlinearStep:
-    @pytest.mark.parametrize("make", [make for make, *_ in _TABLEAUX], ids=_IDS)
+    @pytest.mark.parametrize("make", [make for make, *_ in TABLEAUX], ids=TABLEAU_IDS)
     def test_the_step_residual_vanishes_at_the_step(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
-        stepper = _stepper(make(), dense_mass_form_system(_lotka_volterra(bkd)))
+        stepper = rk_stepper(
+            make(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
+        )
         y = bkd.asarray([[10.0], [5.0]])
         unknown = stepper.step(y, 0.2, 0.05)
         window = StepWindow(0.2, 0.05, (y,), unknown)
@@ -235,20 +160,20 @@ class TestNonlinearStep:
         assert bkd.to_float(residual[0, 0]) < 1e-10
 
     @pytest.mark.parametrize(
-        "make, order", [(make, order) for make, order, *_ in _TABLEAUX], ids=_IDS
+        "make, order", [(make, order) for make, order, *_ in TABLEAUX], ids=TABLEAU_IDS
     )
     def test_convergence_order(
         self, numpy_bkd: NumpyBkd, make: Callable[[], ButcherTableau], order: int
     ) -> None:
         bkd = numpy_bkd
-        system = dense_mass_form_system(_lotka_volterra(bkd))
+        system = dense_mass_form_system(lotka_volterra_with_mass(bkd))
 
         def solve(tableau: ButcherTableau, deltat: float) -> NDArray[Any]:
-            stepper = _stepper(tableau, system)
+            stepper = rk_stepper(tableau, system)
             y = bkd.asarray([[10.0], [5.0]])
             nsteps = round(0.2 / deltat)
             for n in range(nsteps):
-                y = _new_state(stepper, stepper.step(y, n * deltat, deltat))
+                y = new_state(stepper, stepper.step(y, n * deltat, deltat))
             return y
 
         reference = solve(classical_rk4(), 0.2 / 1600)
@@ -260,62 +185,20 @@ class TestNonlinearStep:
         assert all(abs(rate - order) < 0.15 for rate in rates), rates
 
 
-def _mock_rhs_operator() -> MockOperator:
-    return MockOperator.from_dense(np.array(_K), _MOCK_STATE)
-
-
-_MOCK_STATE = SpaceDescriptor("state", 3, "float64")
-
-
-class _MockLinear:
-    """:math:`\\dot y = K y` taking the mock stack's vectors directly."""
-
-    def __init__(self) -> None:
-        self._k = _mock_rhs_operator()
-        self._derivatives: ODEResidualDerivatives[MockVector, MockFormat] = (
-            ODEResidualDerivatives.state_only(self._jacobian)
-        )
-
-    def __call__(self, state: MockVector, time: float) -> MockVector:
-        return self._k.apply(state)
-
-    def _jacobian(
-        self, state: MockVector, time: float, point: LinearizationPoint
-    ) -> LinearizedOperator[MockVector, MockFormat]:
-        return LinearizedOperator(self._k, point)
-
-    def derivatives(self) -> ODEResidualDerivatives[MockVector, MockFormat]:
-        return self._derivatives
-
-
 class TestOnAnOpaqueStack:
     @pytest.mark.parametrize("make", [forward_euler, backward_euler])
     def test_euler_steps_are_their_closed_forms(
         self, make: Callable[[], ButcherTableau]
     ) -> None:
-        rhs = _MockLinear()
-        jacobian = rhs.derivatives().jacobian
-        assert jacobian is not None
-        system: MassFormSystem[MockVector, NDArray[Any], MockFormat] = MassFormSystem(
-            rhs=rhs,
-            mass=MockOperator.identity(_MOCK_STATE),
-            jacobian=jacobian,
-            space=MockVectorSpace(_MOCK_STATE),
-            solver=MockLU(),
-            form=IdentityForm(),
-        )
         tableau = make()
-        newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
-        stepper = RungeKuttaStepper(
-            tableau, system, None if tableau.is_explicit() else newton
-        )
+        stepper = mock_stepper(tableau)
         y = np.array([[1.0], [-0.5], [2.0]])
-        unknown = stepper.step(wrap(y, _MOCK_STATE), 0.0, 0.1)
-        k = np.array(_K)
+        unknown = stepper.step(wrap(y, MOCK_STATE), 0.0, 0.1)
+        k = np.array(LINEAR_K)
         expected = (
             y + 0.1 * k @ y
             if tableau.is_explicit()
             else np.linalg.solve(np.eye(3) - 0.1 * k, y)
         )
-        new_state = stepper.readout().apply(unknown).blocks[0]
-        np.testing.assert_allclose(peek(new_state), expected, rtol=1e-12)
+        stepped = stepper.readout().apply(unknown).blocks[0]
+        np.testing.assert_allclose(peek(stepped), expected, rtol=1e-12)

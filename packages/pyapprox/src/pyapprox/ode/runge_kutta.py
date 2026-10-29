@@ -33,12 +33,17 @@ from itertools import count
 from typing import Generic, List, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
+from pyapprox.ode.stepper_derivatives import (
+    StepOperator,
+    StepperDerivatives,
+    StepWindow,
+)
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     BlockInnerProductSpace,
+    BlockLowerTriangularHandle,
     BlockOperator,
     BlockVector,
     FormatProtocol,
@@ -366,6 +371,370 @@ class RungeKuttaStepper(Generic[V, A, F]):
         if self._final_block:
             blocks.append(block(window.unknown.blocks[-1], tableau.b))
         return BlockVector(tuple(blocks))
+
+    # ------------------------------------------------------------------
+    # The step's derivatives
+    #
+    # Row r of R_n is a stage row (stage i = unknown_stages[r], weights
+    # a[i]) or the final row (weights b); every row is
+    # M (value - y_n) - dt sum_j w_j f(Y_j). Column k of the unknown is
+    # stage unknown_stages[k], or y_{n+1} for the final block. Stage j of
+    # the tableau is the unknown's column j - first when it is an
+    # unknown; a trivial first stage is y_n, the lag-1 argument.
+    # ------------------------------------------------------------------
+
+    def _rows(self) -> List[tuple[float, ...]]:
+        """Each residual row's weights on the stages' f values."""
+        rows = [self._tableau.a[i] for i in self._unknown_stages]
+        if self._final_block:
+            rows.append(self._tableau.b)
+        return rows
+
+    def _stage_time(self, window: StepWindow[V], j: int) -> float:
+        return window.time + self._tableau.c[j] * window.deltat
+
+    def _converged_point(self, window: StepWindow[V]) -> LinearizationPoint:
+        """A label for a linearization at a converged step."""
+        return LinearizationPoint(
+            window.parameters_version, ("window", next(self._points))
+        )
+
+    def _jacobian_at(
+        self, window: StepWindow[V], stage: V, j: int
+    ) -> ActionOperatorProtocol[V, F]:
+        """:math:`J(Y_j, t_j)`."""
+        system = self._system
+        return system.jacobian(
+            system.form.to_residual(stage),
+            self._stage_time(window, j),
+            self._converged_point(window),
+        )
+
+    def _first_stage_offset(self) -> int:
+        """The tableau index of the unknown's first stage block."""
+        return 1 if self._tableau.has_trivial_first_stage() else 0
+
+    def _diag_blocks(
+        self, window: StepWindow[V]
+    ) -> List[List[Optional[ActionOperatorProtocol[V, F]]]]:
+        """The grid of :math:`\\partial R_n/\\partial u_n`."""
+        system, deltat = self._system, window.deltat
+        stages = self.stage_values(window)
+        offset = self._first_stage_offset()
+        nblocks = self._unknown_space.nblocks()
+        jacobians = {
+            k: self._jacobian_at(window, stages[k + offset], k + offset)
+            for k in range(len(self._unknown_stages))
+        }
+        grid: List[List[Optional[ActionOperatorProtocol[V, F]]]] = []
+        for r, row_weights in enumerate(self._rows()):
+            row: List[Optional[ActionOperatorProtocol[V, F]]] = [None] * nblocks
+            for k, jacobian in jacobians.items():
+                # Block (r, k) = delta_rk M - dt w_k J_k: row r holds
+                # M (its own unknown - y_n), so only its own column k = r
+                # carries M; w_k is row r's coefficient on stage k's f.
+                weight = row_weights[k + offset]
+                own_block = k == r
+                if weight == 0.0 and not own_block:
+                    continue
+                terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = []
+                if own_block:
+                    terms.append((1.0, system.mass))
+                if weight != 0.0:
+                    terms.append((-deltat * weight, jacobian))
+                row[k] = ScaledSum(terms, system.space)
+            if self._final_block and r == nblocks - 1:
+                # The final block's own column: M.
+                row[-1] = system.mass
+            grid.append(row)
+        return grid
+
+    def diag(self, window: StepWindow[V]) -> StepOperator[V]:
+        r""":math:`\partial R_n/\partial u_n`, block lower triangular: the
+        stage rows' :math:`\delta_{ik} M - \Delta t\, a_{ik} J_k`, the final
+        row's :math:`-\Delta t\, b_k J_k` and :math:`M`.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step's converged unknown, past state, time and size.
+        """
+        return BlockOperator(
+            self._diag_blocks(window), self._unknown_space, self._residual_space
+        )
+
+    def diag_handle(
+        self, window: StepWindow[V]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """A solver handle for :meth:`diag`: forward substitution with each
+        diagonal block set up by the system's solver."""
+        grid = self._diag_blocks(window)
+        handles = []
+        for r, row in enumerate(grid):
+            block = row[r]
+            if block is None:
+                raise ValueError(f"{self._tableau.name}: diagonal block {r} is zero")
+            handles.append(self._system.solver.setup(block))
+        operator = BlockOperator(grid, self._unknown_space, self._residual_space)
+        return BlockLowerTriangularHandle(operator, handles)
+
+    def _off_diag(self, window: StepWindow[V], lag: int) -> StepOperator[V]:
+        r""":math:`\partial R_n/\partial y_n`: :math:`-M` in every row, and
+        :math:`-\Delta t\, w_1 J(y_n)` from a trivial first stage.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        lag : int
+            Must be 1: a one-step method reads only :math:`y_n`.
+        """
+        if lag != 1:
+            raise ValueError(f"a one-step method has lag 1 only, got {lag}")
+        system, deltat = self._system, window.deltat
+        trivial = self._tableau.has_trivial_first_stage()
+        jacobian = (
+            self._jacobian_at(window, window.past_state(1), 0) if trivial else None
+        )
+        grid: List[List[Optional[LinearMapProtocol[V]]]] = []
+        for weights in self._rows():
+            terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = [
+                (-1.0, system.mass)
+            ]
+            if jacobian is not None and weights[0] != 0.0:
+                terms.append((-deltat * weights[0], jacobian))
+            grid.append([ScaledSum(terms, system.space)])
+        return BlockOperator(grid, self._state_space, self._residual_space)
+
+    def _param_block_space(self) -> BlockInnerProductSpace[V, A]:
+        """The parameters as a one-block space, from the residual's bundle.
+
+        Raises
+        ------
+        TypeError
+            If the bundle's parameter space has no inner product.
+        """
+        space = self._system.rhs.derivatives().param_space
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError(
+                "the residual's parameter space must be an inner-product space, "
+                f"got {type(space).__name__}"
+            )
+        return BlockInnerProductSpace([space], "param")
+
+    def param_space(self) -> Optional[BlockInnerProductSpace[V, A]]:
+        """The parameters as one-block vectors; ``None`` when the residual
+        has no parameter derivatives."""
+        if self._system.rhs.derivatives().param is None:
+            return None
+        return self._param_block_space()
+
+    def _param(self, window: StepWindow[V]) -> StepOperator[V]:
+        r""":math:`\partial R_n/\partial p`: row weights :math:`w`, each row
+        :math:`-\Delta t \sum_j w_j f_p(Y_j)` from the residual's ``param``.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        """
+        bundle = self._system.rhs.derivatives()
+        if bundle.param is None:
+            raise ValueError("the residual has no parameter derivatives")
+        form, space, deltat = self._system.form, self._system.space, window.deltat
+        stages = self.stage_values(window)
+        param_ops = [
+            bundle.param(form.to_residual(stage), self._stage_time(window, j))
+            for j, stage in enumerate(stages)
+        ]
+        params = self._param_block_space()
+        grid: List[List[Optional[LinearMapProtocol[V]]]] = []
+        for weights in self._rows():
+            terms = [
+                (-deltat * weight, op)
+                for weight, op in zip(weights, param_ops)
+                if weight != 0.0
+            ]
+            grid.append([ScaledSum(terms, space, params.component(0))])
+        return BlockOperator(grid, params, self._residual_space)
+
+    def _stage_adjoints(self, window: StepWindow[V], adj: BlockVector[V]) -> List[V]:
+        r"""The stage adjoints :math:`\lambda_j = -\Delta t \sum_r w_{rj}\,
+        \mu_r`: :math:`\mu^\top R_n` depends on stage :math:`j` only through
+        :math:`\lambda_j^\top f(Y_j)`.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        adj : BlockVector
+            :math:`\mu`, a single column of the residual space.
+        """
+        space, deltat = self._system.space, window.deltat
+        rows = self._rows()
+        adjoints: List[V] = []
+        for j in range(self._tableau.nstages()):
+            total = space.zeros()
+            for weights, mu in zip(rows, adj.blocks):
+                if weights[j] != 0.0:
+                    total = space.axpby(-deltat * weights[j], mu, 1.0, total, out=total)
+            adjoints.append(total)
+        return adjoints
+
+    def _stage_terms(
+        self, window: StepWindow[V], adj: BlockVector[V]
+    ) -> List[tuple[V, float, V]]:
+        """For each stage, its value, time and adjoint in the residual's
+        form, ready for the residual bundle's second derivatives."""
+        to_residual = self._system.form.to_residual
+        return [
+            (to_residual(stage), self._stage_time(window, j), to_residual(adjoint))
+            for j, (stage, adjoint) in enumerate(
+                zip(self.stage_values(window), self._stage_adjoints(window, adj))
+            )
+        ]
+
+    def _state_state(
+        self, window: StepWindow[V], adj: BlockVector[V], a: int, b: int
+    ) -> StepOperator[V]:
+        r"""The :math:`(a, b)` lag block of :math:`\mu^\top \partial^2 R_n`:
+        for :math:`(0, 0)` block diagonal over the unknown stages,
+        :math:`\lambda_k^\top f_{yy}(Y_k)`; for :math:`(1, 1)` the trivial
+        first stage's :math:`\lambda_1^\top f_{yy}(y_n)`.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        adj : BlockVector
+            :math:`\mu`.
+        a, b : int
+            The lags; only declared pairs are asked for.
+        """
+        field = self._system.rhs.derivatives().state_state
+        if field is None:
+            raise ValueError("the residual has no second derivatives")
+        terms = self._stage_terms(window, adj)
+        offset = self._first_stage_offset()
+        if (a, b) == (0, 0):
+            nblocks = self._unknown_space.nblocks()
+            grid: List[List[Optional[LinearMapProtocol[V]]]] = [
+                [None] * nblocks for _ in range(nblocks)
+            ]
+            for k in range(len(self._unknown_stages)):
+                grid[k][k] = field(*terms[k + offset])
+            return BlockOperator(grid, self._unknown_space, self._unknown_space)
+        if (a, b) == (1, 1) and offset == 1:
+            return BlockOperator(
+                [[field(*terms[0])]], self._state_space, self._state_space
+            )
+        raise ValueError(f"the ({a}, {b}) block is not declared nonzero")
+
+    def _state_param(
+        self, window: StepWindow[V], adj: BlockVector[V], a: int
+    ) -> StepOperator[V]:
+        r"""The parameters-to-lag-:math:`a` block of
+        :math:`\mu^\top \partial^2 R_n`: :math:`\lambda_j^\top f_{yp}(Y_j)`
+        for the unknown stages (lag 0) or the trivial first stage (lag 1).
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        adj : BlockVector
+            :math:`\mu`.
+        a : int
+            The lag; only declared lags are asked for.
+        """
+        field = self._system.rhs.derivatives().state_param
+        if field is None:
+            raise ValueError("the residual has no second derivatives")
+        terms = self._stage_terms(window, adj)
+        offset = self._first_stage_offset()
+        params = self._param_block_space()
+        if a == 0:
+            grid: List[List[Optional[LinearMapProtocol[V]]]] = [
+                [None] for _ in range(self._unknown_space.nblocks())
+            ]
+            for k in range(len(self._unknown_stages)):
+                grid[k][0] = field(*terms[k + offset])
+            return BlockOperator(grid, params, self._unknown_space)
+        if a == 1 and offset == 1:
+            return BlockOperator([[field(*terms[0])]], params, self._state_space)
+        raise ValueError(f"lag {a} is not declared nonzero")
+
+    def _param_param(
+        self, window: StepWindow[V], adj: BlockVector[V]
+    ) -> StepOperator[V]:
+        r""":math:`\mu^\top \partial^2 R_n/\partial p^2 = \sum_j
+        \lambda_j^\top f_{pp}(Y_j)`.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        adj : BlockVector
+            :math:`\mu`.
+        """
+        field = self._system.rhs.derivatives().param_param
+        if field is None:
+            raise ValueError("the residual has no second derivatives")
+        params = self._param_block_space()
+        total = ScaledSum(
+            [(1.0, field(*term)) for term in self._stage_terms(window, adj)],
+            params.component(0),
+        )
+        return BlockOperator([[total]], params, params)
+
+    def derivatives(self) -> StepperDerivatives[V]:
+        """The step's derivatives, as far as the residual's bundle goes:
+        the coupling to :math:`y_n` always, the parameters with the
+        bundle's ``param``, the second derivatives with its second order.
+        Valid for the parameters set when fetched."""
+        bundle = self._system.rhs.derivatives()
+        if bundle.param is None:
+            return StepperDerivatives.state_only(self._off_diag)
+        if bundle.state_state is None:
+            return StepperDerivatives.first_order(self._off_diag, self._param)
+        state_pairs, param_lags = self._declared_second_order()
+        return StepperDerivatives.second_order(
+            self._off_diag,
+            self._param,
+            self._state_state,
+            self._state_param,
+            self._param_param,
+            state_pairs,
+            param_lags,
+        )
+
+    def _declared_second_order(
+        self,
+    ) -> tuple[frozenset[tuple[int, int]], frozenset[int]]:
+        r"""Which second-derivative blocks may be nonzero, so the sweeps
+        skip the rest.
+
+        Lag 0 is the step's unknown (the stages), lag 1 is :math:`y_n`.
+        :math:`\mu^\top R_n` depends on stage :math:`j` only through
+        :math:`\lambda_j^\top f(Y_j)`, and each :math:`f(Y_j)` reads one
+        argument only, so:
+
+        - the stage-stage block :math:`(0, 0)` and the stages' mixed
+          parameter block (lag 0) are always present;
+        - a trivial first stage evaluates :math:`f` at :math:`y_n` itself,
+          adding the :math:`(1, 1)` block and the mixed block of lag 1;
+          otherwise :math:`y_n` enters only through :math:`-M y_n`, which
+          is linear;
+        - :math:`(0, 1)` and :math:`(1, 0)` are never present: no
+          :math:`f(Y_j)` reads both a stage and :math:`y_n`.
+
+        Returns
+        -------
+        tuple
+            ``(state_pairs, param_lags)``.
+        """
+        if self._tableau.has_trivial_first_stage():
+            return frozenset({(0, 0), (1, 1)}), frozenset({0, 1})
+        return frozenset({(0, 0)}), frozenset({0})
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._tableau.name})"
