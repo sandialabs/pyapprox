@@ -78,6 +78,12 @@ from pyapprox.util.backends.protocols import Array, Backend
 # capability upstream is a single edit here rather than four.
 _OPTIONAL_ARRAYS = ("jacobians", "hessians", "jvps", "hvps", "hvp_weights")
 
+# The header's file in a directory-backed store. Its extension is
+# neither .npz nor .pkl, so keys() never reports it and no record key
+# can collide with it.
+_HEADER_FILENAME = "store.header"
+_HEADER_ENTRY_PREFIX = "entry_"
+
 # Carried through StoreWriter so it satisfies CompletionHook exactly,
 # rather than erasing the pair to Any and losing the check at the point
 # where a hook is paired with an evaluator.
@@ -97,6 +103,7 @@ class InMemoryResultStore(Generic[Array]):
 
     def __init__(self) -> None:
         self._records: Dict[str, Tuple[Decoded[Array], Cost]] = {}
+        self._header: Optional[Dict[str, Array]] = None
 
     def save(self, key: str, decoded: Decoded[Array], cost: Cost) -> None:
         """Record one task's decoded output under ``key``."""
@@ -109,6 +116,16 @@ class InMemoryResultStore(Generic[Array]):
     def keys(self) -> Sequence[str]:
         """Every key currently stored."""
         return list(self._records)
+
+    def save_header(self, header: Mapping[str, Array]) -> None:
+        """Record what this store's keys mean, replacing any earlier header."""
+        # Copied into a fresh dict so a caller mutating its mapping
+        # afterwards cannot change what was recorded.
+        self._header = dict(header)
+
+    def load_header(self) -> Optional[Mapping[str, Array]]:
+        """Return the last saved header, or None if none was saved."""
+        return None if self._header is None else dict(self._header)
 
 
 class NpzResultStore(Generic[Array]):
@@ -222,6 +239,34 @@ class NpzResultStore(Generic[Array]):
                 found.append(decode_key(name[: -len(".npz")]))
         return found
 
+    def save_header(self, header: Mapping[str, Array]) -> None:
+        """Record what this store's keys mean, replacing any earlier header.
+
+        Written atomically, like a record, to a file that ``keys()``
+        never lists.
+        """
+        # Entry names are prefixed because np.savez reserves some
+        # keyword names (allow_pickle among them) that a caller's entry
+        # could otherwise collide with.
+        payload: Dict[str, ArrayLike] = {
+            f"{_HEADER_ENTRY_PREFIX}{name}": self._bkd.to_numpy(value)
+            for name, value in header.items()
+        }
+        save_npz_atomically(
+            os.path.join(self._directory, _HEADER_FILENAME), payload
+        )
+
+    def load_header(self) -> Optional[Mapping[str, Array]]:
+        """Return the last saved header, or None if none was saved."""
+        path = os.path.join(self._directory, _HEADER_FILENAME)
+        if not os.path.exists(path):
+            return None
+        with np.load(path, allow_pickle=False) as data:
+            return {
+                name[len(_HEADER_ENTRY_PREFIX) :]: self._bkd.asarray(data[name])
+                for name in data.files
+            }
+
 
 class PickleResultStore(Generic[Array]):
     """A store that pickles one record per key.
@@ -293,6 +338,35 @@ class PickleResultStore(Generic[Array]):
             for name in os.listdir(self._directory)
             if name.endswith(".pkl")
         ]
+
+    def save_header(self, header: Mapping[str, Array]) -> None:
+        """Record what this store's keys mean, replacing any earlier header.
+
+        Pickled whole and written atomically, to a file that ``keys()``
+        never lists.
+        """
+        handle, temp_path = tempfile.mkstemp(
+            dir=self._directory, suffix=".header.tmp"
+        )
+        try:
+            with os.fdopen(handle, "wb") as stream:
+                pickle.dump(dict(header), stream)
+            os.replace(
+                temp_path, os.path.join(self._directory, _HEADER_FILENAME)
+            )
+        except BaseException:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+
+    def load_header(self) -> Optional[Mapping[str, Array]]:
+        """Return the last saved header, or None if none was saved."""
+        path = os.path.join(self._directory, _HEADER_FILENAME)
+        if not os.path.exists(path):
+            return None
+        with open(path, "rb") as stream:
+            header: Dict[str, Array] = pickle.load(stream)
+        return header
 
 
 class StoreWriter(Generic[Task, Payload, Array]):

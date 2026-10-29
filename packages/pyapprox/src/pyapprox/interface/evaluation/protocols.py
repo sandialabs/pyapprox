@@ -46,6 +46,7 @@ families fails to infer ``Task``.
 
 from typing import (
     Generic,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -64,10 +65,16 @@ from pyapprox.interface.evaluation.records import (
     Request,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 
 Task = TypeVar("Task")
 Payload = TypeVar("Payload")
+
+# Contravariant because SampleLookup only consumes arrays; the shared
+# Array typevar is invariant and cannot express that.
+LookupArray_contra = TypeVar(
+    "LookupArray_contra", bound=ArrayProtocol, contravariant=True
+)
 
 
 @runtime_checkable
@@ -531,9 +538,32 @@ class ResultStore(Protocol, Generic[Array]):
         """
         ...
 
+    def save_header(self, header: Mapping[str, Array]) -> None:
+        """Record what this store's keys mean, replacing any earlier header.
+
+        A key is only as good as the caller's definition of it: one
+        built from positions in a point sequence means nothing once the
+        sequence changes. The header holds whatever the caller needs to
+        check that definition when it reopens the store, as named
+        arrays, so entries of different shapes need no padding.
+
+        The store records it and nothing more. Comparing it, and
+        refusing a store whose keys no longer mean what they did, is
+        the caller's decision, as is everything else about identity.
+        """
+        ...
+
+    def load_header(self) -> Optional[Mapping[str, Array]]:
+        """Return the last saved header, or ``None`` if none was saved.
+
+        ``None`` for a store written before headers existed, so such a
+        store stays readable.
+        """
+        ...
+
 
 @runtime_checkable
-class SampleLookup(Protocol, Generic[Array]):
+class SampleLookup(Protocol, Generic[LookupArray_contra]):
     """Decides whether a sample has been seen before, and under what key.
 
     Identity is a modelling decision, not a framework one, so it is
@@ -568,7 +598,7 @@ class SampleLookup(Protocol, Generic[Array]):
     say -- and it keeps a value comparison out of the store's key space.
     """
 
-    def find(self, *columns: Array) -> Optional[str]:
+    def find(self, *columns: LookupArray_contra) -> Optional[str]:
         """The key these columns were last remembered under, if any.
 
         Parameters
@@ -586,7 +616,7 @@ class SampleLookup(Protocol, Generic[Array]):
         """
         ...
 
-    def remember(self, *columns: Array) -> str:
+    def remember(self, *columns: LookupArray_contra) -> str:
         """Record these columns as seen and return the key for them.
 
         Must be idempotent: calling it again with a combination the
