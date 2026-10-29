@@ -19,6 +19,11 @@ step's time and size, the stored states it read, its unknown, and the
 parameter version it was taken at. Sweeps ask for windows in reverse
 step order, which lets a checkpointing store recompute instead of
 holding every step.
+
+A time integrator only writes, so it takes a
+:class:`TrajectorySinkProtocol`; a store is a sink that also reads back.
+A sink that keeps nothing (accumulating a functional as states arrive)
+serves a solve that needs no sweep.
 """
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
@@ -31,21 +36,46 @@ V = TypeVar("V")
 
 
 @runtime_checkable
-class TrajectoryStoreProtocol(Protocol, Generic[V]):
-    """States at strictly increasing times, read by step index.
+class TrajectorySinkProtocol(Protocol, Generic[V]):
+    """Receives a trajectory as it is computed: the write side of a
+    store, and all a time integrator needs.
 
-    Indices follow Python's convention: ``-1`` is the last state.
+    A sink need not keep what it receives: one accumulating a functional
+    of the states as they arrive keeps no states at all. Times arrive
+    strictly increasing.
     """
 
     def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
-        """Add ``state`` at ``time``, later than every stored time, with
+        """Add ``state`` at ``time``, later than every time received, with
         the value the state constraint was applied to, when there is
         one."""
         ...
 
-    def ntimes(self) -> int:
-        """The number of stored states."""
+    def append_step(
+        self,
+        time: float,
+        state: V,
+        unknown: BlockVector[V],
+        parameters_version: int,
+        unconstrained: Optional[V] = None,
+    ) -> None:
+        """Add the state a step produced at ``time``, with the step's
+        unknown, the parameter version it was taken at and the value the
+        state constraint was applied to, when there is one."""
         ...
+
+    def ntimes(self) -> int:
+        """The number of states received."""
+        ...
+
+
+@runtime_checkable
+class TrajectoryStoreProtocol(TrajectorySinkProtocol[V], Protocol[V]):
+    """A sink that keeps the trajectory: states at strictly increasing
+    times, read by step index, as the sweeps read them.
+
+    Indices follow Python's convention: ``-1`` is the last state.
+    """
 
     def times(self) -> tuple[float, ...]:
         """Every stored time, in order."""
@@ -63,19 +93,6 @@ class TrajectoryStoreProtocol(Protocol, Generic[V]):
         r"""The value the state constraint mapped to state ``index``,
         where the sweeps linearize :math:`\Pi`; the state itself when it
         was appended without one. Not to be modified."""
-        ...
-
-    def append_step(
-        self,
-        time: float,
-        state: V,
-        unknown: BlockVector[V],
-        parameters_version: int,
-        unconstrained: Optional[V] = None,
-    ) -> None:
-        """Add the state a step produced at ``time``, with the step's
-        unknown, the parameter version it was taken at and the value the
-        state constraint was applied to, when there is one."""
         ...
 
     def nsteps(self) -> int:

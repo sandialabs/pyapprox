@@ -15,7 +15,7 @@ as solved. The identity constraint through the residual form changes
 nothing. Malformed times and a non-empty store are refused.
 """
 
-from typing import Callable, Generic
+from typing import Callable, Generic, Optional
 
 import pytest
 
@@ -44,8 +44,13 @@ from pyapprox.ode.tableau import (
     heun,
     implicit_midpoint,
 )
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_store import (
+    InMemoryTrajectoryStore,
+    TrajectorySinkProtocol,
+    TrajectoryStoreProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import BlockVector
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.ode.runge_kutta_cases import (
     lotka_volterra_with_mass,
@@ -157,6 +162,59 @@ class TestConstraint:
         plain = _new_trajectory(bkd, heun())
         for n in range(plain.ntimes()):
             bkd.assert_allclose(constrained.state(n), plain.state(n), rtol=0.0)
+
+
+class _SummingSink(Generic[Array]):
+    r"""Accumulates :math:`\sum_m c^\top y_m` as states arrive and keeps
+    none of them: a sink for a solve that needs no sweep."""
+
+    def __init__(self, bkd: Backend[Array], weight: Array) -> None:
+        self._bkd, self._weight = bkd, weight
+        self._count, self._total = 0, 0.0
+
+    def append(
+        self, time: float, state: Array, unconstrained: Optional[Array] = None
+    ) -> None:
+        self._total += self._bkd.to_float((self._weight.T @ state)[0, 0])
+        self._count += 1
+
+    def append_step(
+        self,
+        time: float,
+        state: Array,
+        unknown: BlockVector[Array],
+        parameters_version: int,
+        unconstrained: Optional[Array] = None,
+    ) -> None:
+        self.append(time, state, unconstrained)
+
+    def ntimes(self) -> int:
+        return self._count
+
+    def total(self) -> float:
+        return self._total
+
+
+class TestSinks:
+    def test_a_sink_keeping_nothing(self, bkd: Backend[Array]) -> None:
+        """A sink accumulating a sum of the states as they arrive gives
+        the sum over the stored trajectory, with no states kept."""
+        weight = bkd.asarray([[0.3], [-1.2]])
+        sink: _SummingSink[Array] = _SummingSink(bkd, weight)
+        assert isinstance(sink, TrajectorySinkProtocol)
+        assert not isinstance(sink, TrajectoryStoreProtocol)
+        stepper = rk_stepper(
+            heun(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
+        )
+        Integrator(stepper).solve(bkd.asarray(_START), _TIMES, sink)
+        store = _new_trajectory(bkd, heun())
+        assert isinstance(store, TrajectorySinkProtocol)
+        expected = sum(
+            bkd.to_float((weight.T @ store.state(n))[0, 0])
+            for n in range(store.ntimes())
+        )
+        assert sink.ntimes() == store.ntimes()
+        assert abs(sink.total() - expected) <= 1e-12 * abs(expected)
 
 
 class TestRefusals:
