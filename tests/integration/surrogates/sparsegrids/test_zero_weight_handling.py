@@ -15,9 +15,12 @@ asserted, as a bound well inside that gap; wall time varies too much
 across machines to assert.
 """
 
+from typing import List
+
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     LinearGrowthRule,
@@ -47,8 +50,10 @@ _BUDGET = 150
 _NTEST = 1000
 
 
-def _refine(bkd: Backend[Array], indicator: ErrorIndicatorProtocol[Array]) -> float:
-    """Refine to the budget at one Leja point per level; return RMS error."""
+def _make_fitter(
+    bkd: Backend[Array], indicator: ErrorIndicatorProtocol[Array]
+) -> SingleFidelityAdaptiveSparseGridFitter[Array]:
+    """A fitter on U[0,1]^4 adding one Leja point per level."""
     # One factory shared by every dimension, so they share one Leja
     # sequence rather than each optimizing the same points.
     leja = LejaLagrangeFactory(UniformMarginal(0.0, 1.0, bkd), bkd)
@@ -57,10 +62,25 @@ def _refine(bkd: Backend[Array], indicator: ErrorIndicatorProtocol[Array]) -> fl
     admissibility = MaxLevelCriteria(
         max_level_for_univariate_npoints(growth, _BUDGET), 1.0, bkd
     )
-    target = GenzOscillatoryBenchmark(bkd, _NVARS, "none").problem().function()
-    fitter = SingleFidelityAdaptiveSparseGridFitter(
+    return SingleFidelityAdaptiveSparseGridFitter(
         bkd, factory, admissibility, error_indicator=indicator
     )
+
+
+def _target(bkd: Backend[Array]) -> FunctionProtocol[Array]:
+    return GenzOscillatoryBenchmark(bkd, _NVARS, "none").problem().function()
+
+
+def _fallback(bkd: Backend[Array]) -> ZeroWeightFallback[Array]:
+    return ZeroWeightFallback(
+        SummedSubspaceVarianceIndicator(bkd), L2SurplusIndicator(bkd)
+    )
+
+
+def _refine(bkd: Backend[Array], indicator: ErrorIndicatorProtocol[Array]) -> float:
+    """Refine to the budget at one Leja point per level; return RMS error."""
+    target = _target(bkd)
+    fitter = _make_fitter(bkd, indicator)
     while True:
         samples = fitter.step_samples()
         if samples is None:
@@ -81,11 +101,63 @@ class TestOnePointPerLevel:
             _refine(bkd, SummedSubspaceVarianceIndicator(bkd))
 
     def test_fallback_refines_every_dimension(self, bkd: Backend[Array]) -> None:
-        indicator = ZeroWeightFallback(
-            SummedSubspaceVarianceIndicator(bkd), L2SurplusIndicator(bkd)
-        )
         with pytest.warns(QuadratureRefinementStalled) as record:
-            rms_error = _refine(bkd, indicator)
+            rms_error = _refine(bkd, _fallback(bkd))
         assert len(record) == 1
         # Ten times below the stalled run's 2.53e-03.
         assert rms_error < 2.5e-4, rms_error
+
+
+def _batches(
+    bkd: Backend[Array],
+    fitter: SingleFidelityAdaptiveSparseGridFitter[Array],
+    budget: int,
+) -> List[Array]:
+    """Refine to ``budget`` samples; on a stall, wrap and rescore.
+
+    Returns every batch requested. A fitter wrapped from the start never
+    reaches the ``except`` branch.
+    """
+    target = _target(bkd)
+    batches: List[Array] = []
+    while True:
+        samples = fitter.step_samples()
+        if samples is None:
+            break
+        batches.append(samples)
+        try:
+            fitter.step_values(target(samples))
+        except QuadratureRefinementStalledError:
+            fitter.set_error_indicator(_fallback(bkd))
+            fitter.rescore()
+        if fitter.get_samples("all").shape[1] >= budget:
+            break
+    return batches
+
+
+class TestWrapAfterStall:
+    """Wrapping after the raise refines exactly as wrapping from the start.
+
+    The stall stops the bare run while it scores the first round, after
+    it has absorbed that round's values. Swapping in the wrapper and
+    rescoring must then cost no model evaluation and request the same
+    batches, in the same order, as a run wrapped from the start.
+    """
+
+    _BUDGET = 60
+
+    def test_same_batches_and_selection_order(self, bkd: Backend[Array]) -> None:
+        wrapped = _make_fitter(bkd, _fallback(bkd))
+        stopped = _make_fitter(bkd, SummedSubspaceVarianceIndicator(bkd))
+        with pytest.warns(QuadratureRefinementStalled):
+            desired = _batches(bkd, wrapped, self._BUDGET)
+        with pytest.warns(QuadratureRefinementStalled):
+            actual = _batches(bkd, stopped, self._BUDGET)
+
+        assert len(actual) == len(desired)
+        for actual_batch, desired_batch in zip(actual, desired):
+            bkd.assert_allclose(actual_batch, desired_batch, rtol=1e-12)
+        actual_selected = stopped.get_selected_indices()
+        desired_selected = wrapped.get_selected_indices()
+        assert actual_selected.shape == desired_selected.shape
+        assert bkd.all_bool(bkd.equal(actual_selected, desired_selected))
