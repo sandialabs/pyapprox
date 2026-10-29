@@ -29,12 +29,14 @@ parameterization.
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
+from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.mass_matrix import (
     MassMatrixProtocol,
 )
 from pyapprox.ode.mass_matrix_system import MassMatrixSystem
 from pyapprox.ode.protocols import ODEResidualProtocol
 from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
+from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
@@ -53,6 +55,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
+    InnerProductSpaceProtocol,
     LinearSolverProtocol,
 )
 
@@ -266,6 +269,40 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
             self._essential_jacobian,
             self._discretization.space(),
             self._solver,
+        )
+
+    def mass_form_system(self) -> MassFormSystem[Array, Array, F]:
+        """The same BC-neutralized ODE as the steppers of
+        :mod:`pyapprox.ode.runge_kutta` and
+        :mod:`pyapprox.ode.linear_multistep` read it: this adapter as
+        :math:`f` and its derivatives, the row treatment's stack mass, the
+        bundle's Jacobian, the discretization's space, the adapter's solver,
+        and the reshape between the stack's columns and 1-D states.
+
+        The mass is the one assembled now; a discretization whose mass
+        changes afterwards needs a new system.
+
+        Raises
+        ------
+        TypeError
+            If the discretization's space has no inner product.
+        """
+        space = self._discretization.space()
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError(
+                "the discretization's space must be an inner-product space, "
+                f"got {type(space).__name__}"
+            )
+        jacobian = self.derivatives().jacobian
+        if jacobian is None:
+            raise AssertionError("every tier's bundle has a Jacobian")
+        return MassFormSystem(
+            rhs=self,
+            mass=self._neutralized_stack_mass(),
+            jacobian=jacobian,
+            space=space,
+            solver=self._solver,
+            form=BackendColumnForm(self._bkd),
         )
 
     def __repr__(self) -> str:
