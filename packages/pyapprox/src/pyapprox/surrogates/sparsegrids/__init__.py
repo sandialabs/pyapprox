@@ -57,6 +57,7 @@ from .error_indicators import (
 )
 from .fit_result import (
     AdaptiveSparseGridFitResult,
+    HierarchicalSparseGridFitResult,
     IsotropicSparseGridFitResult,
 )
 from .hierarchical.error_indicators import (
@@ -137,6 +138,7 @@ __all__ = [
     "SubsetType",
     "IsotropicSparseGridFitResult",
     "AdaptiveSparseGridFitResult",
+    "HierarchicalSparseGridFitResult",
     # Error indicators
     "ErrorIndicatorProtocol",
     "L2GlobalSurplusIndicator",

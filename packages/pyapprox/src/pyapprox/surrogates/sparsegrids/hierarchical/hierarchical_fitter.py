@@ -19,7 +19,7 @@ from pyapprox.surrogates.sparsegrids.cost_model import (
     CostModelProtocol,
 )
 from pyapprox.surrogates.sparsegrids.fit_result import (
-    AdaptiveSparseGridFitResult,
+    HierarchicalSparseGridFitResult,
 )
 from pyapprox.surrogates.sparsegrids.hierarchical.deferred_registry import (
     DeferredRefinementRegistry,
@@ -238,7 +238,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
 
     def result(
         self, converged: bool = False
-    ) -> AdaptiveSparseGridFitResult[Array]:
+    ) -> HierarchicalSparseGridFitResult[Array]:
         if self._cached_surrogate is not None:
             surrogate = self._cached_surrogate
         else:
@@ -246,20 +246,14 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         sel_indices_or_none = self._get_promoted_indices()
         if sel_indices_or_none is not None:
             sel_indices = sel_indices_or_none
-            n_sel = sel_indices.shape[1]
         else:
             nvars_idx = self._nvars_physical + self._nconfig_vars
             sel_indices = self._bkd.zeros(
                 (nvars_idx, 0), dtype=self._bkd.int64_dtype()
             )
-            n_sel = 0
-        coeffs = self._bkd.ones(
-            (n_sel,), dtype=self._bkd.double_dtype()
-        )
-        return AdaptiveSparseGridFitResult(
+        return HierarchicalSparseGridFitResult(
             surrogate=surrogate,
             indices=sel_indices,
-            coefficients=coeffs,
             nsamples=self._point_mgr.n_evaluated(),
             error=self.current_error(),
             nsteps=self._nsteps,
@@ -271,7 +265,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         model_factory: ModelFactoryProtocol[Array],
         tol: float = 1e-6,
         max_steps: int = 200,
-    ) -> AdaptiveSparseGridFitResult[Array]:
+    ) -> HierarchicalSparseGridFitResult[Array]:
         """Run the full adaptive loop until tolerance or max steps."""
         for iteration in range(max_steps):
             samples = self.step_samples()
@@ -686,7 +680,7 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
 
     def result(
         self, converged: bool = False
-    ) -> AdaptiveSparseGridFitResult[Array]:
+    ) -> HierarchicalSparseGridFitResult[Array]:
         return self._fitter.result(converged)
 
     def refine_to_tolerance(
@@ -694,7 +688,7 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
         target_fn: FunctionProtocol[Array],
         tol: float = 1e-6,
         max_steps: int = 200,
-    ) -> AdaptiveSparseGridFitResult[Array]:
+    ) -> HierarchicalSparseGridFitResult[Array]:
         if not isinstance(target_fn, FunctionProtocol):
             raise TypeError(
                 "target_fn must satisfy FunctionProtocol, "
