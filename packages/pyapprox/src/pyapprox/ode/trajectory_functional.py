@@ -80,11 +80,16 @@ class BackendTrajectoryFunctional(Generic[Array]):
                 f"{type(functional).__name__}'s derivatives() has no Jacobians"
             )
         bkd = functional.bkd()
-        trajectory = trajectory_array(store, bkd)
+        self._trajectory = trajectory_array(store, bkd)
         # dQ/dy at every stored state, (nstates, ntimes), and the direct
         # dQ/dp, (1, nparams).
-        self._state_jacobian = derivs.state_jacobian(trajectory, param)
-        self._param_jacobian = derivs.param_jacobian(trajectory, param)
+        self._state_jacobian = derivs.state_jacobian(self._trajectory, param)
+        self._param_jacobian = derivs.param_jacobian(self._trajectory, param)
+
+    def trajectory(self) -> Array:
+        """The trajectory array the Jacobians were evaluated on. Shape:
+        ``(nstates, ntimes)``. Not to be modified."""
+        return self._trajectory
 
     def state_cotangent(self, index: int) -> Array:
         r""":math:`\partial Q/\partial y_{\mathrm{index}}`. Shape:
@@ -97,6 +102,98 @@ class BackendTrajectoryFunctional(Generic[Array]):
         r"""The direct :math:`\partial Q/\partial p`. Shape:
         ``(nparams, 1)``."""
         return self._param_jacobian.T
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
+class BackendSecondOrderTrajectoryFunctional(Generic[Array]):
+    r"""A scalar transient functional's first and second derivatives on
+    one recorded trajectory, as single-column backend arrays.
+
+    The functional's per-step HVPs index stored states, so its second
+    derivative in the states is block diagonal over them, as the
+    Hessian-vector sweep requires.
+
+    Parameters
+    ----------
+    functional : TransientFunctionalProtocol
+        As for :class:`BackendTrajectoryFunctional`; its bundle must also
+        have the four HVPs.
+    store : TrajectoryStoreProtocol
+        The recorded trajectory.
+    param : Array
+        The parameters the trajectory was recorded at. Shape:
+        ``(nparams, 1)``.
+
+    Raises
+    ------
+    TypeError
+        As for :class:`BackendTrajectoryFunctional`, or if the bundle has
+        no HVPs.
+    ValueError
+        As for :class:`BackendTrajectoryFunctional`.
+    """
+
+    def __init__(
+        self,
+        functional: TransientFunctionalProtocol[Array],
+        store: TrajectoryStoreProtocol[Array],
+        param: Array,
+    ) -> None:
+        self._first = BackendTrajectoryFunctional(functional, store, param)
+        derivs = functional.derivatives()
+        if (
+            derivs.state_state_hvp is None
+            or derivs.state_param_hvp is None
+            or derivs.param_state_hvp is None
+            or derivs.param_param_hvp is None
+        ):
+            raise TypeError(f"{type(functional).__name__}'s derivatives() has no HVPs")
+        self._state_state = derivs.state_state_hvp
+        self._state_param = derivs.state_param_hvp
+        self._param_state = derivs.param_state_hvp
+        self._param_param = derivs.param_param_hvp
+        self._bkd, self._param = functional.bkd(), param
+
+    def _column(self, x: Array) -> Array:
+        """``x`` as a column: the HVPs may return 1-D arrays."""
+        return self._bkd.reshape(x, (-1, 1))
+
+    def _time_index(self, index: int) -> int:
+        return index % self._first.trajectory().shape[1]
+
+    def state_cotangent(self, index: int) -> Array:
+        """As :meth:`BackendTrajectoryFunctional.state_cotangent`."""
+        return self._first.state_cotangent(index)
+
+    def param_cotangent(self) -> Array:
+        """As :meth:`BackendTrajectoryFunctional.param_cotangent`."""
+        return self._first.param_cotangent()
+
+    def state_state(self, index: int, w: Array) -> Array:
+        r""":math:`(\partial^2 Q/\partial y_m^2)\, w`. Shape:
+        ``(nstates, 1)``."""
+        trajectory, time = self._first.trajectory(), self._time_index(index)
+        return self._column(self._state_state(trajectory, self._param, time, w))
+
+    def state_param(self, index: int, v: Array) -> Array:
+        r""":math:`(\partial^2 Q/\partial y_m \partial p)\, v`. Shape:
+        ``(nstates, 1)``."""
+        trajectory, time = self._first.trajectory(), self._time_index(index)
+        return self._column(self._state_param(trajectory, self._param, time, v))
+
+    def param_state(self, index: int, w: Array) -> Array:
+        r""":math:`(\partial^2 Q/\partial p\, \partial y_m)\, w`. Shape:
+        ``(nparams, 1)``."""
+        trajectory, time = self._first.trajectory(), self._time_index(index)
+        return self._column(self._param_state(trajectory, self._param, time, w))
+
+    def param_param(self, v: Array) -> Array:
+        r""":math:`(\partial^2 Q/\partial p^2)\, v`. Shape:
+        ``(nparams, 1)``."""
+        trajectory = self._first.trajectory()
+        return self._column(self._param_param(trajectory, self._param, v))
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"

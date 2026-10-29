@@ -40,6 +40,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
+    FunctionWithJVPFromCallable,
 )
 from pyapprox.ode.explicit_steppers import ForwardEulerHVP, HeunHVP
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
@@ -58,6 +59,7 @@ from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
     ODEResidualDerivatives,
+    SecondDerivativeFn,
     backend_spaces,
     dense_operator,
 )
@@ -76,10 +78,14 @@ from pyapprox.ode.tableau import (
 from pyapprox.ode.trajectory_derivatives import (
     InitialStateDerivativeProtocol,
     ResidualInitialState,
+    SecondOrderTrajectoryFunctionalProtocol,
     TrajectoryDerivatives,
     TrajectoryFunctionalProtocol,
 )
-from pyapprox.ode.trajectory_functional import BackendTrajectoryFunctional
+from pyapprox.ode.trajectory_functional import (
+    BackendSecondOrderTrajectoryFunctional,
+    BackendTrajectoryFunctional,
+)
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
@@ -137,21 +143,28 @@ def _functional(bkd: Backend[Array]) -> TikhonovAugmentedFunctional[Array]:
 
 class _CurvedPin(Generic[Array]):
     r""":math:`\Pi_t(x, z;\, p) = (x,\ 3 + 0.1\, a \sin(x + 2t))` on 1-D
-    states, with its first derivatives; its parameters are set beside the
-    model's. The tangent depends on :math:`a` and :math:`t`, the
-    parameter derivative on the state and :math:`t`, so either evaluated
-    at the wrong state, parameters or time is caught."""
+    states, with its first and second derivatives; its parameters are set
+    beside the model's. The tangent depends on :math:`a` and :math:`t`,
+    the parameter derivative on the state and :math:`t`, so either
+    evaluated at the wrong state, parameters or time is caught; the
+    second derivatives :math:`\Pi_{xx}` and :math:`\Pi_{xa}` are nonzero
+    (:math:`\Pi_{aa}` is a stated zero)."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
         self._a = bkd.asarray([1.0])
         states, params = backend_spaces(bkd, 2, 4)
         self._derivs: StateConstraintDerivatives[Array] = (
-            StateConstraintDerivatives.first_order(
+            StateConstraintDerivatives.second_order(
                 states,
                 params,
                 tangent=dense_operator(self._tangent, states, states, bkd),
                 param=dense_operator(self._param, params, states, bkd),
+                state_state=dense_operator(
+                    self._state_state, states, states, bkd, symmetric=True
+                ),
+                state_param=dense_operator(self._state_param, params, states, bkd),
+                param_param=STATED_ZERO,
             )
         )
 
@@ -179,6 +192,18 @@ class _CurvedPin(Generic[Array]):
         matrix[1, 0] = 0.1 * self._bkd.sin(state[0] + 2.0 * time)
         return matrix
 
+    def _state_state(self, state: Array, time: float, adj: Array) -> Array:
+        # adj_1 d^2(0.1 a sin(x + 2t))/dx^2 in the (x, x) entry.
+        matrix = self._bkd.zeros((2, 2))
+        matrix[0, 0] = -0.1 * self._a[0] * self._bkd.sin(state[0] + 2.0 * time) * adj[1]
+        return matrix
+
+    def _state_param(self, state: Array, time: float, adj: Array) -> Array:
+        # adj_1 d^2(0.1 a sin(x + 2t))/dx da in the (x, a) entry.
+        matrix = self._bkd.zeros((2, 4))
+        matrix[0, 0] = 0.1 * self._bkd.cos(state[0] + 2.0 * time) * adj[1]
+        return matrix
+
     def derivatives(self) -> StateConstraintDerivatives[Array]:
         return self._derivs
 
@@ -195,6 +220,9 @@ class _ScaledStart(Generic[Array]):
         self._param = bkd.asarray(LV_PARAM)
         states, params = backend_spaces(bkd, 2, 4)
         self._derivative = dense_operator(self._matrix, params, states, bkd)
+        self._curvature = dense_operator(
+            self._curvature_matrix, params, params, bkd, symmetric=True
+        )
 
     def set_param(self, param: Array) -> None:
         self._param = param
@@ -213,8 +241,23 @@ class _ScaledStart(Generic[Array]):
         matrix[1, 1] = a * growth
         return matrix
 
+    def _curvature_matrix(self, weight: Array) -> Array:
+        # weight_1 times the Hessian of G = 5 exp(a b - 0.1) in (a, b):
+        # G_aa = b^2 G, G_ab = (1 + a b) G, G_bb = a^2 G.
+        a, b = self._param[0, 0], self._param[1, 0]
+        scaled = 5.0 * self._bkd.exp(a * b - 0.1) * weight[1, 0]
+        matrix = self._bkd.zeros((4, 4))
+        matrix[0, 0] = b * b * scaled
+        matrix[0, 1] = (1.0 + a * b) * scaled
+        matrix[1, 0] = (1.0 + a * b) * scaled
+        matrix[1, 1] = a * a * scaled
+        return matrix
+
     def param_derivative(self) -> DerivativeOperator[Array]:
         return self._derivative()
+
+    def curvature(self, weight: Array) -> Optional[DerivativeOperator[Array]]:
+        return self._curvature(weight)
 
 
 class _Problem(Generic[Array]):
@@ -265,6 +308,16 @@ class _Problem(Generic[Array]):
     def stepper(self) -> _Stepper[Array]:
         return self._stepper
 
+    def pin(self) -> _CurvedPin[Array]:
+        if self._pin is None:
+            raise AssertionError("this problem has no constraint")
+        return self._pin
+
+    def start(self) -> _ScaledStart[Array]:
+        if self._start is None:
+            raise AssertionError("this problem has a fixed initial state")
+        return self._start
+
     def solve(self, param: Array) -> InMemoryTrajectoryStore[Array]:
         self._model.set_param(param)
         if self._pin is not None:
@@ -304,9 +357,45 @@ class _Problem(Generic[Array]):
         store = self.solve(sample)
         return self._sweeps.tangent(store, self.coupling(store, sample), direction)
 
+    def gradients(self, samples: Array) -> Array:
+        """dQ/dp at each column of ``samples``. Shape: (4, nsamples)."""
+        return self._bkd.hstack(
+            [self.gradient(samples[:, k : k + 1]).T for k in range(samples.shape[1])]
+        )
 
-def _direction(bkd: Backend[Array]) -> Array:
-    return bkd.asarray(np.random.default_rng(7).normal(size=(4, 1)))
+    def hvp(self, sample: Array, direction: Array) -> Array:
+        """(d^2Q/dp^2) v by the tangent and adjoint sweeps. Shape: (4, 1)."""
+        store = self.solve(sample)
+        functional = BackendSecondOrderTrajectoryFunctional(
+            self._functional, store, sample
+        )
+        return self._sweeps.hvp(store, functional, direction)
+
+
+def _direction(bkd: Backend[Array], seed: int = 7) -> Array:
+    return bkd.asarray(np.random.default_rng(seed).normal(size=(4, 1)))
+
+
+def _min_hvp_fd_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
+    """The smallest central-difference error of the HVP, differencing the
+    adjoint gradient along a random direction."""
+    wrapper = FunctionWithJVPFromCallable(
+        nqoi=4, nvars=4, fun=problem.gradients, jvp=problem.hvp, bkd=bkd
+    )
+    errors = DerivativeChecker(wrapper).check_derivatives(
+        bkd.asarray(LV_PARAM), relative=True, central=True
+    )[0]
+    return bkd.to_float(bkd.min(errors))
+
+
+def _symmetry_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
+    """|u^T H v - v^T H u| relative to their size, for two random
+    directions: the Hessian is symmetric, so a one-sided fault shows."""
+    param = bkd.asarray(LV_PARAM)
+    u, v = _direction(bkd, 3), _direction(bkd, 5)
+    uhv = bkd.to_float((u.T @ problem.hvp(param, v))[0, 0])
+    vhu = bkd.to_float((v.T @ problem.hvp(param, u))[0, 0])
+    return abs(uhv - vhu) / max(abs(uhv), abs(vhu))
 
 
 def _min_fd_error(bkd: Backend[Array], problem: _Problem[Array]) -> float:
@@ -425,9 +514,122 @@ class TestConstraintAndInitialState:
     def test_the_residual_initial_state_is_its_stated_zero(
         self, bkd: Backend[Array]
     ) -> None:
-        initial = ResidualInitialState(lotka_volterra_with_mass(bkd))
+        initial = ResidualInitialState(
+            lotka_volterra_with_mass(bkd), BackendColumnForm(bkd)
+        )
         assert isinstance(initial, InitialStateDerivativeProtocol)
         assert initial.param_derivative().properties().zero
+        curvature = initial.curvature(bkd.ones((2, 1)))
+        assert curvature is not None and curvature.properties().zero
+
+
+class TestHessianVectorProduct:
+    @pytest.mark.parametrize("make", _ALL_TABLEAUX, ids=TABLEAU_IDS)
+    def test_matches_finite_differences_of_the_gradient(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+    ) -> None:
+        assert _min_hvp_fd_error(bkd, _Problem(bkd, make())) < 1e-7
+
+    @pytest.mark.parametrize("make", _ALL_TABLEAUX, ids=TABLEAU_IDS)
+    def test_is_symmetric(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+    ) -> None:
+        assert _symmetry_error(bkd, _Problem(bkd, make())) < 1e-10
+
+    def test_the_tangent_store_holds_the_tangent_trajectory(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The tangents recorded for the HVP give the tangent sweep's
+        directional derivative: sum_m <Q_y_m, w_m> + <Q_p, v>."""
+        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        store = problem.solve(param)
+        functional = BackendSecondOrderTrajectoryFunctional(
+            _functional(bkd), store, param
+        )
+        tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
+            problem.stepper(),
+            ResidualFormConstraint(problem.pin(), BackendColumnForm(bkd)),
+            problem.start(),
+        )
+        sweeps.hvp(store, functional, direction, tangents)
+        assert tangents.ntimes() == store.ntimes()
+        assert tangents.nsteps() == store.nsteps()
+        assert tangents.times() == store.times()
+        total = functional.param_cotangent().T @ direction
+        for index in range(tangents.ntimes()):
+            total = total + functional.state_cotangent(index).T @ tangents.state(index)
+        expected = sweeps.tangent(store, functional, direction)
+        bkd.assert_allclose(total, expected, rtol=1e-12)
+        with pytest.raises(ValueError, match="tangent store must be empty"):
+            sweeps.hvp(store, functional, direction, tangents)
+
+
+class TestHessianVectorProductAgainstTheOldPath:
+    @pytest.mark.parametrize(
+        "make, old", _OLD_STEPPERS, ids=[make().name for make, _ in _OLD_STEPPERS]
+    )
+    def test_same_hvp(
+        self,
+        bkd: Backend[Array],
+        make: Callable[[], ButcherTableau],
+        old: Callable[..., object],
+    ) -> None:
+        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        old_stepper = old(lotka_volterra_with_mass(bkd))
+        assert isinstance(old_stepper, TimeSteppingResidualProtocol)
+        newton: NewtonSolver[Array] = NewtonSolver(old_stepper)
+        newton.set_options(atol=1e-13, rtol=0.0, maxiters=30)
+        operator = TimeAdjointOperatorWithHVP(
+            TimeIntegrator(0.0, 0.5, 0.05, newton), _functional(bkd)
+        )
+        old_hvp = operator.hvp(bkd.asarray([10.0, 5.0]), param, direction)
+        bkd.assert_allclose(
+            _Problem(bkd, make()).hvp(param, direction),
+            bkd.reshape(old_hvp, (-1, 1)),
+            rtol=1e-10,
+        )
+
+
+class TestHessianVectorProductConstraintAndInitialState:
+    @pytest.mark.parametrize("pieces", list(_PIECES))
+    @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
+    def test_matches_finite_differences_of_the_gradient(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+    ) -> None:
+        assert _min_hvp_fd_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-7
+
+    @pytest.mark.parametrize("pieces", list(_PIECES))
+    @pytest.mark.parametrize("make", _CONSTRAINED, ids=_CONSTRAINED_IDS)
+    def test_is_symmetric(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], pieces: str
+    ) -> None:
+        assert _symmetry_error(bkd, _pieces_problem(bkd, make, pieces)) < 1e-10
+
+
+class _FlatStart(_ScaledStart[Array]):
+    """:class:`_ScaledStart` without its curvature."""
+
+    def curvature(self, weight: Array) -> Optional[DerivativeOperator[Array]]:
+        return None
+
+
+class TestHessianVectorProductRefusals:
+    def test_a_functional_without_second_derivatives(self, bkd: Backend[Array]) -> None:
+        problem = _Problem(bkd, heun())
+        param = bkd.asarray(LV_PARAM)
+        store = problem.solve(param)
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
+            problem.stepper()
+        )
+        with pytest.raises(TypeError, match="SecondOrderTrajectoryFunctional"):
+            sweeps.hvp(store, problem.coupling(store, param), _direction(bkd))  # type: ignore[arg-type]
+
+    def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:
+        problem = _Problem(bkd, heun(), start=_FlatStart(bkd))
+        with pytest.raises(TypeError, match="no curvature"):
+            problem.hvp(bkd.asarray(LV_PARAM), _direction(bkd))
 
 
 class _OneColumn(Generic[Array]):
@@ -460,31 +662,54 @@ class _OneColumn(Generic[Array]):
 
 
 class _OneColumnParam(Generic[Array]):
-    """A model's ``param`` field, its operators applying to one column."""
+    """A ``(state, time)`` parameter derivative whose operators apply to
+    one column."""
 
-    def __init__(self, model: LotkaVolterra[Array]) -> None:
-        self._model = model
+    def __init__(
+        self, field: Callable[[Array, float], DerivativeOperator[Array]]
+    ) -> None:
+        self._field = field
 
     def __call__(self, state: Array, time: float) -> _OneColumn[Array]:
-        field = self._model.derivatives().param
-        if field is None:
-            raise AssertionError("Lotka-Volterra declares param")
-        return _OneColumn(field(state, time))
+        return _OneColumn(self._field(state, time))
+
+
+class _OneColumnSecond(Generic[Array]):
+    """A ``(state, time, adj)`` second derivative whose operators apply to
+    one column."""
+
+    def __init__(self, field: SecondDerivativeFn[Array]) -> None:
+        self._field = field
+
+    def __call__(self, state: Array, time: float, adj: Array) -> _OneColumn[Array]:
+        return _OneColumn(self._field(state, time, adj))
 
 
 class _OneColumnRhs(Generic[Array]):
-    """Lotka-Volterra whose parameter derivatives refuse more than one
-    column."""
+    """Lotka-Volterra whose parameter derivatives, first and second order,
+    refuse more than one column."""
 
     def __init__(self, model: LotkaVolterra[Array]) -> None:
         self._model = model
         inner = model.derivatives()
-        param: _OneColumnParam[Array] = _OneColumnParam(model)
+        if (
+            inner.param is None
+            or inner.state_param is None
+            or inner.param_param is None
+        ):
+            raise AssertionError("Lotka-Volterra declares its second order")
+        param: _OneColumnParam[Array] = _OneColumnParam(inner.param)
+        state_param: _OneColumnSecond[Array] = _OneColumnSecond(inner.state_param)
+        param_param: _OneColumnSecond[Array] = _OneColumnSecond(inner.param_param)
         self._derivatives: ODEResidualDerivatives[Array, FormatProtocol] = (
             ODEResidualDerivatives(
                 jacobian=inner.jacobian,
                 param=param,
                 initial_state=inner.initial_state,
+                initial_state_curvature=inner.initial_state_curvature,
+                state_state=inner.state_state,
+                state_param=state_param,
+                param_param=param_param,
                 param_space=inner.param_space,
             )
         )
@@ -529,6 +754,9 @@ class TestNoStateByParameterMatrix:
             plain.tangent(param, direction),
             rtol=1e-14,
         )
+        bkd.assert_allclose(
+            refusing.hvp(param, direction), plain.hvp(param, direction), rtol=1e-14
+        )
 
 
 _MOCK_PARAM = SpaceDescriptor("param", 2, "float64")
@@ -539,7 +767,8 @@ _D = [[0.3], [-0.7]]
 
 class _MockAffineRhs:
     r""":math:`\dot y = K y + B p` on the mock stack (``LINEAR_K``,
-    ``_B``), with its Jacobian and parameter derivative."""
+    ``_B``), with its Jacobian, parameter derivative and second
+    derivatives, all stated zeros (the model is affine)."""
 
     def __init__(self) -> None:
         self._k = MockOperator.from_dense(np.array(LINEAR_K), MOCK_STATE)
@@ -548,12 +777,16 @@ class _MockAffineRhs:
         self._p = wrap(np.zeros((2, 1)), _MOCK_PARAM)
         self._version = 0
         self._derivatives: ODEResidualDerivatives[MockVector, MockFormat] = (
-            ODEResidualDerivatives.first_order(
+            ODEResidualDerivatives.second_order(
                 self._states,
                 MockVectorSpace(_MOCK_PARAM),
                 self._jacobian,
                 self._param,
-                STATED_ZERO,
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=STATED_ZERO,
+                state_param=STATED_ZERO,
+                param_param=STATED_ZERO,
             )
         )
 
@@ -596,32 +829,74 @@ class _MockLastState:
         return wrap(np.array(_D), _MOCK_PARAM)
 
 
+class _MockQuadraticLast:
+    r""":math:`Q = \tfrac12 |y_N|^2 + d^\top p` on one recorded mock
+    trajectory, with its second derivatives: only
+    :math:`Q_{y_N y_N} = I` is nonzero, so the Hessian
+    :math:`(dy_N/dp)^\top (dy_N/dp)` comes from the sweeps alone."""
+
+    def __init__(self, store: InMemoryTrajectoryStore[MockVector]) -> None:
+        self._last, self._final = store.ntimes() - 1, store.state(-1)
+
+    def state_cotangent(self, index: int) -> MockVector:
+        return self.state_state(index, self._final)
+
+    def param_cotangent(self) -> MockVector:
+        return wrap(np.array(_D), _MOCK_PARAM)
+
+    def state_state(self, index: int, w: MockVector) -> MockVector:
+        last = index % (self._last + 1) == self._last
+        return wrap(peek(w).copy() if last else np.zeros((3, 1)), MOCK_STATE)
+
+    def state_param(self, index: int, v: MockVector) -> MockVector:
+        return wrap(np.zeros((3, 1)), MOCK_STATE)
+
+    def param_state(self, index: int, w: MockVector) -> MockVector:
+        return wrap(np.zeros((2, 1)), _MOCK_PARAM)
+
+    def param_param(self, v: MockVector) -> MockVector:
+        return wrap(np.zeros((2, 1)), _MOCK_PARAM)
+
+
+_MockStepper = RungeKuttaStepper[MockVector, NDArray[Any], MockFormat]
+
+
+def _mock_problem(
+    make: Callable[[], ButcherTableau],
+) -> tuple[_MockStepper, Callable[[NDArray[Any]], InMemoryTrajectoryStore[MockVector]]]:
+    """The mock-stack stepper of :class:`_MockAffineRhs`, and a solve from
+    (1, -0.5, 0.8) over the module's times at given parameters."""
+    rhs = _MockAffineRhs()
+    newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
+    jacobian = rhs.derivatives().jacobian
+    assert jacobian is not None
+    system = MassFormSystem(
+        rhs=rhs,
+        mass=MockOperator.identity(MOCK_STATE),
+        jacobian=jacobian,
+        space=MockVectorSpace(MOCK_STATE),
+        solver=MockLU(),
+        form=IdentityForm(),
+    )
+    tableau = make()
+    stepper: _MockStepper = RungeKuttaStepper(
+        tableau, system, None if tableau.is_explicit() else newton
+    )
+    start = np.array([[1.0], [-0.5], [0.8]])
+
+    def solve(param: NDArray[Any]) -> InMemoryTrajectoryStore[MockVector]:
+        rhs.set_param(param)
+        store: InMemoryTrajectoryStore[MockVector] = InMemoryTrajectoryStore()
+        Integrator(stepper).solve(wrap(start.copy(), MOCK_STATE), _TIMES, store)
+        return store
+
+    return stepper, solve
+
+
 class TestMockStack:
     @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
     def test_gradient_and_tangent(self, make: Callable[[], ButcherTableau]) -> None:
-        rhs = _MockAffineRhs()
-        newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
-        jacobian = rhs.derivatives().jacobian
-        assert jacobian is not None
-        system = MassFormSystem(
-            rhs=rhs,
-            mass=MockOperator.identity(MOCK_STATE),
-            jacobian=jacobian,
-            space=MockVectorSpace(MOCK_STATE),
-            solver=MockLU(),
-            form=IdentityForm(),
-        )
-        tableau = make()
-        stepper = RungeKuttaStepper(
-            tableau, system, None if tableau.is_explicit() else newton
-        )
-        start = np.array([[1.0], [-0.5], [0.8]])
-
-        def solve(param: NDArray[Any]) -> InMemoryTrajectoryStore[MockVector]:
-            rhs.set_param(param)
-            store: InMemoryTrajectoryStore[MockVector] = InMemoryTrajectoryStore()
-            Integrator(stepper).solve(wrap(start.copy(), MOCK_STATE), _TIMES, store)
-            return store
+        stepper, solve = _mock_problem(make)
 
         def value(param: NDArray[Any]) -> float:
             last = peek(solve(param).state(-1))
@@ -648,6 +923,33 @@ class TestMockStack:
         store = solve(param)
         tangent = sweeps.tangent(store, functional, wrap(direction, _MOCK_PARAM))
         np.testing.assert_allclose(tangent, gradient.T @ direction, rtol=1e-12)
+
+    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
+    def test_hvp(self, make: Callable[[], ButcherTableau]) -> None:
+        """y_N is affine in p, so the gradient is too, and its central
+        difference along v is the HVP up to rounding."""
+        stepper, solve = _mock_problem(make)
+        sweeps: TrajectoryDerivatives[MockVector, NDArray[Any]] = TrajectoryDerivatives(
+            stepper
+        )
+
+        def gradient(param: NDArray[Any]) -> NDArray[Any]:
+            store = solve(param)
+            column: NDArray[Any] = peek(
+                sweeps.gradient(store, _MockQuadraticLast(store))
+            )
+            return column
+
+        param, direction = np.array([[0.4], [-0.2]]), np.array([[0.6], [1.3]])
+        store = solve(param)
+        functional = _MockQuadraticLast(store)
+        assert isinstance(functional, SecondOrderTrajectoryFunctionalProtocol)
+        hvp = peek(sweeps.hvp(store, functional, wrap(direction, _MOCK_PARAM)))
+        step = 1e-3
+        expected = (
+            gradient(param + step * direction) - gradient(param - step * direction)
+        ) / (2 * step)
+        np.testing.assert_allclose(hvp, expected, rtol=1e-8)
 
 
 class TestRefusals:
