@@ -80,13 +80,13 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     SecondOrderTrajectoryFunctionalProtocol,
     TrajectoryDerivatives,
-    TrajectoryFunctionalProtocol,
 )
 from pyapprox.ode.trajectory_functional import (
     BackendSecondOrderTrajectoryFunctional,
     BackendTrajectoryFunctional,
 )
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.linalg.operators import (
@@ -566,6 +566,55 @@ class TestHessianVectorProduct:
             sweeps.hvp(store, functional, direction, tangents)
 
 
+class TestHessianVectorProductContracts:
+    def test_gradient_and_hvp_gives_the_gradient(self, bkd: Backend[Array]) -> None:
+        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        store = problem.solve(param)
+        functional = BackendSecondOrderTrajectoryFunctional(
+            _functional(bkd), store, param
+        )
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
+            problem.stepper(),
+            ResidualFormConstraint(problem.pin(), BackendColumnForm(bkd)),
+            problem.start(),
+        )
+        gradient, hvp = sweeps.gradient_and_hvp(store, functional, direction)
+        bkd.assert_allclose(gradient, sweeps.gradient(store, functional), rtol=1e-14)
+        bkd.assert_allclose(hvp, sweeps.hvp(store, functional, direction), rtol=1e-14)
+
+    def test_tangent_steps_replay_from_a_checkpoint(self, bkd: Backend[Array]) -> None:
+        """From the tangent recorded at step 4, tangent_step reproduces
+        the rest of the recorded tangent trajectory: what a checkpointing
+        store does to recompute a segment."""
+        problem = _Problem(bkd, heun(), _CurvedPin(bkd), _ScaledStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), _direction(bkd)
+        store = problem.solve(param)
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
+            problem.stepper(),
+            ResidualFormConstraint(problem.pin(), BackendColumnForm(bkd)),
+            problem.start(),
+        )
+        tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        functional = BackendSecondOrderTrajectoryFunctional(
+            _functional(bkd), store, param
+        )
+        sweeps.hvp(store, functional, direction, tangents)
+        initial = sweeps.tangent_initial(store, direction)
+        bkd.assert_allclose(initial.state, tangents.state(0), rtol=0.0)
+        recent = tangents.state(4)
+        for n in range(4, store.nsteps()):
+            window = store.window(n)
+            replayed = sweeps.tangent_step(store, n, window, (recent,), direction)
+            bkd.assert_allclose(replayed.state, tangents.state(n + 1), rtol=0.0)
+            bkd.assert_allclose(
+                replayed.unconstrained, tangents.unconstrained(n + 1), rtol=0.0
+            )
+            recent = replayed.state
+        with pytest.raises(ValueError, match="tangents were given"):
+            sweeps.tangent_step(store, 4, store.window(4), (), direction)
+
+
 class TestHessianVectorProductAgainstTheOldPath:
     @pytest.mark.parametrize(
         "make, old", _OLD_STEPPERS, ids=[make().name for make, _ in _OLD_STEPPERS]
@@ -816,7 +865,8 @@ class _MockAffineRhs:
 
 class _MockLastState:
     r""":math:`Q = c^\top y_N + d^\top p`, read one stored state at a time:
-    a functional satisfying the sweeps' protocol directly."""
+    a functional satisfying the sweeps' protocol directly. Linear, so its
+    second derivatives are zero."""
 
     def __init__(self, nstates: int) -> None:
         self._last = nstates - 1
@@ -827,6 +877,18 @@ class _MockLastState:
 
     def param_cotangent(self) -> MockVector:
         return wrap(np.array(_D), _MOCK_PARAM)
+
+    def state_state(self, index: int, w: MockVector) -> MockVector:
+        return wrap(np.zeros((3, 1)), MOCK_STATE)
+
+    def state_param(self, index: int, v: MockVector) -> MockVector:
+        return wrap(np.zeros((3, 1)), MOCK_STATE)
+
+    def param_state(self, index: int, w: MockVector) -> MockVector:
+        return wrap(np.zeros((2, 1)), _MOCK_PARAM)
+
+    def param_param(self, v: MockVector) -> MockVector:
+        return wrap(np.zeros((2, 1)), _MOCK_PARAM)
 
 
 class _MockQuadraticLast:
@@ -858,14 +920,184 @@ class _MockQuadraticLast:
         return wrap(np.zeros((2, 1)), _MOCK_PARAM)
 
 
+_E = [[0.5], [-1.5]]
+
+
+class _MockCross:
+    r""":math:`Q = \tfrac12 |y_N|^2 + d^\top p + \tfrac12 |p|^2 +
+    (c^\top y_N)(e^\top p)` on one recorded mock trajectory: every
+    second derivative is nonzero, the parameter ones included, so every
+    term the sweeps accumulate into appears."""
+
+    def __init__(
+        self, store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+    ) -> None:
+        self._last, self._final = store.ntimes() - 1, peek(store.state(-1))
+        self._param = param
+        self._c, self._d, self._e = np.array(_C), np.array(_D), np.array(_E)
+
+    def _at_last(self, index: int) -> bool:
+        return index % (self._last + 1) == self._last
+
+    def state_cotangent(self, index: int) -> MockVector:
+        value = self._final + self._c * (self._e.T @ self._param)
+        return wrap(value if self._at_last(index) else np.zeros((3, 1)), MOCK_STATE)
+
+    def param_cotangent(self) -> MockVector:
+        value = self._d + self._param + self._e * (self._c.T @ self._final)
+        return wrap(value, _MOCK_PARAM)
+
+    def state_state(self, index: int, w: MockVector) -> MockVector:
+        value = peek(w).copy() if self._at_last(index) else np.zeros((3, 1))
+        return wrap(value, MOCK_STATE)
+
+    def state_param(self, index: int, v: MockVector) -> MockVector:
+        value = self._c * (self._e.T @ peek(v))
+        return wrap(value if self._at_last(index) else np.zeros((3, 1)), MOCK_STATE)
+
+    def param_state(self, index: int, w: MockVector) -> MockVector:
+        value = self._e * (self._c.T @ peek(w))
+        return wrap(value if self._at_last(index) else np.zeros((2, 1)), _MOCK_PARAM)
+
+    def param_param(self, v: MockVector) -> MockVector:
+        return wrap(peek(v).copy(), _MOCK_PARAM)
+
+
+class _OneBuffer:
+    """:class:`_MockCross` writing every result into one scratch vector
+    per space and returning it, as a functional reusing its storage may:
+    a sweep keeping a returned vector as an accumulator would see it
+    overwritten by the next call."""
+
+    def __init__(self, inner: _MockCross) -> None:
+        self._inner = inner
+        self._state = wrap(np.zeros((3, 1)), MOCK_STATE)
+        self._param = wrap(np.zeros((2, 1)), _MOCK_PARAM)
+        # What each buffer held when last handed out: the sweeps must not
+        # write into a returned vector.
+        self._handed: dict[int, NDArray[Any]] = {}
+
+    def _into(self, buffer: MockVector, value: MockVector) -> MockVector:
+        handed = self._handed.get(id(buffer))
+        if handed is not None and not np.array_equal(peek(buffer), handed):
+            raise AssertionError("a returned vector was written into")
+        # Overwrite the buffer in place through the stack (peek copies).
+        space = MockVectorSpace(MOCK_STATE if buffer is self._state else _MOCK_PARAM)
+        result = space.copy(value, out=buffer)
+        self._handed[id(buffer)] = peek(result)
+        return result
+
+    def check_untouched(self) -> None:
+        """Raise if a vector last returned was written into since."""
+        for buffer in (self._state, self._param):
+            handed = self._handed.get(id(buffer))
+            if handed is not None and not np.array_equal(peek(buffer), handed):
+                raise AssertionError("a returned vector was written into")
+
+    def state_cotangent(self, index: int) -> MockVector:
+        return self._into(self._state, self._inner.state_cotangent(index))
+
+    def param_cotangent(self) -> MockVector:
+        return self._into(self._param, self._inner.param_cotangent())
+
+    def state_state(self, index: int, w: MockVector) -> MockVector:
+        return self._into(self._state, self._inner.state_state(index, w))
+
+    def state_param(self, index: int, v: MockVector) -> MockVector:
+        return self._into(self._state, self._inner.state_param(index, v))
+
+    def param_state(self, index: int, w: MockVector) -> MockVector:
+        return self._into(self._param, self._inner.param_state(index, w))
+
+    def param_param(self, v: MockVector) -> MockVector:
+        return self._into(self._param, self._inner.param_param(v))
+
+
 _MockStepper = RungeKuttaStepper[MockVector, NDArray[Any], MockFormat]
+
+
+class _MockPin:
+    r""":math:`\Pi_t(y;\, p)`: the third component pinned to
+    :math:`0.3 + 0.1\, p_1 \sin(y_1 + 2t)`, on the mock stack's vectors
+    directly, with its first and second derivatives. Its tangent depends
+    on the parameters and time, its parameter derivative on the state and
+    time, and :math:`\Pi_{yy}`, :math:`\Pi_{yp}` are nonzero."""
+
+    def __init__(self) -> None:
+        self._p = np.zeros((2, 1))
+        states, params = MockVectorSpace(MOCK_STATE), MockVectorSpace(_MOCK_PARAM)
+        self._derivs: StateConstraintDerivatives[MockVector] = (
+            StateConstraintDerivatives.second_order(
+                states,
+                params,
+                tangent=self._tangent,
+                param=self._param,
+                state_state=self._state_state,
+                state_param=self._state_param,
+                param_param=STATED_ZERO,
+            )
+        )
+
+    def set_param(self, param: NDArray[Any]) -> None:
+        self._p = param.copy()
+
+    def _phase(self, state: MockVector, time: float) -> float:
+        return float(peek(state)[0, 0]) + 2.0 * time
+
+    def constrain(self, state: MockVector, time: float) -> MockVector:
+        entries = peek(state)
+        entries[2, 0] = 0.3 + 0.1 * self._p[0, 0] * np.sin(self._phase(state, time))
+        return wrap(entries, MOCK_STATE)
+
+    def _tangent(self, state: MockVector, time: float) -> MockOperator:
+        matrix = np.diag([1.0, 1.0, 0.0])
+        matrix[2, 0] = 0.1 * self._p[0, 0] * np.cos(self._phase(state, time))
+        return MockOperator.from_dense(matrix, MOCK_STATE)
+
+    def _param(self, state: MockVector, time: float) -> MockOperator:
+        matrix = np.zeros((3, 2))
+        matrix[2, 0] = 0.1 * np.sin(self._phase(state, time))
+        return MockOperator.from_dense(matrix, _MOCK_PARAM, MOCK_STATE)
+
+    def _state_state(
+        self, state: MockVector, time: float, adj: MockVector
+    ) -> MockOperator:
+        # adj_3 d^2(0.1 p_1 sin(y_1 + 2t))/dy_1^2
+        matrix = np.zeros((3, 3))
+        weight = float(peek(adj)[2, 0])
+        matrix[0, 0] = -0.1 * self._p[0, 0] * np.sin(self._phase(state, time)) * weight
+        return MockOperator.from_dense(matrix, MOCK_STATE)
+
+    def _state_param(
+        self, state: MockVector, time: float, adj: MockVector
+    ) -> MockOperator:
+        # adj_3 d^2(0.1 p_1 sin(y_1 + 2t))/dy_1 dp_1
+        matrix = np.zeros((3, 2))
+        weight = float(peek(adj)[2, 0])
+        matrix[0, 0] = 0.1 * np.cos(self._phase(state, time)) * weight
+        return MockOperator.from_dense(matrix, _MOCK_PARAM, MOCK_STATE)
+
+    def derivatives(self) -> StateConstraintDerivatives[MockVector]:
+        return self._derivs
+
+
+def _mock_value(
+    store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+) -> float:
+    r""":class:`_MockCross`'s :math:`Q` on a recorded trajectory."""
+    last = peek(store.state(-1))
+    c, d, e = np.array(_C), np.array(_D), np.array(_E)
+    value = 0.5 * last.T @ last + d.T @ param + 0.5 * param.T @ param
+    return float((value + (c.T @ last) * (e.T @ param))[0, 0])
 
 
 def _mock_problem(
     make: Callable[[], ButcherTableau],
+    pin: Optional[_MockPin] = None,
 ) -> tuple[_MockStepper, Callable[[NDArray[Any]], InMemoryTrajectoryStore[MockVector]]]:
     """The mock-stack stepper of :class:`_MockAffineRhs`, and a solve from
-    (1, -0.5, 0.8) over the module's times at given parameters."""
+    (1, -0.5, 0.8) over the module's times at given parameters, with
+    ``pin`` applied at stored states when given."""
     rhs = _MockAffineRhs()
     newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
     jacobian = rhs.derivatives().jacobian
@@ -886,70 +1118,214 @@ def _mock_problem(
 
     def solve(param: NDArray[Any]) -> InMemoryTrajectoryStore[MockVector]:
         rhs.set_param(param)
+        if pin is not None:
+            pin.set_param(param)
         store: InMemoryTrajectoryStore[MockVector] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(wrap(start.copy(), MOCK_STATE), _TIMES, store)
+        Integrator(stepper, pin).solve(wrap(start.copy(), MOCK_STATE), _TIMES, store)
         return store
 
     return stepper, solve
 
 
-class TestMockStack:
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
-    def test_gradient_and_tangent(self, make: Callable[[], ButcherTableau]) -> None:
-        stepper, solve = _mock_problem(make)
+_MockFunctional = Callable[
+    [InMemoryTrajectoryStore[MockVector], NDArray[Any]],
+    SecondOrderTrajectoryFunctionalProtocol[MockVector],
+]
+_MockValue = Callable[[InMemoryTrajectoryStore[MockVector], NDArray[Any]], float]
 
-        def value(param: NDArray[Any]) -> float:
-            last = peek(solve(param).state(-1))
-            return float((np.array(_C).T @ last + np.array(_D).T @ param)[0, 0])
 
-        param = np.array([[0.4], [-0.2]])
-        store = solve(param)
-        functional = _MockLastState(store.ntimes())
-        assert isinstance(functional, TrajectoryFunctionalProtocol)
-        sweeps: TrajectoryDerivatives[MockVector, NDArray[Any]] = TrajectoryDerivatives(
-            stepper
+def _last_state(
+    store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+) -> _MockLastState:
+    return _MockLastState(store.ntimes())
+
+
+def _last_state_value(
+    store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+) -> float:
+    last = peek(store.state(-1))
+    return float((np.array(_C).T @ last + np.array(_D).T @ param)[0, 0])
+
+
+def _quadratic_last(
+    store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+) -> _MockQuadraticLast:
+    return _MockQuadraticLast(store)
+
+
+def _quadratic_last_value(
+    store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+) -> float:
+    last = peek(store.state(-1))
+    return float((0.5 * last.T @ last + np.array(_D).T @ param)[0, 0])
+
+
+class _MockDerivatives:
+    """A mock-stack problem :math:`p \\mapsto Q` as NumPy functions of the
+    parameters, so ``DerivativeChecker`` drives it on the NumPy backend:
+    the parameters and the sweeps' results are read out of the mock
+    vectors, the sweeps themselves run on the mock stack.
+
+    Parameters
+    ----------
+    make : callable
+        The tableau.
+    functional : callable
+        ``(store, param) ->`` the functional on a recorded trajectory.
+    value : callable
+        ``(store, param) ->`` :math:`Q` on a recorded trajectory.
+    pin : _MockPin, optional
+        A constraint at stored states.
+    """
+
+    def __init__(
+        self,
+        make: Callable[[], ButcherTableau],
+        functional: _MockFunctional,
+        value: _MockValue,
+        pin: Optional[_MockPin] = None,
+    ) -> None:
+        stepper, self._solve = _mock_problem(make, pin)
+        self._sweeps: TrajectoryDerivatives[MockVector, NDArray[Any]] = (
+            TrajectoryDerivatives(stepper, pin)
         )
-        gradient = peek(sweeps.gradient(store, functional))
-        step = 1e-5
-        # Central differences along each unit direction, as a column.
-        expected = np.array(
+        self._functional, self._value = functional, value
+
+    def values(self, samples: NDArray[Any]) -> NDArray[Any]:
+        """Q at each column. Shape: (1, nsamples)."""
+        return np.array(
             [
-                [(value(param + step * e) - value(param - step * e)) / (2 * step)]
-                for e in np.eye(2)[:, :, None]
+                [
+                    self._value(
+                        self._solve(samples[:, k : k + 1]), samples[:, k : k + 1]
+                    )
+                    for k in range(samples.shape[1])
+                ]
             ]
         )
-        np.testing.assert_allclose(gradient, expected, rtol=1e-8)
-        direction = np.array([[0.6], [1.3]])
-        store = solve(param)
-        tangent = sweeps.tangent(store, functional, wrap(direction, _MOCK_PARAM))
-        np.testing.assert_allclose(tangent, gradient.T @ direction, rtol=1e-12)
 
-    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
-    def test_hvp(self, make: Callable[[], ButcherTableau]) -> None:
-        """y_N is affine in p, so the gradient is too, and its central
-        difference along v is the HVP up to rounding."""
-        stepper, solve = _mock_problem(make)
-        sweeps: TrajectoryDerivatives[MockVector, NDArray[Any]] = TrajectoryDerivatives(
-            stepper
+    def gradient(self, sample: NDArray[Any]) -> NDArray[Any]:
+        """dQ/dp by the adjoint sweep. Shape: (1, 2)."""
+        store = self._solve(sample)
+        column = peek(self._sweeps.gradient(store, self._functional(store, sample)))
+        row: NDArray[Any] = column.T
+        return row
+
+    def gradients(self, samples: NDArray[Any]) -> NDArray[Any]:
+        """dQ/dp at each column. Shape: (2, nsamples)."""
+        return np.hstack(
+            [self.gradient(samples[:, k : k + 1]).T for k in range(samples.shape[1])]
         )
 
-        def gradient(param: NDArray[Any]) -> NDArray[Any]:
-            store = solve(param)
-            column: NDArray[Any] = peek(
-                sweeps.gradient(store, _MockQuadraticLast(store))
-            )
-            return column
+    def tangent(self, sample: NDArray[Any], vec: NDArray[Any]) -> NDArray[Any]:
+        """dQ/dp v by the tangent sweep. Shape: (1, 1)."""
+        store = self._solve(sample)
+        direction = wrap(vec, _MOCK_PARAM)
+        result: NDArray[Any] = self._sweeps.tangent(
+            store, self._functional(store, sample), direction
+        )
+        return result
 
+    def hvp(self, sample: NDArray[Any], vec: NDArray[Any]) -> NDArray[Any]:
+        """(d^2Q/dp^2) v by the tangent and adjoint sweeps. Shape: (2, 1)."""
+        store = self._solve(sample)
+        direction = wrap(vec, _MOCK_PARAM)
+        product = self._sweeps.hvp(store, self._functional(store, sample), direction)
+        column: NDArray[Any] = peek(product)
+        return column
+
+    def min_errors(self, param: NDArray[Any]) -> tuple[float, float]:
+        """The smallest central-difference errors of the gradient (against
+        Q) and of the HVP (against the gradient), on the NumPy backend."""
+        bkd = NumpyBkd()
+        first = FunctionWithJacobianFromCallable(
+            nqoi=1, nvars=2, fun=self.values, jacobian=self.gradient, bkd=bkd
+        )
+        second = FunctionWithJVPFromCallable(
+            nqoi=2, nvars=2, fun=self.gradients, jvp=self.hvp, bkd=bkd
+        )
+        errors = [
+            DerivativeChecker(wrapper).check_derivatives(
+                param, relative=True, central=True
+            )[0]
+            for wrapper in (first, second)
+        ]
+        return float(np.min(errors[0])), float(np.min(errors[1]))
+
+
+_MOCK_POINT = np.array([[0.4], [-0.2]])
+_MOCK_DIRECTION = np.array([[0.6], [1.3]])
+
+
+class TestMockStack:
+    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
+    def test_linear_functional(self, make: Callable[[], ButcherTableau]) -> None:
+        r""":math:`Q = c^\top y_N + d^\top p` on an affine model: the gradient
+        passes the checker, and the tangent is the gradient in a
+        direction."""
+        problem = _MockDerivatives(make, _last_state, _last_state_value)
+        assert isinstance(_MockLastState(2), SecondOrderTrajectoryFunctionalProtocol)
+        gradient_error, _ = problem.min_errors(_MOCK_POINT)
+        assert gradient_error < 1e-8
+        gradient = problem.gradient(_MOCK_POINT)
+        np.testing.assert_allclose(
+            problem.tangent(_MOCK_POINT, _MOCK_DIRECTION),
+            gradient @ _MOCK_DIRECTION,
+            rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
+    def test_quadratic_in_the_last_state(
+        self, make: Callable[[], ButcherTableau]
+    ) -> None:
+        r""":math:`Q = \tfrac12 |y_N|^2 + d^\top p`: the Hessian
+        :math:`(dy_N/dp)^\top (dy_N/dp)` comes from the sweeps alone."""
+        problem = _MockDerivatives(make, _quadratic_last, _quadratic_last_value)
+        gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
+        assert gradient_error < 1e-8 and hvp_error < 1e-8
+
+    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
+    def test_parameter_terms(self, make: Callable[[], ButcherTableau]) -> None:
+        """:class:`_MockCross`: every second derivative of Q nonzero."""
+        problem = _MockDerivatives(make, _MockCross, _mock_value)
+        gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
+        assert gradient_error < 1e-8 and hvp_error < 1e-8
+
+    @pytest.mark.parametrize("constrained", [False, True], ids=["free", "pinned"])
+    def test_a_functional_reusing_its_storage(self, constrained: bool) -> None:
+        """On a stack that writes ``out`` in place, a sweep keeping a
+        functional's returned vector as an accumulator would be clobbered
+        by the functional's next call; the sweeps copy first. The
+        constraint adds the per-state terms summed with the functional's."""
+        pin = _MockPin() if constrained else None
+        stepper, solve = _mock_problem(heun, pin)
+        sweeps: TrajectoryDerivatives[MockVector, NDArray[Any]] = TrajectoryDerivatives(
+            stepper, pin
+        )
         param, direction = np.array([[0.4], [-0.2]]), np.array([[0.6], [1.3]])
         store = solve(param)
-        functional = _MockQuadraticLast(store)
-        assert isinstance(functional, SecondOrderTrajectoryFunctionalProtocol)
-        hvp = peek(sweeps.hvp(store, functional, wrap(direction, _MOCK_PARAM)))
-        step = 1e-3
-        expected = (
-            gradient(param + step * direction) - gradient(param - step * direction)
-        ) / (2 * step)
-        np.testing.assert_allclose(hvp, expected, rtol=1e-8)
+        plain = _MockCross(store, param)
+        reusing = _OneBuffer(_MockCross(store, param))
+        v = wrap(direction, _MOCK_PARAM)
+        gradient, hvp = sweeps.gradient_and_hvp(store, reusing, v)
+        reusing.check_untouched()
+        expected_gradient, expected_hvp = sweeps.gradient_and_hvp(store, plain, v)
+        np.testing.assert_array_equal(peek(gradient), peek(expected_gradient))
+        np.testing.assert_array_equal(peek(hvp), peek(expected_hvp))
+
+    @pytest.mark.parametrize("make", [backward_euler, heun], ids=["BE", "heun"])
+    def test_constraint(self, make: Callable[[], ButcherTableau]) -> None:
+        """The constraint's first and second derivatives on a stack that
+        writes ``out`` in place: the gradient and HVP pass the checker,
+        and the tangent is the gradient in a direction."""
+        problem = _MockDerivatives(make, _MockCross, _mock_value, _MockPin())
+        gradient_error, hvp_error = problem.min_errors(_MOCK_POINT)
+        assert gradient_error < 1e-7 and hvp_error < 1e-7
+        np.testing.assert_allclose(
+            problem.tangent(_MOCK_POINT, _MOCK_DIRECTION),
+            problem.gradient(_MOCK_POINT) @ _MOCK_DIRECTION,
+            rtol=1e-12,
+        )
 
 
 class TestRefusals:
