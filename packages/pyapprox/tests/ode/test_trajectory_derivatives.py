@@ -12,10 +12,13 @@ directly.
   random direction equals the gradient's inner product with it to 1e-12.
 - For the five methods the old path also has, the gradient equals the
   old adjoint's to 1e-10.
-- A curved constraint depending on the parameters (the predator pinned to
-  :math:`3 + 0.1 \sin x + 0.01 a`) and an initial state depending on them
-  (:math:`\hat y_0 = (10 a, 5)`) are differentiated too: finite
-  differences and the tangent agree with the gradient.
+- A curved, time-dependent constraint coupling state and parameter (the
+  predator pinned to :math:`3 + 0.1\, a \sin(x + 2t)`) and an initial
+  state with a
+  parameter cross term (:math:`\hat y_0 = (10 a,\ 5 e^{a b - 0.1})`) are
+  differentiated too, each alone and both together: finite differences
+  and the tangent agree with the gradient. Neither is additive, so a
+  derivative evaluated at the wrong state or parameters is caught.
 - With every parameter derivative refusing more than one column, both
   sweeps still run: no state-by-parameter matrix is formed.
 - On the mock stack (:math:`\dot y = K y + B p`, a functional of the last
@@ -133,9 +136,11 @@ def _functional(bkd: Backend[Array]) -> TikhonovAugmentedFunctional[Array]:
 
 
 class _CurvedPin(Generic[Array]):
-    r""":math:`\Pi(x, z;\, p) = (x,\ 3 + 0.1 \sin x + 0.01 a)` on 1-D
+    r""":math:`\Pi_t(x, z;\, p) = (x,\ 3 + 0.1\, a \sin(x + 2t))` on 1-D
     states, with its first derivatives; its parameters are set beside the
-    model's."""
+    model's. The tangent depends on :math:`a` and :math:`t`, the
+    parameter derivative on the state and :math:`t`, so either evaluated
+    at the wrong state, parameters or time is caught."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
@@ -154,12 +159,12 @@ class _CurvedPin(Generic[Array]):
         self._a = self._bkd.flatten(param)[0:1]
 
     def constrain(self, state: Array, time: float) -> Array:
-        pinned = 3.0 + 0.1 * self._bkd.sin(state[0:1]) + 0.01 * self._a
+        pinned = 3.0 + 0.1 * self._a * self._bkd.sin(state[0:1] + 2.0 * time)
         return self._bkd.concatenate([state[0:1], pinned])
 
     def _tangent(self, state: Array, time: float) -> Array:
         bkd = self._bkd
-        slope = 0.1 * bkd.cos(state[0:1])
+        slope = 0.1 * self._a * bkd.cos(state[0:1] + 2.0 * time)
         return bkd.stack(
             [
                 bkd.concatenate([bkd.ones((1,)), bkd.zeros((1,))]),
@@ -168,8 +173,10 @@ class _CurvedPin(Generic[Array]):
         )
 
     def _param(self, state: Array, time: float) -> Array:
+        # d(3 + 0.1 a sin(x + 2t))/da in the second row; nothing else
+        # depends on p.
         matrix = self._bkd.zeros((2, 4))
-        matrix[1, 0] = 0.01
+        matrix[1, 0] = 0.1 * self._bkd.sin(state[0] + 2.0 * time)
         return matrix
 
     def derivatives(self) -> StateConstraintDerivatives[Array]:
@@ -177,19 +184,33 @@ class _CurvedPin(Generic[Array]):
 
 
 class _ScaledStart(Generic[Array]):
-    r""":math:`\hat y_0 = (10 a, 5)` and its derivative."""
+    r""":math:`\hat y_0 = (10 a,\ 5 e^{a b - 0.1})` and its derivative,
+    (10, 5) at the nominal parameters. The second entry is a
+    non-polynomial function of two parameters, so its derivative depends
+    on both and has two nonzero columns, and every entry of its curvature
+    (aa, ab, bb) is nonzero."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
+        self._param = bkd.asarray(LV_PARAM)
         states, params = backend_spaces(bkd, 2, 4)
         self._derivative = dense_operator(self._matrix, params, states, bkd)
 
+    def set_param(self, param: Array) -> None:
+        self._param = param
+
     def start(self, param: Array) -> Array:
-        return self._bkd.concatenate([10.0 * param[0:1], self._bkd.asarray([[5.0]])])
+        a, b = param[0:1], param[1:2]
+        return self._bkd.concatenate([10.0 * a, 5.0 * self._bkd.exp(a * b - 0.1)])
 
     def _matrix(self) -> Array:
+        # d(10 a, 5 exp(a b - 0.1))/d(a, b, c, d) at the parameters set.
+        a, b = self._param[0, 0], self._param[1, 0]
+        growth = 5.0 * self._bkd.exp(a * b - 0.1)
         matrix = self._bkd.zeros((2, 4))
         matrix[0, 0] = 10.0
+        matrix[1, 0] = b * growth
+        matrix[1, 1] = a * growth
         return matrix
 
     def param_derivative(self) -> DerivativeOperator[Array]:
@@ -248,6 +269,8 @@ class _Problem(Generic[Array]):
         self._model.set_param(param)
         if self._pin is not None:
             self._pin.set_param(param)
+        if self._start is not None:
+            self._start.set_param(param)
         start = (
             self._bkd.asarray(_START)
             if self._start is None
