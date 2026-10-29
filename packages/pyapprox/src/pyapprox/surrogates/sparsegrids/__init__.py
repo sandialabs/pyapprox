@@ -82,6 +82,7 @@ from .priority import CostWeightedPriority, PriorityProtocol
 from .quadrature_rule import ParameterizedIsotropicSparseGridQuadratureRule
 from .quadrature_variance_indicator import QuadratureVarianceIndicator
 from .sample_tracker import SampleTracker
+from .sequence_lookup import SequencePositionLookup
 from .smolyak import (
     IncrementalSmolyakCoefficients,
     SubspaceKey,
@@ -133,6 +134,7 @@ __all__ = [
     "TensorProductSubspace",
     "CombinationSurrogate",
     "IsotropicSparseGridFitter",
+    "SequencePositionLookup",
     "MultiFidelityAdaptiveSparseGridFitter",
     "SingleFidelityAdaptiveSparseGridFitter",
     "SubsetType",
