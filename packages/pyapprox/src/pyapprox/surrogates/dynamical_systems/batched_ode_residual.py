@@ -14,6 +14,7 @@ from typing import Generic, Optional
 
 from pyapprox.interface.functions.derivatives import JacobianBatchFn
 from pyapprox.ode.linear_operator import BlockDiagonalLinearOperator
+from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
 from pyapprox.ode.mass_matrix_system import MassMatrixSystem
 from pyapprox.ode.residual_derivatives import (
@@ -22,6 +23,7 @@ from pyapprox.ode.residual_derivatives import (
     backend_spaces,
     dense_operator,
 )
+from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
@@ -184,18 +186,40 @@ class BatchedBoundODEResidual(Generic[Array]):
         """The residual-form system implicit steppers solve with: identity
         mass and Jacobian as one block per trajectory, so the shifted
         Jacobian stays block-diagonal and the batched LU solves it."""
-        identity = BackendBlockDiagonalOperator(
+        return MassMatrixSystem(
+            self,
+            self._identity_mass(),
+            self,
+            BackendVectorSpace(self._descriptor, self._bkd),
+            BlockDiagonalLU(self._bkd),
+        )
+
+    def mass_form_system(
+        self,
+    ) -> MassFormSystem[Array, Array, BlockDiagonalFormat[Array]]:
+        """The system the steppers of :mod:`pyapprox.ode.stepping_methods`
+        step: this residual as :math:`f`, the identity mass and the
+        Jacobian as one block per trajectory, so every stage operator
+        :math:`M - s J` stays block-diagonal and the batched LU solves it
+        (its transpose too, for the adjoint), with states as single
+        columns of the ``n_dynamic * k`` state space."""
+        space = BackendVectorSpace(self._descriptor, self._bkd)
+        return MassFormSystem(
+            rhs=self,
+            mass=self._identity_mass(),
+            jacobian=self.jacobian_operator,
+            space=space,
+            solver=BlockDiagonalLU(self._bkd),
+            form=BackendColumnForm(self._bkd),
+        )
+
+    def _identity_mass(self) -> BackendBlockDiagonalOperator[Array]:
+        """The identity, one block per trajectory."""
+        return BackendBlockDiagonalOperator(
             self._bkd.stack([self._bkd.eye(self._n_dynamic)] * self._k),
             self._descriptor,
             self._bkd,
             OperatorProperties(symmetric=True, spd=True, diagonal=True, identity=True),
-        )
-        return MassMatrixSystem(
-            self,
-            identity,
-            self,
-            BackendVectorSpace(self._descriptor, self._bkd),
-            BlockDiagonalLU(self._bkd),
         )
 
     def derivatives(

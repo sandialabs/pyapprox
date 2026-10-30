@@ -7,11 +7,11 @@ Uses a bindable optimizer (BindableOptimizerProtocol) following the same
 pattern as GPMaximumLikelihoodFitter and MSEFitter.
 """
 
-from typing import Generic, List, Optional, Tuple
+from typing import Generic, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -69,26 +69,28 @@ class TrajectoryMatchingFitResult(Generic[Array]):
 class TrajectoryMatchingFitter(Generic[Array]):
     """Fits a learned function by minimizing trajectory MSE via adjoint gradients.
 
-    Accepts a pre-configured wrapper and integrator. The user controls the
-    ODE pipeline (stepper choice, Newton options, time grid); the fitter
-    builds the loss and runs the optimizer.
+    The user controls the ODE pipeline: the wrapper, the stepping method
+    (its tableau or multistep coefficients and, for an implicit method,
+    its nonlinear solver) and the time grid; the fitter builds the loss
+    and runs the optimizer.
 
     Parameters
     ----------
     wrapper : BatchedBoundODEResidual[Array]
         ODE residual wrapping the learned function.
-    integrator : TimeIntegrator[Array]
-        Pre-configured time integrator with adjoint support.
+    method : SteppingMethodProtocol
+        The time-stepping method, bound to the wrapper's system.
+    times : sequence of float
+        The step boundaries :math:`t_0 < \\dots < t_N`; observations are
+        indexed by these stored times.
     noise_std : float
         Observation noise standard deviation for MSE scaling.
 
     Examples
     --------
     >>> wrapper = BatchedBoundODEResidual(expansion, n_dynamic=2, mu_batch=mu)
-    >>> stepper = ForwardEulerAdjoint(wrapper)
-    >>> newton = NewtonSolver(stepper)
-    >>> integrator = TimeIntegrator(0.0, 0.3, 0.01, newton)
-    >>> fitter = TrajectoryMatchingFitter(wrapper, integrator)
+    >>> times = [0.01 * n for n in range(31)]
+    >>> fitter = TrajectoryMatchingFitter(wrapper, RungeKutta(forward_euler()), times)
     >>> fitter.set_optimizer(ScipyTrustConstrOptimizer(maxiter=200, gtol=1e-10))
     >>> result = fitter.fit(init_states, observations)
     >>> fitted = result.surrogate()
@@ -97,11 +99,13 @@ class TrajectoryMatchingFitter(Generic[Array]):
     def __init__(
         self,
         wrapper: BatchedBoundODEResidual[Array],
-        integrator: TimeIntegrator[Array],
+        method: SteppingMethodProtocol[Array, Array],
+        times: Sequence[float],
         noise_std: float = 1.0,
     ) -> None:
         self._wrapper = wrapper
-        self._integrator = integrator
+        self._method = method
+        self._times = list(times)
         self._noise_std = noise_std
         self._bkd = wrapper.bkd()
         self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
@@ -141,7 +145,7 @@ class TrajectoryMatchingFitter(Generic[Array]):
             assumes all states observed at all times and nobs = nstates*ntimes.
         obs_tuples : Optional[List[Tuple[int, Array]]]
             Observation specification: list of (state_idx, time_indices).
-            If None, observes all states at all integrator time steps.
+            If None, observes all states at all stored times.
         bounds : Optional[Array]
             Parameter bounds. Shape: (nparams, 2). If None, unbounded.
 
@@ -152,13 +156,13 @@ class TrajectoryMatchingFitter(Generic[Array]):
         """
         nstates = init_states.shape[0]
         if obs_tuples is None:
-            ntimes = self._integrator.ntimes()
-            obs_time_indices = self._bkd.arange(ntimes)
+            obs_time_indices = self._bkd.arange(len(self._times))
             obs_tuples = [(i, obs_time_indices) for i in range(nstates)]
 
         loss = TrajectoryMatchingLoss(
             wrapper=self._wrapper,
-            integrator=self._integrator,
+            method=self._method,
+            times=self._times,
             init_states=init_states,
             obs_tuples=obs_tuples,
             observations=observations,

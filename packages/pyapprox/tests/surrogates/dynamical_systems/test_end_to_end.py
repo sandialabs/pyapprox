@@ -1,20 +1,20 @@
 """End-to-end: derivative-matching fit, ODE integration, trajectory."""
 
+from typing import List, Tuple
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 from scipy.integrate import solve_ivp
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerAdjoint
-from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.stepping_methods import RungeKutta, SteppingMethodProtocol
+from pyapprox.ode.tableau import backward_euler
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
-    LeastSquaresFitter,
-)
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
@@ -23,10 +23,13 @@ from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
 from pyapprox.surrogates.dynamical_systems.losses.trajectory_matching import (
     TrajectoryMatchingLoss,
 )
-from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.nonlinear import Newton
+from tests._helpers.surrogates.dynamical_systems import solve_batched, step_times
+from tests._helpers.surrogates.least_squares import least_squares_fit
 
 
-def _true_vdp_rhs(states, mu, bkd):
+def _true_vdp_rhs(states: Array, mu: float, bkd: Backend[Array]) -> Array:
     """Evaluate Van der Pol RHS: dx1/dt=x2, dx2/dt=mu*(1-x1^2)*x2 - x1."""
     x1 = states[0:1, :]
     x2 = states[1:2, :]
@@ -35,11 +38,13 @@ def _true_vdp_rhs(states, mu, bkd):
     return bkd.vstack([dx1, dx2])
 
 
-def _solve_true_vdp(mu, y0, times_arr, bkd):
+def _solve_true_vdp(
+    mu: float, y0: List[float], times_arr: Array, bkd: Backend[Array]
+) -> Array:
     """Reference VdP solution via scipy RK45."""
-    times_np = np.asarray(bkd.to_numpy(times_arr))
+    times_np: NDArray[np.float64] = np.asarray(bkd.to_numpy(times_arr))
 
-    def vdp_rhs(t, y):
+    def vdp_rhs(t: float, y: NDArray[np.float64]) -> List[float]:
         return [y[1], mu * (1 - y[0] ** 2) * y[1] - y[0]]
 
     sol = solve_ivp(
@@ -54,7 +59,9 @@ def _solve_true_vdp(mu, y0, times_arr, bkd):
     return bkd.array(sol.y)
 
 
-def _build_expansion(bkd, nvars, nqoi, max_level):
+def _build_expansion(
+    bkd: Backend[Array], nvars: int, nqoi: int, max_level: int
+) -> BasisExpansion[Array]:
     """Build unfitted polynomial expansion on [-3, 3]^nvars."""
     marginals = [UniformMarginal(-3.0, 3.0, bkd) for _ in range(nvars)]
     bases_1d = create_bases_1d(marginals, bkd)
@@ -63,24 +70,30 @@ def _build_expansion(bkd, nvars, nqoi, max_level):
     return BasisExpansion(basis, bkd, nqoi=nqoi)
 
 
-def _forward_solve(wrapper, init_state, init_time, final_time, deltat, bkd):
-    """Helper to set up stepper/Newton/integrator and solve."""
-    stepper = BackwardEulerAdjoint(wrapper)
-    newton = NewtonSolver(stepper)
-    newton.set_options(maxiters=30, atol=1e-10, rtol=1e-10)
-    integrator = TimeIntegrator(
-        init_time=init_time,
-        final_time=final_time,
-        deltat=deltat,
-        newton_solver=newton,
-    )
-    return integrator.solve(init_state)
+def _method(bkd: Backend[Array]) -> SteppingMethodProtocol[Array, Array]:
+    """Backward Euler with Newton at atol and rtol 1e-10."""
+    newton: Newton[Array, Array] = Newton(maxiters=30, atol=1e-10, rtol=1e-10)
+    return RungeKutta(backward_euler(), newton)
+
+
+def _forward_solve(
+    wrapper: BatchedBoundODEResidual[Array],
+    init_state: Array,
+    init_time: float,
+    final_time: float,
+    deltat: float,
+    bkd: Backend[Array],
+) -> Tuple[Array, Array]:
+    """The backward-Euler trajectory, shape (nstates, ntimes), and its
+    times."""
+    times = step_times(init_time, final_time, deltat)
+    return solve_batched(wrapper, _method(bkd), init_state, times)
 
 
 class TestEndToEndParameterFreeVdP:
     """Derivative-matching fit -> ODE integration, no mu parameter."""
 
-    def test_trajectory_quality(self, bkd):
+    def test_trajectory_quality(self, bkd: Backend[Array]) -> None:
         n_dynamic = 2
         max_level = 5
 
@@ -90,10 +103,7 @@ class TestEndToEndParameterFreeVdP:
         rng = np.random.RandomState(42)
         train_states = bkd.array(rng.uniform(-3, 3, (2, n_train)))
         train_derivs = _true_vdp_rhs(train_states, mu=1.0, bkd=bkd)
-
-        fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(expansion, train_states, train_derivs)
-        fitted = result.surrogate()
+        fitted = least_squares_fit(expansion, train_states, train_derivs)
 
         wrapper = BatchedBoundODEResidual(fitted, n_dynamic=n_dynamic)
 
@@ -105,8 +115,8 @@ class TestEndToEndParameterFreeVdP:
         )
 
         ref_sol = _solve_true_vdp(1.0, [1.0, 0.0], times, bkd)
-        max_err = float(bkd.max(bkd.abs(approx_sols - ref_sol)))
-        amplitude = float(bkd.max(bkd.abs(ref_sol)))
+        max_err = bkd.to_float(bkd.max(bkd.abs(approx_sols - ref_sol)))
+        amplitude = bkd.to_float(bkd.max(bkd.abs(ref_sol)))
         assert max_err / amplitude < 0.05, (
             f"Relative error {max_err / amplitude:.4f} exceeds 0.05"
         )
@@ -115,7 +125,7 @@ class TestEndToEndParameterFreeVdP:
 class TestEndToEndParametricVdP:
     """Parametric derivative-matching fit -> batched ODE integration."""
 
-    def test_trajectory_quality_at_held_out_mu(self, bkd):
+    def test_trajectory_quality_at_held_out_mu(self, bkd: Backend[Array]) -> None:
         n_dynamic = 2
         max_level = 4
 
@@ -135,10 +145,7 @@ class TestEndToEndParametricVdP:
             all_derivs.append(derivs)
         train_states = bkd.hstack(all_states)
         train_derivs = bkd.hstack(all_derivs)
-
-        fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(expansion, train_states, train_derivs)
-        fitted = result.surrogate()
+        fitted = least_squares_fit(expansion, train_states, train_derivs)
 
         test_mu_values = [0.7, 1.3, 1.8]
         k = len(test_mu_values)
@@ -157,30 +164,26 @@ class TestEndToEndParametricVdP:
         for i, mu_val in enumerate(test_mu_values):
             ref_sol = _solve_true_vdp(mu_val, [1.0, 0.0], times, bkd)
             approx_traj = approx_sols[i * 2 : (i + 1) * 2, :]
-            max_err = float(bkd.max(bkd.abs(approx_traj - ref_sol)))
-            amplitude = float(bkd.max(bkd.abs(ref_sol)))
+            max_err = bkd.to_float(bkd.max(bkd.abs(approx_traj - ref_sol)))
+            amplitude = bkd.to_float(bkd.max(bkd.abs(ref_sol)))
             assert max_err / amplitude < 0.05, (
-                f"mu={mu_val}: relative error {max_err / amplitude:.4f} "
-                f"exceeds 0.05"
+                f"mu={mu_val}: relative error {max_err / amplitude:.4f} exceeds 0.05"
             )
 
 
-def _build_trajectory_matching_loss(wrapper, init_states, init_time, final_time,
-                                     deltat, bkd):
+def _build_trajectory_matching_loss(
+    wrapper: BatchedBoundODEResidual[Array],
+    init_states: Array,
+    init_time: float,
+    final_time: float,
+    deltat: float,
+    bkd: Backend[Array],
+) -> TrajectoryMatchingLoss[Array]:
     """Build TrajectoryMatchingLoss observing all states at all time steps."""
-    stepper = BackwardEulerAdjoint(wrapper)
-    newton = NewtonSolver(stepper)
-    newton.set_options(maxiters=30, atol=1e-10, rtol=1e-10)
-    integrator = TimeIntegrator(
-        init_time=init_time,
-        final_time=final_time,
-        deltat=deltat,
-        newton_solver=newton,
+    fwd_sols, _ = _forward_solve(
+        wrapper, init_states, init_time, final_time, deltat, bkd
     )
-
-    fwd_sols, times = integrator.solve(init_states)
-    nstates = fwd_sols.shape[0]
-    ntimes = fwd_sols.shape[1]
+    nstates, ntimes = fwd_sols.shape
     obs_time_indices = bkd.arange(ntimes)
     obs_tuples = [(i, obs_time_indices) for i in range(nstates)]
 
@@ -193,7 +196,8 @@ def _build_trajectory_matching_loss(wrapper, init_states, init_time, final_time,
 
     return TrajectoryMatchingLoss(
         wrapper=wrapper,
-        integrator=integrator,
+        method=_method(bkd),
+        times=step_times(init_time, final_time, deltat),
         init_states=init_states,
         obs_tuples=obs_tuples,
         observations=flat_obs,
@@ -205,7 +209,7 @@ class TestAdjointGradient:
     """Validate adjoint gradient via DerivativeChecker."""
 
     @pytest.mark.slow_on("TorchBkd")
-    def test_adjoint_gradient_k1(self, bkd):
+    def test_adjoint_gradient_k1(self, bkd: Backend[Array]) -> None:
         """Single-trajectory adjoint gradient matches FD via DerivativeChecker."""
         expansion = _build_expansion(bkd, nvars=3, nqoi=2, max_level=3)
 
@@ -215,9 +219,7 @@ class TestAdjointGradient:
         mu_row = bkd.full((1, n_train), 1.0)
         aug_states = bkd.vstack([train_states, mu_row])
         train_derivs = _true_vdp_rhs(train_states, mu=1.0, bkd=bkd)
-
-        fitter = LeastSquaresFitter(bkd)
-        fitted = fitter.fit(expansion, aug_states, train_derivs).surrogate()
+        fitted = least_squares_fit(expansion, aug_states, train_derivs)
 
         n_dynamic = 2
         mu_batch = bkd.array([[1.0]])
@@ -233,11 +235,11 @@ class TestAdjointGradient:
 
         checker = DerivativeChecker(loss)
         errors = checker.check_derivatives(sample)
-        ratio = checker.error_ratio(errors[0])
-        assert float(ratio) <= 1e-6, f"error_ratio={float(ratio):.2e}"
+        ratio = bkd.to_float(checker.error_ratio(errors[0]))
+        assert ratio <= 1e-6, f"error_ratio={ratio:.2e}"
 
     @pytest.mark.slow_on("TorchBkd")
-    def test_adjoint_gradient_k4(self, bkd):
+    def test_adjoint_gradient_k4(self, bkd: Backend[Array]) -> None:
         """Batched (k=4) adjoint gradient matches FD via DerivativeChecker."""
         expansion = _build_expansion(bkd, nvars=3, nqoi=2, max_level=3)
 
@@ -252,9 +254,7 @@ class TestAdjointGradient:
             all_derivs.append(_true_vdp_rhs(s2d, mu=mu, bkd=bkd))
         train_states = bkd.hstack(all_states)
         train_derivs = bkd.hstack(all_derivs)
-
-        fitter = LeastSquaresFitter(bkd)
-        fitted = fitter.fit(expansion, train_states, train_derivs).surrogate()
+        fitted = least_squares_fit(expansion, train_states, train_derivs)
 
         n_dynamic, k = 2, 4
         mu_batch = bkd.array([[0.5, 1.0, 1.5, 2.0]])
@@ -270,5 +270,5 @@ class TestAdjointGradient:
 
         checker = DerivativeChecker(loss)
         errors = checker.check_derivatives(sample)
-        ratio = checker.error_ratio(errors[0])
-        assert float(ratio) <= 1e-6, f"error_ratio={float(ratio):.2e}"
+        ratio = bkd.to_float(checker.error_ratio(errors[0]))
+        assert ratio <= 1e-6, f"error_ratio={ratio:.2e}"
