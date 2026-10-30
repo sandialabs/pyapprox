@@ -11,7 +11,7 @@ from typing import Callable, List, Optional
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.multistep_methods import (
-    MultistepMethod,
+    MultistepFormulaProtocol,
     adams_bashforth2,
     adams_moulton3,
     bdf2,
@@ -21,7 +21,7 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.rootfinding.nonlinear import Newton
 
-METHODS: List[tuple[Callable[[], MultistepMethod], int, bool]] = [
+METHODS: List[tuple[Callable[[], MultistepFormulaProtocol], int, bool]] = [
     (bdf2, 2, False),
     (adams_bashforth2, 2, True),
     (adams_moulton3, 3, False),
@@ -32,7 +32,7 @@ METHOD_IDS = [make().name for make, *_ in METHODS]
 
 
 def lm_stepper(
-    method: MultistepMethod,
+    method: MultistepFormulaProtocol,
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
     row_pinning: Optional[RowPinningProtocol[Array]] = None,
 ) -> LinearMultistepStepper[Array, Array, DenseFormat[Array]]:

@@ -16,7 +16,7 @@ from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.multistep_methods import MultistepMethod
+from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
 from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -152,8 +152,8 @@ class LinearMultistep(Generic[V, A]):
 
     Parameters
     ----------
-    method : MultistepMethod
-        The coefficients, with their startup formulas.
+    method : MultistepFormulaProtocol
+        Gives the formula of each step from its times.
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves each step of an implicit method. Defaults to
         :class:`Newton` at its defaults for an implicit method.
@@ -161,18 +161,20 @@ class LinearMultistep(Generic[V, A]):
     Raises
     ------
     TypeError
-        If ``method`` is not a :class:`MultistepMethod`, an explicit method
-        is given a solver, or the solver does not satisfy its protocol.
+        If ``method`` does not satisfy :class:`MultistepFormulaProtocol`,
+        an explicit method is given a solver, or the solver does not
+        satisfy its protocol.
     """
 
     def __init__(
         self,
-        method: MultistepMethod,
+        method: MultistepFormulaProtocol,
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
     ) -> None:
-        if not isinstance(method, MultistepMethod):
+        if not isinstance(method, MultistepFormulaProtocol):
             raise TypeError(
-                f"method must be a MultistepMethod, got {type(method).__name__}"
+                "method must satisfy MultistepFormulaProtocol, got "
+                f"{type(method).__name__}"
             )
         self._method = method
         self._solver = _checked_solver(
@@ -183,8 +185,8 @@ class LinearMultistep(Generic[V, A]):
         """The method's name."""
         return self._method.name
 
-    def coefficients(self) -> MultistepMethod:
-        """The coefficients."""
+    def coefficients(self) -> MultistepFormulaProtocol:
+        """The method's formulas."""
         return self._method
 
     def stepper(

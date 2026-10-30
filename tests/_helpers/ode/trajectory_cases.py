@@ -23,7 +23,7 @@ from pyapprox.ode.integration import (
 )
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
-from pyapprox.ode.multistep_methods import MultistepMethod
+from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
 from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
@@ -61,7 +61,7 @@ from tests._helpers.ode_models import LotkaVolterra
 
 TIMES = [0.05 * n for n in range(11)]
 START = [[10.0], [5.0]]
-Method = Union[ButcherTableau, MultistepMethod]
+Method = Union[ButcherTableau, MultistepFormulaProtocol]
 MULTISTEP = [make for make, *_ in METHODS]
 # Every one-step and multistep method: the sweeps are generic in both.
 ALL_METHODS: List[Callable[[], Method]] = [
@@ -242,7 +242,7 @@ class TrajectoryProblem(Generic[Array]):
     ----------
     bkd : Backend
         The backend.
-    method : ButcherTableau or MultistepMethod
+    method : ButcherTableau or MultistepFormulaProtocol
         The method.
     pin : CurvedPin, optional
         A constraint at stored states.

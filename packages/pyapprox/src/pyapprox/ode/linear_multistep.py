@@ -53,7 +53,10 @@ from typing import (
 )
 
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.multistep_methods import MultistepCoefficients, MultistepMethod
+from pyapprox.ode.multistep_methods import (
+    MultistepCoefficients,
+    MultistepFormulaProtocol,
+)
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
@@ -160,8 +163,8 @@ class LinearMultistepStepper(Generic[V, A, F]):
 
     Parameters
     ----------
-    method : MultistepMethod
-        The coefficients and the startup formulas.
+    method : MultistepFormulaProtocol
+        Gives the formula of each step from its times.
     system : MassFormSystem
         :math:`f`, :math:`M`, :math:`J`, the state space, the linear
         solver and the residual form.
@@ -177,17 +180,23 @@ class LinearMultistepStepper(Generic[V, A, F]):
     Raises
     ------
     TypeError
-        If the method is implicit and no nonlinear solver is given, or
-        ``row_pinning`` does not satisfy its protocol.
+        If the method does not satisfy its protocol, is implicit and no
+        nonlinear solver is given, or ``row_pinning`` does not satisfy its
+        protocol.
     """
 
     def __init__(
         self,
-        method: MultistepMethod,
+        method: MultistepFormulaProtocol,
         system: MassFormSystem[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
     ) -> None:
+        if not isinstance(method, MultistepFormulaProtocol):
+            raise TypeError(
+                "method must satisfy MultistepFormulaProtocol, got "
+                f"{type(method).__name__}"
+            )
         if not method.is_explicit() and nonlinear_solver is None:
             raise TypeError(
                 f"{method.name} is implicit, so it needs a nonlinear solver"
@@ -211,7 +220,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self._pinned_mass_handles: Dict[float, SolverHandleProtocol[V]] = {}
         self._points = count()
 
-    def method(self) -> MultistepMethod:
+    def method(self) -> MultistepFormulaProtocol:
         """The method."""
         return self._method
 
@@ -665,7 +674,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
             return StepperDerivatives.state_only(self._off_diag)
         if bundle.state_state is None:
             return StepperDerivatives.first_order(self._off_diag, self._param)
-        curved = self._curved_lags()
+        # Only lags passed through f carry second derivatives, each its own
+        # (l, l) and mixed blocks.
+        curved = self._method.curved_lags()
         return StepperDerivatives.second_order(
             self._off_diag,
             self._param,
@@ -674,17 +685,6 @@ class LinearMultistepStepper(Generic[V, A, F]):
             self._param_param,
             frozenset((lag, lag) for lag in curved),
             curved,
-        )
-
-    def _curved_lags(self) -> frozenset[int]:
-        r"""The lags whose :math:`\beta_l` is nonzero in some formula of
-        the method: only they carry second derivatives, each its own
-        :math:`(l, l)` and mixed blocks."""
-        return frozenset(
-            lag
-            for formula in self._method.formulas()
-            for lag, beta in enumerate(formula.beta)
-            if beta != 0.0
         )
 
     def __repr__(self) -> str:

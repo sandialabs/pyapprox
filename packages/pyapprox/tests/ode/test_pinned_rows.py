@@ -100,7 +100,7 @@ class _Pinned(Generic[Array]):
     ----------
     bkd : Backend
         The backend.
-    method : ButcherTableau or MultistepMethod
+    method : ButcherTableau or MultistepFormulaProtocol
         The method.
     pinning : RowPinningProtocol
         The pinning.

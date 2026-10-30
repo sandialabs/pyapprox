@@ -151,5 +151,5 @@ class TestRefusals:
             RungeKutta(backward_euler(), object())  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="ButcherTableau"):
             RungeKutta(bdf2())  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="MultistepMethod"):
+        with pytest.raises(TypeError, match="MultistepFormulaProtocol"):
             LinearMultistep(backward_euler())  # type: ignore[arg-type]

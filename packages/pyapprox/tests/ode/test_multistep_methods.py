@@ -1,23 +1,104 @@
-r"""The multistep coefficients: order conditions and validation.
+r"""The multistep formulas: their order on any steps, and validation.
 
-Every formula of BDF2, Adams-Bashforth 2 and Adams-Moulton 3, startup
-included, satisfies the order conditions
-:math:`\sum_l \alpha_l (-l)^q = q \sum_l \beta_l (-l)^{q-1}` for
-:math:`q = 0, \dots, p` (with :math:`0^0 = 1`) to its stated order
-(the startup formula one order lower), and fails them at the next
-order, so the stated order is exact.
+BDF2, Adams-Bashforth 2 and Adams-Moulton 3 give each step's formula from
+its times. Checked by the definition of order, so independently of how
+the coefficients are derived:
+
+- on random uneven times, every formula, full and startup, is exact,
+  :math:`\sum_l \alpha_l\, p(t_{n+1-l}) = \Delta t \sum_l \beta_l\,
+  p'(t_{n+1-l})`, for the monomials :math:`p = t^q` up to its stated order
+  (the startup formula one order lower), and fails at the next degree, so
+  the stated order is exact;
+- at equal steps they satisfy the classical order conditions to the same
+  orders, and equal the classical tables to 1e-14.
+
+A fixed table (:class:`MultistepMethod`) picks its formula by the states
+read and refuses unequal steps beyond a relative 1e-10. Refusals of both.
 """
 
-from typing import Callable
+from typing import Callable, List, Sequence
 
+import numpy as np
 import pytest
 
-from pyapprox.ode.multistep_methods import MultistepCoefficients, MultistepMethod
+from pyapprox.ode.multistep_methods import (
+    AdamsBashforth,
+    AdamsMoulton,
+    BackwardDifferentiation,
+    MultistepCoefficients,
+    MultistepFormulaProtocol,
+    MultistepMethod,
+    adams_bashforth2,
+    adams_moulton3,
+    bdf2,
+)
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS
 
 
-def _defect(formula: MultistepCoefficients, q: int) -> float:
-    """The order-:math:`q` condition's defect."""
+def _exactness_defect(
+    formula: MultistepCoefficients, times: Sequence[float], q: int
+) -> float:
+    r""":math:`\sum_l \alpha_l\, p(t_l) - \Delta t \sum_l \beta_l\, p'(t_l)`
+    for :math:`p = t^q`, relative to the size of its terms."""
+    deltat = times[0] - times[1]
+    values = [t**q for t in times]
+    slopes = [q * t ** (q - 1) if q > 0 else 0.0 for t in times]
+    left = sum(a * v for a, v in zip(formula.alpha, values))
+    right = deltat * sum(b * s for b, s in zip(formula.beta, slopes))
+    scale = sum(abs(a * v) for a, v in zip(formula.alpha, values)) + 1.0
+    return abs(left - right) / scale
+
+
+def _uneven_times(seed: int, nstates: int) -> tuple[float, ...]:
+    """``nstates + 1`` decreasing times in [0.5, 1.5] with step sizes
+    varying by up to a factor of 3."""
+    rng = np.random.default_rng(seed)
+    sizes = rng.uniform(0.1, 0.3, size=nstates)
+    times = 1.5 - np.concatenate([[0.0], np.cumsum(sizes)])
+    return tuple(float(t) for t in times)
+
+
+class TestOrderOnAnySteps:
+    @pytest.mark.parametrize("make, order, explicit", METHODS, ids=METHOD_IDS)
+    @pytest.mark.parametrize("seed", [0, 1, 2])
+    def test_exact_to_the_stated_order_and_no_further(
+        self,
+        make: Callable[[], MultistepFormulaProtocol],
+        order: int,
+        explicit: bool,
+        seed: int,
+    ) -> None:
+        method = make()
+        # The full formula reads the depth's states; the startup one fewer
+        # and is one order lower.
+        for nstates, stated in ((method.depth(), order), (1, order - 1)):
+            times = _uneven_times(seed, nstates)
+            formula = method.coefficients_at(times)
+            assert len(formula.alpha) == nstates + 1
+            for q in range(stated + 1):
+                assert _exactness_defect(formula, times, q) < 1e-13, (nstates, q)
+            assert _exactness_defect(formula, times, stated + 1) > 1e-6
+
+    @pytest.mark.parametrize("make, order, explicit", METHODS, ids=METHOD_IDS)
+    def test_kind_and_curvature(
+        self,
+        make: Callable[[], MultistepFormulaProtocol],
+        order: int,
+        explicit: bool,
+    ) -> None:
+        method = make()
+        assert isinstance(method, MultistepFormulaProtocol)
+        assert method.is_explicit() == explicit
+        assert method.depth() == 2
+        times = _uneven_times(5, 2)
+        formula = method.coefficients_at(times)
+        assert formula.is_explicit() == explicit
+        nonzero = {lag for lag, beta in enumerate(formula.beta) if beta != 0.0}
+        assert nonzero <= method.curved_lags()
+
+
+def _uniform_defect(formula: MultistepCoefficients, q: int) -> float:
+    """The classical order-q condition's defect at equal steps."""
     lags = [float(-lag) for lag in range(len(formula.alpha))]
     left = sum(a * lag**q for lag, a in zip(lags, formula.alpha))
     if q == 0:
@@ -26,43 +107,106 @@ def _defect(formula: MultistepCoefficients, q: int) -> float:
     return left - right
 
 
-def _order(formula: MultistepCoefficients) -> int:
-    """The highest order whose conditions all hold."""
+def _uniform_order(formula: MultistepCoefficients) -> int:
     q = 0
-    while abs(_defect(formula, q)) < 1e-14:
+    while abs(_uniform_defect(formula, q)) < 1e-13:
         q += 1
     return q - 1
 
 
-class TestCoefficients:
+_CLASSICAL: List[
+    tuple[Callable[[], MultistepFormulaProtocol], tuple[float, ...], tuple[float, ...]]
+] = [
+    (bdf2, (1.0, -4.0 / 3.0, 1.0 / 3.0), (2.0 / 3.0, 0.0, 0.0)),
+    (adams_bashforth2, (1.0, -1.0, 0.0), (0.0, 1.5, -0.5)),
+    (adams_moulton3, (1.0, -1.0, 0.0), (5.0 / 12.0, 8.0 / 12.0, -1.0 / 12.0)),
+]
+
+
+class TestEqualSteps:
     @pytest.mark.parametrize("make, order, explicit", METHODS, ids=METHOD_IDS)
-    def test_orders(
-        self, make: Callable[[], MultistepMethod], order: int, explicit: bool
+    def test_classical_order_conditions(
+        self,
+        make: Callable[[], MultistepFormulaProtocol],
+        order: int,
+        explicit: bool,
     ) -> None:
         method = make()
-        assert _order(method.coefficients) == order
-        for formula in method.startup:
-            assert _order(formula) == order - 1
-        assert method.is_explicit() == explicit
-        assert method.depth() == 2
+        assert _uniform_order(method.coefficients_at((0.3, 0.2, 0.1))) == order
+        assert _uniform_order(method.coefficients_at((0.3, 0.2))) == order - 1
 
-    def test_at_picks_the_formula_for_the_states_read(self) -> None:
-        method = METHODS[0][0]()
+    @pytest.mark.parametrize(
+        "make, alpha, beta", _CLASSICAL, ids=[m().name for m, *_ in _CLASSICAL]
+    )
+    def test_the_classical_tables(
+        self,
+        make: Callable[[], MultistepFormulaProtocol],
+        alpha: tuple[float, ...],
+        beta: tuple[float, ...],
+    ) -> None:
+        formula = make().coefficients_at((0.3, 0.2, 0.1))
+        np.testing.assert_allclose(formula.alpha, alpha, rtol=0.0, atol=1e-14)
+        np.testing.assert_allclose(formula.beta, beta, rtol=0.0, atol=1e-14)
+
+
+def _fixed_bdf2() -> MultistepMethod:
+    return MultistepMethod(
+        coefficients=MultistepCoefficients(
+            alpha=(1.0, -4.0 / 3.0, 1.0 / 3.0), beta=(2.0 / 3.0, 0.0, 0.0)
+        ),
+        startup=(MultistepCoefficients(alpha=(1.0, -1.0), beta=(1.0, 0.0)),),
+        order=2,
+        name="fixed BDF2",
+    )
+
+
+class TestFixedTable:
+    def test_picks_the_formula_for_the_states_read(self) -> None:
+        method = _fixed_bdf2()
+        assert isinstance(method, MultistepFormulaProtocol)
         assert method.at(1) is method.startup[0]
         assert method.at(2) is method.coefficients
+        assert method.coefficients_at((0.3, 0.2, 0.1)) is method.coefficients
+        assert method.curved_lags() == frozenset({0})
         with pytest.raises(ValueError, match="between 1 and 2"):
             method.at(3)
 
-    def test_refusals(self) -> None:
+    def test_refuses_unequal_steps(self) -> None:
+        method = _fixed_bdf2()
+        with pytest.raises(ValueError, match="fixed coefficients"):
+            method.coefficients_at((0.3, 0.2, 0.05))
+        # Sizes from times differ by rounding only.
+        method.coefficients_at((0.3, 0.2, 0.1))
+        # One state spans one step, of any size.
+        method.coefficients_at((0.7, 0.2))
+
+
+class TestRefusals:
+    def test_coefficients(self) -> None:
         with pytest.raises(ValueError, match="one entry per lag"):
             MultistepCoefficients(alpha=(1.0, -1.0), beta=(1.0,))
         with pytest.raises(ValueError, match="at least one stored state"):
             MultistepCoefficients(alpha=(1.0,), beta=(1.0,))
         with pytest.raises(ValueError, match="alpha_0 must be nonzero"):
             MultistepCoefficients(alpha=(0.0, 1.0), beta=(1.0, 0.0))
-        bdf2 = METHODS[0][0]()
+
+    def test_fixed_table(self) -> None:
+        table = _fixed_bdf2().coefficients
         with pytest.raises(ValueError, match="needs 1 startup"):
-            MultistepMethod(bdf2.coefficients, (), 2, "no startup")
+            MultistepMethod(table, (), 2, "no startup")
         explicit = MultistepCoefficients(alpha=(1.0, -1.0), beta=(0.0, 1.0))
         with pytest.raises(ValueError, match="both explicit or both implicit"):
-            MultistepMethod(bdf2.coefficients, (explicit,), 2, "mixed")
+            MultistepMethod(table, (explicit,), 2, "mixed")
+
+    @pytest.mark.parametrize(
+        "family", [BackwardDifferentiation, AdamsBashforth, AdamsMoulton]
+    )
+    def test_variable_step(
+        self,
+        family: Callable[[int, str], MultistepFormulaProtocol],
+    ) -> None:
+        with pytest.raises(ValueError, match="at least 1"):
+            family(0, "none")
+        method = family(2, "two")
+        with pytest.raises(ValueError, match="between 1 and 2"):
+            method.coefficients_at((0.4, 0.3, 0.2, 0.1))
