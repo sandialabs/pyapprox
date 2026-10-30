@@ -74,6 +74,8 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import heun
 from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraPredictionOEDProblem
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
@@ -86,7 +88,9 @@ from pyapprox.expdesign import (
 np.random.seed(1)
 bkd = NumpyBkd()
 
-oed = LotkaVolterraPredictionOEDProblem(bkd, final_time=50.0, deltat=2.0, stepper="heun")
+oed = LotkaVolterraPredictionOEDProblem(
+    bkd, final_time=50.0, deltat=2.0, method=RungeKutta(heun())
+)
 obs_model = oed.obs_map()
 prior     = oed.inference_problem().prior()
 nparams   = prior.nvars()

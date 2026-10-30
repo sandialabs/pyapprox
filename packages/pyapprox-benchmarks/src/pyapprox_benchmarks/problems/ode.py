@@ -7,16 +7,14 @@ No ground truth — these are Problems, not Benchmarks.
 
 from __future__ import annotations
 
-from typing import Generic, Optional, Union
+from typing import Generic, Optional
 
-from pyapprox.ode.protocols.ode_residual import (
-    ODEResidualWithParamJacobianProtocol,
-)
-from pyapprox.ode.stepper_table import StepperFactory
+from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.functions.ode.ode_qoi import (
     AllStatesEndpointODEFunctional,
+    ODEBenchmarkResidualProtocol,
     ODEFunctionalProtocol,
     ODEQoIFunction,
     ODETimeConfig,
@@ -35,7 +33,7 @@ class ODEForwardUQProblem(Generic[Array]):
     ----------
     name : str
         Problem name.
-    residual : ODEResidualWithParamJacobianProtocol[Array]
+    residual : ODEBenchmarkResidualProtocol[Array]
         ODE residual defining dy/dt = f(y, t; p).
     prior : DistributionProtocol[Array]
         Prior distribution over parameters.
@@ -65,7 +63,7 @@ class ODEForwardUQProblem(Generic[Array]):
     def __init__(
         self,
         name: str,
-        residual: ODEResidualWithParamJacobianProtocol[Array],
+        residual: ODEBenchmarkResidualProtocol[Array],
         prior: DistributionProtocol[Array],
         domain: DomainProtocol[Array],
         time_config: ODETimeConfig,
@@ -94,7 +92,7 @@ class ODEForwardUQProblem(Generic[Array]):
         """Return the problem name."""
         return self._name
 
-    def residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
+    def residual(self) -> ODEBenchmarkResidualProtocol[Array]:
         """Return the ODE residual."""
         return self._residual
 
@@ -145,7 +143,7 @@ class ODEForwardUQProblem(Generic[Array]):
     def function(
         self,
         functional: Optional[ODEFunctionalProtocol[Array]] = None,
-        stepper: Union[str, StepperFactory[Array]] = "backward_euler",
+        method: Optional[SteppingMethodProtocol[Array, Array]] = None,
     ) -> ODEQoIFunction[Array]:
         """Build a callable QoI function from this problem.
 
@@ -156,9 +154,10 @@ class ODEForwardUQProblem(Generic[Array]):
             ``SingleStateEndpointODEFunctional(0)`` or
             ``MaxODEFunctional(nstates, bkd)``. Default: every state at
             the final time (``AllStatesEndpointODEFunctional``).
-        stepper : str or StepperFactory, optional
-            Time stepping method: a built-in name or a ``StepperFactory``.
-            Default "backward_euler".
+        method : SteppingMethodProtocol, optional
+            The time-stepping method, e.g. ``RungeKutta(heun())`` or
+            ``LinearMultistep(bdf2())``. Default: backward Euler with
+            Newton at its defaults.
 
         Returns
         -------
@@ -174,8 +173,6 @@ class ODEForwardUQProblem(Generic[Array]):
             residual=self._residual,
             initial_condition=self._initial_condition,
             time_config=self._time_config,
-            nparams=self.nparams(),
             functional=resolved_functional,
-            bkd=self._bkd,
-            stepper=stepper,
+            method=method,
         )

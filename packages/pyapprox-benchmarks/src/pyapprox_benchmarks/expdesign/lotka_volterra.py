@@ -6,13 +6,16 @@ at all time points; the prediction model records species 1 at every
 other time point.
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.ode.accumulating_sink import MultiSink, PerStateSink
+from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.functions.ode import (
     ODEFunctionalProtocol,
     ODEQoIFunction,
+    SelectedStateEntries,
 )
 from pyapprox_benchmarks.ode.lotka_volterra import (
     build_lotka_volterra_3species,
@@ -41,8 +44,9 @@ class ObservationFunctional(Generic[Array]):
     def derivatives(self) -> Derivatives[Array]:
         return Derivatives.none()
 
-    def __call__(self, sol: Array, times: Array) -> Array:
-        return self._bkd.concatenate([sol[0, :], sol[2, :]])
+    def sink(self) -> PerStateSink[Array, Array]:
+        """Species 0 at every time, then species 2 at every time."""
+        return PerStateSink(SelectedStateEntries((0, 2), self._bkd))
 
 
 class PredictionFunctional(Generic[Array]):
@@ -52,10 +56,13 @@ class PredictionFunctional(Generic[Array]):
     ----------
     ntimes : int
         Number of time points in the solution trajectory.
+    bkd : Backend[Array]
+        Backend for array operations.
     """
 
-    def __init__(self, ntimes: int) -> None:
+    def __init__(self, ntimes: int, bkd: Backend[Array]) -> None:
         self._pred_indices = list(range(1, ntimes, 2))
+        self._bkd = bkd
 
     def nqoi(self) -> int:
         return len(self._pred_indices)
@@ -63,8 +70,11 @@ class PredictionFunctional(Generic[Array]):
     def derivatives(self) -> Derivatives[Array]:
         return Derivatives.none()
 
-    def __call__(self, sol: Array, times: Array) -> Array:
-        return sol[1, self._pred_indices]
+    def sink(self) -> PerStateSink[Array, Array]:
+        """Species 1 at the odd stored states."""
+        return PerStateSink(
+            SelectedStateEntries((1,), self._bkd, steps=self._pred_indices)
+        )
 
 
 class LotkaVolterraPredictionOEDProblem(Generic[Array]):
@@ -86,9 +96,9 @@ class LotkaVolterraPredictionOEDProblem(Generic[Array]):
         Final simulation time. Default 10.0.
     deltat : float, optional
         Time step. Default 1.0.
-    stepper : str, optional
-        Time stepping method: "backward_euler" (default), "forward_euler",
-        "heun", "crank_nicolson".
+    method : SteppingMethodProtocol, optional
+        The time-stepping method, e.g. ``RungeKutta(heun())``. Default:
+        backward Euler with Newton at its defaults.
     """
 
     def __init__(
@@ -97,7 +107,7 @@ class LotkaVolterraPredictionOEDProblem(Generic[Array]):
         noise_std: float = 0.1,
         final_time: float = 10.0,
         deltat: float = 1.0,
-        stepper: str = "backward_euler",
+        method: Optional[SteppingMethodProtocol[Array, Array]] = None,
     ) -> None:
         self._bkd = bkd
         self._ode_problem = build_lotka_volterra_3species(
@@ -115,15 +125,17 @@ class LotkaVolterraPredictionOEDProblem(Generic[Array]):
         )
         pred_functional: ODEFunctionalProtocol[Array] = PredictionFunctional(
             ntimes,
+            bkd,
         )
 
+        self._obs_functional, self._pred_functional = obs_functional, pred_functional
         self._obs_model = self._ode_problem.function(
             functional=obs_functional,
-            stepper=stepper,
+            method=method,
         )
         self._pred_model = self._ode_problem.function(
             functional=pred_functional,
-            stepper=stepper,
+            method=method,
         )
 
         # Create BayesianInferenceProblem
@@ -198,10 +210,14 @@ class LotkaVolterraPredictionOEDProblem(Generic[Array]):
         pred_results = []
 
         for ii in range(nsamples):
-            param = samples[:, ii : ii + 1]
-            solutions, times = self._obs_model.solve_trajectory(param)
-            obs_results.append(self._obs_model._functional(solutions, times))
-            pred_results.append(self._pred_model._functional(solutions, times))
+            # One solve feeds both functionals; no trajectory is kept.
+            obs_sink = self._obs_functional.sink()
+            pred_sink = self._pred_functional.sink()
+            self._obs_model.solve_into(
+                samples[:, ii : ii + 1], MultiSink([obs_sink, pred_sink])
+            )
+            obs_results.append(obs_sink.value())
+            pred_results.append(pred_sink.value())
 
         return (
             self._bkd.stack(obs_results, axis=1),

@@ -9,7 +9,7 @@ The derivative references need no derivation: finite differences of the
 benchmark's own QoI function.
 """
 
-from typing import Any, Callable, Tuple
+from typing import Callable, Dict, Protocol, Tuple
 
 import pytest
 
@@ -29,29 +29,55 @@ from pyapprox.ode.operator.forward_sensitivity import (
     forward_sensitivity_jacobian,
 )
 from pyapprox.ode.stepper_table import create_stepper
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import crank_nicolson
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode import ODEBenchmarkResidualProtocol
+from pyapprox_benchmarks.functions.ode.ode_qoi import (
+    ODEResidualWithInitialStateProtocol,
+)
 from pyapprox_benchmarks.ode import (
     build_coupled_springs_2mass,
     build_hastings_ecology_3species,
 )
+from pyapprox_benchmarks.problems.ode import ODEForwardUQProblem
+
+
+class _Builder(Protocol):
+    """Builds an ODE benchmark problem on any backend."""
+
+    def __call__(self, bkd: Backend[Array]) -> ODEForwardUQProblem[Array]: ...
+
 
 # (builder, number of physical parameters before the initial conditions)
-_CASES = {
+_CASES: Dict[str, Tuple[_Builder, int]] = {
     "coupled_springs": (build_coupled_springs_2mass, 8),
     "hastings": (build_hastings_ecology_3species, 6),
 }
 _STEPPER = "crank_nicolson"
 
 
-def _problem(bkd: Backend[Array], name: str) -> Tuple[Any, int]:
+def _problem(
+    bkd: Backend[Array], name: str
+) -> Tuple[ODEForwardUQProblem[Array], int]:
     builder, nphys = _CASES[name]
     return builder(bkd), nphys
 
 
+def _initial_state(residual: ODEBenchmarkResidualProtocol[Array]) -> Array:
+    """``y_0(p)`` at the residual's current parameters; these cases'
+    residuals all define it."""
+    if not isinstance(residual, ODEResidualWithInitialStateProtocol):
+        raise TypeError(f"{type(residual).__name__} defines no initial state")
+    # isinstance cannot check the array type, so bind it here.
+    start: ODEResidualWithInitialStateProtocol[Array] = residual
+    return start.get_initial_condition()
+
+
 def _integrate(
-    problem: Any, param_1d: Array, init_state: Array
-) -> Tuple[Any, Array, Array]:
+    problem: ODEForwardUQProblem[Array], param_1d: Array, init_state: Array
+) -> Tuple[TimeIntegrator[Array], Array, Array]:
     """Solve from an explicit initial state; return (stepper, sols, times)."""
     residual = problem.residual()
     residual.set_param(param_1d)
@@ -64,7 +90,9 @@ def _integrate(
     return integrator, sols, times
 
 
-def _final_states(problem: Any, bkd: Backend[Array]) -> Callable[[Array], Array]:
+def _final_states(
+    problem: ODEForwardUQProblem[Array], bkd: Backend[Array]
+) -> Callable[[Array], Array]:
     """Finite-difference reference: final states from y_0(p), solved tightly.
 
     Uses the residual's own initial-state map (as the QoI function does)
@@ -78,7 +106,7 @@ def _final_states(problem: Any, bkd: Backend[Array]) -> Callable[[Array], Array]
         for ii in range(samples.shape[1]):
             p = samples[:, ii]
             residual.set_param(p)
-            _, sols, _ = _integrate(problem, p, residual.get_initial_condition())
+            _, sols, _ = _integrate(problem, p, _initial_state(residual))
             cols.append(sols[:, -1])
         return bkd.stack(cols, axis=1)
 
@@ -91,7 +119,7 @@ class TestInitialStateParameters:
         self, bkd: Backend[Array], name: str
     ) -> None:
         problem, nphys = _problem(bkd, name)
-        func = problem.function(stepper=_STEPPER)
+        func = problem.function(method=RungeKutta(crank_nicolson()))
         base = bkd.copy(problem.nominal_parameters())
         moved = bkd.copy(base)
         moved[nphys, 0] = moved[nphys, 0] + 0.05
@@ -105,12 +133,12 @@ class TestInitialStateParameters:
         starts every solve from the problem's nominal initial condition,
         which is what the QoI function used for every sample before."""
         problem, nphys = _problem(bkd, name)
-        func = problem.function(stepper=_STEPPER)
+        func = problem.function(method=RungeKutta(crank_nicolson()))
         nominal = bkd.flatten(problem.nominal_parameters())
         residual = problem.residual()
         residual.set_param(nominal)
         bkd.assert_allclose(
-            residual.get_initial_condition(),
+            _initial_state(residual),
             bkd.flatten(problem.initial_condition()),
             rtol=0.0,
             atol=0.0,
@@ -141,7 +169,7 @@ class TestInitialStateParameters:
         def gradient(sample: Array) -> Array:
             p = bkd.flatten(sample)
             residual.set_param(p)
-            init = residual.get_initial_condition()
+            init = _initial_state(residual)
             integrator, sols, times = _integrate(problem, p, init)
             integrator.set_functional(
                 EndpointFunctional(state_idx, nstates, nparams, bkd)
@@ -161,7 +189,7 @@ class TestInitialStateParameters:
         def sensitivity(sample: Array) -> Array:
             p = bkd.flatten(sample)
             residual.set_param(p)
-            init = residual.get_initial_condition()
+            init = _initial_state(residual)
             integrator, sols, times = _integrate(problem, p, init)
             return forward_sensitivity_jacobian(
                 integrator,
