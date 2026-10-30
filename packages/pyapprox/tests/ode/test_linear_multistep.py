@@ -81,7 +81,9 @@ class TestLinearSteps:
         method = make()
         stepper = lm_stepper(method, dense_mass_form_system(LinearMassModel(bkd)))
         for past in ([_Y0], [_Y1, _Y0]):
-            unknown = stepper.step(tuple(bkd.asarray(y) for y in past), 0.3, 0.1)
+            # t_{n+1} = 0.4 from t_n = 0.3, the earlier state at 0.2.
+            times = (0.4, 0.3, 0.2)[: len(past) + 1]
+            unknown = stepper.step(tuple(bkd.asarray(y) for y in past), times)
             bkd.assert_allclose(
                 unknown.blocks[0],
                 bkd.asarray(_closed_form(method, past, 0.1)),
@@ -211,9 +213,43 @@ class TestRefusals:
         stepper = lm_stepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))
         y = bkd.asarray(_Y0)
         with pytest.raises(ValueError, match="between 1 and 2"):
-            stepper.step((y, y, y), 0.0, 0.1)
-        window = StepWindow(0.0, 0.1, (y,), stepper.step((y,), 0.0, 0.1))
+            stepper.step((y, y, y), (0.1, 0.0, -0.1, -0.2))
+        window = StepWindow((0.1, 0.0), (y,), stepper.step((y,), (0.1, 0.0)))
         off_diag = stepper.derivatives().off_diag
         assert off_diag is not None
         with pytest.raises(ValueError, match="lag must be between 1 and 1"):
             off_diag(window, 2)
+
+    def test_times_that_do_not_match_the_states(self, bkd: Backend[Array]) -> None:
+        stepper = lm_stepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))
+        y = bkd.asarray(_Y0)
+        with pytest.raises(ValueError, match="needs 3 times"):
+            stepper.step((y, y), (0.1, 0.0))
+
+
+class TestStepSizes:
+    """The library's methods hold fixed coefficients, derived for equal
+    steps, so they refuse a step whose earlier steps had another size.
+    BDF2 on M y' = K y from (1, -0.5, 2)."""
+
+    def _solve(self, bkd: Backend[Array], times: list[float]) -> None:
+        stepper = lm_stepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))
+        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        Integrator(stepper).solve(bkd.asarray(_Y0), times, store)
+
+    def test_a_shortened_last_step_is_refused(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="fixed coefficients"):
+            self._solve(bkd, [0.0, 0.1, 0.2, 0.3, 0.35])
+
+    def test_the_startup_formula_takes_any_size(self, bkd: Backend[Array]) -> None:
+        # The one-state startup formula spans one step only.
+        self._solve(bkd, [0.0, 0.37])
+
+    def test_a_changed_second_step_is_refused(self, bkd: Backend[Array]) -> None:
+        # Step 1 already reads two states, spanning steps of 0.05 and 0.1.
+        with pytest.raises(ValueError, match="fixed coefficients"):
+            self._solve(bkd, [0.0, 0.05, 0.15])
+
+    def test_steps_equal_up_to_rounding_pass(self, bkd: Backend[Array]) -> None:
+        # 0.1 * n differs from n steps of 0.1 by rounding.
+        self._solve(bkd, [0.1 * n for n in range(8)])

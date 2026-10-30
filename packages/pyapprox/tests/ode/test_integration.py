@@ -15,7 +15,7 @@ as solved. The identity constraint through the residual form changes
 nothing. Malformed times and a non-empty store are refused.
 """
 
-from typing import Callable, Generic, Optional
+from typing import Callable, Generic, List, Optional
 
 import pytest
 
@@ -102,21 +102,29 @@ class TestAgainstTheOldPath:
 
 
 class TestRecordedWindows:
+    @pytest.mark.parametrize(
+        "times",
+        [_TIMES, [0.0, 0.05, 0.15, 0.2, 0.32, 0.4, 0.43]],
+        ids=["uniform", "uneven_short_last"],
+    )
     @pytest.mark.parametrize("make", [backward_euler, heun, implicit_midpoint])
     def test_each_window_reproduces_its_step(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self,
+        bkd: Backend[Array],
+        make: Callable[[], ButcherTableau],
+        times: List[float],
     ) -> None:
         tableau = make()
         stepper = rk_stepper(
             tableau, dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(bkd.asarray(_START), _TIMES, store)
-        assert store.nsteps() == len(_TIMES) - 1
-        assert store.times() == tuple(_TIMES)
+        Integrator(stepper).solve(bkd.asarray(_START), times, store)
+        assert store.nsteps() == len(times) - 1
+        assert store.times() == tuple(times)
         for n in range(store.nsteps()):
             window = store.window(n)
-            assert window.time == _TIMES[n]
+            assert window.times == (times[n + 1], times[n])
             residual = stepper.residual_space().norm(stepper.step_residual(window))
             assert bkd.to_float(residual[0, 0]) < 1e-10
             stepped = stepper.readout().apply(window.unknown).blocks[0]

@@ -196,13 +196,9 @@ class InMemoryTrajectoryStore(Generic[V]):
             )
         unknown, version = recorded
         past = tuple(self._states[step - lag] for lag in range(depth))
-        return StepWindow(
-            self._times[step],
-            self._times[step + 1] - self._times[step],
-            past,
-            unknown,
-            version,
-        )
+        # One time per lag: the step's end, then each past state's.
+        times = tuple(self._times[step + 1 - lag] for lag in range(depth + 1))
+        return StepWindow(times, past, unknown, version)
 
     def ntimes(self) -> int:
         return len(self._times)

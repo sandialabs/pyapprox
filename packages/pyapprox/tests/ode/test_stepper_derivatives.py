@@ -30,8 +30,7 @@ from pyapprox.util.linalg.operators import BlockVector
 
 def _window(bkd: Backend[Array]) -> StepWindow[Array]:
     return StepWindow(
-        time=0.2,
-        deltat=0.1,
+        times=(0.3, 0.2, 0.1),
         past_states=(bkd.asarray([[1.0], [2.0]]), bkd.asarray([[3.0], [4.0]])),
         unknown=BlockVector((bkd.asarray([[5.0], [6.0]]),)),
     )
@@ -81,6 +80,28 @@ class TestStepWindow:
     ) -> None:
         with pytest.raises(ValueError, match="between 1 and 2"):
             _window(bkd).past_state(lag)
+
+    def test_times_by_lag(self, bkd: Backend[Array]) -> None:
+        window = _window(bkd)
+        assert window.time() == 0.2
+        assert window.deltat() == pytest.approx(0.1, abs=1e-15)
+        assert [window.lag_time(lag) for lag in range(3)] == [0.3, 0.2, 0.1]
+
+    @pytest.mark.parametrize(
+        "times, match",
+        [
+            ((0.3, 0.2), "needs 3 times"),
+            ((0.3, 0.2, 0.1, 0.0), "needs 3 times"),
+            ((0.3, 0.3, 0.1), "strictly decrease"),
+            ((0.1, 0.2, 0.3), "strictly decrease"),
+        ],
+    )
+    def test_refuses_times_that_do_not_fit(
+        self, bkd: Backend[Array], times: tuple[float, ...], match: str
+    ) -> None:
+        window = _window(bkd)
+        with pytest.raises(ValueError, match=match):
+            StepWindow(times, window.past_states, window.unknown)
 
 
 class TestNamedConstructors:

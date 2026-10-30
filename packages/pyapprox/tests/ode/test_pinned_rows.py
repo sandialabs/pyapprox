@@ -194,9 +194,9 @@ class TestAnotherPlacement:
             window = store.window(n)
             for r, block in enumerate(window.unknown.blocks):
                 time = (
-                    window.time + tableau.c[stages[r]] * window.deltat
+                    window.time() + tableau.c[stages[r]] * window.deltat()
                     if r < len(stages)
-                    else window.time + window.deltat
+                    else window.time() + window.deltat()
                 )
                 assert abs(bkd.to_float(block[0, 0]) - prey.data(time)) <= 1e-12
 

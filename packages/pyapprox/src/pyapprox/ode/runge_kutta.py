@@ -47,6 +47,7 @@ from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
     StepWindow,
+    check_step_times,
 )
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.util.backends.protocols import ArrayProtocol
@@ -331,7 +332,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
     # ------------------------------------------------------------------
 
     def step(
-        self, past_states: Sequence[V], time: float, deltat: float
+        self, past_states: Sequence[V], times: Sequence[float]
     ) -> BlockVector[V]:
         r"""Solve step :math:`n` from :math:`y_n`.
 
@@ -340,10 +341,8 @@ class RungeKuttaStepper(Generic[V, A, F]):
         past_states : sequence of V
             :math:`(y_n,)`: a one-step method reads one state, a single
             column of the state space.
-        time : float
-            :math:`t_n`.
-        deltat : float
-            The step size.
+        times : sequence of float
+            :math:`(t_{n+1}, t_n)`.
 
         Returns
         -------
@@ -354,7 +353,8 @@ class RungeKuttaStepper(Generic[V, A, F]):
         Raises
         ------
         ValueError
-            If ``past_states`` is not one state.
+            If ``past_states`` is not one state, or ``times`` is not two
+            decreasing times.
         SolveFailedError
             If a stage's nonlinear solve or a mass solve fails.
         """
@@ -362,6 +362,9 @@ class RungeKuttaStepper(Generic[V, A, F]):
             raise ValueError(
                 f"a one-step method reads one state, got {len(past_states)}"
             )
+        check_step_times(times, 1)
+        new_time, time = times[0], times[1]
+        deltat = new_time - time
         state = past_states[0]
         tableau, space = self._tableau, self._system.space
         offset = self._first_stage_offset()
@@ -392,7 +395,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
                 weighted = space.axpby(weight, slope, 1.0, weighted, out=weighted)
             blocks.append(
                 self._explicit_solve(
-                    len(blocks), state, space.scale(deltat, weighted), time + deltat
+                    len(blocks), state, space.scale(deltat, weighted), new_time
                 )
             )
         return BlockVector(tuple(blocks))
@@ -436,7 +439,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         state = window.past_state(1)
         stages = self.stage_values(window)
         slopes = [
-            self.rhs(stage, window.time + tableau.c[j] * window.deltat)
+            self.rhs(stage, window.time() + tableau.c[j] * window.deltat())
             for j, stage in enumerate(stages)
         ]
 
@@ -446,7 +449,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
             for weight, slope in zip(weights, slopes):
                 if weight != 0.0:
                     result = space.axpby(
-                        -window.deltat * weight, slope, 1.0, result, out=result
+                        -window.deltat() * weight, slope, 1.0, result, out=result
                     )
             return result
 
@@ -470,7 +473,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         :math:`t_{n+1}` for the final block."""
         if block < len(self._unknown_stages):
             return self._stage_time(window, self._unknown_stages[block])
-        return window.time + window.deltat
+        return window.lag_time(0)
 
     # ------------------------------------------------------------------
     # The step's derivatives
@@ -491,7 +494,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         return rows
 
     def _stage_time(self, window: StepWindow[V], j: int) -> float:
-        return window.time + self._tableau.c[j] * window.deltat
+        return window.time() + self._tableau.c[j] * window.deltat()
 
     def _converged_point(self, window: StepWindow[V]) -> LinearizationPoint:
         """A label for a linearization at a converged step."""
@@ -518,7 +521,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self, window: StepWindow[V]
     ) -> List[List[Optional[ActionOperatorProtocol[V, F]]]]:
         """The grid of :math:`\\partial R_n/\\partial u_n`."""
-        system, deltat = self._system, window.deltat
+        system, deltat = self._system, window.deltat()
         stages = self.stage_values(window)
         offset = self._first_stage_offset()
         nblocks = self._unknown_space.nblocks()
@@ -610,7 +613,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         """
         if lag != 1:
             raise ValueError(f"a one-step method has lag 1 only, got {lag}")
-        system, deltat = self._system, window.deltat
+        system, deltat = self._system, window.deltat()
         trivial = self._tableau.has_trivial_first_stage()
         jacobian = (
             self._jacobian_at(window, window.past_state(1), 0) if trivial else None
@@ -663,7 +666,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         bundle = self._system.rhs.derivatives()
         if bundle.param is None:
             raise ValueError("the residual has no parameter derivatives")
-        form, space, deltat = self._system.form, self._system.space, window.deltat
+        form, space, deltat = self._system.form, self._system.space, window.deltat()
         stages = self.stage_values(window)
         param_ops = [
             bundle.param(form.to_residual(stage), self._stage_time(window, j))
@@ -695,7 +698,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         adj : BlockVector
             :math:`\mu`, a single column of the residual space.
         """
-        space, deltat = self._system.space, window.deltat
+        space, deltat = self._system.space, window.deltat()
         rows = self._rows()
         # A pinned block's rows carry no f, so no curvature.
         blocks = []

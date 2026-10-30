@@ -41,12 +41,15 @@ class ForwardStepperProtocol(Protocol[V]):
         ...
 
     def step(
-        self, past_states: Sequence[V], time: float, deltat: float
+        self, past_states: Sequence[V], times: Sequence[float]
     ) -> BlockVector[V]:
-        """Solve one step at ``time`` from the stored states it reads,
-        most recent first (single columns of the state space): the
-        stepper's depth of them, or all there are at a startup step.
-        Returns the step's unknown."""
+        """Solve one step from the stored states it reads, most recent
+        first (single columns of the state space): the stepper's depth of
+        them, or all there are at a startup step. ``times`` has one entry
+        per lag, :math:`(t_{n+1}, t_n, t_{n-1}, \\dots)`, as in
+        :class:`~pyapprox.ode.stepper_derivatives.StepWindow`, so steps of
+        different sizes are described exactly. Returns the step's
+        unknown."""
         ...
 
     def readout(self) -> StepOperator[V]:

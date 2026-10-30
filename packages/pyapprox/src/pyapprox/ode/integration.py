@@ -250,11 +250,14 @@ class Integrator(Generic[V]):
         # The states the next step reads, most recent first: the
         # stepper's depth of them once there are that many.
         recent: Deque[V] = deque([state], maxlen=stepper.depth())
-        for time, next_time in zip(times, times[1:]):
-            unknown = stepper.step(tuple(recent), time, next_time - time)
+        # Their times, aligned; a step is given these after its own end.
+        recent_times: Deque[float] = deque([times[0]], maxlen=stepper.depth())
+        for next_time in times[1:]:
+            unknown = stepper.step(tuple(recent), (next_time, *recent_times))
             readout = stepper.readout().apply(unknown).blocks[0]
             state = self._constrained(readout, next_time)
             recent.appendleft(state)
+            recent_times.appendleft(next_time)
             sink.append_step(
                 next_time,
                 state,

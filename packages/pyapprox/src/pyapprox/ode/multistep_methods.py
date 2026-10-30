@@ -19,12 +19,13 @@ state, two states, and so on up to its own depth, normally lower-order
 members of the same family. A startup step of order one less than the
 method, taken a fixed number of times, keeps the method's global order.
 
-Step sizes are fixed: the coefficients of a variable-step method depend
-on the ratios of the earlier step sizes, which a step is not given.
+A step is given the times of all its lags, and :class:`MultistepMethod`
+holds fixed coefficients, derived for equal steps, so it refuses a step
+whose earlier steps had another size rather than use them there.
 """
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -138,6 +139,31 @@ class MultistepMethod:
                 f"{self.name} reads between 1 and {self.depth()} states, got {nstates}"
             )
         return self.formulas()[nstates - 1]
+
+    def coefficients_at(self, times: Sequence[float]) -> MultistepCoefficients:
+        r"""The formula of a step with these times, one per lag:
+        :math:`(t_{n+1}, t_n, \dots)`, so ``len(times) - 1`` stored states.
+        The result has exactly one coefficient pair per lag.
+
+        These coefficients are fixed, derived for equal steps, so every
+        step the formula spans must have the same size (to a relative
+        :math:`10^{-10}`, since sizes computed from times differ by
+        rounding); a one-state formula spans one step and takes any size.
+
+        Raises
+        ------
+        ValueError
+            If the number of states is not between 1 and the depth, or the
+            steps the formula spans differ in size.
+        """
+        formula = self.at(len(times) - 1)
+        sizes = [later - earlier for later, earlier in zip(times, times[1:])]
+        if any(abs(size - sizes[0]) > 1e-10 * abs(sizes[0]) for size in sizes):
+            raise ValueError(
+                f"{self.name} has fixed coefficients, which assume equal steps; "
+                f"got step sizes {tuple(sizes)}"
+            )
+        return formula
 
     def __repr__(self) -> str:
         return f"MultistepMethod({self.name}, {self.depth()} steps)"

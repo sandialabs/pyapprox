@@ -77,8 +77,8 @@ class TestStepWindows:
         store, states, unknowns = _stepped_store(bkd)
         assert store.nsteps() == 3
         window = store.window(1)
-        assert window.time == 0.25
-        assert window.deltat == 0.25
+        assert window.time() == 0.25
+        assert window.deltat() == 0.25
         assert window.past_states == (states[1],)
         assert window.unknown is unknowns[1]
         assert window.parameters_version == 1
