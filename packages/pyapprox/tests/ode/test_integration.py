@@ -19,6 +19,7 @@ from typing import Callable, Generic, List, Optional
 
 import pytest
 
+from pyapprox.ode.accumulating_sink import PerStateSink
 from pyapprox.ode.explicit_steppers import ForwardEulerHVP, HeunHVP
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
@@ -48,9 +49,9 @@ from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
     TrajectoryStoreProtocol,
+    trajectory_array,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.operators import BlockVector
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.ode.runge_kutta_cases import (
     lotka_volterra_with_mass,
@@ -172,34 +173,21 @@ class TestConstraint:
             bkd.assert_allclose(constrained.state(n), plain.state(n), rtol=0.0)
 
 
-class _SummingSink(Generic[Array]):
+class _WeightedSum(Generic[Array]):
     r"""Accumulates :math:`\sum_m c^\top y_m` as states arrive and keeps
-    none of them: a sink for a solve that needs no sweep."""
+    none of them."""
 
-    def __init__(self, bkd: Backend[Array], weight: Array) -> None:
-        self._bkd, self._weight = bkd, weight
-        self._count, self._total = 0, 0.0
+    def __init__(self, weight: Array) -> None:
+        self._weight = weight
+        self._total: Optional[Array] = None
 
-    def append(
-        self, time: float, state: Array, unconstrained: Optional[Array] = None
-    ) -> None:
-        self._total += self._bkd.to_float((self._weight.T @ state)[0, 0])
-        self._count += 1
+    def add(self, index: int, time: float, state: Array) -> None:
+        term = self._weight.T @ state
+        self._total = term if self._total is None else self._total + term
 
-    def append_step(
-        self,
-        time: float,
-        state: Array,
-        unknown: BlockVector[Array],
-        parameters_version: int,
-        unconstrained: Optional[Array] = None,
-    ) -> None:
-        self.append(time, state, unconstrained)
-
-    def ntimes(self) -> int:
-        return self._count
-
-    def total(self) -> float:
+    def value(self) -> Array:
+        if self._total is None:
+            raise ValueError("no state received")
         return self._total
 
 
@@ -208,7 +196,7 @@ class TestSinks:
         """A sink accumulating a sum of the states as they arrive gives
         the sum over the stored trajectory, with no states kept."""
         weight = bkd.asarray([[0.3], [-1.2]])
-        sink: _SummingSink[Array] = _SummingSink(bkd, weight)
+        sink: PerStateSink[Array, Array] = PerStateSink(_WeightedSum(weight))
         assert isinstance(sink, TrajectorySinkProtocol)
         assert not isinstance(sink, TrajectoryStoreProtocol)
         stepper = rk_stepper(
@@ -216,13 +204,11 @@ class TestSinks:
         )
         Integrator(stepper).solve(bkd.asarray(_START), _TIMES, sink)
         store = _new_trajectory(bkd, heun())
-        assert isinstance(store, TrajectorySinkProtocol)
-        expected = sum(
-            bkd.to_float((weight.T @ store.state(n))[0, 0])
-            for n in range(store.ntimes())
+        expected = bkd.reshape(
+            bkd.sum(weight.T @ trajectory_array(store, bkd)), (1, 1)
         )
         assert sink.ntimes() == store.ntimes()
-        assert abs(sink.total() - expected) <= 1e-12 * abs(expected)
+        bkd.assert_allclose(sink.value(), expected, rtol=1e-12)
 
 
 class TestRefusals:
