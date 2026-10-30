@@ -81,6 +81,7 @@ from .plot import plot_sparse_grid_points
 from .priority import CostWeightedPriority, PriorityProtocol
 from .quadrature_rule import ParameterizedIsotropicSparseGridQuadratureRule
 from .quadrature_variance_indicator import QuadratureVarianceIndicator
+from .refine import refine_with_model
 from .sample_tracker import SampleTracker
 from .sequence_lookup import SequencePositionLookup
 from .smolyak import (
@@ -135,6 +136,7 @@ __all__ = [
     "CombinationSurrogate",
     "IsotropicSparseGridFitter",
     "SequencePositionLookup",
+    "refine_with_model",
     "MultiFidelityAdaptiveSparseGridFitter",
     "SingleFidelityAdaptiveSparseGridFitter",
     "SubsetType",

@@ -164,6 +164,10 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         # selected set: scoring raised, or the indicator was replaced.
         # step_samples refuses until rescore clears it.
         self._needs_rescore = False
+        # The batch step_samples last returned, until step_values takes
+        # its values. A second step_samples would promote another
+        # candidate while this batch's values are still owed.
+        self._pending: Optional[Dict[ConfigIdx, Array]] = None
 
     def _get_config_idx(self, full_index: Array) -> ConfigIdx:
         """Extract config index from full multi-index."""
@@ -229,6 +233,9 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             If the candidates need re-scoring, because the error
             indicator raised during the last scoring or was replaced
             since. Call ``rescore`` first.
+        RuntimeError
+            If the last batch's values have not been given to
+            ``step_values``. ``pending_samples`` returns that batch.
         """
         if self._needs_rescore:
             raise RuntimeError(
@@ -237,9 +244,29 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 "value is kept; call rescore() (after set_error_indicator "
                 "if the indicator must change) before step_samples()."
             )
+        if self._pending is not None:
+            raise RuntimeError(
+                "the last batch from step_samples() still awaits its "
+                "values; pass them to step_values() first. "
+                "pending_samples() returns that batch again."
+            )
+        samples: Optional[Dict[ConfigIdx, Array]]
         if self._first_step:
-            return self._first_step_samples()
-        return self._next_step_samples()
+            samples = self._first_step_samples()
+        else:
+            samples = self._next_step_samples()
+        self._pending = samples
+        return samples
+
+    def pending_samples(self) -> Optional[Dict[ConfigIdx, Array]]:
+        """Return the batch awaiting values, or None if none is.
+
+        The batch ``step_samples`` last returned, until ``step_values``
+        takes its values. A caller interrupted between the two calls
+        (a model evaluated elsewhere, say) finishes the step with this
+        rather than requesting a new one.
+        """
+        return self._pending
 
     def _first_step_samples(self) -> Dict[ConfigIdx, Array]:
         """Get samples for the first step (zero index + candidates)."""
@@ -383,6 +410,9 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                     "without values after step_values; samples and "
                     "values are out of step"
                 )
+        # Cleared before scoring: the values are absorbed, so a scoring
+        # error leaves nothing owed, only a re-score.
+        self._pending = None
 
         self._nqoi = next(iter(values.values())).shape[0]
 
@@ -869,6 +899,14 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if result is None:
             return None
         return result[_SF_KEY]
+
+    def pending_samples(self) -> Optional[Array]:
+        """Return the batch awaiting values, or None if none is.
+
+        See ``MultiFidelityAdaptiveSparseGridFitter.pending_samples``.
+        """
+        pending = self._fitter.pending_samples()
+        return None if pending is None else pending[_SF_KEY]
 
     def step_values(self, values: Array) -> None:
         """Provide function values for the samples from step_samples.

@@ -322,3 +322,48 @@ class TestMultiFidelityFitter:
         batches: List[Array] = [advance_core()[()] for _ in range(2)]
         for batch in batches:
             bkd.assert_allclose(batch, _advance(bkd, reference), rtol=1e-12)
+
+
+class TestPendingSamples:
+    """A batch awaiting values is held, returned again, and not replaced."""
+
+    def test_none_before_the_first_step(self, bkd: Backend[Array]) -> None:
+        fitter = _make_fitter(bkd, L2SurplusIndicator(bkd))
+        assert fitter.pending_samples() is None
+
+    def test_held_until_step_values(self, bkd: Backend[Array]) -> None:
+        fitter = _make_fitter(bkd, L2SurplusIndicator(bkd))
+        _advance(bkd, fitter)
+        assert fitter.pending_samples() is None
+        batch = fitter.step_samples()
+        assert batch is not None
+        pending = fitter.pending_samples()
+        assert pending is not None
+        bkd.assert_allclose(pending, batch, rtol=0.0, atol=0.0)
+        fitter.step_values(_target(bkd, batch))
+        assert fitter.pending_samples() is None
+
+    def test_second_step_samples_refuses(self, bkd: Backend[Array]) -> None:
+        """Asking again would promote another candidate with values owed."""
+        fitter = _make_fitter(bkd, L2SurplusIndicator(bkd))
+        _advance(bkd, fitter)
+        assert fitter.step_samples() is not None
+        nselected = fitter.nselected()
+        with pytest.raises(RuntimeError, match="pending_samples"):
+            fitter.step_samples()
+        assert fitter.nselected() == nselected
+
+    def test_cleared_when_scoring_raises(self, bkd: Backend[Array]) -> None:
+        """Values absorbed before scoring raised are not owed again."""
+        stopped, _, _, _ = _stopped_and_reference_runs(bkd)
+        assert stopped.pending_samples() is None
+
+    def test_core_fitter_holds_the_dict(self, bkd: Backend[Array]) -> None:
+        sf = _make_fitter(bkd, L2SurplusIndicator(bkd))
+        core: MultiFidelityAdaptiveSparseGridFitter[Array] = sf._fitter
+        batch = core.step_samples()
+        assert batch is not None
+        pending = core.pending_samples()
+        assert pending is not None
+        assert list(pending) == list(batch)
+        bkd.assert_allclose(pending[()], batch[()], rtol=0.0, atol=0.0)
