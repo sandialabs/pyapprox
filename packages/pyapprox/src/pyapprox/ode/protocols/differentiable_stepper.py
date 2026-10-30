@@ -113,3 +113,11 @@ class DifferentiableStepperProtocol(Protocol[V, A]):
         """The current parameter version; a window recorded at another
         version is not differentiated at the current parameters."""
         ...
+
+
+@runtime_checkable
+class StepperProtocol(
+    ForwardStepperProtocol[V], DifferentiableStepperProtocol[V, A], Protocol[V, A]
+):
+    """A stepper the integrator marches and the sweeps differentiate:
+    what a stepping method builds."""
