@@ -72,6 +72,10 @@ from pyapprox.interface.evaluation.ensemble import (
     EnsembleProgress,
     ModelId,
 )
+from pyapprox.interface.evaluation.external_batch import (
+    ExternalBatchModel,
+    PendingEvaluations,
+)
 from pyapprox.interface.evaluation.manifest import (
     RUN_DONE_FILENAME,
     ManifestWriter,
@@ -130,6 +134,9 @@ __all__ = [
     "EnsembleBatch",
     "EnsembleProgress",
     "ModelId",
+    # Evaluation outside pyapprox
+    "ExternalBatchModel",
+    "PendingEvaluations",
     # Records
     "ComputeProvenance",
     "Cost",
