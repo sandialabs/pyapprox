@@ -16,10 +16,15 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
-from pyapprox.ode.integration import Integrator, ResidualFormConstraint
+from pyapprox.ode.integration import (
+    DifferentiableStackConstraintProtocol,
+    Integrator,
+    ResidualFormConstraint,
+)
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import MultistepMethod
+from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
@@ -75,13 +80,16 @@ Stepper = Union[
 
 
 def make_stepper(
-    method: Method, system: MassFormSystem[Array, Array, DenseFormat[Array]]
+    method: Method,
+    system: MassFormSystem[Array, Array, DenseFormat[Array]],
+    row_pinning: Optional[RowPinningProtocol[Array]] = None,
 ) -> Stepper[Array]:
-    """The stepper of a tableau or of a multistep method."""
+    """The stepper of a tableau or of a multistep method, with the given
+    row pinning."""
     stepper: Stepper[Array] = (
-        rk_stepper(method, system)
+        rk_stepper(method, system, row_pinning)
         if isinstance(method, ButcherTableau)
-        else lm_stepper(method, system)
+        else lm_stepper(method, system, row_pinning)
     )
     return stepper
 
@@ -247,6 +255,10 @@ class TrajectoryProblem(Generic[Array]):
         The step boundaries; 0 to 0.5 in steps of 0.05 by default.
     functional : TikhonovAugmentedFunctional, optional
         Q; :func:`tikhonov_mse`'s default by default.
+    row_pinning : RowPinningProtocol, optional
+        Rows pinned inside the stepper's solves.
+    stack_constraint : DifferentiableStackConstraintProtocol, optional
+        A constraint on stack vectors at stored states, instead of ``pin``.
     """
 
     def __init__(
@@ -263,14 +275,20 @@ class TrajectoryProblem(Generic[Array]):
         ] = None,
         times: Optional[List[float]] = None,
         functional: Optional[TikhonovAugmentedFunctional[Array]] = None,
+        row_pinning: Optional[RowPinningProtocol[Array]] = None,
+        stack_constraint: Optional[DifferentiableStackConstraintProtocol[Array]] = None,
     ) -> None:
         self._bkd, self._pin, self._start = bkd, pin, start
         self._times = TIMES if times is None else times
         self._model = lotka_volterra_with_mass(bkd)
         build = dense_mass_form_system if system is None else system
-        self._stepper: Stepper[Array] = make_stepper(method, build(self._model))
-        constraint = (
-            None if pin is None else ResidualFormConstraint(pin, BackendColumnForm(bkd))
+        self._stepper: Stepper[Array] = make_stepper(
+            method, build(self._model), row_pinning
+        )
+        constraint: Optional[DifferentiableStackConstraintProtocol[Array]] = (
+            stack_constraint
+            if pin is None
+            else ResidualFormConstraint(pin, BackendColumnForm(bkd))
         )
         self._integrator = Integrator(self._stepper, constraint)
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(

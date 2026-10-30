@@ -40,6 +40,9 @@ from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
+from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
+    EssentialPinnedRows,
+)
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
     GalerkinJacobianOperator,
 )
@@ -270,6 +273,14 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
             self._discretization.space(),
             self._solver,
         )
+
+    def pinned_rows(self) -> EssentialPinnedRows[Array]:
+        """The essential rows and their data, for pinning inside a
+        stepper's solves (:class:`~pyapprox.ode.pinned_rows.RowPinning`;
+        at the step end, the strategy the BC-enforcing wrapper implements
+        on the old steppers) or after each step
+        (:class:`~pyapprox.ode.pinned_rows.PinnedRowsConstraint`)."""
+        return EssentialPinnedRows(self._discretization)
 
     def mass_form_system(self) -> MassFormSystem[Array, Array, F]:
         """The same BC-neutralized ODE as the steppers of

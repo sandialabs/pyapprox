@@ -18,13 +18,14 @@ r"""Shared cases for testing the tableau stepper and its derivatives.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, List
+from typing import Any, Callable, Generic, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix
+from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     ODEResidualDerivatives,
     backend_state_space,
@@ -134,10 +135,14 @@ def lotka_volterra_with_mass(bkd: Backend[Array]) -> LotkaVolterra[Array]:
 def rk_stepper(
     tableau: ButcherTableau,
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
+    row_pinning: Optional[RowPinningProtocol[Array]] = None,
 ) -> RungeKuttaStepper[Array, Array, DenseFormat[Array]]:
-    """A backend stepper, with Newton (atol 1e-13) for implicit stages."""
+    """A backend stepper, with Newton (atol 1e-13) for implicit stages and
+    the given row pinning."""
     newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
-    return RungeKuttaStepper(tableau, system, None if tableau.is_explicit() else newton)
+    return RungeKuttaStepper(
+        tableau, system, None if tableau.is_explicit() else newton, row_pinning
+    )
 
 
 def new_state(

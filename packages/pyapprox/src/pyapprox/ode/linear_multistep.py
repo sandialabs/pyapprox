@@ -38,6 +38,7 @@ are stack vectors, converted to the residual's form only where
 
 from itertools import count
 from typing import (
+    Dict,
     Generic,
     List,
     Optional,
@@ -49,6 +50,7 @@ from typing import (
 
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.multistep_methods import MultistepCoefficients, MultistepMethod
+from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
@@ -130,12 +132,17 @@ class _NewStateSystem(Generic[V, A, F]):
         value = space.axpby(
             -self._scale, self._stepper.rhs(x, self._time), 1.0, value, out=value
         )
-        return space.axpby(1.0, self._known, 1.0, value, out=value)
+        value = space.axpby(1.0, self._known, 1.0, value, out=value)
+        pin = self._stepper.pin()
+        # Pinned rows read Y_R - g_R(t_{n+1}) instead.
+        return value if pin is None else pin.residual(value, x, self._time, space)
 
     def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
         stepper = self._stepper
+        operator = stepper.new_state_operator(x, self._time, self._alpha0, self._scale)
+        pin = stepper.pin()
         return stepper.system().solver.setup(
-            stepper.new_state_operator(x, self._time, self._alpha0, self._scale)
+            operator if pin is None else pin.own(operator)
         )
 
     def is_linear(self) -> bool:
@@ -155,11 +162,17 @@ class LinearMultistepStepper(Generic[V, A, F]):
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves implicit steps; required exactly when the method is
         implicit.
+    row_pinning : RowPinningProtocol, optional
+        Whether the step's one residual block, the one producing
+        :math:`y_{n+1}`, has rows pinned to boundary data inside its solve,
+        and how (see :mod:`pyapprox.ode.pinned_rows`). None for no
+        pinning.
 
     Raises
     ------
     TypeError
-        If the method is implicit and no nonlinear solver is given.
+        If the method is implicit and no nonlinear solver is given, or
+        ``row_pinning`` does not satisfy its protocol.
     """
 
     def __init__(
@@ -167,10 +180,16 @@ class LinearMultistepStepper(Generic[V, A, F]):
         method: MultistepMethod,
         system: MassFormSystem[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
+        row_pinning: Optional[RowPinningProtocol[V]] = None,
     ) -> None:
         if not method.is_explicit() and nonlinear_solver is None:
             raise TypeError(
                 f"{method.name} is implicit, so it needs a nonlinear solver"
+            )
+        if row_pinning is not None and not isinstance(row_pinning, RowPinningProtocol):
+            raise TypeError(
+                "row_pinning must satisfy RowPinningProtocol, got "
+                f"{type(row_pinning).__name__}"
             )
         self._method = method
         self._system = system
@@ -180,11 +199,19 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self._residual_space = BlockInnerProductSpace([space], "residual")
         self._state_space = BlockInnerProductSpace([space], "state")
         self._mass_handle: Optional[SolverHandleProtocol[V]] = None
+        # The one block, of one, is the step end.
+        self._pin = None if row_pinning is None else row_pinning.at(0, 1)
+        # Explicit steps' row-replaced alpha_0 M, set up once per alpha_0.
+        self._pinned_mass_handles: Dict[float, SolverHandleProtocol[V]] = {}
         self._points = count()
 
     def method(self) -> MultistepMethod:
         """The method."""
         return self._method
+
+    def pin(self) -> Optional[BlockPinProtocol[V]]:
+        """How the step's block is pinned, or None."""
+        return self._pin
 
     def system(self) -> MassFormSystem[V, A, F]:
         """What the stepper steps."""
@@ -276,6 +303,27 @@ class LinearMultistepStepper(Generic[V, A, F]):
             raise SolveFailedError(f"{self._method.name}: mass solve: {info.message}")
         return solution
 
+    def _pinned_mass_solve(self, known: V, alpha0: float, time: float) -> V:
+        r"""An explicit step with the step-end rows pinned:
+        :math:`(P \alpha_0 M + I - P)\, y_{n+1} = -P k + (I - P)\, g(t)`,
+        one solve as without them, its operator set up once per
+        :math:`\alpha_0`."""
+        pin = self._pin
+        if pin is None:
+            raise AssertionError("only called with step-end rows")
+        handle = self._pinned_mass_handles.get(alpha0)
+        if handle is None:
+            scaled = ScaledSum([(alpha0, self._system.mass)], self._system.space)
+            handle = self._system.solver.setup(pin.own(scaled))
+            self._pinned_mass_handles[alpha0] = handle
+        rhs = self._system.space.scale(-1.0, known)
+        solution, info = handle.solve(pin.right_hand_side(rhs, time))
+        if not info.converged:
+            raise SolveFailedError(
+                f"{self._method.name}: pinned mass solve: {info.message}"
+            )
+        return solution
+
     # ------------------------------------------------------------------
     # The forward step
     # ------------------------------------------------------------------
@@ -343,7 +391,12 @@ class LinearMultistepStepper(Generic[V, A, F]):
         new_time = time + deltat
         if formula.is_explicit():
             # alpha_0 M y_{n+1} = -k
-            new_state = self._mass_solve(space.scale(-1.0 / formula.alpha[0], known))
+            if self._pin is None:
+                new_state = self._mass_solve(
+                    space.scale(-1.0 / formula.alpha[0], known)
+                )
+            else:
+                new_state = self._pinned_mass_solve(known, formula.alpha[0], new_time)
             return BlockVector((new_state,))
         solver = self._nonlinear_solver
         if solver is None:
@@ -381,7 +434,13 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 -window.deltat * formula.beta[0], slope, 1.0, residual, out=residual
             )
         known = self._known(window.past_states, window.time, window.deltat, formula)
-        return BlockVector((space.axpby(1.0, known, 1.0, residual, out=residual),))
+        residual = space.axpby(1.0, known, 1.0, residual, out=residual)
+        if self._pin is not None:
+            # Pinned rows read y_R - g_R(t_{n+1}).
+            residual = self._pin.residual(
+                residual, unknown, window.time + window.deltat, space
+            )
+        return BlockVector((residual,))
 
     def _converged_jacobian(
         self, window: StepWindow[V], lag: int
@@ -398,7 +457,8 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self, window: StepWindow[V], lag: int
     ) -> Optional[ActionOperatorProtocol[V, F]]:
         r""":math:`\alpha_l M - \Delta t\, \beta_l J(y_{n+1-l})`, or None
-        when both coefficients are zero."""
+        when both coefficients are zero; with step-end rows, lag 0's block
+        row-replaced and the others' rows zeroed."""
         formula = self._window_formula(window)
         alpha, beta = formula.alpha[lag], formula.beta[lag]
         terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = []
@@ -406,7 +466,13 @@ class LinearMultistepStepper(Generic[V, A, F]):
             terms.append((alpha, self._system.mass))
         if beta != 0.0:
             terms.append((-window.deltat * beta, self._converged_jacobian(window, lag)))
-        return ScaledSum(terms, self._system.space) if terms else None
+        if not terms:
+            return None
+        block = ScaledSum(terms, self._system.space)
+        pin = self._pin
+        if pin is None:
+            return block
+        return pin.own(block) if lag == 0 else pin.coupled(block)
 
     def diag(self, window: StepWindow[V]) -> StepOperator[V]:
         r""":math:`\partial R_n/\partial u_n = \alpha_0 M - \Delta t\,
@@ -500,11 +566,10 @@ class LinearMultistepStepper(Generic[V, A, F]):
             if formula.beta[lag] != 0.0
         ]
         params = self._param_block_space()
-        return BlockOperator(
-            [[ScaledSum(terms, self._system.space, params.component(0))]],
-            params,
-            self._residual_space,
-        )
+        block = ScaledSum(terms, self._system.space, params.component(0))
+        # The step-end rows do not depend on the parameters.
+        pinned = block if self._pin is None else self._pin.coupled(block)
+        return BlockOperator([[pinned]], params, self._residual_space)
 
     def _weighted(
         self, window: StepWindow[V], adj: BlockVector[V], lag: int
@@ -518,7 +583,11 @@ class LinearMultistepStepper(Generic[V, A, F]):
         if beta == 0.0:
             return None
         space, to_residual = self._system.space, self._system.form.to_residual
-        weight = space.scale(-window.deltat * beta, adj.blocks[0])
+        mu = adj.blocks[0]
+        if self._pin is not None:
+            # Pinned rows carry no f, so no curvature.
+            mu = self._pin.adjoint(mu, space)
+        weight = space.scale(-window.deltat * beta, mu)
         return (
             to_residual(self._lag_states(window)[lag]),
             self._lag_time(window.time, window.deltat, lag),

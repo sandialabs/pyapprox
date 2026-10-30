@@ -31,6 +31,7 @@ where :math:`f` and :math:`J` are called.
 
 from itertools import count
 from typing import (
+    Dict,
     Generic,
     List,
     Optional,
@@ -41,6 +42,7 @@ from typing import (
 )
 
 from pyapprox.ode.mass_form_system import MassFormSystem
+from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
@@ -101,6 +103,8 @@ class _StageSystem(Generic[V, A, F]):
         :math:`\Delta t\, a_{ii}`.
     deltat : float
         The step size.
+    pin : BlockPinProtocol, optional
+        How the stage's rows are pinned, at its time; None for none.
     """
 
     def __init__(
@@ -111,10 +115,12 @@ class _StageSystem(Generic[V, A, F]):
         time: float,
         scale: float,
         deltat: float,
+        pin: Optional[BlockPinProtocol[V]] = None,
     ) -> None:
         self._stepper = stepper
         self._state, self._known = state, known
         self._time, self._scale, self._deltat = time, scale, deltat
+        self._pin = pin
 
     def space(self) -> InnerProductSpaceProtocol[V, A]:
         return self._stepper.system().space
@@ -126,10 +132,16 @@ class _StageSystem(Generic[V, A, F]):
         value = space.axpby(
             -self._scale, self._stepper.rhs(x, self._time), 1.0, value, out=value
         )
-        return space.axpby(-self._deltat, self._known, 1.0, value, out=value)
+        value = space.axpby(-self._deltat, self._known, 1.0, value, out=value)
+        if self._pin is None:
+            return value
+        return self._pin.residual(value, x, self._time, space)
 
     def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
-        return self._stepper.stage_handle(x, self._time, self._scale)
+        if self._pin is None:
+            return self._stepper.stage_handle(x, self._time, self._scale)
+        operator = self._stepper.stage_operator(x, self._time, self._scale)
+        return self._stepper.system().solver.setup(self._pin.own(operator))
 
     def is_linear(self) -> bool:
         return False
@@ -148,12 +160,17 @@ class RungeKuttaStepper(Generic[V, A, F]):
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves the implicit stages; required exactly when the tableau has
         one.
+    row_pinning : RowPinningProtocol, optional
+        Which residual blocks have rows pinned to boundary data inside
+        their solves, and how (see :mod:`pyapprox.ode.pinned_rows`); the
+        blocks are the unknown stages in order, then the final block when
+        there is one, each pinned at its own time. None for no pinning.
 
     Raises
     ------
     TypeError
         If the tableau has an implicit stage and no nonlinear solver is
-        given.
+        given, or ``row_pinning`` does not satisfy its protocol.
     """
 
     def __init__(
@@ -161,10 +178,16 @@ class RungeKuttaStepper(Generic[V, A, F]):
         tableau: ButcherTableau,
         system: MassFormSystem[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
+        row_pinning: Optional[RowPinningProtocol[V]] = None,
     ) -> None:
         if not tableau.is_explicit() and nonlinear_solver is None:
             raise TypeError(
                 f"{tableau.name} has implicit stages, so it needs a nonlinear solver"
+            )
+        if row_pinning is not None and not isinstance(row_pinning, RowPinningProtocol):
+            raise TypeError(
+                "row_pinning must satisfy RowPinningProtocol, got "
+                f"{type(row_pinning).__name__}"
             )
         self._tableau = tableau
         self._system = system
@@ -181,6 +204,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self._residual_space = BlockInnerProductSpace([space] * nblocks, "residual")
         self._state_space = BlockInnerProductSpace([space], "state")
         self._mass_handle: Optional[SolverHandleProtocol[V]] = None
+        self._row_pinning = row_pinning
+        # Each pinned block's row-replaced mass, for its explicit solve,
+        # set up once.
+        self._pinned_mass_handles: Dict[int, SolverHandleProtocol[V]] = {}
         self._points = count()
 
     def tableau(self) -> ButcherTableau:
@@ -272,6 +299,33 @@ class RungeKuttaStepper(Generic[V, A, F]):
             raise SolveFailedError(f"{self._tableau.name}: mass solve: {info.message}")
         return solution
 
+    def _block_pin(self, block: int) -> Optional[BlockPinProtocol[V]]:
+        """How residual block ``block`` is pinned, or None."""
+        if self._row_pinning is None:
+            return None
+        return self._row_pinning.at(block, self._unknown_space.nblocks())
+
+    def _explicit_solve(self, block: int, state: V, increment: V, time: float) -> V:
+        r"""Block ``block``'s value :math:`Y` from :math:`M (Y - y_n) = `
+        ``increment``. Pinned at ``time``, it solves :math:`(P M + I - P)\,
+        Y = P (M y_n + \mathrm{increment}) + (I - P)\, g(t)` instead: one
+        solve either way."""
+        space, pin = self._system.space, self._block_pin(block)
+        if pin is None:
+            return space.axpby(1.0, state, 1.0, self._mass_solve(increment))
+        handle = self._pinned_mass_handles.get(block)
+        if handle is None:
+            handle = self._system.solver.setup(pin.own(self._system.mass))
+            self._pinned_mass_handles[block] = handle
+        rhs = space.axpby(1.0, self._system.mass.apply(state), 1.0, increment)
+        solution, info = handle.solve(pin.right_hand_side(rhs, time))
+        if not info.converged:
+            raise SolveFailedError(
+                f"{self._tableau.name}: pinned mass solve of block {block}: "
+                f"{info.message}"
+            )
+        return solution
+
     # ------------------------------------------------------------------
     # The forward step
     # ------------------------------------------------------------------
@@ -310,6 +364,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
             )
         state = past_states[0]
         tableau, space = self._tableau, self._system.space
+        offset = self._first_stage_offset()
         stages: List[V] = []
         slopes: List[V] = []
         for i in range(tableau.nstages()):
@@ -321,9 +376,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
             if i == 0 and tableau.has_trivial_first_stage():
                 stage = space.copy(state)
             elif tableau.is_explicit_stage(i):
-                # M (Y - y_n) = dt k.
-                increment = self._mass_solve(space.scale(deltat, known))
-                stage = space.axpby(1.0, state, 1.0, increment)
+                # M (Y - y_n) = dt k; stage i is residual block i - offset.
+                stage = self._explicit_solve(
+                    i - offset, state, space.scale(deltat, known), stage_time
+                )
             else:
                 stage = self._implicit_stage(i, state, known, stage_time, deltat)
             stages.append(stage)
@@ -334,19 +390,24 @@ class RungeKuttaStepper(Generic[V, A, F]):
             weighted = space.zeros()
             for weight, slope in zip(tableau.b, slopes):
                 weighted = space.axpby(weight, slope, 1.0, weighted, out=weighted)
-            increment = self._mass_solve(space.scale(deltat, weighted))
-            blocks.append(space.axpby(1.0, state, 1.0, increment))
+            blocks.append(
+                self._explicit_solve(
+                    len(blocks), state, space.scale(deltat, weighted), time + deltat
+                )
+            )
         return BlockVector(tuple(blocks))
 
     def _implicit_stage(
         self, i: int, state: V, known: V, stage_time: float, deltat: float
     ) -> V:
-        """Solve implicit stage ``i`` from the guess :math:`y_n`."""
+        """Solve implicit stage ``i`` from the guess :math:`y_n`, its rows
+        pinned in its Newton system when its block is."""
         solver = self._nonlinear_solver
         if solver is None:
             raise TypeError(f"{self._tableau.name} needs a nonlinear solver")
         scale = deltat * self._tableau.a[i][i]
-        system = _StageSystem(self, state, known, stage_time, scale, deltat)
+        pin = self._block_pin(i - self._first_stage_offset())
+        system = _StageSystem(self, state, known, stage_time, scale, deltat, pin)
         stage, info = solver.solve(system, state)
         if not info.converged:
             raise SolveFailedError(
@@ -392,7 +453,24 @@ class RungeKuttaStepper(Generic[V, A, F]):
         blocks = [block(stages[i], tableau.a[i]) for i in self._unknown_stages]
         if self._final_block:
             blocks.append(block(window.unknown.blocks[-1], tableau.b))
+        for r in range(len(blocks)):
+            pin = self._block_pin(r)
+            if pin is not None:
+                # A pinned block's rows read Y_R - g_R at its time.
+                blocks[r] = pin.residual(
+                    blocks[r],
+                    window.unknown.blocks[r],
+                    self._block_time(window, r),
+                    space,
+                )
         return BlockVector(tuple(blocks))
+
+    def _block_time(self, window: StepWindow[V], block: int) -> float:
+        """Residual block ``block``'s time: its stage's, or
+        :math:`t_{n+1}` for the final block."""
+        if block < len(self._unknown_stages):
+            return self._stage_time(window, self._unknown_stages[block])
+        return window.time + window.deltat
 
     # ------------------------------------------------------------------
     # The step's derivatives
@@ -469,6 +547,25 @@ class RungeKuttaStepper(Generic[V, A, F]):
                 # The final block's own column: M.
                 row[-1] = system.mass
             grid.append(row)
+        return self._pin_rows(grid)
+
+    def _pin_rows(
+        self, grid: List[List[Optional[ActionOperatorProtocol[V, F]]]]
+    ) -> List[List[Optional[ActionOperatorProtocol[V, F]]]]:
+        """``diag``'s grid with each pinned block row edited: its own block
+        row-replaced, its other blocks with the rows zeroed."""
+        for r in range(len(grid)):
+            pin = self._block_pin(r)
+            if pin is None:
+                continue
+            grid[r] = [
+                None
+                if block is None
+                else pin.own(block)
+                if k == r
+                else pin.coupled(block)
+                for k, block in enumerate(grid[r])
+            ]
         return grid
 
     def diag(self, window: StepWindow[V]) -> StepOperator[V]:
@@ -519,13 +616,16 @@ class RungeKuttaStepper(Generic[V, A, F]):
             self._jacobian_at(window, window.past_state(1), 0) if trivial else None
         )
         grid: List[List[Optional[LinearMapProtocol[V]]]] = []
-        for weights in self._rows():
+        for r, weights in enumerate(self._rows()):
             terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = [
                 (-1.0, system.mass)
             ]
             if jacobian is not None and weights[0] != 0.0:
                 terms.append((-deltat * weights[0], jacobian))
-            grid.append([ScaledSum(terms, system.space)])
+            block = ScaledSum(terms, system.space)
+            pin = self._block_pin(r)
+            # A pinned block's rows do not read y_n.
+            grid.append([block if pin is None else pin.coupled(block)])
         return BlockOperator(grid, self._state_space, self._residual_space)
 
     def _param_block_space(self) -> BlockInnerProductSpace[V, A]:
@@ -571,13 +671,16 @@ class RungeKuttaStepper(Generic[V, A, F]):
         ]
         params = self._param_block_space()
         grid: List[List[Optional[LinearMapProtocol[V]]]] = []
-        for weights in self._rows():
+        for r, weights in enumerate(self._rows()):
             terms = [
                 (-deltat * weight, op)
                 for weight, op in zip(weights, param_ops)
                 if weight != 0.0
             ]
-            grid.append([ScaledSum(terms, space, params.component(0))])
+            block = ScaledSum(terms, space, params.component(0))
+            pin = self._block_pin(r)
+            # A pinned block's rows do not depend on the parameters.
+            grid.append([block if pin is None else pin.coupled(block)])
         return BlockOperator(grid, params, self._residual_space)
 
     def _stage_adjoints(self, window: StepWindow[V], adj: BlockVector[V]) -> List[V]:
@@ -594,10 +697,15 @@ class RungeKuttaStepper(Generic[V, A, F]):
         """
         space, deltat = self._system.space, window.deltat
         rows = self._rows()
+        # A pinned block's rows carry no f, so no curvature.
+        blocks = []
+        for r, mu in enumerate(adj.blocks):
+            pin = self._block_pin(r)
+            blocks.append(mu if pin is None else pin.adjoint(mu, space))
         adjoints: List[V] = []
         for j in range(self._tableau.nstages()):
             total = space.zeros()
-            for weights, mu in zip(rows, adj.blocks):
+            for weights, mu in zip(rows, blocks):
                 if weights[j] != 0.0:
                     total = space.axpby(-deltat * weights[j], mu, 1.0, total, out=total)
             adjoints.append(total)
