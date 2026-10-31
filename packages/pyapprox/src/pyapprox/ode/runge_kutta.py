@@ -144,7 +144,7 @@ class _StageSystem(Generic[V, A, F]):
         operator = self._stepper.stage_operator(x, self._time, self._scale)
         return self._stepper.system().solver.setup(self._pin.own(operator))
 
-    def is_linear(self) -> bool:
+    def is_affine(self) -> bool:
         return False
 
 

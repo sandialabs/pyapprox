@@ -153,7 +153,7 @@ class _NewStateSystem(Generic[V, A, F]):
             operator if pin is None else pin.own(operator)
         )
 
-    def is_linear(self) -> bool:
+    def is_affine(self) -> bool:
         return False
 
 

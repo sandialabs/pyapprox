@@ -56,7 +56,7 @@ class NonlinearSystemProtocol(Protocol[V, A_co]):
         r"""A solver handle for :math:`\partial R/\partial x` at ``x``."""
         ...
 
-    def is_linear(self) -> bool:
+    def is_affine(self) -> bool:
         """Whether :math:`R` is affine in :math:`x`, so one exact Newton
         step solves it."""
         ...
@@ -112,7 +112,10 @@ class Newton(Generic[V, A]):
     maxiters : int, default 10
         Steps allowed before reporting failure.
     step_size : float, default 1.0
-        The scaling :math:`s` of each step.
+        The scaling :math:`s` of each step of the iteration. A system
+        declaring itself affine is solved by one full step whatever ``s``:
+        that step is exact, so damping would only stop short of the
+        solution.
     line_search : bool, default False
         Backtrack along each step until the residual norm decreases
         sufficiently (Armijo, :math:`c = 10^{-4}`), halving at most
@@ -161,13 +164,16 @@ class Newton(Generic[V, A]):
         space = system.space()
         iterate = space.copy(initial_guess)
         residual = system.residual(iterate)
-        if system.is_linear():
+        if system.is_affine():
             delta, info = system.jacobian_handle(iterate).solve(residual)
             if not info.converged:
                 return iterate, NonlinearSolveInfo(
                     False, 0, None, f"linear solve failed: {info.message}"
                 )
-            iterate = space.axpby(-self._step_size, delta, 1.0, iterate, out=iterate)
+            # The full step: for an affine R, x - delta is the solution
+            # itself, so damping would only stop short of it, and nothing
+            # checks the residual afterwards.
+            iterate = space.axpby(-1.0, delta, 1.0, iterate, out=iterate)
             return iterate, NonlinearSolveInfo(
                 True, 1, None, "one step: the system is linear"
             )

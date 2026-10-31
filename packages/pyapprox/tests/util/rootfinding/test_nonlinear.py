@@ -6,9 +6,10 @@ exact roots :math:`(1, 2, 3)` with the residual norm under the tolerance
 and quadratic convergence (each residual norm at most a constant times
 the square of the previous one once close); :math:`\arctan x = 0` from
 :math:`x_0 = 3`, where full steps diverge and the backtracking line
-search converges to 0; a system declaring itself linear solved in one
-step. Failures are reported, never raised: a step budget exhausted, a
-residual that stops being finite, a failed linear solve. On the mock
+search converges to 0; a system declaring itself affine solved in one
+exact step, the full step even with damping 0.5. Failures are reported,
+never raised: a step budget exhausted, a residual that stops being
+finite, a failed linear solve. On the mock
 stack, whose vectors cannot be looked inside, a linear system solved as
 nonlinear converges in one step, so the solver uses only the space and
 the handles.
@@ -82,7 +83,7 @@ class _Elementwise(Generic[Array]):
         operator = BackendDenseOperator(matrix, self._descriptor, self._bkd)
         return BackendDenseLU(self._bkd).setup(operator)
 
-    def is_linear(self) -> bool:
+    def is_affine(self) -> bool:
         return False
 
 
@@ -107,7 +108,7 @@ class _Linear(Generic[Array]):
             BackendDenseOperator(self._matrix, _X, self._bkd)
         )
 
-    def is_linear(self) -> bool:
+    def is_affine(self) -> bool:
         return self._declared
 
     def solution(self) -> Array:
@@ -209,6 +210,17 @@ class TestNewton:
         assert info.residual_norm is None
         bkd.assert_allclose(solution, system.solution(), rtol=1e-12)
 
+    def test_an_affine_system_takes_the_full_step_whatever_the_damping(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """A damped step would stop halfway and still report convergence,
+        since the one-step path checks no residual."""
+        system = _Linear(bkd, declared_linear=True)
+        damped: Newton[Array, Array] = Newton(step_size=0.5)
+        solution, info = damped.solve(system, bkd.zeros((3, 1)))
+        assert info.converged and info.iterations == 1
+        bkd.assert_allclose(solution, system.solution(), rtol=1e-12)
+
     def test_the_initial_guess_is_not_modified(self, bkd: Backend[Array]) -> None:
         guess = bkd.zeros((3, 1))
         _newton(bkd).solve(_Linear(bkd, declared_linear=False), guess)
@@ -258,7 +270,7 @@ class _MockLinear:
     def jacobian_handle(self, x: MockVector) -> SolverHandleProtocol[MockVector]:
         return MockLU().setup(self._operator)
 
-    def is_linear(self) -> bool:
+    def is_affine(self) -> bool:
         return False
 
     def solution(self) -> NDArray[np.floating[Any]]:
