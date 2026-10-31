@@ -539,10 +539,12 @@ class RobinBC(Generic[Array]):
     boundary_name : str
         Name of the boundary.
     alpha : float or Callable
-        Coefficient for the u term: a constant, or ``alpha(x)`` taking
-        coordinates of shape ``(ndim, npts)`` and returning ``(npts,)``
-        values at boundary quadrature points (time-independent; time
-        dependence belongs to ``value_func``).
+        Coefficient for the u term: a constant; a bare ``alpha(coords)``
+        (time-independent); or a declared ``TimeIndependent(alpha)`` /
+        ``TimeDependent(alpha)`` for ``alpha(coords, time)``. Coordinates
+        have shape ``(ndim, npts)`` and values ``(npts,)``, at boundary
+        quadrature points. A bare callable that could take a time is
+        rejected, as for ``value_func``.
     value_func : Callable, float or NormalDependentDataProtocol
         Robin data g: a constant; a bare ``g(coords)`` (time-independent);
         a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
@@ -558,15 +560,16 @@ class RobinBC(Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
-        alpha: Union[float, Callable[[np.ndarray], np.ndarray]],
+        alpha: Union[float, Callable[..., Any]],
         value_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
         bkd: Backend[Array],
     ):
         self._basis = basis
         self._boundary_name = boundary_name
-        if not callable(alpha):
-            alpha = float(alpha)
-        self._alpha = alpha
+        # A constant stays a float, which the forms broadcast.
+        self._alpha: Union[float, TimeAwareCallableProtocol] = (
+            as_time_aware(alpha) if callable(alpha) else float(alpha)
+        )
         self._bkd = bkd
         self._value_data = _as_facet_data(value_func)
 
@@ -589,22 +592,28 @@ class RobinBC(Generic[Array]):
         return self._boundary_dofs
 
     def is_time_dependent(self) -> bool:
-        """Whether the Robin data g varies in time (declared, not inferred).
-
-        The coefficient alpha is time-independent by construction.
-        """
-        return self._value_data.is_time_dependent()
+        """Whether the coefficient alpha or the Robin data g varies in
+        time (declared, not inferred)."""
+        return self._alpha_is_time_dependent() or (
+            self._value_data.is_time_dependent()
+        )
 
     def is_time_invariant(self) -> bool:
         """Whether the term is declared time-independent."""
         return not self.is_time_dependent()
 
-    def alpha(self) -> Union[float, Callable[[np.ndarray], np.ndarray]]:
-        """Return the coefficient for the u term (constant or callable)."""
+    def _alpha_is_time_dependent(self) -> bool:
+        return not isinstance(self._alpha, float) and (
+            self._alpha.is_time_dependent()
+        )
+
+    def alpha(self) -> Union[float, TimeAwareCallableProtocol]:
+        """Return the coefficient for the u term: a constant, or a
+        supplier ``alpha(coords, time)`` stating its time dependence."""
         return self._alpha
 
     def _alpha_at_quadrature(
-        self, w: "FormExtraParams"
+        self, w: "FormExtraParams", time: float
     ) -> Union[float, np.ndarray]:
         """Evaluate alpha at the form's boundary quadrature points.
 
@@ -612,14 +621,14 @@ class RobinBC(Generic[Array]):
         are evaluated on the flattened coordinates and reshaped to the
         skfem ``(nelem, nquad)`` layout.
         """
-        if not callable(self._alpha):
+        if isinstance(self._alpha, float):
             return self._alpha
         x_np = np.asarray(w.x)
         if x_np.ndim == 3:
             ndim, nelem, nquad = x_np.shape
-            vals = np.asarray(self._alpha(x_np.reshape(ndim, -1)))
+            vals = np.asarray(self._alpha(x_np.reshape(ndim, -1), time))
             return vals.reshape(nelem, nquad)
-        return np.asarray(self._alpha(x_np))
+        return np.asarray(self._alpha(x_np, time))
 
     def _get_boundary_basis(self) -> Basis:
         """Get or create the boundary basis for assembly."""
@@ -628,13 +637,14 @@ class RobinBC(Generic[Array]):
             self._boundary_basis = skfem_basis.boundary(self._boundary_name)
         return self._boundary_basis
 
-    def _stiffness_contribution(self) -> spmatrix:
-        """Assemble K_Gamma = alpha * integral_{Gamma} u . phi ds (sparse).
+    def _stiffness_contribution(self, time: float) -> spmatrix:
+        """Assemble K_Gamma = alpha * integral_{Gamma} u . phi ds (sparse)
+        at ``time``.
 
         For vector elements uses sum_i(u_i * v_i); for scalar uses u * v.
         """
         bndry_basis = self._get_boundary_basis()
-        alpha_at_quadrature = self._alpha_at_quadrature
+        alpha_at_quadrature = partial(self._alpha_at_quadrature, time=time)
         ncomps = (
             self._basis.ncomponents()
             if isinstance(self._basis, ComponentDofsBasisProtocol)
@@ -688,7 +698,7 @@ class RobinBC(Generic[Array]):
         sparse matrix or Array
             Modified stiffness matrix (same type as input).
         """
-        contribution_sparse = self._stiffness_contribution()
+        contribution_sparse = self._stiffness_contribution(time)
 
         if issparse(stiffness):
             return stiffness + contribution_sparse
@@ -747,7 +757,7 @@ class RobinBC(Generic[Array]):
         """
         load = self.apply_to_load(self._bkd.full_like(residual, 0.0), time)
         stiffness_times_state = self._bkd.asarray(
-            self._stiffness_contribution() @ self._bkd.to_numpy(state)
+            self._stiffness_contribution(time) @ self._bkd.to_numpy(state)
         )
         return residual + load - stiffness_times_state
 
@@ -758,7 +768,7 @@ class RobinBC(Generic[Array]):
         time: float,
     ) -> Union[spmatrix, Array]:
         """Add the Robin term's Jacobian, -K_Gamma (same type as input)."""
-        contribution = self._stiffness_contribution()
+        contribution = self._stiffness_contribution(time)
         if issparse(jacobian):
             return jacobian - contribution
         jac_np = self._bkd.to_numpy(jacobian) - contribution.toarray()

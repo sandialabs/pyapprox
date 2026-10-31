@@ -20,6 +20,10 @@ from pyapprox.pde.boundary import (
     EssentialBCProtocol,
     WeakFormBCProtocol,
 )
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import (
     BoundaryConditionSet,
@@ -203,6 +207,55 @@ class TestRobinBCBase:
         # Robin BC should add alpha * boundary_mass_matrix contribution
         # For 1D point boundary, this adds to (0,0) entry
         assert modified_stiff_np[0, 0] > 0
+
+    def test_a_declared_time_dependent_alpha_is_evaluated_at_the_time(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        r"""On the left side of the unit square, :math:`\alpha = (1 + t)
+        (1 + y)` gives a boundary stiffness at t = 1 twice that at t = 0,
+        which equals the one of the time-independent :math:`1 + y` given
+        bare or declared; the Jacobian is minus that stiffness, and only
+        the declared time-dependent coefficient makes the term so."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh2D(nx=3, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        zeros = bkd.zeros((basis.ndofs(), basis.ndofs()))
+        growing = RobinBC(
+            basis, "left", TimeDependent(_growing_alpha), value_func=0.0, bkd=bkd
+        )
+        steady = RobinBC(basis, "left", _profile_alpha, value_func=0.0, bkd=bkd)
+        declared = RobinBC(
+            basis, "left", TimeIndependent(_profile_alpha), value_func=0.0, bkd=bkd
+        )
+        at_zero = growing.apply_to_stiffness(zeros, 0.0)
+        at_one = growing.apply_to_stiffness(zeros, 1.0)
+        assert float(np.abs(bkd.to_numpy(at_zero)).max()) > 0.1
+        bkd.assert_allclose(at_one, 2.0 * at_zero, rtol=1e-14)
+        bkd.assert_allclose(steady.apply_to_stiffness(zeros, 1.0), at_zero)
+        bkd.assert_allclose(declared.apply_to_stiffness(zeros, 1.0), at_zero)
+        state = bkd.zeros((basis.ndofs(),))
+        bkd.assert_allclose(growing.apply_to_jacobian(zeros, state, 1.0), -at_one)
+        assert growing.is_time_dependent()
+        assert not steady.is_time_dependent()
+        assert not declared.is_time_dependent()
+
+    def test_an_undeclared_alpha_that_could_take_a_time_is_refused(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        basis = LagrangeBasis(StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd), 1)
+        with pytest.raises(TypeError, match="ambiguous"):
+            RobinBC(basis, "left", _growing_alpha, value_func=0.0, bkd=bkd)
+
+
+def _profile_alpha(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    return np.asarray(1.0 + x[1])
+
+
+def _growing_alpha(
+    x: NDArray[np.floating[Any]], time: float
+) -> NDArray[np.floating[Any]]:
+    return np.asarray((1.0 + time) * (1.0 + x[1]))
 
 
 class TestBoundaryConditionSetBase:
