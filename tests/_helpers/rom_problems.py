@@ -308,6 +308,9 @@ class _FiniteDifferenceADR:
     def is_time_invariant(self) -> bool:
         return True
 
+    def jacobian_is_time_invariant(self) -> bool:
+        return True
+
     def diffusivity_jacobian(self, state: NumpyArray) -> NumpyArray:
         """dF/dkappa, shape (n, n - 1)."""
         n, h2 = self._n, self._h**2

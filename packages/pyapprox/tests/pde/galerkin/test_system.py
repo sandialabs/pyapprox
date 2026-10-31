@@ -51,6 +51,9 @@ class _StubInterior(Generic[Array]):
     def interior_is_time_invariant(self) -> bool:
         return True
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        return True
+
 
 class _ScaledMass(Generic[Array]):
     """A mass provider whose matrix changes when its scale is reset."""

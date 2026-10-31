@@ -312,6 +312,10 @@ class EulerBernoulliBeamFEM(Generic[Array]):
         """Always: the distributed load is ``q(x)``, with no time."""
         return True
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Always: the bending stiffness EI is a constant."""
+        return True
+
     def mass_matrix(self) -> Array:
         """Return beam mass matrix M_ij = integral(w_i * w_j).
 

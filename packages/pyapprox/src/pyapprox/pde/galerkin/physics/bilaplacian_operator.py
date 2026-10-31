@@ -136,6 +136,10 @@ class BiLaplacianOperator(Generic[Array]):
         """Always: no coefficient depends on time."""
         return True
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Always: no coefficient depends on time."""
+        return True
+
     def mass_matrix(self) -> Array:
         """Return the consistent mass matrix."""
         if self._mass is None:

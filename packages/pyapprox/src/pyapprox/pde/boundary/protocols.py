@@ -178,6 +178,15 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
         (its data — flux, Robin value — declared time-independent)."""
         ...
 
+    def jacobian_is_time_invariant(self) -> bool:
+        """Whether the term's Jacobian ``dc/du`` at a fixed ``u`` is
+        DECLARED independent of ``t``: weaker than ``is_time_invariant``,
+        since data that enters ``c`` but not ``dc/du`` (a flux, a Robin
+        value) may vary. Answered by the term from the declarations of
+        what its Jacobian depends on (a Robin coefficient), so a factored
+        Jacobian is reused across times only when that is exact."""
+        ...
+
 
 @runtime_checkable
 class EssentialBCProtocol(Protocol, Generic[Array]):

@@ -10,8 +10,11 @@ term passes the bundle checker at state 0.3 sin(pi x) + 0.1 x, adjoint
 cos(3x), parameters (0.4, -0.3, 0.2), t = 0.2, under both row treatments:
 forward-difference errors below 1e-6, dot tests below 1e-12. The initial
 state does not depend on the parameters, so the initial-state terms are
-checked against a constant y0(p). The physics is linear, so every tier
-declares f affine and passes the checker's affinity test; an assembled
+checked against a constant y0(p). The physics is linear and its
+diffusivity time-independent, so every tier declares a constant
+Jacobian and passes the checker's affinity and time-invariance tests,
+though the forcing and the right end move; a coordinate diffusivity
+declared time-dependent leaves the Jacobian state-free. An assembled
 Jacobian with its essential rows left in fails both the Jacobian and the
 affinity checks.
 """
@@ -33,8 +36,10 @@ from pyapprox.ode.residual_derivatives import Jacobian, ODEResidualDerivatives
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
+    CoordinateDiffusion,
     NodalFieldDiffusion,
     TimeDependent,
+    TimeIndependent,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -139,6 +144,34 @@ class _Heat:
         self.nstates = x.shape[0]
 
 
+def _kappa(x: _Np) -> _Np:
+    value: _Np = 1.0 + x[0]
+    return value
+
+
+def _growing_kappa(x: _Np, t: float) -> _Np:
+    value: _Np = (1.0 + t) * (1.0 + x[0])
+    return value
+
+
+def _coordinate_heat(
+    bkd: NumpyBkd, diffusivity: CoordinateDiffusion
+) -> GalerkinSystem[_Np]:
+    """The heat problem's forcing and moving right end with a coordinate
+    diffusivity."""
+    mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
+    basis = LagrangeBasis(mesh, degree=1)
+    physics = AdvectionDiffusionReaction(
+        basis=basis, diffusivity=diffusivity, bkd=bkd, forcing=TimeDependent(_forcing)
+    )
+    right = BoundarySignal(TimeDependent(_right_value), [TimeDependent(_right_rate)])
+    system: GalerkinSystem[_Np] = compose_galerkin_system(
+        physics,
+        [DirichletBC(basis, "left", 0.0, bkd), DirichletBC(basis, "right", right, bkd)],
+    )
+    return system
+
+
 class _ConstantInitialState:
     """y0(p) independent of p, as the problem's initial state is."""
 
@@ -211,9 +244,35 @@ class TestGalerkinBundles:
         assert bundle.param is None and bundle.state_state is None
         assert bundle.jacobian is not None
         report = ODEResidualBundleChecker(adapter).check(heat.state, _TIME)
-        assert set(report.fd_errors) == {"jacobian", "affine"}
+        assert set(report.fd_errors) == {"jacobian", "affine", "time_invariant"}
         assert report.failures() == []
         assert adapter.derivatives() is bundle  # built once
+
+    @pytest.mark.parametrize("treatment", _TREATMENTS)
+    def test_the_jacobian_level_follows_the_diffusivity(
+        self, numpy_bkd: NumpyBkd, treatment: RowTreatmentFactory[_Np]
+    ) -> None:
+        """A diffusivity declared time-independent makes the Jacobian
+        constant, though the forcing and the right end move; one declared
+        time-dependent leaves it state-free. Either passes the checks its
+        level brings."""
+        state = 0.3 * np.sin(np.pi * np.linspace(0.0, 1.0, 11))
+        for diffusivity, constant in (
+            (CoordinateDiffusion(TimeIndependent(_kappa)), True),
+            (CoordinateDiffusion(TimeDependent(_growing_kappa)), False),
+        ):
+            adapter = create_galerkin_physics_ode_residual(
+                skfem_discretization(_coordinate_heat(numpy_bkd, diffusivity)),
+                ScipySparseLU(),
+                row_treatment=treatment,
+            )
+            jacobian = adapter.derivatives().jacobian
+            assert jacobian is not None
+            assert jacobian.affine()
+            assert jacobian.time_invariant() == constant
+            report = ODEResidualBundleChecker(adapter).check(state, _TIME)
+            assert ("time_invariant" in report.fd_errors) == constant
+            assert report.failures() == []
 
     def test_the_jacobian_is_the_stack_operator(self, numpy_bkd: NumpyBkd) -> None:
         """The bundle's Jacobian is a sparse stack operator, not a dense
@@ -259,6 +318,7 @@ class TestGalerkinBundles:
             "param",
             "initial_state",
             "affine",
+            "time_invariant",
         }
         assert report.failures() == []
 
@@ -289,6 +349,7 @@ class TestGalerkinBundles:
             "param_param",
             "initial_state_curvature",
             "affine",
+            "time_invariant",
         }
         assert report.failures() == []
 

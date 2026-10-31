@@ -274,6 +274,11 @@ class CompositeLinearElasticity(Generic[Array]):
             or not self._body_force_eval.is_time_dependent()
         )
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Always: the material properties cannot depend on time, and the
+        body force does not enter the Jacobian."""
+        return True
+
     def _lamda_per_element(self) -> np.ndarray:
         """The current first Lame parameter of each element."""
         return self._lam_per_elem

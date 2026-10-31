@@ -472,6 +472,11 @@ class StokesPhysics(Generic[Array]):
             for forcing in (self._vel_forcing_eval, self._pres_forcing_eval)
         )
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Always: the viscosity cannot depend on time, and the forcings
+        do not enter the Jacobian."""
+        return True
+
     def vel_mass_matrix(self) -> Array:
         """Return velocity mass matrix M_vel.
 

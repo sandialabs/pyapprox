@@ -1131,6 +1131,12 @@ class AdvectionDiffusionReaction(Generic[Array]):
             or not self._forcing_eval.is_time_dependent()
         )
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether the diffusion, velocity and reaction are declared
+        time-independent: the Jacobian depends on them and the state,
+        never on the forcing."""
+        return not self._stiffness_is_time_dependent()
+
     def flux_law(self) -> NormalFluxLawProtocol:
         r"""The flux the weak form integrates by parts.
 

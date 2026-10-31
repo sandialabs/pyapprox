@@ -140,6 +140,11 @@ class BurgersPhysics(Generic[Array]):
             or not self._forcing_eval.is_time_dependent()
         )
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether the viscosity is declared time-independent: the
+        Jacobian depends on it and the state, never on the forcing."""
+        return not self._viscosity.is_time_dependent()
+
     def flux_law(self) -> NormalFluxLawProtocol:
         r"""The flux the weak form integrates by parts:
         :math:`\nu\nabla u\cdot n`.

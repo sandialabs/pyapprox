@@ -64,6 +64,14 @@ class GalerkinInteriorOperatorProtocol(Protocol, Generic[Array]):
         time-independent."""
         ...
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether ``dF_Omega/du`` at a fixed ``u`` is DECLARED
+        independent of ``t``: every coefficient the Jacobian depends on is
+        declared time-independent. Weaker than
+        ``interior_is_time_invariant``, since a forcing does not enter the
+        Jacobian."""
+        ...
+
 
 @runtime_checkable
 class GalerkinPhysicsProtocol(

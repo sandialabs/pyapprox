@@ -199,12 +199,16 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         """The stack Jacobian, essential rows zeroed, at what it depends
         on: of the time only when the physics declares :math:`F` affine in
         the state (its zero-curvature ``StateDerivatives``), so it is not
-        given the state. The essential rows carry the boundary velocity,
-        independent of the state, so they keep the neutralized :math:`f`
-        affine."""
-        if self._spatial_operator.state_derivatives().affine:
-            return Jacobian.state_free(self._state_free_jacobian)
-        return Jacobian.general(self._essential_jacobian.jacobian_operator)
+        given the state, and of neither when every part of :math:`F` also
+        declares its Jacobian time-invariant. The essential rows carry the
+        boundary velocity, independent of the state, so they keep the
+        neutralized :math:`f` affine; the rows zeroed are fixed, so they
+        keep its Jacobian time-invariant."""
+        if not self._spatial_operator.state_derivatives().affine:
+            return Jacobian.general(self._essential_jacobian.jacobian_operator)
+        if self._spatial_operator.jacobian_is_time_invariant():
+            return Jacobian.constant(self._constant_jacobian)
+        return Jacobian.state_free(self._state_free_jacobian)
 
     def _state_free_jacobian(
         self, time: float, point: LinearizationPoint
@@ -215,6 +219,14 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         return self._essential_jacobian.jacobian_operator(
             self._reference_state, time, point
         )
+
+    def _constant_jacobian(
+        self, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[Array, F]:
+        """The Jacobian of an affine :math:`F` whose Jacobian is declared
+        time-invariant: the same at every state and time, so assembled at
+        the reference state and time zero."""
+        return self._state_free_jacobian(0.0, point)
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """Return the adapted system."""

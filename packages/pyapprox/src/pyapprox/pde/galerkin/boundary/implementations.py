@@ -425,6 +425,11 @@ class NeumannBC(Generic[Array]):
         """Whether the term is declared time-independent."""
         return not self.is_time_dependent()
 
+    def jacobian_is_time_invariant(self) -> bool:
+        """Always: the term does not depend on u, so its Jacobian is zero
+        at every time, whatever the flux data does."""
+        return True
+
     def set_flux_func(
         self,
         flux_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
@@ -601,6 +606,12 @@ class RobinBC(Generic[Array]):
     def is_time_invariant(self) -> bool:
         """Whether the term is declared time-independent."""
         return not self.is_time_dependent()
+
+    def jacobian_is_time_invariant(self) -> bool:
+        """Whether alpha is declared time-independent: the Jacobian
+        ``-K_Gamma`` depends on alpha alone, the data g does not enter
+        it."""
+        return not self._alpha_is_time_dependent()
 
     def _alpha_is_time_dependent(self) -> bool:
         return not isinstance(self._alpha, float) and (

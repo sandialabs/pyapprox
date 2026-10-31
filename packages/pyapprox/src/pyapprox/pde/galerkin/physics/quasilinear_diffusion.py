@@ -145,6 +145,11 @@ class QuasilinearDiffusion(Generic[Array]):
             or not self._forcing_eval.is_time_dependent()
         )
 
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Always: the diffusivity field and kappa cannot depend on time,
+        and the forcing does not enter the Jacobian."""
+        return True
+
     def flux_law(self) -> NormalFluxLawProtocol:
         r"""The flux the weak form integrates by parts:
         :math:`a(x)\kappa(u)\nabla u\cdot n`.

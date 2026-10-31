@@ -7,16 +7,17 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Generic, Optional, Tuple
+from typing import Any, Generic, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.protocols import SpatialOperatorProtocol
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import NaturalBCOperator
+from pyapprox.pde.boundary import NaturalBCOperator, WeakFormBCProtocol
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
+    TimeDependent,
     TimeIndependent,
 )
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
@@ -38,7 +39,8 @@ class _StubInterior(Generic[Array]):
     """A linear interior ``F_Omega(u) = -A u + b`` with no base class.
 
     Its declared curvature is configurable, so composition can be
-    checked with curvature present, zero, or absent.
+    checked with curvature present, zero, or absent; so is whether it
+    declares its Jacobian time-invariant.
     """
 
     def __init__(
@@ -47,10 +49,12 @@ class _StubInterior(Generic[Array]):
         load: Array,
         bkd: Backend[Array],
         derivatives: Optional[StateDerivatives[Array]] = None,
+        jacobian_time_invariant: bool = True,
     ) -> None:
         self._matrix = matrix
         self._load = load
         self._bkd = bkd
+        self._jacobian_time_invariant = jacobian_time_invariant
         self._derivatives = (
             StateDerivatives.linear(bkd) if derivatives is None else derivatives
         )
@@ -72,6 +76,9 @@ class _StubInterior(Generic[Array]):
 
     def interior_is_time_invariant(self) -> bool:
         return True
+
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        return self._jacobian_time_invariant
 
 
 def _elementwise_hvp(
@@ -99,7 +106,7 @@ class TestComposedSpatialOperator:
     def _setup(
         self, bkd: Backend[Array]
     ) -> Tuple[LagrangeBasis[Array], _StubInterior[Array], Array]:
-        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         n = basis.ndofs()
         matrix = bkd.eye(n) * 2.0 + bkd.ones((n, n)) * 0.1
@@ -128,7 +135,7 @@ class TestComposedSpatialOperator:
 
     def test_adds_each_term(self, bkd: Backend[Array]) -> None:
         basis, interior, state = self._setup(bkd)
-        terms = [
+        terms: List[WeakFormBCProtocol[Array]] = [
             RobinBC(basis, "left", alpha=2.0, value_func=1.0, bkd=bkd),
             NeumannBC(basis, "top", flux_func=3.0, bkd=bkd),
         ]
@@ -148,12 +155,12 @@ class TestComposedSpatialOperator:
 
     def test_rejects_non_interior(self, bkd: Backend[Array]) -> None:
         with pytest.raises(TypeError, match="GalerkinInteriorOperatorProtocol"):
-            ComposedSpatialOperator(object(), NaturalBCOperator([]))
+            ComposedSpatialOperator(object(), NaturalBCOperator([]))  # type: ignore[arg-type]
 
     def test_rejects_non_operator_bcs(self, bkd: Backend[Array]) -> None:
         _, interior, _ = self._setup(bkd)
         with pytest.raises(TypeError, match="NaturalBCOperator"):
-            ComposedSpatialOperator(interior, [])
+            ComposedSpatialOperator(interior, [])  # type: ignore[arg-type]
 
 
 class TestComposedStateDerivatives:
@@ -162,7 +169,7 @@ class TestComposedStateDerivatives:
         bkd: Backend[Array],
         derivatives: Optional[StateDerivatives[Array]] = None,
     ) -> Tuple[LagrangeBasis[Array], _StubInterior[Array], Array]:
-        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         n = basis.ndofs()
         interior = _StubInterior(
@@ -170,7 +177,9 @@ class TestComposedStateDerivatives:
         )
         return basis, interior, bkd.linspace(-1.0, 2.0, n)
 
-    def _hvp(self, op: Any, state: Array, bkd: Backend[Array]) -> Array:
+    def _hvp(
+        self, op: ComposedSpatialOperator[Array], state: Array, bkd: Backend[Array]
+    ) -> Array:
         hvp = op.state_derivatives().state_state_hvp
         assert hvp is not None
         n = state.shape[0]
@@ -180,7 +189,7 @@ class TestComposedStateDerivatives:
         self, bkd: Backend[Array]
     ) -> None:
         basis, interior, state = self._setup(bkd)
-        terms = [
+        terms: List[WeakFormBCProtocol[Array]] = [
             RobinBC(basis, "left", alpha=2.0, value_func=1.0, bkd=bkd),
             NeumannBC(basis, "top", flux_func=3.0, bkd=bkd),
         ]
@@ -195,7 +204,9 @@ class TestComposedStateDerivatives:
         basis, interior, state = self._setup(
             bkd, StateDerivatives.second_order(_elementwise_hvp)
         )
-        terms = [_CurvedNeumann(basis, "top", flux_func=0.0, bkd=bkd)]
+        terms: List[WeakFormBCProtocol[Array]] = [
+            _CurvedNeumann(basis, "top", flux_func=0.0, bkd=bkd)
+        ]
         op = ComposedSpatialOperator(interior, NaturalBCOperator(terms))
         n = state.shape[0]
         single = _elementwise_hvp(
@@ -215,12 +226,67 @@ class TestComposedStateDerivatives:
     ) -> None:
         """A part without curvature is never silently dropped."""
         basis, interior, _ = self._setup(bkd)
-        terms = [
+        terms: List[WeakFormBCProtocol[Array]] = [
             RobinBC(basis, "left", alpha=2.0, value_func=1.0, bkd=bkd),
             _UncurvedNeumann(basis, "top", flux_func=0.0, bkd=bkd),
         ]
         op = ComposedSpatialOperator(interior, NaturalBCOperator(terms))
         assert op.state_derivatives().state_state_hvp is None
+
+
+def _growing_flux(x: NDArray[Any], time: float) -> NDArray[Any]:
+    return np.asarray((1.0 + time) * np.ones(x.shape[1]))
+
+
+class TestComposedJacobianTimeInvariance:
+    """The composed Jacobian is time-invariant exactly when the interior
+    and every term say theirs is; data entering F but not dF/du (a
+    time-dependent flux) leaves it so, while a time-dependent Robin
+    coefficient or interior does not."""
+
+    def _op(
+        self,
+        bkd: Backend[Array],
+        alpha: Any = 2.0,
+        flux: Any = 3.0,
+        interior_invariant: bool = True,
+    ) -> ComposedSpatialOperator[Array]:
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        n = basis.ndofs()
+        interior = _StubInterior(
+            bkd.eye(n),
+            bkd.zeros((n,)),
+            bkd,
+            jacobian_time_invariant=interior_invariant,
+        )
+        terms: List[WeakFormBCProtocol[Array]] = [
+            RobinBC(basis, "left", alpha=alpha, value_func=1.0, bkd=bkd),
+            NeumannBC(basis, "top", flux_func=flux, bkd=bkd),
+        ]
+        return ComposedSpatialOperator(interior, NaturalBCOperator(terms))
+
+    def test_steady_parts_compose_to_a_time_invariant_jacobian(
+        self, bkd: Backend[Array]
+    ) -> None:
+        assert self._op(bkd).jacobian_is_time_invariant()
+
+    def test_a_time_dependent_flux_leaves_the_jacobian_time_invariant(
+        self, bkd: Backend[Array]
+    ) -> None:
+        op = self._op(bkd, flux=TimeDependent(_growing_flux))
+        assert not op.is_time_invariant()
+        assert op.jacobian_is_time_invariant()
+
+    def test_a_time_dependent_robin_coefficient_or_interior_does_not(
+        self, bkd: Backend[Array]
+    ) -> None:
+        assert not self._op(
+            bkd, alpha=TimeDependent(_growing_flux)
+        ).jacobian_is_time_invariant()
+        assert not self._op(
+            bkd, interior_invariant=False
+        ).jacobian_is_time_invariant()
 
 
 def _square(x: NDArray[Any], u: NDArray[Any]) -> NDArray[Any]:

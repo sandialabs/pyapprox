@@ -50,3 +50,15 @@ class SpatialOperatorProtocol(Protocol, Generic[Array]):
         may evaluate ``F`` at any time only when this holds.
         """
         ...
+
+    def jacobian_is_time_invariant(self) -> bool:
+        """Whether ``dF/du`` at a fixed ``u`` is DECLARED independent of
+        ``t``.
+
+        Aggregated from the declarations of the parts of ``F``, each
+        answering for its own Jacobian; data entering ``F`` but not
+        ``dF/du`` (forcing, boundary values) may vary. A consumer may
+        reuse a Jacobian, or a factorization of it, across times only
+        when this holds.
+        """
+        ...
