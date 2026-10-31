@@ -358,6 +358,42 @@ def _csr_zero_rows(matrix: csr_matrix, indices: NDArray[np.intp]) -> csr_matrix:
     return result
 
 
+def _csr_replace_rows(matrix: csr_matrix, indices: NDArray[np.intp]) -> csr_matrix:
+    """A copy of square ``matrix`` with each row in ``indices`` replaced by
+    the identity's: a single 1 on the diagonal, whatever the row's
+    pattern was.
+
+    Built in one O(nnz) pass over the CSR arrays: the other rows' entries
+    are kept in order, and each replaced row holds only its diagonal, so
+    no sparse sum or second compaction is needed.
+    """
+    nrows = matrix.shape[0]
+    replaced = np.zeros(nrows, dtype=bool)
+    replaced[indices] = True
+    counts = np.diff(matrix.indptr)
+    keep = ~np.repeat(replaced, counts)
+    # A replaced row holds one entry; every other row keeps its own.
+    new_counts = np.where(replaced, 1, counts)
+    indptr = np.zeros(nrows + 1, dtype=matrix.indptr.dtype)
+    np.cumsum(new_counts, out=indptr[1:])
+    data = np.empty(indptr[-1], dtype=matrix.dtype)
+    cols = np.empty(indptr[-1], dtype=matrix.indices.dtype)
+    kept_rows = ~replaced
+    # Positions of the kept entries in the new arrays: each kept row's
+    # entries start at its new indptr and stay in their old order.
+    row_of_kept = np.repeat(np.arange(nrows)[kept_rows], counts[kept_rows])
+    within = np.arange(row_of_kept.shape[0]) - np.repeat(
+        np.cumsum(counts[kept_rows]) - counts[kept_rows], counts[kept_rows]
+    )
+    targets = indptr[row_of_kept] + within
+    data[targets] = matrix.data[keep]
+    cols[targets] = matrix.indices[keep]
+    rows_out = np.flatnonzero(replaced)
+    data[indptr[rows_out]] = 1.0
+    cols[indptr[rows_out]] = rows_out
+    return csr_matrix((data, cols, indptr), shape=matrix.shape)
+
+
 class CSRFormat:
     """Compressed sparse row storage, the format of :class:`ScipyCSROperator`.
 
@@ -389,14 +425,7 @@ class CSRFormat:
         return CSRFormat(self._matrix.T.tocsr())
 
     def rows_replaced(self, rows: RowSetProtocol[W]) -> "CSRFormat":
-        indices = _numpy_row_indices(rows)
-        emptied = _csr_zero_rows(self._matrix, indices)
-        # The rows are now structurally empty, so adding the identity
-        # restricted to them sets each diagonal to 1 whether or not it was
-        # in the original pattern, and leaves every other row unchanged.
-        ones = np.ones(indices.shape[0], dtype=emptied.dtype)
-        identity_rows = csr_matrix((ones, (indices, indices)), shape=emptied.shape)
-        return CSRFormat((emptied + identity_rows).tocsr())
+        return CSRFormat(_csr_replace_rows(self._matrix, _numpy_row_indices(rows)))
 
     def rows_zeroed(self, rows: RowSetProtocol[W]) -> "CSRFormat":
         return CSRFormat(_csr_zero_rows(self._matrix, _numpy_row_indices(rows)))

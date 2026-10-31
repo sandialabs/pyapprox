@@ -334,6 +334,29 @@ class TestScipyRowEdits:
         reference = apply_dirichlet_rows(matrix, np.array([0, 3]))
         NumpyBkd().assert_allclose(op.format().matrix().toarray(), reference.toarray())
 
+    @pytest.mark.parametrize("seed", [0, 1, 2])
+    def test_replaced_rows_match_the_dense_replacement(self, seed: int) -> None:
+        """Random sparse patterns (empty rows, rows without a diagonal) and
+        random row sets, the first and last rows included: the CSR built
+        directly equals replacing the dense rows, and stays canonical."""
+        rng = np.random.default_rng(seed)
+        n = 30
+        dense = rng.normal(size=(n, n)) * (rng.random((n, n)) < 0.15)
+        dense[5, :] = 0.0
+        dense[np.arange(0, n, 4), np.arange(0, n, 4)] = 0.0
+        rows = sorted({0, n - 1, 5, *rng.choice(n, size=8, replace=False).tolist()})
+        u = SpaceDescriptor("u", n, "float64")
+        op = RowReplacedOperator(
+            ScipyCSROperator(csr_matrix(dense), u, scalar=np.float64),
+            NumpyRowSet(u, rows),
+        )
+        expected = dense.copy()
+        expected[rows, :] = 0.0
+        expected[rows, rows] = 1.0
+        matrix = op.format().matrix()
+        assert matrix.has_canonical_format
+        NumpyBkd().assert_allclose(matrix.toarray(), expected, rtol=0.0, atol=0.0)
+
     def test_rejects_another_stacks_row_set(self, numpy_bkd: Backend[Array]) -> None:
         op = RowReplacedOperator(  # type: ignore[misc]
             ScipyCSROperator.identity(_U, np.float64), BackendRowSet(_U, [0], numpy_bkd)
