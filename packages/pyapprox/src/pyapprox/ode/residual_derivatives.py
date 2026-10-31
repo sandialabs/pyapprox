@@ -163,6 +163,13 @@ class ODEResidualDerivatives(Generic[V, F_co]):
     Invariants: ``param`` and ``initial_state`` come together, require
     ``jacobian`` and come with ``param_space``; the four second-order
     fields come together and require them.
+
+    ``affine`` declares :math:`f` affine in the state (zero state
+    curvature), so a stage equation is linear and Newton takes one exact
+    step with no residual check. It is the zero-curvature declaration,
+    not a second flag that could disagree with it: it requires
+    ``jacobian``, and with second order present ``state_state`` must be
+    the stated zero. Set it through the named constructors' ``affine``.
     """
 
     jacobian: Optional[JacobianFn[V, F_co]] = None
@@ -173,6 +180,7 @@ class ODEResidualDerivatives(Generic[V, F_co]):
     state_param: Optional[SecondDerivativeFn[V]] = None
     param_param: Optional[SecondDerivativeFn[V]] = None
     param_space: Optional[VectorSpaceProtocol[V]] = None
+    affine: bool = False
 
     def __post_init__(self) -> None:
         for name in _FIELDS:
@@ -198,6 +206,16 @@ class ODEResidualDerivatives(Generic[V, F_co]):
             )
         if all(present) and not first[0]:
             raise ValueError("second order requires param and initial_state")
+        if self.affine:
+            if self.jacobian is None:
+                raise ValueError("an affine declaration requires jacobian")
+            if self.state_state is not None and not isinstance(
+                self.state_state, _ZeroSecondDerivative
+            ):
+                raise ValueError(
+                    "an affine residual has zero state curvature: state_state "
+                    "must be STATED_ZERO"
+                )
 
     @staticmethod
     def none() -> "ODEResidualDerivatives[W, G]":
@@ -205,10 +223,13 @@ class ODEResidualDerivatives(Generic[V, F_co]):
         return ODEResidualDerivatives()
 
     @staticmethod
-    def state_only(jacobian: JacobianFn[W, G]) -> "ODEResidualDerivatives[W, G]":
+    def state_only(
+        jacobian: JacobianFn[W, G], affine: bool = False
+    ) -> "ODEResidualDerivatives[W, G]":
         """A state Jacobian and no parameters: implicit stepping, no
-        parameter gradients."""
-        return ODEResidualDerivatives(jacobian=jacobian)
+        parameter gradients. ``affine`` declares :math:`f` affine in the
+        state."""
+        return ODEResidualDerivatives(jacobian=jacobian, affine=affine)
 
     @staticmethod
     def first_order(
@@ -217,15 +238,18 @@ class ODEResidualDerivatives(Generic[V, F_co]):
         jacobian: JacobianFn[W, G],
         param: ParamFn[W],
         initial_state: Union[InitialStateFn[W], StatedZero],
+        affine: bool = False,
     ) -> "ODEResidualDerivatives[W, G]":
         """The state Jacobian and the parameter derivatives: adjoint
         gradients. ``initial_state=STATED_ZERO`` declares :math:`y_0`
-        independent of :math:`p`."""
+        independent of :math:`p`; ``affine`` declares :math:`f` affine in
+        the state."""
         return ODEResidualDerivatives(
             jacobian=jacobian,
             param=param,
             initial_state=_initial_state(initial_state, state_space, param_space),
             param_space=param_space,
+            affine=affine,
         )
 
     @staticmethod
@@ -239,9 +263,12 @@ class ODEResidualDerivatives(Generic[V, F_co]):
         state_state: Union[SecondDerivativeFn[W], StatedZero],
         state_param: Union[SecondDerivativeFn[W], StatedZero],
         param_param: Union[SecondDerivativeFn[W], StatedZero],
+        affine: bool = False,
     ) -> "ODEResidualDerivatives[W, G]":
         """First order plus the second-order terms: Hessian-vector
-        products. Any term may be ``STATED_ZERO``."""
+        products. Any term may be ``STATED_ZERO``; ``affine`` declares
+        :math:`f` affine in the state, and requires
+        ``state_state=STATED_ZERO``."""
         curvature: CurvatureFn[W] = (
             _ZeroCurvature(ZeroOperator(param_space))
             if isinstance(initial_state_curvature, StatedZero)
@@ -262,6 +289,7 @@ class ODEResidualDerivatives(Generic[V, F_co]):
                 param_param, param_space, param_space
             ),
             param_space=param_space,
+            affine=affine,
         )
 
 

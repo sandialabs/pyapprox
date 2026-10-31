@@ -27,6 +27,7 @@ for the fourth. Parameters live in a space of the discretization's stack.
 from typing import Optional, TypeVar, overload
 
 from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
     InitialStateFn,
     ODEResidualDerivatives,
     ParamFn,
@@ -252,6 +253,7 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
             jacobian=self._essential_jacobian.jacobian_operator,
             param=param,
             initial_state=initial,
+            affine=self._affine(),
         )
 
 
@@ -331,6 +333,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         time."""
         states, params, param, initial = self._first_order_parts()
         bkd = self._bkd
+        affine = self._affine()
         return ODEResidualDerivatives.second_order(
             states,
             params,
@@ -340,8 +343,18 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
             initial_state_curvature=matrix_free_initial_state_curvature(
                 self.initial_param_hvp, params, bkd
             ),
-            state_state=matrix_free_second_derivative(
-                self.state_state_hvp, self.state_state_hvp, states, states, bkd, True
+            # An affine f has zero state curvature, stated as such.
+            state_state=(
+                STATED_ZERO
+                if affine
+                else matrix_free_second_derivative(
+                    self.state_state_hvp,
+                    self.state_state_hvp,
+                    states,
+                    states,
+                    bkd,
+                    True,
+                )
             ),
             state_param=matrix_free_second_derivative(
                 self.state_param_hvp, self.param_state_hvp, params, states, bkd
@@ -349,6 +362,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
             param_param=matrix_free_second_derivative(
                 self.param_param_hvp, self.param_param_hvp, params, params, bkd, True
             ),
+            affine=affine,
         )
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:

@@ -10,7 +10,10 @@ term passes the bundle checker at state 0.3 sin(pi x) + 0.1 x, adjoint
 cos(3x), parameters (0.4, -0.3, 0.2), t = 0.2, under both row treatments:
 forward-difference errors below 1e-6, dot tests below 1e-12. The initial
 state does not depend on the parameters, so the initial-state terms are
-checked against a constant y0(p).
+checked against a constant y0(p). The physics is linear, so every tier
+declares f affine and passes the checker's affinity test; an assembled
+Jacobian with its essential rows left in fails both the Jacobian and the
+affinity checks.
 """
 
 import pytest
@@ -185,7 +188,9 @@ class TestGalerkinBundles:
         report = ODEResidualBundleChecker(
             _RawEssentialRows(adapter, discretization)
         ).check(heat.state, _TIME)
-        assert report.failures() == ["jacobian"]
+        # The unzeroed rows also break the declared affinity: f's essential
+        # rows do not move with the state, those of this Jacobian do.
+        assert report.failures() == ["jacobian", "affine"]
 
     @pytest.mark.parametrize("treatment", _TREATMENTS)
     def test_base_tier_states_the_stack_jacobian(
@@ -201,7 +206,7 @@ class TestGalerkinBundles:
         assert bundle.param is None and bundle.state_state is None
         assert bundle.jacobian is not None
         report = ODEResidualBundleChecker(adapter).check(heat.state, _TIME)
-        assert set(report.fd_errors) == {"jacobian"}
+        assert set(report.fd_errors) == {"jacobian", "affine"}
         assert report.failures() == []
         assert adapter.derivatives() is bundle  # built once
 
@@ -244,7 +249,12 @@ class TestGalerkinBundles:
         report = ODEResidualBundleChecker(
             adapter, _ConstantInitialState(heat.nstates)
         ).check(heat.state, _TIME, param=param)
-        assert set(report.fd_errors) == {"jacobian", "param", "initial_state"}
+        assert set(report.fd_errors) == {
+            "jacobian",
+            "param",
+            "initial_state",
+            "affine",
+        }
         assert report.failures() == []
 
     @pytest.mark.parametrize("treatment", _TREATMENTS)
@@ -273,6 +283,7 @@ class TestGalerkinBundles:
             "param_state",
             "param_param",
             "initial_state_curvature",
+            "affine",
         }
         assert report.failures() == []
 

@@ -82,17 +82,19 @@ LINEAR_K = [[-1.0, 0.3, 0.0], [0.2, -0.8, 0.1], [0.0, 0.4, -1.2]]
 
 
 class LinearMassModel(Generic[Array]):
-    r""":math:`M \dot y = K y` on the backend, with a dense Jacobian and no
-    parameters (``LINEAR_MASS``, ``LINEAR_K``)."""
+    r""":math:`M \dot y = K y` on the backend, with a dense Jacobian, no
+    parameters (``LINEAR_MASS``, ``LINEAR_K``), and its bundle declaring
+    :math:`f` affine in the state."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
         self._k = bkd.asarray(LINEAR_K)
         self._mass = ConstantDenseMassMatrix(bkd.asarray(LINEAR_MASS), bkd)
         states = backend_state_space(bkd, 3)
+        # f = K y is linear in the state, so the bundle declares it affine.
         self._derivatives: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
             ODEResidualDerivatives.state_only(
-                dense_jacobian(self.jacobian, states, bkd)
+                dense_jacobian(self.jacobian, states, bkd), affine=True
             )
         )
 

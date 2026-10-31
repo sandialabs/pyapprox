@@ -308,6 +308,66 @@ class TestInvariants:
             ODEResidualDerivatives(jacobian=bkd.eye(2))  # type: ignore[arg-type]
 
 
+class TestAffineDeclaration:
+    """``affine`` is the zero-curvature declaration: off unless declared,
+    carried by every named constructor, and refused where it would
+    disagree with the bundle (no Jacobian, or a supplied state
+    curvature). Whether a residual really is affine is the checker's
+    business (see ``test_residual_derivatives_check``)."""
+
+    def test_off_unless_declared(self, bkd: Backend[Array]) -> None:
+        model = LotkaVolterra(bkd)
+        states, _ = backend_spaces(bkd, 2, 4)
+        jacobian = dense_jacobian(model.jacobian, states, bkd)
+        assert not ODEResidualDerivatives.state_only(jacobian).affine
+        assert not _first_order(model).affine
+        assert not _second_order(model).affine
+
+    def test_every_tier_carries_it(self, bkd: Backend[Array]) -> None:
+        model = LotkaVolterra(bkd)
+        states, params = backend_spaces(bkd, 2, 4)
+        jacobian = dense_jacobian(model.jacobian, states, bkd)
+        param = dense_operator(model.param_jacobian, params, states, bkd)
+        assert ODEResidualDerivatives.state_only(jacobian, affine=True).affine
+        first: _Bundle[Array] = ODEResidualDerivatives.first_order(
+            states, params, jacobian, param, STATED_ZERO, affine=True
+        )
+        assert first.affine
+        second: _Bundle[Array] = ODEResidualDerivatives.second_order(
+            states,
+            params,
+            jacobian,
+            param,
+            STATED_ZERO,
+            initial_state_curvature=STATED_ZERO,
+            state_state=STATED_ZERO,
+            state_param=STATED_ZERO,
+            param_param=STATED_ZERO,
+            affine=True,
+        )
+        assert second.affine
+
+    def test_refused_where_it_would_disagree(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="requires jacobian"):
+            ODEResidualDerivatives[Array, DenseFormat[Array]](affine=True)
+        model = LotkaVolterra(bkd)
+        states, params = backend_spaces(bkd, 2, 4)
+        declared = _Declarations(model)
+        with pytest.raises(ValueError, match="zero state curvature"):
+            ODEResidualDerivatives.second_order(
+                states,
+                params,
+                jacobian=dense_jacobian(model.jacobian, states, bkd),
+                param=dense_operator(model.param_jacobian, params, states, bkd),
+                initial_state=STATED_ZERO,
+                initial_state_curvature=STATED_ZERO,
+                state_state=dense_operator(declared.state_state, states, states, bkd),
+                state_param=STATED_ZERO,
+                param_param=STATED_ZERO,
+                affine=True,
+            )
+
+
 class TestPicklingAndVariance:
     def test_a_bundle_pickles(self, numpy_bkd: Backend[Array]) -> None:
         bundle = _second_order(LotkaVolterra(numpy_bkd))

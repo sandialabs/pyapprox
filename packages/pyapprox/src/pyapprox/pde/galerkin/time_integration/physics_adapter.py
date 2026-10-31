@@ -189,8 +189,15 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         """This tier's bundle, the state Jacobian only; each tier with
         parameter derivatives overrides it."""
         return ODEResidualDerivatives.state_only(
-            self._essential_jacobian.jacobian_operator
+            self._essential_jacobian.jacobian_operator, affine=self._affine()
         )
+
+    def _affine(self) -> bool:
+        """Whether the BC-neutralized :math:`f` is affine in the state: the
+        spatial operator's declaration (its zero-curvature
+        ``StateDerivatives``). The essential rows carry the boundary
+        velocity, independent of the state, so they keep it affine."""
+        return self._spatial_operator.state_derivatives().affine
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """Return the adapted system."""

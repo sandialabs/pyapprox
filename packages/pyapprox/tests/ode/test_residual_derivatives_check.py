@@ -10,7 +10,9 @@ both ways round), a nonzero state-state term replaced by a stated zero,
 a matrix-free Jacobian with a wrong transpose (invisible to finite
 differences, caught by the dot test), and a non-symmetric operator
 declared symmetric. A caller's y0(p) that depends on p fails the stated
-zero initial state; a constant one passes.
+zero initial state; a constant one passes. A bundle declaring f affine
+is checked to be: M y' = K y passes at round-off, and Lotka-Volterra
+falsely declared affine is reported under "affine" only.
 """
 
 from dataclasses import replace
@@ -37,6 +39,7 @@ from pyapprox.util.linalg.operators import (
     JacobianSnapshotProtocol,
     LinearizationPoint,
 )
+from tests._helpers.ode.runge_kutta_cases import LinearMassModel
 from tests._helpers.ode_models import LotkaVolterra
 
 _Bundle = ODEResidualDerivatives[Array, FormatProtocol]
@@ -336,6 +339,43 @@ class TestPlantedFaults:
         report = ODEResidualBundleChecker(residual).check(state, _TIME, adj, param)
         assert report.fd_errors["jacobian"] <= 1e-6
         assert report.transpose_errors["jacobian"] > 1e-3
+
+
+class TestAffineDeclaration:
+    """A bundle declaring :math:`f` affine is checked to be: along a step
+    as large as the state, :math:`f(y+v) - f(y) - J v` is round-off for
+    a linear :math:`f` and of order one for Lotka-Volterra."""
+
+    def test_a_linear_residual_passes(self, bkd: Backend[Array]) -> None:
+        model: LinearMassModel[Array] = LinearMassModel(bkd)
+        report = ODEResidualBundleChecker(model).check(
+            bkd.asarray([1.0, -0.5, 2.0]), _TIME
+        )
+        assert report.fd_errors["affine"] < 1e-13
+        assert report.failures() == []
+
+    def test_a_false_declaration_is_reported_under_affine(
+        self, bkd: Backend[Array]
+    ) -> None:
+        model = LotkaVolterra(bkd)
+        states, _ = backend_spaces(bkd, 2, 4)
+        declared: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+            ODEResidualDerivatives.state_only(
+                dense_jacobian(model.jacobian, states, bkd), affine=True
+            )
+        )
+        residual = _Edited(model, lambda bundle, _: declared)
+        state, _, _ = _point(bkd)
+        report = ODEResidualBundleChecker(residual).check(state, _TIME)
+        assert report.fd_errors["affine"] > 1e-2
+        assert report.failures() == ["affine"]
+
+    def test_undeclared_bundles_are_not_checked_for_it(
+        self, bkd: Backend[Array]
+    ) -> None:
+        state, adj, param = _point(bkd)
+        report = _checker(bkd).check(state, _TIME, adj, param)
+        assert "affine" not in report.fd_errors
 
 
 class TestInitialState:

@@ -322,12 +322,39 @@ class ODEResidualBundleChecker(Generic[Array]):
                     bundle, state, time, weight, param
                 )
             }
+            if bundle.affine:
+                fd_errors["affine"] = self._affine_error(
+                    self._fetch(param), state, time, rng
+                )
             dot_errors = self._transpose_errors(
                 self._fetch(param), state, time, weight, rng
             )
         finally:
             self._fetch(param)
         return BundleCheckReport(fd_errors, dot_errors)
+
+    def _affine_error(
+        self,
+        bundle: _Bundle[Array],
+        state: Array,
+        time: float,
+        rng: np.random.Generator,
+    ) -> float:
+        r"""How far :math:`f` is from affine along one large random step
+        :math:`v` (as large as the state, plus one):
+        :math:`\|f(y+v) - f(y) - J(y) v\|` relative to the larger of
+        :math:`\|f(y+v) - f(y)\|` and :math:`\|J v\|`. Round-off for an
+        affine :math:`f`; of order one for a nonlinear one, whose
+        declaration is then false."""
+        bkd = self._bkd
+        direction = _random_column(bkd, state.shape[0], rng)
+        size = bkd.to_float(bkd.norm(state)) + 1.0
+        v = direction * (size / bkd.to_float(bkd.norm(direction)))
+        change = self._residual(state + v[:, 0], time) - self._residual(state, time)
+        jv = bkd.reshape(self._jacobian(bundle, state, time).apply(v), change.shape)
+        scale = max(bkd.to_float(bkd.norm(change)), bkd.to_float(bkd.norm(jv)))
+        defect = bkd.to_float(bkd.norm(change - jv))
+        return 0.0 if scale == 0.0 else defect / scale
 
     def _fetch(self, param: Optional[Array]) -> _Bundle[Array]:
         """The bundle, after setting ``param`` if given."""
