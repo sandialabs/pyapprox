@@ -311,13 +311,9 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
                 "the discretization's space must be an inner-product space, "
                 f"got {type(space).__name__}"
             )
-        jacobian = self.derivatives().jacobian
-        if jacobian is None:
-            raise AssertionError("every tier's bundle has a Jacobian")
         return MassFormSystem(
             rhs=self,
             mass=self._neutralized_stack_mass(),
-            jacobian=jacobian,
             space=space,
             solver=self._solver,
             form=BackendColumnForm(self._bkd),

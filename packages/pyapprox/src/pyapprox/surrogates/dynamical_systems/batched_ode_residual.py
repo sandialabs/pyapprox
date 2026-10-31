@@ -207,7 +207,6 @@ class BatchedBoundODEResidual(Generic[Array]):
         return MassFormSystem(
             rhs=self,
             mass=self._identity_mass(),
-            jacobian=self.jacobian_operator,
             space=space,
             solver=BlockDiagonalLU(self._bkd),
             form=BackendColumnForm(self._bkd),

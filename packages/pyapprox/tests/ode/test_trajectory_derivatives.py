@@ -479,7 +479,7 @@ class _OneColumnRhs(Generic[Array]):
         param: _OneColumnParam[Array] = _OneColumnParam(inner.param)
         state_param: _OneColumnSecond[Array] = _OneColumnSecond(inner.state_param)
         param_param: _OneColumnSecond[Array] = _OneColumnSecond(inner.param_param)
-        self._derivatives: ODEResidualDerivatives[Array, FormatProtocol] = (
+        self._derivatives: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
             ODEResidualDerivatives(
                 jacobian=inner.jacobian,
                 param=param,
@@ -496,7 +496,7 @@ class _OneColumnRhs(Generic[Array]):
         value: Array = self._model(state, time)
         return value
 
-    def derivatives(self) -> ODEResidualDerivatives[Array, FormatProtocol]:
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
         return self._derivatives
 
     def parameters_version(self) -> int:
@@ -511,7 +511,6 @@ def _one_column_system(
     return MassFormSystem(
         rhs=_OneColumnRhs(model),
         mass=dense.mass,
-        jacobian=dense.jacobian,
         space=dense.space,
         solver=dense.solver,
         form=dense.form,
@@ -832,12 +831,9 @@ def _mock_problem(
     ``pin`` applied at stored states when given."""
     rhs = _MockAffineRhs()
     newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
-    jacobian = rhs.derivatives().jacobian
-    assert jacobian is not None
     system: MassFormSystem[MockVector, NDArray[Any], MockFormat] = MassFormSystem(
         rhs=rhs,
         mass=MockOperator.identity(MOCK_STATE),
-        jacobian=jacobian,
         space=MockVectorSpace(MOCK_STATE),
         solver=MockLU(),
         form=IdentityForm(),

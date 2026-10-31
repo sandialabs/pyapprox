@@ -183,14 +183,9 @@ class MockLinearRhs:
 def mock_linear_system() -> MassFormSystem[MockVector, NDArray[Any], MockFormat]:
     """:class:`MockLinearRhs` with the identity mass, dense LU and the
     identity residual form."""
-    rhs = MockLinearRhs()
-    jacobian = rhs.derivatives().jacobian
-    if jacobian is None:
-        raise AssertionError("MockLinearRhs declares its Jacobian")
     return MassFormSystem(
-        rhs=rhs,
+        rhs=MockLinearRhs(),
         mass=MockOperator.identity(MOCK_STATE),
-        jacobian=jacobian,
         space=MockVectorSpace(MOCK_STATE),
         solver=MockLU(),
         form=IdentityForm(),

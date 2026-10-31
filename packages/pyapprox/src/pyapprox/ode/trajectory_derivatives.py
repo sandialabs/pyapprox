@@ -117,6 +117,7 @@ from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     BlockInnerProductSpace,
     BlockVector,
+    FormatProtocol,
     InnerProductSpaceProtocol,
     SolveFailedError,
     SolverHandleProtocol,
@@ -215,7 +216,9 @@ class ResidualInitialState(Generic[V]):
     """
 
     def __init__(
-        self, rhs: RightHandSideProtocol[V], form: ResidualFormProtocol[V, V]
+        self,
+        rhs: RightHandSideProtocol[V, FormatProtocol],
+        form: ResidualFormProtocol[V, V],
     ) -> None:
         self._rhs, self._form = rhs, form
 
