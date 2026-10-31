@@ -199,6 +199,13 @@ class RungeKuttaStepper(Generic[V, A, F]):
         # y_n itself.
         self._unknown_stages = list(range(first, nstages))
         self._final_block = not tableau.is_stiffly_accurate()
+        # Whether the forward step reads stage i's slope: a later stage
+        # through a_ji, or the final block through b_i.
+        self._slope_read = [
+            any(tableau.a[j][i] != 0.0 for j in range(i + 1, nstages))
+            or (self._final_block and tableau.b[i] != 0.0)
+            for i in range(nstages)
+        ]
         nblocks = len(self._unknown_stages) + (1 if self._final_block else 0)
         space = system.space
         self._unknown_space = BlockInnerProductSpace([space] * nblocks, "unknown")
@@ -375,7 +382,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
             # k = sum_{j<i} a_ij f(Y_j), the known stages' contribution.
             known = space.zeros()
             for j in range(i):
-                known = space.axpby(tableau.a[i][j], slopes[j], 1.0, known, out=known)
+                if tableau.a[i][j] != 0.0:
+                    known = space.axpby(
+                        tableau.a[i][j], slopes[j], 1.0, known, out=known
+                    )
             if i == 0 and tableau.has_trivial_first_stage():
                 stage = space.copy(state)
             elif tableau.is_explicit_stage(i):
@@ -386,13 +396,18 @@ class RungeKuttaStepper(Generic[V, A, F]):
             else:
                 stage = self._implicit_stage(i, state, known, stage_time, deltat)
             stages.append(stage)
-            slopes.append(self.rhs(stage, stage_time))
+            # f(Y_i) only when a later stage or the final block reads it;
+            # a stiffly accurate method's last slope is never used.
+            slopes.append(
+                self.rhs(stage, stage_time) if self._slope_read[i] else space.zeros()
+            )
         blocks = [stages[i] for i in self._unknown_stages]
         if self._final_block:
             # M (y_{n+1} - y_n) = dt sum_i b_i f(Y_i).
             weighted = space.zeros()
             for weight, slope in zip(tableau.b, slopes):
-                weighted = space.axpby(weight, slope, 1.0, weighted, out=weighted)
+                if weight != 0.0:
+                    weighted = space.axpby(weight, slope, 1.0, weighted, out=weighted)
             blocks.append(
                 self._explicit_solve(
                     len(blocks), state, space.scale(deltat, weighted), new_time
