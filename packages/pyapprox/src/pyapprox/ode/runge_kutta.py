@@ -145,7 +145,10 @@ class _StageSystem(Generic[V, A, F]):
         return self._stepper.system().solver.setup(self._pin.own(operator))
 
     def is_affine(self) -> bool:
-        return False
+        """Whether the stage equation is affine in the stage value: the
+        system's :math:`f` is, and pinned rows (identity rows with data)
+        keep it so."""
+        return self._stepper.system().is_affine()
 
 
 class RungeKuttaStepper(Generic[V, A, F]):

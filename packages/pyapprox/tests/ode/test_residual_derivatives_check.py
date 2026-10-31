@@ -22,24 +22,27 @@ import pytest
 
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
+    Jacobian,
     JacobianFn,
     ODEResidualDerivatives,
     backend_spaces,
+    constant_jacobian,
     dense_jacobian,
     dense_operator,
     matrix_free_jacobian,
     matrix_free_second_derivative,
     second_derivative_or_zero,
+    state_free_jacobian,
 )
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     JacobianSnapshotProtocol,
     LinearizationPoint,
 )
-from tests._helpers.ode.runge_kutta_cases import LinearMassModel
+from tests._helpers.ode.runge_kutta_cases import LINEAR_K, LinearMassModel
 from tests._helpers.ode_models import LotkaVolterra
 
 _Bundle = ODEResidualDerivatives[Array, FormatProtocol]
@@ -264,7 +267,10 @@ class TestCorrectBundles:
         jacobian = model.derivatives().jacobian
         assert jacobian is not None
         recording = _RecordingJacobian(jacobian)
-        residual = _Edited(model, lambda bundle, _: replace(bundle, jacobian=recording))
+        residual = _Edited(
+            model,
+            lambda bundle, _: replace(bundle, jacobian=Jacobian.general(recording)),
+        )
         state, adj, param = _point(bkd)
         ODEResidualBundleChecker(residual).check(state, _TIME, adj, param)
         # The final restore of the parameters bumps once more after the
@@ -341,41 +347,90 @@ class TestPlantedFaults:
         assert report.transpose_errors["jacobian"] > 1e-3
 
 
-class TestAffineDeclaration:
-    """A bundle declaring :math:`f` affine is checked to be: along a step
-    as large as the state, :math:`f(y+v) - f(y) - J v` is round-off for
-    a linear :math:`f` and of order one for Lotka-Volterra."""
+class _JacobianAt(Generic[Array]):
+    """``time ->`` Lotka-Volterra's Jacobian frozen at one state: a
+    state-free Jacobian falsely declared for a nonlinear f."""
 
-    def test_a_linear_residual_passes(self, bkd: Backend[Array]) -> None:
+    def __init__(self, model: LotkaVolterra[Array], state: Array) -> None:
+        self._model, self._state = model, state
+        self._descriptor = backend_spaces(model.bkd(), 2, 4)[0].descriptor()
+
+    def __call__(self, time: float) -> BackendDenseOperator[Array]:
+        matrix = self._model.jacobian(self._state, time)
+        return BackendDenseOperator(matrix, self._descriptor, self._model.bkd())
+
+
+class _GrowingLinear(Generic[Array]):
+    r""":math:`f = (1 + t) K y`, whose Jacobian is falsely declared constant
+    (:math:`(1 + t_0) K` at the checked time :math:`t_0`)."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+        self._k = bkd.asarray(LINEAR_K)
+        states = backend_spaces(bkd, 3, 4)[0]
+        op = BackendDenseOperator((1.0 + _TIME) * self._k, states.descriptor(), bkd)
+        self._bundle: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+            ODEResidualDerivatives.state_only(constant_jacobian(op))
+        )
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __call__(self, state: Array, time: float) -> Array:
+        return self._bkd.dot((1.0 + time) * self._k, state)
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        return self._bundle
+
+
+class TestJacobianLevels:
+    """What a bundle's Jacobian cannot depend on, f is checked not to
+    depend on: along a step as large as the state, f(y+v) - f(y) - J v is
+    round-off when f is affine ("affine"), and, for a Jacobian that sees no
+    time, also one time unit later ("time_invariant")."""
+
+    def test_a_linear_residual_passes_both(self, bkd: Backend[Array]) -> None:
         model: LinearMassModel[Array] = LinearMassModel(bkd)
         report = ODEResidualBundleChecker(model).check(
             bkd.asarray([1.0, -0.5, 2.0]), _TIME
         )
         assert report.fd_errors["affine"] < 1e-13
+        assert report.fd_errors["time_invariant"] < 1e-13
         assert report.failures() == []
 
-    def test_a_false_declaration_is_reported_under_affine(
+    def test_a_false_state_free_jacobian_is_reported_under_affine(
         self, bkd: Backend[Array]
     ) -> None:
         model = LotkaVolterra(bkd)
-        states, _ = backend_spaces(bkd, 2, 4)
-        declared: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+        state, _, _ = _point(bkd)
+        frozen: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
             ODEResidualDerivatives.state_only(
-                dense_jacobian(model.jacobian, states, bkd), affine=True
+                state_free_jacobian(_JacobianAt(model, state))
             )
         )
-        residual = _Edited(model, lambda bundle, _: declared)
-        state, _, _ = _point(bkd)
+        residual = _Edited(model, lambda bundle, _: frozen)
         report = ODEResidualBundleChecker(residual).check(state, _TIME)
         assert report.fd_errors["affine"] > 1e-2
         assert report.failures() == ["affine"]
 
-    def test_undeclared_bundles_are_not_checked_for_it(
+    def test_a_false_constant_jacobian_is_reported_under_time_invariant(
+        self, bkd: Backend[Array]
+    ) -> None:
+        model: _GrowingLinear[Array] = _GrowingLinear(bkd)
+        report = ODEResidualBundleChecker(model).check(
+            bkd.asarray([1.0, -0.5, 2.0]), _TIME
+        )
+        assert report.fd_errors["affine"] < 1e-13
+        assert report.fd_errors["time_invariant"] > 1e-2
+        assert report.failures() == ["time_invariant"]
+
+    def test_a_general_jacobian_is_checked_for_neither(
         self, bkd: Backend[Array]
     ) -> None:
         state, adj, param = _point(bkd)
         report = _checker(bkd).check(state, _TIME, adj, param)
         assert "affine" not in report.fd_errors
+        assert "time_invariant" not in report.fd_errors
 
 
 class TestInitialState:

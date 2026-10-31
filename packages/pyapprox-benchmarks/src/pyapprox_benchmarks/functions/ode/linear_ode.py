@@ -21,13 +21,14 @@ from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     ODEResidualDerivatives,
     backend_spaces,
+    constant_jacobian,
     dense_jacobian,
     dense_operator,
     matrix_free_second_derivative,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
 
 
 def _require_1d(name: str, arr: Array) -> None:
@@ -73,7 +74,9 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             ODEResidualDerivatives.second_order(
                 states,
                 params,
-                jacobian=dense_jacobian(self.jacobian, states, bkd),
+                jacobian=constant_jacobian(
+                    BackendDenseOperator(Amat, states.descriptor(), bkd)
+                ),
                 param=dense_operator(self.param_jacobian, params, states, bkd),
                 initial_state=STATED_ZERO,
                 initial_state_curvature=STATED_ZERO,
@@ -88,8 +91,10 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         return self._bkd
 
     def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
-        """The Jacobian A and parameter Jacobian B as dense operators; every
-        second derivative and the initial-state terms are stated zeros."""
+        """The Jacobian A as a constant dense operator (f is affine, its
+        Jacobian time-invariant) and the parameter Jacobian B as a dense
+        operator; every second derivative and the initial-state terms are
+        stated zeros."""
         return self._derivatives
 
     def nparams(self) -> int:

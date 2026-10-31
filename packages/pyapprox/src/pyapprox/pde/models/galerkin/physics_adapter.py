@@ -250,10 +250,9 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         return ODEResidualDerivatives.first_order(
             states,
             params,
-            jacobian=self._essential_jacobian.jacobian_operator,
+            jacobian=self._jacobian(),
             param=param,
             initial_state=initial,
-            affine=self._affine(),
         )
 
 
@@ -333,20 +332,21 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         time."""
         states, params, param, initial = self._first_order_parts()
         bkd = self._bkd
-        affine = self._affine()
+        jacobian = self._jacobian()
         return ODEResidualDerivatives.second_order(
             states,
             params,
-            jacobian=self._essential_jacobian.jacobian_operator,
+            jacobian=jacobian,
             param=param,
             initial_state=initial,
             initial_state_curvature=matrix_free_initial_state_curvature(
                 self.initial_param_hvp, params, bkd
             ),
-            # An affine f has zero state curvature, stated as such.
+            # A Jacobian that cannot see the state means f is affine, with
+            # zero state curvature, stated as such.
             state_state=(
                 STATED_ZERO
-                if affine
+                if jacobian.affine()
                 else matrix_free_second_derivative(
                     self.state_state_hvp,
                     self.state_state_hvp,
@@ -362,7 +362,6 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
             param_param=matrix_free_second_derivative(
                 self.param_param_hvp, self.param_param_hvp, params, params, bkd, True
             ),
-            affine=affine,
         )
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:

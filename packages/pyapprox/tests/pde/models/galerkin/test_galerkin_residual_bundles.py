@@ -29,7 +29,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
+from pyapprox.ode.residual_derivatives import Jacobian, ODEResidualDerivatives
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -168,14 +168,19 @@ class _RawEssentialRows:
         return self._adapter(state, time)
 
     def _raw(
-        self, state: _Np, time: float, point: LinearizationPoint
+        self, time: float, point: LinearizationPoint
     ) -> LinearizedOperator[_Np, CSRFormat]:
+        # Declared at the adapter's own level (the physics is linear), so
+        # the affinity check sees the rows left in.
+        state = np.zeros(self._discretization.system().nstates())
         return LinearizedOperator(
             self._discretization.assemble_jacobian(state, time), point
         )
 
     def derivatives(self) -> ODEResidualDerivatives[_Np, CSRFormat]:
-        return replace(self._adapter.derivatives(), jacobian=self._raw)
+        return replace(
+            self._adapter.derivatives(), jacobian=Jacobian.state_free(self._raw)
+        )
 
 
 class TestGalerkinBundles:

@@ -35,7 +35,7 @@ from pyapprox.ode.mass_matrix import (
 )
 from pyapprox.ode.mass_matrix_system import MassMatrixSystem
 from pyapprox.ode.protocols import ODEResidualProtocol
-from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
+from pyapprox.ode.residual_derivatives import Jacobian, ODEResidualDerivatives
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
@@ -59,6 +59,8 @@ from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
     InnerProductSpaceProtocol,
+    JacobianSnapshotProtocol,
+    LinearizationPoint,
     LinearSolverProtocol,
 )
 
@@ -163,6 +165,9 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         self._essential_jacobian = GalerkinJacobianOperator(
             discretization, discretization.essential_rows()
         )
+        # The state an affine physics' Jacobian is assembled at: it ignores
+        # the state, so any one gives the same Jacobian; allocated once.
+        self._reference_state = self._bkd.zeros((system.nstates(),))
         self._stack_mass_source: Optional[ActionOperatorProtocol[Array, F]] = None
         self._stack_mass: Optional[ActionOperatorProtocol[Array, F]] = None
         self._derivatives: Optional[ODEResidualDerivatives[Array, F]] = None
@@ -188,16 +193,28 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
     def _build_derivatives(self) -> ODEResidualDerivatives[Array, F]:
         """This tier's bundle, the state Jacobian only; each tier with
         parameter derivatives overrides it."""
-        return ODEResidualDerivatives.state_only(
-            self._essential_jacobian.jacobian_operator, affine=self._affine()
-        )
+        return ODEResidualDerivatives.state_only(self._jacobian())
 
-    def _affine(self) -> bool:
-        """Whether the BC-neutralized :math:`f` is affine in the state: the
-        spatial operator's declaration (its zero-curvature
-        ``StateDerivatives``). The essential rows carry the boundary
-        velocity, independent of the state, so they keep it affine."""
-        return self._spatial_operator.state_derivatives().affine
+    def _jacobian(self) -> Jacobian[Array, F]:
+        """The stack Jacobian, essential rows zeroed, at what it depends
+        on: of the time only when the physics declares :math:`F` affine in
+        the state (its zero-curvature ``StateDerivatives``), so it is not
+        given the state. The essential rows carry the boundary velocity,
+        independent of the state, so they keep the neutralized :math:`f`
+        affine."""
+        if self._spatial_operator.state_derivatives().affine:
+            return Jacobian.state_free(self._state_free_jacobian)
+        return Jacobian.general(self._essential_jacobian.jacobian_operator)
+
+    def _state_free_jacobian(
+        self, time: float, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[Array, F]:
+        """The Jacobian of an affine :math:`F` at ``time``, assembled at the
+        reference state: an affine physics ignores the state, so any state
+        gives this same Jacobian, and zero is a convenient one."""
+        return self._essential_jacobian.jacobian_operator(
+            self._reference_state, time, point
+        )
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """Return the adapted system."""

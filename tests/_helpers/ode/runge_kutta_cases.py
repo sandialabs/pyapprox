@@ -29,7 +29,7 @@ from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     ODEResidualDerivatives,
     backend_state_space,
-    dense_jacobian,
+    constant_jacobian,
 )
 from pyapprox.ode.residual_form import IdentityForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -46,7 +46,7 @@ from pyapprox.ode.tableau import (
     implicit_midpoint,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
 from pyapprox.util.linalg.operators import (
     BlockVector,
     LinearizationPoint,
@@ -82,19 +82,22 @@ LINEAR_K = [[-1.0, 0.3, 0.0], [0.2, -0.8, 0.1], [0.0, 0.4, -1.2]]
 
 
 class LinearMassModel(Generic[Array]):
-    r""":math:`M \dot y = K y` on the backend, with a dense Jacobian, no
-    parameters (``LINEAR_MASS``, ``LINEAR_K``), and its bundle declaring
-    :math:`f` affine in the state."""
+    r""":math:`M \dot y = K y` on the backend, with no parameters
+    (``LINEAR_MASS``, ``LINEAR_K``): its bundle's Jacobian is the constant
+    dense operator :math:`K`, so :math:`f` is affine with a time-invariant
+    Jacobian."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
         self._k = bkd.asarray(LINEAR_K)
         self._mass = ConstantDenseMassMatrix(bkd.asarray(LINEAR_MASS), bkd)
         states = backend_state_space(bkd, 3)
-        # f = K y is linear in the state, so the bundle declares it affine.
+        # f = K y: the Jacobian is K at every state and time.
         self._derivatives: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
             ODEResidualDerivatives.state_only(
-                dense_jacobian(self.jacobian, states, bkd), affine=True
+                constant_jacobian(
+                    BackendDenseOperator(self._k, states.descriptor(), bkd)
+                )
             )
         )
 

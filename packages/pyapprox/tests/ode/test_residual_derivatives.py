@@ -13,13 +13,14 @@ to identity columns, so they share no code with the declarations.
 """
 
 import pickle
-from typing import Callable, Generic
+from typing import Callable, Generic, List, Union
 
 import numpy as np
 import pytest
 
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
+    Jacobian,
     ODEResidualDerivatives,
     backend_spaces,
     dense_jacobian,
@@ -28,7 +29,7 @@ from pyapprox.ode.residual_derivatives import (
     matrix_free_second_derivative,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     LinearizationPoint,
@@ -308,63 +309,108 @@ class TestInvariants:
             ODEResidualDerivatives(jacobian=bkd.eye(2))  # type: ignore[arg-type]
 
 
-class TestAffineDeclaration:
-    """``affine`` is the zero-curvature declaration: off unless declared,
-    carried by every named constructor, and refused where it would
-    disagree with the bundle (no Jacobian, or a supplied state
-    curvature). Whether a residual really is affine is the checker's
-    business (see ``test_residual_derivatives_check``)."""
+class _Recorded(Generic[Array]):
+    """A Jacobian function of any arity recording the arguments it got and
+    returning the identity on two states."""
 
-    def test_off_unless_declared(self, bkd: Backend[Array]) -> None:
-        model = LotkaVolterra(bkd)
-        states, _ = backend_spaces(bkd, 2, 4)
-        jacobian = dense_jacobian(model.jacobian, states, bkd)
-        assert not ODEResidualDerivatives.state_only(jacobian).affine
-        assert not _first_order(model).affine
-        assert not _second_order(model).affine
+    def __init__(self, bkd: Backend[Array]) -> None:
+        states = backend_spaces(bkd, 2, 4)[0]
+        self._identity = BackendDenseOperator(bkd.eye(2), states.descriptor(), bkd)
+        self.calls: List[tuple[Union[Array, float, LinearizationPoint], ...]] = []
 
-    def test_every_tier_carries_it(self, bkd: Backend[Array]) -> None:
+    def __call__(
+        self, *args: Union[Array, float, LinearizationPoint]
+    ) -> LinearizedOperator[Array, DenseFormat[Array]]:
+        self.calls.append(args)
+        point = args[-1]
+        if not isinstance(point, LinearizationPoint):
+            raise TypeError("the last argument is the linearization point")
+        return LinearizedOperator(self._identity, point)
+
+
+class TestJacobianLevels:
+    """A Jacobian is called as ``J(state, time, point)`` at every level and
+    passes on only what its function may depend on; the level alone says
+    whether f is affine (the Jacobian cannot see the state) and whether
+    the Jacobian is time-invariant (it sees neither). Whether a residual
+    really is what its level says is the checker's business (see
+    ``test_residual_derivatives_check``)."""
+
+    def test_each_level_is_given_only_what_it_may_depend_on(
+        self, bkd: Backend[Array]
+    ) -> None:
+        state = bkd.asarray(_STATE)
+        for make, nargs, affine, invariant in (
+            (Jacobian.general, 3, False, False),
+            (Jacobian.state_free, 2, True, False),
+            (Jacobian.constant, 1, True, True),
+        ):
+            recorded = _Recorded(bkd)
+            jacobian = make(recorded)
+            jacobian(state, 0.7, _POINT)
+            assert len(recorded.calls) == 1
+            assert len(recorded.calls[0]) == nargs
+            if nargs >= 2:
+                assert recorded.calls[0][-2] == 0.7
+            assert (jacobian.affine(), jacobian.time_invariant()) == (
+                affine,
+                invariant,
+            )
+
+    def test_a_plain_function_is_a_general_jacobian(
+        self, bkd: Backend[Array]
+    ) -> None:
+        recorded = _Recorded(bkd)
+        bundle: _Bundle[Array] = ODEResidualDerivatives.state_only(recorded)
+        assert bundle.jacobian is not None
+        assert not bundle.jacobian.affine()
+        bundle.jacobian(bkd.asarray(_STATE), 0.7, _POINT)
+        assert len(recorded.calls[0]) == 3
+        first = _first_order(LotkaVolterra(bkd)).jacobian
+        assert first is not None and not first.affine()
+
+    def test_a_jacobian_holds_exactly_one_function(
+        self, bkd: Backend[Array]
+    ) -> None:
+        recorded = _Recorded(bkd)
+        with pytest.raises(ValueError, match="exactly one"):
+            Jacobian[Array, DenseFormat[Array]]()
+        with pytest.raises(ValueError, match="exactly one"):
+            Jacobian(general=recorded, constant=recorded)
+        with pytest.raises(TypeError, match="holds a function"):
+            Jacobian.constant(bkd.eye(2))  # type: ignore[arg-type]
+
+    def test_an_affine_jacobian_refuses_a_state_curvature(
+        self, bkd: Backend[Array]
+    ) -> None:
         model = LotkaVolterra(bkd)
         states, params = backend_spaces(bkd, 2, 4)
-        jacobian = dense_jacobian(model.jacobian, states, bkd)
+        declared = _Declarations(model)
         param = dense_operator(model.param_jacobian, params, states, bkd)
-        assert ODEResidualDerivatives.state_only(jacobian, affine=True).affine
-        first: _Bundle[Array] = ODEResidualDerivatives.first_order(
-            states, params, jacobian, param, STATED_ZERO, affine=True
-        )
-        assert first.affine
-        second: _Bundle[Array] = ODEResidualDerivatives.second_order(
+        affine = Jacobian.state_free(_Recorded(bkd))
+        stated: _Bundle[Array] = ODEResidualDerivatives.second_order(
             states,
             params,
-            jacobian,
-            param,
-            STATED_ZERO,
+            jacobian=affine,
+            param=param,
+            initial_state=STATED_ZERO,
             initial_state_curvature=STATED_ZERO,
             state_state=STATED_ZERO,
             state_param=STATED_ZERO,
             param_param=STATED_ZERO,
-            affine=True,
         )
-        assert second.affine
-
-    def test_refused_where_it_would_disagree(self, bkd: Backend[Array]) -> None:
-        with pytest.raises(ValueError, match="requires jacobian"):
-            ODEResidualDerivatives[Array, DenseFormat[Array]](affine=True)
-        model = LotkaVolterra(bkd)
-        states, params = backend_spaces(bkd, 2, 4)
-        declared = _Declarations(model)
+        assert stated.jacobian is affine
         with pytest.raises(ValueError, match="zero state curvature"):
             ODEResidualDerivatives.second_order(
                 states,
                 params,
-                jacobian=dense_jacobian(model.jacobian, states, bkd),
-                param=dense_operator(model.param_jacobian, params, states, bkd),
+                jacobian=affine,
+                param=param,
                 initial_state=STATED_ZERO,
                 initial_state_curvature=STATED_ZERO,
                 state_state=dense_operator(declared.state_state, states, states, bkd),
                 state_param=STATED_ZERO,
                 param_param=STATED_ZERO,
-                affine=True,
             )
 
 

@@ -12,7 +12,8 @@ step from :math:`y_n` equals the closed-form Runge-Kutta update, stages
 :math:`(I - \Delta t\, A \otimes M^{-1}K)\, Y = 1 \otimes y_n` and
 :math:`y_{n+1} = y_n + \Delta t\, (b^\top \otimes M^{-1}K)\, Y`, built
 with dense NumPy from the tableau alone, for every tableau and both
-backends.
+backends; the system is affine (its Jacobian is constant), so a step
+evaluates f once per implicit stage and once per slope it reads.
 
 Nonlinear step: on Lotka-Volterra with a nontrivial mass, the step
 residual vanishes at the computed unknown for every tableau, and the
@@ -121,6 +122,29 @@ def _closed_form_step(tableau: ButcherTableau, y: _Np, deltat: float) -> _Np:
     return y + deltat * np.kron(b, z) @ stages
 
 
+class _CountingLinear(LinearMassModel[Array]):
+    """:class:`LinearMassModel` counting evaluations of f."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        super().__init__(bkd)
+        self.nevals = 0
+
+    def __call__(self, state: Array, time: float) -> Array:
+        self.nevals += 1
+        return super().__call__(state, time)
+
+
+_AFFINE_EVALS = [1, 1, 2, 2, 2, 4, 5]
+"""f evaluations in one step of an affine system, in ``TABLEAUX`` order:
+one per implicit stage (Newton's residual at its guess; the affine path
+takes the full step with no convergence check) plus one per stage slope a
+later stage or the update reads. Forward Euler 0 + 1, backward Euler 1 +
+0 (stiffly accurate), Crank-Nicolson 1 + 1 (explicit first slope, read
+by the second stage), implicit midpoint 1 + 1 (the update reads the
+slope), Heun 0 + 2, RK4 0 + 4, SDIRK3 3 + 2 (stiffly accurate; slopes
+one and two are read)."""
+
+
 class TestLinearStep:
     @pytest.mark.parametrize("make", [make for make, *_ in TABLEAUX], ids=TABLEAU_IDS)
     def test_one_step_is_the_closed_form_update(
@@ -135,6 +159,18 @@ class TestLinearStep:
             bkd.asarray(_closed_form_step(tableau, y, 0.1)),
             rtol=1e-11,
         )
+
+    @pytest.mark.parametrize(
+        "make, nevals", list(zip([make for make, *_ in TABLEAUX], _AFFINE_EVALS))
+    )
+    def test_an_affine_step_evaluates_f_once_per_solve_and_read_slope(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau], nevals: int
+    ) -> None:
+        model = _CountingLinear(bkd)
+        stepper = rk_stepper(make(), dense_mass_form_system(model))
+        assert stepper.system().is_affine()
+        stepper.step((bkd.asarray([[1.0], [-0.5], [2.0]]),), (0.4, 0.3))
+        assert model.nevals == nevals
 
     def test_an_implicit_tableau_needs_a_nonlinear_solver(
         self, bkd: Backend[Array]

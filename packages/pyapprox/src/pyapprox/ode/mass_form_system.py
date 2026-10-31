@@ -22,6 +22,7 @@ from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.mass_matrix_system import mass_properties
 from pyapprox.ode.residual_derivatives import (
+    Jacobian,
     ODEResidualDerivatives,
     backend_state_space,
 )
@@ -107,13 +108,28 @@ class MassFormSystem(Generic[V, A, F]):
         r""":math:`J = \partial f/\partial y` in format ``F`` at ``state``
         (in the residual's form) and ``time``, labeled ``point``: the
         residual bundle's own Jacobian, read from it on every call."""
+        return self._jacobian()(state, time, point)
+
+    def is_affine(self) -> bool:
+        """Whether :math:`f` is affine in the state: the residual's
+        Jacobian cannot see it (see
+        :class:`~pyapprox.ode.residual_derivatives.Jacobian`), so a stage
+        equation is one linear solve."""
+        return self._jacobian().affine()
+
+    def jacobian_time_invariant(self) -> bool:
+        """Whether the residual's Jacobian sees neither state nor time, so
+        a stage operator is the same at every step of a given size."""
+        return self._jacobian().time_invariant()
+
+    def _jacobian(self) -> Jacobian[V, F]:
         jacobian = self.rhs.derivatives().jacobian
         if jacobian is None:
             raise TypeError(
                 f"{type(self.rhs).__name__}'s derivatives bundle lost its "
                 "jacobian; which fields are present must not change"
             )
-        return jacobian(state, time, point)
+        return jacobian
 
 
 @runtime_checkable

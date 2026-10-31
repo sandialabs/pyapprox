@@ -154,7 +154,10 @@ class _NewStateSystem(Generic[V, A, F]):
         )
 
     def is_affine(self) -> bool:
-        return False
+        """Whether the step equation is affine in the new state: the
+        system's :math:`f` is, and pinned rows (identity rows with data)
+        keep it so."""
+        return self._stepper.system().is_affine()
 
 
 class LinearMultistepStepper(Generic[V, A, F]):

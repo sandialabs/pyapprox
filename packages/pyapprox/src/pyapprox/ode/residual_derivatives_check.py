@@ -322,9 +322,17 @@ class ODEResidualBundleChecker(Generic[Array]):
                     bundle, state, time, weight, param
                 )
             }
-            if bundle.affine:
+            # What the Jacobian cannot depend on, it must not: f is checked
+            # to be affine against it, and, for a time-invariant Jacobian,
+            # at another time too.
+            jacobian = bundle.jacobian
+            if jacobian is not None and jacobian.affine():
                 fd_errors["affine"] = self._affine_error(
                     self._fetch(param), state, time, rng
+                )
+            if jacobian is not None and jacobian.time_invariant():
+                fd_errors["time_invariant"] = self._affine_error(
+                    self._fetch(param), state, time + 1.0, rng
                 )
             dot_errors = self._transpose_errors(
                 self._fetch(param), state, time, weight, rng
@@ -340,12 +348,13 @@ class ODEResidualBundleChecker(Generic[Array]):
         time: float,
         rng: np.random.Generator,
     ) -> float:
-        r"""How far :math:`f` is from affine along one large random step
-        :math:`v` (as large as the state, plus one):
-        :math:`\|f(y+v) - f(y) - J(y) v\|` relative to the larger of
-        :math:`\|f(y+v) - f(y)\|` and :math:`\|J v\|`. Round-off for an
-        affine :math:`f`; of order one for a nonlinear one, whose
-        declaration is then false."""
+        r"""How far :math:`f(\cdot, t)` is from affine with the bundle's
+        Jacobian at ``time``, along one large random step :math:`v` (as
+        large as the state, plus one): :math:`\|f(y+v) - f(y) - J v\|`
+        relative to the larger of :math:`\|f(y+v) - f(y)\|` and
+        :math:`\|J v\|`. Round-off when :math:`J` cannot see the state and
+        :math:`f` is affine; of order one for a nonlinear :math:`f`, or at
+        another time for a time-dependent Jacobian declared constant."""
         bkd = self._bkd
         direction = _random_column(bkd, state.shape[0], rng)
         size = bkd.to_float(bkd.norm(state)) + 1.0

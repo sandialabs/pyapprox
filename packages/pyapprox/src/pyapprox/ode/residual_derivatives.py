@@ -73,6 +73,7 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     JacobianSnapshotProtocol,
     LinearizationPoint,
+    LinearizedOperator,
     MatrixFree,
     OperatorProperties,
     SpaceDescriptor,
@@ -90,6 +91,13 @@ P = ParamSpec("P")
 DerivativeOperator = ActionOperatorProtocol[V, FormatProtocol]
 """A derivative that is applied but never solved with: any format."""
 JacobianFn = Callable[[V, float, LinearizationPoint], JacobianSnapshotProtocol[V, G]]
+StateFreeJacobianFn = Callable[
+    [float, LinearizationPoint], JacobianSnapshotProtocol[V, G]
+]
+"""A Jacobian that cannot see the state: :math:`J(t)`, :math:`f` affine."""
+ConstantJacobianFn = Callable[[LinearizationPoint], JacobianSnapshotProtocol[V, G]]
+"""A Jacobian that sees neither state nor time: :math:`f` affine with a
+time-invariant :math:`J`."""
 ParamFn = Callable[[V, float], DerivativeOperator[V]]
 InitialStateFn = Callable[[], DerivativeOperator[V]]
 CurvatureFn = Callable[[V], DerivativeOperator[V]]
@@ -153,6 +161,98 @@ class _ZeroSecondDerivative(Generic[V]):
         return self._op
 
 
+class Jacobian(Generic[V, F_co]):
+    r""":math:`\partial f/\partial y` and what it may depend on.
+
+    Always called as ``jacobian(state, time, point)``, so every consumer
+    uses one signature. What it depends on is fixed by the named
+    constructor the residual used, that is by the function it could
+    supply: :meth:`general` takes ``(state, time, point)``,
+    :meth:`state_free` takes ``(time, point)`` (a Jacobian that cannot see
+    the state, so :math:`f` is affine in it), and :meth:`constant` takes
+    ``(point)`` (affine, and the Jacobian time-invariant). A function that
+    is never given the state cannot depend on it, so the declaration
+    cannot disagree with the Jacobian; time-dependent forcing and boundary
+    data live in :math:`f`, not in :math:`J`, and keep a Jacobian
+    constant.
+
+    Holds exactly one of the three functions; build it with the named
+    constructors.
+    """
+
+    def __init__(
+        self,
+        general: Optional[JacobianFn[V, F_co]] = None,
+        state_free: Optional[StateFreeJacobianFn[V, F_co]] = None,
+        constant: Optional[ConstantJacobianFn[V, F_co]] = None,
+    ) -> None:
+        given = [fn for fn in (general, state_free, constant) if fn is not None]
+        if len(given) != 1:
+            raise ValueError("a Jacobian holds exactly one function")
+        if not callable(given[0]):
+            raise TypeError(
+                f"a Jacobian holds a function; got {type(given[0]).__name__}"
+            )
+        self._general, self._state_free, self._constant = general, state_free, constant
+
+    @staticmethod
+    def general(fn: JacobianFn[W, G]) -> "Jacobian[W, G]":
+        """A Jacobian that may depend on the state and the time."""
+        return Jacobian(general=fn)
+
+    @staticmethod
+    def state_free(fn: StateFreeJacobianFn[W, G]) -> "Jacobian[W, G]":
+        """A Jacobian of the time only: :math:`f` is affine in the state."""
+        return Jacobian(state_free=fn)
+
+    @staticmethod
+    def constant(fn: ConstantJacobianFn[W, G]) -> "Jacobian[W, G]":
+        """A Jacobian of neither state nor time: :math:`f` is affine in
+        the state and its Jacobian time-invariant."""
+        return Jacobian(constant=fn)
+
+    def __call__(
+        self, state: V, time: float, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[V, F_co]:
+        """:math:`J` at ``(state, time)``, labeled ``point``; a state-free
+        or constant Jacobian is not given what it cannot depend on."""
+        if self._constant is not None:
+            return self._constant(point)
+        if self._state_free is not None:
+            return self._state_free(time, point)
+        if self._general is None:
+            raise AssertionError("a Jacobian holds exactly one function")
+        return self._general(state, time, point)
+
+    def affine(self) -> bool:
+        """Whether :math:`f` is affine in the state: the Jacobian cannot
+        see it."""
+        return self._general is None
+
+    def time_invariant(self) -> bool:
+        """Whether the Jacobian is time-invariant (and so :math:`f`
+        affine): it sees neither state nor time."""
+        return self._constant is not None
+
+    def __repr__(self) -> str:
+        level = (
+            "constant"
+            if self.time_invariant()
+            else "state_free" if self.affine() else "general"
+        )
+        return f"{type(self).__name__}.{level}"
+
+
+def as_jacobian(
+    jacobian: Union[JacobianFn[W, G], Jacobian[W, G]],
+) -> Jacobian[W, G]:
+    """``jacobian`` as a :class:`Jacobian`: a plain function of the state
+    and time is a general one."""
+    if isinstance(jacobian, Jacobian):
+        return jacobian
+    return Jacobian.general(jacobian)
+
+
 @dataclass(frozen=True)
 class ODEResidualDerivatives(Generic[V, F_co]):
     """The optional derivatives of an ODE residual.
@@ -162,17 +262,16 @@ class ODEResidualDerivatives(Generic[V, F_co]):
 
     Invariants: ``param`` and ``initial_state`` come together, require
     ``jacobian`` and come with ``param_space``; the four second-order
-    fields come together and require them.
+    fields come together and require them; a Jacobian that cannot see the
+    state (:math:`f` affine, see :class:`Jacobian`) has zero state
+    curvature, so with second order present ``state_state`` must be the
+    stated zero.
 
-    ``affine`` declares :math:`f` affine in the state (zero state
-    curvature), so a stage equation is linear and Newton takes one exact
-    step with no residual check. It is the zero-curvature declaration,
-    not a second flag that could disagree with it: it requires
-    ``jacobian``, and with second order present ``state_state`` must be
-    the stated zero. Set it through the named constructors' ``affine``.
+    The constructors take the Jacobian as a :class:`Jacobian`, or as a
+    plain function of state and time (a general one).
     """
 
-    jacobian: Optional[JacobianFn[V, F_co]] = None
+    jacobian: Optional[Jacobian[V, F_co]] = None
     param: Optional[ParamFn[V]] = None
     initial_state: Optional[InitialStateFn[V]] = None
     initial_state_curvature: Optional[CurvatureFn[V]] = None
@@ -180,7 +279,6 @@ class ODEResidualDerivatives(Generic[V, F_co]):
     state_param: Optional[SecondDerivativeFn[V]] = None
     param_param: Optional[SecondDerivativeFn[V]] = None
     param_space: Optional[VectorSpaceProtocol[V]] = None
-    affine: bool = False
 
     def __post_init__(self) -> None:
         for name in _FIELDS:
@@ -206,16 +304,21 @@ class ODEResidualDerivatives(Generic[V, F_co]):
             )
         if all(present) and not first[0]:
             raise ValueError("second order requires param and initial_state")
-        if self.affine:
-            if self.jacobian is None:
-                raise ValueError("an affine declaration requires jacobian")
-            if self.state_state is not None and not isinstance(
-                self.state_state, _ZeroSecondDerivative
-            ):
-                raise ValueError(
-                    "an affine residual has zero state curvature: state_state "
-                    "must be STATED_ZERO"
-                )
+        if self.jacobian is not None and not isinstance(self.jacobian, Jacobian):
+            raise TypeError(
+                "jacobian must be a Jacobian (the named constructors wrap a "
+                f"plain function); got {type(self.jacobian).__name__}"
+            )
+        affine = self.jacobian is not None and self.jacobian.affine()
+        if (
+            affine
+            and self.state_state is not None
+            and not isinstance(self.state_state, _ZeroSecondDerivative)
+        ):
+            raise ValueError(
+                "a Jacobian that cannot see the state means f is affine, with "
+                "zero state curvature: state_state must be STATED_ZERO"
+            )
 
     @staticmethod
     def none() -> "ODEResidualDerivatives[W, G]":
@@ -224,58 +327,52 @@ class ODEResidualDerivatives(Generic[V, F_co]):
 
     @staticmethod
     def state_only(
-        jacobian: JacobianFn[W, G], affine: bool = False
+        jacobian: Union[JacobianFn[W, G], Jacobian[W, G]],
     ) -> "ODEResidualDerivatives[W, G]":
         """A state Jacobian and no parameters: implicit stepping, no
-        parameter gradients. ``affine`` declares :math:`f` affine in the
-        state."""
-        return ODEResidualDerivatives(jacobian=jacobian, affine=affine)
+        parameter gradients."""
+        return ODEResidualDerivatives(jacobian=as_jacobian(jacobian))
 
     @staticmethod
     def first_order(
         state_space: VectorSpaceProtocol[W],
         param_space: VectorSpaceProtocol[W],
-        jacobian: JacobianFn[W, G],
+        jacobian: Union[JacobianFn[W, G], Jacobian[W, G]],
         param: ParamFn[W],
         initial_state: Union[InitialStateFn[W], StatedZero],
-        affine: bool = False,
     ) -> "ODEResidualDerivatives[W, G]":
         """The state Jacobian and the parameter derivatives: adjoint
         gradients. ``initial_state=STATED_ZERO`` declares :math:`y_0`
-        independent of :math:`p`; ``affine`` declares :math:`f` affine in
-        the state."""
+        independent of :math:`p`."""
         return ODEResidualDerivatives(
-            jacobian=jacobian,
+            jacobian=as_jacobian(jacobian),
             param=param,
             initial_state=_initial_state(initial_state, state_space, param_space),
             param_space=param_space,
-            affine=affine,
         )
 
     @staticmethod
     def second_order(
         state_space: VectorSpaceProtocol[W],
         param_space: VectorSpaceProtocol[W],
-        jacobian: JacobianFn[W, G],
+        jacobian: Union[JacobianFn[W, G], Jacobian[W, G]],
         param: ParamFn[W],
         initial_state: Union[InitialStateFn[W], StatedZero],
         initial_state_curvature: Union[CurvatureFn[W], StatedZero],
         state_state: Union[SecondDerivativeFn[W], StatedZero],
         state_param: Union[SecondDerivativeFn[W], StatedZero],
         param_param: Union[SecondDerivativeFn[W], StatedZero],
-        affine: bool = False,
     ) -> "ODEResidualDerivatives[W, G]":
         """First order plus the second-order terms: Hessian-vector
-        products. Any term may be ``STATED_ZERO``; ``affine`` declares
-        :math:`f` affine in the state, and requires
-        ``state_state=STATED_ZERO``."""
+        products. Any term may be ``STATED_ZERO``; with a Jacobian that
+        cannot see the state, ``state_state`` must be."""
         curvature: CurvatureFn[W] = (
             _ZeroCurvature(ZeroOperator(param_space))
             if isinstance(initial_state_curvature, StatedZero)
             else initial_state_curvature
         )
         return ODEResidualDerivatives(
-            jacobian=jacobian,
+            jacobian=as_jacobian(jacobian),
             param=param,
             initial_state=_initial_state(initial_state, state_space, param_space),
             initial_state_curvature=curvature,
@@ -289,7 +386,6 @@ class ODEResidualDerivatives(Generic[V, F_co]):
                 param_param, param_space, param_space
             ),
             param_space=param_space,
-            affine=affine,
         )
 
 
@@ -347,8 +443,8 @@ def dense_jacobian(
     matrix: Callable[[Array, float], Array],
     state_space: VectorSpaceProtocol[Array],
     bkd: Backend[Array],
-) -> JacobianFn[Array, DenseFormat[Array]]:
-    """Declare a Jacobian given as a dense matrix.
+) -> Jacobian[Array, DenseFormat[Array]]:
+    """Declare a Jacobian given as a dense matrix of the state and time.
 
     Parameters
     ----------
@@ -363,7 +459,57 @@ def dense_jacobian(
     producer = DenseJacobianOperator(
         _JacobianMatrixFunction(matrix), state_space.descriptor(), bkd
     )
-    return producer.jacobian_operator
+    return Jacobian.general(producer.jacobian_operator)
+
+
+class _LabeledConstant(Generic[V, G]):
+    """``point ->`` a fixed operator labeled ``point``."""
+
+    def __init__(self, op: ActionOperatorProtocol[V, G]) -> None:
+        self._op = op
+
+    def __call__(self, point: LinearizationPoint) -> LinearizedOperator[V, G]:
+        return LinearizedOperator(self._op, point)
+
+
+class _LabeledOfTime(Generic[V, G]):
+    """``(time, point) ->`` the operator of the time, labeled ``point``."""
+
+    def __init__(self, op: Callable[[float], ActionOperatorProtocol[V, G]]) -> None:
+        self._op = op
+
+    def __call__(
+        self, time: float, point: LinearizationPoint
+    ) -> LinearizedOperator[V, G]:
+        return LinearizedOperator(self._op(time), point)
+
+
+def constant_jacobian(op: ActionOperatorProtocol[W, G]) -> Jacobian[W, G]:
+    """Declare the Jacobian of an :math:`f` affine in the state whose
+    Jacobian is time-invariant: one operator, of any stack and format.
+
+    Parameters
+    ----------
+    op : ActionOperatorProtocol
+        The Jacobian at every state and time, state to state; its format
+        is the Jacobian's, so it pairs with the system's solver.
+    """
+    return Jacobian.constant(_LabeledConstant(op))
+
+
+def state_free_jacobian(
+    op: Callable[[float], ActionOperatorProtocol[W, G]],
+) -> Jacobian[W, G]:
+    """Declare the Jacobian of an :math:`f` affine in the state: an
+    operator of the time only, of any stack and format.
+
+    Parameters
+    ----------
+    op : callable
+        ``time ->`` the Jacobian at that time, state to state. It is not
+        given the state, so it cannot depend on it.
+    """
+    return Jacobian.state_free(_LabeledOfTime(op))
 
 
 class _JacobianActionFunctions(Generic[Array]):
@@ -388,8 +534,8 @@ def matrix_free_jacobian(
     apply: Callable[[Array, float, Array], Array],
     apply_transpose: Callable[[Array, float, Array], Array],
     state_space: VectorSpaceProtocol[Array],
-) -> JacobianFn[Array, MatrixFree]:
-    r"""Declare a Jacobian given by its actions.
+) -> Jacobian[Array, MatrixFree]:
+    r"""Declare a Jacobian given by its actions of the state and time.
 
     Parameters
     ----------
@@ -402,7 +548,7 @@ def matrix_free_jacobian(
     producer = MatrixFreeJacobianOperator(
         _JacobianActionFunctions(apply, apply_transpose), state_space.descriptor()
     )
-    return producer.jacobian_operator
+    return Jacobian.general(producer.jacobian_operator)
 
 
 SecondDerivativeActionFn = Callable[[Array, float, Array, Array], Array]
