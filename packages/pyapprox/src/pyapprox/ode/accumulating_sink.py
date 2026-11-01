@@ -17,6 +17,7 @@ several functionals, or a functional and a store for a later sweep.
 
 from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.trajectory_store import TrajectorySinkProtocol
 from pyapprox.util.linalg.operators import BlockVector
 
@@ -63,8 +64,9 @@ class PerStateSink(Generic[V, R]):
     TypeError
         If ``accumulator`` does not satisfy its protocol.
     ValueError
-        From :meth:`append` and :meth:`append_step`, if a time does not
-        exceed the last one received.
+        From :meth:`append`, if a state was already received; from
+        :meth:`append_step`, if none was, or the step does not start where
+        the last one ended.
     """
 
     def __init__(self, accumulator: StateAccumulatorProtocol[V, R]) -> None:
@@ -77,26 +79,39 @@ class PerStateSink(Generic[V, R]):
         self._ntimes = 0
         self._last_time: Optional[float] = None
 
-    def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
-        """Pass ``state`` on; the unconstrained value is not needed."""
-        if self._last_time is not None and not time > self._last_time:
-            raise ValueError(
-                f"times must strictly increase: {time} after {self._last_time}"
-            )
+    def _take(self, time: float, state: V) -> None:
         self._accumulator.add(self._ntimes, time, state)
         self._ntimes += 1
         self._last_time = time
 
+    def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
+        """Pass the initial state on; the unconstrained value is not
+        needed."""
+        if self._last_time is not None:
+            raise ValueError(
+                "only the initial state is appended at a time; every later state "
+                "comes with its step (append_step)"
+            )
+        self._take(time, state)
+
     def append_step(
         self,
-        time: float,
+        span: StepSpan,
         state: V,
         unknown: BlockVector[V],
         parameters_version: int,
         unconstrained: Optional[V] = None,
     ) -> None:
-        """Pass the step's state on; the step's unknown is not needed."""
-        self.append(time, state)
+        """Pass the step's state on, at the span's end; the step's unknown
+        is not needed."""
+        if self._last_time is None:
+            raise ValueError("a step starts from a received state; append one first")
+        if span.time() != self._last_time:
+            raise ValueError(
+                f"the step starts at {span.time()}, not where the last one ended, "
+                f"{self._last_time}"
+            )
+        self._take(span.end(), state)
 
     def ntimes(self) -> int:
         """The number of states received."""
@@ -147,14 +162,14 @@ class MultiSink(Generic[V]):
 
     def append_step(
         self,
-        time: float,
+        span: StepSpan,
         state: V,
         unknown: BlockVector[V],
         parameters_version: int,
         unconstrained: Optional[V] = None,
     ) -> None:
         for sink in self._sinks:
-            sink.append_step(time, state, unknown, parameters_version, unconstrained)
+            sink.append_step(span, state, unknown, parameters_version, unconstrained)
 
     def ntimes(self) -> int:
         """The number of states received, the same for every sink."""

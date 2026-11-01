@@ -8,7 +8,6 @@ functional), so evaluating a QoI keeps no trajectory;
 callers that want it.
 """
 
-import math
 from dataclasses import dataclass
 from typing import (
     Generic,
@@ -25,6 +24,7 @@ from pyapprox.ode.accumulating_sink import AccumulatingSinkProtocol, PerStateSin
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import DenseModelProtocol, dense_mass_form_system
 from pyapprox.ode.protocols.ode_residual import ODEResidualWithParamJacobianProtocol
+from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta, SteppingMethodProtocol
 from pyapprox.ode.tableau import backward_euler
 from pyapprox.ode.trajectory_store import (
@@ -387,7 +387,7 @@ class ODEQoIFunction(Generic[Array]):
                 self._initial_state_residual.get_initial_condition(), (-1, 1)
             )
         )
-        Integrator(stepper).solve(init_state, self._time_config.times(), sink)
+        Integrator(stepper).solve(init_state, self._time_config.steps(), sink)
 
     def _evaluate_single(self, param: Array) -> Array:
         """Evaluate QoI for a single parameter sample, accumulated while
@@ -431,20 +431,17 @@ class ODETimeConfig:
         shortened last step's."""
         return len(self.times())
 
+    def steps(self) -> FixedStep:
+        """Steps of ``deltat`` from ``init_time``, landing exactly on
+        ``final_time``: an interval that is a whole number of steps, to a
+        relative 1e-9, has that many; otherwise the last step is
+        shortened. The count is decided first, so rounding never adds a
+        vanishing step."""
+        return FixedStep(self.deltat, (self.init_time, self.final_time))
+
     def times(self) -> List[float]:
-        """The step boundaries from ``init_time`` to ``final_time``:
-        :math:`t_0 + n \\Delta t`, ending exactly at ``final_time``. An
-        interval that is a whole number of steps, to a relative 1e-9, has
-        that many; otherwise the last step is shortened to end at
-        ``final_time``. Times are computed, not summed, so rounding never
-        adds a vanishing step."""
-        ratio = (self.final_time - self.init_time) / self.deltat
-        whole = round(ratio)
-        if abs(ratio - whole) <= 1e-9 * max(1.0, ratio):
-            nfull = whole - 1
-        else:
-            nfull = math.floor(ratio)
-        steps = [self.init_time + n * self.deltat for n in range(nfull + 1)]
-        return steps + [self.final_time]
+        """The step boundaries from ``init_time`` to ``final_time``,
+        derived from :meth:`steps`' sizes."""
+        return list(self.steps().times())
 
 

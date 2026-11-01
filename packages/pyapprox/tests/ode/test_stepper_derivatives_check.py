@@ -34,6 +34,7 @@ from typing import Callable, Generic, Optional
 import pytest
 
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
@@ -303,7 +304,8 @@ class TestOnAnOpaqueStack:
     ) -> None:
         stepper = mock_stepper(make())
         state = mock_sample(stepper.system().space.descriptor(), 3)
-        window = StepWindow((0.1, 0.0), (state,), stepper.step((state,), (0.1, 0.0)))
+        span = StepSpan.first(0.0, 0.1)
+        window = StepWindow(span, (state,), stepper.step((state,), span))
         report = StepperBundleChecker(stepper, mock_sample).check(window)
         assert set(report.fd_errors) == {"diag", "off_diag[1]"}
         assert report.failures() == []

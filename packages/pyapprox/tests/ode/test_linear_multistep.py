@@ -22,7 +22,7 @@ the steps run and the checker passes. A fixed table (classical BDF2)
 refuses a shortened last step and a changed second step, and takes a
 one-step grid of any size and steps equal up to rounding. Refusals: an
 implicit method without a nonlinear solver, and a step given too many
-states or times that do not match them.
+states or a span that does not match them.
 """
 
 from typing import Any, Callable
@@ -41,6 +41,8 @@ from pyapprox.ode.multistep_methods import (
     MultistepMethod,
     bdf2,
 )
+from pyapprox.ode.step_plan import FixedStep, GivenSizes
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.stepper_derivatives_check import StepperBundleChecker
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
@@ -110,7 +112,8 @@ class TestLinearSteps:
             ([_Y1, _Y0], (0.4, 0.3, 0.2)),
             ([_Y1, _Y0], (0.4, 0.3, 0.15)),
         ):
-            unknown = stepper.step(tuple(bkd.asarray(y) for y in past), times)
+            span = StepSpan.from_times(tuple(reversed(times)))
+            unknown = stepper.step(tuple(bkd.asarray(y) for y in past), span)
             bkd.assert_allclose(
                 unknown.blocks[0],
                 bkd.asarray(_closed_form(method, past, times)),
@@ -122,8 +125,8 @@ def _solve(
     bkd: Backend[Array], stepper: Any, deltat: float, final: float
 ) -> InMemoryTrajectoryStore[Array]:
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-    times = [deltat * n for n in range(round(final / deltat) + 1)]
-    Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), times, store)
+    steps = FixedStep(deltat, (0.0, final))
+    Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), steps, store)
     return store
 
 
@@ -152,8 +155,8 @@ class TestNonlinearSteps:
         errors = []
         for deltat in _DELTATS:
             store: InMemoryTrajectoryStore[NDArray[Any]] = InMemoryTrajectoryStore()
-            times = [deltat * n for n in range(round(_FINAL / deltat) + 1)]
-            Integrator(lm_stepper(make(), system)).solve(bkd.asarray(_Y0), times, store)
+            steps = FixedStep(deltat, (0.0, _FINAL))
+            Integrator(lm_stepper(make(), system)).solve(bkd.asarray(_Y0), steps, store)
             errors.append(
                 float(np.linalg.norm(bkd.to_numpy(store.state(-1)) - exact_final))
             )
@@ -221,8 +224,8 @@ class TestOnAnOpaqueStack:
     ) -> None:
         stepper = _mock_stepper(make())
         store: InMemoryTrajectoryStore[MockVector] = InMemoryTrajectoryStore()
-        times = [0.1 * n for n in range(6)]
-        Integrator(stepper).solve(wrap(_Y0, MOCK_STATE), times, store)
+        steps = FixedStep(0.1, (0.0, 0.5))
+        Integrator(stepper).solve(wrap(_Y0, MOCK_STATE), steps, store)
         for step in (0, 3):
             window = store.window(step, min(stepper.depth(), step + 1))
             report = StepperBundleChecker(stepper, mock_sample).check(window)
@@ -240,18 +243,19 @@ class TestRefusals:
         stepper = lm_stepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))
         y = bkd.asarray(_Y0)
         with pytest.raises(ValueError, match="between 1 and 2"):
-            stepper.step((y, y, y), (0.1, 0.0, -0.1, -0.2))
-        window = StepWindow((0.1, 0.0), (y,), stepper.step((y,), (0.1, 0.0)))
+            stepper.step((y, y, y), StepSpan(-0.2, (0.1, 0.1, 0.1)))
+        span = StepSpan.first(0.0, 0.1)
+        window = StepWindow(span, (y,), stepper.step((y,), span))
         off_diag = stepper.derivatives().off_diag
         assert off_diag is not None
         with pytest.raises(ValueError, match="lag must be between 1 and 1"):
             off_diag(window, 2)
 
-    def test_times_that_do_not_match_the_states(self, bkd: Backend[Array]) -> None:
+    def test_a_span_that_does_not_match_the_states(self, bkd: Backend[Array]) -> None:
         stepper = lm_stepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))
         y = bkd.asarray(_Y0)
-        with pytest.raises(ValueError, match="needs 3 times"):
-            stepper.step((y, y), (0.1, 0.0))
+        with pytest.raises(ValueError, match="needs a span with 2 sizes"):
+            stepper.step((y, y), StepSpan.first(0.0, 0.1))
 
 
 def _fixed_bdf2() -> MultistepMethod:
@@ -269,20 +273,20 @@ def _fixed_bdf2() -> MultistepMethod:
 _CYCLES = (28, 56, 112)
 
 
-def _uneven(ncycles: int) -> list[float]:
+def _uneven(ncycles: int) -> GivenSizes:
     """0 to 1 in ``ncycles`` cycles of steps 0.6, 1.4 and 1.0 times
     :math:`h` (ratios 0.6/1.0, 1.4/0.6 and 1.0/1.4, within variable-step
     BDF2's stability bound 1 + sqrt 2), then a shortened last step of
-    0.5 h, with :math:`h = 1/(3\\,\\mathrm{ncycles} + 0.5)`. Doubling the
-    cycles halves every step and keeps the grid's shape, the last step
-    included, so the error falls at the method's rate."""
+    about 0.5 h ending at 1, with :math:`h = 1/(3\\,\\mathrm{ncycles} +
+    0.5)`. Doubling the cycles halves every step and keeps the grid's
+    shape, the last step included, so the error falls at the method's
+    rate."""
     base = _FINAL / (3 * ncycles + 0.5)
-    sizes = [base * size for size in (0.6, 1.4, 1.0)] * ncycles + [0.5 * base]
-    times = [0.0]
-    for size in sizes[:-1]:
-        times.append(times[-1] + size)
-    times.append(_FINAL)
-    return times
+    sizes = [base * size for size in (0.6, 1.4, 1.0)] * ncycles
+    time = 0.0
+    for size in sizes:
+        time = time + size
+    return GivenSizes(0.0, sizes + [_FINAL - time])
 
 
 class TestVariableSteps:
@@ -308,8 +312,8 @@ class TestVariableSteps:
         errors = []
         for ncycles in _CYCLES:
             store: InMemoryTrajectoryStore[NDArray[Any]] = InMemoryTrajectoryStore()
-            times = _uneven(ncycles)
-            Integrator(lm_stepper(make(), system)).solve(bkd.asarray(_Y0), times, store)
+            steps = _uneven(ncycles)
+            Integrator(lm_stepper(make(), system)).solve(bkd.asarray(_Y0), steps, store)
             errors.append(
                 float(np.linalg.norm(bkd.to_numpy(store.state(-1)) - exact @ _Y0))
             )
@@ -329,8 +333,8 @@ class TestVariableSteps:
         model.set_param(param)
         stepper = lm_stepper(make(), dense_mass_form_system(model))
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        times = [0.0, 0.05, 0.08, 0.15, 0.2]
-        Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), times, store)
+        steps = GivenSizes.from_times([0.0, 0.05, 0.08, 0.15, 0.2])
+        Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), steps, store)
         # Step 2 spans steps of 0.03 and 0.07.
         window = store.window(2, stepper.depth())
         sample = backend_sample(bkd)
@@ -365,7 +369,7 @@ class TestFixedTable:
             _fixed_bdf2(), dense_mass_form_system(LinearMassModel(bkd))
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(bkd.asarray(_Y0), times, store)
+        Integrator(stepper).solve(bkd.asarray(_Y0), GivenSizes.from_times(times), store)
 
     def test_a_shortened_last_step_is_refused(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="fixed coefficients"):

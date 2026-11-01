@@ -52,7 +52,7 @@ from tests._helpers.ode.runge_kutta_cases import (
 from tests._helpers.ode.trajectory_cases import (
     ALL_IDS,
     ALL_METHODS,
-    TIMES,
+    STEPS,
     Method,
     Stepper,
     TrajectoryProblem,
@@ -116,7 +116,7 @@ class _Pinned(Generic[Array]):
             method, dense_mass_form_system(self.model), pinning
         )
         self.store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(self.stepper).solve(bkd.asarray([[10.0], [5.0]]), TIMES, self.store)
+        Integrator(self.stepper).solve(bkd.asarray([[10.0], [5.0]]), STEPS, self.store)
 
     def window(self, step: int) -> StepWindow[Array]:
         return self.store.window(step, min(self.stepper.depth(), step + 1))

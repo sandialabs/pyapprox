@@ -44,11 +44,12 @@ from typing import (
 
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
     StepWindow,
-    check_step_times,
+    check_step_span,
 )
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.util.backends.protocols import ArrayProtocol
@@ -177,11 +178,9 @@ class _RungeKuttaSession(Generic[V, A, F]):
             stepper.system().solver, capacity=stepper.residual_space().nblocks()
         )
 
-    def step(
-        self, past_states: Sequence[V], times: Sequence[float]
-    ) -> BlockVector[V]:
+    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`RungeKuttaStepper.step`)."""
-        return self._stepper._step(past_states, times, self._solver)
+        return self._stepper._step(past_states, span, self._solver)
 
 
 class RungeKuttaStepper(Generic[V, A, F]):
@@ -430,9 +429,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         between them and with no other session."""
         return _RungeKuttaSession(self)
 
-    def step(
-        self, past_states: Sequence[V], times: Sequence[float]
-    ) -> BlockVector[V]:
+    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         r"""Solve step :math:`n` from :math:`y_n`, as a session of this one
         step (its stages may share a setup; nothing is kept after it).
 
@@ -441,8 +438,8 @@ class RungeKuttaStepper(Generic[V, A, F]):
         past_states : sequence of V
             :math:`(y_n,)`: a one-step method reads one state, a single
             column of the state space.
-        times : sequence of float
-            :math:`(t_{n+1}, t_n)`.
+        span : StepSpan
+            The step from :math:`t_n` of size :math:`h_n`, one size.
 
         Returns
         -------
@@ -453,17 +450,17 @@ class RungeKuttaStepper(Generic[V, A, F]):
         Raises
         ------
         ValueError
-            If ``past_states`` is not one state, or ``times`` is not two
-            decreasing times.
+            If ``past_states`` is not one state, or ``span`` does not have
+            one size.
         SolveFailedError
             If a stage's nonlinear solve or a mass solve fails.
         """
-        return self.session().step(past_states, times)
+        return self.session().step(past_states, span)
 
     def _step(
         self,
         past_states: Sequence[V],
-        times: Sequence[float],
+        span: StepSpan,
         solver: CachingSolver[V, F],
     ) -> BlockVector[V]:
         """:meth:`step`, its implicit stages set up by ``solver``."""
@@ -471,9 +468,8 @@ class RungeKuttaStepper(Generic[V, A, F]):
             raise ValueError(
                 f"a one-step method reads one state, got {len(past_states)}"
             )
-        check_step_times(times, 1)
-        new_time, time = times[0], times[1]
-        deltat = new_time - time
+        check_step_span(span, 1)
+        new_time, time, deltat = span.end(), span.time(), span.deltat()
         state = past_states[0]
         tableau, space = self._tableau, self._system.space
         offset = self._first_stage_offset()

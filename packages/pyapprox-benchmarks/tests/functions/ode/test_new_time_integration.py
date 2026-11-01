@@ -60,6 +60,7 @@ from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.protocols import ODEResidualProtocol
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.ode.tableau import (
     ButcherTableau,
@@ -288,7 +289,9 @@ class _Paths(Generic[Array]):
             None if tableau.is_explicit() else newton,
         )
         self._store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(self._stepper).solve(self._start, self._times, self._store)
+        # The old path's grid, dt n, exactly.
+        steps = GivenSizes.from_times(self._times)
+        Integrator(self._stepper).solve(self._start, steps, self._store)
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self._stepper,
             None,

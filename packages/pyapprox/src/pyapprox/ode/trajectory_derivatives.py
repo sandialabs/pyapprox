@@ -891,12 +891,18 @@ class TrajectoryDerivatives(Generic[V, A]):
             raise ValueError("the tangent store must be empty")
         version = self._stepper.parameters_version()
         for index, tangent in enumerate(self._tangent_states(store, direction)):
-            time = store.time(index)
+            # Only the initial tangent has no unknown: no step produced it.
             if tangent.unknown is None:
-                tangents.append(time, tangent.state, tangent.unconstrained)
+                tangents.append(store.time(index), tangent.state, tangent.unconstrained)
             else:
+                # The primal step's own span, so the tangent store's times
+                # are the primal's, derived from the same sizes.
                 tangents.append_step(
-                    time, tangent.state, tangent.unknown, version, tangent.unconstrained
+                    store.window(index - 1).span,
+                    tangent.state,
+                    tangent.unknown,
+                    version,
+                    tangent.unconstrained,
                 )
 
     def __repr__(self) -> str:

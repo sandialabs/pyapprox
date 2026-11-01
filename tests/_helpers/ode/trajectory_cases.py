@@ -34,6 +34,7 @@ from pyapprox.ode.residual_derivatives import (
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.state_constraint import StateConstraintDerivatives
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.tableau import (
     ButcherTableau,
     backward_euler,
@@ -60,6 +61,8 @@ from tests._helpers.ode.runge_kutta_cases import (
 from tests._helpers.ode_models import LotkaVolterra
 
 TIMES = [0.05 * n for n in range(11)]
+STEPS = GivenSizes.from_times(TIMES)
+"""The steps between ``TIMES``, exactly: their sizes are the differences."""
 START = [[10.0], [5.0]]
 Method = Union[ButcherTableau, MultistepFormulaProtocol]
 MULTISTEP = [make for make, *_ in METHODS]
@@ -321,7 +324,7 @@ class TrajectoryProblem(Generic[Array]):
             else self._start.start(param)
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        self._integrator.solve(start, self._times, store)
+        self._integrator.solve(start, GivenSizes.from_times(self._times), store)
         return store
 
     def value(self, samples: Array) -> Array:

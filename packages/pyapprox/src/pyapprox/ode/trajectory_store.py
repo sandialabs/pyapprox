@@ -15,10 +15,15 @@ argument must never be appended.
 A store also keeps each step's unknown :math:`u_n` (the stage values the
 step solved for) with the state it produced, so a sweep can rebuild step
 :math:`n`'s :class:`~pyapprox.ode.stepper_derivatives.StepWindow`: the
-step's time and size, the stored states it read, its unknown, and the
-parameter version it was taken at. Sweeps ask for windows in reverse
-step order, which lets a checkpointing store recompute instead of
-holding every step.
+step's span, the stored states it read, its unknown, and the parameter
+version it was taken at. Sweeps ask for windows in reverse step order,
+which lets a checkpointing store recompute instead of holding every step.
+
+A store keeps the initial time and each step's size, and derives the
+times from them (see :mod:`pyapprox.ode.step_span`): the initial state is
+appended at its time, every later state with the step that produced it,
+so a window's span is rebuilt from the recorded sizes and never from a
+difference of times.
 
 A time integrator only writes, so it takes a
 :class:`TrajectorySinkProtocol`; a store is a sink that also reads back.
@@ -28,6 +33,7 @@ serves a solve that needs no sweep.
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import BlockVector
@@ -41,27 +47,28 @@ class TrajectorySinkProtocol(Protocol, Generic[V]):
     store, and all a time integrator needs.
 
     A sink need not keep what it receives: one accumulating a functional
-    of the states as they arrive keeps no states at all. Times arrive
-    strictly increasing.
+    of the states as they arrive keeps no states at all. It receives the
+    initial state at its time, then each step, the step's span starting
+    where the last one ended.
     """
 
     def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
-        """Add ``state`` at ``time``, later than every time received, with
-        the value the state constraint was applied to, when there is
-        one."""
+        """Add the initial state at ``time``, with the value the state
+        constraint was applied to, when there is one."""
         ...
 
     def append_step(
         self,
-        time: float,
+        span: StepSpan,
         state: V,
         unknown: BlockVector[V],
         parameters_version: int,
         unconstrained: Optional[V] = None,
     ) -> None:
-        """Add the state a step produced at ``time``, with the step's
-        unknown, the parameter version it was taken at and the value the
-        state constraint was applied to, when there is one."""
+        """Add the state a step over ``span`` produced, at ``span.end()``,
+        with the step's unknown, the parameter version it was taken at and
+        the value the state constraint was applied to, when there is
+        one."""
         ...
 
     def ntimes(self) -> int:
@@ -78,7 +85,8 @@ class TrajectoryStoreProtocol(TrajectorySinkProtocol[V], Protocol[V]):
     """
 
     def times(self) -> tuple[float, ...]:
-        """Every stored time, in order."""
+        """Every stored time, in order, derived from the initial time and
+        the step sizes."""
         ...
 
     def time(self, index: int) -> float:
@@ -106,61 +114,73 @@ class TrajectoryStoreProtocol(TrajectorySinkProtocol[V], Protocol[V]):
 
 
 class InMemoryTrajectoryStore(Generic[V]):
-    """A trajectory held in memory as lists of times and states.
+    """A trajectory held in memory: the initial time, the step sizes, the
+    states and each step's unknown.
 
     Satisfies :class:`TrajectoryStoreProtocol` for any vector type.
 
     Raises
     ------
     ValueError
-        From :meth:`append`, if the time does not exceed the last stored
-        time.
+        From :meth:`append`, if the store is not empty; from
+        :meth:`append_step`, if it is, or the step does not start at the
+        last stored time.
     IndexError
         From :meth:`time`, :meth:`state` and :meth:`window`, for an index
         out of range.
     """
 
     def __init__(self) -> None:
+        # The times are derived: the initial time, then each step's end
+        # (its start plus its size), kept so they are computed once.
         self._times: list[float] = []
+        self._sizes: list[float] = []
         self._states: list[V] = []
-        # Step n's unknown and parameter version, aligned with the steps
-        # (state n + 1); None for a state appended without a step.
-        self._steps: list[Optional[tuple[BlockVector[V], int]]] = []
+        # Step n's unknown and parameter version, aligned with the steps.
+        self._steps: list[tuple[BlockVector[V], int]] = []
         # The value the constraint was applied to, aligned with the
         # states; None where the state was appended without one.
         self._unconstrained: list[Optional[V]] = []
 
     def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
-        if self._times and not time > self._times[-1]:
-            raise ValueError(
-                f"times must strictly increase: {time} after {self._times[-1]}"
-            )
         if self._times:
-            self._steps.append(None)
+            raise ValueError(
+                "only the initial state is appended at a time; every later state "
+                "comes with its step (append_step)"
+            )
         self._times.append(float(time))
         self._states.append(state)
         self._unconstrained.append(unconstrained)
 
     def append_step(
         self,
-        time: float,
+        span: StepSpan,
         state: V,
         unknown: BlockVector[V],
         parameters_version: int,
         unconstrained: Optional[V] = None,
     ) -> None:
-        """Add the state a step produced, with the step's unknown.
+        """Add the state a step over ``span`` produced, with the step's
+        unknown.
 
         Raises
         ------
         ValueError
             If the store is empty (a step starts from a stored state) or
-            ``time`` does not exceed the last stored time.
+            the span does not start at the last stored time.
         """
         if not self._times:
             raise ValueError("a step starts from a stored state; append one first")
-        self.append(time, state, unconstrained)
-        self._steps[-1] = (unknown, parameters_version)
+        if span.time() != self._times[-1]:
+            raise ValueError(
+                f"the step starts at {span.time()}, not at the last stored time "
+                f"{self._times[-1]}"
+            )
+        self._sizes.append(span.deltat())
+        self._times.append(span.end())
+        self._states.append(state)
+        self._unconstrained.append(unconstrained)
+        self._steps.append((unknown, parameters_version))
 
     def nsteps(self) -> int:
         return len(self._steps)
@@ -181,24 +201,22 @@ class InMemoryTrajectoryStore(Generic[V]):
         IndexError
             If ``step`` is out of range.
         ValueError
-            If the step was recorded without its unknown, or fewer than
-            ``depth`` states precede it.
+            If fewer than ``depth`` states precede it.
         """
         if not -len(self._steps) <= step < len(self._steps):
             raise IndexError(f"step {step} is out of range for {self.nsteps()} steps")
         step = step % len(self._steps)
-        recorded = self._steps[step]
-        if recorded is None:
-            raise ValueError(f"step {step} was recorded without its unknown")
         if depth > step + 1:
             raise ValueError(
                 f"step {step} is preceded by {step + 1} states, not {depth}"
             )
-        unknown, version = recorded
+        unknown, version = self._steps[step]
         past = tuple(self._states[step - lag] for lag in range(depth))
-        # One time per lag: the step's end, then each past state's.
-        times = tuple(self._times[step + 1 - lag] for lag in range(depth + 1))
-        return StepWindow(times, past, unknown, version)
+        # From the oldest state read, by the recorded sizes: the same
+        # additions that made the stored times.
+        oldest = step + 1 - depth
+        span = StepSpan(self._times[oldest], tuple(self._sizes[oldest : step + 1]))
+        return StepWindow(span, past, unknown, version)
 
     def ntimes(self) -> int:
         return len(self._times)

@@ -1,10 +1,12 @@
 """A sink passing each stored state to an accumulator.
 
-- States reach the accumulator in order with their index and time, from
-  ``append`` and ``append_step`` alike (a step's unknown is not passed);
-  the sink keeps none of them and reports the accumulator's value.
+- States reach the accumulator in order with their index and time, the
+  initial one from ``append`` and the others from ``append_step`` at their
+  span's end (a step's unknown is not passed); the sink keeps none of
+  them and reports the accumulator's value.
 - It satisfies the sink and accumulating-sink protocols, not the store's.
-- Refusals: a time that does not increase, and an accumulator that does
+- Refusals: a step before the initial state, a second initial state, a
+  step not starting where the last ended, and an accumulator that does
   not satisfy its protocol.
 
 A sink passing everything to several sinks: each receives every state in
@@ -22,6 +24,7 @@ from pyapprox.ode.accumulating_sink import (
     PerStateSink,
     StateAccumulatorProtocol,
 )
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.trajectory_store import (
     TrajectorySinkProtocol,
     TrajectoryStoreProtocol,
@@ -51,8 +54,8 @@ class TestPerStateSink:
         states = [bkd.asarray([[float(n)], [2.0 * n]]) for n in range(3)]
         sink.append(0.0, states[0])
         unknown = BlockVector((bkd.asarray([[9.0], [9.0]]),))
-        sink.append_step(0.1, states[1], unknown, 0)
-        sink.append_step(0.3, states[2], unknown, 0)
+        sink.append_step(StepSpan.from_times((0.0, 0.1)), states[1], unknown, 0)
+        sink.append_step(StepSpan.from_times((0.1, 0.3)), states[2], unknown, 0)
         assert sink.ntimes() == 3
         assert sink.value() == 3
         for n, (index, time, state) in enumerate(recording.received):
@@ -68,9 +71,14 @@ class TestPerStateSink:
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         sink: PerStateSink[Array, int] = PerStateSink(_Recording())
-        sink.append(0.5, bkd.asarray([[1.0]]))
-        with pytest.raises(ValueError, match="strictly increase"):
-            sink.append(0.5, bkd.asarray([[1.0]]))
+        state, unknown = bkd.asarray([[1.0]]), BlockVector((bkd.asarray([[1.0]]),))
+        with pytest.raises(ValueError, match="append one first"):
+            sink.append_step(StepSpan.from_times((0.5, 1.0)), state, unknown, 0)
+        sink.append(0.5, state)
+        with pytest.raises(ValueError, match="only the initial state"):
+            sink.append(1.0, state)
+        with pytest.raises(ValueError, match="not where the last one ended"):
+            sink.append_step(StepSpan.from_times((0.25, 1.0)), state, unknown, 0)
         with pytest.raises(TypeError, match="StateAccumulatorProtocol"):
             PerStateSink(object())  # type: ignore[arg-type]
 
@@ -88,8 +96,8 @@ class TestMultiSink:
         states = [bkd.asarray([[float(n)]]) for n in range(3)]
         multi.append(0.0, states[0])
         unknown = BlockVector((bkd.asarray([[9.0]]),))
-        multi.append_step(0.1, states[1], unknown, 0)
-        multi.append_step(0.2, states[2], unknown, 0)
+        multi.append_step(StepSpan.from_times((0.0, 0.1)), states[1], unknown, 0)
+        multi.append_step(StepSpan.from_times((0.1, 0.2)), states[2], unknown, 0)
         assert multi.ntimes() == 3
         for recording in (first, second):
             assert [state for *_, state in recording.received] == states

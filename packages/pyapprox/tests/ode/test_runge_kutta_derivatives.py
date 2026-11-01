@@ -32,6 +32,7 @@ from typing import Callable
 import pytest
 
 from pyapprox.ode.mass_form_system import dense_mass_form_system
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import ButcherTableau, backward_euler, forward_euler
 from pyapprox.util.backends.protocols import Array, Backend
@@ -116,8 +117,8 @@ class TestStepMap:
         tableau, deltat = make(), 0.1
         stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
         state = bkd.asarray([[1.0], [-0.5], [2.0]])
-        times = (0.3 + deltat, 0.3)
-        window = StepWindow(times, (state,), stepper.step((state,), times))
+        span = StepSpan.first(0.3, deltat)
+        window = StepWindow(span, (state,), stepper.step((state,), span))
         derivs = stepper.derivatives()
         assert derivs.off_diag is not None
         off_diag = derivs.off_diag(window, 1)

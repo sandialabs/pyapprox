@@ -2,13 +2,15 @@ r"""Reuse of stage factorizations within one solve, on a Galerkin problem.
 
 1D heat equation on [0, 1], P1 on 10 cells, forcing (1 + x)(1 + sin 5t),
 u(0) = 0 and a moving right end 0.5 sin 4t (its rate supplied), from
-0.3 sin(pi x), 20 steps of dt = 2^-10, Newton tolerance 1e-13, the
-essential rows pinned in each step's last block. With the diffusivity
-:math:`\kappa = 1 + x` declared time-independent the Jacobian is constant
-though the forcing and the boundary move, so one solve factors each
-distinct stage operator once: backward Euler and Crank-Nicolson once,
-SDIRK3 twice (its unpinned stages share one operator, its pinned last
-stage is another). With :math:`\kappa = (1 + t)(1 + x)` declared
+0.3 sin(pi x), 20 steps of dt = 0.001 to T = 0.02 (``FixedStep``: the
+sizes are given exactly, the last one landing on T), Newton tolerance
+1e-13, the essential rows pinned in each step's last block. With the
+diffusivity :math:`\kappa = 1 + x` declared time-independent the Jacobian
+is constant though the forcing and the boundary move, so one solve
+factors each distinct stage operator once per distinct step size (two:
+0.001, and the last step's): backward Euler and Crank-Nicolson twice,
+SDIRK3 four times (its unpinned stages share one operator, its pinned
+last stage is another). With :math:`\kappa = (1 + t)(1 + x)` declared
 time-dependent, every implicit stage is factored afresh. A second solve
 opens a new session and factors again, and the reused trajectory equals
 the one stepped without reuse to round-off.
@@ -29,6 +31,8 @@ from numpy.typing import NDArray
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import RowPinning
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.tableau import (
     ButcherTableau,
     alexander_sdirk3,
@@ -64,11 +68,10 @@ from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
 
 _Np = NDArray[Any]
-# A power of two, so every t_{n+1} - t_n is exactly _DELTAT: the steppers
-# still take a step's size from its times, and a step size that differs in
-# its last bits labels a different operator.
-_DELTAT, _NSTEPS = 2.0**-10, 20
-_TIMES = [_DELTAT * n for n in range(_NSTEPS + 1)]
+_DELTAT, _NSTEPS = 0.001, 20
+# Steps of exactly 0.001: the size is given, not recovered from times
+# (0.001 n would give four different sizes in 20 steps).
+_STEPS = FixedStep(_DELTAT, (0.0, _NSTEPS * _DELTAT))
 
 
 def _forcing(x: _Np, t: float) -> _Np:
@@ -161,15 +164,19 @@ class _Run:
     def solve(self) -> List[_Np]:
         """The stored states of one solve."""
         store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
-        Integrator(self.stepper).solve(self.init_state, _TIMES, store)
+        Integrator(self.stepper).solve(self.init_state, _STEPS, store)
         return [store.state(n) for n in range(store.ntimes())]
 
     def step_without_reuse(self) -> List[_Np]:
-        """The states stepped one bare step at a time: a session each, so
-        nothing is reused between steps."""
+        """The states stepped one bare step at a time, over the same spans:
+        a session each, so nothing is reused between steps."""
         states = [self.init_state]
+        sizes = _STEPS.sizes()
+        span = StepSpan.first(_STEPS.origin(), sizes[0])
         for n in range(_NSTEPS):
-            unknown = self.stepper.step((states[-1],), (_TIMES[n + 1], _TIMES[n]))
+            if n > 0:
+                span = span.advanced(sizes[n], 1)
+            unknown = self.stepper.step((states[-1],), span)
             states.append(self.stepper.readout().apply(unknown).blocks[0])
         return states
 
@@ -190,11 +197,16 @@ class TestFactorizationReuse:
         make: Callable[[], ButcherTableau],
         distinct: int,
     ) -> None:
+        # The last step lands exactly on 0.02, absorbing the drift of the
+        # summed times, so it has a size of its own: each distinct stage
+        # operator is factored once for 0.001 and once for the last step.
+        assert len(set(_STEPS.sizes())) == 2
+        per_solve = 2 * distinct
         run = _Run(numpy_bkd, make, _CONSTANT)
         reused = run.solve()
-        assert run.lu.setups() == distinct
+        assert run.lu.setups() == per_solve
         run.solve()
-        assert run.lu.setups() == 2 * distinct
+        assert run.lu.setups() == 2 * per_solve
         before = run.lu.setups()
         fresh = run.step_without_reuse()
         # A bare step reuses within itself only.

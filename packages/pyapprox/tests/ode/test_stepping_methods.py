@@ -41,7 +41,7 @@ from tests._helpers.ode.runge_kutta_cases import (
     TABLEAUX,
     lotka_volterra_with_mass,
 )
-from tests._helpers.ode.trajectory_cases import TIMES, Method, make_stepper
+from tests._helpers.ode.trajectory_cases import STEPS, Method, make_stepper
 
 
 def _method(method: Method, tight: bool) -> SteppingMethodProtocol[Array, Array]:
@@ -56,7 +56,7 @@ def _method(method: Method, tight: bool) -> SteppingMethodProtocol[Array, Array]
 
 def _trajectory(bkd: Backend[Array], stepper: StepperProtocol[Array, Array]) -> Array:
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-    Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), TIMES, store)
+    Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), STEPS, store)
     return bkd.hstack([store.state(n) for n in range(store.ntimes())])
 
 

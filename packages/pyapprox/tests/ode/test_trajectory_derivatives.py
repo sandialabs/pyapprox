@@ -119,7 +119,7 @@ from tests._helpers.ode.trajectory_cases import (
     MULTISTEP,
     SOME_IDS,
     SOME_METHODS,
-    TIMES,
+    STEPS,
     CurvedPin,
     Method,
     ScaledStart,
@@ -852,7 +852,7 @@ def _mock_problem(
         if pin is not None:
             pin.set_param(param)
         store: InMemoryTrajectoryStore[MockVector] = InMemoryTrajectoryStore()
-        Integrator(stepper, pin).solve(wrap(start.copy(), MOCK_STATE), TIMES, store)
+        Integrator(stepper, pin).solve(wrap(start.copy(), MOCK_STATE), STEPS, store)
         return store
 
     return stepper, solve
@@ -1075,7 +1075,7 @@ class TestRefusals:
     def test_a_stepper_without_parameters(self, bkd: Backend[Array]) -> None:
         stepper = rk_stepper(heun(), dense_mass_form_system(LinearMassModel(bkd)))
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(bkd.ones((3, 1)), TIMES, store)
+        Integrator(stepper).solve(bkd.ones((3, 1)), STEPS, store)
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(stepper)
         functional = _ZeroFunctional(bkd)
         with pytest.raises(TypeError, match="no parameter"):

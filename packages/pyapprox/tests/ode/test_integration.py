@@ -12,7 +12,8 @@ A constraint is applied at the stored states only: a pin of the second
 component to 3 holds at every stored state, initial state included,
 while the recorded unknowns, where the steps are linearized, are left
 as solved. The identity constraint through the residual form changes
-nothing. Malformed times and a non-empty store are refused.
+nothing. Malformed grids are refused by the step plan; a non-plan and a
+non-empty store by the integrator.
 """
 
 from typing import Callable, Generic, List, Optional
@@ -37,6 +38,7 @@ from pyapprox.ode.protocols import TimeSteppingResidualProtocol
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.state_constraint import IdentityConstraint
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.tableau import (
     ButcherTableau,
     backward_euler,
@@ -59,6 +61,8 @@ from tests._helpers.ode.runge_kutta_cases import (
 )
 
 _TIMES = [0.05 * n for n in range(11)]
+# The old path's grid, exactly: the sizes are the times' differences.
+_STEPS = GivenSizes.from_times(_TIMES)
 _START = [[10.0], [5.0]]
 
 # The old path's stepper class for each tableau, for the same method.
@@ -77,7 +81,7 @@ def _new_trajectory(
 ) -> InMemoryTrajectoryStore[Array]:
     stepper = rk_stepper(tableau, dense_mass_form_system(lotka_volterra_with_mass(bkd)))
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-    Integrator(stepper).solve(bkd.asarray(_START), _TIMES, store)
+    Integrator(stepper).solve(bkd.asarray(_START), _STEPS, store)
     return store
 
 
@@ -120,12 +124,14 @@ class TestRecordedWindows:
             tableau, dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(bkd.asarray(_START), times, store)
+        Integrator(stepper).solve(
+            bkd.asarray(_START), GivenSizes.from_times(times), store
+        )
         assert store.nsteps() == len(times) - 1
         assert store.times() == tuple(times)
         for n in range(store.nsteps()):
             window = store.window(n)
-            assert window.times == (times[n + 1], times[n])
+            assert window.span.times() == (times[n], times[n + 1])
             residual = stepper.residual_space().norm(stepper.step_residual(window))
             assert bkd.to_float(residual[0, 0]) < 1e-10
             stepped = stepper.readout().apply(window.unknown).blocks[0]
@@ -150,7 +156,7 @@ class TestConstraint:
             backward_euler(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper, pin).solve(bkd.asarray(_START), _TIMES, store)
+        Integrator(stepper, pin).solve(bkd.asarray(_START), _STEPS, store)
         for n in range(store.ntimes()):
             assert bkd.to_float(store.state(n)[1, 0]) == 3.0
         unknowns = [store.window(n).unknown.blocks[0] for n in range(store.nsteps())]
@@ -167,7 +173,7 @@ class TestConstraint:
             IdentityConstraint(states, params), BackendColumnForm(bkd)
         )
         constrained: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper, identity).solve(bkd.asarray(_START), _TIMES, constrained)
+        Integrator(stepper, identity).solve(bkd.asarray(_START), _STEPS, constrained)
         plain = _new_trajectory(bkd, heun())
         for n in range(plain.ntimes()):
             bkd.assert_allclose(constrained.state(n), plain.state(n), rtol=0.0)
@@ -202,7 +208,7 @@ class TestSinks:
         stepper = rk_stepper(
             heun(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
-        Integrator(stepper).solve(bkd.asarray(_START), _TIMES, sink)
+        Integrator(stepper).solve(bkd.asarray(_START), _STEPS, sink)
         store = _new_trajectory(bkd, heun())
         expected = bkd.reshape(
             bkd.sum(weight.T @ trajectory_array(store, bkd)), (1, 1)
@@ -212,20 +218,24 @@ class TestSinks:
 
 
 class TestRefusals:
-    def test_times_and_store(self, bkd: Backend[Array]) -> None:
+    def test_steps_and_store(self, bkd: Backend[Array]) -> None:
+        """Malformed grids are refused by the plan, before any solve; the
+        integrator refuses a non-plan and a non-empty store."""
         stepper = rk_stepper(
             forward_euler(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
         integrator = Integrator(stepper)
         start = bkd.asarray(_START)
         with pytest.raises(ValueError, match="at least two"):
-            integrator.solve(start, [0.0], InMemoryTrajectoryStore())
-        with pytest.raises(ValueError, match="strictly increase"):
-            integrator.solve(start, [0.0, 0.1, 0.1], InMemoryTrajectoryStore())
+            GivenSizes.from_times([0.0])
+        with pytest.raises(ValueError, match="does not advance"):
+            GivenSizes.from_times([0.0, 0.1, 0.1])
+        with pytest.raises(TypeError, match="StepPlanProtocol"):
+            integrator.solve(start, [0.0, 0.1], InMemoryTrajectoryStore())  # type: ignore[arg-type]
         used: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         used.append(0.0, start)
         with pytest.raises(ValueError, match="must be empty"):
-            integrator.solve(start, [0.0, 0.1], used)
+            integrator.solve(start, GivenSizes.from_times([0.0, 0.1]), used)
 
     def test_a_non_stepper_is_refused(self) -> None:
         with pytest.raises(TypeError, match="ForwardStepperProtocol"):

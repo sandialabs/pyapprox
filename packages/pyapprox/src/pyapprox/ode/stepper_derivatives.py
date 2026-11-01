@@ -36,8 +36,9 @@ form, where it calls the residual.
 """
 
 from dataclasses import dataclass
-from typing import Callable, FrozenSet, Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Callable, FrozenSet, Generic, Optional, Tuple, TypeVar
 
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     BlockVector,
@@ -52,29 +53,26 @@ StepOperator = ActionOperatorProtocol[BlockVector[V], FormatProtocol]
 """An operator between spaces of a step: block vectors, any format."""
 
 
-def check_step_times(times: Sequence[float], nstates: int) -> None:
-    """Check a step's times against the stored states it reads.
+def check_step_span(span: StepSpan, nstates: int) -> None:
+    """Check a step's span against the stored states it reads.
 
     Parameters
     ----------
-    times : sequence of float
-        :math:`(t_{n+1}, t_n, \\dots)`, one per lag.
+    span : StepSpan
+        The step's sizes and times, one size per state read.
     nstates : int
         The number of stored states the step reads.
 
     Raises
     ------
     ValueError
-        If there is not one time per lag (``nstates + 1``), or the times do
-        not strictly decrease.
+        If the span does not have one size per state read.
     """
-    if len(times) != nstates + 1:
+    if len(span.sizes) != nstates:
         raise ValueError(
-            f"a step reading {nstates} stored states needs {nstates + 1} times "
-            f"(t_{{n+1}}, t_n, ...), got {len(times)}"
+            f"a step reading {nstates} stored states needs a span with "
+            f"{nstates} sizes, got {len(span.sizes)}"
         )
-    if any(not later > earlier for later, earlier in zip(times, times[1:])):
-        raise ValueError(f"step times must strictly decrease, got {tuple(times)}")
 
 
 @dataclass(frozen=True)
@@ -87,12 +85,10 @@ class StepWindow(Generic[V]):
 
     Parameters
     ----------
-    times : tuple of float
-        One time per lag, most recent first: :math:`(t_{n+1}, t_n,
-        t_{n-1}, \\dots)`, lag 0 the step's end and lag :math:`l \\ge 1`
-        the time of the stored state :math:`y_{n+1-l}`. The step's sizes
-        come from these alone, so steps of different sizes are described
-        exactly.
+    span : StepSpan
+        The step's size and the time of every lag, exactly: lag 0 the
+        step's end and lag :math:`l \\ge 1` the time of the stored state
+        :math:`y_{n+1-l}` (see :mod:`pyapprox.ode.step_span`).
     past_states : tuple of V
         The stored states the step reads, most recent first:
         :math:`(y_n, y_{n-1}, \\dots)`, each a single-column vector of the
@@ -106,30 +102,29 @@ class StepWindow(Generic[V]):
     Raises
     ------
     ValueError
-        If there is not one time per lag (one more than the past states),
-        or the times do not strictly decrease.
+        If the span does not have one size per past state.
     """
 
-    times: Tuple[float, ...]
+    span: StepSpan
     past_states: Tuple[V, ...]
     unknown: BlockVector[V]
     parameters_version: int = 0
 
     def __post_init__(self) -> None:
-        check_step_times(self.times, len(self.past_states))
+        check_step_span(self.span, len(self.past_states))
 
     def time(self) -> float:
         """:math:`t_n`, the start of the step."""
-        return self.times[1]
+        return self.span.time()
 
     def deltat(self) -> float:
-        """:math:`t_{n+1} - t_n`, the step's size."""
-        return self.times[0] - self.times[1]
+        """:math:`h_n`, the step's size, as given."""
+        return self.span.deltat()
 
     def lag_time(self, lag: int) -> float:
         """:math:`t_{n+1-\\mathrm{lag}}`: the step's end at lag 0, the
         time of the stored state of that lag otherwise."""
-        return self.times[lag]
+        return self.span.lag_time(lag)
 
     def past_state(self, lag: int) -> V:
         """:math:`y_{n+1-\\mathrm{lag}}`, for ``lag`` at least 1.

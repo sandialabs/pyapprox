@@ -16,6 +16,7 @@ derivative checker) measures and compares step vectors on any stack;
 
 from typing import Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
@@ -42,9 +43,7 @@ class StepSessionProtocol(Protocol[V]):
     the parameters it was opened at.
     """
 
-    def step(
-        self, past_states: Sequence[V], times: Sequence[float]
-    ) -> BlockVector[V]:
+    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step, as :meth:`ForwardStepperProtocol.step`."""
         ...
 
@@ -62,17 +61,14 @@ class ForwardStepperProtocol(Protocol[V]):
         other."""
         ...
 
-    def step(
-        self, past_states: Sequence[V], times: Sequence[float]
-    ) -> BlockVector[V]:
+    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step from the stored states it reads, most recent
         first (single columns of the state space): the stepper's depth of
-        them, or all there are at a startup step. ``times`` has one entry
-        per lag, :math:`(t_{n+1}, t_n, t_{n-1}, \\dots)`, as in
-        :class:`~pyapprox.ode.stepper_derivatives.StepWindow`, so steps of
-        different sizes are described exactly. Returns the step's
-        unknown. A session of this one step: nothing is reused from or
-        for another call."""
+        them, or all there are at a startup step. ``span`` gives the
+        step's size and the time of every lag exactly (see
+        :class:`~pyapprox.ode.step_span.StepSpan`), one size per state
+        read. Returns the step's unknown. A session of this one step:
+        nothing is reused from or for another call."""
         ...
 
     def readout(self) -> StepOperator[V]:

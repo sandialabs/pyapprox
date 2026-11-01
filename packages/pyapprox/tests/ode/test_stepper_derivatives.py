@@ -1,7 +1,8 @@
 """The step window, the stepper derivatives bundle and the residual form.
 
-The window returns its past states by lag and refuses lags it does not
-hold. The named constructors fill exactly their tier, and the bundle
+The window returns its past states by lag, and its times and size from
+its span exactly, and refuses lags it does not hold and a span without
+one size per past state. The named constructors fill exactly their tier, and the bundle
 refuses a partial or inconsistent declaration: parameters without the
 state coupling, part of the second order, second order without
 parameters, lag declarations without second order, a lag pair without
@@ -19,6 +20,7 @@ from pyapprox.ode.residual_form import (
     IdentityForm,
     ResidualFormProtocol,
 )
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
@@ -30,7 +32,7 @@ from pyapprox.util.linalg.operators import BlockVector
 
 def _window(bkd: Backend[Array]) -> StepWindow[Array]:
     return StepWindow(
-        times=(0.3, 0.2, 0.1),
+        span=StepSpan(0.25, (0.25, 0.5)),
         past_states=(bkd.asarray([[1.0], [2.0]]), bkd.asarray([[3.0], [4.0]])),
         unknown=BlockVector((bkd.asarray([[5.0], [6.0]]),)),
     )
@@ -83,25 +85,17 @@ class TestStepWindow:
 
     def test_times_by_lag(self, bkd: Backend[Array]) -> None:
         window = _window(bkd)
-        assert window.time() == 0.2
-        assert window.deltat() == pytest.approx(0.1, abs=1e-15)
-        assert [window.lag_time(lag) for lag in range(3)] == [0.3, 0.2, 0.1]
+        assert window.time() == 0.5
+        assert window.deltat() == 0.5
+        assert [window.lag_time(lag) for lag in range(3)] == [1.0, 0.5, 0.25]
 
-    @pytest.mark.parametrize(
-        "times, match",
-        [
-            ((0.3, 0.2), "needs 3 times"),
-            ((0.3, 0.2, 0.1, 0.0), "needs 3 times"),
-            ((0.3, 0.3, 0.1), "strictly decrease"),
-            ((0.1, 0.2, 0.3), "strictly decrease"),
-        ],
-    )
-    def test_refuses_times_that_do_not_fit(
-        self, bkd: Backend[Array], times: tuple[float, ...], match: str
+    @pytest.mark.parametrize("sizes", [(0.5,), (0.25, 0.25, 0.5)])
+    def test_refuses_a_span_that_does_not_fit(
+        self, bkd: Backend[Array], sizes: tuple[float, ...]
     ) -> None:
         window = _window(bkd)
-        with pytest.raises(ValueError, match=match):
-            StepWindow(times, window.past_states, window.unknown)
+        with pytest.raises(ValueError, match="needs a span with 2 sizes"):
+            StepWindow(StepSpan(0.0, sizes), window.past_states, window.unknown)
 
 
 class TestNamedConstructors:

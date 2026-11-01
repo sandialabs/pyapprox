@@ -14,6 +14,7 @@ from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.protocols import StepperProtocol
 from pyapprox.ode.residual_form import BackendColumnForm
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
@@ -43,7 +44,9 @@ class TrajectoryMatchingLoss(Generic[Array]):
     method : SteppingMethodProtocol
         The time-stepping method, bound to ``wrapper``'s system.
     times : sequence of float
-        The step boundaries :math:`t_0 < \\dots < t_N`.
+        The step boundaries :math:`t_0 < \\dots < t_N`, the observations'
+        stored times; they must determine their step sizes exactly (see
+        :meth:`~pyapprox.ode.step_plan.GivenSizes.from_times`).
     init_states : Array
         Initial states for batched trajectories. Shape: (n_dynamic*k,)
     obs_tuples : List[Tuple[int, Array]]
@@ -77,7 +80,7 @@ class TrajectoryMatchingLoss(Generic[Array]):
             )
         self._wrapper = wrapper
         self._bkd = wrapper.bkd()
-        self._times = list(times)
+        self._steps = GivenSizes.from_times(times)
         # The steppers take states as single columns.
         self._init_states = self._bkd.reshape(init_states, (-1, 1))
         self._stepper: StepperProtocol[Array, Array] = method.stepper(
@@ -122,7 +125,7 @@ class TrajectoryMatchingLoss(Generic[Array]):
         """The trajectory at parameters ``sample`` (shape (nparams, 1))."""
         self._wrapper.set_param(sample[:, 0])
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(self._stepper).solve(self._init_states, self._times, store)
+        Integrator(self._stepper).solve(self._init_states, self._steps, store)
         return store
 
     def __call__(self, samples: Array) -> Array:

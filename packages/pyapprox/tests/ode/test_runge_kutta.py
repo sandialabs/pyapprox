@@ -35,6 +35,7 @@ from numpy.typing import NDArray
 
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import (
     ButcherTableau,
@@ -153,7 +154,7 @@ class TestLinearStep:
         tableau = make()
         stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
         y = np.array([1.0, -0.5, 2.0])
-        unknown = stepper.step((bkd.asarray(y[:, None]),), (0.4, 0.3))
+        unknown = stepper.step((bkd.asarray(y[:, None]),), StepSpan.first(0.3, 0.1))
         bkd.assert_allclose(
             new_state(stepper, unknown)[:, 0],
             bkd.asarray(_closed_form_step(tableau, y, 0.1)),
@@ -169,7 +170,7 @@ class TestLinearStep:
         model = _CountingLinear(bkd)
         stepper = rk_stepper(make(), dense_mass_form_system(model))
         assert stepper.system().is_affine()
-        stepper.step((bkd.asarray([[1.0], [-0.5], [2.0]]),), (0.4, 0.3))
+        stepper.step((bkd.asarray([[1.0], [-0.5], [2.0]]),), StepSpan.first(0.3, 0.1))
         assert model.nevals == nevals
 
     def test_an_implicit_tableau_needs_a_nonlinear_solver(
@@ -190,8 +191,9 @@ class TestNonlinearStep:
             make(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
         y = bkd.asarray([[10.0], [5.0]])
-        unknown = stepper.step((y,), (0.25, 0.2))
-        window = StepWindow((0.25, 0.2), (y,), unknown)
+        span = StepSpan.first(0.2, 0.05)
+        unknown = stepper.step((y,), span)
+        window = StepWindow(span, (y,), unknown)
         residual = stepper.residual_space().norm(stepper.step_residual(window))
         assert bkd.to_float(residual[0, 0]) < 1e-10
 
@@ -209,8 +211,8 @@ class TestNonlinearStep:
             y = bkd.asarray([[10.0], [5.0]])
             nsteps = round(0.2 / deltat)
             for n in range(nsteps):
-                times = ((n + 1) * deltat, n * deltat)
-                y = new_state(stepper, stepper.step((y,), times))
+                span = StepSpan.first(n * deltat, deltat)
+                y = new_state(stepper, stepper.step((y,), span))
             return y
 
         reference = solve(classical_rk4(), 0.2 / 1600)
@@ -230,7 +232,7 @@ class TestOnAnOpaqueStack:
         tableau = make()
         stepper = mock_stepper(tableau)
         y = np.array([[1.0], [-0.5], [2.0]])
-        unknown = stepper.step((wrap(y, MOCK_STATE),), (0.1, 0.0))
+        unknown = stepper.step((wrap(y, MOCK_STATE),), StepSpan.first(0.0, 0.1))
         k = np.array(LINEAR_K)
         expected = (
             y + 0.1 * k @ y

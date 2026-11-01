@@ -55,6 +55,7 @@ from pyapprox.ode.protocols import StateConstraintProtocol
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.ode.tableau import (
     ButcherTableau,
@@ -264,7 +265,9 @@ class _Paths:
             )
         self._store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
         Integrator(self._stepper, constraint).solve(
-            bkd.reshape(bkd.asarray(heat.init_state), (-1, 1)), times, self._store
+            bkd.reshape(bkd.asarray(heat.init_state), (-1, 1)),
+            GivenSizes.from_times(times),
+            self._store,
         )
         self._sweeps: TrajectoryDerivatives[_Np, _Np] = TrajectoryDerivatives(
             self._stepper, constraint, ResidualInitialState(adapter, form)

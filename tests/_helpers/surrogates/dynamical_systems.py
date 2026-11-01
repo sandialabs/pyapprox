@@ -10,6 +10,7 @@ import math
 from typing import List, Tuple
 
 from pyapprox.ode.integration import Integrator
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
@@ -47,10 +48,13 @@ def solve_batched(
     init_state : Array
         The batched initial state, flat or a single column.
     times : list of float
-        The step boundaries.
+        The step boundaries; they must determine their sizes exactly (see
+        :meth:`~pyapprox.ode.step_plan.GivenSizes.from_times`), as the
+        trajectory-matching loss requires of them too.
     """
     bkd = wrapper.bkd()
     stepper = method.stepper(wrapper.mass_form_system())
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-    Integrator(stepper).solve(bkd.reshape(init_state, (-1, 1)), times, store)
-    return trajectory_array(store, bkd), bkd.asarray(times)
+    steps = GivenSizes.from_times(times)
+    Integrator(stepper).solve(bkd.reshape(init_state, (-1, 1)), steps, store)
+    return trajectory_array(store, bkd), bkd.asarray(store.times())

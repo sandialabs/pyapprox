@@ -59,11 +59,12 @@ from pyapprox.ode.multistep_methods import (
     MultistepFormulaProtocol,
 )
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,
     StepWindow,
-    check_step_times,
+    check_step_span,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
@@ -180,11 +181,9 @@ class _MultistepSession(Generic[V, A, F]):
             stepper.system().solver, capacity=2
         )
 
-    def step(
-        self, past_states: Sequence[V], times: Sequence[float]
-    ) -> BlockVector[V]:
+    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`LinearMultistepStepper.step`)."""
-        return self._stepper._step(past_states, times, self._solver)
+        return self._stepper._step(past_states, span, self._solver)
 
 
 class LinearMultistepStepper(Generic[V, A, F]):
@@ -426,35 +425,36 @@ class LinearMultistepStepper(Generic[V, A, F]):
     # The forward step
     # ------------------------------------------------------------------
 
-    def _formula(self, times: Sequence[float]) -> MultistepCoefficients:
-        """The method's formula for a step with these times, checked to
-        have exactly one coefficient pair per lag."""
-        formula = self._method.coefficients_at(times)
-        if len(formula.alpha) != len(times):
+    def _formula(self, span: StepSpan) -> MultistepCoefficients:
+        """The method's formula for a step over ``span``, checked to have
+        exactly one coefficient pair per lag."""
+        lag_times = tuple(reversed(span.times()))
+        formula = self._method.coefficients_at(lag_times)
+        if len(formula.alpha) != span.nlags():
             raise ValueError(
                 f"{self._method.name} gave {len(formula.alpha)} coefficients for "
-                f"a step with {len(times)} lags"
+                f"a step with {span.nlags()} lags"
             )
         return formula
 
     def _known(
         self,
         past_states: Sequence[V],
-        times: Sequence[float],
+        span: StepSpan,
         formula: MultistepCoefficients,
     ) -> V:
         r""":math:`k = \sum_{l \ge 1} (\alpha_l M y_{n+1-l} - \Delta t\,
-        \beta_l f(y_{n+1-l}, t_{n+1-l}))`, with :math:`\Delta t = t_{n+1} -
-        t_n`."""
+        \beta_l f(y_{n+1-l}, t_{n+1-l}))`, with :math:`\Delta t = h_n`, the
+        span's own size."""
         space, mass = self._system.space, self._system.mass
-        deltat = times[0] - times[1]
+        deltat = span.deltat()
         known = space.zeros()
         for lag, state in enumerate(past_states, start=1):
             alpha, beta = formula.alpha[lag], formula.beta[lag]
             if alpha != 0.0:
                 known = space.axpby(alpha, mass.apply(state), 1.0, known, out=known)
             if beta != 0.0:
-                slope = self.rhs(state, times[lag])
+                slope = self.rhs(state, span.lag_time(lag))
                 known = space.axpby(-deltat * beta, slope, 1.0, known, out=known)
         return known
 
@@ -463,9 +463,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         between them and with no other session."""
         return _MultistepSession(self)
 
-    def step(
-        self, past_states: Sequence[V], times: Sequence[float]
-    ) -> BlockVector[V]:
+    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         r"""Solve step :math:`n` for :math:`y_{n+1}`, as a session of this
         one step (nothing is kept after it).
 
@@ -475,8 +473,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
             :math:`(y_n, y_{n-1}, \dots)`, single columns of the state
             space: the method's depth of them, or fewer at a startup
             step.
-        times : sequence of float
-            :math:`(t_{n+1}, t_n, t_{n-1}, \dots)`, one per lag.
+        span : StepSpan
+            The step's size and the times of its lags, one size per state
+            read.
 
         Returns
         -------
@@ -487,26 +486,26 @@ class LinearMultistepStepper(Generic[V, A, F]):
         ------
         ValueError
             If the number of states is not between 1 and the depth, the
-            times do not match them, or the method's coefficients do not
+            span does not match them, or the method's coefficients do not
             cover these step sizes.
         SolveFailedError
             If the nonlinear solve or a mass solve fails.
         """
-        return self.session().step(past_states, times)
+        return self.session().step(past_states, span)
 
     def _step(
         self,
         past_states: Sequence[V],
-        times: Sequence[float],
+        span: StepSpan,
         linear_solver: CachingSolver[V, F],
     ) -> BlockVector[V]:
         """:meth:`step`, an implicit step's operator set up by
         ``linear_solver``."""
-        check_step_times(times, len(past_states))
-        formula = self._formula(times)
+        check_step_span(span, len(past_states))
+        formula = self._formula(span)
         space = self._system.space
-        known = self._known(past_states, times, formula)
-        new_time, deltat = times[0], times[0] - times[1]
+        known = self._known(past_states, span, formula)
+        new_time, deltat = span.end(), span.deltat()
         if formula.is_explicit():
             # alpha_0 M y_{n+1} = -k
             if self._pin is None:
@@ -537,7 +536,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         return [window.unknown.blocks[0], *window.past_states]
 
     def _window_formula(self, window: StepWindow[V]) -> MultistepCoefficients:
-        return self._formula(window.times)
+        return self._formula(window.span)
 
     def step_residual(self, window: StepWindow[V]) -> BlockVector[V]:
         r""":math:`R_n` at the window's unknown and stored states, at the
@@ -551,7 +550,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
             residual = space.axpby(
                 -window.deltat() * formula.beta[0], slope, 1.0, residual, out=residual
             )
-        known = self._known(window.past_states, window.times, formula)
+        known = self._known(window.past_states, window.span, formula)
         residual = space.axpby(1.0, known, 1.0, residual, out=residual)
         if self._pin is not None:
             # Pinned rows read y_R - g_R(t_{n+1}).

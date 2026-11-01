@@ -33,6 +33,7 @@ from pyapprox.ode.residual_derivatives import (
 )
 from pyapprox.ode.residual_form import IdentityForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.stepper_derivatives_check import StepperBundleChecker
 from pyapprox.ode.tableau import (
@@ -236,8 +237,9 @@ def lotka_volterra_step(
     model.set_param(param)
     stepper = rk_stepper(tableau, dense_mass_form_system(model))
     state = bkd.asarray([[10.0], [5.0]])
-    unknown = stepper.step((state,), (0.25, 0.2))
-    window = StepWindow((0.25, 0.2), (state,), unknown, model.parameters_version())
+    span = StepSpan.from_times((0.2, 0.25))
+    unknown = stepper.step((state,), span)
+    window = StepWindow(span, (state,), unknown, model.parameters_version())
     residual = stepper.residual_space()
     sample = backend_sample(bkd)
     adj = BlockVector(

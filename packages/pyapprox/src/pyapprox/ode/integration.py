@@ -36,7 +36,6 @@ from typing import (
     Generic,
     Optional,
     Protocol,
-    Sequence,
     TypeVar,
     runtime_checkable,
 )
@@ -45,6 +44,7 @@ from pyapprox.ode.protocols import ForwardStepperProtocol, StateConstraintProtoc
 from pyapprox.ode.residual_derivatives import DerivativeOperator, SecondDerivativeFn
 from pyapprox.ode.residual_form import ResidualFormProtocol
 from pyapprox.ode.state_constraint import StateConstraintDerivatives, TangentFn
+from pyapprox.ode.step_plan import StepPlanProtocol
 from pyapprox.ode.trajectory_store import TrajectorySinkProtocol
 from pyapprox.util.backends.protocols import Array
 
@@ -208,37 +208,39 @@ class Integrator(Generic[V]):
     def solve(
         self,
         init_state: V,
-        times: Sequence[float],
+        steps: StepPlanProtocol,
         sink: TrajectorySinkProtocol[V],
     ) -> None:
-        """March from ``init_state`` through ``times``, writing into
-        ``sink``.
+        """March from ``init_state`` through the steps of ``steps``,
+        writing into ``sink``.
 
         Parameters
         ----------
         init_state : V
             :math:`\\hat y_0`, a single column of the state space; it is
             constrained, not modified.
-        times : sequence of float
-            The step boundaries :math:`t_0 < t_1 < \\dots < t_N`, at least
-            two.
+        steps : StepPlanProtocol
+            Which steps to take, from its origin :math:`t_0`; a fresh
+            sequence of them is started for this solve, and it takes each
+            step through this solve's session.
         sink : TrajectorySinkProtocol
-            Empty; receives :math:`y_0, \\dots, y_N` and each step's
-            unknown. A store, for the sweeps to read back; any sink when
-            no sweep follows.
+            Empty; receives :math:`y_0, \\dots, y_N` and each step's span
+            and unknown. A store, for the sweeps to read back; any sink
+            when no sweep follows.
 
         Raises
         ------
+        TypeError
+            If ``steps`` does not satisfy its protocol.
         ValueError
-            If ``times`` has fewer than two entries or does not strictly
-            increase, or ``sink`` is not empty.
+            If ``sink`` is not empty.
         SolveFailedError
-            If a step's solve fails.
+            If a step's solve fails and the plan does not retry it.
         """
-        if len(times) < 2:
-            raise ValueError(f"times needs at least two entries, got {len(times)}")
-        if any(not later > earlier for earlier, later in zip(times, times[1:])):
-            raise ValueError("times must strictly increase")
+        if not isinstance(steps, StepPlanProtocol):
+            raise TypeError(
+                f"steps must satisfy StepPlanProtocol, got {type(steps).__name__}"
+            )
         if sink.ntimes() != 0:
             raise ValueError("the sink must be empty")
         stepper = self._stepper
@@ -246,26 +248,24 @@ class Integrator(Generic[V]):
         # stage operator), which are dropped with it, so nothing reused
         # outlives the parameters the solve ran at.
         session = stepper.session()
+        sequence = steps.start()
         # With a constraint, each stored state is recorded with the value
         # the constraint was applied to, where the sweeps linearize it.
         constrained = self._constraint is not None
-        state = self._constrained(init_state, times[0])
-        sink.append(times[0], state, init_state if constrained else None)
+        origin = steps.origin()
+        state = self._constrained(init_state, origin)
+        sink.append(origin, state, init_state if constrained else None)
         # The states the next step reads, most recent first: the
         # stepper's depth of them once there are that many.
         recent: Deque[V] = deque([state], maxlen=stepper.depth())
-        # Their times, aligned; a step is given these after its own end.
-        recent_times: Deque[float] = deque([times[0]], maxlen=stepper.depth())
-        for next_time in times[1:]:
-            unknown = session.step(tuple(recent), (next_time, *recent_times))
-            readout = stepper.readout().apply(unknown).blocks[0]
-            state = self._constrained(readout, next_time)
+        while (taken := sequence.next_step(session, tuple(recent))) is not None:
+            readout = stepper.readout().apply(taken.unknown).blocks[0]
+            state = self._constrained(readout, taken.span.end())
             recent.appendleft(state)
-            recent_times.appendleft(next_time)
             sink.append_step(
-                next_time,
+                taken.span,
                 state,
-                unknown,
+                taken.unknown,
                 stepper.parameters_version(),
                 readout if constrained else None,
             )
