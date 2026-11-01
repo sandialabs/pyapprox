@@ -17,7 +17,7 @@ point.
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Generic, Optional, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.linearization import (
@@ -111,10 +111,42 @@ class CachingSolver(Generic[V, F_contra]):
         handle = self._inner.setup(op)
         self._setups += 1
         if key is not None:
-            self._handles[key] = handle
-            if len(self._handles) > self._capacity:
-                self._handles.popitem(last=False)
+            self._keep(key, handle)
         return handle
+
+    def setup_keyed(
+        self,
+        key: ReuseKey,
+        build: Callable[[], ActionOperatorProtocol[V, F_contra]],
+    ) -> SolverHandleProtocol[V]:
+        """A handle for the operator ``build`` returns, which is built only
+        when no handle is kept for ``key``: a caller that can label an
+        operator before forming it skips forming it on a hit.
+
+        Raises
+        ------
+        ValueError
+            If the built operator's key is not ``key``.
+        """
+        if key in self._handles:
+            self._handles.move_to_end(key)
+            self._hits += 1
+            return self._handles[key]
+        op = build()
+        if reuse_key(op) != key:
+            raise ValueError(
+                f"the built operator's key {reuse_key(op)} is not the key {key} "
+                "it was looked up under"
+            )
+        handle = self._inner.setup(op)
+        self._setups += 1
+        self._keep(key, handle)
+        return handle
+
+    def _keep(self, key: ReuseKey, handle: SolverHandleProtocol[V]) -> None:
+        self._handles[key] = handle
+        if len(self._handles) > self._capacity:
+            self._handles.popitem(last=False)
 
     def setups(self) -> int:
         """How many times the inner solver has been set up."""

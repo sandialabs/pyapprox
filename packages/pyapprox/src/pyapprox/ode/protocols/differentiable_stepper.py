@@ -33,11 +33,33 @@ A = TypeVar("A", bound=ArrayProtocol)
 
 
 @runtime_checkable
+class StepSessionProtocol(Protocol[V]):
+    """The steps of one solve.
+
+    A session may reuse work between its steps (a factorization of a stage
+    operator that is provably the same), and only between them: it is
+    opened for one solve and dropped with it, so nothing it keeps outlives
+    the parameters it was opened at.
+    """
+
+    def step(
+        self, past_states: Sequence[V], times: Sequence[float]
+    ) -> BlockVector[V]:
+        """Solve one step, as :meth:`ForwardStepperProtocol.step`."""
+        ...
+
+
+@runtime_checkable
 class ForwardStepperProtocol(Protocol[V]):
     """What an integrator needs of a stepper to march forward."""
 
     def depth(self) -> int:
         """The number of past stored states a step reads at most."""
+        ...
+
+    def session(self) -> StepSessionProtocol[V]:
+        """A new session for one solve's steps, reusing nothing from any
+        other."""
         ...
 
     def step(
@@ -49,7 +71,8 @@ class ForwardStepperProtocol(Protocol[V]):
         per lag, :math:`(t_{n+1}, t_n, t_{n-1}, \\dots)`, as in
         :class:`~pyapprox.ode.stepper_derivatives.StepWindow`, so steps of
         different sizes are described exactly. Returns the step's
-        unknown."""
+        unknown. A session of this one step: nothing is reused from or
+        for another call."""
         ...
 
     def readout(self) -> StepOperator[V]:

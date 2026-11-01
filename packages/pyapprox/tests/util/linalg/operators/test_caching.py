@@ -130,6 +130,30 @@ class TestCachingSolver:
         cache.setup(_snapshot(case, 11, point))
         assert cache.setups() == 2
 
+    def test_a_keyed_setup_builds_the_operator_only_on_a_miss(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """Three keyed setups under one key build once and share the
+        handle with a plain setup of an equal snapshot; a builder whose
+        operator carries another key is refused."""
+        cache = CachingSolver(case.direct_solver(), capacity=2)
+        point = LinearizationPoint(0, "k")
+        key = ReuseKey(point, _U, _U)
+        builds = []
+
+        def build() -> LinearizedOperator[V, F]:
+            builds.append(point)
+            return _snapshot(case, 12, point)
+
+        handles = [cache.setup_keyed(key, build) for _ in range(3)]
+        assert len(builds) == 1
+        assert all(handle is handles[0] for handle in handles)
+        assert cache.setup(_snapshot(case, 12, point)) is handles[0]
+        assert (cache.setups(), cache.hits()) == (1, 3)
+        other = ReuseKey(LinearizationPoint(0, "other"), _U, _U)
+        with pytest.raises(ValueError, match="is not the key"):
+            cache.setup_keyed(other, build)
+
     def test_rejects_zero_capacity(self, case: TypedStackCase[V, F, A]) -> None:
         with pytest.raises(ValueError, match="at least 1"):
             CachingSolver(case.direct_solver(), capacity=0)

@@ -242,6 +242,10 @@ class Integrator(Generic[V]):
         if sink.ntimes() != 0:
             raise ValueError("the sink must be empty")
         stepper = self._stepper
+        # One session for this solve: its steps may share setups (a factored
+        # stage operator), which are dropped with it, so nothing reused
+        # outlives the parameters the solve ran at.
+        session = stepper.session()
         # With a constraint, each stored state is recorded with the value
         # the constraint was applied to, where the sweeps linearize it.
         constrained = self._constraint is not None
@@ -253,7 +257,7 @@ class Integrator(Generic[V]):
         # Their times, aligned; a step is given these after its own end.
         recent_times: Deque[float] = deque([times[0]], maxlen=stepper.depth())
         for next_time in times[1:]:
-            unknown = stepper.step(tuple(recent), (next_time, *recent_times))
+            unknown = session.step(tuple(recent), (next_time, *recent_times))
             readout = stepper.readout().apply(unknown).blocks[0]
             state = self._constrained(readout, next_time)
             recent.appendleft(state)

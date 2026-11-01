@@ -40,6 +40,7 @@ whatever the step sizes. States are stack vectors, converted to the
 residual's form only where :math:`f` and its derivatives are called.
 """
 
+from functools import partial
 from itertools import count
 from typing import (
     Dict,
@@ -71,10 +72,13 @@ from pyapprox.util.linalg.operators import (
     BlockLowerTriangularHandle,
     BlockOperator,
     BlockVector,
+    CachingSolver,
     FormatProtocol,
     IdentityOperator,
     InnerProductSpaceProtocol,
     LinearizationPoint,
+    LinearizedOperator,
+    ReuseKey,
     ScaledSum,
     SolveFailedError,
     SolverHandleProtocol,
@@ -116,6 +120,8 @@ class _NewStateSystem(Generic[V, A, F]):
         The step's coefficients.
     deltat : float
         The step size.
+    solver : CachingSolver
+        The session's solver, which sets up the step's operator.
     """
 
     def __init__(
@@ -125,10 +131,12 @@ class _NewStateSystem(Generic[V, A, F]):
         time: float,
         formula: MultistepCoefficients,
         deltat: float,
+        solver: CachingSolver[V, F],
     ) -> None:
         self._stepper, self._known, self._time = stepper, known, time
         self._alpha0 = formula.alpha[0]
         self._scale = deltat * formula.beta[0]
+        self._solver = solver
 
     def space(self) -> InnerProductSpaceProtocol[V, A]:
         return self._stepper.system().space
@@ -146,11 +154,8 @@ class _NewStateSystem(Generic[V, A, F]):
         return value if pin is None else pin.residual(value, x, self._time, space)
 
     def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
-        stepper = self._stepper
-        operator = stepper.new_state_operator(x, self._time, self._alpha0, self._scale)
-        pin = stepper.pin()
-        return stepper.system().solver.setup(
-            operator if pin is None else pin.own(operator)
+        return self._stepper.new_state_handle(
+            x, self._time, self._alpha0, self._scale, self._solver
         )
 
     def is_affine(self) -> bool:
@@ -158,6 +163,28 @@ class _NewStateSystem(Generic[V, A, F]):
         system's :math:`f` is, and pinned rows (identity rows with data)
         keep it so."""
         return self._stepper.system().is_affine()
+
+
+class _MultistepSession(Generic[V, A, F]):
+    """One solve's steps of a :class:`LinearMultistepStepper`.
+
+    Implicit steps are set up through one :class:`CachingSolver`, kept for
+    the session only: a step operator the system labels for reuse (see
+    :meth:`MassFormSystem.operator_label`) is formed and set up once per
+    label. Two handles are kept, a startup formula's and the full one's.
+    """
+
+    def __init__(self, stepper: "LinearMultistepStepper[V, A, F]") -> None:
+        self._stepper = stepper
+        self._solver: CachingSolver[V, F] = CachingSolver(
+            stepper.system().solver, capacity=2
+        )
+
+    def step(
+        self, past_states: Sequence[V], times: Sequence[float]
+    ) -> BlockVector[V]:
+        """Solve one step (see :meth:`LinearMultistepStepper.step`)."""
+        return self._stepper._step(past_states, times, self._solver)
 
 
 class LinearMultistepStepper(Generic[V, A, F]):
@@ -289,11 +316,51 @@ class LinearMultistepStepper(Generic[V, A, F]):
         system = self._system
         return system.jacobian(system.form.to_residual(state), time, point)
 
-    def new_state_operator(
-        self, state: V, time: float, alpha0: float, scale: float
+    def _new_state_operator(
+        self,
+        state: V,
+        time: float,
+        alpha0: float,
+        scale: float,
+        point: LinearizationPoint,
     ) -> ActionOperatorProtocol[V, F]:
-        r""":math:`\alpha_0 M - s\, J(y, t)` with :math:`s = \Delta t\,
-        \beta_0`, at a Newton iterate.
+        r""":math:`\alpha_0 M - s\, J(y, t)`, :math:`J` labeled ``point``,
+        with the step-end rows replaced when they are pinned."""
+        system = self._system
+        jacobian = self._jacobian(state, time, point)
+        operator = ScaledSum([(alpha0, system.mass), (-scale, jacobian)], system.space)
+        return operator if self._pin is None else self._pin.own(operator)
+
+    def _labeled_new_state_operator(
+        self,
+        state: V,
+        time: float,
+        alpha0: float,
+        scale: float,
+        label: LinearizationPoint,
+    ) -> LinearizedOperator[V, F]:
+        """The step operator with :math:`J` labeled ``label``, wrapped
+        under ``label`` so a caching solver keys it."""
+        return LinearizedOperator(
+            self._new_state_operator(state, time, alpha0, scale, label), label
+        )
+
+    def new_state_handle(
+        self,
+        state: V,
+        time: float,
+        alpha0: float,
+        scale: float,
+        solver: CachingSolver[V, F],
+    ) -> SolverHandleProtocol[V]:
+        r"""A handle for the step operator :math:`\alpha_0 M - s\, J(y, t)`
+        with :math:`s = \Delta t\, \beta_0`, its step-end rows replaced when
+        they are pinned.
+
+        Set up by ``solver`` under the system's reuse label when it gives
+        one: equal step operators of a session then share one setup, and
+        one whose handle is kept is not formed again. A :math:`J` that sees
+        the state gives no label, and each Newton iterate is set up afresh.
 
         Parameters
         ----------
@@ -305,12 +372,25 @@ class LinearMultistepStepper(Generic[V, A, F]):
             :math:`\alpha_0`.
         scale : float
             :math:`s`.
+        solver : CachingSolver
+            The session's solver.
         """
         system = self._system
-        jacobian = self._jacobian(
-            state, time, self._point(True, self.parameters_version())
+        version = self.parameters_version()
+        label = system.operator_label(version, time, ("new state", alpha0, scale))
+        if label is None:
+            return solver.setup(
+                self._new_state_operator(
+                    state, time, alpha0, scale, self._point(True, version)
+                )
+            )
+        descriptor = system.space.descriptor()
+        return solver.setup_keyed(
+            ReuseKey(label, descriptor, descriptor),
+            partial(
+                self._labeled_new_state_operator, state, time, alpha0, scale, label
+            ),
         )
-        return ScaledSum([(alpha0, system.mass), (-scale, jacobian)], system.space)
 
     def _mass_solve(self, rhs: V) -> V:
         """:math:`M^{-1}` ``rhs``, with the mass set up once."""
@@ -378,10 +458,16 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 known = space.axpby(-deltat * beta, slope, 1.0, known, out=known)
         return known
 
+    def session(self) -> _MultistepSession[V, A, F]:
+        """A new session for one solve's steps, sharing step setups
+        between them and with no other session."""
+        return _MultistepSession(self)
+
     def step(
         self, past_states: Sequence[V], times: Sequence[float]
     ) -> BlockVector[V]:
-        r"""Solve step :math:`n` for :math:`y_{n+1}`.
+        r"""Solve step :math:`n` for :math:`y_{n+1}`, as a session of this
+        one step (nothing is kept after it).
 
         Parameters
         ----------
@@ -406,6 +492,16 @@ class LinearMultistepStepper(Generic[V, A, F]):
         SolveFailedError
             If the nonlinear solve or a mass solve fails.
         """
+        return self.session().step(past_states, times)
+
+    def _step(
+        self,
+        past_states: Sequence[V],
+        times: Sequence[float],
+        linear_solver: CachingSolver[V, F],
+    ) -> BlockVector[V]:
+        """:meth:`step`, an implicit step's operator set up by
+        ``linear_solver``."""
         check_step_times(times, len(past_states))
         formula = self._formula(times)
         space = self._system.space
@@ -423,7 +519,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         solver = self._nonlinear_solver
         if solver is None:
             raise TypeError(f"{self._method.name} needs a nonlinear solver")
-        system = _NewStateSystem(self, known, new_time, formula, deltat)
+        system = _NewStateSystem(self, known, new_time, formula, deltat, linear_solver)
         new_state, info = solver.solve(system, past_states[0])
         if not info.converged:
             raise SolveFailedError(

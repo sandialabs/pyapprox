@@ -32,6 +32,7 @@ from .differentiable_stepper import (
     DifferentiableStepperProtocol,
     ForwardStepperProtocol,
     StepperProtocol,
+    StepSessionProtocol,
 )
 from .jacobian_operator import JacobianOperatorProtocol
 from .mass_system import MassSystemProtocol
@@ -69,6 +70,7 @@ __all__ = [
     "DifferentiableStepperProtocol",
     "ForwardStepperProtocol",
     "StepperProtocol",
+    "StepSessionProtocol",
     # Time Stepping Residual Protocols
     "TimeSteppingResidualProtocol",
     "SensitivityStepperProtocol",

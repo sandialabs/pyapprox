@@ -17,7 +17,14 @@ stack whose Jacobian is a dense array.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Generic,
+    Hashable,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.mass_matrix_system import mass_properties
@@ -121,6 +128,28 @@ class MassFormSystem(Generic[V, A, F]):
         """Whether the residual's Jacobian sees neither state nor time, so
         a stage operator is the same at every step of a given size."""
         return self._jacobian().time_invariant()
+
+    def operator_label(
+        self, parameters_version: int, time: float, key: Hashable
+    ) -> Optional[LinearizationPoint]:
+        r"""A label under which an operator built from :math:`J` at
+        ``time`` and from operators fixed for the system's life
+        (:math:`M`, pinned rows), identified by ``key``, may be reused; or
+        None when it may not.
+
+        Reuse is exact only when the operator cannot move between two
+        builds with equal labels: None when :math:`J` sees the state (it
+        moves with every iterate), a label with ``time`` when it sees only
+        the time, and one without when it sees neither, so a whole solve
+        at a fixed step size shares one label. ``key`` carries everything
+        else the operator depends on (its coefficients, which rows are
+        pinned); a different stepper must not share a cache keyed so.
+        """
+        jacobian = self._jacobian()
+        if not jacobian.affine():
+            return None
+        when = None if jacobian.time_invariant() else time
+        return LinearizationPoint(parameters_version, ("operator", when, key))
 
     def _jacobian(self) -> Jacobian[V, F]:
         jacobian = self.rhs.derivatives().jacobian
