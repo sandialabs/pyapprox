@@ -8,21 +8,23 @@ states before it,
     \sum_{l=0}^{k} \alpha_l\, y_{n+1-l}
     = \Delta t \sum_{l=0}^{k} \beta_l\, f(y_{n+1-l}, t_{n+1-l}),
 
-with :math:`\alpha_0 \ne 0` and :math:`\Delta t = t_{n+1} - t_n`; lag
-:math:`l` is the stored state :math:`y_{n+1-l}`, lag 0 the new state.
-The formula is explicit when :math:`\beta_0 = 0`. The stepper reads only
-the coefficients, through :class:`MultistepFormulaProtocol`: a method
-gives the formula of any step from that step's times, one coefficient
-pair per lag.
+with :math:`\alpha_0 \ne 0` and :math:`\Delta t = h_n`, the step's own
+size; lag :math:`l` is the stored state :math:`y_{n+1-l}`, lag 0 the new
+state. The formula is explicit when :math:`\beta_0 = 0`. The stepper
+reads only the coefficients, through :class:`MultistepFormulaProtocol`:
+a method gives the formula of any step from that step's span (see
+:mod:`pyapprox.ode.step_span`), one coefficient pair per lag.
 
 Steps may differ in size. :class:`BackwardDifferentiation`,
 :class:`AdamsBashforth` and :class:`AdamsMoulton` compute their formulas
-from the times, from the Lagrange polynomial through the step's nodes
-(differentiated for BDF, integrated for Adams), so a shortened last step
-or an adaptive controller's steps keep the method's order, and a startup
-step, reading fewer states, is the family's lower-order member. The
-coefficients depend only on the times, so the backward sweeps recompute
-them exactly from the recorded grid. :class:`MultistepMethod` holds a
+from the step sizes, from the Lagrange polynomial through the step's
+nodes (differentiated for BDF, integrated for Adams), so a shortened last
+step or an adaptive controller's steps keep the method's order, and a
+startup step, reading fewer states, is the family's lower-order member.
+The nodes come from the sizes alone, never from differences of times,
+and exactly equal sizes give the equal-step nodes exactly, so steps of
+one size share one formula bit for bit and the backward sweeps recompute
+it exactly from the recorded sizes. :class:`MultistepMethod` holds a
 fixed table, derived for equal steps, with its startup formulas, and
 refuses a step whose earlier steps had another size rather than use the
 table there.
@@ -39,6 +41,8 @@ from typing import (
 )
 
 from numpy.polynomial import Polynomial
+
+from pyapprox.ode.step_span import StepSpan
 
 
 @dataclass(frozen=True)
@@ -103,11 +107,10 @@ class MultistepFormulaProtocol(Protocol):
         they carry second derivatives."""
         ...
 
-    def coefficients_at(self, times: Sequence[float]) -> MultistepCoefficients:
-        r"""The formula of a step with times :math:`(t_{n+1}, t_n,
-        \dots)`, one per lag, so ``len(times) - 1`` stored states: exactly
-        one coefficient pair per lag. Raises ``ValueError`` when it has
-        none for those times."""
+    def coefficients_at(self, span: StepSpan) -> MultistepCoefficients:
+        r"""The formula of a step over ``span``, reading one stored state
+        per size: exactly one coefficient pair per lag. Raises
+        ``ValueError`` when it has none for those sizes."""
         ...
 
 
@@ -193,15 +196,17 @@ class MultistepMethod:
             )
         return self.formulas()[nstates - 1]
 
-    def coefficients_at(self, times: Sequence[float]) -> MultistepCoefficients:
-        r"""The formula of a step with these times, one per lag:
-        :math:`(t_{n+1}, t_n, \dots)`, so ``len(times) - 1`` stored states.
-        The result has exactly one coefficient pair per lag.
+    def coefficients_at(self, span: StepSpan) -> MultistepCoefficients:
+        r"""The formula of a step over ``span``, reading one stored state
+        per size. The result has exactly one coefficient pair per lag.
 
         These coefficients are fixed, derived for equal steps, so every
-        step the formula spans must have the same size (to a relative
-        :math:`10^{-10}`, since sizes computed from times differ by
-        rounding); a one-state formula spans one step and takes any size.
+        step the formula spans must have exactly the same size (sizes are
+        given, not computed, so equal steps are equal); a one-state
+        formula spans one step and takes any size. A plan landing exactly
+        on its end (``FixedStep``) gives its last step a size of its own,
+        which this refuses: give equal sizes, or use a variable-step
+        family.
 
         Raises
         ------
@@ -209,12 +214,11 @@ class MultistepMethod:
             If the number of states is not between 1 and the depth, or the
             steps the formula spans differ in size.
         """
-        formula = self.at(len(times) - 1)
-        sizes = [later - earlier for later, earlier in zip(times, times[1:])]
-        if any(abs(size - sizes[0]) > 1e-10 * abs(sizes[0]) for size in sizes):
+        formula = self.at(len(span.sizes))
+        if len(set(span.sizes)) != 1:
             raise ValueError(
                 f"{self.name} has fixed coefficients, which assume equal steps; "
-                f"got step sizes {tuple(sizes)}"
+                f"got step sizes {span.sizes}"
             )
         return formula
 
@@ -222,41 +226,58 @@ class MultistepMethod:
         return f"MultistepMethod({self.name}, {self.depth()} steps)"
 
 
-def _states_read(name: str, times: Sequence[float], depth: int) -> int:
-    """The number of stored states a step with ``times`` (one per lag)
-    reads, checked against the method's depth.
+def _states_read(name: str, span: StepSpan, depth: int) -> int:
+    """The number of stored states a step over ``span`` reads (one per
+    size), checked against the method's depth.
 
     Raises
     ------
     ValueError
         If it is not between 1 and ``depth``.
     """
-    nstates = len(times) - 1
+    nstates = len(span.sizes)
     if not 1 <= nstates <= depth:
         raise ValueError(f"{name} reads between 1 and {depth} states, got {nstates}")
     return nstates
 
 
-def _lagrange_basis(times: Sequence[float], lags: Sequence[int]) -> List[Polynomial]:
+def _node(span: StepSpan, lag: int) -> float:
+    r"""Lag ``lag``'s node in the step's variable :math:`s = (t - t_n)/h_n`:
+    1 for the new state, 0 for :math:`y_n`, and minus the earlier steps'
+    sizes summed, over :math:`h_n`, before that. From the sizes alone;
+    when they are all equal, the equal-step node :math:`1 - l` exactly
+    (a sum such as :math:`2h + h` need not round to :math:`3h`)."""
+    if lag <= 1:
+        return 1.0 - lag
+    sizes = span.sizes
+    if len(set(sizes)) == 1:
+        return 1.0 - lag
+    earlier = 0.0
+    # h_{n-1}, ..., h_{n+1-lag}: the sizes before the step's own.
+    for size in reversed(sizes[len(sizes) - lag : len(sizes) - 1]):
+        earlier = earlier + size
+    return -earlier / sizes[-1]
+
+
+def _lagrange_basis(span: StepSpan, lags: Sequence[int]) -> List[Polynomial]:
     r"""The Lagrange basis on the nodes of ``lags``, in the step's own
-    variable :math:`s = (t - t_n)/(t_{n+1} - t_n)`, so the step runs over
+    variable :math:`s = (t - t_n)/h_n`, so the step runs over
     :math:`s \in [0, 1]` whatever its size and the earlier nodes sit at
     minus the ratios of the earlier steps to this one.
 
     Parameters
     ----------
-    times : sequence of float
-        :math:`(t_{n+1}, t_n, \dots)`, one per lag.
+    span : StepSpan
+        The step, one size per stored state read.
     lags : sequence of int
-        The lags whose times are the nodes.
+        The lags whose states are the nodes.
 
     Returns
     -------
     list of Polynomial
         :math:`L_l(s)` for each lag in ``lags``, in that order.
     """
-    deltat = times[0] - times[1]
-    nodes = [(times[lag] - times[1]) / deltat for lag in lags]
+    nodes = [_node(span, lag) for lag in lags]
     basis = []
     for i, node in enumerate(nodes):
         others = [other for j, other in enumerate(nodes) if j != i]
@@ -320,18 +341,17 @@ class BackwardDifferentiation:
         """Only the new state is passed through :math:`f`."""
         return frozenset({0})
 
-    def coefficients_at(self, times: Sequence[float]) -> MultistepCoefficients:
-        r"""The formula of a step with these times, one per lag:
-        :math:`(t_{n+1}, t_n, \dots)`.
+    def coefficients_at(self, span: StepSpan) -> MultistepCoefficients:
+        r"""The formula of a step over ``span``.
 
         Raises
         ------
         ValueError
             If the step reads more states than the method's depth, or none.
         """
-        nstates = _states_read(self.name, times, self.steps)
+        nstates = _states_read(self.name, span, self.steps)
         lags = range(nstates + 1)
-        slopes = [float(basis.deriv()(1.0)) for basis in _lagrange_basis(times, lags)]
+        slopes = [float(basis.deriv()(1.0)) for basis in _lagrange_basis(span, lags)]
         lead = slopes[0]
         return MultistepCoefficients(
             alpha=tuple(slope / lead for slope in slopes),
@@ -339,12 +359,12 @@ class BackwardDifferentiation:
         )
 
 
-def _adams_weights(times: Sequence[float], lags: Sequence[int]) -> List[float]:
+def _adams_weights(span: StepSpan, lags: Sequence[int]) -> List[float]:
     r""":math:`\int_0^1 L_l(s)\, ds` for each lag in ``lags``: the weights
     of :math:`f` at those lags in :math:`y_{n+1} - y_n = \int_{t_n}^{t_{n+1}}
     f\, dt`, in units of the step size."""
     weights = []
-    for basis in _lagrange_basis(times, lags):
+    for basis in _lagrange_basis(span, lags):
         antiderivative = basis.integ()
         weights.append(float(antiderivative(1.0) - antiderivative(0.0)))
     return weights
@@ -399,17 +419,16 @@ class AdamsBashforth:
         not."""
         return frozenset(range(1, self.steps + 1))
 
-    def coefficients_at(self, times: Sequence[float]) -> MultistepCoefficients:
-        r"""The formula of a step with these times, one per lag:
-        :math:`(t_{n+1}, t_n, \dots)`.
+    def coefficients_at(self, span: StepSpan) -> MultistepCoefficients:
+        r"""The formula of a step over ``span``.
 
         Raises
         ------
         ValueError
             If the step reads more states than the method's depth, or none.
         """
-        nstates = _states_read(self.name, times, self.steps)
-        weights = _adams_weights(times, range(1, nstates + 1))
+        nstates = _states_read(self.name, span, self.steps)
+        weights = _adams_weights(span, range(1, nstates + 1))
         return MultistepCoefficients(
             alpha=(1.0, -1.0) + (0.0,) * (nstates - 1),
             beta=(0.0, *weights),
@@ -464,17 +483,16 @@ class AdamsMoulton:
         """Every state, new and stored, is passed through :math:`f`."""
         return frozenset(range(self.steps + 1))
 
-    def coefficients_at(self, times: Sequence[float]) -> MultistepCoefficients:
-        r"""The formula of a step with these times, one per lag:
-        :math:`(t_{n+1}, t_n, \dots)`.
+    def coefficients_at(self, span: StepSpan) -> MultistepCoefficients:
+        r"""The formula of a step over ``span``.
 
         Raises
         ------
         ValueError
             If the step reads more states than the method's depth, or none.
         """
-        nstates = _states_read(self.name, times, self.steps)
-        weights = _adams_weights(times, range(nstates + 1))
+        nstates = _states_read(self.name, span, self.steps)
+        weights = _adams_weights(span, range(nstates + 1))
         return MultistepCoefficients(
             alpha=(1.0, -1.0) + (0.0,) * (nstates - 1),
             beta=tuple(weights),

@@ -1,22 +1,24 @@
 r"""The multistep formulas: their order on any steps, and validation.
 
 BDF2, Adams-Bashforth 2 and Adams-Moulton 3 give each step's formula from
-its times. Checked by the definition of order, so independently of how
-the coefficients are derived:
+its span's sizes. Checked by the definition of order, so independently
+of how the coefficients are derived:
 
-- on random uneven times, every formula, full and startup, is exact,
+- on random uneven sizes, every formula, full and startup, is exact,
   :math:`\sum_l \alpha_l\, p(t_{n+1-l}) = \Delta t \sum_l \beta_l\,
-  p'(t_{n+1-l})`, for the monomials :math:`p = t^q` up to its stated order
-  (the startup formula one order lower), and fails at the next degree, so
-  the stated order is exact;
+  p'(t_{n+1-l})` at the span's times, for the monomials :math:`p = t^q`
+  up to its stated order (the startup formula one order lower), and fails
+  at the next degree, so the stated order is exact;
 - at equal steps they satisfy the classical order conditions to the same
-  orders, and equal the classical tables to 1e-14.
+  orders and equal the classical tables to 1e-14; equal sizes give one
+  formula bit for bit wherever the step lies (BDF4 from 0 and 1000).
 
 A fixed table (:class:`MultistepMethod`) picks its formula by the states
-read and refuses unequal steps beyond a relative 1e-10. Refusals of both.
+read and refuses steps that are not exactly equal, those recovered from
+the times 0.1, 0.2, 0.3 included. Refusals of both.
 """
 
-from typing import Callable, List, Sequence
+from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -32,30 +34,34 @@ from pyapprox.ode.multistep_methods import (
     adams_moulton3,
     bdf2,
 )
+from pyapprox.ode.step_span import StepSpan
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS
 
+_EQUAL = StepSpan(0.1, (0.1, 0.1))
+"""Two equal steps of 0.1 from 0.1."""
+_ONE = StepSpan.first(0.2, 0.1)
+"""One step of 0.1 from 0.2."""
 
-def _exactness_defect(
-    formula: MultistepCoefficients, times: Sequence[float], q: int
-) -> float:
+
+def _exactness_defect(formula: MultistepCoefficients, span: StepSpan, q: int) -> float:
     r""":math:`\sum_l \alpha_l\, p(t_l) - \Delta t \sum_l \beta_l\, p'(t_l)`
-    for :math:`p = t^q`, relative to the size of its terms."""
-    deltat = times[0] - times[1]
+    for :math:`p = t^q` at the span's lag times, relative to the size of
+    its terms."""
+    times = [span.lag_time(lag) for lag in range(span.nlags())]
     values = [t**q for t in times]
     slopes = [q * t ** (q - 1) if q > 0 else 0.0 for t in times]
     left = sum(a * v for a, v in zip(formula.alpha, values))
-    right = deltat * sum(b * s for b, s in zip(formula.beta, slopes))
+    right = span.deltat() * sum(b * s for b, s in zip(formula.beta, slopes))
     scale = sum(abs(a * v) for a, v in zip(formula.alpha, values)) + 1.0
     return abs(left - right) / scale
 
 
-def _uneven_times(seed: int, nstates: int) -> tuple[float, ...]:
-    """``nstates + 1`` decreasing times in [0.5, 1.5] with step sizes
-    varying by up to a factor of 3."""
+def _uneven_span(seed: int, nstates: int) -> StepSpan:
+    """A step reading ``nstates`` states from 0.5, with step sizes varying
+    by up to a factor of 3."""
     rng = np.random.default_rng(seed)
     sizes = rng.uniform(0.1, 0.3, size=nstates)
-    times = 1.5 - np.concatenate([[0.0], np.cumsum(sizes)])
-    return tuple(float(t) for t in times)
+    return StepSpan(0.5, tuple(float(size) for size in sizes))
 
 
 class TestOrderOnAnySteps:
@@ -72,12 +78,12 @@ class TestOrderOnAnySteps:
         # The full formula reads the depth's states; the startup one fewer
         # and is one order lower.
         for nstates, stated in ((method.depth(), order), (1, order - 1)):
-            times = _uneven_times(seed, nstates)
-            formula = method.coefficients_at(times)
+            span = _uneven_span(seed, nstates)
+            formula = method.coefficients_at(span)
             assert len(formula.alpha) == nstates + 1
             for q in range(stated + 1):
-                assert _exactness_defect(formula, times, q) < 1e-13, (nstates, q)
-            assert _exactness_defect(formula, times, stated + 1) > 1e-6
+                assert _exactness_defect(formula, span, q) < 1e-13, (nstates, q)
+            assert _exactness_defect(formula, span, stated + 1) > 1e-6
 
     @pytest.mark.parametrize("make, order, explicit", METHODS, ids=METHOD_IDS)
     def test_kind_and_curvature(
@@ -90,8 +96,7 @@ class TestOrderOnAnySteps:
         assert isinstance(method, MultistepFormulaProtocol)
         assert method.is_explicit() == explicit
         assert method.depth() == 2
-        times = _uneven_times(5, 2)
-        formula = method.coefficients_at(times)
+        formula = method.coefficients_at(_uneven_span(5, 2))
         assert formula.is_explicit() == explicit
         nonzero = {lag for lag, beta in enumerate(formula.beta) if beta != 0.0}
         assert nonzero <= method.curved_lags()
@@ -132,8 +137,8 @@ class TestEqualSteps:
         explicit: bool,
     ) -> None:
         method = make()
-        assert _uniform_order(method.coefficients_at((0.3, 0.2, 0.1))) == order
-        assert _uniform_order(method.coefficients_at((0.3, 0.2))) == order - 1
+        assert _uniform_order(method.coefficients_at(_EQUAL)) == order
+        assert _uniform_order(method.coefficients_at(_ONE)) == order - 1
 
     @pytest.mark.parametrize(
         "make, alpha, beta", _CLASSICAL, ids=[m().name for m, *_ in _CLASSICAL]
@@ -144,9 +149,21 @@ class TestEqualSteps:
         alpha: tuple[float, ...],
         beta: tuple[float, ...],
     ) -> None:
-        formula = make().coefficients_at((0.3, 0.2, 0.1))
+        formula = make().coefficients_at(_EQUAL)
         np.testing.assert_allclose(formula.alpha, alpha, rtol=0.0, atol=1e-14)
         np.testing.assert_allclose(formula.beta, beta, rtol=0.0, atol=1e-14)
+
+    def test_equal_sizes_give_one_formula_anywhere(self) -> None:
+        """BDF4 on four equal steps of 0.001: the same formula, bit for bit,
+        from t = 0 and from t = 1000 (where 0.001 n would not subtract
+        back to 0.001), so every such step labels one stage operator."""
+        bdf4 = BackwardDifferentiation(4, "BDF4")
+        near = bdf4.coefficients_at(StepSpan(0.0, (0.001,) * 4))
+        far = bdf4.coefficients_at(StepSpan(1000.0, (0.001,) * 4))
+        assert near == far
+        np.testing.assert_allclose(
+            near.alpha, (1.0, -48 / 25, 36 / 25, -16 / 25, 3 / 25), atol=1e-14
+        )
 
 
 def _fixed_bdf2() -> MultistepMethod:
@@ -166,19 +183,21 @@ class TestFixedTable:
         assert isinstance(method, MultistepFormulaProtocol)
         assert method.at(1) is method.startup[0]
         assert method.at(2) is method.coefficients
-        assert method.coefficients_at((0.3, 0.2, 0.1)) is method.coefficients
+        assert method.coefficients_at(_EQUAL) is method.coefficients
         assert method.curved_lags() == frozenset({0})
         with pytest.raises(ValueError, match="between 1 and 2"):
             method.at(3)
 
-    def test_refuses_unequal_steps(self) -> None:
+    def test_refuses_steps_not_exactly_equal(self) -> None:
         method = _fixed_bdf2()
         with pytest.raises(ValueError, match="fixed coefficients"):
-            method.coefficients_at((0.3, 0.2, 0.05))
-        # Sizes from times differ by rounding only.
-        method.coefficients_at((0.3, 0.2, 0.1))
+            method.coefficients_at(StepSpan(0.05, (0.15, 0.1)))
+        # Sizes recovered from the times 0.1, 0.2, 0.3 are 0.1 and
+        # 0.09999999999999998: not equal steps, so refused.
+        with pytest.raises(ValueError, match="fixed coefficients"):
+            method.coefficients_at(StepSpan.from_times((0.1, 0.2, 0.3)))
         # One state spans one step, of any size.
-        method.coefficients_at((0.7, 0.2))
+        method.coefficients_at(StepSpan.first(0.2, 0.5))
 
 
 class TestRefusals:
@@ -209,4 +228,4 @@ class TestRefusals:
             family(0, "none")
         method = family(2, "two")
         with pytest.raises(ValueError, match="between 1 and 2"):
-            method.coefficients_at((0.4, 0.3, 0.2, 0.1))
+            method.coefficients_at(StepSpan(0.1, (0.1, 0.1, 0.1)))

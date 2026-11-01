@@ -20,7 +20,8 @@ derivatives included; on the grid 0, 0.05, 0.08, 0.15, 0.2, 0.26, 0.3,
 pass finite differences. On the mock stack, whose vectors are opaque,
 the steps run and the checker passes. A fixed table (classical BDF2)
 refuses a shortened last step and a changed second step, and takes a
-one-step grid of any size and steps equal up to rounding. Refusals: an
+one-step grid of any size and exactly equal steps, and refuses the last
+step of a FixedStep plan landing on its end. Refusals: an
 implicit method without a nonlinear solver, and a step given too many
 states or a span that does not match them.
 """
@@ -41,7 +42,7 @@ from pyapprox.ode.multistep_methods import (
     MultistepMethod,
     bdf2,
 )
-from pyapprox.ode.step_plan import FixedStep, GivenSizes
+from pyapprox.ode.step_plan import FixedStep, GivenSizes, StepPlanProtocol
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.stepper_derivatives_check import StepperBundleChecker
@@ -73,14 +74,14 @@ from tests._helpers.ode.trajectory_cases import (
 def _closed_form(
     method: MultistepFormulaProtocol,
     past: list[NDArray[Any]],
-    times: tuple[float, ...],
+    span: StepSpan,
 ) -> NDArray[Any]:
     r"""The step of :math:`M \dot y = K y` reading ``past`` (most recent
-    first) at ``times``: :math:`(\alpha_0 M - \Delta t \beta_0 K) y_{n+1}
+    first) over ``span``: :math:`(\alpha_0 M - \Delta t \beta_0 K) y_{n+1}
     = -\sum_{l \ge 1} (\alpha_l M - \Delta t \beta_l K) y_{n+1-l}`."""
     mass, k = np.array(LINEAR_MASS), np.array(LINEAR_K)
-    formula = method.coefficients_at(times)
-    deltat = times[0] - times[1]
+    formula = method.coefficients_at(span)
+    deltat = span.deltat()
     rhs = -sum(
         (formula.alpha[lag] * mass - deltat * formula.beta[lag] * k) @ y
         for lag, y in enumerate(past, start=1)
@@ -105,18 +106,17 @@ class TestLinearSteps:
     ) -> None:
         method = make()
         stepper = lm_stepper(method, dense_mass_form_system(LinearMassModel(bkd)))
-        # t_{n+1} = 0.4 from t_n = 0.3; the earlier state at 0.2 (equal
-        # steps) or 0.15 (the earlier step longer).
-        for past, times in (
-            ([_Y0], (0.4, 0.3)),
-            ([_Y1, _Y0], (0.4, 0.3, 0.2)),
-            ([_Y1, _Y0], (0.4, 0.3, 0.15)),
+        # A step of 0.1 from 0.3; the earlier step 0.1 (equal steps) or
+        # 0.15 (the earlier step longer).
+        for past, span in (
+            ([_Y0], StepSpan.first(0.3, 0.1)),
+            ([_Y1, _Y0], StepSpan(0.2, (0.1, 0.1))),
+            ([_Y1, _Y0], StepSpan(0.15, (0.15, 0.1))),
         ):
-            span = StepSpan.from_times(tuple(reversed(times)))
             unknown = stepper.step(tuple(bkd.asarray(y) for y in past), span)
             bkd.assert_allclose(
                 unknown.blocks[0],
-                bkd.asarray(_closed_form(method, past, times)),
+                bkd.asarray(_closed_form(method, past, span)),
                 rtol=1e-11,
             )
 
@@ -364,26 +364,34 @@ class TestFixedTable:
     """A fixed table, derived for equal steps, refuses a step whose earlier
     steps had another size. Fixed BDF2 on M y' = K y from (1, -0.5, 2)."""
 
-    def _solve(self, bkd: Backend[Array], times: list[float]) -> None:
+    def _solve(self, bkd: Backend[Array], steps: StepPlanProtocol) -> None:
         stepper = lm_stepper(
             _fixed_bdf2(), dense_mass_form_system(LinearMassModel(bkd))
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(stepper).solve(bkd.asarray(_Y0), GivenSizes.from_times(times), store)
+        Integrator(stepper).solve(bkd.asarray(_Y0), steps, store)
 
     def test_a_shortened_last_step_is_refused(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="fixed coefficients"):
-            self._solve(bkd, [0.0, 0.1, 0.2, 0.3, 0.35])
+            self._solve(bkd, GivenSizes(0.0, (0.1, 0.1, 0.1, 0.05)))
 
     def test_the_startup_formula_takes_any_size(self, bkd: Backend[Array]) -> None:
         # The one-state startup formula spans one step only.
-        self._solve(bkd, [0.0, 0.37])
+        self._solve(bkd, GivenSizes(0.0, (0.37,)))
 
     def test_a_changed_second_step_is_refused(self, bkd: Backend[Array]) -> None:
         # Step 1 already reads two states, spanning steps of 0.05 and 0.1.
         with pytest.raises(ValueError, match="fixed coefficients"):
-            self._solve(bkd, [0.0, 0.05, 0.15])
+            self._solve(bkd, GivenSizes(0.0, (0.05, 0.1)))
 
-    def test_steps_equal_up_to_rounding_pass(self, bkd: Backend[Array]) -> None:
-        # 0.1 * n differs from n steps of 0.1 by rounding.
-        self._solve(bkd, [0.1 * n for n in range(8)])
+    def test_equal_sizes_pass_and_a_landing_last_step_does_not(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Seven steps of exactly 0.1 pass. A FixedStep over [0, 0.7] lands
+        on 0.7 with a last size of its own (0.7 minus the summed times),
+        which a fixed table refuses."""
+        self._solve(bkd, GivenSizes(0.0, (0.1,) * 7))
+        landing = FixedStep(0.1, (0.0, 0.7))
+        assert landing.sizes()[-1] != 0.1
+        with pytest.raises(ValueError, match="fixed coefficients"):
+            self._solve(bkd, landing)

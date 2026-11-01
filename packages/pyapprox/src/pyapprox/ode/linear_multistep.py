@@ -428,8 +428,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def _formula(self, span: StepSpan) -> MultistepCoefficients:
         """The method's formula for a step over ``span``, checked to have
         exactly one coefficient pair per lag."""
-        lag_times = tuple(reversed(span.times()))
-        formula = self._method.coefficients_at(lag_times)
+        formula = self._method.coefficients_at(span)
         if len(formula.alpha) != span.nlags():
             raise ValueError(
                 f"{self._method.name} gave {len(formula.alpha)} coefficients for "
