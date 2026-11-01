@@ -17,7 +17,7 @@ point.
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.linearization import (
@@ -36,6 +36,8 @@ from pyapprox.util.linalg.operators.solvers import (
 
 V = TypeVar("V")
 F_contra = TypeVar("F_contra", contravariant=True)
+W = TypeVar("W")
+G = TypeVar("G")
 
 
 @dataclass(frozen=True)
@@ -165,3 +167,88 @@ class CachingSolver(Generic[V, F_contra]):
             f"{self.__class__.__name__}({self._inner!r}, capacity={self._capacity}, "
             f"kept={len(self._handles)})"
         )
+
+
+@runtime_checkable
+class KeyedSolverProtocol(Protocol[V, F_contra]):
+    """A solver that can also be asked for a handle by key, forming the
+    operator only when it needs to set one up (see
+    :meth:`CachingSolver.setup_keyed`)."""
+
+    def capabilities(self) -> SolverCapabilities: ...
+
+    def setup(self, op: ActionOperatorProtocol[V, F_contra]) -> SolverHandleProtocol[V]:
+        ...
+
+    def setup_keyed(
+        self,
+        key: ReuseKey,
+        build: Callable[[], ActionOperatorProtocol[V, F_contra]],
+    ) -> SolverHandleProtocol[V]:
+        """A handle for the operator ``build`` returns, whose key is
+        ``key``."""
+        ...
+
+
+class UncachedSolver(Generic[V, F_contra]):
+    """A solver keeping nothing: every setup, keyed or not, forms its
+    operator and sets the inner solver up afresh. Satisfies
+    :class:`KeyedSolverProtocol`, so it stands wherever a caching solver
+    does when memory matters more than setups."""
+
+    def __init__(self, inner: LinearSolverProtocol[V, F_contra]) -> None:
+        self._inner = inner
+
+    def capabilities(self) -> SolverCapabilities:
+        return self._inner.capabilities()
+
+    def setup(self, op: ActionOperatorProtocol[V, F_contra]) -> SolverHandleProtocol[V]:
+        return self._inner.setup(op)
+
+    def setup_keyed(
+        self,
+        key: ReuseKey,
+        build: Callable[[], ActionOperatorProtocol[V, F_contra]],
+    ) -> SolverHandleProtocol[V]:
+        return self._inner.setup(build())
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._inner!r})"
+
+
+@runtime_checkable
+class ReusePolicyProtocol(Protocol):
+    """How a solve keeps setups between the operators it sets up: given
+    the solver and the number of distinct operators one step uses, the
+    keyed solver a solve sets its operators up through."""
+
+    def solver(
+        self, inner: LinearSolverProtocol[W, G], distinct: int
+    ) -> KeyedSolverProtocol[W, G]: ...
+
+
+class KeepWithinSolve:
+    """Keep one handle per distinct operator of a step, for the solve: a
+    :class:`CachingSolver` of that capacity, so an operator that repeats
+    from step to step is set up once."""
+
+    def solver(
+        self, inner: LinearSolverProtocol[W, G], distinct: int
+    ) -> CachingSolver[W, G]:
+        return CachingSolver(inner, capacity=max(1, distinct))
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
+class NoReuse:
+    """Keep nothing: every operator is set up afresh, so at most the
+    handle in use is held."""
+
+    def solver(
+        self, inner: LinearSolverProtocol[W, G], distinct: int
+    ) -> UncachedSolver[W, G]:
+        return UncachedSolver(inner)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"

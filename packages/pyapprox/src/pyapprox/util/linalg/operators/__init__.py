@@ -20,7 +20,16 @@ from pyapprox.util.linalg.operators.blocks import (
     BlockVector,
     BlockVectorSpace,
 )
-from pyapprox.util.linalg.operators.caching import CachingSolver, ReuseKey, reuse_key
+from pyapprox.util.linalg.operators.caching import (
+    CachingSolver,
+    KeepWithinSolve,
+    KeyedSolverProtocol,
+    NoReuse,
+    ReuseKey,
+    ReusePolicyProtocol,
+    UncachedSolver,
+    reuse_key,
+)
 from pyapprox.util.linalg.operators.constraints import (
     RowReplacedOperator,
     RowsZeroedOperator,
@@ -71,7 +80,12 @@ __all__ = [
     "CachingSolver",
     "ConjugateGradient",
     "GMRES",
+    "KeepWithinSolve",
+    "KeyedSolverProtocol",
+    "NoReuse",
     "ReuseKey",
+    "ReusePolicyProtocol",
+    "UncachedSolver",
     "reuse_key",
     "DiagonalCapableProtocol",
     "DiagonalSolver",

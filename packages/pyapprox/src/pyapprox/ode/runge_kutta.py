@@ -59,14 +59,16 @@ from pyapprox.util.linalg.operators import (
     BlockLowerTriangularHandle,
     BlockOperator,
     BlockVector,
-    CachingSolver,
     FormatProtocol,
     IdentityOperator,
     InnerProductSpaceProtocol,
+    KeepWithinSolve,
+    KeyedSolverProtocol,
     LinearizationPoint,
     LinearizedOperator,
     LinearMapProtocol,
     ReuseKey,
+    ReusePolicyProtocol,
     ScaledSum,
     SolveFailedError,
     SolverHandleProtocol,
@@ -113,7 +115,7 @@ class _StageSystem(Generic[V, A, F]):
         The stage's residual block.
     pin : BlockPinProtocol, optional
         How the stage's rows are pinned, at its time; None for none.
-    solver : CachingSolver
+    solver : KeyedSolverProtocol
         The session's solver, which sets up the stage operator.
     """
 
@@ -127,7 +129,7 @@ class _StageSystem(Generic[V, A, F]):
         deltat: float,
         block: int,
         pin: Optional[BlockPinProtocol[V]],
-        solver: CachingSolver[V, F],
+        solver: KeyedSolverProtocol[V, F],
     ) -> None:
         self._stepper = stepper
         self._state, self._known = state, known
@@ -164,18 +166,19 @@ class _StageSystem(Generic[V, A, F]):
 class _RungeKuttaSession(Generic[V, A, F]):
     """One solve's steps of a :class:`RungeKuttaStepper`.
 
-    The implicit stages are set up through one :class:`CachingSolver`,
-    kept for the session only and holding one handle per residual block:
-    a stage operator the system labels for reuse (see
+    The implicit stages are set up through one keyed solver, made by the
+    stepper's reuse policy for the session only: under the default policy
+    it keeps a handle per distinct stage operator of a step, so a stage
+    operator the system labels for reuse (see
     :meth:`MassFormSystem.operator_label`) is formed and set up once per
-    label, so a Jacobian constant in time at a fixed step size is factored
-    once per solve.
+    label, and a Jacobian constant in time at a fixed step size is
+    factored once per solve.
     """
 
     def __init__(self, stepper: "RungeKuttaStepper[V, A, F]") -> None:
         self._stepper = stepper
-        self._solver: CachingSolver[V, F] = CachingSolver(
-            stepper.system().solver, capacity=stepper.residual_space().nblocks()
+        self._solver: KeyedSolverProtocol[V, F] = stepper.reuse().solver(
+            stepper.system().solver, stepper.distinct_stage_operators()
         )
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
@@ -201,12 +204,17 @@ class RungeKuttaStepper(Generic[V, A, F]):
         their solves, and how (see :mod:`pyapprox.ode.pinned_rows`); the
         blocks are the unknown stages in order, then the final block when
         there is one, each pinned at its own time. None for no pinning.
+    reuse : ReusePolicyProtocol, optional
+        How a solve keeps stage setups between steps: by default a handle
+        per distinct stage operator of a step (:class:`KeepWithinSolve`);
+        :class:`NoReuse` keeps none, to save memory.
 
     Raises
     ------
     TypeError
         If the tableau has an implicit stage and no nonlinear solver is
-        given, or ``row_pinning`` does not satisfy its protocol.
+        given, or ``row_pinning`` or ``reuse`` does not satisfy its
+        protocol.
     """
 
     def __init__(
@@ -215,6 +223,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         system: MassFormSystem[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
+        reuse: Optional[ReusePolicyProtocol] = None,
     ) -> None:
         if not tableau.is_explicit() and nonlinear_solver is None:
             raise TypeError(
@@ -225,6 +234,11 @@ class RungeKuttaStepper(Generic[V, A, F]):
                 "row_pinning must satisfy RowPinningProtocol, got "
                 f"{type(row_pinning).__name__}"
             )
+        if reuse is not None and not isinstance(reuse, ReusePolicyProtocol):
+            raise TypeError(
+                f"reuse must satisfy ReusePolicyProtocol, got {type(reuse).__name__}"
+            )
+        self._reuse: ReusePolicyProtocol = KeepWithinSolve() if reuse is None else reuse
         self._tableau = tableau
         self._system = system
         self._nonlinear_solver = nonlinear_solver
@@ -252,10 +266,34 @@ class RungeKuttaStepper(Generic[V, A, F]):
         # set up once.
         self._pinned_mass_handles: Dict[int, SolverHandleProtocol[V]] = {}
         self._points = count()
+        # The stage operators a step forms: one per diagonal coefficient,
+        # and per pinned block, since its rows are replaced.
+        offset = self._first_stage_offset()
+        self._distinct = len(
+            {
+                (
+                    tableau.a[i][i],
+                    None if self._block_pin(i - offset) is None else i - offset,
+                )
+                for i in self._unknown_stages
+                if not tableau.is_explicit_stage(i)
+            }
+        )
 
     def tableau(self) -> ButcherTableau:
         """The method."""
         return self._tableau
+
+    def reuse(self) -> ReusePolicyProtocol:
+        """How a solve keeps stage setups between steps."""
+        return self._reuse
+
+    def distinct_stage_operators(self) -> int:
+        r"""The number of different stage operators :math:`M - \Delta t\,
+        a_{ii} J` one step forms at a fixed step size: one per diagonal
+        coefficient, and one per pinned block, whose rows are replaced.
+        A session keeps this many handles by default."""
+        return self._distinct
 
     def system(self) -> MassFormSystem[V, A, F]:
         """What the stepper steps."""
@@ -345,7 +383,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         scale: float,
         block: int,
         pin: Optional[BlockPinProtocol[V]],
-        solver: CachingSolver[V, F],
+        solver: KeyedSolverProtocol[V, F],
     ) -> SolverHandleProtocol[V]:
         r"""A handle for the stage operator :math:`M - s\, J(y, t)` with
         :math:`s = \Delta t\, a_{ii}`, the rows of residual block ``block``
@@ -368,7 +406,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
             The stage's residual block.
         pin : BlockPinProtocol, optional
             How the block's rows are pinned; None for none.
-        solver : CachingSolver
+        solver : KeyedSolverProtocol
             The session's solver.
         """
         system = self._system
@@ -461,7 +499,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self,
         past_states: Sequence[V],
         span: StepSpan,
-        solver: CachingSolver[V, F],
+        solver: KeyedSolverProtocol[V, F],
     ) -> BlockVector[V]:
         """:meth:`step`, its implicit stages set up by ``solver``."""
         if len(past_states) != 1:
@@ -522,7 +560,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         known: V,
         stage_time: float,
         deltat: float,
-        linear_solver: CachingSolver[V, F],
+        linear_solver: KeyedSolverProtocol[V, F],
     ) -> V:
         """Solve implicit stage ``i`` from the guess :math:`y_n`, its rows
         pinned in its Newton system when its block is, its stage operator

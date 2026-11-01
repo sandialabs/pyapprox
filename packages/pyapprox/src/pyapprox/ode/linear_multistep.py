@@ -73,13 +73,15 @@ from pyapprox.util.linalg.operators import (
     BlockLowerTriangularHandle,
     BlockOperator,
     BlockVector,
-    CachingSolver,
     FormatProtocol,
     IdentityOperator,
     InnerProductSpaceProtocol,
+    KeepWithinSolve,
+    KeyedSolverProtocol,
     LinearizationPoint,
     LinearizedOperator,
     ReuseKey,
+    ReusePolicyProtocol,
     ScaledSum,
     SolveFailedError,
     SolverHandleProtocol,
@@ -121,7 +123,7 @@ class _NewStateSystem(Generic[V, A, F]):
         The step's coefficients.
     deltat : float
         The step size.
-    solver : CachingSolver
+    solver : KeyedSolverProtocol
         The session's solver, which sets up the step's operator.
     """
 
@@ -132,7 +134,7 @@ class _NewStateSystem(Generic[V, A, F]):
         time: float,
         formula: MultistepCoefficients,
         deltat: float,
-        solver: CachingSolver[V, F],
+        solver: KeyedSolverProtocol[V, F],
     ) -> None:
         self._stepper, self._known, self._time = stepper, known, time
         self._alpha0 = formula.alpha[0]
@@ -169,16 +171,18 @@ class _NewStateSystem(Generic[V, A, F]):
 class _MultistepSession(Generic[V, A, F]):
     """One solve's steps of a :class:`LinearMultistepStepper`.
 
-    Implicit steps are set up through one :class:`CachingSolver`, kept for
-    the session only: a step operator the system labels for reuse (see
+    Implicit steps are set up through one keyed solver, made by the
+    stepper's reuse policy for the session only: under the default policy
+    a step operator the system labels for reuse (see
     :meth:`MassFormSystem.operator_label`) is formed and set up once per
-    label. Two handles are kept, a startup formula's and the full one's.
+    label, keeping one handle, since a step forms one operator and a
+    startup formula's is not used again.
     """
 
     def __init__(self, stepper: "LinearMultistepStepper[V, A, F]") -> None:
         self._stepper = stepper
-        self._solver: CachingSolver[V, F] = CachingSolver(
-            stepper.system().solver, capacity=2
+        self._solver: KeyedSolverProtocol[V, F] = stepper.reuse().solver(
+            stepper.system().solver, 1
         )
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
@@ -205,13 +209,17 @@ class LinearMultistepStepper(Generic[V, A, F]):
         :math:`y_{n+1}`, has rows pinned to boundary data inside its solve,
         and how (see :mod:`pyapprox.ode.pinned_rows`). None for no
         pinning.
+    reuse : ReusePolicyProtocol, optional
+        How a solve keeps step setups between steps: by default the
+        current one (:class:`KeepWithinSolve`); :class:`NoReuse` keeps
+        none, to save memory.
 
     Raises
     ------
     TypeError
         If the method does not satisfy its protocol, is implicit and no
-        nonlinear solver is given, or ``row_pinning`` does not satisfy its
-        protocol.
+        nonlinear solver is given, or ``row_pinning`` or ``reuse`` does not
+        satisfy its protocol.
     """
 
     def __init__(
@@ -220,7 +228,13 @@ class LinearMultistepStepper(Generic[V, A, F]):
         system: MassFormSystem[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
+        reuse: Optional[ReusePolicyProtocol] = None,
     ) -> None:
+        if reuse is not None and not isinstance(reuse, ReusePolicyProtocol):
+            raise TypeError(
+                f"reuse must satisfy ReusePolicyProtocol, got {type(reuse).__name__}"
+            )
+        self._reuse: ReusePolicyProtocol = KeepWithinSolve() if reuse is None else reuse
         if not isinstance(method, MultistepFormulaProtocol):
             raise TypeError(
                 "method must satisfy MultistepFormulaProtocol, got "
@@ -252,6 +266,10 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def method(self) -> MultistepFormulaProtocol:
         """The method."""
         return self._method
+
+    def reuse(self) -> ReusePolicyProtocol:
+        """How a solve keeps step setups between steps."""
+        return self._reuse
 
     def pin(self) -> Optional[BlockPinProtocol[V]]:
         """How the step's block is pinned, or None."""
@@ -350,7 +368,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         time: float,
         alpha0: float,
         scale: float,
-        solver: CachingSolver[V, F],
+        solver: KeyedSolverProtocol[V, F],
     ) -> SolverHandleProtocol[V]:
         r"""A handle for the step operator :math:`\alpha_0 M - s\, J(y, t)`
         with :math:`s = \Delta t\, \beta_0`, its step-end rows replaced when
@@ -371,7 +389,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
             :math:`\alpha_0`.
         scale : float
             :math:`s`.
-        solver : CachingSolver
+        solver : KeyedSolverProtocol
             The session's solver.
         """
         system = self._system
@@ -496,7 +514,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self,
         past_states: Sequence[V],
         span: StepSpan,
-        linear_solver: CachingSolver[V, F],
+        linear_solver: KeyedSolverProtocol[V, F],
     ) -> BlockVector[V]:
         """:meth:`step`, an implicit step's operator set up by
         ``linear_solver``."""

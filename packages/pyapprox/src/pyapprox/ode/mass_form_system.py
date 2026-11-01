@@ -129,6 +129,19 @@ class MassFormSystem(Generic[V, A, F]):
         a stage operator is the same at every step of a given size."""
         return self._jacobian().time_invariant()
 
+    def jacobian_label(
+        self, parameters_version: int, time: float
+    ) -> Optional[LinearizationPoint]:
+        r"""A label under which :math:`J` at ``time`` may be reused, or
+        None when it may not: None when :math:`J` sees the state (it moves
+        with every iterate), a label with ``time`` when it sees only the
+        time, and one without when it sees neither."""
+        jacobian = self._jacobian()
+        if not jacobian.affine():
+            return None
+        when = None if jacobian.time_invariant() else time
+        return LinearizationPoint(parameters_version, ("jacobian", when))
+
     def operator_label(
         self, parameters_version: int, time: float, key: Hashable
     ) -> Optional[LinearizationPoint]:
@@ -137,19 +150,19 @@ class MassFormSystem(Generic[V, A, F]):
         (:math:`M`, pinned rows), identified by ``key``, may be reused; or
         None when it may not.
 
-        Reuse is exact only when the operator cannot move between two
-        builds with equal labels: None when :math:`J` sees the state (it
-        moves with every iterate), a label with ``time`` when it sees only
-        the time, and one without when it sees neither, so a whole solve
-        at a fixed step size shares one label. ``key`` carries everything
-        else the operator depends on (its coefficients, which rows are
-        pinned); a different stepper must not share a cache keyed so.
+        The operator moves exactly when :math:`J` does, so it is labeled by
+        :meth:`jacobian_label` and ``key``: a whole solve at a fixed step
+        size shares one label when :math:`J` is constant. ``key`` carries
+        everything else the operator depends on (its coefficients, which
+        rows are pinned); a different stepper must not share a cache keyed
+        so.
         """
-        jacobian = self._jacobian()
-        if not jacobian.affine():
+        jacobian = self.jacobian_label(parameters_version, time)
+        if jacobian is None:
             return None
-        when = None if jacobian.time_invariant() else time
-        return LinearizationPoint(parameters_version, ("operator", when, key))
+        return LinearizationPoint(
+            parameters_version, ("operator", jacobian.point, key)
+        )
 
     def _jacobian(self) -> Jacobian[V, F]:
         jacobian = self.rhs.derivatives().jacobian

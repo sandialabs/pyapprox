@@ -7,7 +7,10 @@ backends:
 - after the residual replaces its bundle (c from 1 to 2.5), a system built
   before the change gives the new Jacobian, so it holds no copy that could
   disagree with the residual;
-- a residual whose bundle has no Jacobian is refused at construction.
+- a residual whose bundle has no Jacobian is refused at construction;
+- reuse labels follow the Jacobian's level: none for a general one, one
+  for every time for a constant one (but per parameter version and per
+  key), one per time for a state-free one.
 """
 
 from typing import Generic
@@ -20,11 +23,16 @@ from pyapprox.ode.residual_derivatives import (
     ODEResidualDerivatives,
     backend_state_space,
     dense_jacobian,
+    state_free_jacobian,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
 from pyapprox.util.linalg.operators import LinearizationPoint
-from tests._helpers.ode.runge_kutta_cases import LINEAR_K, LINEAR_MASS
+from tests._helpers.ode.runge_kutta_cases import (
+    LINEAR_K,
+    LINEAR_MASS,
+    LinearMassModel,
+)
 
 _Bundle = ODEResidualDerivatives[Array, DenseFormat[Array]]
 
@@ -103,3 +111,47 @@ class TestTheJacobianIsTheResiduals:
     ) -> None:
         with pytest.raises(TypeError, match="has no jacobian"):
             dense_mass_form_system(_NoJacobian(bkd))
+
+
+class _GrowingK(Generic[Array]):
+    """``time ->`` :math:`(1 + t) K` as a dense operator."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+        self._descriptor = backend_state_space(bkd, 3).descriptor()
+
+    def __call__(self, time: float) -> BackendDenseOperator[Array]:
+        matrix = (1.0 + time) * self._bkd.asarray(LINEAR_K)
+        return BackendDenseOperator(matrix, self._descriptor, self._bkd)
+
+
+class _StateFree(_Scaled[Array]):
+    """:math:`f = (1 + t) K y`: a Jacobian of the time only."""
+
+    def _build(self) -> _Bundle[Array]:
+        return ODEResidualDerivatives.state_only(
+            state_free_jacobian(_GrowingK(self._bkd))
+        )
+
+
+class TestReuseLabels:
+    """A general Jacobian gets no label; a constant one the same label at
+    every time, differing with the parameter version and with the key of
+    what is built from it; a state-free one a label per time."""
+
+    def test_by_level(self, bkd: Backend[Array]) -> None:
+        general = dense_mass_form_system(_Scaled(bkd))
+        assert general.jacobian_label(0, 0.1) is None
+        assert general.operator_label(0, 0.1, "stage") is None
+        constant = dense_mass_form_system(LinearMassModel(bkd))
+        label = constant.operator_label(0, 0.1, "stage")
+        assert label is not None and not label.provisional
+        assert constant.operator_label(0, 7.0, "stage") == label
+        assert constant.operator_label(1, 0.1, "stage") != label
+        assert constant.operator_label(0, 0.1, "other") != label
+        assert constant.jacobian_label(0, 0.1) == constant.jacobian_label(0, 7.0)
+        state_free = dense_mass_form_system(_StateFree(bkd))
+        at = state_free.operator_label(0, 0.1, "stage")
+        assert at is not None
+        assert state_free.operator_label(0, 0.1, "stage") == at
+        assert state_free.operator_label(0, 0.2, "stage") != at

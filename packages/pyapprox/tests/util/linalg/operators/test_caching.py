@@ -5,10 +5,14 @@ import pytest
 
 from pyapprox.util.linalg.operators import (
     CachingSolver,
+    KeepWithinSolve,
+    KeyedSolverProtocol,
     LinearizationPoint,
     LinearizedOperator,
     LinearSolverProtocol,
+    NoReuse,
     ReuseKey,
+    ReusePolicyProtocol,
     SpaceDescriptor,
     reuse_key,
 )
@@ -153,6 +157,37 @@ class TestCachingSolver:
         other = ReuseKey(LinearizationPoint(0, "other"), _U, _U)
         with pytest.raises(ValueError, match="is not the key"):
             cache.setup_keyed(other, build)
+
+    def test_reuse_policies(self, case: TypedStackCase[V, F, A]) -> None:
+        """Two policies. ``KeepWithinSolve`` gives a caching solver keeping
+        one handle per distinct operator. ``NoReuse`` gives a solver that
+        keeps no handle: it forms and sets up every operator, keyed or
+        not."""
+        keep = KeepWithinSolve()
+        none = NoReuse()
+        assert isinstance(keep, ReusePolicyProtocol)
+        assert isinstance(none, ReusePolicyProtocol)
+        kept = keep.solver(case.direct_solver(), 2)
+        assert isinstance(kept, KeyedSolverProtocol)
+        assert isinstance(kept, CachingSolver)
+        uncached = none.solver(case.direct_solver(), 2)
+        assert isinstance(uncached, KeyedSolverProtocol)
+        assert uncached.capabilities() == case.direct_solver().capabilities()
+        point = LinearizationPoint(0, "k")
+        key = ReuseKey(point, _U, _U)
+        builds = []
+
+        def build() -> LinearizedOperator[V, F]:
+            builds.append(point)
+            return _snapshot(case, 13, point)
+
+        handles = [uncached.setup_keyed(key, build) for _ in range(3)]
+        assert len(builds) == 3
+        assert handles[0] is not handles[1]
+        b = case.vec(_U, 1, 14)
+        op = _snapshot(case, 13, point)
+        case.assert_vector(op.apply(handles[2].apply(b)), case.array(b), rtol=1e-10)
+        assert uncached.setup(op) is not handles[0]
 
     def test_rejects_zero_capacity(self, case: TypedStackCase[V, F, A]) -> None:
         with pytest.raises(ValueError, match="at least 1"):

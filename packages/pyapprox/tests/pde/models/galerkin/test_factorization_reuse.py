@@ -13,7 +13,9 @@ SDIRK3 four times (its unpinned stages share one operator, its pinned
 last stage is another). With :math:`\kappa = (1 + t)(1 + x)` declared
 time-dependent, every implicit stage is factored afresh. A second solve
 opens a new session and factors again, and the reused trajectory equals
-the one stepped without reuse to round-off.
+the one stepped without reuse to round-off; so does the trajectory under
+the ``NoReuse`` policy, which factors at every implicit stage. The
+steppers count their distinct stage operators (1, 1, 2).
 """
 
 import pytest
@@ -23,7 +25,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -61,6 +63,8 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
+    NoReuse,
+    ReusePolicyProtocol,
     SolverCapabilities,
     SolverHandleProtocol,
 )
@@ -128,6 +132,7 @@ class _Run:
         bkd: NumpyBkd,
         make: Callable[[], ButcherTableau],
         diffusivity: CoordinateDiffusion,
+        reuse: Optional[ReusePolicyProtocol] = None,
     ) -> None:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -157,6 +162,7 @@ class _Run:
             adapter.mass_form_system(),
             newton,
             RowPinning(adapter.pinned_rows()),
+            reuse,
         )
         x = np.asarray(basis.dof_coordinates())[0]
         self.init_state: _Np = (0.3 * np.sin(np.pi * x))[:, None]
@@ -228,3 +234,27 @@ class TestFactorizationReuse:
         run = _Run(numpy_bkd, make, _GROWING)
         run.solve()
         assert run.lu.setups() == _NSTEPS * implicit_stages
+
+    @pytest.mark.parametrize(
+        "make, implicit_stages, distinct",
+        [(backward_euler, 1, 1), (crank_nicolson, 1, 1), (alexander_sdirk3, 3, 2)],
+        ids=["backward_euler", "crank_nicolson", "sdirk3"],
+    )
+    def test_no_reuse_keeps_nothing_and_changes_nothing(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], ButcherTableau],
+        implicit_stages: int,
+        distinct: int,
+    ) -> None:
+        """With NoReuse a constant Jacobian is factored at every implicit
+        stage, and the trajectory is the reused one to round-off; the
+        stepper counts its distinct stage operators either way."""
+        kept = _Run(numpy_bkd, make, _CONSTANT)
+        assert kept.stepper.distinct_stage_operators() == distinct
+        reused = kept.solve()
+        run = _Run(numpy_bkd, make, _CONSTANT, NoReuse())
+        fresh = run.solve()
+        assert run.lu.setups() == _NSTEPS * implicit_stages
+        for mine, theirs in zip(reused, fresh):
+            numpy_bkd.assert_allclose(mine, theirs, rtol=1e-13, atol=1e-15)
