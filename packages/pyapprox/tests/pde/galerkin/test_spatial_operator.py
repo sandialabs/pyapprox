@@ -197,6 +197,10 @@ class TestComposedStateDerivatives:
         bkd.assert_allclose(
             self._hvp(op, state, bkd), bkd.zeros((state.shape[0],))
         )
+        # Affine is read from the stated zero curvature of every part.
+        assert interior.interior_state_derivatives().affine()
+        assert all(term.state_derivatives().affine() for term in terms)
+        assert op.state_derivatives().affine()
 
     def test_curvature_is_summed_over_interior_and_terms(
         self, bkd: Backend[Array]
@@ -213,6 +217,7 @@ class TestComposedStateDerivatives:
             state, bkd.linspace(0.5, 1.5, n), bkd.ones((n,)), 0.0
         )
         bkd.assert_allclose(self._hvp(op, state, bkd), 2.0 * single)
+        assert not op.state_derivatives().affine()
 
     def test_absent_interior_curvature_is_absent(
         self, bkd: Backend[Array]
@@ -220,6 +225,7 @@ class TestComposedStateDerivatives:
         _, interior, _ = self._setup(bkd, StateDerivatives.none())
         op = ComposedSpatialOperator(interior, NaturalBCOperator([]))
         assert op.state_derivatives().state_state_hvp is None
+        assert not op.state_derivatives().affine()
 
     def test_one_term_without_curvature_makes_it_absent(
         self, bkd: Backend[Array]

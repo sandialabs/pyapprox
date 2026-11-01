@@ -28,7 +28,7 @@ which is what reduced adjoints need.
 
 The construction is only correct when the affinity really holds, so it
 is required rather than assumed: the spatial operator must declare
-itself affine in the state (``StateDerivatives.affine``), the
+itself affine in the state (a ``StateDerivatives.linear`` curvature), the
 parameterization affine in the parameters (``AffineInParamsProtocol``),
 both time-invariant, and the trial space linear. A check from
 ``pyapprox.pde.rom.checks``, run on the result against the exact
@@ -183,10 +183,10 @@ def _require_affine(
             f"{type(trial_space).__name__}"
         )
     operator = residual.spatial_operator()
-    if not operator.state_derivatives().affine:
+    if not operator.state_derivatives().affine():
         raise ValueError(
             "the spatial operator does not declare itself affine in the "
-            "state (StateDerivatives.affine), so its projection cannot be "
+            "state (StateDerivatives.linear), so its projection cannot be "
             "precomputed; use ProjectedResidual or a hyper-reduced residual"
         )
     parameterization = residual.parameterization()

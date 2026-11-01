@@ -204,7 +204,7 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         boundary velocity, independent of the state, so they keep the
         neutralized :math:`f` affine; the rows zeroed are fixed, so they
         keep its Jacobian time-invariant."""
-        if not self._spatial_operator.state_derivatives().affine:
+        if not self._spatial_operator.state_derivatives().affine():
             return Jacobian.general(self._essential_jacobian.jacobian_operator)
         if self._spatial_operator.jacobian_is_time_invariant():
             return Jacobian.constant(self._constant_jacobian)

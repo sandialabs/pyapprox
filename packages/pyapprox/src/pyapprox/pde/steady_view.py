@@ -186,7 +186,7 @@ class SteadyView(Generic[Array]):
 
     def is_linear(self) -> bool:
         """Whether the operator declares ``StateDerivatives.linear``."""
-        return self._spatial_operator.state_derivatives().affine
+        return self._spatial_operator.state_derivatives().affine()
 
     def __repr__(self) -> str:
         return (
