@@ -164,23 +164,12 @@ W = TypeVar("W")
 A = TypeVar("A", bound=ArrayProtocol)
 
 
-def _checked_indices(
-    term: StateTermProtocol[V, A], ntimes: int
-) -> List[int]:
-    """The stored states ``term`` reads.
-
-    Raises
-    ------
-    ValueError
-        If it names a state out of range, or one twice.
-    """
-    indices = list(term.indices(ntimes))
-    if len(set(indices)) != len(indices):
-        raise ValueError(f"{type(term).__name__} names a state twice")
-    for index in indices:
-        if not 0 <= index < ntimes:
-            raise ValueError(f"{type(term).__name__} names state {index} of {ntimes}")
-    return indices
+def _indices_read(term: StateTermProtocol[V, A], ntimes: int) -> List[int]:
+    """The stored states of a trajectory of ``ntimes`` that ``term``
+    reads."""
+    return [
+        index for index in range(ntimes) if term.reads(index, index == ntimes - 1)
+    ]
 
 
 @dataclass(frozen=True)
@@ -215,8 +204,6 @@ class _FirstOrder(Generic[V, A]):
     ------
     TypeError
         If a term's bundle has no first derivatives (it is only evaluated).
-    ValueError
-        If a state term names a state out of range, or one twice.
     """
 
     def __init__(self, functional: TrajectoryFunctional[V, A], ntimes: int) -> None:
@@ -238,7 +225,7 @@ class _FirstOrder(Generic[V, A]):
             if bundle.wrt_state is None:
                 raise refuse(state_term)
             first = _StateFirst(bundle.wrt_state, bundle.wrt_param)
-            for index in _checked_indices(state_term, ntimes):
+            for index in _indices_read(state_term, ntimes):
                 self._states_at.setdefault(index, []).append(first)
         self.steps: List[_StepFirst[V, A]] = []
         for step_term in functional.step_terms:
@@ -1087,7 +1074,9 @@ class TrajectoryDerivatives(Generic[V, A]):
         """
         if tangents.ntimes() != 0:
             raise ValueError("the tangent store must be empty")
-        version = self._stepper.parameters_version()
+        version, depth = self._stepper.parameters_version(), self._stepper.depth()
+        # The tangents of the states the next step read, most recent first.
+        recent: Deque[V] = deque(maxlen=depth)
         states = self._tangent_states(store, direction, session)
         for index, tangent in enumerate(states):
             # Only the initial tangent has no unknown: no step produced it.
@@ -1096,13 +1085,11 @@ class TrajectoryDerivatives(Generic[V, A]):
             else:
                 # The primal step's own span, so the tangent store's times
                 # are the primal's, derived from the same sizes.
-                tangents.append_step(
-                    store.span(index - 1),
-                    tangent.state,
-                    tangent.unknown,
-                    version,
-                    tangent.unconstrained,
-                )
+                span = store.span(index - 1, min(depth, index))
+                read = tuple(list(recent)[: len(span.sizes)])
+                window = StepWindow(span, read, tangent.unknown, version)
+                tangents.append_step(window, tangent.state, tangent.unconstrained)
+            recent.appendleft(tangent.state)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._stepper!r})"
@@ -1437,7 +1424,7 @@ class _FunctionalCurvatures(Generic[V, A]):
                 )
             states.append(
                 _StateCurvature(
-                    frozenset(state_term.indices(ntimes)),
+                    frozenset(_indices_read(state_term, ntimes)),
                     bundle.state_state,
                     bundle.state_param,
                     bundle.param_state,

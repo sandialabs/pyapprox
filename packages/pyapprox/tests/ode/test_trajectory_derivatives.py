@@ -29,7 +29,7 @@ directly.
   parameters, and functionals the adapter cannot serve.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Sequence, Union
+from typing import Any, Callable, Generic, List, Optional, Union
 
 import numpy as np
 import pytest
@@ -406,8 +406,8 @@ class _Truncated(Generic[Array]):
     def nqoi(self) -> int:
         return self._inner.nqoi()
 
-    def indices(self, ntimes: int) -> Sequence[int]:
-        return self._inner.indices(ntimes)
+    def reads(self, index: int, last: bool) -> bool:
+        return self._inner.reads(index, last)
 
     def value(self, index: int, time: float, state: Array) -> Array:
         return self._inner.value(index, time, state)
@@ -674,8 +674,8 @@ class _MockLastTerm:
     def nqoi(self) -> int:
         return 1
 
-    def indices(self, ntimes: int) -> list[int]:
-        return [ntimes - 1]
+    def reads(self, index: int, last: bool) -> bool:
+        return last
 
     def value(self, index: int, time: float, state: MockVector) -> NDArray[Any]:
         y, c, e = peek(state), self._c, self._e
@@ -852,8 +852,8 @@ class _OneBuffer:
     def nqoi(self) -> int:
         return 1
 
-    def indices(self, ntimes: int) -> list[int]:
-        return self._inner.indices(ntimes)
+    def reads(self, index: int, last: bool) -> bool:
+        return self._inner.reads(index, last)
 
     def value(self, index: int, time: float, state: MockVector) -> NDArray[Any]:
         return self._inner.value(index, time, state)

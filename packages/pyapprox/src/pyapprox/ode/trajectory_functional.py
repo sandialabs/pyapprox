@@ -18,7 +18,7 @@ a state term itself, needs no trajectory array and replaces it.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Sequence
+from typing import Generic, Optional
 
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalProtocol,
@@ -225,8 +225,8 @@ class _TransientStateTerm(Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def indices(self, ntimes: int) -> Sequence[int]:
-        return range(ntimes)
+    def reads(self, index: int, last: bool) -> bool:
+        return True
 
     def value(self, index: int, time: float, state: Array) -> Array:
         return self._zero

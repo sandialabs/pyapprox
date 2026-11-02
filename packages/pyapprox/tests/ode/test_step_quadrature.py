@@ -50,6 +50,7 @@ from pyapprox.ode.step_quadrature import (
     recursion_sensitivities,
 )
 from pyapprox.ode.step_span import StepSpan
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import (
     ButcherTableau,
     backward_euler,
@@ -392,15 +393,17 @@ class TestSinkRefusals:
         sink = self._sink(bkd)
         y = bkd.asarray(_Y0)
         unknown = BlockVector((y,))
-        with pytest.raises(ValueError, match="append one first"):
-            sink.append_step(StepSpan.first(0.0, 0.5), y, unknown, 0)
-        sink.append(0.0, y)
-        with pytest.raises(ValueError, match="no step has been received"):
+        with pytest.raises(ValueError, match="no state has been received"):
             sink.value()
+        with pytest.raises(ValueError, match="append one first"):
+            sink.append_step(StepWindow(StepSpan.first(0.0, 0.5), (y,), unknown), y)
+        sink.append(0.0, y)
+        # No step yet: the integral over no time is zero.
+        bkd.assert_allclose(sink.value(), bkd.zeros((1, 1)))
         with pytest.raises(ValueError, match="only the initial state"):
             sink.append(0.0, y)
         with pytest.raises(ValueError, match="not where the last one ended"):
-            sink.append_step(StepSpan.first(0.25, 0.5), y, unknown, 0)
+            sink.append_step(StepWindow(StepSpan.first(0.25, 0.5), (y,), unknown), y)
 
     def test_protocols_are_checked(self, bkd: Backend[Array]) -> None:
         stepper = _runge_kutta(backward_euler, bkd)

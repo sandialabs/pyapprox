@@ -24,11 +24,9 @@ The integrand's derivatives are linearizations, so a vector-valued
 weighted by the adjoint weights :math:`\omega` of its entries.
 """
 
-from collections import deque
 from dataclasses import dataclass
 from typing import (
     Callable,
-    Deque,
     Generic,
     List,
     Optional,
@@ -39,6 +37,11 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.ode.functional_sink import (
+    FunctionalSink,
+    RunningRecursion,
+    StepCombinationProtocol,
+)
 from pyapprox.ode.protocols import StepperProtocol
 from pyapprox.ode.step_quadrature import (
     QuadratureNode,
@@ -46,7 +49,6 @@ from pyapprox.ode.step_quadrature import (
     StepRule,
     recursion_sensitivities,
 )
-from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
@@ -218,6 +220,14 @@ class TimeIntegral(Generic[V, A]):
         :math:`q`, and its spaces hold the derivatives.
     bkd : Backend
         The backend of the integral's values.
+    combination : callable, optional
+        ``(quadrature, depth) ->`` how one solve's step contributions
+        combine into its value through the recursion:
+        :class:`~pyapprox.ode.functional_sink.RunningRecursion` by default
+        (a running value, the method's depth kept), or
+        :class:`~pyapprox.ode.functional_sink.StoredContributions` (every
+        contribution kept, weighed at the end), or another
+        implementation.
 
     Raises
     ------
@@ -230,6 +240,9 @@ class TimeIntegral(Generic[V, A]):
         integrand: IntegrandProtocol[V, A],
         stepper: StepperProtocol[V, A],
         bkd: Backend[A],
+        combination: Callable[
+            [StepQuadratureProtocol, int], StepCombinationProtocol[A]
+        ] = RunningRecursion,
     ) -> None:
         if not isinstance(integrand, IntegrandProtocol):
             raise TypeError(
@@ -241,6 +254,7 @@ class TimeIntegral(Generic[V, A]):
                 f"stepper must satisfy StepperProtocol, got {type(stepper).__name__}"
             )
         self._integrand, self._stepper, self._bkd = integrand, stepper, bkd
+        self._combination = combination
         self._quadrature = stepper.time_quadrature()
         self._depth = stepper.depth()
         params = stepper.param_space()
@@ -264,10 +278,16 @@ class TimeIntegral(Generic[V, A]):
         """Each step's contribution :math:`c_n`, unweighted."""
         return self._term
 
-    def sink(self) -> "TimeIntegralSink[V, A]":
+    def sink(self) -> FunctionalSink[V, A]:
         """A fresh sink for one solve, whose value is the integral of what
-        it receives."""
-        return TimeIntegralSink(self._term, self._quadrature, self._depth)
+        it receives (zero before any step): the step term's contributions
+        combined as injected."""
+        return FunctionalSink(
+            self._bkd.zeros((self._integrand.nqoi(), 1)),
+            step_terms=(
+                (self._term, self._combination(self._quadrature, self._depth)),
+            ),
+        )
 
     def _rules(self, store: TrajectoryStoreProtocol[V]) -> List[StepRule]:
         """Every step's recursion, over the span the sweeps' window has,
@@ -642,98 +662,3 @@ def node_state(window: StepWindow[V], node: QuadratureNode) -> V:
     return window.past_state(node.lag)
 
 
-class TimeIntegralSink(Generic[V, A]):
-    r"""One solve's :math:`z`, advanced as the steps arrive: each step's
-    contribution read through the step term, from the step's window, and
-    combined by the step's recursion.
-
-    Keeps the stored states and the values of :math:`z` the method's
-    deepest step reads, nothing more.
-
-    Parameters
-    ----------
-    term : QuadratureStepTerm
-        Each step's contribution.
-    quadrature : StepQuadratureProtocol
-        The stepper's method applied to :math:`\dot z = q`.
-    depth : int
-        The most stored states a step reads.
-
-    Raises
-    ------
-    ValueError
-        From :meth:`append`, if a state was already received; from
-        :meth:`append_step`, if none was, or the step does not start where
-        the last one ended; from :meth:`value`, before any step.
-    """
-
-    def __init__(
-        self,
-        term: QuadratureStepTerm[V, A],
-        quadrature: StepQuadratureProtocol,
-        depth: int,
-    ) -> None:
-        self._term = term
-        self._quadrature = quadrature
-        # Most recent first; z_0 = 0 is None, since no zero of q's type is
-        # at hand before the first step.
-        self._states: Deque[V] = deque(maxlen=depth)
-        self._integrals: Deque[Optional[A]] = deque(maxlen=depth)
-        self._ntimes = 0
-        self._last_time: Optional[float] = None
-
-    def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
-        """Take the initial state, where :math:`z = 0`."""
-        if self._last_time is not None:
-            raise ValueError(
-                "only the initial state is appended at a time; every later state "
-                "comes with its step (append_step)"
-            )
-        self._states.appendleft(state)
-        self._integrals.appendleft(None)
-        self._ntimes, self._last_time = 1, time
-
-    def append_step(
-        self,
-        span: StepSpan,
-        state: V,
-        unknown: BlockVector[V],
-        parameters_version: int,
-        unconstrained: Optional[V] = None,
-    ) -> None:
-        r"""Advance :math:`z` over the step, reading its nodes from
-        ``unknown`` and the stored states the step read."""
-        if self._last_time is None:
-            raise ValueError("a step starts from a received state; append one first")
-        if span.time() != self._last_time:
-            raise ValueError(
-                f"the step starts at {span.time()}, not where the last one ended, "
-                f"{self._last_time}"
-            )
-        rule = self._quadrature.rule(span)
-        # The step's window, as a store would give it for the sweeps.
-        read = tuple(list(self._states)[: len(span.sizes)])
-        window = StepWindow(span, read, unknown, parameters_version)
-        increment = self._term.value(self._ntimes - 1, window)
-        past = [
-            increment * 0.0 if value is None else value
-            for value in list(self._integrals)[: len(rule.alpha) - 1]
-        ]
-        self._integrals.appendleft(rule.advance(past, increment))
-        self._states.appendleft(state)
-        self._ntimes += 1
-        self._last_time = span.end()
-
-    def ntimes(self) -> int:
-        """The number of states received."""
-        return self._ntimes
-
-    def value(self) -> A:
-        r""":math:`z` at the last state received: the integral so far."""
-        latest = self._integrals[0] if self._integrals else None
-        if latest is None:
-            raise ValueError("no step has been received, so there is no integral")
-        return latest
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._term!r}, ntimes={self._ntimes})"

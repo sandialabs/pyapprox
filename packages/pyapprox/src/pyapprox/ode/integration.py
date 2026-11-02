@@ -45,6 +45,7 @@ from pyapprox.ode.residual_derivatives import DerivativeOperator, SecondDerivati
 from pyapprox.ode.residual_form import ResidualFormProtocol
 from pyapprox.ode.state_constraint import StateConstraintDerivatives, TangentFn
 from pyapprox.ode.step_plan import StepPlanProtocol
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectorySinkProtocol
 from pyapprox.util.backends.protocols import Array
 
@@ -224,9 +225,9 @@ class Integrator(Generic[V]):
             sequence of them is started for this solve, and it takes each
             step through this solve's session.
         sink : TrajectorySinkProtocol
-            Empty; receives :math:`y_0, \\dots, y_N` and each step's span
-            and unknown. A store, for the sweeps to read back; any sink
-            when no sweep follows.
+            Empty; receives :math:`y_0, \\dots, y_N` and each step's
+            window (its span, the states it read, its unknown). A store,
+            for the sweeps to read back; any sink when no sweep follows.
 
         Raises
         ------
@@ -259,16 +260,16 @@ class Integrator(Generic[V]):
         # stepper's depth of them once there are that many.
         recent: Deque[V] = deque([state], maxlen=stepper.depth())
         while (taken := sequence.next_step(session, tuple(recent))) is not None:
+            # The step's window, built once here for every sink: the
+            # states it read (one per size of its span) and its unknown.
+            read = tuple(list(recent)[: len(taken.span.sizes)])
+            window = StepWindow(
+                taken.span, read, taken.unknown, stepper.parameters_version()
+            )
             readout = stepper.readout().apply(taken.unknown).blocks[0]
             state = self._constrained(readout, taken.span.end())
             recent.appendleft(state)
-            sink.append_step(
-                taken.span,
-                state,
-                taken.unknown,
-                stepper.parameters_version(),
-                readout if constrained else None,
-            )
+            sink.append_step(window, state, readout if constrained else None)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._stepper!r})"

@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from pyapprox.ode.step_span import StepSpan
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectoryStoreProtocol,
@@ -30,7 +31,8 @@ def _filled(store: InMemoryTrajectoryStore[V], states: Sequence[V]) -> None:
     store.append(_TIMES[0], states[0])
     for n, state in enumerate(states[1:]):
         span = StepSpan.from_times(_TIMES[n : n + 2])
-        store.append_step(span, state, BlockVector((state,)), 0)
+        window = StepWindow(span, (states[n],), BlockVector((state,)), 0)
+        store.append_step(window, state)
 
 
 class TestInMemoryTrajectoryStore:
@@ -53,7 +55,8 @@ class TestInMemoryTrajectoryStore:
         store.append(0.0, state)
         span = StepSpan.first(0.0, 0.1)
         for _ in range(10):
-            store.append_step(span, state, BlockVector((state,)), 0)
+            window = StepWindow(span, (state,), BlockVector((state,)))
+            store.append_step(window, state)
             span = span.advanced(0.1, 1)
         sums = [0.0]
         for _ in range(10):
@@ -74,7 +77,10 @@ class TestInMemoryTrajectoryStore:
         with pytest.raises(ValueError, match="only the initial state"):
             store.append(1.0, state)
         with pytest.raises(ValueError, match="not at the last stored time"):
-            store.append_step(StepSpan.first(0.5, 0.5), state, BlockVector((state,)), 0)
+            store.append_step(
+                StepWindow(StepSpan.first(0.5, 0.5), (state,), BlockVector((state,))),
+                state,
+            )
 
     def test_index_out_of_range(self, bkd: Backend[Array]) -> None:
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
@@ -103,7 +109,7 @@ def _stepped_store(
     store.append(_TIMES[0], states[0])
     for n, state in enumerate(states[1:]):
         span = StepSpan.from_times(_TIMES[n : n + 2])
-        store.append_step(span, state, unknowns[n], n)
+        store.append_step(StepWindow(span, (states[n],), unknowns[n], n), state)
     return store, states, unknowns
 
 
@@ -144,7 +150,10 @@ class TestStepWindows:
         empty: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         state = bkd.zeros((2, 1))
         with pytest.raises(ValueError, match="append one first"):
-            empty.append_step(StepSpan.first(0.0, 1.0), state, BlockVector((state,)), 0)
+            empty.append_step(
+                StepWindow(StepSpan.first(0.0, 1.0), (state,), BlockVector((state,))),
+                state,
+            )
         store, _, _ = _stepped_store(bkd)
         with pytest.raises(IndexError):
             store.window(3)

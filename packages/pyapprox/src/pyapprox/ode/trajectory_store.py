@@ -48,8 +48,8 @@ class TrajectorySinkProtocol(Protocol, Generic[V]):
 
     A sink need not keep what it receives: one accumulating a functional
     of the states as they arrive keeps no states at all. It receives the
-    initial state at its time, then each step, the step's span starting
-    where the last one ended.
+    initial state at its time, then each step's window, the step's span
+    starting where the last one ended.
     """
 
     def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
@@ -58,17 +58,14 @@ class TrajectorySinkProtocol(Protocol, Generic[V]):
         ...
 
     def append_step(
-        self,
-        span: StepSpan,
-        state: V,
-        unknown: BlockVector[V],
-        parameters_version: int,
-        unconstrained: Optional[V] = None,
+        self, window: StepWindow[V], state: V, unconstrained: Optional[V] = None
     ) -> None:
-        """Add the state a step over ``span`` produced, at ``span.end()``,
-        with the step's unknown, the parameter version it was taken at and
-        the value the state constraint was applied to, when there is
-        one."""
+        """Add the state a step produced, at ``window.span.end()``, with
+        the step's window (its span, the stored states it read, its
+        unknown and the parameter version it was taken at) and the value
+        the state constraint was applied to, when there is one. The
+        window is built once by the integrator; a sink reading the step
+        reads it, keeping no history of its own."""
         ...
 
     def ntimes(self) -> int:
@@ -161,15 +158,11 @@ class InMemoryTrajectoryStore(Generic[V]):
         self._unconstrained.append(unconstrained)
 
     def append_step(
-        self,
-        span: StepSpan,
-        state: V,
-        unknown: BlockVector[V],
-        parameters_version: int,
-        unconstrained: Optional[V] = None,
+        self, window: StepWindow[V], state: V, unconstrained: Optional[V] = None
     ) -> None:
-        """Add the state a step over ``span`` produced, with the step's
-        unknown.
+        """Add the state a step produced, with the step's unknown and
+        parameter version from its window; the window's past states are
+        the store's own and are not kept twice.
 
         Raises
         ------
@@ -177,6 +170,7 @@ class InMemoryTrajectoryStore(Generic[V]):
             If the store is empty (a step starts from a stored state) or
             the span does not start at the last stored time.
         """
+        span = window.span
         if not self._times:
             raise ValueError("a step starts from a stored state; append one first")
         if span.time() != self._times[-1]:
@@ -188,7 +182,7 @@ class InMemoryTrajectoryStore(Generic[V]):
         self._times.append(span.end())
         self._states.append(state)
         self._unconstrained.append(unconstrained)
-        self._steps.append((unknown, parameters_version))
+        self._steps.append((window.unknown, window.parameters_version))
 
     def nsteps(self) -> int:
         return len(self._steps)

@@ -386,17 +386,20 @@ class StateTermProtocol(Protocol[V, A]):
     r"""A term :math:`\sum_m g_m(y_m;\, p)` over the stored states it
     names, each read alone.
 
-    It holds no trajectory: it names its states for a trajectory of a
-    given length, and is handed each one with its index and time.
+    It holds no trajectory: it says which stored states it reads, by
+    index and whether a state is the last, and is handed each one it reads
+    with its index and time. Naming the last state by ``last``, not by an
+    index, lets a sink evaluate the term while the trajectory is still
+    being computed, its length unknown (an adaptive plan's).
     """
 
     def nqoi(self) -> int:
         """The number of entries of the term's value."""
         ...
 
-    def indices(self, ntimes: int) -> Sequence[int]:
-        """The stored states the term reads, for a trajectory of
-        ``ntimes`` states; nonnegative, each once."""
+    def reads(self, index: int, last: bool) -> bool:
+        """Whether the term reads stored state ``index``, the trajectory's
+        last when ``last``."""
         ...
 
     def value(self, index: int, time: float, state: V) -> A:
@@ -717,8 +720,8 @@ class _MappedStateTerm(Generic[V, A]):
     def nqoi(self) -> int:
         return self._values.nqoi(self._term.nqoi())
 
-    def indices(self, ntimes: int) -> Sequence[int]:
-        return self._term.indices(ntimes)
+    def reads(self, index: int, last: bool) -> bool:
+        return self._term.reads(index, last)
 
     def value(self, index: int, time: float, state: V) -> A:
         return self._values.out(0, self._term.value(index, time, state))
