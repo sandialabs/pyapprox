@@ -160,9 +160,9 @@ class TestCachingSolver:
 
     def test_reuse_policies(self, case: TypedStackCase[V, F, A]) -> None:
         """Two policies. ``KeepWithinSolve`` gives a caching solver keeping
-        one handle per distinct operator. ``NoReuse`` gives a solver that
-        keeps no handle: it forms and sets up every operator, keyed or
-        not."""
+        a handle per distinct operator for each of two step sizes (or as
+        many as asked). ``NoReuse`` gives a solver that keeps no handle: it
+        forms and sets up every operator, keyed or not."""
         keep = KeepWithinSolve()
         none = NoReuse()
         assert isinstance(keep, ReusePolicyProtocol)
@@ -170,6 +170,11 @@ class TestCachingSolver:
         kept = keep.solver(case.direct_solver(), 2)
         assert isinstance(kept, KeyedSolverProtocol)
         assert isinstance(kept, CachingSolver)
+        # Two step sizes' operators by default, one on request.
+        assert "capacity=4" in repr(kept)
+        assert "capacity=2" in repr(KeepWithinSolve(1).solver(case.direct_solver(), 2))
+        with pytest.raises(ValueError, match="at least 1"):
+            KeepWithinSolve(0)
         uncached = none.solver(case.direct_solver(), 2)
         assert isinstance(uncached, KeyedSolverProtocol)
         assert uncached.capabilities() == case.direct_solver().capabilities()

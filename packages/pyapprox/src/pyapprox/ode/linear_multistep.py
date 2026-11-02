@@ -189,6 +189,14 @@ class _MultistepSession(Generic[V, A, F]):
         """Solve one step (see :meth:`LinearMultistepStepper.step`)."""
         return self._stepper._step(past_states, span, self._solver)
 
+    def diag_handle(
+        self, window: StepWindow[V]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """The step's diagonal handle (see
+        :meth:`LinearMultistepStepper.diag_handle`), set up through this
+        session."""
+        return self._stepper._diag_handle(window, self._solver)
+
 
 class LinearMultistepStepper(Generic[V, A, F]):
     r"""A linear multistep stepper in mass form, with the formula of each
@@ -623,14 +631,36 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def diag_handle(
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """A solver handle for :meth:`diag`, set up by the system's
-        solver."""
+        """A solver handle for :meth:`diag`, as a session of this one
+        window, set up by the system's solver."""
+        return self.session().diag_handle(window)
+
+    def _diag_label(self, window: StepWindow[V]) -> Optional[LinearizationPoint]:
+        r"""The reuse label of the diagonal block, or None: an implicit
+        step's :math:`\alpha_0 M - \Delta t\, \beta_0 J` labeled exactly as
+        the forward step labels it, an explicit step's :math:`\alpha_0 M`
+        by the mass and :math:`\alpha_0`."""
+        formula = self._window_formula(window)
+        alpha0, beta0 = formula.alpha[0], formula.beta[0]
+        version = window.parameters_version
+        if beta0 == 0.0:
+            return LinearizationPoint(version, ("mass", alpha0))
+        key = ("new state", alpha0, window.deltat() * beta0)
+        return self._system.operator_label(version, window.lag_time(0), key)
+
+    def _diag_handle(
+        self, window: StepWindow[V], solver: KeyedSolverProtocol[V, F]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """:meth:`diag_handle`, the block set up by ``solver`` under its
+        reuse label when it has one."""
         # alpha_0 != 0, so the diagonal block is never zero.
         block = self._lag_block(window, 0)
         if block is None:
             raise AssertionError("alpha_0 is nonzero")
+        label = self._diag_label(window)
+        labeled = block if label is None else LinearizedOperator(block, label)
         operator = BlockOperator([[block]], self._unknown_space, self._residual_space)
-        return BlockLowerTriangularHandle(operator, [self._system.solver.setup(block)])
+        return BlockLowerTriangularHandle(operator, [solver.setup(labeled)])
 
     def _off_diag(self, window: StepWindow[V], lag: int) -> StepOperator[V]:
         r""":math:`\partial R_n/\partial y_{n+1-l} = \alpha_l M - \Delta t\,

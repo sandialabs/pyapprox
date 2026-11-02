@@ -179,11 +179,20 @@ class _RungeKuttaSession(Generic[V, A, F]):
         self._stepper = stepper
         self._solver: KeyedSolverProtocol[V, F] = stepper.reuse().solver(
             stepper.system().solver, stepper.distinct_stage_operators()
+            + stepper._distinct_mass_blocks()
         )
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`RungeKuttaStepper.step`)."""
         return self._stepper._step(past_states, span, self._solver)
+
+    def diag_handle(
+        self, window: StepWindow[V]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """The step's diagonal handle (see
+        :meth:`RungeKuttaStepper.diag_handle`), its blocks set up through
+        this session."""
+        return self._stepper._diag_handle(window, self._solver)
 
 
 class RungeKuttaStepper(Generic[V, A, F]):
@@ -292,8 +301,23 @@ class RungeKuttaStepper(Generic[V, A, F]):
         r"""The number of different stage operators :math:`M - \Delta t\,
         a_{ii} J` one step forms at a fixed step size: one per diagonal
         coefficient, and one per pinned block, whose rows are replaced.
-        A session keeps this many handles by default."""
+        A session keeps this many handles by default, and one per
+        :meth:`_distinct_mass_blocks` more for the sweeps."""
         return self._distinct
+
+    def _distinct_mass_blocks(self) -> int:
+        """The diagonal blocks of :meth:`diag` that are :math:`M` alone (an
+        explicit stage, the final block), counted once per pinning: a
+        sweep's session keeps a handle for each."""
+        stages = len(self._unknown_stages)
+        kinds = set()
+        for r in range(self._unknown_space.nblocks()):
+            if r < stages and not self._tableau.is_explicit_stage(
+                self._unknown_stages[r]
+            ):
+                continue
+            kinds.add(None if self._block_pin(r) is None else r)
+        return len(kinds)
 
     def system(self) -> MassFormSystem[V, A, F]:
         """What the stepper steps."""
@@ -758,15 +782,44 @@ class RungeKuttaStepper(Generic[V, A, F]):
     def diag_handle(
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """A solver handle for :meth:`diag`: forward substitution with each
-        diagonal block set up by the system's solver."""
+        """A solver handle for :meth:`diag`, as a session of this one
+        window: forward substitution with each diagonal block set up by
+        the system's solver."""
+        return self.session().diag_handle(window)
+
+    def _diag_label(
+        self, window: StepWindow[V], r: int
+    ) -> Optional[LinearizationPoint]:
+        """The reuse label of diagonal block ``r``, or None: a stage block
+        :math:`M - \\Delta t\\, a_{rr} J` is labeled exactly as the forward
+        step labels it (so a sweep's blocks repeat as the steps' do); a
+        block that is :math:`M` alone (an explicit stage, the final block)
+        by the mass, fixed for the system's life."""
+        pinned = None if self._block_pin(r) is None else r
+        version = window.parameters_version
+        if r < len(self._unknown_stages):
+            i = self._unknown_stages[r]
+            diagonal = self._tableau.a[i][i]
+            if diagonal != 0.0:
+                key = ("stage", window.deltat() * diagonal, pinned)
+                time = self._stage_time(window, i)
+                return self._system.operator_label(version, time, key)
+        return LinearizationPoint(version, ("mass", pinned))
+
+    def _diag_handle(
+        self, window: StepWindow[V], solver: KeyedSolverProtocol[V, F]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """:meth:`diag_handle`, each diagonal block set up by ``solver``
+        under its reuse label when it has one."""
         grid = self._diag_blocks(window)
         handles = []
         for r, row in enumerate(grid):
             block = row[r]
             if block is None:
                 raise ValueError(f"{self._tableau.name}: diagonal block {r} is zero")
-            handles.append(self._system.solver.setup(block))
+            label = self._diag_label(window, r)
+            labeled = block if label is None else LinearizedOperator(block, label)
+            handles.append(solver.setup(labeled))
         operator = BlockOperator(grid, self._unknown_space, self._residual_space)
         return BlockLowerTriangularHandle(operator, handles)
 

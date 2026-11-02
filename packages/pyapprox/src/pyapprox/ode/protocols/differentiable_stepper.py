@@ -49,6 +49,35 @@ class StepSessionProtocol(Protocol[V]):
 
 
 @runtime_checkable
+class DifferentiableSessionProtocol(Protocol[V]):
+    """The step solves of one derivative sweep (or of sweeps run
+    together, a tangent and its adjoints).
+
+    Like a step session, it may reuse a setup between the steps it serves,
+    and only while it is held: a diagonal block that is provably the same
+    operator at two steps (a Jacobian constant in time, steps of one size)
+    is set up once. A forward session's handles are not reused here: they
+    were set up at Newton iterates, not at the converged steps a sweep
+    differentiates.
+    """
+
+    def diag_handle(
+        self, window: StepWindow[V]
+    ) -> SolverHandleProtocol[BlockVector[V]]:
+        """A solver handle for the step's diagonal block, as
+        :meth:`DifferentiableStepperProtocol.diag_handle`."""
+        ...
+
+
+@runtime_checkable
+class StepperSessionProtocol(
+    StepSessionProtocol[V], DifferentiableSessionProtocol[V], Protocol[V]
+):
+    """A session that steps and differentiates: what a stepping method's
+    stepper opens."""
+
+
+@runtime_checkable
 class ForwardStepperProtocol(Protocol[V]):
     """What an integrator needs of a stepper to march forward."""
 
@@ -123,7 +152,13 @@ class DifferentiableStepperProtocol(Protocol[V, A]):
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
         """A solver handle for :meth:`diag`; its ``transpose()`` serves
-        the adjoint sweep."""
+        the adjoint sweep. A session of this one window: nothing is reused
+        from or for another call."""
+        ...
+
+    def session(self) -> DifferentiableSessionProtocol[V]:
+        """A new session for one sweep's step solves (or sweeps run
+        together), reusing nothing from any other."""
         ...
 
     def derivatives(self) -> StepperDerivatives[V]:
@@ -143,3 +178,8 @@ class StepperProtocol(
 ):
     """A stepper the integrator marches and the sweeps differentiate:
     what a stepping method builds."""
+
+    def session(self) -> StepperSessionProtocol[V]:
+        """A new session that steps and differentiates, reusing nothing
+        from any other."""
+        ...

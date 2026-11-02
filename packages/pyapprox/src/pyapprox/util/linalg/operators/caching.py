@@ -228,17 +228,38 @@ class ReusePolicyProtocol(Protocol):
 
 
 class KeepWithinSolve:
-    """Keep one handle per distinct operator of a step, for the solve: a
-    :class:`CachingSolver` of that capacity, so an operator that repeats
-    from step to step is set up once."""
+    """Keep, for the solve, a handle per distinct operator of a step for
+    each of the ``sizes`` most recent step sizes: a :class:`CachingSolver`
+    of that capacity, so an operator that repeats from step to step is set
+    up once.
+
+    Parameters
+    ----------
+    sizes : int, default 2
+        How many step sizes' operators are kept. Two cover a grid landing
+        exactly on its end (its last step has a size of its own), whichever
+        way the solve visits its steps (forward, then backward in a
+        sweep); one halves the memory at the cost of setting the operators
+        of the other size up again.
+
+    Raises
+    ------
+    ValueError
+        If ``sizes`` is below 1.
+    """
+
+    def __init__(self, sizes: int = 2) -> None:
+        if sizes < 1:
+            raise ValueError(f"sizes must be at least 1, got {sizes}")
+        self._sizes = sizes
 
     def solver(
         self, inner: LinearSolverProtocol[W, G], distinct: int
     ) -> CachingSolver[W, G]:
-        return CachingSolver(inner, capacity=max(1, distinct))
+        return CachingSolver(inner, capacity=max(1, distinct) * self._sizes)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}()"
+        return f"{self.__class__.__name__}(sizes={self._sizes})"
 
 
 class NoReuse:

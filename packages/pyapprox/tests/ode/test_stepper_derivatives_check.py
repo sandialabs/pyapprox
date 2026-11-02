@@ -33,6 +33,7 @@ from typing import Callable, Generic, Optional
 
 import pytest
 
+from pyapprox.ode.protocols import DifferentiableSessionProtocol
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -114,6 +115,9 @@ class _Planted(Generic[Array]):
         self, window: StepWindow[Array]
     ) -> SolverHandleProtocol[BlockVector[Array]]:
         return self._stepper.diag_handle(window)
+
+    def session(self) -> DifferentiableSessionProtocol[Array]:
+        return self._stepper.session()
 
     def derivatives(self) -> StepperDerivatives[Array]:
         derivs = self._stepper.derivatives()
