@@ -451,7 +451,9 @@ class TestAgainstAutograd:
 
 
 class TestRefusals:
-    def test_an_integrand_without_gradients(self, bkd: Backend[Array]) -> None:
+    def test_an_integrand_only_evaluated(self, bkd: Backend[Array]) -> None:
+        """An integrand giving only its value integrates (through the sink)
+        and binds to a trajectory; a sweep refuses it, naming the term."""
         problem = _Problem(bkd, backward_euler())
         _, store = problem.solve(bkd.asarray(LV_PARAM))
         stepper = make_stepper(
@@ -460,8 +462,12 @@ class TestRefusals:
         integral: TimeIntegral[Array, Array] = TimeIntegral(
             _ValueOnly(bkd), stepper, bkd
         )
-        with pytest.raises(TypeError, match="no state derivative"):
-            integral.trajectory_functional(store)
+        sink = integral.sink()
+        Integrator(stepper).solve(bkd.asarray(START), STEPS, sink)
+        assert sink.value().shape == (1, 1)
+        functional = integral.trajectory_functional(store)
+        with pytest.raises(TypeError, match="RecursionWeighted.*only evaluated"):
+            problem.sweeps().gradient(store, functional)
 
     def test_a_parameter_derivative_needs_the_state_derivative(self) -> None:
         with pytest.raises(ValueError, match="needs the state derivative"):

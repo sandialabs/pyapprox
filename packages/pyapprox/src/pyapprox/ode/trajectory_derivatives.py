@@ -135,11 +135,17 @@ from pyapprox.ode.trajectory_store import (
     TrajectoryStoreProtocol,
 )
 from pyapprox.ode.trajectory_terms import (
+    LinearizationProtocol,
     StateCurvatureFn,
+    StateLinearizationFn,
+    StateParamLinearizationFn,
     StateTermProtocol,
     StepLagCurvatureFn,
+    StepLagLinearizationFn,
     StepParamCurvatureFn,
+    StepParamLinearizationFn,
     StepUnknownCurvatureFn,
+    StepUnknownLinearizationFn,
     TrajectoryFunctional,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol
@@ -158,40 +164,101 @@ W = TypeVar("W")
 A = TypeVar("A", bound=ArrayProtocol)
 
 
-class _StateTermsByIndex(Generic[V, A]):
-    """A functional's state terms by the stored state each reads.
+def _checked_indices(
+    term: StateTermProtocol[V, A], ntimes: int
+) -> List[int]:
+    """The stored states ``term`` reads.
+
+    Raises
+    ------
+    ValueError
+        If it names a state out of range, or one twice.
+    """
+    indices = list(term.indices(ntimes))
+    if len(set(indices)) != len(indices):
+        raise ValueError(f"{type(term).__name__} names a state twice")
+    for index in indices:
+        if not 0 <= index < ntimes:
+            raise ValueError(f"{type(term).__name__} names state {index} of {ntimes}")
+    return indices
+
+
+@dataclass(frozen=True)
+class _StateFirst(Generic[V, A]):
+    """A state term's first derivatives, read from its bundle."""
+
+    wrt_state: StateLinearizationFn[V, A]
+    wrt_param: Optional[StateParamLinearizationFn[V, A]]
+
+
+@dataclass(frozen=True)
+class _StepFirst(Generic[V, A]):
+    """A step term's first derivatives, read from its bundle."""
+
+    wrt_unknown: StepUnknownLinearizationFn[V, A]
+    wrt_lag: StepLagLinearizationFn[V, A]
+    wrt_param: StepParamLinearizationFn[V, A]
+
+
+class _FirstOrder(Generic[V, A]):
+    """Every term's first derivatives, read once from the bundles, the
+    state terms' by the stored state each reads.
 
     Parameters
     ----------
-    terms : sequence of StateTermProtocol
-        The state terms.
+    functional : TrajectoryFunctional
+        The terms.
     ntimes : int
         The number of stored states.
 
     Raises
     ------
+    TypeError
+        If a term's bundle has no first derivatives (it is only evaluated).
     ValueError
-        If a term names a state out of range, or one twice.
+        If a state term names a state out of range, or one twice.
     """
 
-    def __init__(
-        self, terms: Sequence[StateTermProtocol[V, A]], ntimes: int
-    ) -> None:
-        self._by_index: Dict[int, List[StateTermProtocol[V, A]]] = {}
-        for term in terms:
-            indices = list(term.indices(ntimes))
-            if len(set(indices)) != len(indices):
-                raise ValueError(f"{type(term).__name__} names a state twice")
-            for index in indices:
-                if not 0 <= index < ntimes:
-                    raise ValueError(
-                        f"{type(term).__name__} names state {index} of {ntimes}"
-                    )
-                self._by_index.setdefault(index, []).append(term)
+    def __init__(self, functional: TrajectoryFunctional[V, A], ntimes: int) -> None:
+        def refuse(term: object) -> TypeError:
+            return TypeError(
+                f"{type(term).__name__}'s derivatives() has no first derivatives, "
+                "so the functional is only evaluated"
+            )
 
-    def at(self, index: int) -> List[StateTermProtocol[V, A]]:
-        """The terms reading stored state ``index``."""
-        return self._by_index.get(index, [])
+        self.parameters: List[Callable[[], LinearizationProtocol[V, A]]] = []
+        for parameter_term in functional.parameter_terms:
+            wrt_param = parameter_term.derivatives().wrt_param
+            if wrt_param is None:
+                raise refuse(parameter_term)
+            self.parameters.append(wrt_param)
+        self._states_at: Dict[int, List[_StateFirst[V, A]]] = {}
+        for state_term in functional.state_terms:
+            bundle = state_term.derivatives()
+            if bundle.wrt_state is None:
+                raise refuse(state_term)
+            first = _StateFirst(bundle.wrt_state, bundle.wrt_param)
+            for index in _checked_indices(state_term, ntimes):
+                self._states_at.setdefault(index, []).append(first)
+        self.steps: List[_StepFirst[V, A]] = []
+        for step_term in functional.step_terms:
+            step_bundle = step_term.derivatives()
+            if (
+                step_bundle.wrt_unknown is None
+                or step_bundle.wrt_lag is None
+                or step_bundle.wrt_param is None
+            ):
+                raise refuse(step_term)
+            self.steps.append(
+                _StepFirst(
+                    step_bundle.wrt_unknown, step_bundle.wrt_lag, step_bundle.wrt_param
+                )
+            )
+
+    def states_at(self, index: int) -> List[_StateFirst[V, A]]:
+        """The first derivatives of the state terms reading state
+        ``index``."""
+        return self._states_at.get(index, [])
 
 
 def _accumulate(
@@ -604,27 +671,29 @@ class TrajectoryDerivatives(Generic[V, A]):
         SolveFailedError
             If a step's solve fails.
         """
+        # Read every term's bundle once, refusing before any solve.
+        first = _FirstOrder(functional, store.ntimes())
         total = functional.zero
-        for parameter_term in functional.parameter_terms:
-            total = total + parameter_term.wrt_param().apply(direction)
-        state_terms = _StateTermsByIndex(functional.state_terms, store.ntimes())
+        for wrt_param in first.parameters:
+            total = total + wrt_param().apply(direction)
         # The tangents of the states the next step reads, most recent first.
         recent: Deque[V] = deque(maxlen=self._stepper.depth())
         states = self._tangent_states(store, direction, self._session(session))
         for index, tangent in enumerate(states):
-            here = state_terms.at(index)
+            here = first.states_at(index)
             if here:
                 time, state = store.time(index), store.state(index)
-            for state_term in here:
-                total = total + state_term.wrt_state(index, time, state).apply(
+            for state_first in here:
+                total = total + state_first.wrt_state(index, time, state).apply(
                     tangent.state
                 )
-                by_param = state_term.wrt_param(index, time, state)
-                if by_param is not None:
-                    total = total + by_param.apply(direction)
-            if functional.step_terms and tangent.unknown is not None:
+                if state_first.wrt_param is not None:
+                    by_param = state_first.wrt_param(index, time, state)
+                    if by_param is not None:
+                        total = total + by_param.apply(direction)
+            if first.steps and tangent.unknown is not None:
                 for product in self._step_terms_tangent(
-                    functional, store, index - 1, tangent.unknown, recent, direction
+                    first.steps, store, index - 1, tangent.unknown, recent, direction
                 ):
                     total = total + product
             recent.appendleft(tangent.state)
@@ -632,7 +701,7 @@ class TrajectoryDerivatives(Generic[V, A]):
 
     def _step_terms_tangent(
         self,
-        functional: TrajectoryFunctional[V, A],
+        steps: Sequence[_StepFirst[V, A]],
         store: TrajectoryStoreProtocol[V],
         step: int,
         unknown: BlockVector[V],
@@ -646,7 +715,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         ``recent[l - 1]`` being :math:`w_{n+1-l}`."""
         window = self._window(store, step)
         products: List[A] = []
-        for term in functional.step_terms:
+        for term in steps:
             by_unknown = term.wrt_unknown(step, window)
             if by_unknown is not None:
                 products.append(by_unknown.apply(unknown))
@@ -977,7 +1046,9 @@ class TrajectoryDerivatives(Generic[V, A]):
             If a step's solve fails.
         """
         omega = functional.weights(weights)
-        # Read every term's bundle once, refusing before any sweep runs.
+        # Read every term's bundle once, first order then second, refusing
+        # before any sweep runs.
+        first_sources = _FirstOrderSources(functional, self, store, omega)
         curvatures = _FunctionalCurvatures.of(functional, store.ntimes())
         tangents: TrajectoryStoreProtocol[V] = (
             InMemoryTrajectoryStore() if tangent_store is None else tangent_store
@@ -985,9 +1056,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         shared = self._session(session)
         self._record_tangents(store, direction, tangents, shared)
         handles = _SharedHandles(self, shared)
-        adjoint = _AdjointSweep(
-            self, store, _FirstOrderSources(functional, self, store, omega), handles
-        )
+        adjoint = _AdjointSweep(self, store, first_sources, handles)
         second_sources = _SecondOrderSources(
             self, store, curvatures, tangents, direction, adjoint, omega
         )
@@ -1420,14 +1489,15 @@ class _FirstOrderSources(Generic[V, A]):
         store: TrajectoryStoreProtocol[V],
         weights: A,
     ) -> None:
-        self._functional, self._store, self._weights = functional, store, weights
+        self._store, self._weights = store, weights
         self._space, self._params = owner._state_space(), owner._param_space()
         self._unknowns = owner.stepper().unknown_space()
-        self._state_terms = _StateTermsByIndex(functional.state_terms, store.ntimes())
+        # Every term's bundle, read once, refusing before any solve.
+        self._first = _FirstOrder(functional, store.ntimes())
 
     def state(self, index: int) -> Optional[V]:
         # sum over the terms reading y_m of (dg_m/dy_m)^T omega
-        terms = self._state_terms.at(index)
+        terms = self._first.states_at(index)
         if not terms:
             return None
         time, state = self._store.time(index), self._store.state(index)
@@ -1443,20 +1513,22 @@ class _FirstOrderSources(Generic[V, A]):
         # The parameter terms' (dr/dp)^T omega; the state terms' parameter
         # derivatives come per state, from at_state.
         total: Optional[V] = None
-        for term in self._functional.parameter_terms:
+        for wrt_param in self._first.parameters:
             total = _accumulate(
-                total, term.wrt_param().apply_transpose(self._weights), self._params
+                total, wrt_param().apply_transpose(self._weights), self._params
             )
         return self._params.zeros() if total is None else total
 
     def at_state(self, index: int) -> tuple[Optional[V], Optional[V]]:
         # (dg_m/dp)^T omega to the parameters
-        terms = self._state_terms.at(index)
+        terms = self._first.states_at(index)
         if not terms:
             return None, None
         time, state = self._store.time(index), self._store.state(index)
         total: Optional[V] = None
         for term in terms:
+            if term.wrt_param is None:
+                continue
             by_param = term.wrt_param(index, time, state)
             if by_param is not None:
                 total = _accumulate(
@@ -1471,7 +1543,7 @@ class _FirstOrderSources(Generic[V, A]):
         self, step: int, window: StepWindow[V]
     ) -> Optional[BlockVector[V]]:
         total: Optional[BlockVector[V]] = None
-        for term in self._functional.step_terms:
+        for term in self._first.steps:
             by_unknown = term.wrt_unknown(step, window)
             if by_unknown is not None:
                 total = _accumulate(
@@ -1481,7 +1553,7 @@ class _FirstOrderSources(Generic[V, A]):
 
     def step_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
         total: Optional[V] = None
-        for term in self._functional.step_terms:
+        for term in self._first.steps:
             by_param = term.wrt_param(step, window)
             if by_param is not None:
                 total = _accumulate(
@@ -1491,7 +1563,7 @@ class _FirstOrderSources(Generic[V, A]):
 
     def step_lag(self, step: int, window: StepWindow[V], lag: int) -> Optional[V]:
         total: Optional[V] = None
-        for term in self._functional.step_terms:
+        for term in self._first.steps:
             by_lag = term.wrt_lag(step, window, lag)
             if by_lag is not None:
                 total = _accumulate(

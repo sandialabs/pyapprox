@@ -207,15 +207,19 @@ class _TransientStateTerm(Generic[Array]):
     def __init__(self, terms: TransientFunctionalTerms[Array]) -> None:
         self._terms = terms
         self._zero = terms.bkd().zeros((1, 1))
+        # The state gradients are always there; the parameters enter
+        # through the parameter term, so this one has no wrt_param.
         self._derivatives: StateTermDerivatives[Array, Array] = (
             StateTermDerivatives.second_order(
+                self._wrt_state,
+                None,
                 self._state_state,
                 self._state_param,
                 self._param_state,
                 self._param_param,
             )
             if terms.has_hvps()
-            else StateTermDerivatives.first_order()
+            else StateTermDerivatives.first_order(self._wrt_state)
         )
 
     def nqoi(self) -> int:
@@ -227,15 +231,12 @@ class _TransientStateTerm(Generic[Array]):
     def value(self, index: int, time: float, state: Array) -> Array:
         return self._zero
 
-    def wrt_state(
+    def _wrt_state(
         self, index: int, time: float, state: Array
     ) -> BackendScalarGradient[Array]:
         return BackendScalarGradient(
             self._terms.state_gradient(index), self._terms.bkd()
         )
-
-    def wrt_param(self, index: int, time: float, state: Array) -> None:
-        return None
 
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
         return self._derivatives
@@ -269,9 +270,9 @@ class _TransientParameterTerm(Generic[Array]):
     def __init__(self, terms: TransientFunctionalTerms[Array]) -> None:
         self._terms = terms
         self._derivatives: ParameterTermDerivatives[Array, Array] = (
-            ParameterTermDerivatives.second_order(self._param_param)
+            ParameterTermDerivatives.second_order(self._wrt_param, self._param_param)
             if terms.has_hvps()
-            else ParameterTermDerivatives.first_order()
+            else ParameterTermDerivatives.first_order(self._wrt_param)
         )
 
     def nqoi(self) -> int:
@@ -280,7 +281,7 @@ class _TransientParameterTerm(Generic[Array]):
     def value(self) -> Array:
         return self._terms.value()
 
-    def wrt_param(self) -> BackendScalarGradient[Array]:
+    def _wrt_param(self) -> BackendScalarGradient[Array]:
         return BackendScalarGradient(self._terms.param_gradient(), self._terms.bkd())
 
     def derivatives(self) -> ParameterTermDerivatives[Array, Array]:

@@ -284,15 +284,8 @@ class TimeIntegral(Generic[V, A]):
         """The integral on the trajectory ``store`` recorded, as the sweeps
         differentiate it: the step term weighed by the recursion's
         sensitivities on that trajectory, from its step sizes alone (no
-        state is read).
-
-        Raises
-        ------
-        TypeError
-            If the integrand has no state derivative.
-        """
-        if self._integrand.derivatives().state is None:
-            raise TypeError("the integrand has no state derivative")
+        state is read). Its derivatives are those the integrand has; a
+        sweep refuses one it lacks."""
         weighted = RecursionWeighted(
             self._term, recursion_sensitivities(self._rules(store))
         )
@@ -452,14 +445,17 @@ class QuadratureStepTerm(Generic[V, A]):
                 derivatives.param_param,
             )
         )
-        self._derivatives: StepTermDerivatives[V, A] = (
-            StepTermDerivatives.first_order()
-            if self._fields is None
-            else StepTermDerivatives.second_order(
-                self._curvature_wrt_unknown,
-                self._curvature_wrt_lag,
-                self._curvature_wrt_param,
-            )
+        # The bundle holds what the integrand's does: nothing for a q that
+        # is only evaluated.
+        first = self._state is not None
+        second = first and self._fields is not None
+        self._derivatives: StepTermDerivatives[V, A] = StepTermDerivatives(
+            self._wrt_unknown if first else None,
+            self._wrt_lag if first else None,
+            self._wrt_param if first else None,
+            self._curvature_wrt_unknown if second else None,
+            self._curvature_wrt_lag if second else None,
+            self._curvature_wrt_param if second else None,
         )
 
     def nqoi(self) -> int:
@@ -488,10 +484,13 @@ class QuadratureStepTerm(Generic[V, A]):
 
     def _state_derivative(self) -> LinearizationFn[V, A]:
         if self._state is None:
-            raise TypeError("the integrand has no state derivative")
+            raise RuntimeError(
+                "the integrand has no derivatives; check derivatives() before "
+                "calling"
+            )
         return self._state
 
-    def wrt_unknown(
+    def _wrt_unknown(
         self, step: int, window: StepWindow[V]
     ) -> Optional[LinearizationProtocol[BlockVector[V], A]]:
         r""":math:`\sum w\, \partial q/\partial y` at the nodes in the
@@ -506,7 +505,7 @@ class QuadratureStepTerm(Generic[V, A]):
             return None
         return _UnknownNodes(pieces, self._unknowns, self._space)
 
-    def wrt_lag(
+    def _wrt_lag(
         self, step: int, window: StepWindow[V], lag: int
     ) -> Optional[LinearizationProtocol[V, A]]:
         r""":math:`\sum w\, \partial q/\partial y` at the nodes on the stored
@@ -519,7 +518,7 @@ class QuadratureStepTerm(Generic[V, A]):
         ]
         return _NodeSum(pieces, self._space) if pieces else None
 
-    def wrt_param(
+    def _wrt_param(
         self, step: int, window: StepWindow[V]
     ) -> Optional[LinearizationProtocol[V, A]]:
         r""":math:`\sum w\, \partial q/\partial p` over every node; None
@@ -534,8 +533,8 @@ class QuadratureStepTerm(Generic[V, A]):
         return _NodeSum(pieces, params)
 
     def derivatives(self) -> StepTermDerivatives[V, A]:
-        """The derivatives along a tangent, when the integrand has second
-        derivatives."""
+        """The derivatives the integrand has: none, first, or first and
+        second."""
         return self._derivatives
 
     def _second_order(self) -> _SecondOrderFields[V, A]:

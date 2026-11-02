@@ -81,7 +81,6 @@ from pyapprox.ode.trajectory_derivatives import (
 from pyapprox.ode.trajectory_functional import TransientFunctionalTerms
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
-    LinearizationProtocol,
     ParameterTermDerivatives,
     StateTermDerivatives,
     StateTermProtocol,
@@ -391,11 +390,18 @@ class _FlatStart(ScaledStart[Array]):
         return None
 
 
-class _GradientOnly(Generic[Array]):
-    """A state term's first derivatives without its second."""
+class _Truncated(Generic[Array]):
+    """A state term keeping its value and only the derivatives up to
+    ``order`` (0: none, 1: the first)."""
 
-    def __init__(self, inner: StateTermProtocol[Array, Array]) -> None:
+    def __init__(self, inner: StateTermProtocol[Array, Array], order: int) -> None:
         self._inner = inner
+        bundle = inner.derivatives()
+        self._derivatives: StateTermDerivatives[Array, Array] = (
+            StateTermDerivatives.none()
+            if order == 0
+            else StateTermDerivatives(bundle.wrt_state, bundle.wrt_param)
+        )
 
     def nqoi(self) -> int:
         return self._inner.nqoi()
@@ -406,18 +412,8 @@ class _GradientOnly(Generic[Array]):
     def value(self, index: int, time: float, state: Array) -> Array:
         return self._inner.value(index, time, state)
 
-    def wrt_state(
-        self, index: int, time: float, state: Array
-    ) -> LinearizationProtocol[Array, Array]:
-        return self._inner.wrt_state(index, time, state)
-
-    def wrt_param(
-        self, index: int, time: float, state: Array
-    ) -> Optional[LinearizationProtocol[Array, Array]]:
-        return self._inner.wrt_param(index, time, state)
-
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
-        return StateTermDerivatives.first_order()
+        return self._derivatives
 
 
 class TestHessianVectorProductRefusals:
@@ -430,10 +426,31 @@ class TestHessianVectorProductRefusals:
         )
         terms = TransientFunctionalTerms(tikhonov_mse(bkd), store, param)
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_GradientOnly(terms.state_term()),)
+            bkd, 1, state_terms=(_Truncated(terms.state_term(), 1),)
         )
-        with pytest.raises(TypeError, match="_GradientOnly.*no second derivatives"):
+        with pytest.raises(TypeError, match="_Truncated.*no second derivatives"):
             sweeps.hvp(store, functional, random_direction(bkd))
+
+    def test_a_term_only_evaluated(self, bkd: Backend[Array]) -> None:
+        """A term giving only its value is refused by every sweep, before
+        any solve, naming it."""
+        problem = TrajectoryProblem(bkd, heun())
+        param = bkd.asarray(LV_PARAM)
+        store = problem.solve(param)
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
+            problem.stepper()
+        )
+        terms = TransientFunctionalTerms(tikhonov_mse(bkd), store, param)
+        functional = TrajectoryFunctional.from_terms(
+            bkd, 1, state_terms=(_Truncated(terms.state_term(), 0),)
+        )
+        direction = random_direction(bkd)
+        with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
+            sweeps.gradient(store, functional)
+        with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
+            sweeps.tangent(store, functional, direction)
+        with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
+            sweeps.hvp(store, functional, direction)
 
     def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:
         problem = TrajectoryProblem(bkd, heun(), start=_FlatStart(bkd))
@@ -683,7 +700,12 @@ class _MockLastTerm:
 
     def derivatives(self) -> StateTermDerivatives[MockVector, NDArray[Any]]:
         return StateTermDerivatives.second_order(
-            self.state_state, self.state_param, self.param_state, self.param_param
+            self.wrt_state,
+            self.wrt_param,
+            self.state_state,
+            self.state_param,
+            self.param_state,
+            self.param_param,
         )
 
     def state_state(
@@ -754,7 +776,7 @@ class _MockParamTerm:
         return _MockColumn(self._d + self._s * self._param, _MOCK_PARAM)
 
     def derivatives(self) -> ParameterTermDerivatives[MockVector, NDArray[Any]]:
-        return ParameterTermDerivatives.second_order(self.param_param)
+        return ParameterTermDerivatives.second_order(self.wrt_param, self.param_param)
 
     def param_param(self, weights: NDArray[Any], v: MockVector) -> Optional[MockVector]:
         if self._s == 0.0:
@@ -847,7 +869,12 @@ class _OneBuffer:
 
     def derivatives(self) -> StateTermDerivatives[MockVector, NDArray[Any]]:
         return StateTermDerivatives.second_order(
-            self.state_state, self.state_param, self.param_state, self.param_param
+            self.wrt_state,
+            self.wrt_param,
+            self.state_state,
+            self.state_param,
+            self.param_state,
+            self.param_param,
         )
 
     def state_state(
