@@ -47,6 +47,7 @@ from pyapprox.ode.step_quadrature import (
     QuadratureNode,
     StepQuadratureProtocol,
     StepRule,
+    recursion_sensitivities,
 )
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
@@ -296,29 +297,6 @@ class TimeIntegral(Generic[V, A, R]):
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._integrand!r}, {self._quadrature!r})"
-
-
-def recursion_sensitivities(rules: Sequence[StepRule]) -> List[float]:
-    r""":math:`\theta_n = \partial Q/\partial(\text{step } n\text{'s
-    right-hand side})` for :math:`Q = z_N`, by the transposed recursion run
-    backward (see the module docstring).
-
-    Parameters
-    ----------
-    rules : sequence of StepRule
-        Every step's recursion, in step order.
-    """
-    nsteps = len(rules)
-    # zeta[m] = dQ/dz_m, built up from the steps reading z_m.
-    zeta = [0.0] * (nsteps + 1)
-    zeta[nsteps] = 1.0
-    theta = [0.0] * nsteps
-    for n in reversed(range(nsteps)):
-        alpha = rules[n].alpha
-        theta[n] = zeta[n + 1] / alpha[0]
-        for lag, coefficient in enumerate(alpha[1:], start=1):
-            zeta[n + 1 - lag] -= theta[n] * coefficient
-    return theta
 
 
 class TimeIntegralStepTerm(Generic[V, A]):

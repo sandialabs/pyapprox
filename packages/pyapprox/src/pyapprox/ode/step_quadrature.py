@@ -36,7 +36,7 @@ by consistency): the identity that checks a rule against its stepper.
 """
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence, Tuple, TypeVar, runtime_checkable
+from typing import List, Protocol, Sequence, Tuple, TypeVar, runtime_checkable
 
 from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
 from pyapprox.ode.step_span import StepSpan
@@ -132,6 +132,38 @@ class StepRule:
             if alpha != 0.0:
                 total = total - alpha * value
         return total / self.alpha[0]
+
+
+def recursion_sensitivities(rules: Sequence[StepRule]) -> List[float]:
+    r"""The transpose of :meth:`StepRule.advance` over a trajectory:
+    :math:`\theta_n = \partial z_N/\partial b_n`, :math:`b_n` step
+    :math:`n`'s right-hand side (its increment), for :math:`z_0 = 0`.
+
+    The recursion is linear and lower triangular, :math:`L z = b`, so
+    :math:`z_N = e_N^\top L^{-1} b = \theta^\top b` with :math:`L^\top
+    \zeta = e_N`, solved backward: :math:`\zeta_N = 1`, :math:`\theta_n =
+    \zeta_{n+1} / \alpha^{(n)}_0`, and each step subtracts
+    :math:`\theta_n \alpha^{(n)}_l` from :math:`\zeta_{n+1-l}`. The
+    weights depend on the :math:`\alpha` alone, so on the step sizes and
+    never on a state; they are 1 throughout when every :math:`\alpha` is
+    :math:`(1, -1, 0, \dots)` (Runge-Kutta and Adams methods).
+
+    Parameters
+    ----------
+    rules : sequence of StepRule
+        Every step's recursion, in step order.
+    """
+    nsteps = len(rules)
+    # zeta[m] = dz_N/dz_m, built up from the steps reading z_m.
+    zeta = [0.0] * (nsteps + 1)
+    zeta[nsteps] = 1.0
+    theta = [0.0] * nsteps
+    for n in reversed(range(nsteps)):
+        alpha = rules[n].alpha
+        theta[n] = zeta[n + 1] / alpha[0]
+        for lag, coefficient in enumerate(alpha[1:], start=1):
+            zeta[n + 1 - lag] -= theta[n] * coefficient
+    return theta
 
 
 @runtime_checkable

@@ -30,9 +30,8 @@ time and the parameters.
 """
 
 import math
-from typing import Callable, Generic, List
+from typing import Callable, Generic
 
-import numpy as np
 import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -47,17 +46,13 @@ from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import (
     adams_bashforth2,
-    adams_moulton3,
     bdf2,
 )
-from pyapprox.ode.step_quadrature import MultistepQuadrature, TableauQuadrature
-from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import backward_euler, classical_rk4, heun
 from pyapprox.ode.time_integral import (
     IntegrandDerivatives,
     TimeIntegral,
-    recursion_sensitivities,
 )
 from pyapprox.ode.trajectory_derivatives import (
     TrajectoryDerivatives,
@@ -335,45 +330,6 @@ class TestStoreReads:
         Integrator(problem.stepper()).solve(bkd.asarray(START), STEPS, store)
         problem.integral().trajectory_functional(store)
         assert store.state_reads == 0
-
-
-class TestSensitivities:
-    def test_bdf2_is_the_last_row_of_the_recursion_matrix_inverse(self) -> None:
-        sizes = (0.125, 0.25, 0.25, 0.0625, 0.125)
-        spans: List[StepSpan] = [StepSpan.first(0.0, sizes[0])]
-        for size in sizes[1:]:
-            spans.append(spans[-1].advanced(size, 2))
-        rules = [MultistepQuadrature(bdf2()).rule(span) for span in spans]
-        # Row n of L: step n's recursion over z_1..z_N (z_0 = 0 drops).
-        nsteps = len(rules)
-        matrix = np.zeros((nsteps, nsteps))
-        for n, rule in enumerate(rules):
-            for lag, alpha in enumerate(rule.alpha):
-                if n + 1 - lag >= 1:
-                    matrix[n, n - lag] = alpha
-        expected = np.linalg.inv(matrix)[-1]
-        np.testing.assert_allclose(
-            recursion_sensitivities(rules), expected, rtol=1e-14
-        )
-
-    @pytest.mark.parametrize(
-        "quadrature",
-        [
-            TableauQuadrature(classical_rk4()),
-            MultistepQuadrature(adams_bashforth2()),
-            MultistepQuadrature(adams_moulton3()),
-        ],
-        ids=["RK4", "Adams-Bashforth 2", "Adams-Moulton 3"],
-    )
-    def test_runge_kutta_and_adams_weigh_every_step_once(
-        self, quadrature: TableauQuadrature | MultistepQuadrature
-    ) -> None:
-        depth = 1 if isinstance(quadrature, TableauQuadrature) else 2
-        spans = [StepSpan.first(0.0, 0.25)]
-        for size in (0.125, 0.5, 0.25):
-            spans.append(spans[-1].advanced(size, min(depth, spans[-1].nlags())))
-        rules = [quadrature.rule(span) for span in spans]
-        assert recursion_sensitivities(rules) == [1.0] * len(rules)
 
 
 class TestAgainstAutograd:

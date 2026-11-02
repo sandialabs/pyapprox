@@ -12,6 +12,10 @@ r"""A stepper's own method applied to :math:`\dot z = q(y, t)`.
   mass).
 - Accuracy: for that :math:`q` along :math:`M \dot y = K y`, whose exact
   integral is known, halving the step shows each method's own order.
+- The transpose: :func:`recursion_sensitivities` against
+  :meth:`StepRule.advance` by duality, :math:`z_N = \theta^\top b` to
+  1e-13 for random three-lag recursions and BDF2 on unequal steps; the
+  weights are 1 for RK4, Adams-Bashforth 2 and Adams-Moulton 3.
 - The rules themselves: classical RK4's nodes and their places; a stage
   of zero weight is no node; a multistep rule is the method's formula
   for the span.
@@ -31,13 +35,19 @@ from scipy.linalg import expm
 from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
-from pyapprox.ode.multistep_methods import MultistepFormulaProtocol, bdf2
+from pyapprox.ode.multistep_methods import (
+    MultistepFormulaProtocol,
+    adams_bashforth2,
+    adams_moulton3,
+    bdf2,
+)
 from pyapprox.ode.step_plan import FixedStep, GivenSizes
 from pyapprox.ode.step_quadrature import (
     MultistepQuadrature,
     QuadratureNode,
     StepRule,
     TableauQuadrature,
+    recursion_sensitivities,
 )
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.tableau import (
@@ -228,6 +238,93 @@ class TestOrder:
             )
             errors.append(abs(float(value[0, 0]) - exact))
         assert abs(_rate(errors) - order) < 0.3, errors
+
+
+def _chain(rules: Sequence[StepRule], increments: Sequence[float]) -> float:
+    """:math:`z_N` by :meth:`StepRule.advance` from :math:`z_0 = 0`."""
+    bkd = NumpyBkd()
+    history = [bkd.zeros((1,))]  # most recent first
+    for rule, increment in zip(rules, increments):
+        past = history[: len(rule.alpha) - 1]
+        history.insert(0, rule.advance(past, bkd.asarray([increment])))
+    return float(history[0][0])
+
+
+def _bdf2_rules() -> List[StepRule]:
+    """BDF2's recursions on unequal steps, the startup step included."""
+    spans = [StepSpan.first(0.0, 0.125)]
+    for size in (0.25, 0.25, 0.0625, 0.125):
+        spans.append(spans[-1].advanced(size, 2))
+    return [MultistepQuadrature(bdf2()).rule(span) for span in spans]
+
+
+class TestSensitivities:
+    r""":func:`recursion_sensitivities` is the transpose of
+    :meth:`StepRule.advance`, checked by duality.
+
+    Stacking every step's recursion :math:`\alpha^{(n)}_0 z_{n+1} +
+    \sum_{l \ge 1} \alpha^{(n)}_l z_{n+1-l} = b_n` gives one lower
+    triangular system :math:`L z = b`, so :math:`z_N = e_N^\top L^{-1} b`,
+    a linear function of the increments :math:`b`. It can be computed two
+    ways:
+
+    - forward, :math:`e_N^\top (L^{-1} b)`: solve for :math:`z` step by
+      step with ``advance`` and read off its last entry (what the value
+      sink does);
+    - by the transpose, :math:`(L^{-\top} e_N)^\top b = \theta^\top b`:
+      solve :math:`L^\top \zeta = e_N` backward once for the weights
+      :math:`\theta = L^{-\top} e_N` and take their inner product with
+      :math:`b` (what the derivatives use).
+
+    The two agree for every :math:`b` exactly when the backward solve is
+    the transpose of the forward one, the identity :math:`\langle y, A
+    x\rangle = \langle A^\top y, x\rangle` with :math:`A = L^{-1}`, the
+    same check that pairs an adjoint with its forward model. So the
+    forward recursion and its transpose are checked against each other,
+    with no independent oracle: a wrong coefficient, lag or sign on
+    either side breaks the equality for a random :math:`b`."""
+
+    @pytest.mark.parametrize("seed", [0, 1, 2])
+    def test_duality_on_random_recursions(self, seed: int) -> None:
+        rng = np.random.default_rng(seed)
+        rules = []
+        for n in range(8):
+            nlags = min(3, n + 1)
+            alpha = (1.0 + rng.uniform(), *rng.normal(size=nlags))
+            rules.append(StepRule(tuple(float(a) for a in alpha), ()))
+        increments = [float(b) for b in rng.normal(size=len(rules))]
+        theta = recursion_sensitivities(rules)
+        np.testing.assert_allclose(
+            _chain(rules, increments), float(np.dot(theta, increments)), rtol=1e-13
+        )
+
+    def test_duality_on_bdf2(self) -> None:
+        rules = _bdf2_rules()
+        increments = [float(b) for b in np.random.default_rng(3).normal(size=5)]
+        theta = recursion_sensitivities(rules)
+        np.testing.assert_allclose(
+            _chain(rules, increments), float(np.dot(theta, increments)), rtol=1e-13
+        )
+        assert theta != [1.0] * len(rules)
+
+    @pytest.mark.parametrize(
+        "quadrature",
+        [
+            TableauQuadrature(classical_rk4()),
+            MultistepQuadrature(adams_bashforth2()),
+            MultistepQuadrature(adams_moulton3()),
+        ],
+        ids=["RK4", "Adams-Bashforth 2", "Adams-Moulton 3"],
+    )
+    def test_runge_kutta_and_adams_weigh_every_step_once(
+        self, quadrature: TableauQuadrature | MultistepQuadrature
+    ) -> None:
+        depth = 1 if isinstance(quadrature, TableauQuadrature) else 2
+        spans = [StepSpan.first(0.0, 0.25)]
+        for size in (0.125, 0.5, 0.25):
+            spans.append(spans[-1].advanced(size, min(depth, spans[-1].nlags())))
+        rules = [quadrature.rule(span) for span in spans]
+        assert recursion_sensitivities(rules) == [1.0] * len(rules)
 
 
 class TestRules:
