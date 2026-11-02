@@ -6,22 +6,27 @@ ten steps of 0.05, and :math:`q(y, t; p) = \cos(t)\, y^\top y / 100 +
 (s^\top p)(\mathbf 1^\top y)`, which reads the state nonlinearly, the
 time and the parameters.
 
-- The adjoint gradient passes central finite differences, and the
-  tangent sweep's :math:`dQ/dp \cdot v` equals the gradient's inner
-  product with :math:`v`, for every tableau (stages read from the
-  unknown, a trivial first stage from :math:`y_n`) and every multistep
-  method (BDF's recursion weighs each step by the transposed recursion's
-  response).
+- The adjoint gradient passes central finite differences, the tangent
+  sweep's :math:`dQ/dp \cdot v` equals the gradient's inner product with
+  :math:`v`, and the Hessian-vector product passes central differences
+  of the gradient, for every tableau (stages read from the unknown, a
+  trivial first stage from :math:`y_n`; implicit midpoint included, which
+  the old path gave no HVP) and every multistep method (BDF's recursion
+  weighs each step by the transposed recursion's response).
+- Sums of terms: the integral plus the Tikhonov-augmented MSE (a state
+  term) and the integral twice (two step terms) give the sums of their
+  gradients and Hessian-vector products, to 1e-12.
 - The sensitivities :math:`\theta_n = \partial z_N/\partial b_n` (``b_n``
   step :math:`n`'s right-hand side) equal the last row of
   :math:`L^{-1}`, :math:`L` the lower-triangular matrix whose row
   :math:`n` holds step :math:`n`'s :math:`\alpha`, for BDF2 on unequal
   steps (startup included), and are 1 for Runge-Kutta and Adams methods.
 - Against torch autograd through the forward solve, the gradient agrees
-  to 1e-13, so the sink keeps the graph intact.
+  to 1e-13 and the Hessian-vector product to 1e-12 (double backward), so
+  the sink keeps the graph intact.
 - Refusals: an integrand without gradients; a parameter gradient without
-  the state gradient; a second-order sweep over a functional reading
-  steps.
+  the state gradient; a Hessian-vector product of an integral whose
+  integrand has no second derivatives.
 """
 
 import math
@@ -35,6 +40,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
+    FunctionWithJVPFromCallable,
 )
 from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.integration import Integrator
@@ -48,14 +54,16 @@ from pyapprox.ode.step_quadrature import MultistepQuadrature, TableauQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.tableau import backward_euler, classical_rk4, heun
 from pyapprox.ode.time_integral import (
-    BoundTimeIntegral,
     IntegrandDerivatives,
     TimeIntegral,
-    TimeIntegralStepTerms,
     recursion_sensitivities,
 )
-from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_derivatives import (
+    TrajectoryDerivatives,
+    TrajectoryFunctional,
+)
+from pyapprox.ode.trajectory_functional import from_transient_functional
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.ode.runge_kutta_cases import LV_PARAM, lotka_volterra_with_mass
@@ -68,6 +76,7 @@ from tests._helpers.ode.trajectory_cases import (
     Stepper,
     make_stepper,
     random_direction,
+    tikhonov_mse,
 )
 
 _S = [[0.3], [-0.2], [0.5], [0.1]]
@@ -75,12 +84,14 @@ _S = [[0.3], [-0.2], [0.5], [0.1]]
 
 class _Integrand(Generic[Array]):
     r""":math:`q = \cos(t)\, y^\top y / 100 + (s^\top p)(\mathbf 1^\top
-    y)`, shape (1, 1), at the parameters last set."""
+    y)`, shape (1, 1), at the parameters last set; with its second
+    derivatives unless ``second_order`` is False."""
 
-    def __init__(self, bkd: Backend[Array]) -> None:
+    def __init__(self, bkd: Backend[Array], second_order: bool = True) -> None:
         self._bkd = bkd
         self._s = bkd.asarray(_S)
         self._param = bkd.asarray(LV_PARAM)
+        self._second_order = second_order
 
     def set_param(self, param: Array) -> None:
         self._param = param
@@ -100,26 +111,55 @@ class _Integrand(Generic[Array]):
     def _param_gradient(self, state: Array, time: float) -> Array:
         return self._s * self._bkd.sum(state, axis=0, keepdims=True)
 
+    def _state_state(self, state: Array, time: float, w: Array) -> Array:
+        return 2.0 * math.cos(time) * w / 100.0
+
+    def _state_param(self, state: Array, time: float, v: Array) -> Array:
+        return self._bkd.dot(self._s.T, v) * self._bkd.ones(state.shape)
+
+    def _param_state(self, state: Array, time: float, w: Array) -> Array:
+        return self._s * self._bkd.sum(w, axis=0, keepdims=True)
+
+    def _param_param(self, state: Array, time: float, v: Array) -> Array:
+        return 0.0 * v
+
     def derivatives(self) -> IntegrandDerivatives[Array]:
-        return IntegrandDerivatives.first_order(
-            self._state_gradient, self._param_gradient
+        if not self._second_order:
+            return IntegrandDerivatives.first_order(
+                self._state_gradient, self._param_gradient
+            )
+        return IntegrandDerivatives.second_order(
+            self._state_gradient,
+            self._param_gradient,
+            self._state_state,
+            self._state_param,
+            self._param_state,
+            self._param_param,
         )
 
 
 class _Problem(Generic[Array]):
-    r""":math:`p \mapsto Q(y(p), p)` with the sweeps' gradient and
-    tangent."""
+    r""":math:`p \mapsto Q(y(p), p)` with the sweeps' gradient, tangent
+    and Hessian-vector product; :math:`Q` is the integral, or with
+    ``misfit`` the integral plus the Tikhonov-augmented MSE."""
 
-    def __init__(self, bkd: Backend[Array], method: Method) -> None:
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        method: Method,
+        misfit: bool = False,
+        second_order: bool = True,
+    ) -> None:
         self._bkd = bkd
         self._model = lotka_volterra_with_mass(bkd)
         self._stepper: Stepper[Array] = make_stepper(
             method, dense_mass_form_system(self._model)
         )
-        self._integrand = _Integrand(bkd)
+        self._integrand = _Integrand(bkd, second_order)
         self._integral: TimeIntegral[Array, Array, Array] = TimeIntegral(
             self._integrand, self._stepper
         )
+        self._misfit = tikhonov_mse(bkd) if misfit else None
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self._stepper
         )
@@ -132,7 +172,18 @@ class _Problem(Generic[Array]):
         Integrator(self._stepper).solve(
             self._bkd.asarray(START), STEPS, MultiSink([sink, store])
         )
-        return sink.value(), store
+        value = sink.value()
+        if self._misfit is not None:
+            value = value + self._misfit(trajectory_array(store, self._bkd), param)
+        return value, store
+
+    def functional(
+        self, store: InMemoryTrajectoryStore[Array], param: Array
+    ) -> TrajectoryFunctional[Array]:
+        integral = self._integral.trajectory_functional(store)
+        if self._misfit is None:
+            return integral
+        return integral + from_transient_functional(self._misfit, store, param)
 
     def value(self, samples: Array) -> Array:
         return self._bkd.hstack(
@@ -141,19 +192,26 @@ class _Problem(Generic[Array]):
 
     def gradient(self, sample: Array) -> Array:
         _, store = self.solve(sample)
-        return self._sweeps.gradient(store, self._integral.on(store)).T
+        return self._sweeps.gradient(store, self.functional(store, sample)).T
+
+    def gradients(self, samples: Array) -> Array:
+        return self._bkd.hstack(
+            [self.gradient(samples[:, k : k + 1]).T for k in range(samples.shape[1])]
+        )
 
     def tangent(self, sample: Array, direction: Array) -> Array:
         _, store = self.solve(sample)
-        return self._sweeps.tangent(store, self._integral.on(store), direction)
+        return self._sweeps.tangent(store, self.functional(store, sample), direction)
 
-    def bound(
-        self, store: InMemoryTrajectoryStore[Array]
-    ) -> BoundTimeIntegral[Array, Array]:
-        return self._integral.on(store)
+    def hvp(self, sample: Array, direction: Array) -> Array:
+        _, store = self.solve(sample)
+        return self._sweeps.hvp(store, self.functional(store, sample), direction)
 
     def sweeps(self) -> TrajectoryDerivatives[Array, Array]:
         return self._sweeps
+
+    def integral(self) -> TimeIntegral[Array, Array, Array]:
+        return self._integral
 
 
 class TestDerivatives:
@@ -179,6 +237,64 @@ class TestDerivatives:
         bkd.assert_allclose(
             problem.tangent(param, direction),
             bkd.dot(problem.gradient(param), direction),
+            rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
+    def test_hvp_passes_finite_differences(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        problem = _Problem(bkd, make())
+        wrapper = FunctionWithJVPFromCallable(
+            nqoi=4, nvars=4, fun=problem.gradients, jvp=problem.hvp, bkd=bkd
+        )
+        errors = DerivativeChecker(wrapper).check_derivatives(
+            bkd.asarray(LV_PARAM), relative=True, central=True
+        )[0]
+        assert bkd.to_float(bkd.min(errors)) < 1e-7
+
+
+class TestSums:
+    @pytest.mark.parametrize(
+        "make", [backward_euler, heun, bdf2], ids=["backward Euler", "Heun", "BDF2"]
+    )
+    def test_a_step_term_and_a_state_term(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        both = _Problem(bkd, make(), misfit=True)
+        integral = _Problem(bkd, make())
+        gradient, hvp = both.gradient(param), both.hvp(param, direction)
+        # The misfit alone, on a trajectory solved after both's last solve.
+        _, store = both.solve(param)
+        misfit = from_transient_functional(tikhonov_mse(bkd), store, param)
+        sweeps = both.sweeps()
+        bkd.assert_allclose(
+            gradient,
+            integral.gradient(param) + sweeps.gradient(store, misfit).T,
+            rtol=1e-12,
+        )
+        bkd.assert_allclose(
+            hvp,
+            integral.hvp(param, direction) + sweeps.hvp(store, misfit, direction),
+            rtol=1e-12,
+        )
+
+    def test_two_step_terms(self, bkd: Backend[Array]) -> None:
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        problem = _Problem(bkd, bdf2())
+        _, store = problem.solve(param)
+        once = problem.integral().trajectory_functional(store)
+        twice = once + problem.integral().trajectory_functional(store)
+        sweeps = problem.sweeps()
+        bkd.assert_allclose(
+            sweeps.gradient(store, twice),
+            2.0 * sweeps.gradient(store, once),
+            rtol=1e-12,
+        )
+        bkd.assert_allclose(
+            sweeps.hvp(store, twice, direction),
+            2.0 * sweeps.hvp(store, once, direction),
             rtol=1e-12,
         )
 
@@ -228,18 +344,22 @@ class TestAgainstAutograd:
         [backward_euler, heun, classical_rk4, bdf2, adams_bashforth2],
         ids=["backward Euler", "Heun", "RK4", "BDF2", "Adams-Bashforth 2"],
     )
-    def test_gradient(
+    def test_gradient_and_hvp(
         self, torch_bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
         torch = pytest.importorskip("torch")
         bkd = torch_bkd
         problem = _Problem(bkd, make())
         param = torch.tensor(LV_PARAM, requires_grad=True)
+        direction = random_direction(bkd)
         value, _ = problem.solve(param)
-        (auto_gradient,) = torch.autograd.grad(value[0, 0], param)
+        (auto_gradient,) = torch.autograd.grad(value[0, 0], param, create_graph=True)
+        (auto_hvp,) = torch.autograd.grad((auto_gradient * direction).sum(), param)
+        fixed = param.detach()
         bkd.assert_allclose(
-            problem.gradient(param.detach()).T, auto_gradient, rtol=1e-13
+            problem.gradient(fixed).T, auto_gradient.detach(), rtol=1e-13
         )
+        bkd.assert_allclose(problem.hvp(fixed, direction), auto_hvp, rtol=1e-12)
 
 
 class TestRefusals:
@@ -253,22 +373,20 @@ class TestRefusals:
             _ValueOnly(bkd), stepper
         )
         with pytest.raises(TypeError, match="no state gradient"):
-            integral.on(store)
+            integral.trajectory_functional(store)
 
     def test_a_parameter_gradient_needs_the_state_gradient(self) -> None:
         with pytest.raises(ValueError, match="needs the state gradient"):
             IntegrandDerivatives(None, _ValueOnly(NumpyBkd()).value)
 
-    def test_a_second_order_sweep_refuses_step_terms(
+    def test_an_hvp_needs_the_integrands_second_derivatives(
         self, bkd: Backend[Array]
     ) -> None:
-        problem = _Problem(bkd, backward_euler())
-        _, store = problem.solve(bkd.asarray(LV_PARAM))
-        functional = _SecondOrderReadingSteps(problem.bound(store))
-        with pytest.raises(TypeError, match="reads steps"):
-            problem.sweeps().gradient_and_hvp(
-                store, functional, random_direction(bkd)
-            )
+        param = bkd.asarray(LV_PARAM)
+        problem = _Problem(bkd, backward_euler(), second_order=False)
+        problem.gradient(param)
+        with pytest.raises(TypeError, match="TimeIntegralStepTerm.*no curvature"):
+            problem.hvp(param, random_direction(bkd))
 
 
 class _ValueOnly(Generic[Array]):
@@ -282,32 +400,3 @@ class _ValueOnly(Generic[Array]):
 
     def derivatives(self) -> IntegrandDerivatives[Array]:
         return IntegrandDerivatives.none()
-
-
-class _SecondOrderReadingSteps(Generic[Array]):
-    """A time integral posing as a second-order functional (zero second
-    derivatives of the stored states), to reach the refusal."""
-
-    def __init__(self, bound: BoundTimeIntegral[Array, Array]) -> None:
-        self._bound = bound
-
-    def state_cotangent(self, index: int) -> Array:
-        return self._bound.state_cotangent(index)
-
-    def param_cotangent(self) -> Array:
-        return self._bound.param_cotangent()
-
-    def step_terms(self) -> TimeIntegralStepTerms[Array, Array]:
-        return self._bound.step_terms()
-
-    def state_state(self, index: int, w: Array) -> Array:
-        return w * 0.0
-
-    def state_param(self, index: int, v: Array) -> Array:
-        return self._bound.state_cotangent(index)
-
-    def param_state(self, index: int, w: Array) -> Array:
-        return self._bound.param_cotangent()
-
-    def param_param(self, v: Array) -> Array:
-        return v * 0.0

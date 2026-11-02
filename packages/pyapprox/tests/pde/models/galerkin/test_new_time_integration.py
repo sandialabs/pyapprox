@@ -69,10 +69,7 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import (
-    BackendSecondOrderTrajectoryFunctional,
-    BackendTrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -308,7 +305,7 @@ class _Paths:
         return self._old_states
 
     def new_gradient(self) -> _Np:
-        functional = BackendTrajectoryFunctional(
+        functional = from_transient_functional(
             self._heat.functional(), self._store, _PARAM
         )
         return self._sweeps.gradient(self._store, functional)
@@ -318,7 +315,7 @@ class _Paths:
         return np.reshape(operator.jacobian(self._heat.init_state, _PARAM), (-1, 1))
 
     def new_hvp(self, direction: _Np) -> _Np:
-        functional = BackendSecondOrderTrajectoryFunctional(
+        functional = from_transient_functional(
             self._heat.functional(), self._store, _PARAM
         )
         return self._sweeps.hvp(self._store, functional, direction)

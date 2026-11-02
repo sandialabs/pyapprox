@@ -20,7 +20,7 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import BackendTrajectoryFunctional
+from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
     BatchedBoundODEResidual,
@@ -159,5 +159,5 @@ class TrajectoryMatchingLoss(Generic[Array]):
             Gradient. Shape: (1, nparams)
         """
         store = self._solve(sample)
-        functional = BackendTrajectoryFunctional(self._functional, store, sample)
+        functional = from_transient_functional(self._functional, store, sample)
         return self._bkd.transpose(self._sweeps.gradient(store, functional))

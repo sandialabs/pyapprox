@@ -62,17 +62,22 @@ satisfies, for each step :math:`n`, the step equation
   first- and second-order adjoints are solved and pulled back by the
   same code; only their sources differ.
 
-A functional may also read each step beyond its stored states (a
-functional integrating over time reads the stages):
-:math:`Q = Q_y(y_0, \dots, y_N;\, p) + \sum_n Q_n(u_n;\, y_n, \dots,
-y_{n+1-k};\, p)`, its step terms given by
-:meth:`TrajectoryFunctionalProtocol.step_terms`. In the adjoint sweep
+A functional (:class:`TrajectoryFunctional`) is a sum of terms read from
+the stored states, :math:`Q_y(y_0, \dots, y_N;\, p)`
+(:class:`StateTermProtocol`), and terms read from each step beyond its
+stored states, :math:`\sum_n Q_n(u_n;\, y_n, \dots, y_{n+1-k};\, p)`
+(:class:`StepTermProtocol`; a functional integrating over time reads the
+stages); the sweeps add the terms' derivatives. In the adjoint sweep
 :math:`\partial Q_n/\partial u_n` joins the step solve's right-hand side
 (:math:`-(E^\top \Pi'^\top \bar\nu_{n+1} + \partial Q_n/\partial u_n)`),
 :math:`\partial Q_n/\partial y_{n+1-l}` the cotangent of the state read
 at lag :math:`l`, and :math:`\partial Q_n/\partial p` the gradient; the
 tangent sweep adds their inner products with :math:`\delta u_n`,
-:math:`w_{n+1-l}` and :math:`v`.
+:math:`w_{n+1-l}` and :math:`v`; and the second-order sweep adds, in the
+same three places, their derivatives along the tangent
+(:class:`StepTermDerivatives`). A step term's :math:`Q_n` and a state
+term's :math:`Q_y` read the same stored state through different
+channels, so a functional reports each dependence in exactly one.
 
 :math:`\Pi'` and :math:`\Pi_p` are evaluated at the value the constraint
 was applied to, which the store records. :math:`y_0` is data, so its
@@ -136,6 +141,7 @@ from pyapprox.util.linalg.operators import (
     InnerProductSpaceProtocol,
     SolveFailedError,
     SolverHandleProtocol,
+    VectorSpaceProtocol,
 )
 
 V = TypeVar("V")
@@ -143,92 +149,280 @@ W = TypeVar("W")
 A = TypeVar("A", bound=ArrayProtocol)
 
 
-@runtime_checkable
-class StepTermsProtocol(Protocol[V]):
-    r"""The derivatives of a functional's part read from each step,
-    :math:`Q_n(u_n;\, y_n, \dots, y_{n+1-k};\, p)` (a functional
-    integrating over time reads the step's stages), at the step's window.
+StateCurvatureFn = Callable[[int, V], Optional[V]]
+"""``(index, x) ->`` a state term's second derivative at stored state
+``index`` applied to the column ``x``; None for a zero block."""
 
-    Each is :math:`\partial Q/\partial(\cdot)` through step :math:`n`'s
-    terms only; None for a term that is absent. A returned vector is new
-    or the functional's own storage, valid until its next call, as for
-    :class:`TrajectoryFunctionalProtocol`.
+ParamCurvatureFn = Callable[[V], Optional[V]]
+"""``(v) ->`` a state term's second parameter derivative applied to the
+parameter column ``v``; None for a zero block."""
+
+StepUnknownCurvatureFn = Callable[
+    [int, StepWindow[V], StepWindow[V], V], Optional[BlockVector[V]]
+]
+"""``(step, window, tangents, direction) ->`` the derivative of a step
+term's :math:`\\partial Q/\\partial u_n` along the tangent."""
+
+StepLagCurvatureFn = Callable[[int, StepWindow[V], StepWindow[V], int, V], Optional[V]]
+"""``(step, window, tangents, lag, direction) ->`` the derivative of a
+step term's :math:`\\partial Q/\\partial y_{n+1-\\mathrm{lag}}` along the
+tangent."""
+
+StepParamCurvatureFn = Callable[[int, StepWindow[V], StepWindow[V], V], Optional[V]]
+"""``(step, window, tangents, direction) ->`` the derivative of a step
+term's :math:`\\partial Q/\\partial p` along the tangent."""
+
+
+@dataclass(frozen=True)
+class StateTermDerivatives(Generic[V]):
+    r"""A state term's optional second derivatives applied to vectors,
+    for Hessian-vector products.
+
+    The second derivative in the states is block diagonal over the stored
+    states (:math:`\partial^2 Q/\partial y_m \partial y_k = 0` for
+    :math:`m \ne k`), as for terms that sum or integrate over the states.
+    Build with :meth:`first_order` or :meth:`second_order`.
+
+    Parameters
+    ----------
+    state_state : callable, optional
+        :math:`(\partial^2 Q/\partial y_m^2)\, w`, state to state.
+    state_param : callable, optional
+        :math:`(\partial^2 Q/\partial y_m \partial p)\, v`, parameters to
+        state.
+    param_state : callable, optional
+        :math:`(\partial^2 Q/\partial p\, \partial y_m)\, w`, state to
+        parameters.
+    param_param : callable, optional
+        :math:`(\partial^2 Q/\partial p^2)\, v`, parameters to parameters.
+
+    Raises
+    ------
+    ValueError
+        If some but not all four are given: the second-order sweep needs
+        every one.
     """
 
-    def unknown_cotangent(
+    state_state: Optional[StateCurvatureFn[V]] = None
+    state_param: Optional[StateCurvatureFn[V]] = None
+    param_state: Optional[StateCurvatureFn[V]] = None
+    param_param: Optional[ParamCurvatureFn[V]] = None
+
+    def __post_init__(self) -> None:
+        given = [
+            field is not None
+            for field in (
+                self.state_state,
+                self.state_param,
+                self.param_state,
+                self.param_param,
+            )
+        ]
+        if any(given) and not all(given):
+            raise ValueError("a state term's second derivatives come all four or none")
+
+    @staticmethod
+    def first_order() -> "StateTermDerivatives[V]":
+        """No second derivatives: gradients only."""
+        return StateTermDerivatives()
+
+    @staticmethod
+    def second_order(
+        state_state: StateCurvatureFn[V],
+        state_param: StateCurvatureFn[V],
+        param_state: StateCurvatureFn[V],
+        param_param: ParamCurvatureFn[V],
+    ) -> "StateTermDerivatives[V]":
+        """All four second derivatives."""
+        return StateTermDerivatives(state_state, state_param, param_state, param_param)
+
+
+@dataclass(frozen=True)
+class StepTermDerivatives(Generic[V]):
+    r"""A step term's optional derivatives along a tangent, for
+    Hessian-vector products: each is the derivative of the matching
+    cotangent of :class:`StepTermProtocol` along :math:`(dX, v)`, with
+    :math:`dX` the tangents of the step's arguments read from
+    ``tangents`` (the tangent trajectory's window of the step:
+    :math:`\delta u_n` as its unknown, :math:`w_{n+1-l}` as its past
+    states); a call returns None for a zero term. Build with
+    :meth:`first_order` or :meth:`second_order`.
+
+    Parameters
+    ----------
+    curvature_wrt_unknown : callable, optional
+        Along the tangent, :math:`\partial Q/\partial u_n`'s derivative,
+        an unknown-space column.
+    curvature_wrt_lag : callable, optional
+        :math:`\partial Q/\partial y_{n+1-\mathrm{lag}}`'s, a state column.
+    curvature_wrt_param : callable, optional
+        :math:`\partial Q/\partial p`'s through the step, a parameter
+        column.
+
+    Raises
+    ------
+    ValueError
+        If some but not all three are given.
+    """
+
+    curvature_wrt_unknown: Optional[StepUnknownCurvatureFn[V]] = None
+    curvature_wrt_lag: Optional[StepLagCurvatureFn[V]] = None
+    curvature_wrt_param: Optional[StepParamCurvatureFn[V]] = None
+
+    def __post_init__(self) -> None:
+        given = [
+            field is not None
+            for field in (
+                self.curvature_wrt_unknown,
+                self.curvature_wrt_lag,
+                self.curvature_wrt_param,
+            )
+        ]
+        if any(given) and not all(given):
+            raise ValueError("a step term's curvatures come all three or none")
+
+    @staticmethod
+    def first_order() -> "StepTermDerivatives[V]":
+        """No derivatives along a tangent: gradients only."""
+        return StepTermDerivatives()
+
+    @staticmethod
+    def second_order(
+        curvature_wrt_unknown: StepUnknownCurvatureFn[V],
+        curvature_wrt_lag: StepLagCurvatureFn[V],
+        curvature_wrt_param: StepParamCurvatureFn[V],
+    ) -> "StepTermDerivatives[V]":
+        """All three derivatives along a tangent."""
+        return StepTermDerivatives(
+            curvature_wrt_unknown, curvature_wrt_lag, curvature_wrt_param
+        )
+
+
+@runtime_checkable
+class StateTermProtocol(Protocol[V]):
+    r"""A term of a scalar functional read from the stored states and the
+    parameters directly, :math:`Q_y(y_0, \dots, y_N;\, p)`, on one
+    recorded trajectory: its first derivatives, and its optional second
+    derivatives in a bundle.
+
+    A returned vector may be the term's own storage, valid until its next
+    call: the sweeps copy whatever they keep, combine or write into, and
+    never modify a returned vector. None for a derivative that is zero
+    (a state the term does not read).
+    """
+
+    def state_cotangent(self, index: int) -> Optional[V]:
+        r""":math:`\partial Q/\partial y_{\mathrm{index}}`, a single column
+        of the state space."""
+        ...
+
+    def param_cotangent(self) -> Optional[V]:
+        r"""The direct :math:`\partial Q/\partial p`, a single column of
+        the parameter space."""
+        ...
+
+    def derivatives(self) -> StateTermDerivatives[V]:
+        """The optional second derivatives."""
+        ...
+
+
+@runtime_checkable
+class StepTermProtocol(Protocol[V]):
+    r"""A term of a scalar functional read from each step,
+    :math:`\sum_n Q_n(u_n;\, y_n, \dots, y_{n+1-k};\, p)` (a functional
+    integrating over time reads the step's stages), on one recorded
+    trajectory: its first derivatives at the step's window, and its
+    optional derivatives along a tangent in a bundle.
+
+    Each is :math:`\partial Q/\partial(\cdot)` through step :math:`n`'s
+    part only; None for a derivative that is zero. A returned vector is
+    new or the term's own storage, valid until its next call, as for
+    :class:`StateTermProtocol`.
+    """
+
+    def cotangent_wrt_unknown(
         self, step: int, window: StepWindow[V]
     ) -> Optional[BlockVector[V]]:
         r""":math:`\partial Q/\partial u_n`, a single column of the
         stepper's unknown space."""
         ...
 
-    def lag_cotangent(self, step: int, window: StepWindow[V], lag: int) -> Optional[V]:
+    def cotangent_wrt_lag(
+        self, step: int, window: StepWindow[V], lag: int
+    ) -> Optional[V]:
         r""":math:`\partial Q/\partial y_{n+1-\mathrm{lag}}` through the
         step, a single column of the state space."""
         ...
 
-    def param_cotangent(self, step: int, window: StepWindow[V]) -> Optional[V]:
+    def cotangent_wrt_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
         r""":math:`\partial Q/\partial p` through the step, a single column
         of the parameter space."""
         ...
 
+    def derivatives(self) -> StepTermDerivatives[V]:
+        """The optional derivatives along a tangent."""
+        ...
 
-@runtime_checkable
-class TrajectoryFunctionalProtocol(Protocol[V]):
-    r"""What the sweeps read of a scalar functional of one recorded
-    trajectory: its first derivatives, as stack vectors.
 
-    A returned vector may be the functional's own storage, valid until
-    its next call: the sweeps copy whatever they keep, combine or write
-    into, and never modify a returned vector.
+@dataclass(frozen=True)
+class TrajectoryFunctional(Generic[V]):
+    r"""A scalar functional of one recorded trajectory as the sweeps read
+    it: a sum of terms read from the stored states and terms read from
+    the steps, :math:`Q = \sum Q_y + \sum \sum_n Q_n`.
+
+    A functional made of several (a misfit and a regularization, a time
+    integral and an endpoint value) is the sum of theirs, ``a + b``; the
+    sweeps add the terms' derivatives, so no term knows of another.
+
+    Parameters
+    ----------
+    state_terms : tuple of StateTermProtocol
+        The terms read from the stored states and the parameters.
+    step_terms : tuple of StepTermProtocol
+        The terms read from the steps.
+
+    Raises
+    ------
+    TypeError
+        If a term does not satisfy its protocol.
     """
 
-    def state_cotangent(self, index: int) -> V:
-        r""":math:`\partial Q/\partial y_{\mathrm{index}}`, a single column
-        of the state space."""
-        ...
+    state_terms: Tuple[StateTermProtocol[V], ...] = ()
+    step_terms: Tuple[StepTermProtocol[V], ...] = ()
 
-    def param_cotangent(self) -> V:
-        r"""The direct :math:`\partial Q/\partial p`, a single column of
-        the parameter space."""
-        ...
+    def __post_init__(self) -> None:
+        for state_term in self.state_terms:
+            if not isinstance(state_term, StateTermProtocol):
+                raise TypeError(
+                    "each state term must satisfy StateTermProtocol, got "
+                    f"{type(state_term).__name__}"
+                )
+        for step_term in self.step_terms:
+            if not isinstance(step_term, StepTermProtocol):
+                raise TypeError(
+                    "each step term must satisfy StepTermProtocol, got "
+                    f"{type(step_term).__name__}"
+                )
 
-    def step_terms(self) -> Optional[StepTermsProtocol[V]]:
-        """The derivatives of the functional's part read from each step;
-        None for a functional of the stored states alone."""
-        ...
+    def __add__(self, other: "TrajectoryFunctional[V]") -> "TrajectoryFunctional[V]":
+        """The sum of the two functionals: their terms together."""
+        return TrajectoryFunctional(
+            self.state_terms + other.state_terms, self.step_terms + other.step_terms
+        )
 
 
-@runtime_checkable
-class SecondOrderTrajectoryFunctionalProtocol(
-    TrajectoryFunctionalProtocol[V], Protocol[V]
-):
-    r"""A trajectory functional with its second derivatives applied to
-    vectors, for Hessian-vector products.
-
-    The second derivative in the states is block diagonal over the stored
-    states (:math:`\partial^2 Q/\partial y_m \partial y_k = 0` for
-    :math:`m \ne k`), as for functionals that sum or integrate over time.
-    """
-
-    def state_state(self, index: int, w: V) -> V:
-        r""":math:`(\partial^2 Q/\partial y_m^2)\, w` for
-        :math:`m` = ``index``; ``w`` and the result are state columns."""
-        ...
-
-    def state_param(self, index: int, v: V) -> V:
-        r""":math:`(\partial^2 Q/\partial y_m \partial p)\, v`: a
-        parameter column to a state column."""
-        ...
-
-    def param_state(self, index: int, w: V) -> V:
-        r""":math:`(\partial^2 Q/\partial p\, \partial y_m)\, w`: a state
-        column to a parameter column."""
-        ...
-
-    def param_param(self, v: V) -> V:
-        r""":math:`(\partial^2 Q/\partial p^2)\, v`, a parameter column."""
-        ...
+def _accumulate(
+    total: Optional[W], term: Optional[W], space: VectorSpaceProtocol[W]
+) -> Optional[W]:
+    """``total + term``, into ``total`` when there is one (a new vector the
+    caller owns); a term starting the total is copied, since it may be a
+    term's own storage, overwritten by that term's next call. So each
+    term is added as soon as it is returned, never kept for later."""
+    if term is None:
+        return total
+    if total is None:
+        return space.copy(term)
+    return space.axpby(1.0, term, 1.0, total, out=total)
 
 
 @runtime_checkable
@@ -314,15 +508,16 @@ class _Cotangents(Generic[V]):
     Parameters
     ----------
     direct : callable
-        ``index ->`` the direct term of state ``index``'s cotangent, a
-        state column: :math:`\partial Q/\partial y_m` for the first order.
+        ``index ->`` the direct term of state ``index``'s cotangent, a new
+        state column the cotangent takes over (:math:`\partial
+        Q/\partial y_m` for the first order), or None when it is zero.
     space : InnerProductSpaceProtocol
         The state space.
     """
 
     def __init__(
         self,
-        direct: Callable[[int], V],
+        direct: Callable[[int], Optional[V]],
         space: InnerProductSpaceProtocol[V, ArrayProtocol],
     ) -> None:
         self._direct, self._space = direct, space
@@ -340,14 +535,15 @@ class _Cotangents(Generic[V]):
 
     def complete(self, index: int) -> V:
         """State ``index``'s cotangent, once every step reading it has
-        contributed; its contributions are released. Always a new
-        vector, so the caller may write into it: the direct term may be
-        the caller's own (a functional's cached vector)."""
+        contributed; its contributions are released. Always a vector the
+        caller owns and may write into."""
         direct = self._direct(index)
         later = self._pending.pop(index, None)
+        if direct is None:
+            return self._space.zeros() if later is None else later
         if later is None:
-            return self._space.copy(direct)
-        return self._space.axpby(1.0, later, 1.0, direct)
+            return direct
+        return self._space.axpby(1.0, direct, 1.0, later, out=later)
 
     def npending(self) -> int:
         """The number of states with contributions held."""
@@ -592,7 +788,7 @@ class TrajectoryDerivatives(Generic[V, A]):
     def tangent(
         self,
         store: TrajectoryStoreProtocol[V],
-        functional: TrajectoryFunctionalProtocol[V],
+        functional: TrajectoryFunctional[V],
         direction: V,
         session: Optional[DifferentiableSessionProtocol[V]] = None,
     ) -> A:
@@ -602,8 +798,8 @@ class TrajectoryDerivatives(Generic[V, A]):
         ----------
         store : TrajectoryStoreProtocol
             A trajectory recorded at the parameters currently set.
-        functional : TrajectoryFunctionalProtocol
-            :math:`Q`'s derivatives on that trajectory.
+        functional : TrajectoryFunctional
+            :math:`Q`'s terms on that trajectory.
         direction : V
             :math:`v`, a single column of the parameter space.
         session : DifferentiableSessionProtocol, optional
@@ -625,24 +821,37 @@ class TrajectoryDerivatives(Generic[V, A]):
             If a step's solve fails.
         """
         space, params = self._state_space(), self._param_space()
-        total = params.dot(functional.param_cotangent(), direction)
-        steps = functional.step_terms()
+        products: List[A] = []
+        for term in functional.state_terms:
+            by_param = term.param_cotangent()
+            if by_param is not None:
+                products.append(params.dot(by_param, direction))
         # The tangents of the states the next step reads, most recent first.
         recent: Deque[V] = deque(maxlen=self._stepper.depth())
         states = self._tangent_states(store, direction, self._session(session))
         for index, tangent in enumerate(states):
-            total = total + space.dot(functional.state_cotangent(index), tangent.state)
-            if steps is not None and tangent.unknown is not None:
-                for term in self._step_terms_tangent(
-                    steps, store, index - 1, tangent.unknown, recent, direction
-                ):
-                    total = total + term
+            for term in functional.state_terms:
+                by_state = term.state_cotangent(index)
+                if by_state is not None:
+                    products.append(space.dot(by_state, tangent.state))
+            if functional.step_terms and tangent.unknown is not None:
+                products += self._step_terms_tangent(
+                    functional.step_terms,
+                    store,
+                    index - 1,
+                    tangent.unknown,
+                    recent,
+                    direction,
+                )
             recent.appendleft(tangent.state)
+        total = params.dot(params.zeros(), direction)
+        for product in products:
+            total = total + product
         return total
 
     def _step_terms_tangent(
         self,
-        steps: StepTermsProtocol[V],
+        step_terms: Sequence[StepTermProtocol[V]],
         store: TrajectoryStoreProtocol[V],
         step: int,
         unknown: BlockVector[V],
@@ -652,22 +861,24 @@ class TrajectoryDerivatives(Generic[V, A]):
         r"""Step ``step``'s terms along the tangent, those present of
         :math:`\langle \partial Q/\partial u_n, \delta u_n\rangle`,
         :math:`\langle \partial Q/\partial y_{n+1-l}, w_{n+1-l}\rangle` and
-        :math:`\langle \partial Q/\partial p, v\rangle` through the step,
-        ``recent[l - 1]`` being :math:`w_{n+1-l}`."""
+        :math:`\langle \partial Q/\partial p, v\rangle` through the step
+        for each term, ``recent[l - 1]`` being :math:`w_{n+1-l}`."""
         window = self._window(store, step)
         space, params = self._state_space(), self._param_space()
-        terms: List[A] = []
-        by_unknown = steps.unknown_cotangent(step, window)
-        if by_unknown is not None:
-            terms.append(self._stepper.unknown_space().dot(by_unknown, unknown))
-        for lag in range(1, len(window.past_states) + 1):
-            by_lag = steps.lag_cotangent(step, window, lag)
-            if by_lag is not None:
-                terms.append(space.dot(by_lag, recent[lag - 1]))
-        by_param = steps.param_cotangent(step, window)
-        if by_param is not None:
-            terms.append(params.dot(by_param, direction))
-        return terms
+        unknowns = self._stepper.unknown_space()
+        products: List[A] = []
+        for term in step_terms:
+            by_unknown = term.cotangent_wrt_unknown(step, window)
+            if by_unknown is not None:
+                products.append(unknowns.dot(by_unknown, unknown))
+            for lag in range(1, len(window.past_states) + 1):
+                by_lag = term.cotangent_wrt_lag(step, window, lag)
+                if by_lag is not None:
+                    products.append(space.dot(by_lag, recent[lag - 1]))
+            by_param = term.cotangent_wrt_param(step, window)
+            if by_param is not None:
+                products.append(params.dot(by_param, direction))
+        return products
 
     def _tangent_states(
         self,
@@ -863,7 +1074,7 @@ class TrajectoryDerivatives(Generic[V, A]):
     def gradient(
         self,
         store: TrajectoryStoreProtocol[V],
-        functional: TrajectoryFunctionalProtocol[V],
+        functional: TrajectoryFunctional[V],
         session: Optional[DifferentiableSessionProtocol[V]] = None,
     ) -> V:
         r""":math:`dQ/dp`, by one backward sweep.
@@ -872,8 +1083,8 @@ class TrajectoryDerivatives(Generic[V, A]):
         ----------
         store : TrajectoryStoreProtocol
             A trajectory recorded at the parameters currently set.
-        functional : TrajectoryFunctionalProtocol
-            :math:`Q`'s derivatives on that trajectory.
+        functional : TrajectoryFunctional
+            :math:`Q`'s terms on that trajectory.
         session : DifferentiableSessionProtocol, optional
             Sets up the step solves; a new one of the stepper by default,
             so steps whose diagonal block repeats share a setup.
@@ -892,7 +1103,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         SolveFailedError
             If a step's transposed solve fails.
         """
-        sources = _FirstOrderSources(functional, self._param_space())
+        sources = _FirstOrderSources(functional, self)
         handles = _SharedHandles(self, self._session(session))
         sweep = _AdjointSweep(self, store, sources, handles)
         for n in reversed(range(store.nsteps())):
@@ -902,7 +1113,7 @@ class TrajectoryDerivatives(Generic[V, A]):
     def hvp(
         self,
         store: TrajectoryStoreProtocol[V],
-        functional: SecondOrderTrajectoryFunctionalProtocol[V],
+        functional: TrajectoryFunctional[V],
         direction: V,
         tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
         session: Optional[DifferentiableSessionProtocol[V]] = None,
@@ -916,7 +1127,7 @@ class TrajectoryDerivatives(Generic[V, A]):
     def gradient_and_hvp(
         self,
         store: TrajectoryStoreProtocol[V],
-        functional: SecondOrderTrajectoryFunctionalProtocol[V],
+        functional: TrajectoryFunctional[V],
         direction: V,
         tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
         session: Optional[DifferentiableSessionProtocol[V]] = None,
@@ -938,8 +1149,9 @@ class TrajectoryDerivatives(Generic[V, A]):
         ----------
         store : TrajectoryStoreProtocol
             A trajectory recorded at the parameters currently set.
-        functional : SecondOrderTrajectoryFunctionalProtocol
-            :math:`Q`'s first and second derivatives on that trajectory.
+        functional : TrajectoryFunctional
+            :math:`Q`'s terms on that trajectory; each term's bundle must
+            carry its second derivatives.
         direction : V
             :math:`v`, a single column of the parameter space.
         tangent_store : TrajectoryStoreProtocol, optional
@@ -959,19 +1171,16 @@ class TrajectoryDerivatives(Generic[V, A]):
         Raises
         ------
         TypeError
-            If ``functional`` does not satisfy its protocol, or a
-            derivative the sweeps need is missing.
+            If a term's bundle has no second derivatives, or a derivative
+            the sweeps need is missing.
         ValueError
             If the trajectory was recorded at other parameters, or
             ``tangent_store`` is not empty.
         SolveFailedError
             If a step's solve fails.
         """
-        if not isinstance(functional, SecondOrderTrajectoryFunctionalProtocol):
-            raise TypeError(
-                "functional must satisfy SecondOrderTrajectoryFunctionalProtocol, "
-                f"got {type(functional).__name__}"
-            )
+        # Read every term's bundle once, refusing before any sweep runs.
+        curvatures = _FunctionalCurvatures.of(functional)
         tangents: TrajectoryStoreProtocol[V] = (
             InMemoryTrajectoryStore() if tangent_store is None else tangent_store
         )
@@ -979,10 +1188,10 @@ class TrajectoryDerivatives(Generic[V, A]):
         self._record_tangents(store, direction, tangents, shared)
         handles = _SharedHandles(self, shared)
         adjoint = _AdjointSweep(
-            self, store, _FirstOrderSources(functional, self._param_space()), handles
+            self, store, _FirstOrderSources(functional, self), handles
         )
         second_sources = _SecondOrderSources(
-            self, store, functional, tangents, direction, adjoint
+            self, store, curvatures, tangents, direction, adjoint
         )
         second_adjoint = _AdjointSweep(self, store, second_sources, handles)
         for n in reversed(range(store.nsteps())):
@@ -1036,8 +1245,9 @@ class _AdjointSourcesProtocol(Protocol[V]):
     r"""What an adjoint sweep adds to its recurrence (see
     :class:`_AdjointSweep`); None for a term that is absent."""
 
-    def state(self, index: int) -> V:
-        """The direct term of state ``index``'s cotangent."""
+    def state(self, index: int) -> Optional[V]:
+        """The direct term of state ``index``'s cotangent, a new vector the
+        sweep takes over."""
         ...
 
     def param(self) -> V:
@@ -1293,31 +1503,118 @@ class _AdjointSweep(Generic[V, A]):
         return self._total
 
 
-class _FirstOrderSources(Generic[V]):
-    """The gradient's sources: the functional's first derivatives, those
+@dataclass(frozen=True)
+class _StateCurvature(Generic[V]):
+    """A state term's second derivatives, read from its bundle and known
+    present."""
+
+    state_state: StateCurvatureFn[V]
+    state_param: StateCurvatureFn[V]
+    param_state: StateCurvatureFn[V]
+    param_param: ParamCurvatureFn[V]
+
+
+@dataclass(frozen=True)
+class _StepCurvature(Generic[V]):
+    """A step term's derivatives along a tangent, read from its bundle
+    and known present."""
+
+    wrt_unknown: StepUnknownCurvatureFn[V]
+    wrt_lag: StepLagCurvatureFn[V]
+    wrt_param: StepParamCurvatureFn[V]
+
+
+@dataclass(frozen=True)
+class _FunctionalCurvatures(Generic[V]):
+    """Every term's second derivatives, read once from the bundles."""
+
+    states: Tuple[_StateCurvature[V], ...]
+    steps: Tuple[_StepCurvature[V], ...]
+
+    @staticmethod
+    def of(functional: TrajectoryFunctional[V]) -> "_FunctionalCurvatures[V]":
+        """Read the terms' bundles.
+
+        Raises
+        ------
+        TypeError
+            If a term's bundle has no second derivatives.
+        """
+        states = []
+        for state_term in functional.state_terms:
+            bundle = state_term.derivatives()
+            if (
+                bundle.state_state is None
+                or bundle.state_param is None
+                or bundle.param_state is None
+                or bundle.param_param is None
+            ):
+                raise TypeError(
+                    f"{type(state_term).__name__}'s derivatives() has no second "
+                    "derivatives, so the functional has no Hessian-vector products"
+                )
+            states.append(
+                _StateCurvature(
+                    bundle.state_state,
+                    bundle.state_param,
+                    bundle.param_state,
+                    bundle.param_param,
+                )
+            )
+        steps = []
+        for step_term in functional.step_terms:
+            step_bundle = step_term.derivatives()
+            if (
+                step_bundle.curvature_wrt_unknown is None
+                or step_bundle.curvature_wrt_lag is None
+                or step_bundle.curvature_wrt_param is None
+            ):
+                raise TypeError(
+                    f"{type(step_term).__name__}'s derivatives() has no curvature, "
+                    "so the functional has no Hessian-vector products"
+                )
+            steps.append(
+                _StepCurvature(
+                    step_bundle.curvature_wrt_unknown,
+                    step_bundle.curvature_wrt_lag,
+                    step_bundle.curvature_wrt_param,
+                )
+            )
+        return _FunctionalCurvatures(tuple(states), tuple(steps))
+
+
+class _FirstOrderSources(Generic[V, A]):
+    """The gradient's sources: the terms' first derivatives, summed; those
     read from each step added to the step's terms.
 
     Parameters
     ----------
-    functional : TrajectoryFunctionalProtocol
-        :math:`Q`'s first derivatives.
-    params : InnerProductSpaceProtocol
-        The parameter space.
+    functional : TrajectoryFunctional
+        :math:`Q`'s terms.
+    owner : TrajectoryDerivatives
+        The spaces.
     """
 
     def __init__(
         self,
-        functional: TrajectoryFunctionalProtocol[V],
-        params: InnerProductSpaceProtocol[V, ArrayProtocol],
+        functional: TrajectoryFunctional[V],
+        owner: "TrajectoryDerivatives[V, A]",
     ) -> None:
-        self._functional, self._params = functional, params
-        self._steps = functional.step_terms()
+        self._functional = functional
+        self._space, self._params = owner._state_space(), owner._param_space()
+        self._unknowns = owner.stepper().unknown_space()
 
-    def state(self, index: int) -> V:
-        return self._functional.state_cotangent(index)
+    def state(self, index: int) -> Optional[V]:
+        total: Optional[V] = None
+        for term in self._functional.state_terms:
+            total = _accumulate(total, term.state_cotangent(index), self._space)
+        return total
 
     def param(self) -> V:
-        return self._params.copy(self._functional.param_cotangent())
+        total: Optional[V] = None
+        for term in self._functional.state_terms:
+            total = _accumulate(total, term.param_cotangent(), self._params)
+        return self._params.zeros() if total is None else total
 
     def at_state(self, index: int) -> tuple[Optional[V], Optional[V]]:
         return None, None
@@ -1328,19 +1625,28 @@ class _FirstOrderSources(Generic[V]):
     def step_unknown(
         self, step: int, window: StepWindow[V]
     ) -> Optional[BlockVector[V]]:
-        if self._steps is None:
-            return None
-        return self._steps.unknown_cotangent(step, window)
+        total: Optional[BlockVector[V]] = None
+        for term in self._functional.step_terms:
+            total = _accumulate(
+                total, term.cotangent_wrt_unknown(step, window), self._unknowns
+            )
+        return total
 
     def step_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
-        if self._steps is None:
-            return None
-        return self._steps.param_cotangent(step, window)
+        total: Optional[V] = None
+        for term in self._functional.step_terms:
+            total = _accumulate(
+                total, term.cotangent_wrt_param(step, window), self._params
+            )
+        return total
 
     def step_lag(self, step: int, window: StepWindow[V], lag: int) -> Optional[V]:
-        if self._steps is None:
-            return None
-        return self._steps.lag_cotangent(step, window, lag)
+        total: Optional[V] = None
+        for term in self._functional.step_terms:
+            total = _accumulate(
+                total, term.cotangent_wrt_lag(step, window, lag), self._space
+            )
+        return total
 
     def initial(self) -> Optional[V]:
         return None
@@ -1357,8 +1663,8 @@ class _SecondOrderSources(Generic[V, A]):
         The stepper, constraint and initial state.
     store : TrajectoryStoreProtocol
         The trajectory.
-    functional : SecondOrderTrajectoryFunctionalProtocol
-        :math:`Q`'s second derivatives.
+    curvatures : _FunctionalCurvatures
+        The terms' second derivatives.
     tangents : TrajectoryStoreProtocol
         The tangent trajectory: :math:`w_m` as states, :math:`dx_m` as
         unconstrained values, :math:`\delta u_n` as step unknowns. Read in
@@ -1375,54 +1681,40 @@ class _SecondOrderSources(Generic[V, A]):
         self,
         owner: TrajectoryDerivatives[V, A],
         store: TrajectoryStoreProtocol[V],
-        functional: SecondOrderTrajectoryFunctionalProtocol[V],
+        curvatures: _FunctionalCurvatures[V],
         tangents: TrajectoryStoreProtocol[V],
         direction: V,
         adjoint: _FirstOrderAdjointProtocol[V],
     ) -> None:
-        if functional.step_terms() is not None:
-            raise TypeError(
-                f"{type(functional).__name__} reads steps, whose second "
-                "derivatives the second-order sweep does not take, so it has no "
-                "Hessian-vector products"
-            )
-        self._owner, self._store, self._functional = owner, store, functional
+        self._owner, self._store, self._curvatures = owner, store, curvatures
         self._tangents, self._direction, self._adjoint = tangents, direction, adjoint
         self._p_dir = BlockVector((direction,))
         self._second = owner._step_second_order()
         self._space, self._params = owner._state_space(), owner._param_space()
-        # The step being swept and its dX_b by lag, set by begin_step.
+        self._unknowns = owner.stepper().unknown_space()
+        # The step being swept, its tangent window and its dX_b by lag, set
+        # by begin_step.
         self._step: Optional[int] = None
+        self._tangent_window: Optional[StepWindow[V]] = None
         self._lag_tangents: Dict[int, BlockVector[V]] = {}
 
-    def _sum(
-        self, terms: List[V], space: InnerProductSpaceProtocol[V, A]
-    ) -> Optional[V]:
-        """The sum of ``terms`` in a new vector (a term may be a
-        functional's own), or None for no terms."""
+    def state(self, index: int) -> Optional[V]:
+        # Q_yy w_m + Q_yp v over the state terms, each added as returned.
+        w, v = self._tangents.state(index), self._direction
         total: Optional[V] = None
-        for term in terms:
-            total = (
-                space.copy(term)
-                if total is None
-                else space.axpby(1.0, term, 1.0, total, out=total)
-            )
+        for term in self._curvatures.states:
+            total = _accumulate(total, term.state_state(index, w), self._space)
+            total = _accumulate(total, term.state_param(index, v), self._space)
         return total
 
-    def state(self, index: int) -> V:
-        # Q_yy w_m + Q_yp v; the first result is copied before the
-        # functional is called again (it may return its own storage).
-        functional, space = self._functional, self._space
-        total = space.copy(functional.state_state(index, self._tangents.state(index)))
-        return space.axpby(
-            1.0, functional.state_param(index, self._direction), 1.0, total, out=total
-        )
-
     def param(self) -> V:
-        # Q_pp v, copied: the sweep accumulates into it. The functional's
-        # Q_py_m w_m terms come per state, from at_state, so the tangents
-        # are read backward only.
-        return self._params.copy(self._functional.param_param(self._direction))
+        # Q_pp v, new: the sweep accumulates into it. The terms' Q_py_m w_m
+        # come per state, from at_state, so the tangents are read backward
+        # only.
+        total: Optional[V] = None
+        for term in self._curvatures.states:
+            total = _accumulate(total, term.param_param(self._direction), self._params)
+        return self._params.zeros() if total is None else total
 
     def at_state(self, index: int) -> tuple[Optional[V], Optional[V]]:
         # To the parameters: Q_py_m w_m, and with a constraint
@@ -1430,23 +1722,26 @@ class _SecondOrderSources(Generic[V, A]):
         # constraint, (nu^T Pi)_xx dx + (nu^T Pi)_xp v; nu the first
         # order's cotangent of this state.
         w, v = self._tangents.state(index), self._direction
-        to_param = [self._functional.param_state(index, w)]
+        to_param: Optional[V] = None
+        for term in self._curvatures.states:
+            to_param = _accumulate(to_param, term.param_state(index, w), self._params)
         ops = self._owner._constraint_second_order(
             self._store, index, self._adjoint.cotangent(index)
         )
         if ops is None:
-            return None, self._sum(to_param, self._params)
+            return None, to_param
         dx = self._tangents.unconstrained(index)
-        to_state = [
-            op.apply(x)
-            for op, x in ((ops.state_state, dx), (ops.state_param, v))
-            if not op.properties().zero
-        ]
+        to_state: Optional[V] = None
+        for op, x in ((ops.state_state, dx), (ops.state_param, v)):
+            if not op.properties().zero:
+                to_state = _accumulate(to_state, op.apply(x), self._space)
         if not ops.state_param.properties().zero:
-            to_param.append(ops.state_param.apply_transpose(dx))
+            to_param = _accumulate(
+                to_param, ops.state_param.apply_transpose(dx), self._params
+            )
         if not ops.param_param.properties().zero:
-            to_param.append(ops.param_param.apply(v))
-        return self._sum(to_state, self._space), self._sum(to_param, self._params)
+            to_param = _accumulate(to_param, ops.param_param.apply(v), self._params)
+        return to_state, to_param
 
     def begin_step(self, step: int, window: StepWindow[V]) -> None:
         """Read the tangent store's window of step ``step`` once, at the
@@ -1456,6 +1751,7 @@ class _SecondOrderSources(Generic[V, A]):
         self._lag_tangents = {0: tangent_window.unknown}
         for lag in range(1, len(window.past_states) + 1):
             self._lag_tangents[lag] = BlockVector((tangent_window.past_state(lag),))
+        self._tangent_window = tangent_window
         self._step = step
 
     def _tangents_of(self, step: int) -> Dict[int, BlockVector[V]]:
@@ -1469,6 +1765,18 @@ class _SecondOrderSources(Generic[V, A]):
         if self._step != step:
             raise RuntimeError(f"step {step} was not begun (begun: {self._step})")
         return self._lag_tangents
+
+    def _tangent_window_of(self, step: int) -> StepWindow[V]:
+        """Step ``step``'s tangent window, read by :meth:`begin_step`.
+
+        Raises
+        ------
+        RuntimeError
+            If ``step`` is not the step begun.
+        """
+        if self._step != step or self._tangent_window is None:
+            raise RuntimeError(f"step {step} was not begun (begun: {self._step})")
+        return self._tangent_window
 
     def _curvature_at_lag(
         self, step: int, window: StepWindow[V], lag: int
@@ -1500,25 +1808,44 @@ class _SecondOrderSources(Generic[V, A]):
     def step_unknown(
         self, step: int, window: StepWindow[V]
     ) -> Optional[BlockVector[V]]:
-        return self._curvature_at_lag(step, window, 0)
+        # The stepper's curvature (a new vector), then each step term's own
+        # added as returned.
+        tangents, v = self._tangent_window_of(step), self._direction
+        total = self._curvature_at_lag(step, window, 0)
+        for term in self._curvatures.steps:
+            total = _accumulate(
+                total, term.wrt_unknown(step, window, tangents, v), self._unknowns
+            )
+        return total
 
     def step_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
-        # sum_a H(a, p)^T dX_a + H(p, p) v
+        # sum_a H(a, p)^T dX_a + H(p, p) v, and the step terms' own
         second, mu = self._second, self._adjoint.adjoint(step)
         lag_tangents = self._tangents_of(step)
-        terms = [
-            second.state_param(window, mu, lag)
-            .apply_transpose(lag_tangents[lag])
-            .blocks[0]
-            for lag in sorted(second.param_lags)
-            if lag in lag_tangents
-        ]
-        terms.append(second.param_param(window, mu).apply(self._p_dir).blocks[0])
-        return self._sum(terms, self._params)
+        params = self._params
+        total: Optional[V] = second.param_param(window, mu).apply(self._p_dir).blocks[0]
+        for lag in sorted(second.param_lags):
+            if lag in lag_tangents:
+                mixed = second.state_param(window, mu, lag)
+                total = _accumulate(
+                    total, mixed.apply_transpose(lag_tangents[lag]).blocks[0], params
+                )
+        tangents, v = self._tangent_window_of(step), self._direction
+        for term in self._curvatures.steps:
+            total = _accumulate(
+                total, term.wrt_param(step, window, tangents, v), params
+            )
+        return total
 
     def step_lag(self, step: int, window: StepWindow[V], lag: int) -> Optional[V]:
         read = self._curvature_at_lag(step, window, lag)
-        return None if read is None else read.blocks[0]
+        tangents, v = self._tangent_window_of(step), self._direction
+        total = None if read is None else read.blocks[0]
+        for term in self._curvatures.steps:
+            total = _accumulate(
+                total, term.wrt_lag(step, window, tangents, lag, v), self._space
+            )
+        return total
 
     def initial(self) -> Optional[V]:
         # (sum_i z_0,i d^2 y0_i/dp^2) v, with z_0 the first order's pull.

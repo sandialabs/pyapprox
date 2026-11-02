@@ -23,6 +23,8 @@ invariants.
 | `SteadyConstrainedDerivatives` | `pde.models.galerkin.constrained_derivatives` | built by `steady_constrained_derivatives` | Galerkin steady adapter |
 | `SteadyFunctionalDerivatives` | `optimization.implicitfunction.functionals.derivatives` | `derivatives()` | steady functionals |
 | `TransientFunctionalDerivatives` | `ode.functionals.protocols` | `derivatives()` | transient functionals |
+| `StateTermDerivatives`, `StepTermDerivatives` | `ode.trajectory_derivatives` | `derivatives()` | the terms of a `TrajectoryFunctional` the sweeps differentiate |
+| `IntegrandDerivatives` | `ode.time_integral` | `derivatives()` | integrands of time integrals |
 | `SteadyStateEquationDerivatives` | `optimization.implicitfunction.state_equations.derivatives` | `derivatives()` | steady state equations |
 | `ImplicitOperatorDerivatives` | `optimization.implicitfunction.operator.derivatives` | `derivatives()` | `AdjointOperator`, `ForwardSensitivityOperator` |
 

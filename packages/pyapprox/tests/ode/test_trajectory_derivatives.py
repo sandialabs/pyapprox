@@ -76,13 +76,12 @@ from pyapprox.ode.tableau import (
 from pyapprox.ode.trajectory_derivatives import (
     InitialStateDerivativeProtocol,
     ResidualInitialState,
-    SecondOrderTrajectoryFunctionalProtocol,
+    StateTermDerivatives,
+    StateTermProtocol,
     TrajectoryDerivatives,
+    TrajectoryFunctional,
 )
-from pyapprox.ode.trajectory_functional import (
-    BackendSecondOrderTrajectoryFunctional,
-    BackendTrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_functional import TransientFunctionalTerm
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -273,9 +272,8 @@ class TestHessianVectorProduct:
         problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
         param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         store = problem.solve(param)
-        functional = BackendSecondOrderTrajectoryFunctional(
-            tikhonov_mse(bkd), store, param
-        )
+        term = TransientFunctionalTerm(tikhonov_mse(bkd), store, param)
+        functional = TrajectoryFunctional(state_terms=(term,))
         tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper(),
@@ -286,9 +284,9 @@ class TestHessianVectorProduct:
         assert tangents.ntimes() == store.ntimes()
         assert tangents.nsteps() == store.nsteps()
         assert tangents.times() == store.times()
-        total = functional.param_cotangent().T @ direction
+        total = term.param_cotangent().T @ direction
         for index in range(tangents.ntimes()):
-            total = total + functional.state_cotangent(index).T @ tangents.state(index)
+            total = total + term.state_cotangent(index).T @ tangents.state(index)
         expected = sweeps.tangent(store, functional, direction)
         bkd.assert_allclose(total, expected, rtol=1e-12)
         with pytest.raises(ValueError, match="tangent store must be empty"):
@@ -300,9 +298,7 @@ class TestHessianVectorProductContracts:
         problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
         param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         store = problem.solve(param)
-        functional = BackendSecondOrderTrajectoryFunctional(
-            tikhonov_mse(bkd), store, param
-        )
+        functional = problem.coupling(store, param)
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper(),
             ResidualFormConstraint(problem.pin(), BackendColumnForm(bkd)),
@@ -325,9 +321,7 @@ class TestHessianVectorProductContracts:
             problem.start(),
         )
         tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        functional = BackendSecondOrderTrajectoryFunctional(
-            tikhonov_mse(bkd), store, param
-        )
+        functional = problem.coupling(store, param)
         sweeps.hvp(store, functional, direction, tangents)
         initial = sweeps.tangent_initial(store, direction)
         bkd.assert_allclose(initial.state, tangents.state(0), rtol=0.0)
@@ -393,6 +387,22 @@ class _FlatStart(ScaledStart[Array]):
         return None
 
 
+class _GradientOnly(Generic[Array]):
+    """A state term's first derivatives without its second."""
+
+    def __init__(self, inner: TransientFunctionalTerm[Array]) -> None:
+        self._inner = inner
+
+    def state_cotangent(self, index: int) -> Array:
+        return self._inner.state_cotangent(index)
+
+    def param_cotangent(self) -> Array:
+        return self._inner.param_cotangent()
+
+    def derivatives(self) -> StateTermDerivatives[Array]:
+        return StateTermDerivatives.first_order()
+
+
 class TestHessianVectorProductRefusals:
     def test_a_functional_without_second_derivatives(self, bkd: Backend[Array]) -> None:
         problem = TrajectoryProblem(bkd, heun())
@@ -401,8 +411,10 @@ class TestHessianVectorProductRefusals:
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper()
         )
-        with pytest.raises(TypeError, match="SecondOrderTrajectoryFunctional"):
-            sweeps.hvp(store, problem.coupling(store, param), random_direction(bkd))  # type: ignore[arg-type]
+        term = _GradientOnly(TransientFunctionalTerm(tikhonov_mse(bkd), store, param))
+        functional = TrajectoryFunctional(state_terms=(term,))
+        with pytest.raises(TypeError, match="_GradientOnly.*no second derivatives"):
+            sweeps.hvp(store, functional, random_direction(bkd))
 
     def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:
         problem = TrajectoryProblem(bkd, heun(), start=_FlatStart(bkd))
@@ -606,8 +618,10 @@ class _MockLastState:
     def param_cotangent(self) -> MockVector:
         return wrap(np.array(_D), _MOCK_PARAM)
 
-    def step_terms(self) -> None:
-        return None
+    def derivatives(self) -> StateTermDerivatives[MockVector]:
+        return StateTermDerivatives.second_order(
+            self.state_state, self.state_param, self.param_state, self.param_param
+        )
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         return wrap(np.zeros((3, 1)), MOCK_STATE)
@@ -637,8 +651,10 @@ class _MockQuadraticLast:
     def param_cotangent(self) -> MockVector:
         return wrap(np.array(_D), _MOCK_PARAM)
 
-    def step_terms(self) -> None:
-        return None
+    def derivatives(self) -> StateTermDerivatives[MockVector]:
+        return StateTermDerivatives.second_order(
+            self.state_state, self.state_param, self.param_state, self.param_param
+        )
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         last = index % (self._last + 1) == self._last
@@ -681,8 +697,10 @@ class _MockCross:
         value = self._d + self._param + self._e * (self._c.T @ self._final)
         return wrap(value, _MOCK_PARAM)
 
-    def step_terms(self) -> None:
-        return None
+    def derivatives(self) -> StateTermDerivatives[MockVector]:
+        return StateTermDerivatives.second_order(
+            self.state_state, self.state_param, self.param_state, self.param_param
+        )
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         value = peek(w).copy() if self._at_last(index) else np.zeros((3, 1))
@@ -737,8 +755,10 @@ class _OneBuffer:
     def param_cotangent(self) -> MockVector:
         return self._into(self._param, self._inner.param_cotangent())
 
-    def step_terms(self) -> None:
-        return None
+    def derivatives(self) -> StateTermDerivatives[MockVector]:
+        return StateTermDerivatives.second_order(
+            self.state_state, self.state_param, self.param_state, self.param_param
+        )
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         return self._into(self._state, self._inner.state_state(index, w))
@@ -872,7 +892,7 @@ def _mock_problem(
 
 _MockFunctional = Callable[
     [InMemoryTrajectoryStore[MockVector], NDArray[Any]],
-    SecondOrderTrajectoryFunctionalProtocol[MockVector],
+    StateTermProtocol[MockVector],
 ]
 _MockValue = Callable[[InMemoryTrajectoryStore[MockVector], NDArray[Any]], float]
 
@@ -932,7 +952,12 @@ class _MockDerivatives:
         self._sweeps: TrajectoryDerivatives[MockVector, NDArray[Any]] = (
             TrajectoryDerivatives(stepper, pin)
         )
-        self._functional, self._value = functional, value
+        self._term, self._value = functional, value
+
+    def _functional(
+        self, store: InMemoryTrajectoryStore[MockVector], param: NDArray[Any]
+    ) -> TrajectoryFunctional[MockVector]:
+        return TrajectoryFunctional(state_terms=(self._term(store, param),))
 
     def values(self, samples: NDArray[Any]) -> NDArray[Any]:
         """Q at each column. Shape: (1, nsamples)."""
@@ -1007,7 +1032,7 @@ class TestMockStack:
         passes the checker, and the tangent is the gradient in a
         direction."""
         problem = _MockDerivatives(make, _last_state, _last_state_value)
-        assert isinstance(_MockLastState(2), SecondOrderTrajectoryFunctionalProtocol)
+        assert isinstance(_MockLastState(2), StateTermProtocol)
         gradient_error, _ = problem.min_errors(_MOCK_POINT)
         assert gradient_error < 1e-8
         gradient = problem.gradient(_MOCK_POINT)
@@ -1048,11 +1073,23 @@ class TestMockStack:
         plain = _MockCross(store, param)
         reusing = _OneBuffer(_MockCross(store, param))
         v = wrap(direction, _MOCK_PARAM)
-        gradient, hvp = sweeps.gradient_and_hvp(store, reusing, v)
+        gradient, hvp = sweeps.gradient_and_hvp(
+            store, TrajectoryFunctional(state_terms=(reusing,)), v
+        )
         reusing.check_untouched()
-        expected_gradient, expected_hvp = sweeps.gradient_and_hvp(store, plain, v)
+        expected_gradient, expected_hvp = sweeps.gradient_and_hvp(
+            store, TrajectoryFunctional(state_terms=(plain,)), v
+        )
         np.testing.assert_array_equal(peek(gradient), peek(expected_gradient))
         np.testing.assert_array_equal(peek(hvp), peek(expected_hvp))
+        # The same reusing term twice: each result is added before the
+        # term's next call overwrites it.
+        twice = TrajectoryFunctional(state_terms=(reusing, reusing))
+        gradient, hvp = sweeps.gradient_and_hvp(store, twice, v)
+        np.testing.assert_allclose(
+            peek(gradient), 2.0 * peek(expected_gradient), rtol=1e-14
+        )
+        np.testing.assert_allclose(peek(hvp), 2.0 * peek(expected_hvp), rtol=1e-14)
 
     @pytest.mark.parametrize("make", SOME_METHODS, ids=SOME_IDS)
     def test_constraint(self, make: Callable[[], Method]) -> None:
@@ -1089,7 +1126,7 @@ class TestRefusals:
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         Integrator(stepper).solve(bkd.ones((3, 1)), STEPS, store)
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(stepper)
-        functional = _ZeroFunctional(bkd)
+        functional: TrajectoryFunctional[Array] = TrajectoryFunctional()
         with pytest.raises(TypeError, match="no parameter"):
             sweeps.gradient(store, functional)
         with pytest.raises(TypeError, match="DifferentiableStepperProtocol"):
@@ -1101,26 +1138,10 @@ class TestRefusals:
             2, 4, [(0, bkd.asarray([2], dtype=int))], bkd
         )
         with pytest.raises(ValueError, match="parameters of its own"):
-            BackendTrajectoryFunctional(with_sigma, store, bkd.asarray(LV_PARAM))
+            TransientFunctionalTerm(with_sigma, store, bkd.asarray(LV_PARAM))
         with pytest.raises(ValueError, match="shape"):
-            BackendTrajectoryFunctional(
+            TransientFunctionalTerm(
                 tikhonov_mse(bkd), store, bkd.flatten(bkd.asarray(LV_PARAM))
             )
         with pytest.raises(TypeError, match="TransientFunctionalProtocol"):
-            BackendTrajectoryFunctional(object(), store, bkd.asarray(LV_PARAM))  # type: ignore[arg-type]
-
-
-class _ZeroFunctional(Generic[Array]):
-    """A zero functional on the backend stack, for the refusal tests."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-
-    def state_cotangent(self, index: int) -> Array:
-        return self._bkd.zeros((3, 1))
-
-    def param_cotangent(self) -> Array:
-        return self._bkd.zeros((1, 1))
-
-    def step_terms(self) -> None:
-        return None
+            TransientFunctionalTerm(object(), store, bkd.asarray(LV_PARAM))  # type: ignore[arg-type]

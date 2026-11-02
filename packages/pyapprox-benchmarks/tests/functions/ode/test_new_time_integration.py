@@ -74,10 +74,7 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import (
-    BackendSecondOrderTrajectoryFunctional,
-    BackendTrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -328,7 +325,7 @@ class _Paths(Generic[Array]):
         return self._old_states
 
     def new_gradient(self) -> Array:
-        coupling = BackendTrajectoryFunctional(
+        coupling = from_transient_functional(
             self.functional(), self._store, self._column
         )
         return self._sweeps.gradient(self._store, coupling)
@@ -344,7 +341,7 @@ class _Paths(Generic[Array]):
         return self._bkd.reshape(row, (-1, 1))
 
     def new_hvp(self, direction: Array) -> Array:
-        coupling = BackendSecondOrderTrajectoryFunctional(
+        coupling = from_transient_functional(
             self.functional(), self._store, self._column
         )
         return self._sweeps.hvp(self._store, coupling, direction)

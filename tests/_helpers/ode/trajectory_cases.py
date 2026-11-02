@@ -42,11 +42,9 @@ from pyapprox.ode.tableau import (
 )
 from pyapprox.ode.trajectory_derivatives import (
     TrajectoryDerivatives,
+    TrajectoryFunctional,
 )
-from pyapprox.ode.trajectory_functional import (
-    BackendSecondOrderTrajectoryFunctional,
-    BackendTrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
@@ -338,8 +336,8 @@ class TrajectoryProblem(Generic[Array]):
 
     def coupling(
         self, store: InMemoryTrajectoryStore[Array], param: Array
-    ) -> BackendTrajectoryFunctional[Array]:
-        return BackendTrajectoryFunctional(self._functional, store, param)
+    ) -> TrajectoryFunctional[Array]:
+        return from_transient_functional(self._functional, store, param)
 
     def gradient(self, sample: Array) -> Array:
         """dQ/dp by the adjoint sweep. Shape: (1, 4)."""
@@ -360,10 +358,7 @@ class TrajectoryProblem(Generic[Array]):
     def hvp(self, sample: Array, direction: Array) -> Array:
         """(d^2Q/dp^2) v by the tangent and adjoint sweeps. Shape: (4, 1)."""
         store = self.solve(sample)
-        functional = BackendSecondOrderTrajectoryFunctional(
-            self._functional, store, sample
-        )
-        return self._sweeps.hvp(store, functional, direction)
+        return self._sweeps.hvp(store, self.coupling(store, sample), direction)
 
 
 def random_direction(bkd: Backend[Array], seed: int = 7) -> Array:

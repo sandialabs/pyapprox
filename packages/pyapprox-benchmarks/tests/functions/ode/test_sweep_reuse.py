@@ -43,10 +43,7 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import (
-    BackendSecondOrderTrajectoryFunctional,
-    BackendTrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
@@ -118,12 +115,12 @@ class _Run:
 
     def gradient(self) -> _Np:
         column = self.bkd.reshape(self.param, (-1, 1))
-        coupling = BackendTrajectoryFunctional(self.mse, self.store, column)
+        coupling = from_transient_functional(self.mse, self.store, column)
         return self.sweeps.gradient(self.store, coupling)
 
     def hvp(self) -> _Np:
         column = self.bkd.reshape(self.param, (-1, 1))
-        coupling = BackendSecondOrderTrajectoryFunctional(self.mse, self.store, column)
+        coupling = from_transient_functional(self.mse, self.store, column)
         direction = self.bkd.asarray([[0.4], [-1.1]])
         return self.sweeps.hvp(self.store, coupling, direction)
 
