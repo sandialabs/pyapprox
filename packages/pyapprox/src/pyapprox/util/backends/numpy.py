@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, Optional, Sequence, Tuple, Union, cast, overload
+from typing import Any, List, Literal, Optional, Sequence, Tuple, Union, overload
 
 import numpy as np
 import scipy
@@ -93,7 +93,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def multidot(arrays: List[NDArray[Any]]) -> NDArray[Any]:
         """Compute the dot product of multiple matrices."""
-        return cast(NDArray[Any], np.linalg.multi_dot(arrays))
+        result: NDArray[Any] = np.linalg.multi_dot(arrays)
+        return result
 
     @staticmethod
     def eye(
@@ -292,7 +293,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def arctan2(y: NDArray[Any], x: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arctan2(y, x))
+        result: NDArray[Any] = np.arctan2(y, x)
+        return result
 
     @staticmethod
     def sinh(array: NDArray[Any]) -> NDArray[Any]:
@@ -413,23 +415,28 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def erf(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.special.erf(array))
+        result: NDArray[Any] = scipy.special.erf(array)
+        return result
 
     @staticmethod
     def erfinv(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.special.erfinv(array))
+        result: NDArray[Any] = scipy.special.erfinv(array)
+        return result
 
     @staticmethod
     def ndtr(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.special.ndtr(array))
+        result: NDArray[Any] = scipy.special.ndtr(array)
+        return result
 
     @staticmethod
     def log_ndtr(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.special.log_ndtr(array))
+        result: NDArray[Any] = scipy.special.log_ndtr(array)
+        return result
 
     @staticmethod
     def equal(a: NDArray[Any], b: "float | int | NDArray[Any]") -> NDArray[Any]:
-        return cast(NDArray[Any], np.equal(a, b))
+        result: NDArray[Any] = np.equal(a, b)
+        return result
 
     @staticmethod
     def isfinite(array: NDArray[Any]) -> NDArray[Any]:
@@ -437,7 +444,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def nonzero(condition: NDArray[Any]) -> Tuple[NDArray[Any], ...]:
-        return cast(Tuple[NDArray[Any], ...], np.nonzero(condition))
+        result: Tuple[NDArray[Any], ...] = np.nonzero(condition)
+        return result
 
     @staticmethod
     def norm(
@@ -466,7 +474,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def round(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.round(array))
+        result: NDArray[Any] = np.round(array)
+        return result
 
     @staticmethod
     def floor(array: NDArray[Any]) -> NDArray[Any]:
@@ -476,7 +485,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def floor_divide(
         array: NDArray[Any], divisor: "int | NDArray[Any]"
     ) -> NDArray[Any]:
-        return cast(NDArray[Any], np.floor_divide(array, divisor))
+        result: NDArray[Any] = np.floor_divide(array, divisor)
+        return result
 
     @staticmethod
     def ceil(array: NDArray[Any]) -> NDArray[Any]:
@@ -508,9 +518,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
                 " Use solve() for dense matrices."
             )
         A_csc = csc_matrix(Amat) if Amat.format != "csc" else Amat
-        if bvec.ndim == 2:
-            return cast(NDArray[Any], _splu(A_csc).solve(bvec))
-        return cast(NDArray[Any], spsolve(A_csc, bvec))
+        result: NDArray[Any] = (
+            _splu(A_csc).solve(bvec) if bvec.ndim == 2 else spsolve(A_csc, bvec)
+        )
+        return result
 
     @staticmethod
     def flip(
@@ -544,9 +555,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         values: NDArray[Any],
         side: Literal["left", "right"] = "left",
     ) -> NDArray[Any]:
-        return cast(
-            NDArray[Any], np.searchsorted(sorted_array, values, side=side)
-        )
+        result: NDArray[Any] = np.searchsorted(sorted_array, values, side=side)
+        return result
 
     @staticmethod
     def clip(
@@ -576,14 +586,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def logsumexp(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
-        return cast(
-            NDArray[Any],
-            scipy.special.logsumexp(array, axis=axis, keepdims=keepdims),
+        result: NDArray[Any] = scipy.special.logsumexp(
+            array, axis=axis, keepdims=keepdims
         )
+        return result
 
     @staticmethod
     def einsum(subscripts: str, *operands: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.einsum(subscripts, *operands))
+        result: NDArray[Any] = np.einsum(subscripts, *operands)
+        return result
 
     @staticmethod
     def moveaxis(
@@ -628,9 +639,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         lower: bool = False,
         unit_diagonal: bool = False,
     ) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.linalg.solve_triangular(
+        result: NDArray[Any] = scipy.linalg.solve_triangular(
             matrix, rhs, lower=lower, unit_diagonal=unit_diagonal
-        ))
+        )
+        return result
 
     @staticmethod
     def cholesky_solve(
@@ -638,7 +650,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         rhs: NDArray[Any],
         lower: bool = True,
     ) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.linalg.cho_solve((matrix, lower), rhs))
+        result: NDArray[Any] = scipy.linalg.cho_solve((matrix, lower), rhs)
+        return result
 
     @staticmethod
     def eigvalsh(array: NDArray[Any]) -> NDArray[Any]:
@@ -695,7 +708,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             metric = "euclidean"
         else:
             raise ValueError("p must be either 1.0 or 2.0")
-        return cast(NDArray[Any], scipy.spatial.distance.cdist(XA, XB, metric))
+        result: NDArray[Any] = scipy.spatial.distance.cdist(XA, XB, metric)
+        return result
 
     @staticmethod
     def tril(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
@@ -717,7 +731,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def eigh(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
-        return cast(Tuple[NDArray[Any], NDArray[Any]], np.linalg.eigh(array))
+        result: Tuple[NDArray[Any], NDArray[Any]] = np.linalg.eigh(array)
+        return result
 
     @staticmethod
     def svd(
@@ -736,11 +751,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def gammaln(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.special.gammaln(array))
+        result: NDArray[Any] = scipy.special.gammaln(array)
+        return result
 
     @staticmethod
     def digamma(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], scipy.special.digamma(array))
+        result: NDArray[Any] = scipy.special.digamma(array)
+        return result
 
     @staticmethod
     def argmin(
@@ -773,7 +790,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         y: Optional[Union[NDArray[Any], float]] = None,
     ) -> Union[NDArray[Any], Tuple[NDArray[Any], ...]]:
         if x is None:
-            return cast(Tuple[NDArray[Any], ...], np.where(condition))
+            indices: Tuple[NDArray[Any], ...] = np.where(condition)
+            return indices
         if y is None:
             raise ValueError("Must provide both x and y or neither.")
         return np.where(condition, x, y)
@@ -784,8 +802,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         b: NDArray[Any],
         rcond: Optional[float] = None,
     ) -> NDArray[Any]:
-        result, _, _, _ = np.linalg.lstsq(a, b, rcond=rcond)
-        return cast(NDArray[Any], result)
+        result: NDArray[Any] = np.linalg.lstsq(a, b, rcond=rcond)[0]
+        return result
 
     @staticmethod
     def ones_like(
@@ -805,11 +823,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def slogdet(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
-        return cast(Tuple[NDArray[Any], NDArray[Any]], np.linalg.slogdet(array))
+        result: Tuple[NDArray[Any], NDArray[Any]] = np.linalg.slogdet(array)
+        return result
 
     @staticmethod
     def det(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.linalg.det(array))
+        result: NDArray[Any] = np.linalg.det(array)
+        return result
 
     @staticmethod
     def mean(
@@ -862,11 +882,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def maximum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.maximum(x1, x2))
+        result: NDArray[Any] = np.maximum(x1, x2)
+        return result
 
     @staticmethod
     def minimum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.minimum(x1, x2))
+        result: NDArray[Any] = np.minimum(x1, x2)
+        return result
 
     @staticmethod
     def qr(
@@ -875,7 +897,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             "reduced", "complete", "r", "raw"
         ] = "reduced",
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
-        return cast(Tuple[NDArray[Any], NDArray[Any]], np.linalg.qr(array, mode=mode))
+        result: Tuple[NDArray[Any], NDArray[Any]] = np.linalg.qr(array, mode=mode)
+        return result
 
     @staticmethod
     def split(
@@ -907,10 +930,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         U : NDArray
             Upper triangular matrix.
         """
-        return cast(
-            Tuple[NDArray[Any], NDArray[Any], NDArray[Any]],
-            scipy.linalg.lu(array),
+        result: Tuple[NDArray[Any], NDArray[Any], NDArray[Any]] = scipy.linalg.lu(
+            array
         )
+        return result
 
     @staticmethod
     def lu_factor(
@@ -920,8 +943,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             # A stack: one pass over the columns for every matrix at once,
             # not a LAPACK call per matrix.
             return _batched_lu_factor(array)
-        lu, piv = scipy.linalg.lu_factor(array)
-        return cast(NDArray[Any], lu), cast(NDArray[Any], piv)
+        factors: Tuple[NDArray[Any], NDArray[Any]] = scipy.linalg.lu_factor(array)
+        return factors
 
     @staticmethod
     def lu_solve(
@@ -932,10 +955,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> NDArray[Any]:
         if LU.ndim == 3:
             return _batched_lu_solve(LU, pivots, rhs, transpose)
-        return cast(
-            NDArray[Any],
-            scipy.linalg.lu_solve((LU, pivots), rhs, trans=1 if transpose else 0),
+        result: NDArray[Any] = scipy.linalg.lu_solve(
+            (LU, pivots), rhs, trans=1 if transpose else 0
         )
+        return result
 
     @staticmethod
     def index_update(
