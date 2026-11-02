@@ -1133,14 +1133,16 @@ class Backend(Protocol, Generic[Array]):
         Parameters
         ----------
         array : Array
-            Square matrix to factorize.
+            Square matrix to factorize, shape ``(n, n)``, or a stack of
+            them, shape ``(k, n, n)``, each factored on its own.
 
         Returns
         -------
         LU : Array
-            Compact LU factor (L and U packed in one matrix).
+            Compact LU factor (L and U packed in one matrix), stacked like
+            ``array``.
         pivots : Array
-            Pivot indices.
+            Pivot indices, one row per matrix of a stack.
         """
         ...
 
@@ -1157,7 +1159,8 @@ class Backend(Protocol, Generic[Array]):
         pivots : Array
             Pivot indices from lu_factor.
         rhs : Array
-            Right-hand side. Shape: (n,) or (n, k).
+            Right-hand side. Shape: (n,) or (n, k); for a stack of
+            factors, (k, n, ncols), one right-hand side block per matrix.
         transpose : bool
             If True, solve :math:`A^T x = b` instead of :math:`A x = b`,
             with :math:`b` the right-hand side. This is the plain transpose, without

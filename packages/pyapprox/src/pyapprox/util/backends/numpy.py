@@ -9,6 +9,73 @@ from scipy.sparse.linalg import spsolve
 from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
 
 
+def _swap_rows(
+    array: NDArray[Any], first: int, second: NDArray[Any], batch: NDArray[Any]
+) -> None:
+    """Swap row ``first`` with row ``second[i]`` of each matrix ``i`` of
+    the stack, in place, where they differ."""
+    moved = second != first
+    if not moved.any():
+        return
+    which, other = batch[moved], second[moved]
+    held = array[which, first].copy()
+    array[which, first] = array[which, other]
+    array[which, other] = held
+
+
+def _batched_lu_factor(
+    stack: NDArray[Any],
+) -> Tuple[NDArray[Any], NDArray[Any]]:
+    """LU with partial pivoting of every matrix of a ``(k, m, m)`` stack,
+    column by column with each step over the whole stack: LAPACK's
+    ``getrf`` in its packed form (L below the diagonal, unit diagonal
+    implied; U on and above it) and pivots (row ``j`` was swapped with row
+    ``pivots[j]``, 0-based), as ``scipy.linalg.lu_factor`` gives one
+    matrix at a time. An exactly singular matrix divides by zero, as
+    LAPACK does, so its solves are not finite."""
+    lu = np.array(stack, copy=True)
+    nmats, size = lu.shape[0], lu.shape[1]
+    batch = np.arange(nmats)
+    pivots = np.empty((nmats, size), dtype=np.int32)
+    for j in range(size):
+        pivot_rows = j + np.argmax(np.abs(lu[:, j:, j]), axis=1)
+        pivots[:, j] = pivot_rows
+        _swap_rows(lu, j, pivot_rows, batch)
+        lu[:, j + 1 :, j] /= lu[:, j, j, None]
+        lu[:, j + 1 :, j + 1 :] -= lu[:, j + 1 :, j, None] * lu[:, j, None, j + 1 :]
+    return lu, pivots
+
+
+def _batched_lu_solve(
+    lu: NDArray[Any], pivots: NDArray[Any], rhs: NDArray[Any], transpose: bool
+) -> NDArray[Any]:
+    """Solve with every matrix of a stack factored by
+    :func:`_batched_lu_factor`, ``rhs`` of shape ``(k, m, ncols)``:
+    :math:`A = P L U`, so :math:`A x = b` is the row swaps of ``b`` in
+    order, then :math:`L` and :math:`U`; :math:`A^\\top x = b` is
+    :math:`U^\\top`, then :math:`L^\\top`, then the swaps in reverse."""
+    x = np.array(rhs, copy=True)
+    nmats, size = lu.shape[0], lu.shape[1]
+    batch = np.arange(nmats)
+    if not transpose:
+        for j in range(size):
+            _swap_rows(x, j, pivots[:, j], batch)
+        for j in range(size):
+            x[:, j + 1 :] -= lu[:, j + 1 :, j, None] * x[:, j, None]
+        for j in reversed(range(size)):
+            x[:, j] /= lu[:, j, j, None]
+            x[:, :j] -= lu[:, :j, j, None] * x[:, j, None]
+        return x
+    for j in range(size):
+        x[:, j] /= lu[:, j, j, None]
+        x[:, j + 1 :] -= lu[:, j, j + 1 :, None] * x[:, j, None]
+    for j in reversed(range(size)):
+        x[:, :j] -= lu[:, j, :j, None] * x[:, j, None]
+    for j in reversed(range(size)):
+        _swap_rows(x, j, pivots[:, j], batch)
+    return x
+
+
 # Implement the NumPy backend
 class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def __init__(
@@ -849,6 +916,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def lu_factor(
         array: NDArray[Any],
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
+        if array.ndim == 3:
+            # A stack: one pass over the columns for every matrix at once,
+            # not a LAPACK call per matrix.
+            return _batched_lu_factor(array)
         lu, piv = scipy.linalg.lu_factor(array)
         return cast(NDArray[Any], lu), cast(NDArray[Any], piv)
 
@@ -859,6 +930,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         rhs: NDArray[Any],
         transpose: bool = False,
     ) -> NDArray[Any]:
+        if LU.ndim == 3:
+            return _batched_lu_solve(LU, pivots, rhs, transpose)
         return cast(
             NDArray[Any],
             scipy.linalg.lu_solve((LU, pivots), rhs, trans=1 if transpose else 0),

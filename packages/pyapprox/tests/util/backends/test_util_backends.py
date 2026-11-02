@@ -30,7 +30,7 @@ def foo(x: Array, backend: Backend[Array]) -> Union[Array]:
 # Base test class
 class TestBackend:
 
-    def test_2d_array(self, bkd) -> None:
+    def test_2d_array(self, bkd: Backend[Array]) -> None:
         """
         Test the foo function with a 2D array.
         """
@@ -41,7 +41,7 @@ class TestBackend:
         )
         bkd.assert_allclose(result, expected)
 
-    def test_1d_array(self, bkd) -> None:
+    def test_1d_array(self, bkd: Backend[Array]) -> None:
         """
         Test the foo function with a 1D array.
         """
@@ -66,7 +66,7 @@ class TestTorchBkdDtype:
         "dtype_name",
         ["float32", "float64"],
     )
-    def test_tensor_creation_dtype(self, dtype_name):
+    def test_tensor_creation_dtype(self, dtype_name: str) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -82,7 +82,7 @@ class TestTorchBkdDtype:
         assert bkd.linspace(0.0, 1.0, 5).dtype == dtype
         assert bkd.logspace(0.0, 1.0, 5).dtype == dtype
 
-    def test_default_dtype_matches_init(self):
+    def test_default_dtype_matches_init(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -92,7 +92,7 @@ class TestTorchBkdDtype:
         bkd64 = TorchBkd(dtype=torch.float64)
         assert bkd64.default_dtype() == torch.float64
 
-    def test_default_constructor_uses_torch_default(self):
+    def test_default_constructor_uses_torch_default(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -101,7 +101,7 @@ class TestTorchBkdDtype:
         assert bkd.default_dtype() == torch.float64
         assert bkd.zeros((2,)).dtype == torch.float64
 
-    def test_explicit_dtype_overrides_default(self):
+    def test_explicit_dtype_overrides_default(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -110,7 +110,7 @@ class TestTorchBkdDtype:
         result = bkd.zeros((2,), dtype=torch.float64)
         assert result.dtype == torch.float64
 
-    def test_arange_device(self):
+    def test_arange_device(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -118,7 +118,7 @@ class TestTorchBkdDtype:
         result = bkd.arange(5)
         assert result.device == torch.device("cpu")
 
-    def test_asarray_device(self):
+    def test_asarray_device(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -126,7 +126,7 @@ class TestTorchBkdDtype:
         result = bkd.asarray([1.0, 2.0])
         assert result.device == torch.device("cpu")
 
-    def test_tril_indices_device(self):
+    def test_tril_indices_device(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
@@ -139,14 +139,14 @@ class TestTorchBkdDtype:
 class TestTorchBkdMPS:
     """Test TorchBkd with MPS device (skipped if unavailable)."""
 
-    def test_mps_tensor_creation(self, torch_mps_bkd):
+    def test_mps_tensor_creation(self, torch_mps_bkd: Backend[Array]) -> None:
+        torch = pytest.importorskip("torch")
         result = torch_mps_bkd.zeros((2, 3))
+        assert isinstance(result, torch.Tensor)
         assert result.device.type == "mps"
         assert result.dtype.is_floating_point
 
-    def test_mps_to_numpy(self, torch_mps_bkd):
-        import numpy as np
-
+    def test_mps_to_numpy(self, torch_mps_bkd: Backend[Array]) -> None:
         tensor = torch_mps_bkd.ones((3,))
         arr = torch_mps_bkd.to_numpy(tensor)
         assert isinstance(arr, np.ndarray)
@@ -161,21 +161,21 @@ class TestDtypePredicates:
     identically on every backend.
     """
 
-    def test_float_is_floating(self, bkd):
+    def test_float_is_floating(self, bkd: Backend[Array]) -> None:
         assert bkd.is_floating_dtype(bkd.array([1.0, 2.0]))
 
-    def test_float_is_not_integer(self, bkd):
+    def test_float_is_not_integer(self, bkd: Backend[Array]) -> None:
         assert not bkd.is_integer_dtype(bkd.array([1.0, 2.0]))
 
-    def test_int_is_not_floating(self, bkd):
+    def test_int_is_not_floating(self, bkd: Backend[Array]) -> None:
         int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.int64_dtype())
         assert not bkd.is_floating_dtype(int_array)
 
-    def test_int_is_integer(self, bkd):
+    def test_int_is_integer(self, bkd: Backend[Array]) -> None:
         int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.int64_dtype())
         assert bkd.is_integer_dtype(int_array)
 
-    def test_bool_is_not_floating(self, bkd):
+    def test_bool_is_not_floating(self, bkd: Backend[Array]) -> None:
         """Bool must not pass the float guard on either backend.
 
         numpy and torch disagree on whether bool counts as an integer
@@ -183,7 +183,7 @@ class TestDtypePredicates:
         """
         assert not bkd.is_floating_dtype(bkd.array([True, False]))
 
-    def test_complex_is_not_floating(self, bkd):
+    def test_complex_is_not_floating(self, bkd: Backend[Array]) -> None:
         complex_array = bkd.asarray(
             bkd.array([1.0, 2.0]), dtype=bkd.complex_dtype()
         )
@@ -202,7 +202,7 @@ class TestCdistShapeConsistency:
     tolerance question.
     """
 
-    def test_block_matches_corresponding_rows(self, bkd):
+    def test_block_matches_corresponding_rows(self, bkd: Backend[Array]) -> None:
         """A slice of the inputs must give a slice of the output.
 
         The block is deliberately below torch's 25-row threshold while
@@ -221,7 +221,7 @@ class TestCdistShapeConsistency:
         block = bkd.cdist(scaled[7:14], scaled)
         bkd.assert_allclose(block, full[7:14], rtol=1e-14)
 
-    def test_every_block_matches(self, bkd):
+    def test_every_block_matches(self, bkd: Backend[Array]) -> None:
         """Not just one lucky offset."""
         import numpy as np
 
@@ -237,7 +237,7 @@ class TestCdistShapeConsistency:
                 rtol=1e-14,
             )
 
-    def test_symmetric_and_zero_diagonal(self, bkd):
+    def test_symmetric_and_zero_diagonal(self, bkd: Backend[Array]) -> None:
         """Properties the mm identity can violate through cancellation.
 
         Squaring and subtracting can leave a small negative under the
@@ -289,3 +289,37 @@ class TestLuSolveTranspose:
             bkd.asarray(b, dtype=dtype),
             rtol=1e-12,
         )
+
+
+class TestStackedLu:
+    """A ``(k, n, n)`` stack factors each matrix on its own: solving a
+    ``(k, n, ncols)`` right-hand side with it, plain or transposed, gives
+    each matrix's own solution, real and complex, blocks that need row
+    swaps included (a zero leading entry)."""
+
+    @pytest.mark.parametrize("complex_entries", [False, True], ids=["real", "complex"])
+    @pytest.mark.parametrize("transpose", [False, True], ids=["plain", "transposed"])
+    def test_each_matrix_is_solved_on_its_own(
+        self, bkd: Backend[Array], complex_entries: bool, transpose: bool
+    ) -> None:
+        rng = np.random.default_rng(5)
+        stack = rng.normal(size=(6, 3, 3)) + 2.0 * np.eye(3)
+        rhs = rng.normal(size=(6, 3, 2))
+        # Zero leading entries: the first column's pivot is not row 0.
+        stack[1, 0, 0] = 0.0
+        stack[4, :2, 0] = 0.0
+        dtype = bkd.double_dtype()
+        if complex_entries:
+            stack = stack + 1j * rng.normal(size=(6, 3, 3))
+            rhs = rhs + 1j * rng.normal(size=(6, 3, 2))
+            dtype = bkd.complex_dtype()
+        lu, pivots = bkd.lu_factor(bkd.asarray(stack, dtype=dtype))
+        x = bkd.lu_solve(lu, pivots, bkd.asarray(rhs, dtype=dtype), transpose=transpose)
+        for i in range(6):
+            matrix = stack[i].T if transpose else stack[i]
+            bkd.assert_allclose(
+                bkd.dot(bkd.asarray(matrix, dtype=dtype), x[i]),
+                bkd.asarray(rhs[i], dtype=dtype),
+                rtol=1e-12,
+                atol=1e-13,
+            )
