@@ -45,6 +45,7 @@ from typing import (
 
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
+from pyapprox.ode.step_quadrature import TableauQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
@@ -263,6 +264,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
             else _unversioned
         )
         self._tableau = tableau
+        self._quadrature = TableauQuadrature(tableau)
         self._system = system
         self._nonlinear_solver = nonlinear_solver
         nstages = tableau.nstages()
@@ -376,6 +378,12 @@ class RungeKuttaStepper(Generic[V, A, F]):
         """The residual's parameter version; 0 for a residual without
         parameters, which has one version for its whole life."""
         return self._version()
+
+    def time_quadrature(self) -> TableauQuadrature:
+        r"""The tableau applied to :math:`\dot z = q(y, t)`, step by step
+        (see :mod:`pyapprox.ode.step_quadrature`), its nodes located as
+        :meth:`stage_values` reads the stages."""
+        return self._quadrature
 
     def _point(self) -> LinearizationPoint:
         """A new label for a linearization at a Newton iterate: never

@@ -60,6 +60,7 @@ from pyapprox.ode.multistep_methods import (
     MultistepFormulaProtocol,
 )
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
+from pyapprox.ode.step_quadrature import MultistepQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
@@ -272,6 +273,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 f"{type(row_pinning).__name__}"
             )
         self._method = method
+        self._quadrature = MultistepQuadrature(method)
         self._system = system
         self._nonlinear_solver = nonlinear_solver
         space = system.space
@@ -339,6 +341,11 @@ class LinearMultistepStepper(Generic[V, A, F]):
         """The residual's parameter version; 0 for a residual without
         parameters, which has one version for its whole life."""
         return self._version()
+
+    def time_quadrature(self) -> MultistepQuadrature:
+        r"""The method applied to :math:`\dot z = q(y, t)`, step by step
+        (see :mod:`pyapprox.ode.step_quadrature`)."""
+        return self._quadrature
 
     def _point(self, provisional: bool, version: int) -> LinearizationPoint:
         """A new label for a linearization: provisional at a Newton

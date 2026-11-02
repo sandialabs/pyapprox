@@ -16,6 +16,7 @@ derivative checker) measures and compares step vectors on any stack;
 
 from typing import Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
+from pyapprox.ode.step_quadrature import StepQuadratureProtocol
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
@@ -106,6 +107,13 @@ class ForwardStepperProtocol(Protocol[V]):
 
     def parameters_version(self) -> int:
         """The parameter version steps are taken at."""
+        ...
+
+    def time_quadrature(self) -> StepQuadratureProtocol:
+        r"""The stepper's method applied to :math:`\dot z = q(y, t)`, step
+        by step: how a functional integrating over time is integrated,
+        consistently with the steps (see
+        :mod:`pyapprox.ode.step_quadrature`)."""
         ...
 
 
