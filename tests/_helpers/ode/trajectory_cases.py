@@ -40,12 +40,10 @@ from pyapprox.ode.tableau import (
     backward_euler,
     heun,
 )
-from pyapprox.ode.trajectory_derivatives import (
-    TrajectoryDerivatives,
-    TrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
@@ -336,7 +334,7 @@ class TrajectoryProblem(Generic[Array]):
 
     def coupling(
         self, store: InMemoryTrajectoryStore[Array], param: Array
-    ) -> TrajectoryFunctional[Array]:
+    ) -> TrajectoryFunctional[Array, Array]:
         return from_transient_functional(self._functional, store, param)
 
     def gradient(self, sample: Array) -> Array:

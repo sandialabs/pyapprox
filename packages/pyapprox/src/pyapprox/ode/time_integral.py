@@ -5,31 +5,27 @@ method applied to :math:`\dot z = q(y, t)`, :math:`z(t_0) = 0` (see
 :mod:`pyapprox.ode.step_quadrature`): the integral is consistent with the
 steps by construction, and no rule is chosen apart from the method.
 
-A :class:`TimeIntegral` is reused across solves; each solve takes a fresh
-sink from :meth:`TimeIntegral.sink`, which advances :math:`z` as the steps
-arrive, reading each step's nodes from its unknown and the stored states
-it read, so the solve keeps no trajectory.
+Step :math:`n` contributes :math:`c_n = \sum w\, q(\text{node})` over
+its rule's nodes, read from its window (a block of its unknown, or a
+stored state it read): a :class:`QuadratureStepTerm`, which holds no
+trajectory. The contributions combine through the method's recursion,
+:math:`\alpha^{(n)}_0 z_{n+1} + \sum_{l \ge 1} \alpha^{(n)}_l z_{n+1-l} =
+c_n`: forward, step by step, for the value (:meth:`TimeIntegral.sink`,
+keeping no trajectory), and through its transpose :math:`\theta`
+(:func:`~pyapprox.ode.step_quadrature.recursion_sensitivities`, from the
+step sizes alone) for the derivatives
+(:meth:`TimeIntegral.trajectory_functional`, the term weighed by
+:class:`~pyapprox.ode.trajectory_terms.RecursionWeighted`). Both read the
+nodes through the same term, so the value and the derivatives cannot
+read different states.
 
-Its derivatives (:meth:`TimeIntegral.trajectory_functional`, a step term
-for a scalar :math:`q`) are the
-recursion's, read per step by the sweeps of
-:mod:`pyapprox.ode.trajectory_derivatives`. With step :math:`n`'s
-recursion :math:`\alpha^{(n)}_0 z_{n+1} + \sum_{l \ge 1} \alpha^{(n)}_l
-z_{n+1-l} = \sum w\, q(\text{node})`, the integral's sensitivity to step
-:math:`n`'s right-hand side is :math:`\theta_n = \zeta_{n+1} /
-\alpha^{(n)}_0`, where :math:`\zeta_m = \partial Q/\partial z_m` solves
-the transposed recursion backward from :math:`\zeta_N = 1`,
-:math:`\zeta_m = [m = N] - \sum \theta_n \alpha^{(n)}_l` over the steps
-reading :math:`z_m` at lag :math:`l`. The weights depend on the step
-sizes only, so :math:`\theta` is computed once per trajectory; it is 1
-throughout for a Runge-Kutta or Adams method (:math:`\alpha = (1, -1,
-0, \dots)`). Step :math:`n` then contributes :math:`\theta_n w\, \nabla
-q(\text{node})` to the derivative in each node's state.
+The integrand's derivatives are linearizations, so a vector-valued
+:math:`q` has derivatives in both modes; its second derivatives are
+weighted by the adjoint weights :math:`\omega` of its entries.
 """
 
 from collections import deque
 from dataclasses import dataclass
-from functools import partial
 from typing import (
     Callable,
     Deque,
@@ -38,6 +34,7 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
+    Tuple,
     TypeVar,
     runtime_checkable,
 )
@@ -51,12 +48,14 @@ from pyapprox.ode.step_quadrature import (
 )
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
-from pyapprox.ode.trajectory_derivatives import (
+from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
+from pyapprox.ode.trajectory_terms import (
+    LinearizationProtocol,
+    RecursionWeighted,
     StepTermDerivatives,
     TrajectoryFunctional,
 )
-from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
-from pyapprox.util.backends.protocols import ArrayProtocol
+from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import (
     BlockInnerProductSpace,
     BlockVector,
@@ -64,22 +63,23 @@ from pyapprox.util.linalg.operators import (
 )
 
 V = TypeVar("V")
+X = TypeVar("X")
 A = TypeVar("A", bound=ArrayProtocol)
-R = TypeVar("R", bound=ArrayProtocol)
-R_co = TypeVar("R_co", bound=ArrayProtocol, covariant=True)
 
-GradientFn = Callable[[V, float], V]
-"""``(state, time) -> `` a gradient of :math:`q`, a single column."""
+LinearizationFn = Callable[[V, float], LinearizationProtocol[V, A]]
+"""``(state, time) ->`` a first derivative of :math:`q` there."""
 
-CurvatureFn = Callable[[V, float, V], V]
-"""``(state, time, x) -> `` a second derivative of :math:`q` applied to
-the single column ``x``, a single column."""
+CurvatureFn = Callable[[V, float, A, V], V]
+"""``(state, time, weights, x) ->`` a second derivative of
+:math:`\\omega^\\top q` applied to the column ``x``."""
 
 
 @dataclass(frozen=True)
-class IntegrandDerivatives(Generic[V]):
-    r"""The optional derivatives of a scalar integrand :math:`q(y, t;
-    p)`, as single columns of stack vectors.
+class IntegrandDerivatives(Generic[V, A]):
+    r"""The optional derivatives of an integrand :math:`q(y, t; p)`: its
+    first derivatives as linearizations (forward to value columns,
+    transposed from value weights), its second derivatives weighted by
+    the value weights :math:`\omega`.
 
     Build with :meth:`none`, :meth:`param_free`, :meth:`first_order`,
     :meth:`param_free_second_order` or :meth:`second_order`.
@@ -87,20 +87,20 @@ class IntegrandDerivatives(Generic[V]):
     Parameters
     ----------
     state : callable, optional
-        :math:`\nabla_y q`, a state column; None when :math:`q` has no
+        :math:`\partial q/\partial y`; None when :math:`q` has no
         derivatives.
     param : callable, optional
-        :math:`\nabla_p q`, a parameter column; None when :math:`q` does
-        not depend on the parameters.
+        :math:`\partial q/\partial p`; None when :math:`q` does not depend
+        on the parameters.
     state_state : callable, optional
-        :math:`q_{yy}\, w`, state to state; None without second
-        derivatives.
+        :math:`(\omega^\top q)_{yy}\, w`, state to state; None without
+        second derivatives.
     state_param : callable, optional
-        :math:`q_{yp}\, v`, parameters to state.
+        :math:`(\omega^\top q)_{yp}\, v`, parameters to state.
     param_state : callable, optional
-        :math:`q_{py}\, w`, state to parameters.
+        :math:`(\omega^\top q)_{py}\, w`, state to parameters.
     param_param : callable, optional
-        :math:`q_{pp}\, v`, parameters to parameters.
+        :math:`(\omega^\top q)_{pp}\, v`, parameters to parameters.
 
     Raises
     ------
@@ -111,23 +111,23 @@ class IntegrandDerivatives(Generic[V]):
         ``param`` is given (the second-order sweep needs every one).
     """
 
-    state: Optional[GradientFn[V]] = None
-    param: Optional[GradientFn[V]] = None
-    state_state: Optional[CurvatureFn[V]] = None
-    state_param: Optional[CurvatureFn[V]] = None
-    param_state: Optional[CurvatureFn[V]] = None
-    param_param: Optional[CurvatureFn[V]] = None
+    state: Optional[LinearizationFn[V, A]] = None
+    param: Optional[LinearizationFn[V, A]] = None
+    state_state: Optional[CurvatureFn[V, A]] = None
+    state_param: Optional[CurvatureFn[V, A]] = None
+    param_state: Optional[CurvatureFn[V, A]] = None
+    param_param: Optional[CurvatureFn[V, A]] = None
 
     def __post_init__(self) -> None:
         if self.param is not None and self.state is None:
-            raise ValueError("a parameter gradient needs the state gradient")
+            raise ValueError("a parameter derivative needs the state derivative")
         mixed = (self.state_param, self.param_state, self.param_param)
         if self.state_state is None:
             if any(field is not None for field in mixed):
                 raise ValueError("second derivatives need state_state")
             return
         if self.state is None:
-            raise ValueError("second derivatives need the state gradient")
+            raise ValueError("second derivatives need the state derivative")
         given = [field is not None for field in mixed]
         if self.param is None and any(given):
             raise ValueError(
@@ -145,63 +145,68 @@ class IntegrandDerivatives(Generic[V]):
         return self.state_state is not None
 
     @staticmethod
-    def none() -> "IntegrandDerivatives[V]":
+    def none() -> "IntegrandDerivatives[V, A]":
         """No derivatives: the integral is only evaluated."""
         return IntegrandDerivatives()
 
     @staticmethod
-    def param_free(state: GradientFn[V]) -> "IntegrandDerivatives[V]":
+    def param_free(state: LinearizationFn[V, A]) -> "IntegrandDerivatives[V, A]":
         """A :math:`q` independent of the parameters, with its state
-        gradient."""
+        derivative."""
         return IntegrandDerivatives(state)
 
     @staticmethod
     def first_order(
-        state: GradientFn[V], param: GradientFn[V]
-    ) -> "IntegrandDerivatives[V]":
-        """The state and parameter gradients."""
+        state: LinearizationFn[V, A], param: LinearizationFn[V, A]
+    ) -> "IntegrandDerivatives[V, A]":
+        """The state and parameter derivatives."""
         return IntegrandDerivatives(state, param)
 
     @staticmethod
     def param_free_second_order(
-        state: GradientFn[V], state_state: CurvatureFn[V]
-    ) -> "IntegrandDerivatives[V]":
+        state: LinearizationFn[V, A], state_state: CurvatureFn[V, A]
+    ) -> "IntegrandDerivatives[V, A]":
         """A :math:`q` independent of the parameters, with its state
-        gradient and Hessian."""
+        derivative and weighted Hessian."""
         return IntegrandDerivatives(state, None, state_state)
 
     @staticmethod
     def second_order(
-        state: GradientFn[V],
-        param: GradientFn[V],
-        state_state: CurvatureFn[V],
-        state_param: CurvatureFn[V],
-        param_state: CurvatureFn[V],
-        param_param: CurvatureFn[V],
-    ) -> "IntegrandDerivatives[V]":
-        """Both gradients and every second derivative."""
+        state: LinearizationFn[V, A],
+        param: LinearizationFn[V, A],
+        state_state: CurvatureFn[V, A],
+        state_param: CurvatureFn[V, A],
+        param_state: CurvatureFn[V, A],
+        param_param: CurvatureFn[V, A],
+    ) -> "IntegrandDerivatives[V, A]":
+        """Both first derivatives and every second derivative."""
         return IntegrandDerivatives(
             state, param, state_state, state_param, param_state, param_param
         )
 
 
 @runtime_checkable
-class IntegrandProtocol(Protocol[V, R_co]):
+class IntegrandProtocol(Protocol[V, A]):
     r"""The integrand :math:`q(y, t)` of a functional integrating over
-    time."""
+    time, with values of ``nqoi`` entries."""
 
-    def value(self, state: V, time: float) -> R_co:
-        """:math:`q` at a single column ``state`` of the state space and
-        ``time``; the state must not be modified."""
+    def nqoi(self) -> int:
+        """The number of entries of :math:`q`."""
         ...
 
-    def derivatives(self) -> IntegrandDerivatives[V]:
+    def value(self, state: V, time: float) -> A:
+        """:math:`q` at a single column ``state`` of the state space and
+        ``time``, a column of ``nqoi`` entries; the state must not be
+        modified."""
+        ...
+
+    def derivatives(self) -> IntegrandDerivatives[V, A]:
         """The optional derivatives, valid for the parameters currently
         set."""
         ...
 
 
-class TimeIntegral(Generic[V, A, R]):
+class TimeIntegral(Generic[V, A]):
     r""":math:`\int_{t_0}^{t_N} q(y, t)\, dt` by the stepper's method.
 
     Parameters
@@ -211,6 +216,8 @@ class TimeIntegral(Generic[V, A, R]):
     stepper : StepperProtocol
         The stepper the trajectory is computed with; its method integrates
         :math:`q`, and its spaces hold the derivatives.
+    bkd : Backend
+        The backend of the integral's values.
 
     Raises
     ------
@@ -219,7 +226,10 @@ class TimeIntegral(Generic[V, A, R]):
     """
 
     def __init__(
-        self, integrand: IntegrandProtocol[V, R], stepper: StepperProtocol[V, A]
+        self,
+        integrand: IntegrandProtocol[V, A],
+        stepper: StepperProtocol[V, A],
+        bkd: Backend[A],
     ) -> None:
         if not isinstance(integrand, IntegrandProtocol):
             raise TypeError(
@@ -230,12 +240,19 @@ class TimeIntegral(Generic[V, A, R]):
             raise TypeError(
                 f"stepper must satisfy StepperProtocol, got {type(stepper).__name__}"
             )
-        self._integrand = integrand
-        self._stepper = stepper
+        self._integrand, self._stepper, self._bkd = integrand, stepper, bkd
         self._quadrature = stepper.time_quadrature()
         self._depth = stepper.depth()
+        params = stepper.param_space()
+        self._term = QuadratureStepTerm(
+            integrand,
+            self._quadrature,
+            stepper.unknown_space(),
+            stepper.state_space().component(0),
+            None if params is None else params.component(0),
+        )
 
-    def integrand(self) -> IntegrandProtocol[V, R]:
+    def integrand(self) -> IntegrandProtocol[V, A]:
         """:math:`q`."""
         return self._integrand
 
@@ -243,26 +260,14 @@ class TimeIntegral(Generic[V, A, R]):
         """The stepper's method applied to :math:`\\dot z = q`."""
         return self._quadrature
 
-    def sink(self) -> "TimeIntegralSink[V, R]":
+    def step_term(self) -> "QuadratureStepTerm[V, A]":
+        """Each step's contribution :math:`c_n`, unweighted."""
+        return self._term
+
+    def sink(self) -> "TimeIntegralSink[V, A]":
         """A fresh sink for one solve, whose value is the integral of what
         it receives."""
-        return TimeIntegralSink(self._integrand, self._quadrature, self._depth)
-
-    def _params(self) -> InnerProductSpaceProtocol[V, A]:
-        """The stepper's parameter space, as a plain space.
-
-        Raises
-        ------
-        TypeError
-            If the stepper has no parameters.
-        """
-        params = self._stepper.param_space()
-        if params is None:
-            raise TypeError(
-                f"{type(self._stepper).__name__} has no parameter space, so the "
-                "integral has no parameter derivatives"
-            )
-        return params.component(0)
+        return TimeIntegralSink(self._term, self._quadrature, self._depth)
 
     def _rules(self, store: TrajectoryStoreProtocol[V]) -> List[StepRule]:
         """Every step's recursion, over the span the sweeps' window has,
@@ -275,79 +280,169 @@ class TimeIntegral(Generic[V, A, R]):
 
     def trajectory_functional(
         self, store: TrajectoryStoreProtocol[V]
-    ) -> TrajectoryFunctional[V]:
+    ) -> TrajectoryFunctional[V, A]:
         """The integral on the trajectory ``store`` recorded, as the sweeps
-        differentiate it: one step term, second order when the integrand
-        is; :math:`q` must be scalar.
+        differentiate it: the step term weighed by the recursion's
+        sensitivities on that trajectory, from its step sizes alone (no
+        state is read).
 
         Raises
         ------
         TypeError
-            If the integrand has no state gradient, or the stepper has no
-            parameters.
+            If the integrand has no state derivative.
         """
-        term = TimeIntegralStepTerm(
-            self._integrand.derivatives(),
-            self._stepper.unknown_space(),
-            self._stepper.state_space().component(0),
-            self._params(),
-            self._rules(store),
+        if self._integrand.derivatives().state is None:
+            raise TypeError("the integrand has no state derivative")
+        weighted = RecursionWeighted(
+            self._term, recursion_sensitivities(self._rules(store))
         )
-        return TrajectoryFunctional(step_terms=(term,))
+        return TrajectoryFunctional.from_terms(
+            self._bkd, self._integrand.nqoi(), step_terms=(weighted,)
+        )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._integrand!r}, {self._quadrature!r})"
 
 
-class TimeIntegralStepTerm(Generic[V, A]):
-    r"""A scalar time integral on one recorded trajectory, as a step term:
-    its derivatives through each step are :math:`\theta_n \sum w\, \nabla
-    q(\text{node})` (see the module docstring), and its bundle carries
-    their derivatives along a tangent when the integrand's has second
-    derivatives. Satisfies
-    :class:`~pyapprox.ode.trajectory_derivatives.StepTermProtocol`.
+def _add_scaled(
+    total: Optional[V],
+    weight: float,
+    term: V,
+    space: InnerProductSpaceProtocol[V, A],
+) -> V:
+    """``total + weight * term``, into ``total`` when there is one; a term
+    starting the total is scaled into a new vector, since it may be the
+    integrand's own storage."""
+    if total is None:
+        return space.scale(weight, term)
+    return space.axpby(weight, term, 1.0, total, out=total)
 
-    The weights depend on the step sizes only, so differentiating
-    :math:`\theta_n w\, \nabla q(\text{node})` along the tangent leaves
-    :math:`\theta_n w\, (q_{yy}\, dX + q_{yp}\, v)` for a node's state and
-    :math:`\theta_n w\, (q_{py}\, dX + q_{pp}\, v)` for the parameters;
-    the second derivative is block diagonal over the nodes.
+
+class _NodeSum(Generic[X, A]):
+    r""":math:`\sum w\, D` over nodes, each node's :math:`D` a
+    linearization of :math:`q` at its state: forward a sum of value
+    columns, transposed a sum of vectors of ``space``."""
+
+    def __init__(
+        self,
+        pieces: Sequence[Tuple[float, LinearizationProtocol[X, A]]],
+        space: InnerProductSpaceProtocol[X, A],
+    ) -> None:
+        self._pieces, self._space = tuple(pieces), space
+
+    def apply(self, x: X) -> A:
+        total: Optional[A] = None
+        for weight, linearization in self._pieces:
+            term = weight * linearization.apply(x)
+            total = term if total is None else total + term
+        if total is None:
+            raise ValueError("a node sum has no node")
+        return total
+
+    def apply_transpose(self, weights: A) -> X:
+        total: Optional[X] = None
+        for weight, linearization in self._pieces:
+            total = _add_scaled(
+                total, weight, linearization.apply_transpose(weights), self._space
+            )
+        if total is None:
+            raise ValueError("a node sum has no node")
+        return total
+
+
+class _UnknownNodes(Generic[V, A]):
+    r""":math:`\sum w\, D` over the nodes in a step's unknown, each acting
+    on its block: forward from an unknown-space vector, transposed into
+    one (zero blocks where no node lies)."""
+
+    def __init__(
+        self,
+        pieces: Sequence[Tuple[int, float, LinearizationProtocol[V, A]]],
+        unknowns: BlockInnerProductSpace[V, A],
+        space: InnerProductSpaceProtocol[V, A],
+    ) -> None:
+        self._pieces, self._unknowns, self._space = tuple(pieces), unknowns, space
+
+    def apply(self, x: BlockVector[V]) -> A:
+        total: Optional[A] = None
+        for block, weight, linearization in self._pieces:
+            term = weight * linearization.apply(x.blocks[block])
+            total = term if total is None else total + term
+        if total is None:
+            raise ValueError("no node lies in the unknown")
+        return total
+
+    def apply_transpose(self, weights: A) -> BlockVector[V]:
+        blocks: List[Optional[V]] = [None] * self._unknowns.nblocks()
+        for block, weight, linearization in self._pieces:
+            blocks[block] = _add_scaled(
+                blocks[block],
+                weight,
+                linearization.apply_transpose(weights),
+                self._space,
+            )
+        return BlockVector(
+            tuple(self._space.zeros() if b is None else b for b in blocks)
+        )
+
+
+@dataclass(frozen=True)
+class _SecondOrderFields(Generic[V, A]):
+    """An integrand bundle's second derivatives, ``state_state`` known
+    present; the parameter ones None for a :math:`q` independent of the
+    parameters."""
+
+    state_state: CurvatureFn[V, A]
+    state_param: Optional[CurvatureFn[V, A]]
+    param_state: Optional[CurvatureFn[V, A]]
+    param_param: Optional[CurvatureFn[V, A]]
+
+
+class QuadratureStepTerm(Generic[V, A]):
+    r"""Each step's contribution to a time integral, :math:`c_n = \sum w\,
+    q(y_{\text{node}}, t_{\text{node}})` over the stepper's rule's nodes on
+    the step, read from the step's window: a step term, unweighted (the
+    recursion's weights are applied by
+    :class:`~pyapprox.ode.trajectory_terms.RecursionWeighted`). It holds no
+    trajectory; the rule is taken from each window's span.
+
+    Its derivatives are the integrand's at each node, summed with the
+    nodes' weights; the second derivative is block diagonal over the
+    nodes, and the weights depend on the step sizes only, so the
+    derivative along a tangent of :math:`w\, D q` is :math:`w\,
+    ((\omega^\top q)_{yy}\, dX + (\omega^\top q)_{yp}\, v)` at a node's
+    state and :math:`w\, ((\omega^\top q)_{py}\, dX + (\omega^\top
+    q)_{pp}\, v)` for the parameters. Satisfies
+    :class:`~pyapprox.ode.trajectory_terms.StepTermProtocol`.
 
     Parameters
     ----------
-    derivatives : IntegrandDerivatives
-        :math:`q`'s gradients, and second derivatives when it has them.
+    integrand : IntegrandProtocol
+        :math:`q`; its derivatives are read once, here.
+    quadrature : StepQuadratureProtocol
+        The stepper's method applied to :math:`\dot z = q`.
     unknowns : BlockInnerProductSpace
         The stepper's unknown space.
     space : InnerProductSpaceProtocol
         The state space.
-    params : InnerProductSpaceProtocol
-        The parameter space.
-    rules : sequence of StepRule
-        Every step's recursion, in step order.
-
-    Raises
-    ------
-    TypeError
-        If the integrand has no state gradient.
+    params : InnerProductSpaceProtocol, optional
+        The parameter space; None when the stepper has none.
     """
 
     def __init__(
         self,
-        derivatives: IntegrandDerivatives[V],
+        integrand: IntegrandProtocol[V, A],
+        quadrature: StepQuadratureProtocol,
         unknowns: BlockInnerProductSpace[V, A],
         space: InnerProductSpaceProtocol[V, A],
-        params: InnerProductSpaceProtocol[V, A],
-        rules: Sequence[StepRule],
+        params: Optional[InnerProductSpaceProtocol[V, A]],
     ) -> None:
-        if derivatives.state is None:
-            raise TypeError("the integrand has no state gradient")
-        self._state_gradient: GradientFn[V] = derivatives.state
-        self._param_gradient: Optional[GradientFn[V]] = derivatives.param
+        self._integrand, self._quadrature = integrand, quadrature
         self._unknowns, self._space, self._params = unknowns, space, params
-        self._rules = tuple(rules)
-        self._theta = recursion_sensitivities(self._rules)
-        self._fields: Optional[_SecondOrderFields[V]] = (
+        derivatives = integrand.derivatives()
+        self._state: Optional[LinearizationFn[V, A]] = derivatives.state
+        self._param: Optional[LinearizationFn[V, A]] = derivatives.param
+        self._fields: Optional[_SecondOrderFields[V, A]] = (
             None
             if derivatives.state_state is None
             else _SecondOrderFields(
@@ -357,7 +452,7 @@ class TimeIntegralStepTerm(Generic[V, A]):
                 derivatives.param_param,
             )
         )
-        self._derivatives: StepTermDerivatives[V] = (
+        self._derivatives: StepTermDerivatives[V, A] = (
             StepTermDerivatives.first_order()
             if self._fields is None
             else StepTermDerivatives.second_order(
@@ -367,95 +462,108 @@ class TimeIntegralStepTerm(Generic[V, A]):
             )
         )
 
-    def _weighted_sum(
-        self,
-        step: int,
-        window: StepWindow[V],
-        term: Callable[[QuadratureNode, V], V],
-        space: InnerProductSpaceProtocol[V, A],
-        lag: Optional[int],
-        block: Optional[int],
-    ) -> Optional[V]:
-        r""":math:`\theta_n \sum w\, \mathrm{term}(\text{node}, \text{its
-        state})` over step ``step``'s nodes at ``lag`` and ``block`` (each
-        unless None), each node's state read from the window; None when
-        there is no such node."""
-        theta, total = self._theta[step], None
-        for node in self._rules[step].nodes:
-            if (lag is not None and node.lag != lag) or (
-                block is not None and node.block != block
-            ):
-                continue
-            value = term(node, node_state(window, node))
-            total = (
-                space.scale(theta * node.weight, value)
-                if total is None
-                else space.axpby(theta * node.weight, value, 1.0, total, out=total)
+    def nqoi(self) -> int:
+        return self._integrand.nqoi()
+
+    def _nodes(self, window: StepWindow[V]) -> Tuple[QuadratureNode, ...]:
+        return self._quadrature.rule(window.span).nodes
+
+    def value(self, step: int, window: StepWindow[V]) -> A:
+        r""":math:`c_n = \sum w\, q(\text{node})`.
+
+        Raises
+        ------
+        ValueError
+            If the step's rule has no node.
+        """
+        total: Optional[A] = None
+        for node in self._nodes(window):
+            term = node.weight * self._integrand.value(
+                node_state(window, node), node.time
             )
+            total = term if total is None else total + term
+        if total is None:
+            raise ValueError("a step's rule has no node")
         return total
 
-    def _blocks(self, sums: List[Optional[V]]) -> Optional[BlockVector[V]]:
-        """The unknown-space vector of per-block sums, zero where a block
-        has none; None when no block has one."""
-        if all(block is None for block in sums):
-            return None
-        return BlockVector(
-            tuple(self._space.zeros() if block is None else block for block in sums)
-        )
+    def _state_derivative(self) -> LinearizationFn[V, A]:
+        if self._state is None:
+            raise TypeError("the integrand has no state derivative")
+        return self._state
 
-    def _state_term(self, node: QuadratureNode, state: V) -> V:
-        return self._state_gradient(state, node.time)
-
-    def _param_term(self, node: QuadratureNode, state: V) -> V:
-        gradient = self._param_gradient
-        if gradient is None:
-            raise RuntimeError("q does not depend on the parameters")
-        return gradient(state, node.time)
-
-    def cotangent_wrt_unknown(
+    def wrt_unknown(
         self, step: int, window: StepWindow[V]
-    ) -> Optional[BlockVector[V]]:
-        r""":math:`\theta_n \sum w\, \nabla_y q` at the nodes in the step's
-        unknown, block by block; None when no node is there."""
-        return self._blocks(
-            [
-                self._weighted_sum(step, window, self._state_term, self._space, 0, b)
-                for b in range(self._unknowns.nblocks())
-            ]
-        )
-
-    def cotangent_wrt_lag(
-        self, step: int, window: StepWindow[V], lag: int
-    ) -> Optional[V]:
-        r""":math:`\theta_n \sum w\, \nabla_y q` at the nodes on the stored
-        state read at ``lag``; None when no node is there."""
-        return self._weighted_sum(
-            step, window, self._state_term, self._space, lag, None
-        )
-
-    def cotangent_wrt_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
-        r""":math:`\theta_n \sum w\, \nabla_p q` over every node of the step;
-        None when :math:`q` does not depend on the parameters."""
-        if self._param_gradient is None:
+    ) -> Optional[LinearizationProtocol[BlockVector[V], A]]:
+        r""":math:`\sum w\, \partial q/\partial y` at the nodes in the
+        step's unknown; None when no node lies there."""
+        derivative = self._state_derivative()
+        pieces = [
+            (node.block, node.weight, derivative(node_state(window, node), node.time))
+            for node in self._nodes(window)
+            if node.lag == 0
+        ]
+        if not pieces:
             return None
-        return self._weighted_sum(
-            step, window, self._param_term, self._params, None, None
-        )
+        return _UnknownNodes(pieces, self._unknowns, self._space)
 
-    def derivatives(self) -> StepTermDerivatives[V]:
+    def wrt_lag(
+        self, step: int, window: StepWindow[V], lag: int
+    ) -> Optional[LinearizationProtocol[V, A]]:
+        r""":math:`\sum w\, \partial q/\partial y` at the nodes on the stored
+        state read at ``lag``; None when no node lies there."""
+        derivative = self._state_derivative()
+        pieces = [
+            (node.weight, derivative(node_state(window, node), node.time))
+            for node in self._nodes(window)
+            if node.lag == lag
+        ]
+        return _NodeSum(pieces, self._space) if pieces else None
+
+    def wrt_param(
+        self, step: int, window: StepWindow[V]
+    ) -> Optional[LinearizationProtocol[V, A]]:
+        r""":math:`\sum w\, \partial q/\partial p` over every node; None
+        when :math:`q` does not depend on the parameters."""
+        derivative, params = self._param, self._params
+        if derivative is None or params is None:
+            return None
+        pieces = [
+            (node.weight, derivative(node_state(window, node), node.time))
+            for node in self._nodes(window)
+        ]
+        return _NodeSum(pieces, params)
+
+    def derivatives(self) -> StepTermDerivatives[V, A]:
         """The derivatives along a tangent, when the integrand has second
         derivatives."""
         return self._derivatives
 
-    def _curvature(
-        self, tangents: StepWindow[V], direction: V
-    ) -> "_NodeCurvature[V, A]":
+    def _second_order(self) -> _SecondOrderFields[V, A]:
         if self._fields is None:
             raise RuntimeError(
                 "the integrand has no second derivatives; check derivatives() "
                 "before calling"
             )
-        return _NodeCurvature(self._fields, tangents, direction, self._space)
+        return self._fields
+
+    def _to_state(
+        self,
+        node: QuadratureNode,
+        window: StepWindow[V],
+        tangents: StepWindow[V],
+        direction: V,
+        weights: A,
+    ) -> V:
+        r""":math:`(\omega^\top q)_{yy}\, dX + (\omega^\top q)_{yp}\, v` at
+        ``node``."""
+        fields, state = self._second_order(), node_state(window, node)
+        value = fields.state_state(
+            state, node.time, weights, node_state(tangents, node)
+        )
+        if fields.state_param is None:
+            return value
+        mixed = fields.state_param(state, node.time, weights, direction)
+        return self._space.axpby(1.0, mixed, 1.0, value)
 
     def _curvature_wrt_unknown(
         self,
@@ -463,17 +571,21 @@ class TimeIntegralStepTerm(Generic[V, A]):
         window: StepWindow[V],
         tangents: StepWindow[V],
         direction: V,
+        weights: A,
     ) -> Optional[BlockVector[V]]:
-        r""":math:`\theta_n \sum w\, (q_{yy}\, dX + q_{yp}\, v)` at the
-        nodes in the step's unknown, block by block."""
-        curvature = self._curvature(tangents, direction)
-        return self._blocks(
-            [
-                self._weighted_sum(
-                    step, window, curvature.to_state, self._space, 0, b
+        blocks: List[Optional[V]] = [None] * self._unknowns.nblocks()
+        for node in self._nodes(window):
+            if node.lag == 0:
+                blocks[node.block] = _add_scaled(
+                    blocks[node.block],
+                    node.weight,
+                    self._to_state(node, window, tangents, direction, weights),
+                    self._space,
                 )
-                for b in range(self._unknowns.nblocks())
-            ]
+        if all(block is None for block in blocks):
+            return None
+        return BlockVector(
+            tuple(self._space.zeros() if b is None else b for b in blocks)
         )
 
     def _curvature_wrt_lag(
@@ -483,13 +595,18 @@ class TimeIntegralStepTerm(Generic[V, A]):
         tangents: StepWindow[V],
         lag: int,
         direction: V,
+        weights: A,
     ) -> Optional[V]:
-        r""":math:`\theta_n \sum w\, (q_{yy}\, dX + q_{yp}\, v)` at the
-        nodes on the stored state read at ``lag``."""
-        curvature = self._curvature(tangents, direction)
-        return self._weighted_sum(
-            step, window, curvature.to_state, self._space, lag, None
-        )
+        total: Optional[V] = None
+        for node in self._nodes(window):
+            if node.lag == lag:
+                total = _add_scaled(
+                    total,
+                    node.weight,
+                    self._to_state(node, window, tangents, direction, weights),
+                    self._space,
+                )
+        return total
 
     def _curvature_wrt_param(
         self,
@@ -497,25 +614,25 @@ class TimeIntegralStepTerm(Generic[V, A]):
         window: StepWindow[V],
         tangents: StepWindow[V],
         direction: V,
+        weights: A,
     ) -> Optional[V]:
-        r""":math:`\theta_n \sum w\, (q_{py}\, dX + q_{pp}\, v)` over every
-        node of the step; None when :math:`q` does not depend on the
-        parameters."""
-        curvature = self._curvature(tangents, direction)
-        if self._param_gradient is None:
+        fields, params = self._second_order(), self._params
+        if fields.param_state is None or fields.param_param is None or params is None:
             return None
-        params = self._params
-        return self._weighted_sum(
-            step,
-            window,
-            partial(curvature.to_param, params=params),
-            params,
-            None,
-            None,
-        )
+        total: Optional[V] = None
+        for node in self._nodes(window):
+            state = node_state(window, node)
+            mixed = fields.param_state(
+                state, node.time, weights, node_state(tangents, node)
+            )
+            curvature = fields.param_param(state, node.time, weights, direction)
+            total = _add_scaled(
+                total, node.weight, params.axpby(1.0, curvature, 1.0, mixed), params
+            )
+        return total
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(nsteps={len(self._rules)})"
+        return f"{type(self).__name__}({self._integrand!r}, {self._quadrature!r})"
 
 
 def node_state(window: StepWindow[V], node: QuadratureNode) -> V:
@@ -526,94 +643,18 @@ def node_state(window: StepWindow[V], node: QuadratureNode) -> V:
     return window.past_state(node.lag)
 
 
-class _NodeCurvature(Generic[V, A]):
-    r"""One node's second-order term along a tangent: :math:`q_{yy}\,
-    dX + q_{yp}\, v` (``to_state``) or :math:`q_{py}\, dX + q_{pp}\, v`
-    (to the parameters), :math:`dX` the node's state's tangent read from
-    the tangent window. Parameter terms are skipped for a :math:`q`
-    independent of the parameters."""
-
-    def __init__(
-        self,
-        derivatives: "_SecondOrderFields[V]",
-        tangents: StepWindow[V],
-        direction: V,
-        space: InnerProductSpaceProtocol[V, A],
-    ) -> None:
-        self._fields, self._tangents = derivatives, tangents
-        self._direction, self._space = direction, space
-
-    def to_state(self, node: QuadratureNode, state: V) -> V:
-        fields = self._fields
-        value = fields.state_state(state, node.time, node_state(self._tangents, node))
-        if fields.state_param is None:
-            return value
-        mixed = fields.state_param(state, node.time, self._direction)
-        return self._space.axpby(1.0, mixed, 1.0, value, out=value)
-
-    def to_param(
-        self,
-        node: QuadratureNode,
-        state: V,
-        params: InnerProductSpaceProtocol[V, A],
-    ) -> V:
-        fields = self._fields
-        if fields.param_state is None or fields.param_param is None:
-            raise RuntimeError("q does not depend on the parameters")
-        value = fields.param_state(state, node.time, node_state(self._tangents, node))
-        curvature = fields.param_param(state, node.time, self._direction)
-        return params.axpby(1.0, curvature, 1.0, value, out=value)
-
-
-@dataclass(frozen=True)
-class _SecondOrderFields(Generic[V]):
-    """An integrand bundle's second derivatives, ``state_state`` known
-    present; the parameter ones None for a :math:`q` independent of the
-    parameters."""
-
-    state_state: CurvatureFn[V]
-    state_param: Optional[CurvatureFn[V]]
-    param_state: Optional[CurvatureFn[V]]
-    param_param: Optional[CurvatureFn[V]]
-
-
-def step_increment(
-    integrand: IntegrandProtocol[V, R],
-    rule: StepRule,
-    unknown: BlockVector[V],
-    past_states: List[V],
-) -> R:
-    r""":math:`\sum w\, q(\text{node})` for one step: lag 0 reads the
-    step's unknown, lag :math:`l \ge 1` the stored state ``past_states[l -
-    1]`` (most recent first).
-
-    Raises
-    ------
-    ValueError
-        If the rule has no node.
-    """
-    total: Optional[R] = None
-    for node in rule.nodes:
-        state = (
-            unknown.blocks[node.block] if node.lag == 0 else past_states[node.lag - 1]
-        )
-        term = node.weight * integrand.value(state, node.time)
-        total = term if total is None else total + term
-    if total is None:
-        raise ValueError("a step's rule has no node")
-    return total
-
-
-class TimeIntegralSink(Generic[V, R]):
-    r"""One solve's :math:`z`, advanced as the steps arrive.
+class TimeIntegralSink(Generic[V, A]):
+    r"""One solve's :math:`z`, advanced as the steps arrive: each step's
+    contribution read through the step term, from the step's window, and
+    combined by the step's recursion.
 
     Keeps the stored states and the values of :math:`z` the method's
     deepest step reads, nothing more.
 
     Parameters
     ----------
-    integrand : IntegrandProtocol
-        :math:`q`.
+    term : QuadratureStepTerm
+        Each step's contribution.
     quadrature : StepQuadratureProtocol
         The stepper's method applied to :math:`\dot z = q`.
     depth : int
@@ -629,16 +670,16 @@ class TimeIntegralSink(Generic[V, R]):
 
     def __init__(
         self,
-        integrand: IntegrandProtocol[V, R],
+        term: QuadratureStepTerm[V, A],
         quadrature: StepQuadratureProtocol,
         depth: int,
     ) -> None:
-        self._integrand = integrand
+        self._term = term
         self._quadrature = quadrature
         # Most recent first; z_0 = 0 is None, since no zero of q's type is
         # at hand before the first step.
         self._states: Deque[V] = deque(maxlen=depth)
-        self._integrals: Deque[Optional[R]] = deque(maxlen=depth)
+        self._integrals: Deque[Optional[A]] = deque(maxlen=depth)
         self._ntimes = 0
         self._last_time: Optional[float] = None
 
@@ -671,9 +712,10 @@ class TimeIntegralSink(Generic[V, R]):
                 f"{self._last_time}"
             )
         rule = self._quadrature.rule(span)
-        increment = step_increment(
-            self._integrand, rule, unknown, list(self._states)
-        )
+        # The step's window, as a store would give it for the sweeps.
+        read = tuple(list(self._states)[: len(span.sizes)])
+        window = StepWindow(span, read, unknown, parameters_version)
+        increment = self._term.value(self._ntimes - 1, window)
         past = [
             increment * 0.0 if value is None else value
             for value in list(self._integrals)[: len(rule.alpha) - 1]
@@ -687,7 +729,7 @@ class TimeIntegralSink(Generic[V, R]):
         """The number of states received."""
         return self._ntimes
 
-    def value(self) -> R:
+    def value(self) -> A:
         r""":math:`z` at the last state received: the integral so far."""
         latest = self._integrals[0] if self._integrals else None
         if latest is None:
@@ -695,4 +737,4 @@ class TimeIntegralSink(Generic[V, R]):
         return latest
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._integrand!r}, ntimes={self._ntimes})"
+        return f"{type(self).__name__}({self._term!r}, ntimes={self._ntimes})"

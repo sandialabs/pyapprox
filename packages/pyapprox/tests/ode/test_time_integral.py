@@ -16,6 +16,12 @@ time and the parameters.
 - Sums of terms: the integral plus the Tikhonov-augmented MSE (a state
   term) and the integral twice (two step terms) give the sums of their
   gradients and Hessian-vector products, to 1e-12.
+- Stacks: the integral over the MSE, a value of two entries: one tangent
+  sweep gives both entries' directional derivatives, and the adjoint
+  sweeps with unit weights each entry's gradient and Hessian-vector
+  product, to 1e-12 (Heun, BDF2); weights are required for two entries
+  and checked for shape, and functionals of different sizes do not add.
+- Binding the integral to a trajectory reads no stored state.
 - The sensitivities :math:`\theta_n = \partial z_N/\partial b_n` (``b_n``
   step :math:`n`'s right-hand side) equal the last row of
   :math:`L^{-1}`, :math:`L` the lower-triangular matrix whose row
@@ -54,12 +60,10 @@ from pyapprox.ode.time_integral import (
     IntegrandDerivatives,
     TimeIntegral,
 )
-from pyapprox.ode.trajectory_derivatives import (
-    TrajectoryDerivatives,
-    TrajectoryFunctional,
-)
+from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.ode.runge_kutta_cases import LV_PARAM, lotka_volterra_with_mass
@@ -92,34 +96,51 @@ class _Integrand(Generic[Array]):
     def set_param(self, param: Array) -> None:
         self._param = param
 
+    def nqoi(self) -> int:
+        return 1
+
     def value(self, state: Array, time: float) -> Array:
         bkd = self._bkd
         return math.cos(time) * bkd.dot(state.T, state) / 100.0 + bkd.dot(
             self._s.T, self._param
         ) * bkd.sum(state, axis=0, keepdims=True)
 
-    def _state_gradient(self, state: Array, time: float) -> Array:
+    def _state_gradient(
+        self, state: Array, time: float
+    ) -> BackendScalarGradient[Array]:
         weight = self._bkd.dot(self._s.T, self._param)
-        return 2.0 * math.cos(time) * state / 100.0 + weight * self._bkd.ones(
+        gradient = 2.0 * math.cos(time) * state / 100.0 + weight * self._bkd.ones(
             state.shape
         )
+        return BackendScalarGradient(gradient, self._bkd)
 
-    def _param_gradient(self, state: Array, time: float) -> Array:
-        return self._s * self._bkd.sum(state, axis=0, keepdims=True)
+    def _param_gradient(
+        self, state: Array, time: float
+    ) -> BackendScalarGradient[Array]:
+        gradient = self._s * self._bkd.sum(state, axis=0, keepdims=True)
+        return BackendScalarGradient(gradient, self._bkd)
 
-    def _state_state(self, state: Array, time: float, w: Array) -> Array:
-        return 2.0 * math.cos(time) * w / 100.0
+    def _state_state(
+        self, state: Array, time: float, weights: Array, w: Array
+    ) -> Array:
+        return 2.0 * math.cos(time) * w / 100.0 * weights
 
-    def _state_param(self, state: Array, time: float, v: Array) -> Array:
-        return self._bkd.dot(self._s.T, v) * self._bkd.ones(state.shape)
+    def _state_param(
+        self, state: Array, time: float, weights: Array, v: Array
+    ) -> Array:
+        return self._bkd.dot(self._s.T, v) * self._bkd.ones(state.shape) * weights
 
-    def _param_state(self, state: Array, time: float, w: Array) -> Array:
-        return self._s * self._bkd.sum(w, axis=0, keepdims=True)
+    def _param_state(
+        self, state: Array, time: float, weights: Array, w: Array
+    ) -> Array:
+        return self._s * self._bkd.sum(w, axis=0, keepdims=True) * weights
 
-    def _param_param(self, state: Array, time: float, v: Array) -> Array:
+    def _param_param(
+        self, state: Array, time: float, weights: Array, v: Array
+    ) -> Array:
         return 0.0 * v
 
-    def derivatives(self) -> IntegrandDerivatives[Array]:
+    def derivatives(self) -> IntegrandDerivatives[Array, Array]:
         if not self._second_order:
             return IntegrandDerivatives.first_order(
                 self._state_gradient, self._param_gradient
@@ -152,8 +173,8 @@ class _Problem(Generic[Array]):
             method, dense_mass_form_system(self._model)
         )
         self._integrand = _Integrand(bkd, second_order)
-        self._integral: TimeIntegral[Array, Array, Array] = TimeIntegral(
-            self._integrand, self._stepper
+        self._integral: TimeIntegral[Array, Array] = TimeIntegral(
+            self._integrand, self._stepper, bkd
         )
         self._misfit = tikhonov_mse(bkd) if misfit else None
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
@@ -175,7 +196,7 @@ class _Problem(Generic[Array]):
 
     def functional(
         self, store: InMemoryTrajectoryStore[Array], param: Array
-    ) -> TrajectoryFunctional[Array]:
+    ) -> TrajectoryFunctional[Array, Array]:
         integral = self._integral.trajectory_functional(store)
         if self._misfit is None:
             return integral
@@ -209,7 +230,7 @@ class _Problem(Generic[Array]):
     def stepper(self) -> Stepper[Array]:
         return self._stepper
 
-    def integral(self) -> TimeIntegral[Array, Array, Array]:
+    def integral(self) -> TimeIntegral[Array, Array]:
         return self._integral
 
 
@@ -298,6 +319,79 @@ class TestSums:
         )
 
 
+class TestStack:
+    r"""The integral stacked over the Tikhonov-augmented MSE, a value of
+    two entries: one tangent sweep gives both entries' derivatives, and an
+    adjoint sweep with a unit weight gives one entry's gradient."""
+
+    def _parts(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> tuple[
+        _Problem[Array],
+        InMemoryTrajectoryStore[Array],
+        TrajectoryFunctional[Array, Array],
+        TrajectoryFunctional[Array, Array],
+        TrajectoryFunctional[Array, Array],
+    ]:
+        problem = _Problem(bkd, make())
+        param = bkd.asarray(LV_PARAM)
+        _, store = problem.solve(param)
+        integral = problem.integral().trajectory_functional(store)
+        misfit = from_transient_functional(tikhonov_mse(bkd), store, param)
+        stacked = TrajectoryFunctional.stack(bkd, [integral, misfit])
+        return problem, store, integral, misfit, stacked
+
+    @pytest.mark.parametrize("make", [heun, bdf2], ids=["Heun", "BDF2"])
+    def test_one_tangent_gives_every_entry(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        problem, store, integral, misfit, stacked = self._parts(bkd, make)
+        sweeps, direction = problem.sweeps(), random_direction(bkd)
+        assert stacked.nqoi() == 2
+        bkd.assert_allclose(
+            sweeps.tangent(store, stacked, direction),
+            bkd.vstack(
+                [
+                    sweeps.tangent(store, integral, direction),
+                    sweeps.tangent(store, misfit, direction),
+                ]
+            ),
+            rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("make", [heun, bdf2], ids=["Heun", "BDF2"])
+    def test_unit_weights_give_each_entrys_gradient_and_hvp(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        problem, store, integral, misfit, stacked = self._parts(bkd, make)
+        sweeps, direction = problem.sweeps(), random_direction(bkd)
+        for weights, part in (
+            (bkd.asarray([[1.0], [0.0]]), integral),
+            (bkd.asarray([[0.0], [1.0]]), misfit),
+        ):
+            bkd.assert_allclose(
+                sweeps.gradient(store, stacked, weights=weights),
+                sweeps.gradient(store, part),
+                rtol=1e-12,
+                atol=1e-15,
+            )
+            bkd.assert_allclose(
+                sweeps.hvp(store, stacked, direction, weights=weights),
+                sweeps.hvp(store, part, direction),
+                rtol=1e-12,
+                atol=1e-15,
+            )
+
+    def test_weights_are_needed_and_checked(self, bkd: Backend[Array]) -> None:
+        problem, store, _, _, stacked = self._parts(bkd, heun)
+        with pytest.raises(ValueError, match="2 entries needs its weights"):
+            problem.sweeps().gradient(store, stacked)
+        with pytest.raises(ValueError, match=r"shape \(2, 1\)"):
+            problem.sweeps().gradient(store, stacked, weights=bkd.ones((1, 1)))
+        with pytest.raises(ValueError, match="cannot add"):
+            stacked + problem.integral().trajectory_functional(store)
+
+
 class _CountingStore(InMemoryTrajectoryStore[Array]):
     """An in-memory store counting the reads of its states, as a store
     recomputing them from checkpoints would pay for each."""
@@ -363,15 +457,15 @@ class TestRefusals:
         stepper = make_stepper(
             backward_euler(), dense_mass_form_system(lotka_volterra_with_mass(bkd))
         )
-        integral: TimeIntegral[Array, Array, Array] = TimeIntegral(
-            _ValueOnly(bkd), stepper
+        integral: TimeIntegral[Array, Array] = TimeIntegral(
+            _ValueOnly(bkd), stepper, bkd
         )
-        with pytest.raises(TypeError, match="no state gradient"):
+        with pytest.raises(TypeError, match="no state derivative"):
             integral.trajectory_functional(store)
 
-    def test_a_parameter_gradient_needs_the_state_gradient(self) -> None:
-        with pytest.raises(ValueError, match="needs the state gradient"):
-            IntegrandDerivatives(None, _ValueOnly(NumpyBkd()).value)
+    def test_a_parameter_derivative_needs_the_state_derivative(self) -> None:
+        with pytest.raises(ValueError, match="needs the state derivative"):
+            IntegrandDerivatives(None, _ValueOnly(NumpyBkd()).linearization)
 
     def test_an_hvp_needs_the_integrands_second_derivatives(
         self, bkd: Backend[Array]
@@ -379,7 +473,7 @@ class TestRefusals:
         param = bkd.asarray(LV_PARAM)
         problem = _Problem(bkd, backward_euler(), second_order=False)
         problem.gradient(param)
-        with pytest.raises(TypeError, match="TimeIntegralStepTerm.*no curvature"):
+        with pytest.raises(TypeError, match="RecursionWeighted.*no curvature"):
             problem.hvp(param, random_direction(bkd))
 
 
@@ -389,8 +483,17 @@ class _ValueOnly(Generic[Array]):
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
 
+    def nqoi(self) -> int:
+        return 1
+
     def value(self, state: Array, time: float) -> Array:
         return self._bkd.dot(state.T, state)
 
-    def derivatives(self) -> IntegrandDerivatives[Array]:
+    def linearization(
+        self, state: Array, time: float
+    ) -> BackendScalarGradient[Array]:
+        """The state derivative it does not declare, for the refusal."""
+        return BackendScalarGradient(2.0 * state, self._bkd)
+
+    def derivatives(self) -> IntegrandDerivatives[Array, Array]:
         return IntegrandDerivatives.none()

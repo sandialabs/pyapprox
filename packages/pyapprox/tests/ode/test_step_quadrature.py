@@ -88,16 +88,20 @@ class _Rhs(Protocol[A]):
     def rhs(self, state: A, time: float) -> A: ...
 
 
-class _RhsIntegrand(Generic[A]):
-    """:math:`q = f`, the stepper's own right-hand side."""
+class _RhsIntegrand(Generic[Array]):
+    """:math:`q = f`, the stepper's own right-hand side: a vector-valued
+    integrand, one entry per state."""
 
-    def __init__(self, stepper: _Rhs[A]) -> None:
+    def __init__(self, stepper: _Rhs[Array]) -> None:
         self._stepper = stepper
 
-    def value(self, state: A, time: float) -> A:
+    def nqoi(self) -> int:
+        return len(_Y0)
+
+    def value(self, state: Array, time: float) -> Array:
         return self._stepper.rhs(state, time)
 
-    def derivatives(self) -> IntegrandDerivatives[A]:
+    def derivatives(self) -> IntegrandDerivatives[Array, Array]:
         return IntegrandDerivatives.none()
 
 
@@ -107,10 +111,13 @@ class _Energy(Generic[Array]):
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
 
+    def nqoi(self) -> int:
+        return 1
+
     def value(self, state: Array, time: float) -> Array:
         return math.cos(time) * self._bkd.dot(state.T, state)
 
-    def derivatives(self) -> IntegrandDerivatives[Array]:
+    def derivatives(self) -> IntegrandDerivatives[Array, Array]:
         return IntegrandDerivatives.none()
 
 
@@ -131,7 +138,7 @@ def _energy_exact(final: float) -> float:
 def _solve(
     bkd: Backend[Array], stepper: Any, integrand: Any, steps: Any
 ) -> tuple[Array, InMemoryTrajectoryStore[Array]]:
-    integral: TimeIntegral[Array, Array, Array] = TimeIntegral(integrand, stepper)
+    integral: TimeIntegral[Array, Array] = TimeIntegral(integrand, stepper, bkd)
     sink = integral.sink()
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
     Integrator(stepper).solve(bkd.asarray(_Y0), steps, MultiSink([sink, store]))
@@ -376,8 +383,8 @@ class TestRules:
 class TestSinkRefusals:
     def _sink(self, bkd: Backend[Array]) -> Any:
         stepper = _runge_kutta(backward_euler, bkd)
-        integral: TimeIntegral[Array, Array, Array] = TimeIntegral(
-            _Energy(bkd), stepper
+        integral: TimeIntegral[Array, Array] = TimeIntegral(
+            _Energy(bkd), stepper, bkd
         )
         return integral.sink()
 
@@ -398,6 +405,6 @@ class TestSinkRefusals:
     def test_protocols_are_checked(self, bkd: Backend[Array]) -> None:
         stepper = _runge_kutta(backward_euler, bkd)
         with pytest.raises(TypeError, match="IntegrandProtocol"):
-            TimeIntegral(object(), stepper)  # type: ignore[arg-type]
+            TimeIntegral(object(), stepper, bkd)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="StepperProtocol"):
-            TimeIntegral(_Energy(bkd), object())  # type: ignore[arg-type]
+            TimeIntegral(_Energy(bkd), object(), bkd)  # type: ignore[arg-type]
