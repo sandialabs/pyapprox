@@ -22,7 +22,7 @@ Times derived this way drift from :math:`t_0 + k h` by about
 of the step plan (see :mod:`pyapprox.ode.step_plan`).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Sequence, Tuple
 
 
@@ -58,19 +58,23 @@ class StepSpan:
 
     origin: float
     sizes: Tuple[float, ...]
+    # The lag times, oldest first, made once by the additions the
+    # validation walks; derived, so not part of equality.
+    _times: Tuple[float, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not self.sizes:
             raise ValueError("a step span needs at least one size")
-        time = self.origin
+        times = [self.origin]
         for size in self.sizes:
-            later = _advance(time, size)
-            if not later > time:
+            later = _advance(times[-1], size)
+            if not later > times[-1]:
                 raise ValueError(
-                    f"a step of size {size} from t = {time} does not advance the "
-                    "time"
+                    f"a step of size {size} from t = {times[-1]} does not advance "
+                    "the time"
                 )
-            time = later
+            times.append(later)
+        object.__setattr__(self, "_times", tuple(times))
 
     @staticmethod
     def first(origin: float, size: float) -> "StepSpan":
@@ -107,10 +111,7 @@ class StepSpan:
 
     def times(self) -> Tuple[float, ...]:
         """Every lag's time, oldest first, the step's end last."""
-        times = [self.origin]
-        for size in self.sizes:
-            times.append(_advance(times[-1], size))
-        return tuple(times)
+        return self._times
 
     def lag_time(self, lag: int) -> float:
         r""":math:`t_{n+1-\mathrm{lag}}`: the step's end at lag 0.
@@ -122,7 +123,7 @@ class StepSpan:
         """
         if not 0 <= lag < self.nlags():
             raise ValueError(f"lag must be between 0 and {len(self.sizes)}, got {lag}")
-        return self.times()[-1 - lag]
+        return self._times[-1 - lag]
 
     def time(self) -> float:
         """:math:`t_n`, the step's start."""
