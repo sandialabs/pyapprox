@@ -103,6 +103,11 @@ class BackendTrajectoryFunctional(Generic[Array]):
         ``(nparams, 1)``."""
         return self._param_jacobian.T
 
+    def step_terms(self) -> None:
+        """None: a whole-trajectory functional reads the stored states
+        only."""
+        return None
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
 
@@ -170,6 +175,11 @@ class BackendSecondOrderTrajectoryFunctional(Generic[Array]):
     def param_cotangent(self) -> Array:
         """As :meth:`BackendTrajectoryFunctional.param_cotangent`."""
         return self._first.param_cotangent()
+
+    def step_terms(self) -> None:
+        """None: a whole-trajectory functional reads the stored states
+        only."""
+        return None
 
     def state_state(self, index: int, w: Array) -> Array:
         r""":math:`(\partial^2 Q/\partial y_m^2)\, w`. Shape:

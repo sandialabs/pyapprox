@@ -47,7 +47,7 @@ from pyapprox.ode.tableau import (
     crank_nicolson,
     implicit_midpoint,
 )
-from pyapprox.ode.time_integral import TimeIntegral
+from pyapprox.ode.time_integral import IntegrandDerivatives, TimeIntegral
 from pyapprox.ode.time_quadrature import (
     midpoint_quadrature,
     right_rectangle_quadrature,
@@ -87,6 +87,9 @@ class _RhsIntegrand(Generic[A]):
     def value(self, state: A, time: float) -> A:
         return self._stepper.rhs(state, time)
 
+    def derivatives(self) -> IntegrandDerivatives[A]:
+        return IntegrandDerivatives.none()
+
 
 class _Energy(Generic[Array]):
     r""":math:`q(y, t) = \cos(t)\, y^\top y`, shape (1, 1)."""
@@ -96,6 +99,9 @@ class _Energy(Generic[Array]):
 
     def value(self, state: Array, time: float) -> Array:
         return math.cos(time) * self._bkd.dot(state.T, state)
+
+    def derivatives(self) -> IntegrandDerivatives[Array]:
+        return IntegrandDerivatives.none()
 
 
 def _energy_exact(final: float) -> float:
@@ -115,7 +121,7 @@ def _energy_exact(final: float) -> float:
 def _solve(
     bkd: Backend[Array], stepper: Any, integrand: Any, steps: Any
 ) -> tuple[Array, InMemoryTrajectoryStore[Array]]:
-    integral: TimeIntegral[Array, Array] = TimeIntegral(integrand, stepper)
+    integral: TimeIntegral[Array, Array, Array] = TimeIntegral(integrand, stepper)
     sink = integral.sink()
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
     Integrator(stepper).solve(bkd.asarray(_Y0), steps, MultiSink([sink, store]))
@@ -273,7 +279,9 @@ class TestRules:
 class TestSinkRefusals:
     def _sink(self, bkd: Backend[Array]) -> Any:
         stepper = _runge_kutta(backward_euler, bkd)
-        integral: TimeIntegral[Array, Array] = TimeIntegral(_Energy(bkd), stepper)
+        integral: TimeIntegral[Array, Array, Array] = TimeIntegral(
+            _Energy(bkd), stepper
+        )
         return integral.sink()
 
     def test_out_of_order_and_early_value(self, bkd: Backend[Array]) -> None:
@@ -294,5 +302,5 @@ class TestSinkRefusals:
         stepper = _runge_kutta(backward_euler, bkd)
         with pytest.raises(TypeError, match="IntegrandProtocol"):
             TimeIntegral(object(), stepper)  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="ForwardStepperProtocol"):
+        with pytest.raises(TypeError, match="StepperProtocol"):
             TimeIntegral(_Energy(bkd), object())  # type: ignore[arg-type]

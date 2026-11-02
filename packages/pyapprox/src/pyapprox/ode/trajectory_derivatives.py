@@ -62,6 +62,18 @@ satisfies, for each step :math:`n`, the step equation
   first- and second-order adjoints are solved and pulled back by the
   same code; only their sources differ.
 
+A functional may also read each step beyond its stored states (a
+functional integrating over time reads the stages):
+:math:`Q = Q_y(y_0, \dots, y_N;\, p) + \sum_n Q_n(u_n;\, y_n, \dots,
+y_{n+1-k};\, p)`, its step terms given by
+:meth:`TrajectoryFunctionalProtocol.step_terms`. In the adjoint sweep
+:math:`\partial Q_n/\partial u_n` joins the step solve's right-hand side
+(:math:`-(E^\top \Pi'^\top \bar\nu_{n+1} + \partial Q_n/\partial u_n)`),
+:math:`\partial Q_n/\partial y_{n+1-l}` the cotangent of the state read
+at lag :math:`l`, and :math:`\partial Q_n/\partial p` the gradient; the
+tangent sweep adds their inner products with :math:`\delta u_n`,
+:math:`w_{n+1-l}` and :math:`v`.
+
 :math:`\Pi'` and :math:`\Pi_p` are evaluated at the value the constraint
 was applied to, which the store records. :math:`y_0` is data, so its
 cotangent :math:`\bar\nu_0` is a sum of applies: no solve at
@@ -127,13 +139,42 @@ from pyapprox.util.linalg.operators import (
 )
 
 V = TypeVar("V")
-V_co = TypeVar("V_co", covariant=True)
 W = TypeVar("W")
 A = TypeVar("A", bound=ArrayProtocol)
 
 
 @runtime_checkable
-class TrajectoryFunctionalProtocol(Protocol[V_co]):
+class StepTermsProtocol(Protocol[V]):
+    r"""The derivatives of a functional's part read from each step,
+    :math:`Q_n(u_n;\, y_n, \dots, y_{n+1-k};\, p)` (a functional
+    integrating over time reads the step's stages), at the step's window.
+
+    Each is :math:`\partial Q/\partial(\cdot)` through step :math:`n`'s
+    terms only; None for a term that is absent. A returned vector is new
+    or the functional's own storage, valid until its next call, as for
+    :class:`TrajectoryFunctionalProtocol`.
+    """
+
+    def unknown_cotangent(
+        self, step: int, window: StepWindow[V]
+    ) -> Optional[BlockVector[V]]:
+        r""":math:`\partial Q/\partial u_n`, a single column of the
+        stepper's unknown space."""
+        ...
+
+    def lag_cotangent(self, step: int, window: StepWindow[V], lag: int) -> Optional[V]:
+        r""":math:`\partial Q/\partial y_{n+1-\mathrm{lag}}` through the
+        step, a single column of the state space."""
+        ...
+
+    def param_cotangent(self, step: int, window: StepWindow[V]) -> Optional[V]:
+        r""":math:`\partial Q/\partial p` through the step, a single column
+        of the parameter space."""
+        ...
+
+
+@runtime_checkable
+class TrajectoryFunctionalProtocol(Protocol[V]):
     r"""What the sweeps read of a scalar functional of one recorded
     trajectory: its first derivatives, as stack vectors.
 
@@ -142,14 +183,19 @@ class TrajectoryFunctionalProtocol(Protocol[V_co]):
     into, and never modify a returned vector.
     """
 
-    def state_cotangent(self, index: int) -> V_co:
+    def state_cotangent(self, index: int) -> V:
         r""":math:`\partial Q/\partial y_{\mathrm{index}}`, a single column
         of the state space."""
         ...
 
-    def param_cotangent(self) -> V_co:
+    def param_cotangent(self) -> V:
         r"""The direct :math:`\partial Q/\partial p`, a single column of
         the parameter space."""
+        ...
+
+    def step_terms(self) -> Optional[StepTermsProtocol[V]]:
+        """The derivatives of the functional's part read from each step;
+        None for a functional of the stored states alone."""
         ...
 
 
@@ -580,10 +626,48 @@ class TrajectoryDerivatives(Generic[V, A]):
         """
         space, params = self._state_space(), self._param_space()
         total = params.dot(functional.param_cotangent(), direction)
+        steps = functional.step_terms()
+        # The tangents of the states the next step reads, most recent first.
+        recent: Deque[V] = deque(maxlen=self._stepper.depth())
         states = self._tangent_states(store, direction, self._session(session))
         for index, tangent in enumerate(states):
             total = total + space.dot(functional.state_cotangent(index), tangent.state)
+            if steps is not None and tangent.unknown is not None:
+                for term in self._step_terms_tangent(
+                    steps, store, index - 1, tangent.unknown, recent, direction
+                ):
+                    total = total + term
+            recent.appendleft(tangent.state)
         return total
+
+    def _step_terms_tangent(
+        self,
+        steps: StepTermsProtocol[V],
+        store: TrajectoryStoreProtocol[V],
+        step: int,
+        unknown: BlockVector[V],
+        recent: Sequence[V],
+        direction: V,
+    ) -> List[A]:
+        r"""Step ``step``'s terms along the tangent, those present of
+        :math:`\langle \partial Q/\partial u_n, \delta u_n\rangle`,
+        :math:`\langle \partial Q/\partial y_{n+1-l}, w_{n+1-l}\rangle` and
+        :math:`\langle \partial Q/\partial p, v\rangle` through the step,
+        ``recent[l - 1]`` being :math:`w_{n+1-l}`."""
+        window = self._window(store, step)
+        space, params = self._state_space(), self._param_space()
+        terms: List[A] = []
+        by_unknown = steps.unknown_cotangent(step, window)
+        if by_unknown is not None:
+            terms.append(self._stepper.unknown_space().dot(by_unknown, unknown))
+        for lag in range(1, len(window.past_states) + 1):
+            by_lag = steps.lag_cotangent(step, window, lag)
+            if by_lag is not None:
+                terms.append(space.dot(by_lag, recent[lag - 1]))
+        by_param = steps.param_cotangent(step, window)
+        if by_param is not None:
+            terms.append(params.dot(by_param, direction))
+        return terms
 
     def _tangent_states(
         self,
@@ -1210,8 +1294,8 @@ class _AdjointSweep(Generic[V, A]):
 
 
 class _FirstOrderSources(Generic[V]):
-    """The gradient's sources: the functional's first derivatives, and no
-    extra terms.
+    """The gradient's sources: the functional's first derivatives, those
+    read from each step added to the step's terms.
 
     Parameters
     ----------
@@ -1227,6 +1311,7 @@ class _FirstOrderSources(Generic[V]):
         params: InnerProductSpaceProtocol[V, ArrayProtocol],
     ) -> None:
         self._functional, self._params = functional, params
+        self._steps = functional.step_terms()
 
     def state(self, index: int) -> V:
         return self._functional.state_cotangent(index)
@@ -1243,13 +1328,19 @@ class _FirstOrderSources(Generic[V]):
     def step_unknown(
         self, step: int, window: StepWindow[V]
     ) -> Optional[BlockVector[V]]:
-        return None
+        if self._steps is None:
+            return None
+        return self._steps.unknown_cotangent(step, window)
 
     def step_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
-        return None
+        if self._steps is None:
+            return None
+        return self._steps.param_cotangent(step, window)
 
     def step_lag(self, step: int, window: StepWindow[V], lag: int) -> Optional[V]:
-        return None
+        if self._steps is None:
+            return None
+        return self._steps.lag_cotangent(step, window, lag)
 
     def initial(self) -> Optional[V]:
         return None
@@ -1289,6 +1380,12 @@ class _SecondOrderSources(Generic[V, A]):
         direction: V,
         adjoint: _FirstOrderAdjointProtocol[V],
     ) -> None:
+        if functional.step_terms() is not None:
+            raise TypeError(
+                f"{type(functional).__name__} reads steps, whose second "
+                "derivatives the second-order sweep does not take, so it has no "
+                "Hessian-vector products"
+            )
         self._owner, self._store, self._functional = owner, store, functional
         self._tangents, self._direction, self._adjoint = tangents, direction, adjoint
         self._p_dir = BlockVector((direction,))

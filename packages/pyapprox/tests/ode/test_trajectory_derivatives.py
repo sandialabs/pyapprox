@@ -606,6 +606,9 @@ class _MockLastState:
     def param_cotangent(self) -> MockVector:
         return wrap(np.array(_D), _MOCK_PARAM)
 
+    def step_terms(self) -> None:
+        return None
+
     def state_state(self, index: int, w: MockVector) -> MockVector:
         return wrap(np.zeros((3, 1)), MOCK_STATE)
 
@@ -633,6 +636,9 @@ class _MockQuadraticLast:
 
     def param_cotangent(self) -> MockVector:
         return wrap(np.array(_D), _MOCK_PARAM)
+
+    def step_terms(self) -> None:
+        return None
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         last = index % (self._last + 1) == self._last
@@ -674,6 +680,9 @@ class _MockCross:
     def param_cotangent(self) -> MockVector:
         value = self._d + self._param + self._e * (self._c.T @ self._final)
         return wrap(value, _MOCK_PARAM)
+
+    def step_terms(self) -> None:
+        return None
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         value = peek(w).copy() if self._at_last(index) else np.zeros((3, 1))
@@ -727,6 +736,9 @@ class _OneBuffer:
 
     def param_cotangent(self) -> MockVector:
         return self._into(self._param, self._inner.param_cotangent())
+
+    def step_terms(self) -> None:
+        return None
 
     def state_state(self, index: int, w: MockVector) -> MockVector:
         return self._into(self._state, self._inner.state_state(index, w))
@@ -1109,3 +1121,6 @@ class _ZeroFunctional(Generic[Array]):
 
     def param_cotangent(self) -> Array:
         return self._bkd.zeros((1, 1))
+
+    def step_terms(self) -> None:
+        return None
