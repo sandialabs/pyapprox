@@ -131,6 +131,15 @@ class TestStepWindows:
         with pytest.raises(ValueError, match="preceded by 2 states"):
             store.window(1, depth=3)
 
+    def test_span_is_the_windows_span(self, bkd: Backend[Array]) -> None:
+        """The span read alone equals the window's, at every step and
+        depth the step has, the last step by ``-1`` too."""
+        store, _, _ = _stepped_store(bkd)
+        for step in range(store.nsteps()):
+            for depth in range(1, step + 2):
+                assert store.span(step, depth) == store.window(step, depth).span
+        assert store.span(-1, 2) == store.span(2, 2)
+
     def test_refusals(self, bkd: Backend[Array]) -> None:
         empty: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         state = bkd.zeros((2, 1))
@@ -141,6 +150,10 @@ class TestStepWindows:
             store.window(3)
         with pytest.raises(IndexError):
             store.window(-4)
+        with pytest.raises(IndexError):
+            store.span(3)
+        with pytest.raises(ValueError, match="preceded by 2 states"):
+            store.span(1, depth=3)
 
 
 class TestTrajectoryArray:

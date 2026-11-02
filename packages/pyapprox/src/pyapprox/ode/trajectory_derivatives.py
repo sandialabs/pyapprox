@@ -1230,7 +1230,7 @@ class TrajectoryDerivatives(Generic[V, A]):
                 # The primal step's own span, so the tangent store's times
                 # are the primal's, derived from the same sizes.
                 tangents.append_step(
-                    store.window(index - 1).span,
+                    store.span(index - 1),
                     tangent.state,
                     tangent.unknown,
                     version,

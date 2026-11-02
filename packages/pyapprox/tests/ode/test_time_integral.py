@@ -52,6 +52,7 @@ from pyapprox.ode.multistep_methods import (
 )
 from pyapprox.ode.step_quadrature import MultistepQuadrature, TableauQuadrature
 from pyapprox.ode.step_span import StepSpan
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import backward_euler, classical_rk4, heun
 from pyapprox.ode.time_integral import (
     IntegrandDerivatives,
@@ -210,6 +211,9 @@ class _Problem(Generic[Array]):
     def sweeps(self) -> TrajectoryDerivatives[Array, Array]:
         return self._sweeps
 
+    def stepper(self) -> Stepper[Array]:
+        return self._stepper
+
     def integral(self) -> TimeIntegral[Array, Array, Array]:
         return self._integral
 
@@ -297,6 +301,40 @@ class TestSums:
             2.0 * sweeps.hvp(store, once, direction),
             rtol=1e-12,
         )
+
+
+class _CountingStore(InMemoryTrajectoryStore[Array]):
+    """An in-memory store counting the reads of its states, as a store
+    recomputing them from checkpoints would pay for each."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.state_reads = 0
+
+    def state(self, index: int) -> Array:
+        self.state_reads += 1
+        return super().state(index)
+
+    def window(self, step: int, depth: int = 1) -> StepWindow[Array]:
+        self.state_reads += depth
+        return super().window(step, depth)
+
+
+class TestStoreReads:
+    @pytest.mark.parametrize(
+        "make", [heun, bdf2], ids=["Heun", "BDF2"]
+    )
+    def test_binding_reads_no_state(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        """The recursion's weights come from the step sizes alone, so
+        binding the integral to a trajectory reads none of its states."""
+        problem = _Problem(bkd, make())
+        problem.solve(bkd.asarray(LV_PARAM))
+        store: _CountingStore[Array] = _CountingStore()
+        Integrator(problem.stepper()).solve(bkd.asarray(START), STEPS, store)
+        problem.integral().trajectory_functional(store)
+        assert store.state_reads == 0
 
 
 class TestSensitivities:

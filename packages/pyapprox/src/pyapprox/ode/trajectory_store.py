@@ -107,9 +107,17 @@ class TrajectoryStoreProtocol(TrajectorySinkProtocol[V], Protocol[V]):
         """The number of recorded steps."""
         ...
 
+    def span(self, step: int, depth: int = 1) -> StepSpan:
+        """Step ``step``'s span, reading the ``depth`` states up to state
+        ``step``: the span of :meth:`window` without reading any state, so
+        a store that recomputes states need not, for what depends on the
+        step sizes alone."""
+        ...
+
     def window(self, step: int, depth: int = 1) -> StepWindow[V]:
         """Step ``step``'s window: from state ``step`` to state
-        ``step + 1``, reading the ``depth`` states up to state ``step``."""
+        ``step + 1``, reading the ``depth`` states up to state ``step``,
+        over :meth:`span`."""
         ...
 
 
@@ -185,8 +193,51 @@ class InMemoryTrajectoryStore(Generic[V]):
     def nsteps(self) -> int:
         return len(self._steps)
 
+    def _step_index(self, step: int, depth: int) -> int:
+        """``step`` as a nonnegative index, checked against ``depth``.
+
+        Raises
+        ------
+        IndexError
+            If ``step`` is out of range.
+        ValueError
+            If fewer than ``depth`` states precede it.
+        """
+        if not -len(self._steps) <= step < len(self._steps):
+            raise IndexError(f"step {step} is out of range for {self.nsteps()} steps")
+        step = step % len(self._steps)
+        if depth > step + 1:
+            raise ValueError(
+                f"step {step} is preceded by {step + 1} states, not {depth}"
+            )
+        return step
+
+    def span(self, step: int, depth: int = 1) -> StepSpan:
+        """Step ``step``'s span from the recorded sizes alone.
+
+        Parameters
+        ----------
+        step : int
+            The step, from state ``step`` to state ``step + 1``; ``-1`` is
+            the last step.
+        depth : int, default 1
+            How many stored states the step reads.
+
+        Raises
+        ------
+        IndexError
+            If ``step`` is out of range.
+        ValueError
+            If fewer than ``depth`` states precede it.
+        """
+        step = self._step_index(step, depth)
+        # From the oldest state read, by the recorded sizes: the same
+        # additions that made the stored times.
+        oldest = step + 1 - depth
+        return StepSpan(self._times[oldest], tuple(self._sizes[oldest : step + 1]))
+
     def window(self, step: int, depth: int = 1) -> StepWindow[V]:
-        """Step ``step``'s window.
+        """Step ``step``'s window, over :meth:`span`.
 
         Parameters
         ----------
@@ -203,19 +254,10 @@ class InMemoryTrajectoryStore(Generic[V]):
         ValueError
             If fewer than ``depth`` states precede it.
         """
-        if not -len(self._steps) <= step < len(self._steps):
-            raise IndexError(f"step {step} is out of range for {self.nsteps()} steps")
-        step = step % len(self._steps)
-        if depth > step + 1:
-            raise ValueError(
-                f"step {step} is preceded by {step + 1} states, not {depth}"
-            )
+        span = self.span(step, depth)
+        step = self._step_index(step, depth)
         unknown, version = self._steps[step]
         past = tuple(self._states[step - lag] for lag in range(depth))
-        # From the oldest state read, by the recorded sizes: the same
-        # additions that made the stored times.
-        oldest = step + 1 - depth
-        span = StepSpan(self._times[oldest], tuple(self._sizes[oldest : step + 1]))
         return StepWindow(span, past, unknown, version)
 
     def ntimes(self) -> int:

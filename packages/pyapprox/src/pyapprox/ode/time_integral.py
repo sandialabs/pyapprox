@@ -264,10 +264,11 @@ class TimeIntegral(Generic[V, A, R]):
         return params.component(0)
 
     def _rules(self, store: TrajectoryStoreProtocol[V]) -> List[StepRule]:
-        """Every step's recursion, at the window the sweeps read."""
+        """Every step's recursion, over the span the sweeps' window has,
+        from the step sizes alone: no state is read."""
         depth = self._stepper.depth()
         return [
-            self._quadrature.rule(store.window(n, min(depth, n + 1)).span)
+            self._quadrature.rule(store.span(n, min(depth, n + 1)))
             for n in range(store.nsteps())
         ]
 
