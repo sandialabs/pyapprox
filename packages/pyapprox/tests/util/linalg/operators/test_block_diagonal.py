@@ -95,6 +95,20 @@ class TestOperator:
                 bkd.asarray(_blocks(3)), _U, bkd, OperatorProperties(diagonal=True)
             )
 
+    def test_a_declared_identity_applies_as_a_copy(self, bkd: Backend[Array]) -> None:
+        """No product is formed, and the input is never returned itself."""
+        identity = np.repeat(np.eye(_M)[None], _K, axis=0)
+        op = BackendBlockDiagonalOperator(
+            bkd.asarray(identity),
+            _U,
+            bkd,
+            OperatorProperties(symmetric=True, spd=True, diagonal=True, identity=True),
+        )
+        x = _vec(5, bkd)
+        for applied in (op.apply(x), op.apply_transpose(x)):
+            bkd.assert_allclose(applied, x, rtol=0.0)
+            assert applied is not x
+
     def test_refuses_wrong_shapes(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match=r"\(k, m, m\)"):
             BackendBlockDiagonalOperator(bkd.zeros((_K, _M, _M + 1)), _U, bkd)

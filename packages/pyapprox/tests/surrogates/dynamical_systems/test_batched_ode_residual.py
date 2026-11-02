@@ -255,13 +255,21 @@ class TestBatchedDerivativesBundle:
     def test_bundle_follows_the_active_coefficients(
         self, bkd: Backend[Array]
     ) -> None:
-        """Built per call, so fixing coefficients shrinks its parameter
-        space."""
+        """Kept between calls and across set_param (its fields read the
+        current coefficients, so a step asking for it several times builds
+        no spaces), and rebuilt when fixing a coefficient shrinks its
+        parameter space."""
         residual, _ = _four_trajectories(bkd)
         hyp_list = residual.learned_function().hyp_list()
-        before = residual.derivatives().param_space
+        bundle = residual.derivatives()
+        assert residual.derivatives() is bundle
+        residual.set_param(hyp_list.get_active_values())
+        assert residual.derivatives() is bundle
+        before = bundle.param_space
         assert before is not None
         hyp_list.set_active_indices(bkd.arange(1, hyp_list.nparams()))
-        after = residual.derivatives().param_space
+        rebuilt = residual.derivatives()
+        assert rebuilt is not bundle
+        after = rebuilt.param_space
         assert after is not None
         assert after.descriptor().size == before.descriptor().size - 1

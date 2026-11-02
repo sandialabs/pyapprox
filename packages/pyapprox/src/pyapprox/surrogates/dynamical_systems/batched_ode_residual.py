@@ -10,7 +10,7 @@ The Newton Jacobian is block-diagonal (k blocks of size n_dynamic x n_dynamic),
 giving O(k * n^3) solve cost instead of O((kn)^3).
 """
 
-from typing import Generic, Optional
+from typing import Generic, Optional, Tuple
 
 from pyapprox.interface.functions.derivatives import JacobianBatchFn
 from pyapprox.ode.linear_operator import BlockDiagonalLinearOperator
@@ -141,6 +141,11 @@ class BatchedBoundODEResidual(Generic[Array]):
         self._descriptor = SpaceDescriptor(
             "state", n_dynamic * self._k, backend_dtype_name(self._bkd)
         )
+        # The derivatives bundle and the active-coefficient count it was
+        # built for.
+        self._bundle: Optional[
+            Tuple[int, ODEResidualDerivatives[Array, BlockDiagonalFormat[Array]]]
+        ] = None
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -229,13 +234,21 @@ class BatchedBoundODEResidual(Generic[Array]):
         operator over the surrogate's active coefficients, and a
         stated-zero initial state (it is supplied by the caller).
 
-        Built on each call, because the number of active coefficients can
-        change after construction (``hyp_list().set_active_indices``).
+        Kept between calls and rebuilt when the number of active
+        coefficients changes (``hyp_list().set_active_indices``), the one
+        thing its shape depends on; its fields read the current
+        coefficients, so it stays valid after ``set_param``.
         """
+        nparams = self.nparams()
+        if self._bundle is None or self._bundle[0] != nparams:
+            self._bundle = (nparams, self._build_derivatives(nparams))
+        return self._bundle[1]
+
+    def _build_derivatives(
+        self, nparams: int
+    ) -> ODEResidualDerivatives[Array, BlockDiagonalFormat[Array]]:
         states = BackendVectorSpace(self._descriptor, self._bkd)
-        _, params = backend_spaces(
-            self._bkd, self._descriptor.size, self.nparams()
-        )
+        _, params = backend_spaces(self._bkd, self._descriptor.size, nparams)
         return ODEResidualDerivatives.first_order(
             states,
             params,

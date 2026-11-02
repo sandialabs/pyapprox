@@ -43,6 +43,7 @@ residual's form only where :math:`f` and its derivatives are called.
 from functools import partial
 from itertools import count
 from typing import (
+    Callable,
     Dict,
     Generic,
     List,
@@ -98,6 +99,11 @@ class _VersionedProtocol(Protocol):
     """A residual that reports its parameter version."""
 
     def parameters_version(self) -> int: ...
+
+
+def _unversioned() -> int:
+    """The version of a residual without parameters: one for its life."""
+    return 0
 
 
 class _NewStateSystem(Generic[V, A, F]):
@@ -243,6 +249,14 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 f"reuse must satisfy ReusePolicyProtocol, got {type(reuse).__name__}"
             )
         self._reuse: ReusePolicyProtocol = KeepWithinSolve() if reuse is None else reuse
+        # Whether the residual reports a version is fixed for its life, so
+        # decided once rather than by a protocol check on every call.
+        rhs = system.rhs
+        self._version: Callable[[], int] = (
+            rhs.parameters_version
+            if isinstance(rhs, _VersionedProtocol)
+            else _unversioned
+        )
         if not isinstance(method, MultistepFormulaProtocol):
             raise TypeError(
                 "method must satisfy MultistepFormulaProtocol, got "
@@ -324,8 +338,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def parameters_version(self) -> int:
         """The residual's parameter version; 0 for a residual without
         parameters, which has one version for its whole life."""
-        rhs = self._system.rhs
-        return rhs.parameters_version() if isinstance(rhs, _VersionedProtocol) else 0
+        return self._version()
 
     def _point(self, provisional: bool, version: int) -> LinearizationPoint:
         """A new label for a linearization: provisional at a Newton

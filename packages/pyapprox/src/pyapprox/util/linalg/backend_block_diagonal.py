@@ -226,6 +226,9 @@ class BackendBlockDiagonalOperator(Generic[Array]):
 
     def _apply(self, subscripts: str, x: Array) -> Array:
         bkd = self._bkd
+        if self._properties.identity:
+            # Declared and checked at construction: no product to form.
+            return bkd.copy(x)
         product = bkd.einsum(
             subscripts,
             self._format.blocks(),
