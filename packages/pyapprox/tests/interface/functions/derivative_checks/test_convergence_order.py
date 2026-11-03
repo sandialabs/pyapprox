@@ -3,17 +3,30 @@
 ``f(x) = x_0^3 + x_1^2 + sin(x_0 x_1)``, smooth, with exact Jacobian and
 Hessian-vector product. A correct derivative's finite-difference error
 falls like ``h`` (forward) or ``h**2`` (central); a wrong one stays flat.
+
+A linear ``f`` has no truncation error, so no V: with the rounding
+predicted at each step its curve passes as truncation free (the ratio of
+error to prediction at most 10, against a default allowance of 100),
+while a relative defect of 3e-9 or more fails, and a caller may widen
+the allowance. The curve's validations and the rounding formula are
+checked directly.
 """
 
 import math
 
+import numpy as np
 import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+    FDCurve,
+    predicted_rounding,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -171,3 +184,115 @@ class TestConvergenceOrder:
         error = checker.check_derivatives(self._sample(bkd), fd_eps=steps)[0]
         with pytest.raises(ValueError, match="same shape"):
             checker.convergence_order(error, steps[:-1])
+
+
+class TestTruncationFree:
+    r"""``f(x) = 3 x_0 - 2 x_1`` at (0.7, -0.4) along (0.6, 0.8): linear, so
+    forward differences are exact but for rounding, which rises as the
+    step shrinks; there is no V. The rounding predicted there is about
+    :math:`6.6 \times 10^{-15}/h` relative to :math:`J d = 0.2`."""
+
+    _STEPS = [10.0**-k for k in range(1, 14)]
+
+    def _curve(self, bkd: Backend[Array], jacobian_offset: float = 0.0) -> FDCurve:
+        """``jacobian_offset`` adds to the Jacobian's first entry, a
+        relative defect of 3 times itself along the direction."""
+
+        def value(x: Array) -> Array:
+            return bkd.reshape(3.0 * x[0] - 2.0 * x[1], (1, x.shape[1]))
+
+        def jacobian(x: Array) -> Array:
+            return bkd.asarray([[3.0 + jacobian_offset, -2.0]])
+
+        checker = DerivativeChecker(
+            FunctionWithJacobianFromCallable(
+                nqoi=1, nvars=2, fun=value, jacobian=jacobian, bkd=bkd
+            )
+        )
+        sample, direction = bkd.asarray([[0.7], [-0.4]]), bkd.asarray([[0.6], [0.8]])
+        steps = bkd.asarray(self._STEPS)
+        errors = checker.check_derivatives(
+            sample, fd_eps=steps, direction=direction
+        )[0]
+        action = bkd.dot(jacobian(sample), direction)
+        rounding = predicted_rounding(
+            float(np.finfo(np.float64).eps),
+            bkd.to_float(bkd.norm(value(sample))),
+            bkd.to_float(bkd.norm(action)),
+            bkd.to_float(bkd.norm(sample)),
+            self._STEPS,
+        )
+        return checker.curve(errors, steps, rounding=rounding)
+
+    def test_without_a_prediction_a_linear_quantity_has_no_v(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The minimum is at the largest step, not where rounding puts a
+        V's bottom, so the V test alone fails it."""
+        curve = self._curve(bkd)
+        report = FDCurve(curve.errors, curve.steps).v_shape()
+        assert report.bottom_step == 1e-1
+        assert not report.bottom_is_rounding_limited
+        assert math.isnan(report.rounding_ratio)
+        assert not report.passed
+
+    def test_with_the_prediction_it_is_truncation_free(
+        self, bkd: Backend[Array]
+    ) -> None:
+        report = self._curve(bkd).v_shape()
+        assert report.rounding_ratio <= 10.0
+        assert report.truncation_free and report.passed
+
+    @pytest.mark.parametrize("offset", [1e-3, 1e-9, -1e-9])
+    def test_a_defect_stands_out_against_rounding(
+        self, bkd: Backend[Array], offset: float
+    ) -> None:
+        report = self._curve(bkd, jacobian_offset=offset).v_shape()
+        assert not report.truncation_free
+        assert not report.passed
+
+    def test_the_rounding_factor_is_the_callers(self, bkd: Backend[Array]) -> None:
+        """A relative defect of about 1e-10, some thousand times the
+        rounding at the largest step: refused at the default factor,
+        accepted by a caller allowing 1e5."""
+        curve = self._curve(bkd, jacobian_offset=3e-11)
+        assert not curve.v_shape().passed
+        assert curve.v_shape(rounding_factor=1e5).passed
+
+
+class TestFDCurve:
+    def test_min_error(self) -> None:
+        assert FDCurve((3.0, 1.0, 2.0), (1e-1, 1e-2, 1e-3)).min_error() == 1.0
+
+    def test_rejects_errors_and_steps_of_different_lengths(self) -> None:
+        with pytest.raises(ValueError, match="same nonzero length"):
+            FDCurve((1.0, 2.0), (1e-1,))
+
+    def test_rejects_an_empty_curve(self) -> None:
+        with pytest.raises(ValueError, match="same nonzero length"):
+            FDCurve((), ())
+
+    def test_rejects_a_prediction_of_another_length(self) -> None:
+        with pytest.raises(ValueError, match="one entry per step"):
+            FDCurve((1.0, 2.0), (1e-1, 1e-2), rounding=(1e-14,))
+
+    def test_zero_errors_are_rounding(self) -> None:
+        """Differences exact to the last bit: a ratio of zero, even against
+        a zero prediction."""
+        report = FDCurve((0.0, 0.0), (1e-1, 1e-2), rounding=(0.0, 0.0)).v_shape()
+        assert report.rounding_ratio == 0.0 and report.passed
+
+    def test_an_error_against_a_zero_prediction_is_not(self) -> None:
+        report = FDCurve((1e-20, 0.0), (1e-1, 1e-2), rounding=(0.0, 0.0)).v_shape()
+        assert math.isinf(report.rounding_ratio) and not report.truncation_free
+
+
+class TestPredictedRounding:
+    def test_relative_and_absolute(self) -> None:
+        """Relative to an action of size 2: eps (2 |q| / 2 + |x|) / h;
+        against a zero action, absolute: 2 eps |q| / h."""
+        eps = 1e-16
+        relative = predicted_rounding(eps, 4.0, 2.0, 1.0, [1e-1, 1e-2])
+        assert relative == pytest.approx((5e-15 * 10, 5e-15 * 100))
+        absolute = predicted_rounding(eps, 4.0, 0.0, 1.0, [1e-1])
+        assert absolute == pytest.approx((8e-15,))

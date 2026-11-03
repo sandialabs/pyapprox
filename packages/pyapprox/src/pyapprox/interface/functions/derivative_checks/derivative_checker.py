@@ -12,6 +12,8 @@ from typing import (
     Generic,
     List,
     Optional,
+    Sequence,
+    Tuple,
 )
 
 from pyapprox.interface.functions.derivative_checks.base import (
@@ -47,24 +49,230 @@ class VShapeReport:
         steps from 10 to 1000 times this.
     max_bottom_step : float
         Largest step at which the minimum counts as set by rounding.
+    min_error : float
+        The smallest error.
     rounding_side_rises : bool
         Whether the error rises again at steps below the minimum.
     bottom_is_rounding_limited : bool
         Whether the minimum is at a step small enough to be set by rounding.
     order_matches : bool
         Whether ``order`` is close to ``expected_order``.
+    rounding_ratio : float
+        The largest ratio, over the steps, of the error to the rounding
+        error predicted for it; NaN without a prediction.
+    truncation_free : bool
+        Whether ``rounding_ratio`` is at most the allowed factor: every
+        error is rounding, as when the quantity is linear along the
+        direction, so the differences are exact and there is no V to test.
     passed : bool
-        All three checks hold.
+        ``truncation_free``, or the other three checks all hold.
     """
 
     order: float
     expected_order: float
     bottom_step: float
     max_bottom_step: float
+    min_error: float
     rounding_side_rises: bool
     bottom_is_rounding_limited: bool
     order_matches: bool
+    rounding_ratio: float
+    truncation_free: bool
     passed: bool
+
+
+@dataclass(frozen=True)
+class FDCurve:
+    r"""The finite-difference errors of one derivative over the steps,
+    kept so that a caller judges them (:meth:`v_shape`) with tolerances
+    of its own choosing, without computing them again.
+
+    Attributes
+    ----------
+    errors : tuple of float
+        The error at each step.
+    steps : tuple of float
+        The steps, in any order.
+    central : bool
+        Whether the errors came from central differences.
+    rounding : tuple of float, optional
+        The rounding error predicted at each step (about
+        :math:`\epsilon \|q\| / (h \|D q\, d\|)` for a relative error);
+        without it no curve is counted as truncation free.
+
+    Raises
+    ------
+    ValueError
+        If ``errors``, ``steps`` and ``rounding`` differ in length, or
+        ``errors`` is empty.
+    """
+
+    errors: Tuple[float, ...]
+    steps: Tuple[float, ...]
+    central: bool = False
+    rounding: Optional[Tuple[float, ...]] = None
+
+    def __post_init__(self) -> None:
+        if len(self.errors) != len(self.steps) or not self.errors:
+            raise ValueError(
+                f"errors and steps must have the same nonzero length, got "
+                f"{len(self.errors)} and {len(self.steps)}"
+            )
+        if self.rounding is not None and len(self.rounding) != len(self.errors):
+            raise ValueError(
+                f"rounding must have one entry per step, got "
+                f"{len(self.rounding)} for {len(self.errors)} steps"
+            )
+
+    def min_error(self) -> float:
+        """The smallest error."""
+        return min(self.errors)
+
+    def v_shape(
+        self,
+        order_tol: float = 0.25,
+        max_bottom_step: Optional[float] = None,
+        rounding_factor: float = 100.0,
+    ) -> VShapeReport:
+        r"""Test that the errors form the V of a correct derivative, or
+        are rounding throughout where the differences are exact.
+
+        The defaults leave a correct derivative a wide margin; a caller
+        meeting numerical noise (another platform's arithmetic, say)
+        loosens them here rather than changing the checker.
+
+        Three checks, all of which a correct derivative of a nonlinear
+        quantity passes:
+
+        1. **Rounding side.** Some step smaller than the one with the
+           smallest error has an error at least 10 times that minimum, so
+           the minimum is the bottom of a V, not the end of a plateau. The
+           steps must reach below the rounding scale (about ``1e-9``
+           forward, ``1e-6`` central).
+        2. **Rounding-limited bottom.** The minimum lies at a step no
+           larger than ``max_bottom_step``. A correct derivative's minimum
+           is set by rounding, near ``sqrt(eps)`` forward and
+           ``eps**(1/3)`` central for arguments of order one. A wrong
+           derivative can cancel the truncation error at a much larger
+           step, giving a dip.
+        3. **Order.** The slope of log error on log step, fitted over the
+           steps from 10 to 1000 times the minimum's, is within
+           ``order_tol`` of 1 (forward) or 2 (central).
+
+        A quantity linear along the direction has no truncation error, so
+        its error is rounding at every step and only rises as the step
+        shrinks: no V. Given ``rounding``, it passes instead when no error
+        exceeds ``rounding_factor`` times its prediction. A wrong
+        derivative cannot do that: at the large steps, where the predicted
+        rounding is smallest, its error is the defect itself, or, where a
+        dip cancels the truncation error at one step, the defect at the
+        neighboring steps.
+
+        Parameters
+        ----------
+        order_tol : float
+            Allowed distance of the fitted order from the expected one.
+        max_bottom_step : float, optional
+            Largest step allowed for the minimum. Default ``1e-5``
+            forward, ``1e-3`` central, which assumes arguments of order
+            one.
+        rounding_factor : float
+            How many times its predicted rounding an error may be and
+            still count as rounding.
+        """
+        errors, steps = self.errors, self.steps
+        if max_bottom_step is None:
+            max_bottom_step = 1e-3 if self.central else 1e-5
+        expected = 2.0 if self.central else 1.0
+        imin = min(range(len(errors)), key=lambda ii: errors[ii])
+        min_error, h_min = errors[imin], steps[imin]
+        smaller = [error for error, h in zip(errors, steps) if h < h_min]
+        rounding_side_rises = bool(smaller) and max(smaller) >= 10.0 * min_error
+        bottom_is_rounding_limited = h_min <= max_bottom_step
+        fitted = _fitted_order(errors, steps)
+        order = math.nan if fitted is None else fitted
+        order_matches = abs(order - expected) <= order_tol
+        rounding_ratio = (
+            math.nan
+            if self.rounding is None
+            else max(_ratio(e, scale) for e, scale in zip(errors, self.rounding))
+        )
+        truncation_free = rounding_ratio <= rounding_factor
+        return VShapeReport(
+            order=order,
+            expected_order=expected,
+            bottom_step=h_min,
+            max_bottom_step=max_bottom_step,
+            min_error=min_error,
+            rounding_side_rises=rounding_side_rises,
+            bottom_is_rounding_limited=bottom_is_rounding_limited,
+            order_matches=order_matches,
+            rounding_ratio=rounding_ratio,
+            truncation_free=truncation_free,
+            passed=truncation_free
+            or (rounding_side_rises and bottom_is_rounding_limited and order_matches),
+        )
+
+
+def predicted_rounding(
+    eps: float,
+    value_size: float,
+    action_size: float,
+    point_size: float,
+    steps: Sequence[float],
+) -> Tuple[float, ...]:
+    r"""The rounding error of a difference quotient at each step, for
+    :class:`FDCurve`: of the two values differenced (each about
+    :math:`\epsilon \|q\|`) and of the perturbed argument (about
+    :math:`\epsilon \|x\|`, carried through a derivative of size
+    :math:`\|D q\, d\|` for a unit direction), divided by the step, and
+    then by :math:`\|D q\, d\|` when the errors are relative to it
+    (``action_size`` above ``1e-16``, as the checkers use).
+
+    Parameters
+    ----------
+    eps : float
+        The machine epsilon of the arithmetic.
+    value_size : float
+        :math:`\|q(x)\|`.
+    action_size : float
+        :math:`\|D q\, d\|`.
+    point_size : float
+        :math:`\|x\|`.
+    steps : sequence of float
+        The steps.
+    """
+    if action_size > 1e-16:
+        scale = eps * (2.0 * value_size / action_size + point_size)
+    else:
+        scale = eps * 2.0 * value_size
+    return tuple(scale / h for h in steps)
+
+
+def _ratio(error: float, scale: float) -> float:
+    """``error / scale``, 0 for a zero error and infinite for a positive
+    error against a zero scale."""
+    if error == 0.0:
+        return 0.0
+    return math.inf if scale <= 0.0 else error / scale
+
+
+def _fitted_order(errors: Sequence[float], steps: Sequence[float]) -> Optional[float]:
+    """Least-squares slope of log error on log step over the steps from 10
+    to 1000 times the step with the smallest error; None if fewer than two
+    steps with positive errors lie there."""
+    h_min = steps[min(range(len(errors)), key=lambda ii: errors[ii])]
+    window = [
+        (math.log(h), math.log(error))
+        for error, h in zip(errors, steps)
+        if 10.0 * h_min <= h <= 1000.0 * h_min and error > 0.0
+    ]
+    if len(window) < 2:
+        return None
+    mean_h = sum(h for h, _ in window) / len(window)
+    mean_e = sum(e for _, e in window) / len(window)
+    numerator = sum((h - mean_h) * (e - mean_e) for h, e in window)
+    return numerator / sum((h - mean_h) ** 2 for h, _ in window)
 
 
 class DerivativeChecker(Generic[Array]):
@@ -163,14 +371,15 @@ class DerivativeChecker(Generic[Array]):
             If fewer than two steps lie in the window, which means the
             smallest error is at the largest steps; widen ``fd_eps``.
         """
-        order = self._window_order(errors, fd_eps)
+        curve = self.curve(errors, fd_eps)
+        order = _fitted_order(curve.errors, curve.steps)
         if order is None:
             raise ValueError(
                 "fewer than two steps lie 10 to 1000 times above the step with "
                 "the smallest error, so there is no truncation regime to fit; "
                 "widen fd_eps to larger steps"
             )
-        return order
+        return self.bkd().asarray(order)
 
     def check_v_shape(
         self,
@@ -181,22 +390,10 @@ class DerivativeChecker(Generic[Array]):
         max_bottom_step: Optional[float] = None,
     ) -> "VShapeReport":
         """Test that the finite-difference errors form the V of a correct
-        derivative.
-
-        Three checks, all of which a correct derivative passes:
-
-        1. **Rounding side.** Some step smaller than the one with the
-           smallest error has an error at least 10 times that minimum, so
-           the minimum is the bottom of a V, not the end of a plateau.
-           ``fd_eps`` must reach below the rounding scale (about ``1e-9``
-           forward, ``1e-6`` central).
-        2. **Rounding-limited bottom.** The minimum lies at a step no larger
-           than ``max_bottom_step``. A correct derivative's minimum is set
-           by rounding, near ``sqrt(eps)`` forward and ``eps**(1/3)``
-           central for inputs of order one. A wrong derivative can cancel
-           the truncation error at a much larger step, giving a dip.
-        3. **Order.** ``convergence_order`` is within ``order_tol`` of 1
-           (forward) or 2 (central).
+        derivative, by :meth:`FDCurve.v_shape` (which says what is
+        checked). No rounding is predicted here, so a quantity linear
+        along the direction does not pass; build the curve with
+        :meth:`curve` and a prediction for that.
 
         Use it alongside ``error_ratio``, which measures the V's depth.
 
@@ -214,63 +411,47 @@ class DerivativeChecker(Generic[Array]):
             Largest step allowed for the minimum. Default ``1e-5`` forward,
             ``1e-3`` central, which assumes inputs of order one.
         """
-        bkd = self.bkd()
-        self._check_shapes(errors, fd_eps)
-        if max_bottom_step is None:
-            max_bottom_step = 1e-3 if central else 1e-5
-        expected = 2.0 if central else 1.0
-        imin = int(bkd.to_float(bkd.argmin(errors)))
-        min_error = bkd.to_float(errors[imin])
-        h_min = bkd.to_float(fd_eps[imin])
-        smaller = [
-            bkd.to_float(errors[ii])
-            for ii in range(fd_eps.shape[0])
-            if bkd.to_float(fd_eps[ii]) < h_min
-        ]
-        rounding_side_rises = bool(smaller) and max(smaller) >= 10.0 * min_error
-        bottom_is_rounding_limited = h_min <= max_bottom_step
-        window_order = self._window_order(errors, fd_eps)
-        order = math.nan if window_order is None else bkd.to_float(window_order)
-        order_matches = abs(order - expected) <= order_tol
-        return VShapeReport(
-            order=order,
-            expected_order=expected,
-            bottom_step=h_min,
-            max_bottom_step=max_bottom_step,
-            rounding_side_rises=rounding_side_rises,
-            bottom_is_rounding_limited=bottom_is_rounding_limited,
-            order_matches=order_matches,
-            passed=(
-                rounding_side_rises and bottom_is_rounding_limited and order_matches
-            ),
-        )
+        curve = self.curve(errors, fd_eps, central)
+        return curve.v_shape(order_tol, max_bottom_step)
 
-    def _check_shapes(self, errors: Array, fd_eps: Array) -> None:
+    def curve(
+        self,
+        errors: Array,
+        fd_eps: Array,
+        central: bool = False,
+        rounding: Optional[Sequence[float]] = None,
+    ) -> FDCurve:
+        """One error array from ``check_derivatives`` and its steps as a
+        curve of plain numbers, to be judged.
+
+        Parameters
+        ----------
+        errors : Array
+            Shape: (nsteps,)
+        fd_eps : Array
+            Shape: (nsteps,)
+        central : bool
+            Whether ``errors`` came from central differences.
+        rounding : sequence of float, optional
+            The rounding error predicted at each step.
+
+        Raises
+        ------
+        ValueError
+            If the shapes of ``errors`` and ``fd_eps`` differ.
+        """
         if errors.shape != fd_eps.shape:
             raise ValueError(
                 f"errors and fd_eps must have the same shape, got "
                 f"{tuple(errors.shape)} and {tuple(fd_eps.shape)}"
             )
-
-    def _window_order(self, errors: Array, fd_eps: Array) -> Optional[Array]:
-        """Least-squares slope of log error on log step over the steps from
-        10 to 1000 times the step with the smallest error; None if fewer
-        than two steps lie there."""
         bkd = self.bkd()
-        self._check_shapes(errors, fd_eps)
-        h_min = bkd.to_float(fd_eps[int(bkd.to_float(bkd.argmin(errors)))])
-        window = [
-            ii
-            for ii in range(fd_eps.shape[0])
-            if 10.0 * h_min <= bkd.to_float(fd_eps[ii]) <= 1000.0 * h_min
-        ]
-        if len(window) < 2:
-            return None
-        log_h = bkd.log(fd_eps[window])
-        log_e = bkd.log(errors[window])
-        dh = log_h - bkd.mean(log_h)
-        de = log_e - bkd.mean(log_e)
-        return bkd.sum(dh * de) / bkd.sum(dh * dh)
+        return FDCurve(
+            tuple(bkd.to_float(errors[ii]) for ii in range(errors.shape[0])),
+            tuple(bkd.to_float(fd_eps[ii]) for ii in range(fd_eps.shape[0])),
+            central,
+            None if rounding is None else tuple(rounding),
+        )
 
     def error_ratio(self, errors: Array) -> Array:
         """Ratio of smallest to largest finite-difference error.
