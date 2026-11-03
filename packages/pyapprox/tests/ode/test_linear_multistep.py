@@ -204,7 +204,7 @@ class TestDerivatives:
         )
         checker = StepperBundleChecker(stepper, sample, set_param=model.set_param)
         report = checker.check(window, adj, param)
-        assert "param_param" in report.fd_errors
+        assert "param_param" in report.fd_checks
         assert report.failures() == []
 
 

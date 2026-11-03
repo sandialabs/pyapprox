@@ -34,7 +34,7 @@ parameter Jacobian's), and an operator declaring itself symmetric is
 checked to be.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import count
 from typing import (
     Callable,
@@ -51,6 +51,8 @@ import numpy as np
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+    FDCurve,
+    predicted_rounding,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
@@ -64,6 +66,7 @@ from pyapprox.ode.residual_derivatives import (
     ODEResidualDerivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import backend_dtype_name
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     LinearizationPoint,
@@ -82,28 +85,60 @@ class BundleCheckReport:
 
     Attributes
     ----------
-    fd_errors : Mapping[str, float]
-        For each term checked, the smallest finite-difference error over
-        the steps: relative to the operator's action, or absolute where
+    fd_checks : Mapping[str, FDCurve]
+        For each term checked, its finite-difference errors over the
+        steps with their predicted rounding, judged by :meth:`failures`:
+        each error relative to the operator's action, or absolute where
         the action is zero (a stated zero).
     transpose_errors : Mapping[str, float]
         For each operator, the relative dot-test error; for an operator
         declaring itself symmetric, also ``"<name> (symmetric)"``, the
         relative difference between its action and its transpose's.
+    structure_errors : Mapping[str, float]
+        For each structural declaration checked (a residual affine in the
+        state, a time-invariant Jacobian), the relative defect along one
+        large step: round-off when the declaration holds.
     """
 
-    fd_errors: Mapping[str, float]
+    fd_checks: Mapping[str, FDCurve]
     transpose_errors: Mapping[str, float]
+    structure_errors: Mapping[str, float] = field(default_factory=dict)
 
-    def failures(self, fd_tol: float = 1e-6, transpose_tol: float = 1e-12) -> List[str]:
-        """The names of the checks whose error exceeds its tolerance."""
-        return [
-            name for name, error in self.fd_errors.items() if not error <= fd_tol
-        ] + [
-            name
-            for name, error in self.transpose_errors.items()
-            if not error <= transpose_tol
-        ]
+    def failures(
+        self,
+        fd_tol: float = 1e-6,
+        transpose_tol: float = 1e-12,
+        structure_tol: float = 1e-6,
+        order_tol: float = 0.25,
+        max_bottom_step: Optional[float] = None,
+        rounding_factor: float = 100.0,
+    ) -> List[str]:
+        """The names of the checks that fail: a finite-difference check
+        whose smallest error exceeds ``fd_tol`` or whose errors do not form
+        a correct derivative's V (judged by :meth:`FDCurve.v_shape` with
+        ``order_tol``, ``max_bottom_step`` and ``rounding_factor``), and a
+        dot test or structural defect exceeding its tolerance.
+
+        The defaults leave correct derivatives a wide margin; loosen a
+        tolerance here for numerical noise rather than change a checker.
+        """
+        def fd_passes(curve: FDCurve) -> bool:
+            shape = curve.v_shape(order_tol, max_bottom_step, rounding_factor)
+            return curve.min_error() <= fd_tol and shape.passed
+
+        return (
+            [name for name, curve in self.fd_checks.items() if not fd_passes(curve)]
+            + [
+                name
+                for name, error in self.transpose_errors.items()
+                if not error <= transpose_tol
+            ]
+            + [
+                name
+                for name, error in self.structure_errors.items()
+                if not error <= structure_tol
+            ]
+        )
 
 
 def _unparameterized() -> int:
@@ -143,7 +178,7 @@ class _PointTerm(Generic[Array]):
         return self._action(sample[:, 0], vec)
 
 
-def smallest_fd_error(
+def fd_check(
     bkd: Backend[Array],
     point: Array,
     value: Callable[[Array], Array],
@@ -151,30 +186,41 @@ def smallest_fd_error(
     rng: np.random.Generator,
     fd_eps: Optional[Array] = None,
     central: bool = False,
-) -> float:
-    """Smallest finite-difference error of one term along a random
-    direction, by :class:`DerivativeChecker` on the term as a function
-    carrying its ``jvp`` in its bundle.
+) -> FDCurve:
+    """The finite-difference errors of one term along a random direction,
+    by :class:`DerivativeChecker` on the term as a function carrying its
+    ``jvp`` in its bundle, with their predicted rounding.
 
     ``value`` maps a 1-D point to a 1-D quantity and ``action`` a 1-D
     point and a direction block to a block; both are evaluated at
     ``point`` first, so a term that moves parameters starts there. A zero
     action is compared in absolute terms, so a false stated zero fails.
+    The steps default to ``1e-1`` down to ``1e-13``.
     """
     nvars = point.shape[0]
-    nqoi = value(point).shape[0]
+    base = value(point)
+    nqoi = base.shape[0]
     term = _PointTerm(bkd, value, action)
     direction = bkd.asarray(rng.normal(size=(nvars, 1)))
+    direction = direction / bkd.norm(direction)
     checker = DerivativeChecker(
         FunctionWithJVPFromCallable(nqoi, nvars, term.values, term.jvp, bkd)
     )
+    steps = bkd.flip(bkd.logspace(-13, -1, 13)) if fd_eps is None else fd_eps
+    rounding = predicted_rounding(
+        float(np.finfo(backend_dtype_name(bkd)).eps),
+        bkd.to_float(bkd.norm(base)),
+        bkd.to_float(bkd.norm(action(point, direction))),
+        bkd.to_float(bkd.norm(point)),
+        [bkd.to_float(steps[ii]) for ii in range(steps.shape[0])],
+    )
     errors = checker.check_derivatives(
         bkd.reshape(point, (nvars, 1)),
-        fd_eps=fd_eps,
-        direction=direction / bkd.norm(direction),
+        fd_eps=steps,
+        direction=direction,
         central=central,
     )[0]
-    return bkd.to_float(bkd.min(errors))
+    return checker.curve(errors, steps, central, rounding)
 
 
 def _random_column(
@@ -316,8 +362,8 @@ class ODEResidualBundleChecker(Generic[Array]):
         weight = self._bkd.zeros(state.shape) if adj is None else adj
         rng = np.random.default_rng(self._seed)
         try:
-            fd_errors = {
-                name: self._fd_error(point, value, action, rng)
+            fd_checks = {
+                name: self._fd_check(point, value, action, rng)
                 for name, point, value, action in self._terms(
                     bundle, state, time, weight, param
                 )
@@ -325,13 +371,14 @@ class ODEResidualBundleChecker(Generic[Array]):
             # What the Jacobian cannot depend on, it must not: f is checked
             # to be affine against it, and, for a time-invariant Jacobian,
             # at another time too.
+            structure_errors: Dict[str, float] = {}
             jacobian = bundle.jacobian
             if jacobian is not None and jacobian.affine():
-                fd_errors["affine"] = self._affine_error(
+                structure_errors["affine"] = self._affine_error(
                     self._fetch(param), state, time, rng
                 )
             if jacobian is not None and jacobian.time_invariant():
-                fd_errors["time_invariant"] = self._affine_error(
+                structure_errors["time_invariant"] = self._affine_error(
                     self._fetch(param), state, time + 1.0, rng
                 )
             dot_errors = self._transpose_errors(
@@ -339,7 +386,7 @@ class ODEResidualBundleChecker(Generic[Array]):
             )
         finally:
             self._fetch(param)
-        return BundleCheckReport(fd_errors, dot_errors)
+        return BundleCheckReport(fd_checks, dot_errors, structure_errors)
 
     def _affine_error(
         self,
@@ -488,14 +535,14 @@ class ODEResidualBundleChecker(Generic[Array]):
             )
         return terms
 
-    def _fd_error(
+    def _fd_check(
         self,
         point: Array,
         value: Callable[[Array], Array],
         action: Callable[[Array, Array], Array],
         rng: np.random.Generator,
-    ) -> float:
-        return smallest_fd_error(
+    ) -> FDCurve:
+        return fd_check(
             self._bkd, point, value, action, rng, self._fd_eps, self._central
         )
 

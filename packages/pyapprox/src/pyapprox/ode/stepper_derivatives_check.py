@@ -43,6 +43,16 @@ a vector space provides.
 from dataclasses import dataclass, replace
 from typing import Callable, Dict, Generic, List, Optional, Sequence, Tuple, TypeVar
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    FDCurve,
+)
+from pyapprox.ode._space_checks import (
+    DEFAULT_FD_STEPS,
+    SpaceSampler,
+    scalar,
+    space_dot_test_error,
+    space_fd_check,
+)
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
 from pyapprox.ode.residual_derivatives_check import BundleCheckReport
 from pyapprox.ode.stepper_derivatives import (
@@ -60,20 +70,11 @@ from pyapprox.util.linalg.operators import (
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 
-_DEFAULT_STEPS = tuple(10.0**-k for k in range(1, 14))
-"""Finite-difference steps, 1e-1 down to 1e-13."""
-
 _Point = Tuple[StepWindow[V], StepperDerivatives[V]]
 """A window and the bundle fetched for the parameters it was taken at."""
 
 _OperatorAt = Callable[[StepWindow[V], StepperDerivatives[V]], StepOperator[V]]
 """Picks one operator from a stepper at a window and its bundle."""
-
-
-def _scalar(value: A) -> float:
-    """A ``(1, 1)`` reduction (a single column's norm or dot) as a float,
-    for the report: no value derived from it flows into a computation."""
-    return float(value.item())
 
 
 @dataclass(frozen=True)
@@ -158,7 +159,7 @@ class StepperBundleChecker(Generic[V, A]):
         stepper: DifferentiableStepperProtocol[V, A],
         sample: Callable[[SpaceDescriptor, int], V],
         set_param: Optional[Callable[[V], None]] = None,
-        fd_steps: Sequence[float] = _DEFAULT_STEPS,
+        fd_steps: Sequence[float] = DEFAULT_FD_STEPS,
         central: bool = False,
         seed: int = 0,
     ) -> None:
@@ -207,7 +208,7 @@ class StepperBundleChecker(Generic[V, A]):
             If ``param``, ``set_param`` or ``adj`` is missing where the
             bundle needs it.
         """
-        self._next_seed = self._seed
+        self._sampler = SpaceSampler(self._sample, self._seed)
         derivs = self._fetch(param)
         if derivs.param is not None and (param is None or self._set_param is None):
             raise ValueError(
@@ -222,11 +223,11 @@ class StepperBundleChecker(Generic[V, A]):
             terms = self._first_order_terms(derivs, window, param)
             if adj is not None and param is not None:
                 terms += self._second_order_terms(derivs, window, adj, param)
-            fd_errors = {term.name: self._fd_error(term) for term in terms}
+            fd_checks = {term.name: self._fd_check(term) for term in terms}
             dot_errors = self._transpose_errors(self._fetch(param), window, adj)
         finally:
             self._fetch(param)
-        return BundleCheckReport(fd_errors, dot_errors)
+        return BundleCheckReport(fd_checks, dot_errors)
 
     # ------------------------------------------------------------------
     # Random vectors, parameters and the arguments of the step residual
@@ -234,13 +235,7 @@ class StepperBundleChecker(Generic[V, A]):
 
     def _random(self, space: BlockInnerProductSpace[V, A]) -> BlockVector[V]:
         """A random single column of ``space``, component by component."""
-        blocks = []
-        for i in range(space.nblocks()):
-            blocks.append(
-                self._sample(space.component(i).descriptor(), self._next_seed)
-            )
-            self._next_seed += 1
-        return BlockVector(tuple(blocks))
+        return self._sampler.random(space)
 
     def _fetch(self, param: Optional[V]) -> StepperDerivatives[V]:
         """Set ``param`` (when given) and fetch the stepper's bundle: a
@@ -520,27 +515,22 @@ class StepperBundleChecker(Generic[V, A]):
         )
         return terms
 
-    def _fd_error(self, term: _Term[V, A]) -> float:
-        """The smallest finite-difference error of ``term`` over the steps,
-        along one random unit direction: relative to the action's norm, or
-        absolute where the action is zero (a stated zero)."""
-        arg, output = term.arg, term.output
-        direction = self._random(arg.space)
-        direction = arg.space.scale(1.0 / _scalar(arg.space.norm(direction)), direction)
-        base = term.quantity(arg.point)
-        exact = term.action(arg.point, direction)
-        scale = _scalar(output.norm(exact))
-        errors = []
-        for h in self._fd_steps:
-            plus = term.quantity(arg.space.axpby(h, direction, 1.0, arg.point))
-            if self._central:
-                minus = term.quantity(arg.space.axpby(-h, direction, 1.0, arg.point))
-                difference = output.axpby(0.5 / h, plus, -0.5 / h, minus)
-            else:
-                difference = output.axpby(1.0 / h, plus, -1.0 / h, base)
-            error = _scalar(output.norm(output.axpby(1.0, difference, -1.0, exact)))
-            errors.append(error / scale if scale > 1e-16 else error)
-        return min(errors)
+    def _fd_check(self, term: _Term[V, A]) -> FDCurve:
+        """The finite-difference errors of ``term`` over the steps, along
+        one random unit direction, with their predicted rounding: relative
+        to the action's norm, or absolute where the action is zero (a
+        stated zero)."""
+        arg = term.arg
+        return space_fd_check(
+            arg.point,
+            arg.space,
+            term.output,
+            term.quantity,
+            term.action,
+            self._random(arg.space),
+            self._fd_steps,
+            self._central,
+        )
 
     # ------------------------------------------------------------------
     # Dot tests and the diagonal handle
@@ -555,13 +545,9 @@ class StepperBundleChecker(Generic[V, A]):
         r"""The relative difference of :math:`\langle w, A v\rangle` and
         :math:`\langle A^\top w, v\rangle` for random ``v`` and ``w``."""
         v, w = self._random(domain), self._random(range_)
-        av, atw = op.apply(v), op.apply_transpose(w)
-        scale = max(
-            _scalar(range_.norm(w)) * _scalar(range_.norm(av)),
-            _scalar(domain.norm(v)) * _scalar(domain.norm(atw)),
+        return space_dot_test_error(
+            op.apply, op.apply_transpose, v, w, domain, range_
         )
-        difference = _scalar(range_.dot(w, av)) - _scalar(domain.dot(atw, v))
-        return 0.0 if scale == 0.0 else abs(difference) / scale
 
     def _symmetry_error(
         self, op: StepOperator[V], space: BlockInnerProductSpace[V, A]
@@ -569,8 +555,8 @@ class StepperBundleChecker(Generic[V, A]):
         """The relative difference of :math:`A v` and :math:`A^\\top v`."""
         v = self._random(space)
         av, atv = op.apply(v), op.apply_transpose(v)
-        scale = max(_scalar(space.norm(av)), _scalar(space.norm(atv)))
-        difference = _scalar(space.norm(space.axpby(1.0, av, -1.0, atv)))
+        scale = max(scalar(space.norm(av)), scalar(space.norm(atv)))
+        difference = scalar(space.norm(space.axpby(1.0, av, -1.0, atv)))
         return 0.0 if scale == 0.0 else difference / scale
 
     def _transpose_errors(
@@ -656,10 +642,10 @@ class StepperBundleChecker(Generic[V, A]):
         diag = stepper.diag(window)
         handle = stepper.diag_handle(window)
         x = self._random(unknown)
-        size = _scalar(unknown.norm(x))
+        size = scalar(unknown.norm(x))
 
         def relative_error(recovered: BlockVector[V]) -> float:
-            return _scalar(unknown.norm(unknown.axpby(1.0, recovered, -1.0, x))) / size
+            return scalar(unknown.norm(unknown.axpby(1.0, recovered, -1.0, x))) / size
 
         # Solve with the handle after applying the operator: x again.
         errors = {"diag_handle": relative_error(handle.apply(diag.apply(x)))}

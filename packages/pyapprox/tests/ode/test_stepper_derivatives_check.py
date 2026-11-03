@@ -264,17 +264,31 @@ class TestPlantedFaults:
         )
         report = checker.check(case.window, case.adj, case.param)
         assert report.failures() == ["off_diag[1]"]
-        assert report.fd_errors["off_diag[1]"] < 1e-6
+        assert report.fd_checks["off_diag[1]"].min_error() < 1e-6
         assert report.transpose_errors["off_diag[1]"] > 1e-3
 
-    @pytest.mark.parametrize(
-        "size, caught", [(1e-3, True), (1e-5, True), (1e-8, False)]
-    )
-    def test_detection_threshold_is_the_tolerance(
-        self, bkd: Backend[Array], size: float, caught: bool
+    @pytest.mark.parametrize("size", [1e-3, 1e-8, 1e-10])
+    def test_detection_reaches_below_the_tolerance(
+        self, bkd: Backend[Array], size: float
     ) -> None:
-        failures = _planted_report(bkd, _scale_param(1.0 + size))
-        assert ("param" in failures) == caught
+        """The residual is linear in the parameters, so a correct
+        derivative's errors are rounding at every step; a relative defect
+        far below the 1e-6 tolerance on the smallest error still stands
+        out against that rounding."""
+        assert "param" in _planted_report(bkd, _scale_param(1.0 + size))
+
+    def test_the_caller_loosens_the_judgment(self, bkd: Backend[Array]) -> None:
+        """Slack for numerical noise is the caller's, at the report: a
+        1e-10 defect fails by default and passes with a rounding factor
+        of 1e6, without checking again."""
+        case = lotka_volterra_step(bkd, backward_euler())
+        planted = _Planted(case.stepper, _scale_param(1.0 + 1e-10), 1.0)
+        checker = StepperBundleChecker(
+            planted, backend_sample(bkd), set_param=case.model.set_param
+        )
+        report = checker.check(case.window, case.adj, case.param)
+        assert report.failures() == ["param"]
+        assert report.failures(rounding_factor=1e6) == []
 
 
 class TestCheckerContract:
@@ -311,5 +325,5 @@ class TestOnAnOpaqueStack:
         span = StepSpan.first(0.0, 0.1)
         window = StepWindow(span, (state,), stepper.step((state,), span))
         report = StepperBundleChecker(stepper, mock_sample).check(window)
-        assert set(report.fd_errors) == {"diag", "off_diag[1]"}
+        assert set(report.fd_checks) == {"diag", "off_diag[1]"}
         assert report.failures() == []

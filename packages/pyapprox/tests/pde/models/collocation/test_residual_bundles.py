@@ -49,7 +49,7 @@ class TestCollocationBundles:
         assert bundle.param is None and bundle.state_state is None
         assert bundle.jacobian is not None
         report = ODEResidualBundleChecker(adapter).check(_state(bkd, nodes), 0.2)
-        assert set(report.fd_errors) == {"jacobian"}
+        assert set(report.fd_checks) == {"jacobian"}
         assert report.failures() == []
         assert adapter.derivatives() is bundle  # built once
 
@@ -75,7 +75,7 @@ class TestCollocationBundles:
         report = ODEResidualBundleChecker(adapter).check(
             _state(bkd, nodes), 0.2, param=param
         )
-        assert set(report.fd_errors) == {"jacobian", "param"}
+        assert set(report.fd_checks) == {"jacobian", "param"}
         assert report.failures() == []
 
     def test_hvp_tier(self, bkd: Backend[Array]) -> None:
@@ -94,7 +94,7 @@ class TestCollocationBundles:
         report = ODEResidualBundleChecker(adapter).check(
             _state(bkd, nodes), 0.2, bkd.cos(nodes), param
         )
-        assert set(report.fd_errors) == {
+        assert set(report.fd_checks) == {
             "jacobian",
             "param",
             "state_state",

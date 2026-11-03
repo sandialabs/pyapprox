@@ -73,7 +73,7 @@ def test_bundle_passes_the_checker(bkd: Backend[Array], name: str) -> None:
     state = bkd.asarray(rng.uniform(0.2, 1.5, nstates))
     adj = bkd.asarray(rng.normal(size=nstates))
     report = ODEResidualBundleChecker(residual).check(state, 0.3, adj, param)
-    assert "param" in report.fd_errors
+    assert "param" in report.fd_checks
     assert report.failures() == []
 
 
@@ -107,5 +107,5 @@ def test_decoupled_initial_state(bkd: Backend[Array]) -> None:
         bkd.asarray([0.3, -0.7, 1.1]),
         bkd.asarray([0.6, 0.9]),
     )
-    assert {"initial_state", "initial_state_curvature"} <= set(report.fd_errors)
+    assert {"initial_state", "initial_state_curvature"} <= set(report.fd_checks)
     assert report.failures() == []

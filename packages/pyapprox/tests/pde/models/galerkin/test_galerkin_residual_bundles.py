@@ -244,7 +244,8 @@ class TestGalerkinBundles:
         assert bundle.param is None and bundle.state_state is None
         assert bundle.jacobian is not None
         report = ODEResidualBundleChecker(adapter).check(heat.state, _TIME)
-        assert set(report.fd_errors) == {"jacobian", "affine", "time_invariant"}
+        assert set(report.fd_checks) == {"jacobian"}
+        assert set(report.structure_errors) == {"affine", "time_invariant"}
         assert report.failures() == []
         assert adapter.derivatives() is bundle  # built once
 
@@ -271,7 +272,7 @@ class TestGalerkinBundles:
             assert jacobian.affine()
             assert jacobian.time_invariant() == constant
             report = ODEResidualBundleChecker(adapter).check(state, _TIME)
-            assert ("time_invariant" in report.fd_errors) == constant
+            assert ("time_invariant" in report.structure_errors) == constant
             assert report.failures() == []
 
     def test_the_jacobian_is_the_stack_operator(self, numpy_bkd: NumpyBkd) -> None:
@@ -313,13 +314,8 @@ class TestGalerkinBundles:
         report = ODEResidualBundleChecker(
             adapter, _ConstantInitialState(heat.nstates)
         ).check(heat.state, _TIME, param=param)
-        assert set(report.fd_errors) == {
-            "jacobian",
-            "param",
-            "initial_state",
-            "affine",
-            "time_invariant",
-        }
+        assert set(report.fd_checks) == {"jacobian", "param", "initial_state"}
+        assert set(report.structure_errors) == {"affine", "time_invariant"}
         assert report.failures() == []
 
     @pytest.mark.parametrize("treatment", _TREATMENTS)
@@ -339,7 +335,7 @@ class TestGalerkinBundles:
         report = ODEResidualBundleChecker(
             adapter, _ConstantInitialState(heat.nstates)
         ).check(heat.state, _TIME, heat.adj, param)
-        assert set(report.fd_errors) == {
+        assert set(report.fd_checks) == {
             "jacobian",
             "param",
             "initial_state",
@@ -348,9 +344,8 @@ class TestGalerkinBundles:
             "param_state",
             "param_param",
             "initial_state_curvature",
-            "affine",
-            "time_invariant",
         }
+        assert set(report.structure_errors) == {"affine", "time_invariant"}
         assert report.failures() == []
 
     def test_parameters_live_in_the_states_stack(self, numpy_bkd: NumpyBkd) -> None:

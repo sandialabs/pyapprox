@@ -145,5 +145,5 @@ class TestCheckerPasses:
     ) -> None:
         case = lotka_volterra_step(bkd, make())
         report = backend_checker(case, bkd).check(case.window, case.adj, case.param)
-        assert "param_param" in report.fd_errors
+        assert "param_param" in report.fd_checks
         assert report.failures() == []

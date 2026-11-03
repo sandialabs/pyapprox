@@ -219,7 +219,7 @@ class TestCorrectBundles:
     def test_every_term_passes(self, bkd: Backend[Array]) -> None:
         state, adj, param = _point(bkd)
         report = _checker(bkd).check(state, _TIME, adj, param)
-        assert set(report.fd_errors) == {
+        assert set(report.fd_checks) == {
             "jacobian",
             "param",
             "state_state",
@@ -250,7 +250,7 @@ class TestCorrectBundles:
         residual = _Edited(model, lambda bundle, _: only)
         state, _, _ = _point(bkd)
         report = ODEResidualBundleChecker(residual).check(state, _TIME)
-        assert set(report.fd_errors) == {"jacobian"}
+        assert set(report.fd_checks) == {"jacobian"}
         assert report.failures() == []
 
     def test_central_differences(self, bkd: Backend[Array]) -> None:
@@ -343,7 +343,7 @@ class TestPlantedFaults:
         state, adj, param = _point(bkd)
         residual = _Edited(LotkaVolterra(bkd), _wrong_transpose)
         report = ODEResidualBundleChecker(residual).check(state, _TIME, adj, param)
-        assert report.fd_errors["jacobian"] <= 1e-6
+        assert report.fd_checks["jacobian"].min_error() <= 1e-6
         assert report.transpose_errors["jacobian"] > 1e-3
 
 
@@ -394,8 +394,8 @@ class TestJacobianLevels:
         report = ODEResidualBundleChecker(model).check(
             bkd.asarray([1.0, -0.5, 2.0]), _TIME
         )
-        assert report.fd_errors["affine"] < 1e-13
-        assert report.fd_errors["time_invariant"] < 1e-13
+        assert report.structure_errors["affine"] < 1e-13
+        assert report.structure_errors["time_invariant"] < 1e-13
         assert report.failures() == []
 
     def test_a_false_state_free_jacobian_is_reported_under_affine(
@@ -410,7 +410,7 @@ class TestJacobianLevels:
         )
         residual = _Edited(model, lambda bundle, _: frozen)
         report = ODEResidualBundleChecker(residual).check(state, _TIME)
-        assert report.fd_errors["affine"] > 1e-2
+        assert report.structure_errors["affine"] > 1e-2
         assert report.failures() == ["affine"]
 
     def test_a_false_constant_jacobian_is_reported_under_time_invariant(
@@ -420,8 +420,8 @@ class TestJacobianLevels:
         report = ODEResidualBundleChecker(model).check(
             bkd.asarray([1.0, -0.5, 2.0]), _TIME
         )
-        assert report.fd_errors["affine"] < 1e-13
-        assert report.fd_errors["time_invariant"] > 1e-2
+        assert report.structure_errors["affine"] < 1e-13
+        assert report.structure_errors["time_invariant"] > 1e-2
         assert report.failures() == ["time_invariant"]
 
     def test_a_general_jacobian_is_checked_for_neither(
@@ -429,8 +429,8 @@ class TestJacobianLevels:
     ) -> None:
         state, adj, param = _point(bkd)
         report = _checker(bkd).check(state, _TIME, adj, param)
-        assert "affine" not in report.fd_errors
-        assert "time_invariant" not in report.fd_errors
+        assert "affine" not in report.structure_errors
+        assert "time_invariant" not in report.structure_errors
 
 
 class TestInitialState:
@@ -443,7 +443,7 @@ class TestInitialState:
             return bkd.asarray([1.0, 2.0])
 
         report = _checker(bkd, constant).check(state, _TIME, adj, param)
-        assert {"initial_state", "initial_state_curvature"} <= set(report.fd_errors)
+        assert {"initial_state", "initial_state_curvature"} <= set(report.fd_checks)
         assert report.failures() == []
 
     def test_a_stated_zero_fails_when_the_initial_state_moves(
