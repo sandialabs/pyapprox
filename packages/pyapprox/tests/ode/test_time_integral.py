@@ -35,7 +35,6 @@ time and the parameters.
   integrand has no second derivatives.
 """
 
-import math
 from typing import Callable, Generic
 
 import pytest
@@ -72,87 +71,13 @@ from tests._helpers.ode.trajectory_cases import (
     ALL_METHODS,
     START,
     STEPS,
+    EnergyIntegrand,
     Method,
     Stepper,
     make_stepper,
     random_direction,
     tikhonov_mse,
 )
-
-_S = [[0.3], [-0.2], [0.5], [0.1]]
-
-
-class _Integrand(Generic[Array]):
-    r""":math:`q = \cos(t)\, y^\top y / 100 + (s^\top p)(\mathbf 1^\top
-    y)`, shape (1, 1), at the parameters last set; with its second
-    derivatives unless ``second_order`` is False."""
-
-    def __init__(self, bkd: Backend[Array], second_order: bool = True) -> None:
-        self._bkd = bkd
-        self._s = bkd.asarray(_S)
-        self._param = bkd.asarray(LV_PARAM)
-        self._second_order = second_order
-
-    def set_param(self, param: Array) -> None:
-        self._param = param
-
-    def nqoi(self) -> int:
-        return 1
-
-    def value(self, state: Array, time: float) -> Array:
-        bkd = self._bkd
-        return math.cos(time) * bkd.dot(state.T, state) / 100.0 + bkd.dot(
-            self._s.T, self._param
-        ) * bkd.sum(state, axis=0, keepdims=True)
-
-    def _state_gradient(
-        self, state: Array, time: float
-    ) -> BackendScalarGradient[Array]:
-        weight = self._bkd.dot(self._s.T, self._param)
-        gradient = 2.0 * math.cos(time) * state / 100.0 + weight * self._bkd.ones(
-            state.shape
-        )
-        return BackendScalarGradient(gradient, self._bkd)
-
-    def _param_gradient(
-        self, state: Array, time: float
-    ) -> BackendScalarGradient[Array]:
-        gradient = self._s * self._bkd.sum(state, axis=0, keepdims=True)
-        return BackendScalarGradient(gradient, self._bkd)
-
-    def _state_state(
-        self, state: Array, time: float, weights: Array, w: Array
-    ) -> Array:
-        return 2.0 * math.cos(time) * w / 100.0 * weights
-
-    def _state_param(
-        self, state: Array, time: float, weights: Array, v: Array
-    ) -> Array:
-        return self._bkd.dot(self._s.T, v) * self._bkd.ones(state.shape) * weights
-
-    def _param_state(
-        self, state: Array, time: float, weights: Array, w: Array
-    ) -> Array:
-        return self._s * self._bkd.sum(w, axis=0, keepdims=True) * weights
-
-    def _param_param(
-        self, state: Array, time: float, weights: Array, v: Array
-    ) -> Array:
-        return 0.0 * v
-
-    def derivatives(self) -> IntegrandDerivatives[Array, Array]:
-        if not self._second_order:
-            return IntegrandDerivatives.first_order(
-                self._state_gradient, self._param_gradient
-            )
-        return IntegrandDerivatives.second_order(
-            self._state_gradient,
-            self._param_gradient,
-            self._state_state,
-            self._state_param,
-            self._param_state,
-            self._param_param,
-        )
 
 
 class _Problem(Generic[Array]):
@@ -172,7 +97,7 @@ class _Problem(Generic[Array]):
         self._stepper: Stepper[Array] = make_stepper(
             method, dense_mass_form_system(self._model)
         )
-        self._integrand = _Integrand(bkd, second_order)
+        self._integrand = EnergyIntegrand(bkd, second_order)
         self._integral: TimeIntegral[Array, Array] = TimeIntegral(
             self._integrand, self._stepper, bkd
         )

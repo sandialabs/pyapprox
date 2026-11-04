@@ -3,6 +3,7 @@ with a mass under a Tikhonov-augmented MSE, a curved time-dependent
 constraint, a parameter cross-term initial state, and the
 finite-difference checks of the gradient and HVP."""
 
+import math
 from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
@@ -40,10 +41,11 @@ from pyapprox.ode.tableau import (
     backward_euler,
     heun,
 )
+from pyapprox.ode.time_integral import IntegrandDerivatives
 from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
-from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
@@ -91,6 +93,84 @@ def make_stepper(
         else lm_stepper(method, system, row_pinning)
     )
     return stepper
+
+
+_S = [[0.3], [-0.2], [0.5], [0.1]]
+
+
+class EnergyIntegrand(Generic[Array]):
+    r""":math:`q = \cos(t)\, y^\top y / 100 + (s^\top p)(\mathbf 1^\top
+    y)`, shape (1, 1), with :math:`s = (0.3, -0.2, 0.5, 0.1)`, at the
+    parameters last set: it reads the state nonlinearly, the time and the
+    parameters. With its second derivatives unless ``second_order`` is
+    False."""
+
+    def __init__(self, bkd: Backend[Array], second_order: bool = True) -> None:
+        self._bkd = bkd
+        self._s = bkd.asarray(_S)
+        self._param = bkd.asarray(LV_PARAM)
+        self._second_order = second_order
+
+    def set_param(self, param: Array) -> None:
+        self._param = param
+
+    def nqoi(self) -> int:
+        return 1
+
+    def value(self, state: Array, time: float) -> Array:
+        bkd = self._bkd
+        return math.cos(time) * bkd.dot(state.T, state) / 100.0 + bkd.dot(
+            self._s.T, self._param
+        ) * bkd.sum(state, axis=0, keepdims=True)
+
+    def _state_gradient(
+        self, state: Array, time: float
+    ) -> BackendScalarGradient[Array]:
+        weight = self._bkd.dot(self._s.T, self._param)
+        gradient = 2.0 * math.cos(time) * state / 100.0 + weight * self._bkd.ones(
+            state.shape
+        )
+        return BackendScalarGradient(gradient, self._bkd)
+
+    def _param_gradient(
+        self, state: Array, time: float
+    ) -> BackendScalarGradient[Array]:
+        gradient = self._s * self._bkd.sum(state, axis=0, keepdims=True)
+        return BackendScalarGradient(gradient, self._bkd)
+
+    def _state_state(
+        self, state: Array, time: float, weights: Array, w: Array
+    ) -> Array:
+        return 2.0 * math.cos(time) * w / 100.0 * weights
+
+    def _state_param(
+        self, state: Array, time: float, weights: Array, v: Array
+    ) -> Array:
+        return self._bkd.dot(self._s.T, v) * self._bkd.ones(state.shape) * weights
+
+    def _param_state(
+        self, state: Array, time: float, weights: Array, w: Array
+    ) -> Array:
+        return self._s * self._bkd.sum(w, axis=0, keepdims=True) * weights
+
+    def _param_param(
+        self, state: Array, time: float, weights: Array, v: Array
+    ) -> Array:
+        return 0.0 * v
+
+    def derivatives(self) -> IntegrandDerivatives[Array, Array]:
+        if not self._second_order:
+            return IntegrandDerivatives.first_order(
+                self._state_gradient, self._param_gradient
+            )
+        return IntegrandDerivatives.second_order(
+            self._state_gradient,
+            self._param_gradient,
+            self._state_state,
+            self._state_param,
+            self._param_state,
+            self._param_param,
+        )
 
 
 def tikhonov_mse(
