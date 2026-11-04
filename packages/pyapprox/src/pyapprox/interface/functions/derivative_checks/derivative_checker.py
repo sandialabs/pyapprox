@@ -155,9 +155,15 @@ class FDCurve:
            ``eps**(1/3)`` central for arguments of order one. A wrong
            derivative can cancel the truncation error at a much larger
            step, giving a dip.
-        3. **Order.** The slope of log error on log step, fitted over the
-           steps from 10 to 1000 times the minimum's, is within
-           ``order_tol`` of 1 (forward) or 2 (central).
+        3. **Order.** The slope of log error on log step on the truncation
+           side is within ``order_tol`` of 1 (forward) or 2 (central).
+           Without ``rounding`` it is fitted over the steps from 10 to
+           1000 times the minimum's. With it, over the two decades from
+           the smallest step above the minimum whose error exceeds
+           ``rounding_factor`` times its predicted rounding: a V with a
+           broad bottom puts steps a decade above its minimum where
+           rounding and truncation are comparable, which flattens a fit
+           there, by an amount that differs between platforms.
 
         A quantity linear along the direction has no truncation error, so
         its error is rounding at every step and only rises as the step
@@ -189,7 +195,11 @@ class FDCurve:
         smaller = [error for error, h in zip(errors, steps) if h < h_min]
         rounding_side_rises = bool(smaller) and max(smaller) >= 10.0 * min_error
         bottom_is_rounding_limited = h_min <= max_bottom_step
-        fitted = _fitted_order(errors, steps)
+        fitted = (
+            _fitted_order(errors, steps)
+            if self.rounding is None
+            else _truncation_order(errors, steps, self.rounding, rounding_factor, h_min)
+        )
         order = math.nan if fitted is None else fitted
         order_matches = abs(order - expected) <= order_tol
         rounding_ratio = (
@@ -262,10 +272,47 @@ def _fitted_order(errors: Sequence[float], steps: Sequence[float]) -> Optional[f
     to 1000 times the step with the smallest error; None if fewer than two
     steps with positive errors lie there."""
     h_min = steps[min(range(len(errors)), key=lambda ii: errors[ii])]
+    return _slope(errors, steps, 10.0 * h_min, 1000.0 * h_min, 0.0)
+
+
+def _truncation_order(
+    errors: Sequence[float],
+    steps: Sequence[float],
+    rounding: Sequence[float],
+    rounding_factor: float,
+    h_min: float,
+) -> Optional[float]:
+    """Least-squares slope of log error on log step over the two decades
+    from the smallest step above ``h_min`` whose error exceeds
+    ``rounding_factor`` times its predicted rounding; None if there is no
+    such step or fewer than two steps lie in the window."""
+    truncated = [
+        h
+        for error, h, scale in zip(errors, steps, rounding)
+        if h > h_min and error > rounding_factor * scale
+    ]
+    if not truncated:
+        return None
+    start = min(truncated)
+    # The window's upper end is a computed multiple of a step, so a step
+    # two decades up may miss it by rounding: allow for that.
+    return _slope(errors, steps, start, 100.0 * start, 1e-12)
+
+
+def _slope(
+    errors: Sequence[float],
+    steps: Sequence[float],
+    low: float,
+    high: float,
+    allowance: float,
+) -> Optional[float]:
+    """Least-squares slope of log error on log step over the steps in
+    ``[low, high]``, widened by the relative ``allowance``; None if fewer
+    than two with positive errors lie there."""
     window = [
         (math.log(h), math.log(error))
         for error, h in zip(errors, steps)
-        if 10.0 * h_min <= h <= 1000.0 * h_min and error > 0.0
+        if low * (1.0 - allowance) <= h <= high * (1.0 + allowance) and error > 0.0
     ]
     if len(window) < 2:
         return None

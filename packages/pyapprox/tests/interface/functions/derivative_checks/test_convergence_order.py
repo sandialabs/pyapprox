@@ -8,8 +8,10 @@ A linear ``f`` has no truncation error, so no V: with the rounding
 predicted at each step its curve passes as truncation free (the ratio of
 error to prediction at most 10, against a default allowance of 100),
 while a relative defect of 3e-9 or more fails, and a caller may widen
-the allowance. The curve's validations and the rounding formula are
-checked directly.
+the allowance. A recorded curve with a broad bottom fails an order fit
+by the minimum (order below 0.75) and passes one on the truncation side
+the prediction marks (order 1). The curve's validations and the rounding
+formula are checked directly.
 """
 
 import math
@@ -260,6 +262,35 @@ class TestTruncationFree:
         assert curve.v_shape(rounding_factor=1e5).passed
 
 
+class TestBroadBottom:
+    r"""A forward-difference curve recorded from a correct derivative
+    (:math:`0.3\, p` of :math:`0.15\, p^\top p` under Torch), steps
+    1e-1 down to 1e-13: the error falls a decade per decade down to
+    1e-7, then lies flat near 1e-7 for two decades before rounding
+    rises."""
+
+    _ERRORS = (
+        *(1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7),
+        *(1e-7, 9e-8, 2e-6, 5e-5, 4e-4, 9e-4),
+    )
+    _STEPS = tuple(10.0**-k for k in range(1, 14))
+    _ROUNDING = tuple(1.1e-15 / h for h in _STEPS)
+
+    def test_a_window_by_the_minimum_lands_on_the_flat_bottom(self) -> None:
+        """Fitted 1 to 3 decades above the minimum (1e-9), the order is
+        flattened by the transition to rounding and the curve fails."""
+        report = FDCurve(self._ERRORS, self._STEPS).v_shape()
+        assert report.order < 0.75 and not report.passed
+
+    def test_a_window_by_the_prediction_fits_the_truncation_side(self) -> None:
+        """The truncation side starts at 1e-6, the smallest step whose
+        error exceeds 100 times its predicted rounding: fitted there, the
+        order is 1."""
+        report = FDCurve(self._ERRORS, self._STEPS, rounding=self._ROUNDING).v_shape()
+        assert abs(report.order - 1.0) < 1e-12
+        assert not report.truncation_free and report.passed
+
+
 class TestFDCurve:
     def test_min_error(self) -> None:
         assert FDCurve((3.0, 1.0, 2.0), (1e-1, 1e-2, 1e-3)).min_error() == 1.0
@@ -288,11 +319,13 @@ class TestFDCurve:
 
 
 class TestPredictedRounding:
-    def test_relative_and_absolute(self) -> None:
+    def test_relative_and_absolute(self, numpy_bkd: Backend[Array]) -> None:
         """Relative to an action of size 2: eps (2 |q| / 2 + |x|) / h;
         against a zero action, absolute: 2 eps |q| / h."""
-        eps = 1e-16
+        bkd, eps = numpy_bkd, 1e-16
         relative = predicted_rounding(eps, 4.0, 2.0, 1.0, [1e-1, 1e-2])
-        assert relative == pytest.approx((5e-15 * 10, 5e-15 * 100))
+        bkd.assert_allclose(
+            bkd.asarray(relative), bkd.asarray([5e-15, 5e-14]), rtol=1e-12
+        )
         absolute = predicted_rounding(eps, 4.0, 0.0, 1.0, [1e-1])
-        assert absolute == pytest.approx((8e-15,))
+        bkd.assert_allclose(bkd.asarray(absolute), bkd.asarray([8e-15]), rtol=1e-12)
