@@ -5,7 +5,12 @@ order (computed from its coefficients: first order :math:`\sum b = 1`,
 second :math:`\sum b c = 1/2`, third :math:`\sum b c^2 = 1/3` and
 :math:`b^\top A c = 1/6`, fourth the four further conditions) and has the
 declared structure (explicit, trivial first stage, stiffly accurate);
-malformed tableaux are refused.
+malformed tableaux are refused. Continuous extensions: at theta = 0.25,
+0.5, 0.8 every tableau's weights meet the conditions of its extension's
+order with theta^k/k! on the right (3 for RK4, 2 for Heun and
+Crank-Nicolson, 1 for the default theta b), with b(0) = 0 and b(1) = b;
+RK4's fails an order-4 condition; a misshaped or mis-summed extension and
+a theta outside [0, 1] are refused.
 
 Linear step: on :math:`M \dot y = K y` (3 states, a nontrivial mass) one
 step from :math:`y_n` equals the closed-form Runge-Kutta update, stages
@@ -63,6 +68,9 @@ from tests._helpers.ode.runge_kutta_cases import (
 )
 
 _Np = NDArray[np.float64]
+# The orders of the declared continuous extensions; the others are the
+# default theta b, order 1.
+_CONTINUOUS_ORDER = {"classical RK4": 3, "Heun": 2, "Crank-Nicolson": 2}
 
 
 def _arrays(tableau: ButcherTableau) -> tuple[_Np, _Np, _Np]:
@@ -100,6 +108,56 @@ class TestTableaux:
         assert tableau.is_explicit() == explicit
         assert tableau.has_trivial_first_stage() == trivial
         assert tableau.is_stiffly_accurate() == stiff
+
+    @pytest.mark.parametrize("make", [entry[0] for entry in TABLEAUX], ids=TABLEAU_IDS)
+    def test_continuous_extension_order_conditions(
+        self, make: Callable[[], ButcherTableau]
+    ) -> None:
+        """At every theta the weights meet the conditions of the
+        extension's order, with theta^k/k! on the right; b(0) = 0 and
+        b(1) = b."""
+        tableau = make()
+        order = _CONTINUOUS_ORDER.get(tableau.name, 1)
+        a, b, c = _arrays(tableau)
+        assert all(weight == 0.0 for weight in tableau.weights_at(0.0))
+        assert np.max(np.abs(np.array(tableau.weights_at(1.0)) - b)) < 1e-14
+        for theta in (0.25, 0.5, 0.8):
+            w = np.array(tableau.weights_at(theta))
+            conditions = [(w.sum(), theta)]
+            if order >= 2:
+                conditions.append((w @ c, theta**2 / 2))
+            if order >= 3:
+                conditions += [(w @ c**2, theta**3 / 3), (w @ a @ c, theta**3 / 6)]
+            for value, expected in conditions:
+                assert abs(value - expected) < 1e-14
+
+    def test_the_extensions_are_not_of_higher_order(self) -> None:
+        """RK4's order-3 extension fails an order-4 condition, so the
+        declared orders are sharp where a higher order would be possible."""
+        tableau = classical_rk4()
+        a, _, c = _arrays(tableau)
+        w = np.array(tableau.weights_at(0.5))
+        assert abs(w @ c**3 - 0.5**4 / 4) > 1e-3
+
+    def test_continuous_extension_refusals(self) -> None:
+        with pytest.raises(ValueError, match="rows for 1 stages"):
+            ButcherTableau(
+                a=((1.0,),),
+                b=(1.0,),
+                c=(1.0,),
+                name="bad",
+                continuous_weights=((1.0,), (0.0,)),
+            )
+        with pytest.raises(ValueError, match="not the weight"):
+            ButcherTableau(
+                a=((1.0,),),
+                b=(1.0,),
+                c=(1.0,),
+                name="bad",
+                continuous_weights=((0.5,),),
+            )
+        with pytest.raises(ValueError, match=r"in \[0, 1\]"):
+            backward_euler().weights_at(1.5)
 
     def test_malformed_tableaux_are_refused(self) -> None:
         with pytest.raises(ValueError, match="same number of stages"):
