@@ -8,7 +8,9 @@ path (integrator, steppers, Newton, operators) keeps the graph intact.
 Lotka-Volterra with the mass ``[[2, 0.5], [0.5, 1]]`` from (10, 5),
 parameters (1, 0.1, 0.075, 1.5), four steps of 0.05 (a small graph),
 Newton tolerance 1e-13, the Tikhonov-augmented MSE observing prey at
-steps 1, 2, 4 and predator at 3, 4. For backward Euler, Heun, implicit
+steps 1, 2, 4 and predator at 3, 4, as native misfit and Tikhonov terms
+valued by the sink during the solve (so autograd also runs through the
+terms' values). For backward Euler, Heun, implicit
 midpoint, RK4, BDF2, Adams-Bashforth 2 and Adams-Moulton 3, plain and
 with the curved time-dependent constraint and the parameter cross-term
 initial state: the gradient equals autograd's and the HVP the
@@ -42,7 +44,6 @@ from tests._helpers.ode.trajectory_cases import (
     ScaledStart,
     TrajectoryProblem,
     random_direction,
-    tikhonov_mse,
 )
 
 _SHORT_TIMES = [0.05 * n for n in range(5)]
@@ -71,7 +72,8 @@ class TestAgainstAutograd:
             CurvedPin(bkd) if pin else None,
             ScaledStart(bkd) if start else None,
             times=_SHORT_TIMES,
-            functional=tikhonov_mse(bkd, prey=(1, 2, 4), predator=(3, 4)),
+            prey=(1, 2, 4),
+            predator=(3, 4),
         )
         param = torch.tensor(LV_PARAM, requires_grad=True)
         direction = random_direction(bkd)

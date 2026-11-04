@@ -47,6 +47,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
 from pyapprox.ode.accumulating_sink import MultiSink
+from pyapprox.ode.functional_sink import FunctionalSink
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import (
@@ -60,8 +61,10 @@ from pyapprox.ode.time_integral import (
     TimeIntegral,
 )
 from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
-from pyapprox.ode.trajectory_functional import from_transient_functional
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.ode.trajectory_store import (
+    InMemoryTrajectoryStore,
+    TrajectorySinkProtocol,
+)
 from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -75,8 +78,8 @@ from tests._helpers.ode.trajectory_cases import (
     Method,
     Stepper,
     make_stepper,
+    native_tikhonov_mse,
     random_direction,
-    tikhonov_mse,
 )
 
 
@@ -101,7 +104,8 @@ class _Problem(Generic[Array]):
         self._integral: TimeIntegral[Array, Array] = TimeIntegral(
             self._integrand, self._stepper, bkd
         )
-        self._misfit = tikhonov_mse(bkd) if misfit else None
+        self._misfit, self._tikhonov = native_tikhonov_mse(bkd)
+        self._with_misfit = misfit
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self._stepper
         )
@@ -109,23 +113,30 @@ class _Problem(Generic[Array]):
     def solve(self, param: Array) -> tuple[Array, InMemoryTrajectoryStore[Array]]:
         self._model.set_param(param)
         self._integrand.set_param(param)
-        sink = self._integral.sink()
-        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        Integrator(self._stepper).solve(
-            self._bkd.asarray(START), STEPS, MultiSink([sink, store])
+        self._tikhonov.set_param(param)
+        integral = self._integral.sink()
+        misfit: FunctionalSink[Array, Array] = FunctionalSink(
+            self._misfit.zero, self._misfit.parameter_terms, self._misfit.state_terms
         )
-        value = sink.value()
-        if self._misfit is not None:
-            value = value + self._misfit(trajectory_array(store, self._bkd), param)
+        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        sinks: list[TrajectorySinkProtocol[Array]] = [integral, store]
+        if self._with_misfit:
+            sinks.append(misfit)
+        Integrator(self._stepper).solve(
+            self._bkd.asarray(START), STEPS, MultiSink(sinks)
+        )
+        value = integral.value()
+        if self._with_misfit:
+            value = value + misfit.value()
         return value, store
 
     def functional(
         self, store: InMemoryTrajectoryStore[Array], param: Array
     ) -> TrajectoryFunctional[Array, Array]:
         integral = self._integral.trajectory_functional(store)
-        if self._misfit is None:
+        if not self._with_misfit:
             return integral
-        return integral + from_transient_functional(self._misfit, store, param)
+        return integral + self._misfit
 
     def value(self, samples: Array) -> Array:
         return self._bkd.hstack(
@@ -157,6 +168,11 @@ class _Problem(Generic[Array]):
 
     def integral(self) -> TimeIntegral[Array, Array]:
         return self._integral
+
+    def misfit(self) -> TrajectoryFunctional[Array, Array]:
+        """The Tikhonov-augmented MSE as native terms, read at the
+        parameters of the last solve."""
+        return self._misfit
 
 
 class TestDerivatives:
@@ -212,7 +228,7 @@ class TestSums:
         gradient, hvp = both.gradient(param), both.hvp(param, direction)
         # The misfit alone, on a trajectory solved after both's last solve.
         _, store = both.solve(param)
-        misfit = from_transient_functional(tikhonov_mse(bkd), store, param)
+        misfit = both.misfit()
         sweeps = both.sweeps()
         bkd.assert_allclose(
             gradient,
@@ -262,7 +278,7 @@ class TestStack:
         param = bkd.asarray(LV_PARAM)
         _, store = problem.solve(param)
         integral = problem.integral().trajectory_functional(store)
-        misfit = from_transient_functional(tikhonov_mse(bkd), store, param)
+        misfit = problem.misfit()
         stacked = TrajectoryFunctional.stack(bkd, [integral, misfit])
         return problem, store, integral, misfit, stacked
 

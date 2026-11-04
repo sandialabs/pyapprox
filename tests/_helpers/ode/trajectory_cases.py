@@ -15,6 +15,8 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
     FunctionWithJVPFromCallable,
 )
+from pyapprox.ode.accumulating_sink import MultiSink
+from pyapprox.ode.functional_sink import FunctionalSink
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
 from pyapprox.ode.integration import (
@@ -25,6 +27,7 @@ from pyapprox.ode.integration import (
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
+from pyapprox.ode.observation_terms import MisfitTerm, TikhonovTerm
 from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
@@ -43,8 +46,10 @@ from pyapprox.ode.tableau import (
 )
 from pyapprox.ode.time_integral import IntegrandDerivatives
 from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
-from pyapprox.ode.trajectory_functional import from_transient_functional
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.ode.trajectory_store import (
+    InMemoryTrajectoryStore,
+    TrajectorySinkProtocol,
+)
 from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
@@ -194,6 +199,28 @@ def tikhonov_mse(
     return TikhonovAugmentedFunctional(mse, 0.3, bkd)
 
 
+def native_tikhonov_mse(
+    bkd: Backend[Array],
+    prey: tuple[int, ...] = (2, 5, 10),
+    predator: tuple[int, ...] = (3, 10),
+) -> tuple[TrajectoryFunctional[Array, Array], TikhonovTerm[Array]]:
+    """The functional of :func:`tikhonov_mse` as native terms (a misfit
+    state term and a Tikhonov parameter term), and its Tikhonov term,
+    whose parameters the caller sets."""
+    misfit: MisfitTerm[Array, Array] = MisfitTerm.from_state_times(
+        bkd,
+        2,
+        [(0, prey), (1, predator)],
+        bkd.asarray([9.0, 8.0, 7.5, 6.0, 5.5]),
+        noise_std=0.5,
+    )
+    tikhonov = TikhonovTerm(bkd, 0.3)
+    functional = TrajectoryFunctional.from_terms(
+        bkd, 1, parameter_terms=(tikhonov,), state_terms=(misfit,)
+    )
+    return functional, tikhonov
+
+
 class CurvedPin(Generic[Array]):
     r""":math:`\Pi_t(x, z;\, p) = (x,\ 3 + 0.1\, a \sin(x + 2t))` on 1-D
     states, with its first and second derivatives; its parameters are set
@@ -315,7 +342,9 @@ class ScaledStart(Generic[Array]):
 
 class TrajectoryProblem(Generic[Array]):
     r""":math:`p \mapsto Q(y(p), p)` on Lotka-Volterra, with its gradient
-    and tangent from the new sweeps.
+    and tangent from the new sweeps; :math:`Q` is
+    :func:`native_tikhonov_mse`'s functional, valued by the sink during
+    the solve.
 
     Parameters
     ----------
@@ -332,8 +361,8 @@ class TrajectoryProblem(Generic[Array]):
         system by default.
     times : list of float, optional
         The step boundaries; 0 to 0.5 in steps of 0.05 by default.
-    functional : TikhonovAugmentedFunctional, optional
-        Q; :func:`tikhonov_mse`'s default by default.
+    prey, predator : tuple of int
+        The stored states at which the misfit observes each.
     row_pinning : RowPinningProtocol, optional
         Rows pinned inside the stepper's solves.
     stack_constraint : DifferentiableStackConstraintProtocol, optional
@@ -353,7 +382,8 @@ class TrajectoryProblem(Generic[Array]):
             ]
         ] = None,
         times: Optional[List[float]] = None,
-        functional: Optional[TikhonovAugmentedFunctional[Array]] = None,
+        prey: tuple[int, ...] = (2, 5, 10),
+        predator: tuple[int, ...] = (3, 10),
         row_pinning: Optional[RowPinningProtocol[Array]] = None,
         stack_constraint: Optional[DifferentiableStackConstraintProtocol[Array]] = None,
     ) -> None:
@@ -373,7 +403,7 @@ class TrajectoryProblem(Generic[Array]):
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self._stepper, constraint, start
         )
-        self._functional = tikhonov_mse(bkd) if functional is None else functional
+        self._functional, self._tikhonov = native_tikhonov_mse(bkd, prey, predator)
 
     def stepper(self) -> Stepper[Array]:
         return self._stepper
@@ -388,8 +418,12 @@ class TrajectoryProblem(Generic[Array]):
             raise AssertionError("this problem has a fixed initial state")
         return self._start
 
-    def solve(self, param: Array) -> InMemoryTrajectoryStore[Array]:
+    def solve(
+        self, param: Array, sink: Optional[FunctionalSink[Array, Array]] = None
+    ) -> InMemoryTrajectoryStore[Array]:
+        """The trajectory at ``param``, also fed to ``sink`` when given."""
         self._model.set_param(param)
+        self._tikhonov.set_param(param)
         if self._pin is not None:
             self._pin.set_param(param)
         if self._start is not None:
@@ -400,22 +434,34 @@ class TrajectoryProblem(Generic[Array]):
             else self._start.start(param)
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        self._integrator.solve(start, GivenSizes.from_times(self._times), store)
+        plan = GivenSizes.from_times(self._times)
+        if sink is None:
+            self._integrator.solve(start, plan, store)
+            return store
+        sinks: List[TrajectorySinkProtocol[Array]] = [sink, store]
+        self._integrator.solve(start, plan, MultiSink(sinks))
         return store
 
     def value(self, samples: Array) -> Array:
-        """Q at each column of ``samples``. Shape: (1, nsamples)."""
+        """Q at each column of ``samples``, by the value sink during the
+        solve. Shape: (1, nsamples)."""
         values = []
+        functional = self._functional
         for k in range(samples.shape[1]):
-            param = samples[:, k : k + 1]
-            store = self.solve(param)
-            values.append(self._functional(trajectory_array(store, self._bkd), param))
+            sink: FunctionalSink[Array, Array] = FunctionalSink(
+                functional.zero, functional.parameter_terms, functional.state_terms
+            )
+            self.solve(samples[:, k : k + 1], sink)
+            values.append(sink.value())
         return self._bkd.hstack(values)
 
     def coupling(
         self, store: InMemoryTrajectoryStore[Array], param: Array
     ) -> TrajectoryFunctional[Array, Array]:
-        return from_transient_functional(self._functional, store, param)
+        """The functional the sweeps read: its terms hold no trajectory,
+        so it is the same for every store, read at the parameters the last
+        solve set."""
+        return self._functional
 
     def gradient(self, sample: Array) -> Array:
         """dQ/dp by the adjoint sweep. Shape: (1, 4)."""

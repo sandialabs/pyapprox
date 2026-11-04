@@ -51,10 +51,13 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
     FunctionWithJVPFromCallable,
 )
+from pyapprox.ode.accumulating_sink import MultiSink
+from pyapprox.ode.functional_sink import FunctionalSink
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import DenseModelProtocol, dense_mass_form_system
+from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.protocols import ODEResidualProtocol
@@ -74,8 +77,11 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import from_transient_functional
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
+from pyapprox.ode.trajectory_store import (
+    InMemoryTrajectoryStore,
+    TrajectorySinkProtocol,
+)
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from pyapprox.util.rootfinding.nonlinear import Newton
@@ -253,8 +259,26 @@ def _functional(
     mse = TransientMSEFunctional(
         nstates, nparams, [(k, steps) for k in range(nstates)], bkd, noise_std=0.5
     )
-    mse.set_observations(bkd.asarray([0.3 * (k + 1) for k in range(2 * nstates)]))
+    mse.set_observations(bkd.asarray(_observations(nstates)))
     return mse
+
+
+def _observations(nstates: int) -> List[float]:
+    return [0.3 * (k + 1) for k in range(2 * nstates)]
+
+
+def _misfit(
+    bkd: Backend[Array], nstates: int, last: int
+) -> TrajectoryFunctional[Array, Array]:
+    """:func:`_functional` as the new path's native misfit term."""
+    misfit: MisfitTerm[Array, Array] = MisfitTerm.from_state_times(
+        bkd,
+        nstates,
+        [(k, (2, last)) for k in range(nstates)],
+        bkd.asarray(_observations(nstates)),
+        noise_std=0.5,
+    )
+    return TrajectoryFunctional.from_terms(bkd, 1, state_terms=(misfit,))
 
 
 class _Paths(Generic[Array]):
@@ -286,9 +310,16 @@ class _Paths(Generic[Array]):
             None if tableau.is_explicit() else newton,
         )
         self._store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        nstates = self._start.shape[0]
+        self._misfit = _misfit(bkd, nstates, nsteps)
+        value_sink: FunctionalSink[Array, Array] = FunctionalSink(
+            self._misfit.zero, state_terms=self._misfit.state_terms
+        )
+        sinks: List[TrajectorySinkProtocol[Array]] = [value_sink, self._store]
         # The old path's grid, dt n, exactly.
         steps = GivenSizes.from_times(self._times)
-        Integrator(self._stepper).solve(self._start, steps, self._store)
+        Integrator(self._stepper).solve(self._start, steps, MultiSink(sinks))
+        self._new_value = value_sink.value()
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self._stepper,
             None,
@@ -304,17 +335,16 @@ class _Paths(Generic[Array]):
         self._old_states, self._old_times = self._integrator.solve(
             bkd.flatten(self._start)
         )
-        nstates = self._start.shape[0]
         self._functional_args = (nstates, self._param.shape[0], nsteps)
 
     def functional(self) -> TransientMSEFunctional[Array]:
+        """The old path's functional."""
         return _functional(self._bkd, *self._functional_args)
 
     def new_value(self) -> Array:
-        """Q on the new path's trajectory. Shape: (1, 1)."""
-        trajectory = trajectory_array(self._store, self._bkd)
-        value: Array = self.functional()(trajectory, self._column)
-        return value
+        """Q on the new path, the native misfit summed during the solve.
+        Shape: (1, 1)."""
+        return self._new_value
 
     def new_states(self) -> Array:
         return self._bkd.hstack(
@@ -325,10 +355,7 @@ class _Paths(Generic[Array]):
         return self._old_states
 
     def new_gradient(self) -> Array:
-        coupling = from_transient_functional(
-            self.functional(), self._store, self._column
-        )
-        return self._sweeps.gradient(self._store, coupling)
+        return self._sweeps.gradient(self._store, self._misfit)
 
     def old_gradient(self) -> Array:
         row = adjoint_jacobian(
@@ -341,10 +368,7 @@ class _Paths(Generic[Array]):
         return self._bkd.reshape(row, (-1, 1))
 
     def new_hvp(self, direction: Array) -> Array:
-        coupling = from_transient_functional(
-            self.functional(), self._store, self._column
-        )
-        return self._sweeps.hvp(self._store, coupling, direction)
+        return self._sweeps.hvp(self._store, self._misfit, direction)
 
     def old_hvp(self, direction: Array) -> Array:
         operator = TimeAdjointOperatorWithHVP(self._integrator, self.functional())

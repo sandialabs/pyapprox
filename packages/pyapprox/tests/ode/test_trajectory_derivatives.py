@@ -26,7 +26,7 @@ directly.
   the gradient matches central differences, which are exact for this
   affine problem up to rounding.
 - Refusals: a trajectory recorded at other parameters, a stepper without
-  parameters, and functionals the adapter cannot serve.
+  parameters.
 """
 
 from typing import Any, Callable, Generic, List, Optional, Union
@@ -43,7 +43,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
 from pyapprox.ode.explicit_steppers import ForwardEulerHVP, HeunHVP
-from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
@@ -78,7 +77,6 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import TransientFunctionalTerms
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
     ParameterTermDerivatives,
@@ -271,12 +269,13 @@ class TestHessianVectorProduct:
         self, bkd: Backend[Array]
     ) -> None:
         """The tangents recorded for the HVP give the tangent sweep's
-        directional derivative: sum_m <Q_y_m, w_m> + <Q_p, v>."""
+        directional derivative: sum_m <Q_y_m, w_m> + <Q_p, v>, from the
+        misfit's state derivatives and the Tikhonov term's parameter
+        derivative."""
         problem = TrajectoryProblem(bkd, heun(), CurvedPin(bkd), ScaledStart(bkd))
         param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
         store = problem.solve(param)
-        terms = TransientFunctionalTerms(tikhonov_mse(bkd), store, param)
-        functional = terms.functional()
+        functional = problem.coupling(store, param)
         tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper(),
@@ -287,9 +286,18 @@ class TestHessianVectorProduct:
         assert tangents.ntimes() == store.ntimes()
         assert tangents.nsteps() == store.nsteps()
         assert tangents.times() == store.times()
-        total = terms.param_gradient().T @ direction
-        for index in range(tangents.ntimes()):
-            total = total + terms.state_gradient(index).T @ tangents.state(index)
+        (tikhonov,), (misfit,) = functional.parameter_terms, functional.state_terms
+        wrt_param, wrt_state = (
+            tikhonov.derivatives().wrt_param,
+            misfit.derivatives().wrt_state,
+        )
+        assert wrt_param is not None and wrt_state is not None
+        total = wrt_param().apply(direction)
+        ntimes = store.ntimes()
+        for index in range(ntimes):
+            if misfit.reads(index, index == ntimes - 1):
+                linearization = wrt_state(index, store.time(index), store.state(index))
+                total = total + linearization.apply(tangents.state(index))
         expected = sweeps.tangent(store, functional, direction)
         bkd.assert_allclose(total, expected, rtol=1e-12)
         with pytest.raises(ValueError, match="tangent store must be empty"):
@@ -424,9 +432,9 @@ class TestHessianVectorProductRefusals:
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper()
         )
-        terms = TransientFunctionalTerms(tikhonov_mse(bkd), store, param)
+        misfit = problem.coupling(store, param).state_terms[0]
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_Truncated(terms.state_term(), 1),)
+            bkd, 1, state_terms=(_Truncated(misfit, 1),)
         )
         with pytest.raises(TypeError, match="_Truncated.*no second derivatives"):
             sweeps.hvp(store, functional, random_direction(bkd))
@@ -440,9 +448,9 @@ class TestHessianVectorProductRefusals:
         sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             problem.stepper()
         )
-        terms = TransientFunctionalTerms(tikhonov_mse(bkd), store, param)
+        misfit = problem.coupling(store, param).state_terms[0]
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_Truncated(terms.state_term(), 0),)
+            bkd, 1, state_terms=(_Truncated(misfit, 0),)
         )
         direction = random_direction(bkd)
         with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
@@ -1297,17 +1305,3 @@ class TestRefusals:
             sweeps.gradient(store, functional)
         with pytest.raises(TypeError, match="DifferentiableStepperProtocol"):
             TrajectoryDerivatives(object())  # type: ignore[arg-type]
-
-    def test_functionals_the_adapter_cannot_serve(self, bkd: Backend[Array]) -> None:
-        store = TrajectoryProblem(bkd, heun()).solve(bkd.asarray(LV_PARAM))
-        with_sigma = TransientMSEFunctional(
-            2, 4, [(0, bkd.asarray([2], dtype=int))], bkd
-        )
-        with pytest.raises(ValueError, match="parameters of its own"):
-            TransientFunctionalTerms(with_sigma, store, bkd.asarray(LV_PARAM))
-        with pytest.raises(ValueError, match="shape"):
-            TransientFunctionalTerms(
-                tikhonov_mse(bkd), store, bkd.flatten(bkd.asarray(LV_PARAM))
-            )
-        with pytest.raises(TypeError, match="TransientFunctionalProtocol"):
-            TransientFunctionalTerms(object(), store, bkd.asarray(LV_PARAM))  # type: ignore[arg-type]

@@ -27,9 +27,9 @@ from typing import Any, Callable, Optional
 import numpy as np
 import pytest
 
-from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
+from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.step_plan import FixedStep
@@ -43,8 +43,8 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.linalg.operators import (
@@ -108,21 +108,24 @@ class _Run:
             None,
             ResidualInitialState(self.residual, BackendColumnForm(bkd)),
         )
-        observed = [(k, bkd.asarray([2, _NSTEPS], dtype=int)) for k in range(3)]
-        mse = TransientMSEFunctional(3, 2, observed, bkd, noise_std=0.5)
-        mse.set_observations(bkd.asarray([0.3 * (k + 1) for k in range(6)]))
-        self.mse = mse
+        observed = [(k, (2, _NSTEPS)) for k in range(3)]
+        misfit: MisfitTerm[_Np, _Np] = MisfitTerm.from_state_times(
+            bkd,
+            3,
+            observed,
+            bkd.asarray([0.3 * (k + 1) for k in range(6)]),
+            noise_std=0.5,
+        )
+        self.misfit: TrajectoryFunctional[_Np, _Np] = TrajectoryFunctional.from_terms(
+            bkd, 1, state_terms=(misfit,)
+        )
 
     def gradient(self) -> _Np:
-        column = self.bkd.reshape(self.param, (-1, 1))
-        coupling = from_transient_functional(self.mse, self.store, column)
-        return self.sweeps.gradient(self.store, coupling)
+        return self.sweeps.gradient(self.store, self.misfit)
 
     def hvp(self) -> _Np:
-        column = self.bkd.reshape(self.param, (-1, 1))
-        coupling = from_transient_functional(self.mse, self.store, column)
         direction = self.bkd.asarray([[0.4], [-1.1]])
-        return self.sweeps.hvp(self.store, coupling, direction)
+        return self.sweeps.hvp(self.store, self.misfit, direction)
 
 
 _TABLEAUX = [(backward_euler, 1), (crank_nicolson, 1), (alexander_sdirk3, 3)]

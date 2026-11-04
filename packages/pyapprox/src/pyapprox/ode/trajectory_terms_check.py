@@ -283,8 +283,11 @@ class TrajectoryTermChecker(Generic[V, A]):
         TypeError
             If ``term`` does not satisfy :class:`StateTermProtocol`.
         ValueError
-            If the term has second derivatives and ``param`` or
-            ``set_param`` is missing.
+            If ``param`` is given without ``set_param``.
+
+        Without ``param`` the parameter derivatives and the mixed and
+        parameter second derivatives are not checked; the state derivative
+        and the state second derivative are.
         """
         if not isinstance(term, StateTermProtocol):
             raise TypeError(
@@ -470,8 +473,6 @@ class TrajectoryTermChecker(Generic[V, A]):
         if derivs.wrt_state is None:
             return results
         second_order = derivs.state_state is not None
-        if second_order:
-            self._require_param(param, "second derivatives")
         if param is not None and self._set_param is None:
             raise ValueError("param was given without set_param")
         states, values = self._stepper.state_space(), self._values(term.nqoi())
@@ -511,6 +512,26 @@ class TrajectoryTermChecker(Generic[V, A]):
             states,
             weights,
         )
+        if second_order:
+            # The state block needs no parameters: checked with or without.
+            def state_gradient_at(x: BlockVector[V]) -> BlockVector[V]:
+                return _one(wrt_state(x.blocks[0], param).apply_transpose(weights))
+
+            def state_state(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
+                self._at(param)
+                field = _present(term.derivatives().state_state, "state_state")
+                result = field(index, time, x.blocks[0], weights, d.blocks[0])
+                return states.zeros() if result is None else _one(result)
+
+            self._fd(
+                results,
+                "state_state",
+                _one(state),
+                states,
+                states,
+                state_gradient_at,
+                state_state,
+            )
         if param is None:
             return results
         params = self._param_space()
@@ -593,7 +614,6 @@ class TrajectoryTermChecker(Generic[V, A]):
 
             self._fd(results, name, _one(p0), params, output, quantity_p, action_p)
 
-        second("state_state", _state_state, True, state_gradient, states)
         second("state_param", _state_param, False, state_gradient, states)
         second("param_state", _param_state, True, param_gradient, params)
         second("param_param", _param_param, False, param_gradient, params)
@@ -870,12 +890,6 @@ class TrajectoryTermChecker(Generic[V, A]):
             return states.zeros() if result is None else _one(result)
 
         return gradient, curvature
-
-
-def _state_state(
-    bundle: StateTermDerivatives[V, A],
-) -> Optional[StateCurvatureFn[V, A]]:
-    return bundle.state_state
 
 
 def _state_param(

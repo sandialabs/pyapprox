@@ -49,6 +49,7 @@ from pyapprox.ode.integration import (
     Integrator,
     ResidualFormConstraint,
 )
+from pyapprox.ode.observation_terms import EndpointTerm, StateEntries
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.pinned_rows import PinnedRowsConstraint, RowPinning
 from pyapprox.ode.protocols import StateConstraintProtocol
@@ -69,8 +70,8 @@ from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
     TrajectoryDerivatives,
 )
-from pyapprox.ode.trajectory_functional import from_transient_functional
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -214,6 +215,12 @@ class _Heat:
             return MassConsistentProjection(adapter, _NPARAMS)
         return EssentialPin(self.system, _NPARAMS)
 
+    def endpoint(self) -> TrajectoryFunctional[_Np, _Np]:
+        """:meth:`functional` as the new path's native endpoint term."""
+        bkd = NumpyBkd()
+        term = EndpointTerm(StateEntries(bkd, self.system.nstates(), [self.near_right]))
+        return TrajectoryFunctional.from_terms(bkd, 1, state_terms=(term,))
+
     def functional(self) -> EndpointFunctional[_Np]:
         """The value at the DOF next to the moving end."""
         return EndpointFunctional(
@@ -305,20 +312,14 @@ class _Paths:
         return self._old_states
 
     def new_gradient(self) -> _Np:
-        functional = from_transient_functional(
-            self._heat.functional(), self._store, _PARAM
-        )
-        return self._sweeps.gradient(self._store, functional)
+        return self._sweeps.gradient(self._store, self._heat.endpoint())
 
     def old_gradient(self) -> _Np:
         operator = TimeAdjointOperatorWithHVP(self._integrator, self._heat.functional())
         return np.reshape(operator.jacobian(self._heat.init_state, _PARAM), (-1, 1))
 
     def new_hvp(self, direction: _Np) -> _Np:
-        functional = from_transient_functional(
-            self._heat.functional(), self._store, _PARAM
-        )
-        return self._sweeps.hvp(self._store, functional, direction)
+        return self._sweeps.hvp(self._store, self._heat.endpoint(), direction)
 
     def old_hvp(self, direction: _Np) -> _Np:
         operator = TimeAdjointOperatorWithHVP(self._integrator, self._heat.functional())
