@@ -29,7 +29,6 @@ at t = 0, and moving).
 
 from typing import Callable, Generic, List, Optional
 
-import numpy as np
 import pytest
 
 from pyapprox.ode.integration import Integrator
@@ -53,7 +52,6 @@ from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendRowSet
 from pyapprox.util.linalg.operators import BlockVector
 from tests._helpers.ode.runge_kutta_cases import (
     LV_PARAM,
@@ -66,6 +64,7 @@ from tests._helpers.ode.trajectory_cases import (
     MULTISTEP,
     STEPS,
     Method,
+    PinnedPrey,
     Stepper,
     TrajectoryProblem,
     make_stepper,
@@ -73,24 +72,6 @@ from tests._helpers.ode.trajectory_cases import (
     min_hvp_fd_error,
     random_direction,
 )
-
-
-class _Prey(Generic[Array]):
-    r"""The prey pinned to :math:`g(t) = 10 + \sin 3t`."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-        states, _ = backend_spaces(bkd, 2, 4)
-        self._rows: BackendRowSet[Array] = BackendRowSet(states.descriptor(), [0], bkd)
-
-    def rows(self) -> BackendRowSet[Array]:
-        return self._rows
-
-    def data(self, time: float) -> float:
-        return 10.0 + float(np.sin(3.0 * time))
-
-    def values(self, time: float) -> Array:
-        return self._bkd.asarray([[self.data(time)], [0.0]])
 
 
 class _EveryBlock:
@@ -143,7 +124,7 @@ class TestPinnedInsideTheSolve:
     def test_stored_states_hold_the_data(
         self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        prey = _Prey(bkd)
+        prey = PinnedPrey(bkd)
         store = _Pinned(bkd, make(), RowPinning(prey)).store
         for n in range(1, store.ntimes()):
             value = bkd.to_float(store.state(n)[0, 0])
@@ -155,7 +136,7 @@ class TestPinnedInsideTheSolve:
     def test_the_step_residual_vanishes_and_the_checker_passes(
         self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
-        pinned: _Pinned[Array] = _Pinned(bkd, make(), RowPinning(_Prey(bkd)))
+        pinned: _Pinned[Array] = _Pinned(bkd, make(), RowPinning(PinnedPrey(bkd)))
         stepper = pinned.stepper
         for n in range(pinned.store.nsteps()):
             residual = stepper.step_residual(pinned.window(n))
@@ -180,7 +161,7 @@ class TestPinnedInsideTheSolve:
         self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
         problem: TrajectoryProblem[Array] = TrajectoryProblem(
-            bkd, make(), row_pinning=RowPinning(_Prey(bkd))
+            bkd, make(), row_pinning=RowPinning(PinnedPrey(bkd))
         )
         assert min_gradient_fd_error(bkd, problem) < 1e-7
         assert min_hvp_fd_error(bkd, problem) < 1e-7
@@ -200,7 +181,7 @@ class TestAnotherPlacement:
     def test_every_pinned_block_holds_the_data(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
-        prey = _Prey(bkd)
+        prey = PinnedPrey(bkd)
         tableau = make()
         store = _Pinned(bkd, tableau, RowPinning(prey, _EveryBlock())).store
         # Block r is unknown stage r + offset, then the final block.
@@ -220,7 +201,7 @@ class TestAnotherPlacement:
     def test_derivatives(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
-        pinning: RowPinning[Array] = RowPinning(_Prey(bkd), _EveryBlock())
+        pinning: RowPinning[Array] = RowPinning(PinnedPrey(bkd), _EveryBlock())
         problem: TrajectoryProblem[Array] = TrajectoryProblem(
             bkd, make(), row_pinning=pinning
         )
@@ -242,7 +223,7 @@ class TestTheContinuousExtension:
         make: Callable[[], Method],
         placement: PinPlacementProtocol,
     ) -> None:
-        prey = _Prey(bkd)
+        prey = PinnedPrey(bkd)
         pinned = _Pinned(bkd, make(), RowPinning(prey, placement))
         extension = pinned.stepper.continuous_extension()
         store = pinned.store
@@ -259,7 +240,7 @@ class TestTheContinuousExtension:
     ) -> None:
         """Both states observed at 0.137 and 0.41: the pinned prey row
         reads the data, so its derivatives are zero there."""
-        pinned: _Pinned[Array] = _Pinned(bkd, make(), RowPinning(_Prey(bkd)))
+        pinned: _Pinned[Array] = _Pinned(bkd, make(), RowPinning(PinnedPrey(bkd)))
         stepper = pinned.stepper
         entries = StateEntries(bkd, 2, [0, 1])
         term: MisfitTerm[Array, Array] = MisfitTerm(
@@ -291,7 +272,7 @@ class TestPinnedAfterTheStep:
     def test_stored_states_and_derivatives(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
-        prey = _Prey(bkd)
+        prey = PinnedPrey(bkd)
         states, params = backend_spaces(bkd, 2, 4)
         constraint = PinnedRowsConstraint(prey, states, params)
         problem = TrajectoryProblem(bkd, make(), stack_constraint=constraint)
@@ -305,7 +286,7 @@ class TestPinnedAfterTheStep:
 
 class TestProtocols:
     def test_the_pieces_satisfy_them(self, bkd: Backend[Array]) -> None:
-        prey = _Prey(bkd)
+        prey = PinnedPrey(bkd)
         assert isinstance(prey, PinnedRowsProtocol)
         pinning = RowPinning(prey)
         assert isinstance(pinning, RowPinningProtocol)
@@ -318,10 +299,10 @@ class TestProtocols:
         with pytest.raises(TypeError, match="PinnedRowsProtocol"):
             RowPinning(object())  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="PinPlacementProtocol"):
-            RowPinning(_Prey(bkd), object())  # type: ignore[arg-type]
+            RowPinning(PinnedPrey(bkd), object())  # type: ignore[arg-type]
         model = lotka_volterra_with_mass(bkd)
         with pytest.raises(TypeError, match="RowPinningProtocol"):
             make_stepper(backward_euler(), dense_mass_form_system(model), object())  # type: ignore[arg-type]
         other, _ = backend_spaces(bkd, 3, 4)
         with pytest.raises(ValueError):
-            PinnedRowsConstraint[Array](_Prey(bkd), other)
+            PinnedRowsConstraint[Array](PinnedPrey(bkd), other)

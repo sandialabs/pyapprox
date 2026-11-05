@@ -52,7 +52,7 @@ from pyapprox.ode.trajectory_store import (
 )
 from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox.util.linalg.backend_dense import BackendRowSet, DenseFormat
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
 from tests._helpers.ode.runge_kutta_cases import (
     LV_PARAM,
@@ -98,6 +98,25 @@ def make_stepper(
         else lm_stepper(method, system, row_pinning)
     )
     return stepper
+
+
+class PinnedPrey(Generic[Array]):
+    r"""Lotka-Volterra's prey pinned to :math:`g(t) = 10 + \sin 3t`, equal
+    to the start at t = 0 and moving: a pinned-rows declaration."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+        states, _ = backend_spaces(bkd, 2, 4)
+        self._rows: BackendRowSet[Array] = BackendRowSet(states.descriptor(), [0], bkd)
+
+    def rows(self) -> BackendRowSet[Array]:
+        return self._rows
+
+    def data(self, time: float) -> float:
+        return 10.0 + float(np.sin(3.0 * time))
+
+    def values(self, time: float) -> Array:
+        return self._bkd.asarray([[self.data(time)], [0.0]])
 
 
 _S = [[0.3], [-0.2], [0.5], [0.1]]
