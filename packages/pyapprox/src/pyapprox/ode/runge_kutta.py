@@ -48,7 +48,7 @@ from pyapprox.ode.continuous_extension import (
     fraction_of_step,
 )
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
+from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
 from pyapprox.ode.step_quadrature import TableauQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -747,7 +747,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         """How residual block ``block`` is pinned, or None."""
         if self._row_pinning is None:
             return None
-        return self._row_pinning.at(block, self._unknown_space.nblocks())
+        return self._row_pinning.at(StepBlock(block, self._unknown_space.nblocks()))
 
     def _mass_block_handle(self, block: int) -> SolverHandleProtocol[V]:
         r"""A handle for block ``block``'s operator when its own block is

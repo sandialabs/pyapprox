@@ -64,7 +64,7 @@ from pyapprox.ode.multistep_methods import (
     MultistepContinuousCoefficients,
     MultistepFormulaProtocol,
 )
-from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
+from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
 from pyapprox.ode.step_quadrature import MultistepQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -557,7 +557,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self._state_space = BlockInnerProductSpace([space], "state")
         self._mass_handle: Optional[SolverHandleProtocol[V]] = None
         # The one block, of one, is the step end.
-        self._pin = None if row_pinning is None else row_pinning.at(0, 1)
+        self._pin = None if row_pinning is None else row_pinning.at(StepBlock(0, 1))
         # Explicit steps' row-replaced alpha_0 M, set up once per alpha_0.
         self._pinned_mass_handles: Dict[float, SolverHandleProtocol[V]] = {}
         self._points = count()

@@ -12,10 +12,11 @@ at t = 0, and moving).
   derivatives included; and the trajectory's gradient and Hessian-vector
   product of the Tikhonov-augmented MSE pass ``DerivativeChecker``, the
   tangent equal to the gradient in a direction.
-- A placement written here, pinning every block (every stage and the
-  step end), is injected with no stepper change: each pinned stage holds
-  the data at its stage time, and the checker and finite differences
-  pass.
+- Pinning every block (:class:`AtEveryBlock`: every stage and the step
+  end) is injected with no stepper change: each pinned stage holds the
+  data at its stage time, and the checker and finite differences pass.
+- A placement reading a field a stepper's block descriptor adds (a
+  split method's partition) works through :class:`RowPinning` unchanged.
 - The continuous extension is pinned as the block producing the new
   state is, at its own time: under either placement, for backward Euler,
   Heun, SDIRK3 and every multistep method, its prey row holds the data
@@ -27,6 +28,7 @@ at t = 0, and moving).
 - Refusals.
 """
 
+from dataclasses import dataclass
 from typing import Callable, Generic, List, Optional
 
 import pytest
@@ -35,6 +37,7 @@ from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.observation_terms import MisfitTerm, StateEntries
 from pyapprox.ode.pinned_rows import (
+    AtEveryBlock,
     AtStepEnd,
     BlockPinProtocol,
     PinnedRowsConstraint,
@@ -42,6 +45,7 @@ from pyapprox.ode.pinned_rows import (
     PinPlacementProtocol,
     RowPinning,
     RowPinningProtocol,
+    StepBlock,
 )
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.ode.stepper_derivatives import StepWindow
@@ -74,11 +78,18 @@ from tests._helpers.ode.trajectory_cases import (
 )
 
 
-class _EveryBlock:
-    """Pins every block: each stage and the step end."""
+@dataclass(frozen=True)
+class _PartitionBlock(StepBlock):
+    """A block of a split step, naming the partition it advances."""
 
-    def pins(self, block: int, nblocks: int) -> bool:
-        return True
+    partition: str = "slow"
+
+
+class _FastOnly:
+    """Pins the blocks of the fast partition only."""
+
+    def pins(self, block: StepBlock) -> bool:
+        return isinstance(block, _PartitionBlock) and block.partition == "fast"
 
 
 _SOME: List[Callable[[], ButcherTableau]] = [backward_euler, heun, alexander_sdirk3]
@@ -183,7 +194,7 @@ class TestAnotherPlacement:
     ) -> None:
         prey = PinnedPrey(bkd)
         tableau = make()
-        store = _Pinned(bkd, tableau, RowPinning(prey, _EveryBlock())).store
+        store = _Pinned(bkd, tableau, RowPinning(prey, AtEveryBlock())).store
         # Block r is unknown stage r + offset, then the final block.
         offset = 1 if tableau.has_trivial_first_stage() else 0
         stages = list(range(offset, tableau.nstages()))
@@ -201,7 +212,7 @@ class TestAnotherPlacement:
     def test_derivatives(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
-        pinning: RowPinning[Array] = RowPinning(PinnedPrey(bkd), _EveryBlock())
+        pinning: RowPinning[Array] = RowPinning(PinnedPrey(bkd), AtEveryBlock())
         problem: TrajectoryProblem[Array] = TrajectoryProblem(
             bkd, make(), row_pinning=pinning
         )
@@ -214,7 +225,7 @@ class TestTheContinuousExtension:
     at its own time."""
 
     @pytest.mark.parametrize(
-        "placement", [AtStepEnd(), _EveryBlock()], ids=["step end", "every block"]
+        "placement", [AtStepEnd(), AtEveryBlock()], ids=["step end", "every block"]
     )
     @pytest.mark.parametrize("make", _EXTENDED, ids=_EXTENDED_IDS)
     def test_it_holds_the_data_between_steps(
@@ -290,10 +301,27 @@ class TestProtocols:
         assert isinstance(prey, PinnedRowsProtocol)
         pinning = RowPinning(prey)
         assert isinstance(pinning, RowPinningProtocol)
-        assert pinning.at(0, 2) is None
-        pin: Optional[BlockPinProtocol[Array]] = pinning.at(1, 2)
+        assert pinning.at(StepBlock(0, 2)) is None
+        pin: Optional[BlockPinProtocol[Array]] = pinning.at(StepBlock(1, 2))
         assert isinstance(pin, BlockPinProtocol)
-        assert isinstance(AtStepEnd(), type(AtStepEnd()))
+        for placement in (AtStepEnd(), AtEveryBlock()):
+            assert isinstance(placement, PinPlacementProtocol)
+        assert [AtEveryBlock().pins(StepBlock(k, 3)) for k in range(3)] == [True] * 3
+
+    def test_a_block_knows_whether_it_ends_the_step(self) -> None:
+        assert [StepBlock(k, 3).is_last() for k in range(3)] == [False, False, True]
+        for index, count in [(-1, 2), (2, 2), (0, 0)]:
+            with pytest.raises(ValueError, match="not one of the step's"):
+                StepBlock(index, count)
+
+    def test_a_placement_reads_fields_a_stepper_adds(self, bkd: Backend[Array]) -> None:
+        """A split stepper describes its blocks with more fields; a rule
+        reading them works through ``RowPinning`` unchanged, and a plain
+        block still gets the rule's answer for one without them."""
+        pinning: RowPinning[Array] = RowPinning(PinnedPrey(bkd), _FastOnly())
+        assert pinning.at(_PartitionBlock(0, 3, "slow")) is None
+        assert pinning.at(_PartitionBlock(1, 3, "fast")) is not None
+        assert pinning.at(StepBlock(2, 3)) is None
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         with pytest.raises(TypeError, match="PinnedRowsProtocol"):

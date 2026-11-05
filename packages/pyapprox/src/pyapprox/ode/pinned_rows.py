@@ -16,9 +16,10 @@ declaration at different points of a step:
   are solved with the data, so for implicit methods this is a different
   scheme from pinning after the solve. :class:`RowPinning` pins the
   blocks a placement selects: :class:`AtStepEnd` the one producing
-  :math:`y_{n+1}`. A rule that does not split into rows and a placement
-  implements :class:`RowPinningProtocol` itself; the steppers need no
-  change for it.
+  :math:`y_{n+1}`, :class:`AtEveryBlock` every one. A stepper describes
+  each block to the rule as a :class:`StepBlock`. A rule that does not
+  split into rows and a placement implements :class:`RowPinningProtocol`
+  itself; the steppers need no change for it.
 - **after the solve**: :class:`PinnedRowsConstraint`, a state constraint
   :math:`\Pi_t(y) = P y + (I - P)\, g(t)` the integrator applies to stored
   states.
@@ -28,6 +29,7 @@ adjoint need no edit: a row-replaced block's transpose already is the
 adjoint of the replaced equation.
 """
 
+from dataclasses import dataclass
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.residual_derivatives import STATED_ZERO
@@ -92,13 +94,49 @@ class BlockPinProtocol(Protocol[V]):
         ...
 
 
+@dataclass(frozen=True)
+class StepBlock:
+    """One residual block of a step, as a stepper describes it to a pin
+    rule.
+
+    A stepper builds one per block; a rule reads only the fields it needs,
+    so a stepper with more to say about its blocks (a split method's
+    partition, say) describes them with more fields and every existing
+    rule still works.
+
+    Attributes
+    ----------
+    index : int
+        The block's position in the step's unknown.
+    count : int
+        The number of blocks; the last produces :math:`y_{n+1}`.
+
+    Raises
+    ------
+    ValueError
+        If ``index`` is not in ``[0, count)``.
+    """
+
+    index: int
+    count: int
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.index < self.count:
+            raise ValueError(
+                f"block {self.index} is not one of the step's {self.count} blocks"
+            )
+
+    def is_last(self) -> bool:
+        """Whether this block produces :math:`y_{n+1}`."""
+        return self.index == self.count - 1
+
+
 @runtime_checkable
 class RowPinningProtocol(Protocol[V]):
     """Which residual blocks of a step a stepper pins, and how."""
 
-    def at(self, block: int, nblocks: int) -> Optional[BlockPinProtocol[V]]:
-        """How to pin residual block ``block`` of ``nblocks`` (the last
-        produces :math:`y_{n+1}`), or None to leave it."""
+    def at(self, block: StepBlock) -> Optional[BlockPinProtocol[V]]:
+        """How to pin ``block``, or None to leave it."""
         ...
 
 
@@ -106,9 +144,8 @@ class RowPinningProtocol(Protocol[V]):
 class PinPlacementProtocol(Protocol):
     """Which residual blocks of a step to pin."""
 
-    def pins(self, block: int, nblocks: int) -> bool:
-        """Whether to pin block ``block`` of ``nblocks``; the last produces
-        :math:`y_{n+1}`."""
+    def pins(self, block: StepBlock) -> bool:
+        """Whether to pin ``block``."""
         ...
 
 
@@ -116,8 +153,20 @@ class AtStepEnd:
     """Pin only the block producing :math:`y_{n+1}`: the final block, or
     the last stage of a stiffly accurate method."""
 
-    def pins(self, block: int, nblocks: int) -> bool:
-        return block == nblocks - 1
+    def pins(self, block: StepBlock) -> bool:
+        return block.is_last()
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
+class AtEveryBlock:
+    """Pin every block: each stage's and the step end's. Every block that
+    is solved then holds the data at its own time, so no stage integrates
+    the pinned rows' equations and no boundary rate is needed."""
+
+    def pins(self, block: StepBlock) -> bool:
+        return True
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
@@ -190,8 +239,8 @@ class RowPinning(Generic[V]):
             )
         self._pin, self._placement = RowPin(rows), chosen
 
-    def at(self, block: int, nblocks: int) -> Optional[RowPin[V]]:
-        return self._pin if self._placement.pins(block, nblocks) else None
+    def at(self, block: StepBlock) -> Optional[RowPin[V]]:
+        return self._pin if self._placement.pins(block) else None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._pin!r}, {self._placement!r})"
