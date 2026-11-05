@@ -43,6 +43,10 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.ode.continuous_extension import (
+    ContinuousExtensionDerivatives,
+    fraction_of_step,
+)
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
 from pyapprox.ode.step_quadrature import TableauQuadrature
@@ -69,6 +73,7 @@ from pyapprox.util.linalg.operators import (
     LinearizationPoint,
     LinearizedOperator,
     LinearMapProtocol,
+    Product,
     ReuseKey,
     ReusePolicyProtocol,
     ScaledSum,
@@ -80,6 +85,7 @@ from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 F = TypeVar("F", bound=FormatProtocol)
+G = TypeVar("G", bound=FormatProtocol)
 
 
 @runtime_checkable
@@ -200,6 +206,268 @@ class _RungeKuttaSession(Generic[V, A, F]):
         :meth:`RungeKuttaStepper.diag_handle`), its blocks set up through
         this session."""
         return self._stepper._diag_handle(window, self._solver)
+
+
+class _TableauExtension(Generic[V, A, F]):
+    r"""A tableau stepper's continuous extension (see
+    :meth:`RungeKuttaStepper.continuous_extension`).
+
+    :math:`y(t)` at :math:`\theta = (t - t_n)/h` is one more row of the
+    step equation, the final block with the weights :math:`b(\theta)`:
+    :math:`E\, y(t) = P (M y_n + h \sum_j b_j(\theta) f(Y_j)) + (I - P)
+    g(t)`, :math:`E = P M + I - P`, pinned as the block producing
+    :math:`y_{n+1}` is, at ``time`` (:math:`P = I` unpinned). Its
+    derivatives are the row's, solved with :math:`E`:
+    :math:`\partial y(t) = E^{-1} P (M\, \partial y_n + h \sum_j
+    b_j(\theta)\, (J_j\, \partial Y_j + f_{p,j}\, \partial p))`, and with
+    :math:`x = P E^{-\top} \lambda` the stage weights :math:`\lambda_j = h
+    b_j(\theta)\, x` contract the residual's second derivatives, as the
+    step's stage adjoints do.
+    """
+
+    def __init__(self, stepper: "RungeKuttaStepper[V, A, F]") -> None:
+        self._stepper = stepper
+
+    def _weights(self, window: StepWindow[V], time: float) -> tuple[float, ...]:
+        return self._stepper.tableau().weights_at(fraction_of_step(window, time))
+
+    def _last(self) -> int:
+        """The block producing :math:`y_{n+1}`, whose pin the extension
+        takes."""
+        return self._stepper.unknown_space().nblocks() - 1
+
+    def unknown_space(self) -> BlockInnerProductSpace[V, A]:
+        return self._stepper.unknown_space()
+
+    def state_space(self) -> BlockInnerProductSpace[V, A]:
+        return self._stepper.state_space()
+
+    def param_space(self) -> Optional[BlockInnerProductSpace[V, A]]:
+        return self._stepper.param_space()
+
+    def value(self, window: StepWindow[V], time: float) -> V:
+        """:math:`y(t)` for ``time`` in the window's span."""
+        stepper = self._stepper
+        space = stepper.system().space
+        weighted = space.zeros()
+        for j, (weight, stage) in enumerate(
+            zip(self._weights(window, time), stepper.stage_values(window))
+        ):
+            if weight != 0.0:
+                slope = stepper.rhs(stage, stepper._stage_time(window, j))
+                weighted = space.axpby(weight, slope, 1.0, weighted, out=weighted)
+        increment = space.scale(window.deltat(), weighted)
+        return stepper._explicit_solve(
+            self._last(), window.past_state(1), increment, time
+        )
+
+    def derivatives(self) -> ContinuousExtensionDerivatives[V]:
+        """As far as the residual's bundle goes: the unknown and the past
+        state always, the parameters with its ``param``, the curvatures
+        with its second order."""
+        bundle = self._stepper.system().rhs.derivatives()
+        if bundle.param is None:
+            return ContinuousExtensionDerivatives.first_order(
+                self._wrt_unknown, self._wrt_lag, None
+            )
+        if bundle.state_state is None:
+            return ContinuousExtensionDerivatives.first_order(
+                self._wrt_unknown, self._wrt_lag, self._wrt_param
+            )
+        return ContinuousExtensionDerivatives.second_order(
+            self._wrt_unknown,
+            self._wrt_lag,
+            self._wrt_param,
+            self._curvature_wrt_unknown,
+            self._curvature_wrt_lag,
+            self._curvature_wrt_param,
+        )
+
+    def _solved(
+        self, op: Optional[ActionOperatorProtocol[V, G]]
+    ) -> Optional[LinearMapProtocol[V]]:
+        r""":math:`E^{-1} P\, \mathrm{op}`, or None for a zero ``op``."""
+        if op is None:
+            return None
+        stepper = self._stepper
+        pin = stepper._block_pin(self._last())
+        coupled = op if pin is None else pin.coupled(op)
+        return Product([stepper._mass_block_handle(self._last()), coupled])
+
+    def _wrt_unknown(self, window: StepWindow[V], time: float) -> StepOperator[V]:
+        stepper = self._stepper
+        system, deltat = stepper.system(), window.deltat()
+        weights = self._weights(window, time)
+        stages = stepper.stage_values(window)
+        offset = stepper._first_stage_offset()
+        unknown = stepper.unknown_space()
+        row: List[Optional[LinearMapProtocol[V]]] = [None] * unknown.nblocks()
+        for k in range(len(stepper._unknown_stages)):
+            weight = weights[k + offset]
+            if weight == 0.0:
+                continue
+            jacobian = stepper._jacobian_at(window, stages[k + offset], k + offset)
+            row[k] = self._solved(
+                ScaledSum([(deltat * weight, jacobian)], system.space)
+            )
+        return BlockOperator([row], unknown, stepper.state_space())
+
+    def _wrt_lag(
+        self, window: StepWindow[V], time: float, lag: int
+    ) -> StepOperator[V]:
+        if lag != 1:
+            raise ValueError(f"a one-step method has lag 1 only, got {lag}")
+        stepper = self._stepper
+        system = stepper.system()
+        terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = [
+            (1.0, system.mass)
+        ]
+        weight = self._weights(window, time)[0]
+        if stepper.tableau().has_trivial_first_stage() and weight != 0.0:
+            jacobian = stepper._jacobian_at(window, window.past_state(1), 0)
+            terms.append((window.deltat() * weight, jacobian))
+        block = self._solved(ScaledSum(terms, system.space))
+        states = stepper.state_space()
+        return BlockOperator([[block]], states, states)
+
+    def _wrt_param(self, window: StepWindow[V], time: float) -> StepOperator[V]:
+        stepper = self._stepper
+        bundle = stepper.system().rhs.derivatives()
+        if bundle.param is None:
+            raise ValueError("the residual has no parameter derivatives")
+        form, space = stepper.system().form, stepper.system().space
+        params = stepper._param_block_space()
+        terms = [
+            (
+                window.deltat() * weight,
+                bundle.param(form.to_residual(stage), stepper._stage_time(window, j)),
+            )
+            for j, (weight, stage) in enumerate(
+                zip(self._weights(window, time), stepper.stage_values(window))
+            )
+            if weight != 0.0
+        ]
+        block = (
+            self._solved(ScaledSum(terms, space, params.component(0)))
+            if terms
+            else None
+        )
+        return BlockOperator([[block]], params, stepper.state_space())
+
+    def _stage_weights(
+        self, window: StepWindow[V], time: float, weights: V
+    ) -> List[Optional[tuple[V, float, V]]]:
+        r"""For each stage read, its value, time and weight
+        :math:`\lambda_j = h b_j(\theta)\, P E^{-\top} \lambda` in the
+        residual's form; None for a stage with a zero weight."""
+        stepper = self._stepper
+        space, to_residual = stepper.system().space, stepper.system().form.to_residual
+        last = self._last()
+        x = stepper._mass_block_handle(last).apply_transpose(weights)
+        pin = stepper._block_pin(last)
+        if pin is not None:
+            # Pinned rows carry no f, so no curvature.
+            x = pin.adjoint(x, space)
+        terms: List[Optional[tuple[V, float, V]]] = []
+        for j, (weight, stage) in enumerate(
+            zip(self._weights(window, time), stepper.stage_values(window))
+        ):
+            if weight == 0.0:
+                terms.append(None)
+                continue
+            adjoint = space.scale(window.deltat() * weight, x)
+            terms.append(
+                (
+                    to_residual(stage),
+                    stepper._stage_time(window, j),
+                    to_residual(adjoint),
+                )
+            )
+        return terms
+
+    def _curvature_wrt_unknown(
+        self,
+        window: StepWindow[V],
+        time: float,
+        tangents: StepWindow[V],
+        direction: V,
+        weights: V,
+    ) -> Optional[BlockVector[V]]:
+        stepper = self._stepper
+        bundle = stepper.system().rhs.derivatives()
+        state_state, state_param = bundle.state_state, bundle.state_param
+        if state_state is None or state_param is None:
+            raise ValueError("the residual has no second derivatives")
+        space, offset = stepper.system().space, stepper._first_stage_offset()
+        terms = self._stage_weights(window, time, weights)
+        tangent_stages = stepper.stage_values(tangents)
+        blocks = [space.zeros() for _ in range(stepper.unknown_space().nblocks())]
+        any_read = False
+        for k in range(len(stepper._unknown_stages)):
+            term = terms[k + offset]
+            if term is None:
+                continue
+            any_read = True
+            value = state_state(*term).apply(tangent_stages[k + offset])
+            blocks[k] = space.axpby(
+                1.0, state_param(*term).apply(direction), 1.0, value
+            )
+        return BlockVector(tuple(blocks)) if any_read else None
+
+    def _curvature_wrt_lag(
+        self,
+        window: StepWindow[V],
+        time: float,
+        tangents: StepWindow[V],
+        lag: int,
+        direction: V,
+        weights: V,
+    ) -> Optional[V]:
+        if lag != 1:
+            raise ValueError(f"a one-step method has lag 1 only, got {lag}")
+        stepper = self._stepper
+        if not stepper.tableau().has_trivial_first_stage():
+            # y_n enters only through M y_n, which is linear.
+            return None
+        term = self._stage_weights(window, time, weights)[0]
+        if term is None:
+            return None
+        bundle = stepper.system().rhs.derivatives()
+        state_state, state_param = bundle.state_state, bundle.state_param
+        if state_state is None or state_param is None:
+            raise ValueError("the residual has no second derivatives")
+        value = state_state(*term).apply(tangents.past_state(1))
+        return stepper.system().space.axpby(
+            1.0, state_param(*term).apply(direction), 1.0, value
+        )
+
+    def _curvature_wrt_param(
+        self,
+        window: StepWindow[V],
+        time: float,
+        tangents: StepWindow[V],
+        direction: V,
+        weights: V,
+    ) -> Optional[V]:
+        stepper = self._stepper
+        bundle = stepper.system().rhs.derivatives()
+        if bundle.state_param is None or bundle.param_param is None:
+            raise ValueError("the residual has no second derivatives")
+        params = stepper._param_block_space().component(0)
+        tangent_stages = stepper.stage_values(tangents)
+        total: Optional[V] = None
+        for term, tangent in zip(
+            self._stage_weights(window, time, weights), tangent_stages
+        ):
+            if term is None:
+                continue
+            # (lambda_j^T f)_py dY_j + (lambda_j^T f)_pp v.
+            value = bundle.state_param(*term).apply_transpose(tangent)
+            value = params.axpby(
+                1.0, bundle.param_param(*term).apply(direction), 1.0, value
+            )
+            total = value if total is None else params.axpby(1.0, value, 1.0, total)
+        return total
 
 
 class RungeKuttaStepper(Generic[V, A, F]):
@@ -385,6 +653,14 @@ class RungeKuttaStepper(Generic[V, A, F]):
         :meth:`stage_values` reads the stages."""
         return self._quadrature
 
+    def continuous_extension(self) -> _TableauExtension[V, A, F]:
+        r"""The method's value inside a step, :math:`M (y(t) - y_n) = h
+        \sum_j b_j(\theta) f(Y_j)` with the tableau's weight polynomials
+        (:meth:`ButcherTableau.weights_at`), from the step's stages, pinned
+        as the block producing :math:`y_{n+1}` is, at its own time; with
+        its derivatives (see :mod:`pyapprox.ode.continuous_extension`)."""
+        return _TableauExtension(self)
+
     def _point(self) -> LinearizationPoint:
         """A new label for a linearization at a Newton iterate: never
         reused, since an iterate is not a converged point."""
@@ -467,20 +743,26 @@ class RungeKuttaStepper(Generic[V, A, F]):
             partial(self._labeled_stage_operator, state, time, scale, pin, label),
         )
 
-    def _mass_solve(self, rhs: V) -> V:
-        """:math:`M^{-1}` ``rhs``, with the mass set up once."""
-        if self._mass_handle is None:
-            self._mass_handle = self._system.solver.setup(self._system.mass)
-        solution, info = self._mass_handle.solve(rhs)
-        if not info.converged:
-            raise SolveFailedError(f"{self._tableau.name}: mass solve: {info.message}")
-        return solution
-
     def _block_pin(self, block: int) -> Optional[BlockPinProtocol[V]]:
         """How residual block ``block`` is pinned, or None."""
         if self._row_pinning is None:
             return None
         return self._row_pinning.at(block, self._unknown_space.nblocks())
+
+    def _mass_block_handle(self, block: int) -> SolverHandleProtocol[V]:
+        r"""A handle for block ``block``'s operator when its own block is
+        :math:`M` alone: :math:`M`, or :math:`P M + I - P` when the block
+        is pinned, each set up once."""
+        pin = self._block_pin(block)
+        if pin is None:
+            if self._mass_handle is None:
+                self._mass_handle = self._system.solver.setup(self._system.mass)
+            return self._mass_handle
+        handle = self._pinned_mass_handles.get(block)
+        if handle is None:
+            handle = self._system.solver.setup(pin.own(self._system.mass))
+            self._pinned_mass_handles[block] = handle
+        return handle
 
     def _explicit_solve(self, block: int, state: V, increment: V, time: float) -> V:
         r"""Block ``block``'s value :math:`Y` from :math:`M (Y - y_n) = `
@@ -488,12 +770,14 @@ class RungeKuttaStepper(Generic[V, A, F]):
         Y = P (M y_n + \mathrm{increment}) + (I - P)\, g(t)` instead: one
         solve either way."""
         space, pin = self._system.space, self._block_pin(block)
+        handle = self._mass_block_handle(block)
         if pin is None:
-            return space.axpby(1.0, state, 1.0, self._mass_solve(increment))
-        handle = self._pinned_mass_handles.get(block)
-        if handle is None:
-            handle = self._system.solver.setup(pin.own(self._system.mass))
-            self._pinned_mass_handles[block] = handle
+            solution, info = handle.solve(increment)
+            if not info.converged:
+                raise SolveFailedError(
+                    f"{self._tableau.name}: mass solve: {info.message}"
+                )
+            return space.axpby(1.0, state, 1.0, solution)
         rhs = space.axpby(1.0, self._system.mass.apply(state), 1.0, increment)
         solution, info = handle.solve(pin.right_hand_side(rhs, time))
         if not info.converged:

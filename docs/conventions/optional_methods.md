@@ -25,6 +25,7 @@ invariants.
 | `TransientFunctionalDerivatives` | `ode.functionals.protocols` | `derivatives()` | transient functionals |
 | `ParameterTermDerivatives`, `StateTermDerivatives`, `StepTermDerivatives` | `ode.trajectory_terms` | `derivatives()` | the terms of a `TrajectoryFunctional` the sweeps differentiate (second order, weighted by the value weights) |
 | `IntegrandDerivatives` | `ode.time_integral` | `derivatives()` | integrands of time integrals |
+| `ContinuousExtensionDerivatives` | `ode.continuous_extension` | `derivatives()` | a stepping method's continuous extension, y(t) inside a step (second order weighted by a state weight) |
 | `SteadyStateEquationDerivatives` | `optimization.implicitfunction.state_equations.derivatives` | `derivatives()` | steady state equations |
 | `ImplicitOperatorDerivatives` | `optimization.implicitfunction.operator.derivatives` | `derivatives()` | `AdjointOperator`, `ForwardSensitivityOperator` |
 

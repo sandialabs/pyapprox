@@ -16,6 +16,12 @@ at t = 0, and moving).
   step end), is injected with no stepper change: each pinned stage holds
   the data at its stage time, and the checker and finite differences
   pass.
+- The continuous extension is pinned as the block producing the new
+  state is, at its own time: under either placement, for backward Euler,
+  Heun and SDIRK3, its prey row holds the data at 0.3 and 0.7 of every
+  step (to 1e-12); a misfit of both states at 0.137 and 0.41 read at the
+  extension passes the term checker with ``fd_tol`` 3e-5 (see
+  ``test_terms_at_times``).
 - Pinned after the step (:class:`PinnedRowsConstraint`): stored states
   hold the data, and the gradient and HVP pass finite differences.
 - Refusals.
@@ -28,19 +34,25 @@ import pytest
 
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
+from pyapprox.ode.observation_terms import MisfitTerm, StateEntries
 from pyapprox.ode.pinned_rows import (
     AtStepEnd,
     BlockPinProtocol,
     PinnedRowsConstraint,
     PinnedRowsProtocol,
+    PinPlacementProtocol,
     RowPinning,
     RowPinningProtocol,
 )
 from pyapprox.ode.residual_derivatives import backend_spaces
+from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.stepper_derivatives_check import StepperBundleChecker
 from pyapprox.ode.tableau import ButcherTableau, alexander_sdirk3, backward_euler, heun
+from pyapprox.ode.terms_at_times import TermAtTimes
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendRowSet
 from pyapprox.util.linalg.operators import BlockVector
@@ -210,6 +222,67 @@ class TestAnotherPlacement:
         )
         assert min_gradient_fd_error(bkd, problem) < 1e-7
         assert min_hvp_fd_error(bkd, problem) < 1e-7
+
+
+class TestTheContinuousExtension:
+    """The extension is pinned as the block producing the new state is,
+    at its own time."""
+
+    @pytest.mark.parametrize(
+        "placement", [AtStepEnd(), _EveryBlock()], ids=["step end", "every block"]
+    )
+    @pytest.mark.parametrize("make", _SOME, ids=_SOME_IDS)
+    def test_it_holds_the_data_between_steps(
+        self,
+        bkd: Backend[Array],
+        make: Callable[[], ButcherTableau],
+        placement: PinPlacementProtocol,
+    ) -> None:
+        prey = _Prey(bkd)
+        pinned = _Pinned(bkd, make(), RowPinning(prey, placement))
+        stepper = pinned.stepper
+        assert isinstance(stepper, RungeKuttaStepper)
+        extension = stepper.continuous_extension()
+        store = pinned.store
+        for n in range(store.nsteps()):
+            window = pinned.window(n)
+            for theta in (0.3, 0.7):
+                time = window.time() + theta * window.deltat()
+                value = bkd.to_float(extension.value(window, time)[0, 0])
+                assert abs(value - prey.data(time)) <= 1e-12
+
+    @pytest.mark.parametrize("make", _SOME, ids=_SOME_IDS)
+    def test_a_misfit_between_steps_passes_the_checker(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+    ) -> None:
+        """Both states observed at 0.137 and 0.41: the pinned prey row
+        reads the data, so its derivatives are zero there."""
+        pinned: _Pinned[Array] = _Pinned(bkd, make(), RowPinning(_Prey(bkd)))
+        stepper = pinned.stepper
+        assert isinstance(stepper, RungeKuttaStepper)
+        entries = StateEntries(bkd, 2, [0, 1])
+        term: MisfitTerm[Array, Array] = MisfitTerm(
+            bkd,
+            {
+                0: (entries, bkd.asarray([[9.0], [5.0]])),
+                1: (entries, bkd.asarray([[8.0], [6.0]])),
+            },
+            0.5,
+        )
+        functional = TrajectoryFunctional.from_terms(
+            bkd,
+            1,
+            step_terms=(
+                TermAtTimes(term, stepper.continuous_extension(), (0.137, 0.41), bkd),
+            ),
+        )
+        checker: TrajectoryTermChecker[Array, Array] = TrajectoryTermChecker(
+            stepper, bkd, backend_sample(bkd), pinned.model.set_param
+        )
+        report = checker.check(functional, pinned.store, param=pinned.param)
+        # As in test_terms_at_times: correct forward V's whose bottoms the
+        # weak coupling h b(theta) raises; every V test still holds.
+        assert report.failures(fd_tol=3e-5) == []
 
 
 class TestPinnedAfterTheStep:
