@@ -28,12 +28,20 @@ it exactly from the recorded sizes. :class:`MultistepMethod` holds a
 fixed table, derived for equal steps, with its startup formulas, and
 refuses a step whose earlier steps had another size rather than use the
 table there.
+
+The families also give their continuous extension
+(:class:`MultistepContinuousCoefficients`): the method's own polynomial
+evaluated inside the step, the interpolant of :math:`y` for BDF and the
+partial integral of the slopes' interpolant for Adams, so it makes the
+smoothness assumption the step makes and no other. A fixed table has
+none.
 """
 
 from dataclasses import dataclass
 from typing import (
     FrozenSet,
     List,
+    Optional,
     Protocol,
     Sequence,
     Tuple,
@@ -84,6 +92,49 @@ class MultistepCoefficients:
         return self.beta[0] == 0.0
 
 
+@dataclass(frozen=True)
+class MultistepContinuousCoefficients:
+    r"""A multistep method's continuous extension over one step: the
+    value at :math:`t_n + \theta \Delta t` from the step's states and
+    slopes,
+
+    .. math::
+
+        M y(t) = M \sum_{l=0}^{k} c_l\, y_{n+1-l}
+        + \Delta t \sum_{l=0}^{k} d_l\, f(y_{n+1-l}, t_{n+1-l}),
+
+    lag 0 being the new state. It is the method's own polynomial: the
+    interpolant of :math:`y` for BDF, the integral of the slopes'
+    interpolant for Adams.
+
+    Parameters
+    ----------
+    states, slopes : tuple of float
+        :math:`c_l` and :math:`d_l`, indexed by lag, of equal length.
+
+    Raises
+    ------
+    ValueError
+        If the lengths differ or there is no stored state.
+    """
+
+    states: Tuple[float, ...]
+    slopes: Tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.states) != len(self.slopes):
+            raise ValueError("states and slopes must have one entry per lag")
+        if len(self.states) < 2:
+            raise ValueError("a multistep extension reads at least one stored state")
+
+
+def _fraction(theta: float) -> float:
+    """``theta``, checked to lie in ``[0, 1]``."""
+    if not 0.0 <= theta <= 1.0:
+        raise ValueError(f"theta must lie in [0, 1], got {theta}")
+    return theta
+
+
 @runtime_checkable
 class MultistepFormulaProtocol(Protocol):
     """A linear multistep method as the stepper reads it: the formula of
@@ -111,6 +162,15 @@ class MultistepFormulaProtocol(Protocol):
         r"""The formula of a step over ``span``, reading one stored state
         per size: exactly one coefficient pair per lag. Raises
         ``ValueError`` when it has none for those sizes."""
+        ...
+
+    def continuous_coefficients_at(
+        self, span: StepSpan, theta: float
+    ) -> Optional[MultistepContinuousCoefficients]:
+        r"""The continuous extension over ``span`` at the fraction
+        ``theta`` of the step, one coefficient pair per lag; it gives the
+        step's new state at ``theta = 1``. None for a method without one.
+        Raises ``ValueError`` for ``theta`` outside ``[0, 1]``."""
         ...
 
 
@@ -221,6 +281,15 @@ class MultistepMethod:
                 f"got step sizes {span.sizes}"
             )
         return formula
+
+    def continuous_coefficients_at(
+        self, span: StepSpan, theta: float
+    ) -> Optional[MultistepContinuousCoefficients]:
+        """None: a fixed table carries no polynomial to extend; a family
+        class (:class:`BackwardDifferentiation`, :class:`AdamsBashforth`,
+        :class:`AdamsMoulton`) does."""
+        _fraction(theta)
+        return None
 
     def __repr__(self) -> str:
         return f"MultistepMethod({self.name}, {self.depth()} steps)"
@@ -358,16 +427,53 @@ class BackwardDifferentiation:
             beta=(1.0 / lead,) + (0.0,) * nstates,
         )
 
+    def continuous_coefficients_at(
+        self, span: StepSpan, theta: float
+    ) -> MultistepContinuousCoefficients:
+        r"""The interpolant of :math:`y` the step differentiates, at
+        ``theta``: :math:`c_l = L_l(\theta)` over the new state and the
+        stored states, no slopes.
 
-def _adams_weights(span: StepSpan, lags: Sequence[int]) -> List[float]:
-    r""":math:`\int_0^1 L_l(s)\, ds` for each lag in ``lags``: the weights
-    of :math:`f` at those lags in :math:`y_{n+1} - y_n = \int_{t_n}^{t_{n+1}}
-    f\, dt`, in units of the step size."""
+        Raises
+        ------
+        ValueError
+            If ``theta`` is outside ``[0, 1]`` or the step reads more
+            states than the method's depth, or none.
+        """
+        theta = _fraction(theta)
+        nstates = _states_read(self.name, span, self.steps)
+        basis = _lagrange_basis(span, range(nstates + 1))
+        return MultistepContinuousCoefficients(
+            states=tuple(float(polynomial(theta)) for polynomial in basis),
+            slopes=(0.0,) * (nstates + 1),
+        )
+
+
+def _adams_weights(
+    span: StepSpan, lags: Sequence[int], upper: float = 1.0
+) -> List[float]:
+    r""":math:`\int_0^{\theta} L_l(s)\, ds` for each lag in ``lags``,
+    :math:`\theta` = ``upper``: the weights of :math:`f` at those lags in
+    :math:`y(t_n + \theta \Delta t) - y_n = \int_{t_n}^{t} f\, dt`, in units
+    of the step size; the step's own at :math:`\theta = 1`."""
     weights = []
     for basis in _lagrange_basis(span, lags):
         antiderivative = basis.integ()
-        weights.append(float(antiderivative(1.0) - antiderivative(0.0)))
+        weights.append(float(antiderivative(upper) - antiderivative(0.0)))
     return weights
+
+
+def _adams_extension(
+    span: StepSpan, nstates: int, first_lag: int, theta: float
+) -> MultistepContinuousCoefficients:
+    r"""An Adams method's extension at ``theta``: :math:`y_n` plus the
+    integral to :math:`\theta` of the slopes' interpolant over lags
+    ``first_lag`` (0 implicit, 1 explicit) to ``nstates``."""
+    weights = _adams_weights(span, range(first_lag, nstates + 1), theta)
+    return MultistepContinuousCoefficients(
+        states=(0.0, 1.0) + (0.0,) * (nstates - 1),
+        slopes=(0.0,) * first_lag + tuple(weights),
+    )
 
 
 @dataclass(frozen=True)
@@ -434,6 +540,22 @@ class AdamsBashforth:
             beta=(0.0, *weights),
         )
 
+    def continuous_coefficients_at(
+        self, span: StepSpan, theta: float
+    ) -> MultistepContinuousCoefficients:
+        r""":math:`y_n` plus the integral to ``theta`` of the stored
+        slopes' interpolant, :math:`d_l = \int_0^\theta L_l(s)\, ds`.
+
+        Raises
+        ------
+        ValueError
+            If ``theta`` is outside ``[0, 1]`` or the step reads more
+            states than the method's depth, or none.
+        """
+        theta = _fraction(theta)
+        nstates = _states_read(self.name, span, self.steps)
+        return _adams_extension(span, nstates, 1, theta)
+
 
 @dataclass(frozen=True)
 class AdamsMoulton:
@@ -497,6 +619,23 @@ class AdamsMoulton:
             alpha=(1.0, -1.0) + (0.0,) * (nstates - 1),
             beta=tuple(weights),
         )
+
+    def continuous_coefficients_at(
+        self, span: StepSpan, theta: float
+    ) -> MultistepContinuousCoefficients:
+        r""":math:`y_n` plus the integral to ``theta`` of the slopes'
+        interpolant, the new state's included, :math:`d_l =
+        \int_0^\theta L_l(s)\, ds`.
+
+        Raises
+        ------
+        ValueError
+            If ``theta`` is outside ``[0, 1]`` or the step reads more
+            states than the method's depth, or none.
+        """
+        theta = _fraction(theta)
+        nstates = _states_read(self.name, span, self.steps)
+        return _adams_extension(span, nstates, 0, theta)
 
 
 def bdf2() -> BackwardDifferentiation:

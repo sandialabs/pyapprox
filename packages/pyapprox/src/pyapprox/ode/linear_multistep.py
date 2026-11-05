@@ -54,9 +54,14 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.ode.continuous_extension import (
+    ContinuousExtensionDerivatives,
+    fraction_of_step,
+)
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.multistep_methods import (
     MultistepCoefficients,
+    MultistepContinuousCoefficients,
     MultistepFormulaProtocol,
 )
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol
@@ -82,6 +87,8 @@ from pyapprox.util.linalg.operators import (
     KeyedSolverProtocol,
     LinearizationPoint,
     LinearizedOperator,
+    LinearMapProtocol,
+    Product,
     ReuseKey,
     ReusePolicyProtocol,
     ScaledSum,
@@ -93,6 +100,7 @@ from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 F = TypeVar("F", bound=FormatProtocol)
+G = TypeVar("G", bound=FormatProtocol)
 
 
 @runtime_checkable
@@ -203,6 +211,273 @@ class _MultistepSession(Generic[V, A, F]):
         :meth:`LinearMultistepStepper.diag_handle`), set up through this
         session."""
         return self._stepper._diag_handle(window, self._solver)
+
+
+class _MultistepExtension(Generic[V, A, F]):
+    r"""A multistep stepper's continuous extension (see
+    :meth:`LinearMultistepStepper.continuous_extension`).
+
+    With the method's coefficients :math:`(c_l, d_l)` at :math:`\theta`
+    (:class:`~pyapprox.ode.multistep_methods.
+    MultistepContinuousCoefficients`), :math:`y(t)` solves one more row
+    pinned as the new state's is, at ``time``: :math:`E\, y(t) = P (M
+    \sum_l c_l y_{n+1-l} + h \sum_l d_l f_{n+1-l}) + (I - P) g(t)`,
+    :math:`E = P M + I - P`. Its derivatives are the row's, solved with
+    :math:`E`: :math:`E^{-1} P (c_l M + h d_l J_l)` at lag :math:`l` and
+    :math:`E^{-1} P h \sum_l d_l f_{p,l}`, and the lag weights
+    :math:`\lambda_l = h d_l\, P E^{-\top} \lambda` contract the
+    residual's second derivatives, as the step's do.
+    """
+
+    def __init__(self, stepper: "LinearMultistepStepper[V, A, F]") -> None:
+        self._stepper = stepper
+
+    def unknown_space(self) -> BlockInnerProductSpace[V, A]:
+        return self._stepper.unknown_space()
+
+    def state_space(self) -> BlockInnerProductSpace[V, A]:
+        return self._stepper.state_space()
+
+    def param_space(self) -> Optional[BlockInnerProductSpace[V, A]]:
+        return self._stepper.param_space()
+
+    def _coefficients(
+        self, window: StepWindow[V], time: float
+    ) -> MultistepContinuousCoefficients:
+        method = self._stepper.method()
+        coefficients = method.continuous_coefficients_at(
+            window.span, fraction_of_step(window, time)
+        )
+        if coefficients is None:
+            raise TypeError(f"{method.name} has no continuous extension")
+        if len(coefficients.states) != window.span.nlags():
+            raise ValueError(
+                f"{method.name} gave {len(coefficients.states)} coefficients for "
+                f"a step with {window.span.nlags()} lags"
+            )
+        return coefficients
+
+    def _handle(self) -> SolverHandleProtocol[V]:
+        """:math:`E^{-1}`: the mass, pinned as the new state is."""
+        return self._stepper._mass_handle_for(1.0)
+
+    def value(self, window: StepWindow[V], time: float) -> V:
+        """:math:`y(t)` for ``time`` in the window's span."""
+        stepper = self._stepper
+        space, mass = stepper.system().space, stepper.system().mass
+        coefficients = self._coefficients(window, time)
+        rhs = space.zeros()
+        for lag, state in enumerate(stepper._lag_states(window)):
+            c, d = coefficients.states[lag], coefficients.slopes[lag]
+            if c != 0.0:
+                rhs = space.axpby(c, mass.apply(state), 1.0, rhs, out=rhs)
+            if d != 0.0:
+                slope = stepper.rhs(state, window.lag_time(lag))
+                rhs = space.axpby(window.deltat() * d, slope, 1.0, rhs, out=rhs)
+        pin = stepper.pin()
+        if pin is not None:
+            rhs = pin.right_hand_side(rhs, time)
+        solution, info = self._handle().solve(rhs)
+        if not info.converged:
+            raise SolveFailedError(
+                f"{stepper.method().name}: continuous extension's mass solve: "
+                f"{info.message}"
+            )
+        return solution
+
+    def derivatives(self) -> ContinuousExtensionDerivatives[V]:
+        """As far as the residual's bundle goes: every lag always, the
+        parameters with its ``param``, the curvatures with its second
+        order."""
+        bundle = self._stepper.system().rhs.derivatives()
+        if bundle.param is None:
+            return ContinuousExtensionDerivatives.first_order(
+                self._wrt_unknown, self._wrt_lag, None
+            )
+        if bundle.state_state is None:
+            return ContinuousExtensionDerivatives.first_order(
+                self._wrt_unknown, self._wrt_lag, self._wrt_param
+            )
+        return ContinuousExtensionDerivatives.second_order(
+            self._wrt_unknown,
+            self._wrt_lag,
+            self._wrt_param,
+            self._curvature_wrt_unknown,
+            self._curvature_wrt_lag,
+            self._curvature_wrt_param,
+        )
+
+    def _solved(
+        self, op: ActionOperatorProtocol[V, G]
+    ) -> LinearMapProtocol[V]:
+        r""":math:`E^{-1} P\, \mathrm{op}`."""
+        pin = self._stepper.pin()
+        coupled = op if pin is None else pin.coupled(op)
+        return Product([self._handle(), coupled])
+
+    def _lag_block(
+        self, window: StepWindow[V], time: float, lag: int
+    ) -> Optional[LinearMapProtocol[V]]:
+        r""":math:`E^{-1} P (c_l M + h d_l J_l)`, or None when both are
+        zero."""
+        stepper = self._stepper
+        coefficients = self._coefficients(window, time)
+        c, d = coefficients.states[lag], coefficients.slopes[lag]
+        terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = []
+        if c != 0.0:
+            terms.append((c, stepper.system().mass))
+        if d != 0.0:
+            terms.append(
+                (window.deltat() * d, stepper._converged_jacobian(window, lag))
+            )
+        if not terms:
+            return None
+        return self._solved(ScaledSum(terms, stepper.system().space))
+
+    def _wrt_unknown(self, window: StepWindow[V], time: float) -> StepOperator[V]:
+        stepper = self._stepper
+        return BlockOperator(
+            [[self._lag_block(window, time, 0)]],
+            stepper.unknown_space(),
+            stepper.state_space(),
+        )
+
+    def _wrt_lag(
+        self, window: StepWindow[V], time: float, lag: int
+    ) -> StepOperator[V]:
+        if not 1 <= lag <= len(window.past_states):
+            raise ValueError(
+                f"lag must be between 1 and {len(window.past_states)}, got {lag}"
+            )
+        states = self._stepper.state_space()
+        return BlockOperator([[self._lag_block(window, time, lag)]], states, states)
+
+    def _wrt_param(self, window: StepWindow[V], time: float) -> StepOperator[V]:
+        stepper = self._stepper
+        bundle = stepper.system().rhs.derivatives()
+        if bundle.param is None:
+            raise ValueError("the residual has no parameter derivatives")
+        form, space = stepper.system().form, stepper.system().space
+        coefficients = self._coefficients(window, time)
+        params = stepper._param_block_space()
+        terms = [
+            (
+                window.deltat() * coefficients.slopes[lag],
+                bundle.param(form.to_residual(state), window.lag_time(lag)),
+            )
+            for lag, state in enumerate(stepper._lag_states(window))
+            if coefficients.slopes[lag] != 0.0
+        ]
+        block = (
+            self._solved(ScaledSum(terms, space, params.component(0)))
+            if terms
+            else None
+        )
+        return BlockOperator([[block]], params, stepper.state_space())
+
+    def _lag_weights(
+        self, window: StepWindow[V], time: float, weights: V
+    ) -> List[Optional[tuple[V, float, V]]]:
+        r"""For each lag, its state, time and weight :math:`\lambda_l = h
+        d_l\, P E^{-\top} \lambda` in the residual's form; None for a lag
+        with :math:`d_l = 0`."""
+        stepper = self._stepper
+        space, to_residual = stepper.system().space, stepper.system().form.to_residual
+        coefficients = self._coefficients(window, time)
+        x = self._handle().apply_transpose(weights)
+        pin = stepper.pin()
+        if pin is not None:
+            # Pinned rows carry no f, so no curvature.
+            x = pin.adjoint(x, space)
+        terms: List[Optional[tuple[V, float, V]]] = []
+        for lag, state in enumerate(stepper._lag_states(window)):
+            d = coefficients.slopes[lag]
+            if d == 0.0:
+                terms.append(None)
+                continue
+            adjoint = space.scale(window.deltat() * d, x)
+            terms.append(
+                (to_residual(state), window.lag_time(lag), to_residual(adjoint))
+            )
+        return terms
+
+    def _lag_curvature(
+        self,
+        window: StepWindow[V],
+        time: float,
+        lag: int,
+        tangent: V,
+        direction: V,
+        weights: V,
+    ) -> Optional[V]:
+        r""":math:`(\lambda_l^\top f)_{yy}\, w_l + (\lambda_l^\top f)_{yp}\,
+        v`, or None when :math:`d_l = 0`."""
+        stepper = self._stepper
+        term = self._lag_weights(window, time, weights)[lag]
+        if term is None:
+            return None
+        bundle = stepper.system().rhs.derivatives()
+        state_state, state_param = bundle.state_state, bundle.state_param
+        if state_state is None or state_param is None:
+            raise ValueError("the residual has no second derivatives")
+        value = state_state(*term).apply(tangent)
+        return stepper.system().space.axpby(
+            1.0, state_param(*term).apply(direction), 1.0, value
+        )
+
+    def _curvature_wrt_unknown(
+        self,
+        window: StepWindow[V],
+        time: float,
+        tangents: StepWindow[V],
+        direction: V,
+        weights: V,
+    ) -> Optional[BlockVector[V]]:
+        value = self._lag_curvature(
+            window, time, 0, tangents.unknown.blocks[0], direction, weights
+        )
+        return None if value is None else BlockVector((value,))
+
+    def _curvature_wrt_lag(
+        self,
+        window: StepWindow[V],
+        time: float,
+        tangents: StepWindow[V],
+        lag: int,
+        direction: V,
+        weights: V,
+    ) -> Optional[V]:
+        return self._lag_curvature(
+            window, time, lag, tangents.past_state(lag), direction, weights
+        )
+
+    def _curvature_wrt_param(
+        self,
+        window: StepWindow[V],
+        time: float,
+        tangents: StepWindow[V],
+        direction: V,
+        weights: V,
+    ) -> Optional[V]:
+        stepper = self._stepper
+        bundle = stepper.system().rhs.derivatives()
+        if bundle.state_param is None or bundle.param_param is None:
+            raise ValueError("the residual has no second derivatives")
+        params = stepper._param_block_space().component(0)
+        tangent_states = stepper._lag_states(tangents)
+        total: Optional[V] = None
+        for term, tangent in zip(
+            self._lag_weights(window, time, weights), tangent_states
+        ):
+            if term is None:
+                continue
+            # (lambda_l^T f)_py w_l + (lambda_l^T f)_pp v.
+            value = bundle.state_param(*term).apply_transpose(tangent)
+            value = params.axpby(
+                1.0, bundle.param_param(*term).apply(direction), 1.0, value
+            )
+            total = value if total is None else params.axpby(1.0, value, 1.0, total)
+        return total
 
 
 class LinearMultistepStepper(Generic[V, A, F]):
@@ -347,6 +622,16 @@ class LinearMultistepStepper(Generic[V, A, F]):
         (see :mod:`pyapprox.ode.step_quadrature`)."""
         return self._quadrature
 
+    def continuous_extension(self) -> _MultistepExtension[V, A, F]:
+        r"""The method's value inside a step, from its own polynomial
+        (:meth:`MultistepFormulaProtocol.continuous_coefficients_at`): the
+        interpolant of :math:`y` for BDF, the partial integral of the
+        slopes' interpolant for Adams; pinned as the new state is, at its
+        own time; with its derivatives (see
+        :mod:`pyapprox.ode.continuous_extension`). A method with no
+        extension (a fixed table) is refused when the extension is read."""
+        return _MultistepExtension(self)
+
     def _point(self, provisional: bool, version: int) -> LinearizationPoint:
         """A new label for a linearization: provisional at a Newton
         iterate, never reused."""
@@ -437,11 +722,28 @@ class LinearMultistepStepper(Generic[V, A, F]):
             ),
         )
 
+    def _mass_handle_for(self, alpha0: float) -> SolverHandleProtocol[V]:
+        r"""A handle for the new-state block of an explicit step: :math:`M`
+        (the right-hand side then carries :math:`1/\alpha_0`), or
+        :math:`P \alpha_0 M + I - P` with the step-end rows pinned, each set
+        up once (per :math:`\alpha_0` when pinned)."""
+        pin = self._pin
+        if pin is None:
+            if self._mass_handle is None:
+                self._mass_handle = self._system.solver.setup(self._system.mass)
+            return self._mass_handle
+        handle = self._pinned_mass_handles.get(alpha0)
+        if handle is None:
+            scaled = ScaledSum([(alpha0, self._system.mass)], self._system.space)
+            handle = self._system.solver.setup(pin.own(scaled))
+            self._pinned_mass_handles[alpha0] = handle
+        return handle
+
     def _mass_solve(self, rhs: V) -> V:
         """:math:`M^{-1}` ``rhs``, with the mass set up once."""
-        if self._mass_handle is None:
-            self._mass_handle = self._system.solver.setup(self._system.mass)
-        solution, info = self._mass_handle.solve(rhs)
+        if self._pin is not None:
+            raise AssertionError("only called without step-end rows")
+        solution, info = self._mass_handle_for(1.0).solve(rhs)
         if not info.converged:
             raise SolveFailedError(f"{self._method.name}: mass solve: {info.message}")
         return solution
@@ -454,11 +756,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         pin = self._pin
         if pin is None:
             raise AssertionError("only called with step-end rows")
-        handle = self._pinned_mass_handles.get(alpha0)
-        if handle is None:
-            scaled = ScaledSum([(alpha0, self._system.mass)], self._system.space)
-            handle = self._system.solver.setup(pin.own(scaled))
-            self._pinned_mass_handles[alpha0] = handle
+        handle = self._mass_handle_for(alpha0)
         rhs = self._system.space.scale(-1.0, known)
         solution, info = handle.solve(pin.right_hand_side(rhs, time))
         if not info.converged:

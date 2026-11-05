@@ -18,10 +18,10 @@ at t = 0, and moving).
   pass.
 - The continuous extension is pinned as the block producing the new
   state is, at its own time: under either placement, for backward Euler,
-  Heun and SDIRK3, its prey row holds the data at 0.3 and 0.7 of every
-  step (to 1e-12); a misfit of both states at 0.137 and 0.41 read at the
-  extension passes the term checker with ``fd_tol`` 3e-5 (see
-  ``test_terms_at_times``).
+  Heun, SDIRK3 and every multistep method, its prey row holds the data
+  at 0.3 and 0.7 of every step (to 1e-12); a misfit of both states at
+  0.137 and 0.41 read at the extension passes the term checker with
+  ``fd_tol`` 3e-5 (see ``test_terms_at_times``).
 - Pinned after the step (:class:`PinnedRowsConstraint`): stored states
   hold the data, and the gradient and HVP pass finite differences.
 - Refusals.
@@ -45,7 +45,6 @@ from pyapprox.ode.pinned_rows import (
     RowPinningProtocol,
 )
 from pyapprox.ode.residual_derivatives import backend_spaces
-from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.stepper_derivatives_check import StepperBundleChecker
 from pyapprox.ode.tableau import ButcherTableau, alexander_sdirk3, backward_euler, heun
@@ -64,6 +63,7 @@ from tests._helpers.ode.runge_kutta_cases import (
 from tests._helpers.ode.trajectory_cases import (
     ALL_IDS,
     ALL_METHODS,
+    MULTISTEP,
     STEPS,
     Method,
     Stepper,
@@ -102,6 +102,10 @@ class _EveryBlock:
 
 _SOME: List[Callable[[], ButcherTableau]] = [backward_euler, heun, alexander_sdirk3]
 _SOME_IDS = [make().name for make in _SOME]
+# The tableaux above and every multistep method, for the continuous
+# extension.
+_EXTENDED: List[Callable[[], Method]] = [*_SOME, *MULTISTEP]
+_EXTENDED_IDS = [make().name for make in _EXTENDED]
 
 
 class _Pinned(Generic[Array]):
@@ -231,18 +235,16 @@ class TestTheContinuousExtension:
     @pytest.mark.parametrize(
         "placement", [AtStepEnd(), _EveryBlock()], ids=["step end", "every block"]
     )
-    @pytest.mark.parametrize("make", _SOME, ids=_SOME_IDS)
+    @pytest.mark.parametrize("make", _EXTENDED, ids=_EXTENDED_IDS)
     def test_it_holds_the_data_between_steps(
         self,
         bkd: Backend[Array],
-        make: Callable[[], ButcherTableau],
+        make: Callable[[], Method],
         placement: PinPlacementProtocol,
     ) -> None:
         prey = _Prey(bkd)
         pinned = _Pinned(bkd, make(), RowPinning(prey, placement))
-        stepper = pinned.stepper
-        assert isinstance(stepper, RungeKuttaStepper)
-        extension = stepper.continuous_extension()
+        extension = pinned.stepper.continuous_extension()
         store = pinned.store
         for n in range(store.nsteps()):
             window = pinned.window(n)
@@ -251,15 +253,14 @@ class TestTheContinuousExtension:
                 value = bkd.to_float(extension.value(window, time)[0, 0])
                 assert abs(value - prey.data(time)) <= 1e-12
 
-    @pytest.mark.parametrize("make", _SOME, ids=_SOME_IDS)
+    @pytest.mark.parametrize("make", _EXTENDED, ids=_EXTENDED_IDS)
     def test_a_misfit_between_steps_passes_the_checker(
-        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+        self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
         """Both states observed at 0.137 and 0.41: the pinned prey row
         reads the data, so its derivatives are zero there."""
         pinned: _Pinned[Array] = _Pinned(bkd, make(), RowPinning(_Prey(bkd)))
         stepper = pinned.stepper
-        assert isinstance(stepper, RungeKuttaStepper)
         entries = StateEntries(bkd, 2, [0, 1])
         term: MisfitTerm[Array, Array] = MisfitTerm(
             bkd,
