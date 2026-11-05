@@ -124,10 +124,8 @@ from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.residual_form import ResidualFormProtocol
 from pyapprox.ode.stepper_derivatives import (
     OffDiagFn,
-    ParamParamFn,
-    StateParamFn,
-    StateStateFn,
     StepParamFn,
+    StepSecondOrder,
     StepWindow,
 )
 from pyapprox.ode.trajectory_store import (
@@ -406,17 +404,6 @@ class TangentState(Generic[V]):
     unconstrained: V
     state: V
     unknown: Optional[BlockVector[V]]
-
-
-@dataclass(frozen=True)
-class _StepSecondOrder(Generic[V]):
-    """The stepper bundle's second-order fields and its declared blocks."""
-
-    state_state: StateStateFn[V]
-    state_param: StateParamFn[V]
-    param_param: ParamParamFn[V]
-    state_pairs: FrozenSet[Tuple[int, int]]
-    param_lags: FrozenSet[int]
 
 
 @dataclass(frozen=True)
@@ -849,7 +836,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         r""":math:`\partial \hat y_0/\partial p`, or None."""
         return self._initial_state
 
-    def _step_second_order(self) -> _StepSecondOrder[V]:
+    def _step_second_order(self) -> StepSecondOrder[V]:
         """The stepper bundle's second-order fields.
 
         Raises
@@ -857,22 +844,8 @@ class TrajectoryDerivatives(Generic[V, A]):
         TypeError
             If the bundle has none.
         """
-        derivs = self._stepper.derivatives()
-        if (
-            derivs.state_state is None
-            or derivs.state_param is None
-            or derivs.param_param is None
-        ):
-            raise TypeError(
-                f"{type(self._stepper).__name__}'s derivatives() has no second "
-                "derivatives, so it has no Hessian-vector products"
-            )
-        return _StepSecondOrder(
-            derivs.state_state,
-            derivs.state_param,
-            derivs.param_param,
-            derivs.state_pairs,
-            derivs.param_lags,
+        return StepSecondOrder.of(
+            self._stepper.derivatives(), type(self._stepper).__name__
         )
 
     def _constraint_second_order(
@@ -1728,25 +1701,18 @@ class _SecondOrderSources(Generic[V, A]):
         ``lag``, over the declared blocks the step has (a startup step
         reads fewer lags), with :math:`H_n` weighted by the first order's
         :math:`\mu_n`; None when none is declared."""
-        second, mu = self._second, self._adjoint.adjoint(step)
         stepper = self._owner.stepper()
         space: BlockInnerProductSpace[V, A] = (
             stepper.unknown_space() if lag == 0 else stepper.state_space()
         )
-        lag_tangents = self._tangents_of(step)
-        terms: List[BlockVector[V]] = [
-            second.state_state(window, mu, lag, other).apply(lag_tangents[other])
-            for a, other in sorted(second.state_pairs)
-            if a == lag and other in lag_tangents
-        ]
-        if lag in second.param_lags:
-            terms.append(second.state_param(window, mu, lag).apply(self._p_dir))
-        total: Optional[BlockVector[V]] = None
-        for term in terms:
-            total = (
-                term if total is None else space.axpby(1.0, term, 1.0, total, out=total)
-            )
-        return total
+        return self._second.at_lag(
+            window,
+            self._adjoint.adjoint(step),
+            lag,
+            self._tangents_of(step),
+            self._p_dir,
+            space,
+        )
 
     def step_unknown(
         self, step: int, window: StepWindow[V]
@@ -1769,16 +1735,14 @@ class _SecondOrderSources(Generic[V, A]):
 
     def step_param(self, step: int, window: StepWindow[V]) -> Optional[V]:
         # sum_a H(a, p)^T dX_a + H(p, p) v, and the step terms' own
-        second, mu = self._second, self._adjoint.adjoint(step)
-        lag_tangents = self._tangents_of(step)
         params = self._params
-        total: Optional[V] = second.param_param(window, mu).apply(self._p_dir).blocks[0]
-        for lag in sorted(second.param_lags):
-            if lag in lag_tangents:
-                mixed = second.state_param(window, mu, lag)
-                total = _accumulate(
-                    total, mixed.apply_transpose(lag_tangents[lag]).blocks[0], params
-                )
+        total: Optional[V] = self._second.wrt_param(
+            window,
+            self._adjoint.adjoint(step),
+            self._tangents_of(step),
+            self._p_dir,
+            params,
+        )
         tangents, v = self._tangent_window_of(step), self._direction
         for term in self._curvatures.steps:
             total = _accumulate(

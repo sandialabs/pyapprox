@@ -21,15 +21,16 @@ any native state term (a misfit, an observation) is read between steps
 with no code of its own.
 """
 
-from dataclasses import dataclass
-from typing import Callable, Generic, List, Optional, Sequence, TypeVar
+from typing import Generic, List, Optional, Sequence, TypeVar
 
 from pyapprox.ode.continuous_extension import (
     ContinuousExtensionDerivatives,
     ContinuousExtensionProtocol,
 )
-from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_terms import (
+    ChainedLinearization,
+    ChainPart,
     LinearizationProtocol,
     StateTermDerivatives,
     StateTermProtocol,
@@ -55,71 +56,18 @@ def _same(vector: BlockVector[V]) -> BlockVector[V]:
     return vector
 
 
-@dataclass(frozen=True)
-class _Part(Generic[X, V, A]):
-    """One time's piece of a chained derivative: the state term's
-    derivative :math:`G_k`, the extension's :math:`D_k` in the argument
-    (None for zero) and the term's own derivative in it (None for zero)."""
+class _OnFirstBlock(Generic[V, A]):
+    r"""A state term's derivative :math:`G_k` read on the extension's
+    output, a one-block vector."""
 
-    state: LinearizationProtocol[V, A]
-    extension: Optional[StepOperator[V]]
-    direct: Optional[LinearizationProtocol[X, A]]
+    def __init__(self, state: LinearizationProtocol[V, A]) -> None:
+        self._state = state
 
+    def apply(self, x: BlockVector[V]) -> A:
+        return self._state.apply(_first(x))
 
-class _Chained(Generic[X, V, A]):
-    r""":math:`\sum_k (G_k D_k + \partial g_k)` over one step's times:
-    forward through :math:`D_k` then :math:`G_k`, transposed through
-    :math:`G_k^\top` then :math:`D_k^\top`.
-
-    Parameters
-    ----------
-    parts : sequence of _Part
-        Per time read in the step.
-    wrap, unwrap : callable
-        The argument as the extension's step operators take it, and back.
-    add : callable
-        A new vector, the sum of two of the argument's; the first term of
-        a sum is added to a zero likewise, since a term's transposed
-        derivative may be its own storage, overwritten by its next call.
-    """
-
-    def __init__(
-        self,
-        parts: Sequence[_Part[X, V, A]],
-        wrap: Callable[[X], BlockVector[V]],
-        unwrap: Callable[[BlockVector[V]], X],
-        add: Callable[[Optional[X], X], X],
-    ) -> None:
-        self._parts = tuple(parts)
-        self._wrap, self._unwrap, self._add = wrap, unwrap, add
-
-    def apply(self, x: X) -> A:
-        total: Optional[A] = None
-        for part in self._parts:
-            if part.extension is not None:
-                moved = _first(part.extension.apply(self._wrap(x)))
-                value = part.state.apply(moved)
-                total = value if total is None else total + value
-            if part.direct is not None:
-                value = part.direct.apply(x)
-                total = value if total is None else total + value
-        if total is None:
-            raise ValueError("a chained derivative with no parts")
-        return total
-
-    def apply_transpose(self, weights: A) -> X:
-        total: Optional[X] = None
-        for part in self._parts:
-            if part.extension is not None:
-                pulled = part.extension.apply_transpose(
-                    _one(part.state.apply_transpose(weights))
-                )
-                total = self._add(total, self._unwrap(pulled))
-            if part.direct is not None:
-                total = self._add(total, part.direct.apply_transpose(weights))
-        if total is None:
-            raise ValueError("a chained derivative with no parts")
-        return total
+    def apply_transpose(self, weights: A) -> BlockVector[V]:
+        return _one(self._state.apply_transpose(weights))
 
 
 class TermAtTimes(Generic[V, A]):
@@ -263,13 +211,14 @@ class TermAtTimes(Generic[V, A]):
         field = self._extended().wrt_unknown
         if field is None:
             raise ValueError("the extension has no derivatives")
-        parts: List[_Part[BlockVector[V], V, A]] = []
+        parts: List[ChainPart[BlockVector[V], V, A]] = []
         for k in self._in(window):
             _, state = self._state_derivative(k, window)
-            parts.append(_Part(state, field(window, self._times[k]), None))
+            extension = field(window, self._times[k])
+            parts.append(ChainPart(_OnFirstBlock(state), extension, None))
         if not parts:
             return None
-        return _Chained(parts, _same, _same, self._add_unknown)
+        return ChainedLinearization(parts, _same, _same, self._add_unknown)
 
     def _wrt_lag(
         self, step: int, window: StepWindow[V], lag: int
@@ -277,29 +226,30 @@ class TermAtTimes(Generic[V, A]):
         field = self._extended().wrt_lag
         if field is None:
             raise ValueError("the extension has no derivatives")
-        parts: List[_Part[V, V, A]] = []
+        parts: List[ChainPart[V, V, A]] = []
         for k in self._in(window):
             _, state = self._state_derivative(k, window)
-            parts.append(_Part(state, field(window, self._times[k], lag), None))
+            extension = field(window, self._times[k], lag)
+            parts.append(ChainPart(_OnFirstBlock(state), extension, None))
         if not parts:
             return None
-        return _Chained(parts, _one, _first, self._add_state)
+        return ChainedLinearization(parts, _one, _first, self._add_state)
 
     def _wrt_param(
         self, step: int, window: StepWindow[V]
     ) -> Optional[LinearizationProtocol[V, A]]:
         extended, own = self._extended().wrt_param, self._own().wrt_param
-        parts: List[_Part[V, V, A]] = []
+        parts: List[ChainPart[V, V, A]] = []
         for k in self._in(window):
             time = self._times[k]
             y, state = self._state_derivative(k, window)
             extension = None if extended is None else extended(window, time)
             direct = None if own is None else own(k, time, y)
             if extension is not None or direct is not None:
-                parts.append(_Part(state, extension, direct))
+                parts.append(ChainPart(_OnFirstBlock(state), extension, direct))
         if not parts:
             return None
-        return _Chained(parts, _one, _first, self._add_param)
+        return ChainedLinearization(parts, _one, _first, self._add_param)
 
     # ------------------------------------------------------------------
     # Curvatures

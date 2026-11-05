@@ -36,13 +36,14 @@ form, where it calls the residual.
 """
 
 from dataclasses import dataclass
-from typing import Callable, FrozenSet, Generic, Optional, Tuple, TypeVar
+from typing import Callable, FrozenSet, Generic, Mapping, Optional, Tuple, TypeVar
 
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     BlockVector,
     FormatProtocol,
+    VectorSpaceProtocol,
 )
 
 V = TypeVar("V")
@@ -260,3 +261,119 @@ class StepperDerivatives(Generic[V]):
             state_pairs=state_pairs,
             param_lags=param_lags,
         )
+
+
+@dataclass(frozen=True)
+class StepSecondOrder(Generic[V]):
+    r"""A step bundle's second-order fields, all present, and its declared
+    blocks, with their contractions along a tangent: what a Hessian-vector
+    product reads of a step residual :math:`R_n` weighted by an adjoint
+    :math:`\mu` (the sweeps' step adjoint, or a functional's
+    :math:`\Omega^\top \omega` on a step residual).
+
+    Build with :meth:`of`.
+    """
+
+    state_state: StateStateFn[V]
+    state_param: StateParamFn[V]
+    param_param: ParamParamFn[V]
+    state_pairs: FrozenSet[Tuple[int, int]]
+    param_lags: FrozenSet[int]
+
+    @staticmethod
+    def of(derivs: StepperDerivatives[W], owner: str) -> "StepSecondOrder[W]":
+        """The second order of ``derivs``.
+
+        Raises
+        ------
+        TypeError
+            If the bundle has none; ``owner`` names it in the message.
+        """
+        if (
+            derivs.state_state is None
+            or derivs.state_param is None
+            or derivs.param_param is None
+        ):
+            raise TypeError(
+                f"{owner}'s derivatives() has no second derivatives, so it has "
+                "no Hessian-vector products"
+            )
+        return StepSecondOrder(
+            derivs.state_state,
+            derivs.state_param,
+            derivs.param_param,
+            derivs.state_pairs,
+            derivs.param_lags,
+        )
+
+    def at_lag(
+        self,
+        window: StepWindow[V],
+        mu: BlockVector[V],
+        lag: int,
+        lag_tangents: Mapping[int, BlockVector[V]],
+        direction: BlockVector[V],
+        space: VectorSpaceProtocol[BlockVector[V]],
+    ) -> Optional[BlockVector[V]]:
+        r""":math:`\sum_b (\mu^\top R_n)_{ab}\, dX_b + (\mu^\top
+        R_n)_{ap}\, v` for :math:`a` = ``lag``, over the declared blocks the
+        window has (a startup step reads fewer lags, so ``lag_tangents``
+        holds those it has); a new vector, or None when none is declared.
+
+        Parameters
+        ----------
+        window : StepWindow
+            The step.
+        mu : BlockVector
+            The adjoint, a single column of the residual space.
+        lag : int
+            :math:`a`.
+        lag_tangents : mapping
+            :math:`dX_b` by lag, each a block vector of its lag's space.
+        direction : BlockVector
+            :math:`v`, a one-block parameter vector.
+        space : VectorSpaceProtocol
+            Lag ``lag``'s space, for the sum.
+        """
+        total: Optional[BlockVector[V]] = None
+        for a, other in sorted(self.state_pairs):
+            if a != lag or other not in lag_tangents:
+                continue
+            term = self.state_state(window, mu, lag, other).apply(lag_tangents[other])
+            total = term if total is None else space.axpby(
+                1.0, term, 1.0, total, out=total
+            )
+        if lag in self.param_lags:
+            term = self.state_param(window, mu, lag).apply(direction)
+            total = term if total is None else space.axpby(
+                1.0, term, 1.0, total, out=total
+            )
+        return total
+
+    def wrt_param(
+        self,
+        window: StepWindow[V],
+        mu: BlockVector[V],
+        lag_tangents: Mapping[int, BlockVector[V]],
+        direction: BlockVector[V],
+        space: VectorSpaceProtocol[V],
+    ) -> V:
+        r""":math:`\sum_a (\mu^\top R_n)_{pa}\, dX_a + (\mu^\top R_n)_{pp}\,
+        v`, the mixed blocks transposed, over the declared lags the window
+        has; a new vector.
+
+        Parameters
+        ----------
+        window, mu, lag_tangents, direction
+            As for :meth:`at_lag`.
+        space : VectorSpaceProtocol
+            The parameters' (one block's) space, for the sum.
+        """
+        total = self.param_param(window, mu).apply(direction).blocks[0]
+        for lag in sorted(self.param_lags):
+            if lag not in lag_tangents:
+                continue
+            mixed = self.state_param(window, mu, lag)
+            term = mixed.apply_transpose(lag_tangents[lag]).blocks[0]
+            total = space.axpby(1.0, term, 1.0, total, out=total)
+        return total

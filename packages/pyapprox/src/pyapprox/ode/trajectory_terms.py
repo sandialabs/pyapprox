@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from typing import (
     Callable,
     Generic,
+    List,
     Optional,
     Protocol,
     Sequence,
@@ -51,7 +52,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.ode.stepper_derivatives import StepWindow
+from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import BlockVector
 
@@ -98,6 +99,82 @@ class BackendScalarGradient(Generic[A]):
 
     def apply_transpose(self, weights: A) -> A:
         return self._gradient * weights
+
+
+@dataclass(frozen=True)
+class ChainPart(Generic[X, V, A]):
+    r"""One piece of a chained first derivative (see
+    :class:`ChainedLinearization`): an outer linear map :math:`G` of a
+    step operator's output :math:`D x` (None for a zero :math:`D`), and a
+    direct derivative in the same argument (None for zero)."""
+
+    outer: LinearizationProtocol[BlockVector[V], A]
+    inner: Optional[StepOperator[V]]
+    direct: Optional[LinearizationProtocol[X, A]]
+
+
+class ChainedLinearization(Generic[X, V, A]):
+    r""":math:`\sum_k (G_k D_k + E_k)`: a term's first derivative through
+    step operators :math:`D_k` (a continuous extension's, a step
+    residual's) and outer maps :math:`G_k`, plus direct derivatives
+    :math:`E_k`. Forward through :math:`D_k` then :math:`G_k`; transposed
+    through :math:`G_k^\top` then :math:`D_k^\top`.
+
+    Parameters
+    ----------
+    parts : sequence of ChainPart
+        The pieces, at least one.
+    wrap, unwrap : callable
+        The argument as the step operators take it (a block vector), and
+        back.
+    add : callable
+        ``(x, y) ->`` a new vector, :math:`x + y`, or a copy of :math:`y`
+        for ``x`` None: a term's transposed derivative may be its own
+        storage, overwritten by its next call.
+
+    Raises
+    ------
+    ValueError
+        If ``parts`` is empty.
+    """
+
+    def __init__(
+        self,
+        parts: Sequence[ChainPart[X, V, A]],
+        wrap: Callable[[X], BlockVector[V]],
+        unwrap: Callable[[BlockVector[V]], X],
+        add: Callable[[Optional[X], X], X],
+    ) -> None:
+        if not parts:
+            raise ValueError("a chained derivative needs at least one part")
+        self._parts = tuple(parts)
+        self._wrap, self._unwrap, self._add = wrap, unwrap, add
+
+    def apply(self, x: X) -> A:
+        total: Optional[A] = None
+        for part in self._parts:
+            values: List[A] = []
+            if part.inner is not None:
+                values.append(part.outer.apply(part.inner.apply(self._wrap(x))))
+            if part.direct is not None:
+                values.append(part.direct.apply(x))
+            for value in values:
+                total = value if total is None else total + value
+        if total is None:
+            raise ValueError("every part of the chained derivative is zero")
+        return total
+
+    def apply_transpose(self, weights: A) -> X:
+        total: Optional[X] = None
+        for part in self._parts:
+            if part.inner is not None:
+                pulled = part.inner.apply_transpose(part.outer.apply_transpose(weights))
+                total = self._add(total, self._unwrap(pulled))
+            if part.direct is not None:
+                total = self._add(total, part.direct.apply_transpose(weights))
+        if total is None:
+            raise ValueError("every part of the chained derivative is zero")
+        return total
 
 
 StateCurvatureFn = Callable[[int, float, V, A, V], Optional[V]]
