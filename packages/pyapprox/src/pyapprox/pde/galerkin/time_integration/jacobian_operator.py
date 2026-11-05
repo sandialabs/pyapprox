@@ -2,17 +2,19 @@
 
 ``GalerkinJacobianOperator`` turns an injected
 :class:`~pyapprox.pde.assembly.protocols.JacobianAssemblerProtocol` into
-the state Jacobian with its essential rows zeroed, labeled with a
-linearization point. It works on any stack: how the entries reach the
-stack is the assembler's concern, and each assembler states what it
-needs of the stack in its own constructor's types.
+the state Jacobian, its essential rows zeroed or as assembled, labeled
+with a linearization point; :func:`classified_jacobian` declares it in a
+derivatives bundle by what it depends on. It works on any stack: how the
+entries reach the stack is the assembler's concern, and each assembler
+states what it needs of the stack in its own constructor's types.
 """
 
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.residual_derivatives import Jacobian
 from pyapprox.pde.assembly.protocols import (
     AssemblyStackProtocol,
     JacobianAssemblerProtocol,
@@ -91,9 +93,10 @@ def essential_rows(
 
 
 class GalerkinJacobianOperator(Generic[Array, V, F]):
-    """The state Jacobian with essential rows zeroed, on any stack.
+    """The state Jacobian, with given rows zeroed or as assembled, on any
+    stack.
 
-    The essential rows are zeroed by
+    The rows are zeroed by
     :class:`~pyapprox.util.linalg.operators.RowsZeroedOperator` rather
     than in storage, so the stored operator is the plain assembled one.
 
@@ -101,9 +104,9 @@ class GalerkinJacobianOperator(Generic[Array, V, F]):
     ----------
     assembler : JacobianAssemblerProtocol
         Produces the assembled Jacobian.
-    rows : RowSetProtocol
-        The essential rows, of the assembler's stack (see
-        :func:`essential_rows`).
+    rows : RowSetProtocol, optional
+        The rows to zero, of the assembler's stack (the essential rows,
+        see :func:`essential_rows`); none, for the Jacobian as assembled.
 
     Raises
     ------
@@ -114,14 +117,14 @@ class GalerkinJacobianOperator(Generic[Array, V, F]):
     def __init__(
         self,
         assembler: JacobianAssemblerProtocol[Array, V, F],
-        rows: RowSetProtocol[V],
+        rows: Optional[RowSetProtocol[V]],
     ) -> None:
         if not isinstance(assembler, JacobianAssemblerProtocol):
             raise TypeError(
                 "assembler must satisfy JacobianAssemblerProtocol, "
                 f"got {type(assembler).__name__}"
             )
-        if not isinstance(rows, RowSetProtocol):
+        if rows is not None and not isinstance(rows, RowSetProtocol):
             raise TypeError(
                 f"rows must satisfy RowSetProtocol, got {type(rows).__name__}"
             )
@@ -148,7 +151,67 @@ class GalerkinJacobianOperator(Generic[Array, V, F]):
             The operator, independent of later calls.
         """
         assembled = self._assembler.assemble_jacobian(state, time)
+        if self._rows is None:
+            return LinearizedOperator(assembled, point)
         return LinearizedOperator(RowsZeroedOperator(assembled, self._rows), point)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(assembler={self._assembler!r})"
+
+
+class _StateFreeJacobian(Generic[Array, F]):
+    """The Jacobian of an affine :math:`F` at a time, assembled at a fixed
+    reference state: an affine physics ignores the state, so any state
+    gives this same Jacobian."""
+
+    def __init__(
+        self, operator: GalerkinJacobianOperator[Array, Array, F], reference: Array
+    ) -> None:
+        self._operator, self._reference = operator, reference
+
+    def __call__(
+        self, time: float, point: LinearizationPoint
+    ) -> LinearizedOperator[Array, F]:
+        return self._operator.jacobian_operator(self._reference, time, point)
+
+
+class _ConstantJacobian(Generic[Array, F]):
+    """The Jacobian of an affine :math:`F` declared time-invariant: the
+    same at every state and time, so assembled at the reference state and
+    time zero."""
+
+    def __init__(self, at_time: _StateFreeJacobian[Array, F]) -> None:
+        self._at_time = at_time
+
+    def __call__(self, point: LinearizationPoint) -> LinearizedOperator[Array, F]:
+        return self._at_time(0.0, point)
+
+
+def classified_jacobian(
+    system: GalerkinTransientSystemProtocol[Array],
+    operator: GalerkinJacobianOperator[Array, Array, F],
+) -> Jacobian[Array, F]:
+    r"""``operator`` as a bundle's Jacobian, given only what it depends on.
+
+    Of the time only when the physics declares :math:`F` affine in the
+    state (its zero-curvature ``StateDerivatives``), so it is not given
+    the state, and of neither when every part of :math:`F` also declares
+    its Jacobian time-invariant. Zeroing a fixed set of rows keeps both:
+    the zeroed rows see neither state nor time.
+
+    Parameters
+    ----------
+    system : GalerkinTransientSystemProtocol
+        The system whose physics declares what :math:`F` depends on.
+    operator : GalerkinJacobianOperator
+        The Jacobian, with whatever rows it zeroes.
+    """
+    spatial_operator = system.spatial_operator()
+    if not spatial_operator.state_derivatives().affine():
+        return Jacobian.general(operator.jacobian_operator)
+    # The state an affine physics' Jacobian is assembled at: it ignores
+    # the state, so any one gives the same Jacobian; allocated once.
+    at_time = _StateFreeJacobian(operator, system.bkd().zeros((system.nstates(),)))
+    if spatial_operator.jacobian_is_time_invariant():
+        return Jacobian.constant(_ConstantJacobian(at_time))
+    return Jacobian.state_free(at_time)

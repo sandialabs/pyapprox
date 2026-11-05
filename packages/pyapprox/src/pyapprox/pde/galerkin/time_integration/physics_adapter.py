@@ -45,6 +45,7 @@ from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
 )
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
     GalerkinJacobianOperator,
+    classified_jacobian,
 )
 from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
@@ -59,8 +60,6 @@ from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
     InnerProductSpaceProtocol,
-    JacobianSnapshotProtocol,
-    LinearizationPoint,
     LinearSolverProtocol,
 )
 
@@ -165,9 +164,9 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
         self._essential_jacobian = GalerkinJacobianOperator(
             discretization, discretization.essential_rows()
         )
-        # The state an affine physics' Jacobian is assembled at: it ignores
-        # the state, so any one gives the same Jacobian; allocated once.
-        self._reference_state = self._bkd.zeros((system.nstates(),))
+        self._bundle_jacobian: Jacobian[Array, F] = classified_jacobian(
+            system, self._essential_jacobian
+        )
         self._stack_mass_source: Optional[ActionOperatorProtocol[Array, F]] = None
         self._stack_mass: Optional[ActionOperatorProtocol[Array, F]] = None
         self._derivatives: Optional[ODEResidualDerivatives[Array, F]] = None
@@ -197,36 +196,10 @@ class GalerkinPhysicsToODEResidualAdapter(Generic[Array, F]):
 
     def _jacobian(self) -> Jacobian[Array, F]:
         """The stack Jacobian, essential rows zeroed, at what it depends
-        on: of the time only when the physics declares :math:`F` affine in
-        the state (its zero-curvature ``StateDerivatives``), so it is not
-        given the state, and of neither when every part of :math:`F` also
-        declares its Jacobian time-invariant. The essential rows carry the
+        on (:func:`classified_jacobian`). The essential rows carry the
         boundary velocity, independent of the state, so they keep the
-        neutralized :math:`f` affine; the rows zeroed are fixed, so they
-        keep its Jacobian time-invariant."""
-        if not self._spatial_operator.state_derivatives().affine():
-            return Jacobian.general(self._essential_jacobian.jacobian_operator)
-        if self._spatial_operator.jacobian_is_time_invariant():
-            return Jacobian.constant(self._constant_jacobian)
-        return Jacobian.state_free(self._state_free_jacobian)
-
-    def _state_free_jacobian(
-        self, time: float, point: LinearizationPoint
-    ) -> JacobianSnapshotProtocol[Array, F]:
-        """The Jacobian of an affine :math:`F` at ``time``, assembled at the
-        reference state: an affine physics ignores the state, so any state
-        gives this same Jacobian, and zero is a convenient one."""
-        return self._essential_jacobian.jacobian_operator(
-            self._reference_state, time, point
-        )
-
-    def _constant_jacobian(
-        self, point: LinearizationPoint
-    ) -> JacobianSnapshotProtocol[Array, F]:
-        """The Jacobian of an affine :math:`F` whose Jacobian is declared
-        time-invariant: the same at every state and time, so assembled at
-        the reference state and time zero."""
-        return self._state_free_jacobian(0.0, point)
+        neutralized :math:`f` affine."""
+        return self._bundle_jacobian
 
     def system(self) -> GalerkinTransientSystemProtocol[Array]:
         """Return the adapted system."""

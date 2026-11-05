@@ -26,15 +26,7 @@ for the fourth. Parameters live in a space of the discretization's stack.
 
 from typing import Optional, TypeVar, overload
 
-from pyapprox.ode.residual_derivatives import (
-    STATED_ZERO,
-    InitialStateFn,
-    ODEResidualDerivatives,
-    ParamFn,
-    dense_operator,
-    matrix_free_initial_state_curvature,
-    matrix_free_second_derivative,
-)
+from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
 from pyapprox.ode.state_derivatives import StateStateHVPFn
 from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
@@ -50,13 +42,16 @@ from pyapprox.pde.models.galerkin.constrained_derivatives import (
     constrain_param_derivatives,
     constrain_state_state_hvp,
 )
+from pyapprox.pde.models.galerkin.parameter_fields import residual_derivatives
 from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.derivatives import (
     InitialParamHVPFn,
     InitialParamJacobianFn,
+    ParamDerivatives,
     ParamHVPFn,
     ParamJacobianFn,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
@@ -64,7 +59,6 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     LinearSolverProtocol,
-    VectorSpaceProtocol,
 )
 
 F = TypeVar("F", bound=FormatProtocol)
@@ -101,24 +95,22 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
         parameterization: ParameterizationProtocol[Array],
         row_treatment: RowTreatmentFactory[Array] = NeutralizedRows,
     ) -> None:
-        self._parameters_version = 0
-        if not isinstance(parameterization, ParameterizationProtocol):
-            raise TypeError(
-                f"parameterization must satisfy ParameterizationProtocol, "
-                f"got {type(parameterization).__name__}"
-            )
+        self._parameter_state = ParameterState(parameterization)
         require_owned_targets(parameterization, discretization.system())
         super().__init__(discretization, solver, row_treatment)
-        self._parameterization = parameterization
-        self._current_params_1d: Optional[Array] = None
 
     def parameterization(self) -> ParameterizationProtocol[Array]:
         """Return the parameterization."""
-        return self._parameterization
+        return self._parameter_state.parameterization()
+
+    def parameter_state(self) -> ParameterState[Array]:
+        """The parameters this adapter reads, for another system to share:
+        one ``set_param`` moves both, version included."""
+        return self._parameter_state
 
     def nparams(self) -> int:
         """Return the number of parameters."""
-        return self._parameterization.nparams()
+        return self._parameter_state.nparams()
 
     def set_param(self, param: Array) -> None:
         """Set parameter values through the parameterization.
@@ -130,26 +122,15 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
             protocol convention (strictly validated; callers convert at
             the optimizer/ode boundary).
         """
-        if param.ndim != 1:
-            raise ValueError(
-                f"param must be 1D with shape (nparams,), got shape "
-                f"{tuple(param.shape)}"
-            )
-        self._current_params_1d = param
-        self._parameterization.apply(param)
-        self._parameters_version += 1
+        self._parameter_state.set_param(param)
 
     def parameters_version(self) -> int:
         """The number of ``set_param`` calls so far."""
-        return self._parameters_version
+        return self._parameter_state.parameters_version()
 
     def _require_params(self) -> Array:
         """Return the current parameters or raise if set_param not called."""
-        if self._current_params_1d is None:
-            raise RuntimeError(
-                "set_param() must be called before parameter derivatives"
-            )
-        return self._current_params_1d
+        return self._parameter_state.current()
 
 
 class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
@@ -187,6 +168,13 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         self._initial_param_jacobian_fn: InitialParamJacobianFn[Array] = (
             initial_param_jacobian
         )
+        # What this tier's bundle is built from: the first-order fields
+        # only, whatever else the parameterization supplies.
+        self._bundle_parts: ParamDerivatives[Array] = ParamDerivatives(
+            param_jacobian=param_jacobian,
+            initial_param_jacobian=initial_param_jacobian,
+        )
+        self._bundle_state_state: Optional[StateStateHVPFn[Array]] = None
 
     def param_jacobian(self, state: Array, time: float) -> Array:
         """Compute the parameter Jacobian of the BC-NEUTRALIZED f.
@@ -223,36 +211,18 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         """
         return self._initial_param_jacobian_fn(self._require_params())
 
-    def _first_order_parts(
-        self,
-    ) -> tuple[
-        VectorSpaceProtocol[Array],
-        VectorSpaceProtocol[Array],
-        ParamFn[Array],
-        InitialStateFn[Array],
-    ]:
-        """The state and parameter spaces, both of the discretization's
-        stack, and the parameter and initial-state Jacobians as dense
-        operators over their matrix methods."""
-        states = self._discretization.space()
-        params = self._discretization.parameter_space(self.nparams())
-        return (
-            states,
-            params,
-            dense_operator(self.param_jacobian, params, states, self._bkd),
-            dense_operator(self.initial_param_jacobian, params, states, self._bkd),
-        )
-
     def _build_derivatives(self) -> ODEResidualDerivatives[Array, F]:
-        """First order: the stack Jacobian, and the parameter and
-        initial-state Jacobians."""
-        states, params, param, initial = self._first_order_parts()
-        return ODEResidualDerivatives.first_order(
-            states,
-            params,
-            jacobian=self._jacobian(),
-            param=param,
-            initial_state=initial,
+        """The stack Jacobian and this tier's parameter derivatives, with
+        their essential rows treated, on spaces of the discretization's
+        stack."""
+        return residual_derivatives(
+            self._jacobian(),
+            self._bundle_parts,
+            self._bundle_state_state,
+            self._parameter_state,
+            self._discretization.space(),
+            self._discretization.parameter_space(self.nparams()),
+            self._bkd,
         )
 
 
@@ -325,44 +295,10 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
         self._initial_param_hvp_fn: InitialParamHVPFn[Array] = initial_param_hvp
-
-    def _build_derivatives(self) -> ODEResidualDerivatives[Array, F]:
-        """Second order: the first-order fields, and the second
-        derivatives through the vector methods, applied a column at a
-        time."""
-        states, params, param, initial = self._first_order_parts()
-        bkd = self._bkd
-        jacobian = self._jacobian()
-        return ODEResidualDerivatives.second_order(
-            states,
-            params,
-            jacobian=jacobian,
-            param=param,
-            initial_state=initial,
-            initial_state_curvature=matrix_free_initial_state_curvature(
-                self.initial_param_hvp, params, bkd
-            ),
-            # A Jacobian that cannot see the state means f is affine, with
-            # zero state curvature, stated as such.
-            state_state=(
-                STATED_ZERO
-                if jacobian.affine()
-                else matrix_free_second_derivative(
-                    self.state_state_hvp,
-                    self.state_state_hvp,
-                    states,
-                    states,
-                    bkd,
-                    True,
-                )
-            ),
-            state_param=matrix_free_second_derivative(
-                self.state_param_hvp, self.param_state_hvp, params, states, bkd
-            ),
-            param_param=matrix_free_second_derivative(
-                self.param_param_hvp, self.param_param_hvp, params, params, bkd, True
-            ),
-        )
+        # Second order: the bundle is built from every field, the second
+        # derivatives applied a column at a time.
+        self._bundle_parts = derivs
+        self._bundle_state_state = self._state_state_hvp_fn
 
     def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
         """sum_i weight_i (d^2 y_0,i/dp^2) v, essential entries zeroed.

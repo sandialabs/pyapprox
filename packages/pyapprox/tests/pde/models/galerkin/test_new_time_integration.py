@@ -3,7 +3,8 @@ r"""The Galerkin heat problem on the new time integration, against the old.
 1D heat equation on [0, 1], P1 on 10 cells, diffusivity exp(W p) from a
 three-term log-KLE at p = (0.4, -0.3, 0.2), forcing (1 + x)(1 + sin 5t),
 u(0) = 0 and a moving right end 0.5 sin 4t (its rate supplied), from
-0.3 sin(pi x), dt = 0.001 to T = 0.02, Newton tolerance 1e-13. The
+0.3 sin(pi x) (``tests._helpers.galerkin_heat``), dt = 0.001 to T =
+0.02, Newton tolerance 1e-13. The
 essential rows are handled by one of the strategies:
 
 - ``step_end`` (A): the coupled row treatment, with the essential rows
@@ -72,21 +73,6 @@ from pyapprox.ode.trajectory_derivatives import (
 )
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
-from pyapprox.pde.boundary import BoundarySignal
-from pyapprox.pde.constitutive.coefficient_functions import (
-    NodalFieldDiffusion,
-    TimeDependent,
-)
-from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
-from pyapprox.pde.field_maps.transformed import (
-    TransformedFieldMap,
-    _ExpTransform,
-)
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.boundary import DirichletBC
-from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
     NeutralizedRows,
@@ -102,17 +88,15 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithSetParamAdapter,
     create_galerkin_physics_ode_residual,
 )
-from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
-    AdvectionDiffusionParameterization,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from pyapprox.util.rootfinding.nonlinear import Newton
+from tests._helpers.galerkin_heat import HEAT_NPARAMS, HEAT_PARAM, MovingEndHeat
 
 _Np = NDArray[Any]
-_NPARAMS = 3
-_PARAM = np.array([[0.4], [-0.3], [0.2]])
+_NPARAMS = HEAT_NPARAMS
+_PARAM = HEAT_PARAM
 _DELTAT, _FINAL_TIME = 0.001, 0.02
 _Strategy = Literal["step_end", "projection", "pin", "pinned_rows"]
 _STRATEGIES: List[_Strategy] = ["step_end", "projection", "pin", "pinned_rows"]
@@ -127,66 +111,16 @@ _METHODS: List[tuple[Callable[[], ButcherTableau], str]] = [
 ]
 
 
-def _forcing(x: _Np, t: float) -> _Np:
-    value: _Np = (1.0 + x[0]) * (1.0 + np.sin(5.0 * t))
-    return value
-
-
-def _right_value(x: _Np, t: float) -> _Np:
-    value: _Np = np.full(x.shape[1], 0.5 * np.sin(4.0 * t))
-    return value
-
-
-def _right_rate(x: _Np, t: float) -> _Np:
-    value: _Np = np.full(x.shape[1], 2.0 * np.cos(4.0 * t))
-    return value
-
-
 class _Heat:
     """The parameterized heat system, its initial state and the DOF next
     to the moving right end."""
 
     def __init__(self, bkd: NumpyBkd) -> None:
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-        physics = AdvectionDiffusionReaction(
-            basis=basis,
-            diffusivity=NodalFieldDiffusion(basis),
-            bkd=bkd,
-            forcing=TimeDependent(_forcing),
-        )
-        right = BoundarySignal(
-            TimeDependent(_right_value), [TimeDependent(_right_rate)]
-        )
-        self.system: GalerkinSystem[_Np] = compose_galerkin_system(
-            physics,
-            [
-                DirichletBC(basis, "left", 0.0, bkd),
-                DirichletBC(basis, "right", right, bkd),
-            ],
-        )
-        x = np.asarray(basis.dof_coordinates())[0]
-        modes = np.stack(
-            [0.4 * np.sin((k + 1) * np.pi * x) / (k + 1) for k in range(_NPARAMS)],
-            axis=1,
-        )
-        exp = _ExpTransform(bkd)
-        self.parameterization = AdvectionDiffusionParameterization(
-            physics,
-            diffusivity_map=TransformedFieldMap(
-                MeshKLEFieldMap(bkd, bkd.zeros((x.shape[0],)), bkd.asarray(modes)),
-                exp,
-                exp,
-                bkd,
-                transform_deriv2=exp,
-            ),
-            bkd=bkd,
-        )
-        self.init_state: _Np = 0.3 * np.sin(np.pi * x)
-        interior = np.setdiff1d(
-            np.arange(x.shape[0]), np.asarray(self.system.constraint_set().dofs())
-        )
-        self.near_right = int(interior[np.argmax(x[interior])])
+        heat = MovingEndHeat(bkd)
+        self.system: GalerkinSystem[_Np] = heat.system
+        self.parameterization = heat.parameterization
+        self.init_state: _Np = heat.init_state
+        self.near_right = heat.near_right
 
     def adapter(
         self, strategy: _Strategy
