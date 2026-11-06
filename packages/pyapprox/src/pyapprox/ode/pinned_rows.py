@@ -30,7 +30,7 @@ adjoint of the replaced equation.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.state_constraint import StateConstraintDerivatives
@@ -60,6 +60,12 @@ class PinnedRowsProtocol(Protocol[V]):
     def values(self, time: float) -> V:
         r""":math:`g(t)`: a single column of the state space whose rows
         :math:`R` hold the data at ``time``; its other rows are ignored."""
+        ...
+
+    def rates(self) -> Optional[Callable[[float], V]]:
+        r""":math:`t \mapsto \dot g(t)`, a single column laid out as
+        :meth:`values`; None when the data's rate is not supplied. Fixed
+        for the declaration's life."""
         ...
 
 

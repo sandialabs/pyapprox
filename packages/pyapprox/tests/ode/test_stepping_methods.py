@@ -13,7 +13,7 @@ parameters (1, 0.1, 0.075, 1.5), dt 0.05 to 0.5:
   the wrong type.
 """
 
-from typing import Any, Callable, Generic, List
+from typing import Any, Callable, Generic, List, Optional
 
 import pytest
 from numpy.typing import NDArray
@@ -136,6 +136,9 @@ class _Fixed(Generic[Array]):
 
     def values(self, time: float) -> Array:
         return self._bkd.asarray([[7.0], [0.0]])
+
+    def rates(self) -> Optional[Callable[[float], Array]]:
+        return None
 
 
 class TestRefusals:

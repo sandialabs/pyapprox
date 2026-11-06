@@ -43,6 +43,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.differentiated_rows import differentiated_rows
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.observation_terms import StateEntries
 from pyapprox.ode.pinned_rows import RowPinning
@@ -71,6 +72,9 @@ from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
 from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
+    EssentialPinnedRows,
+)
 from pyapprox.pde.models.galerkin import (
     GalerkinParameterizedResidual,
     GalerkinTransientForwardModel,
@@ -138,11 +142,18 @@ class _Case:
         )
         self.adapter.set_param(HEAT_PARAM[:, 0])
         implicit = not tableau.is_explicit()
+        self.rows = EssentialPinnedRows(self.discretization)
+        self.solved = differentiated_rows(
+            galerkin_unconstrained_system(
+                self.discretization, ScipySparseLU(), self.adapter.parameter_state()
+            ),
+            self.rows,
+        )
         self.solver = RungeKuttaStepper(
             tableau,
-            self.adapter.mass_form_system(),
+            self.solved,
             _newton() if implicit else None,
-            RowPinning(self.adapter.pinned_rows()),
+            RowPinning(self.rows),
         )
         self.unconstrained = RungeKuttaStepper(
             tableau,
@@ -318,6 +329,69 @@ class TestTheRightHandSide:
         with pytest.raises(ValueError, match="does not hold"):
             GalerkinUnconstrainedRightHandSide(
                 discretization, ParameterState(other.parameterization)
+            )
+
+
+class TestTheDifferentiatedSystem:
+    def test_it_is_the_adapters_neutralized_ode(self, numpy_bkd: NumpyBkd) -> None:
+        """The unconstrained system under ``differentiated_rows`` gives the
+        adapter's neutralized f and the actions of its whole bundle
+        exactly: the row edits made once over the raw system are the ones
+        the adapter makes in place."""
+        bkd = numpy_bkd
+        case = _Case(bkd, backward_euler(), final_time=_DELTAT)
+        layered, adapter = case.solved.rhs, case.adapter
+        nstates = case.heat.system.nstates()
+        rng = np.random.default_rng(11)
+        state = bkd.asarray(np.linspace(0.1, 0.9, nstates))
+        adj = bkd.asarray(rng.normal(size=nstates))
+        direction = bkd.asarray(rng.normal(size=(nstates, 1)))
+        param_direction = bkd.asarray(rng.normal(size=(3, 1)))
+        bkd.assert_allclose(layered(state, _TIME), adapter(state, _TIME), rtol=0.0)
+        mine, theirs = layered.derivatives(), adapter.derivatives()
+        assert repr(mine.jacobian) == repr(theirs.jacobian)
+        assert mine.jacobian is not None and theirs.jacobian is not None
+        assert mine.param is not None and theirs.param is not None
+        assert mine.state_param is not None and theirs.state_param is not None
+        assert mine.param_param is not None and theirs.param_param is not None
+        for applied, expected in [
+            (
+                mine.jacobian(state, _TIME, _POINT).apply(direction),
+                theirs.jacobian(state, _TIME, _POINT).apply(direction),
+            ),
+            (
+                mine.jacobian(state, _TIME, _POINT).apply_transpose(direction),
+                theirs.jacobian(state, _TIME, _POINT).apply_transpose(direction),
+            ),
+            (
+                mine.param(state, _TIME).apply(param_direction),
+                theirs.param(state, _TIME).apply(param_direction),
+            ),
+            (
+                mine.param(state, _TIME).apply_transpose(direction),
+                theirs.param(state, _TIME).apply_transpose(direction),
+            ),
+            (
+                mine.state_param(state, _TIME, adj).apply(param_direction),
+                theirs.state_param(state, _TIME, adj).apply(param_direction),
+            ),
+            (
+                mine.param_param(state, _TIME, adj).apply(param_direction),
+                theirs.param_param(state, _TIME, adj).apply(param_direction),
+            ),
+        ]:
+            bkd.assert_allclose(applied, expected, rtol=0.0, atol=0.0)
+
+    def test_a_missing_rate_is_refused(self, numpy_bkd: NumpyBkd) -> None:
+        """Without the moving end's rate, the essential rows of a block
+        left unpinned would hold the assembled equation: refused when the
+        system is built, not zeroed as the matrix-era treatment does."""
+        heat = MovingEndHeat(numpy_bkd, supply_rate=False)
+        discretization = skfem_discretization(heat.system)
+        with pytest.raises(ValueError, match="supplies no rate"):
+            differentiated_rows(
+                galerkin_unconstrained_system(discretization, ScipySparseLU()),
+                EssentialPinnedRows(discretization),
             )
 
 

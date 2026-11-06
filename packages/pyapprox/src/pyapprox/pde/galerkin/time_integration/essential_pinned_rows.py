@@ -10,15 +10,35 @@ stepper) or the integrator pinning them after each step
 (:class:`~pyapprox.ode.pinned_rows.PinnedRowsConstraint`).
 """
 
-from typing import Generic, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
 
 from pyapprox.pde.galerkin.time_integration.stack_discretization import (
     GalerkinStackDiscretization,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import FormatProtocol, RowSetProtocol
 
 F = TypeVar("F", bound=FormatProtocol)
+
+
+class _EssentialRates(Generic[Array]):
+    r""":math:`\dot g(t)` placed on the essential rows of a zero column."""
+
+    def __init__(
+        self,
+        velocity: Callable[[float], Array],
+        dofs: Array,
+        nstates: int,
+        bkd: Backend[Array],
+    ) -> None:
+        self._velocity, self._dofs = velocity, dofs
+        self._nstates, self._bkd = nstates, bkd
+
+    def __call__(self, time: float) -> Array:
+        placed = self._bkd.index_update(
+            self._bkd.zeros((self._nstates,)), self._dofs, self._velocity(time)
+        )
+        return self._bkd.reshape(placed, (self._nstates, 1))
 
 
 class EssentialPinnedRows(Generic[Array]):
@@ -42,6 +62,16 @@ class EssentialPinnedRows(Generic[Array]):
         self._constraint_set = system.constraint_set()
         self._bkd = system.bkd()
         self._nstates = system.nstates()
+        # Fixed for the constraint set's life: exact zeros when it is time
+        # invariant, None when a time-varying condition lacks its rate.
+        velocity = self._constraint_set.values_derivative(1)
+        self._rates: Optional[_EssentialRates[Array]] = (
+            None
+            if velocity is None
+            else _EssentialRates(
+                velocity, self._constraint_set.dofs(), self._nstates, self._bkd
+            )
+        )
 
     def rows(self) -> RowSetProtocol[Array]:
         """The essential rows."""
@@ -52,6 +82,12 @@ class EssentialPinnedRows(Generic[Array]):
         elsewhere. Shape: (nstates, 1)."""
         injected = self._constraint_set.inject(self._bkd.zeros((self._nstates,)), time)
         return self._bkd.reshape(injected, (self._nstates, 1))
+
+    def rates(self) -> Optional[Callable[[float], Array]]:
+        r""":math:`t \mapsto \dot g(t)` as a column laid out as
+        :meth:`values`, from the boundary conditions' declared rates; None
+        when a time-varying condition supplies none."""
+        return self._rates
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nrows={self._rows.count()})"

@@ -8,20 +8,20 @@ u(0) = 0 and a moving right end 0.5 sin 4t (its rate supplied), from
 essential rows are handled by one of the strategies:
 
 - ``step_end`` (A): the coupled row treatment, with the essential rows
-  pinned inside each step's final solve. New: the adapter's
-  ``pinned_rows()`` through ``RowPinning`` at the step end. Old: the BC
-  wrapper around the tiered stepper.
-- ``projection`` (B): the symmetric row treatment and the mass-consistent
-  projection at stored states, on both paths.
+  pinned inside each step's final solve. New: ``CoupledRows`` and
+  ``EssentialPinnedRows`` through ``RowPinning`` at the step end. Old: the
+  BC wrapper around the tiered stepper.
+- ``projection`` (B): the symmetric row treatment (new: ``SymmetricRows``)
+  and the mass-consistent projection at stored states, on both paths.
 - ``pin`` (C): the symmetric row treatment and the essential pin at stored
   states, on both paths.
 - ``pinned_rows`` (C, generic): as ``pin``, the new path pinning with
-  ``PinnedRowsConstraint`` over the adapter's ``pinned_rows()``, the old
-  path with ``EssentialPin``.
+  ``PinnedRowsConstraint`` over ``EssentialPinnedRows``, the old path
+  with ``EssentialPin``.
 
 For each strategy and each method both paths have (backward and forward
 Euler, Crank-Nicolson, implicit midpoint, Heun), the new path (the
-adapter's ``mass_form_system()`` under the tableau stepper,
+unconstrained system under ``differentiated_rows``, the tableau stepper,
 ``Integrator``, ``TrajectoryDerivatives``) must reproduce the old one
 (``TimeIntegrator`` with the tiered stepper, its adjoint): the trajectory
 to 1e-10 and the gradient and Hessian-vector product of the value at the
@@ -43,6 +43,11 @@ from typing import Any, Callable, List, Literal, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.differentiated_rows import (
+    CoupledRows,
+    SymmetricRows,
+    differentiated_rows,
+)
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.integration import (
@@ -80,6 +85,12 @@ from pyapprox.pde.galerkin.time_integration import (
     create_galerkin_bc_enforcing_residual,
     skfem_discretization,
 )
+from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
+    EssentialPinnedRows,
+)
+from pyapprox.pde.galerkin.time_integration.stack_discretization import (
+    GalerkinStackDiscretization,
+)
 from pyapprox.pde.galerkin.time_integration.state_constraints import (
     EssentialPin,
     MassConsistentProjection,
@@ -87,6 +98,9 @@ from pyapprox.pde.galerkin.time_integration.state_constraints import (
 from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithSetParamAdapter,
     create_galerkin_physics_ode_residual,
+)
+from pyapprox.pde.models.galerkin.unconstrained_system import (
+    galerkin_unconstrained_system,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
@@ -123,12 +137,19 @@ class _Heat:
         self.near_right = heat.near_right
 
     def adapter(
-        self, strategy: _Strategy
+        self,
+        strategy: _Strategy,
+        discretization: Optional[GalerkinStackDiscretization[_Np, _Np, Any]] = None,
     ) -> GalerkinPhysicsToODEResidualWithSetParamAdapter[_Np, Any]:
-        """The adapter at the parameters: the coupled row treatment for
-        the step-end pin, the symmetric one for the others."""
+        """The adapter at the parameters, over ``discretization`` (a new
+        one by default): the coupled row treatment for the step-end pin,
+        the symmetric one for the others."""
         adapter = create_galerkin_physics_ode_residual(
-            skfem_discretization(self.system),
+            (
+                skfem_discretization(self.system)
+                if discretization is None
+                else discretization
+            ),
             ScipySparseLU(),
             self.parameterization,
             row_treatment=(
@@ -178,25 +199,34 @@ class _Paths:
         self._heat, self._bkd = heat, bkd
         nsteps = round(_FINAL_TIME / deltat)
         times = [deltat * n for n in range(nsteps + 1)]
-        # The new path: the step-end strategy pins inside the stepper, the
-        # others constrain the stored states.
-        adapter = heat.adapter(strategy)
+        # The new path: the unconstrained system with the essential rows in
+        # differentiated form, its mass treated as the old path's row
+        # treatment; the step-end strategy pins inside the stepper, the
+        # others constrain the stored states. The adapter supplies the
+        # shared parameters, the projection and the initial state.
+        discretization = skfem_discretization(heat.system)
+        adapter = heat.adapter(strategy, discretization)
+        rows = EssentialPinnedRows(discretization)
         tableau = make()
         newton: Newton[_Np, _Np] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
-        system = adapter.mass_form_system()
+        system = differentiated_rows(
+            galerkin_unconstrained_system(
+                discretization, ScipySparseLU(), adapter.parameter_state()
+            ),
+            rows,
+            CoupledRows() if strategy == "step_end" else SymmetricRows(),
+        )
         self._stepper = RungeKuttaStepper(
             tableau,
             system,
             None if tableau.is_explicit() else newton,
-            RowPinning(adapter.pinned_rows()) if strategy == "step_end" else None,
+            RowPinning(rows) if strategy == "step_end" else None,
         )
         form = BackendColumnForm(bkd)
         constraint: Optional[DifferentiableStackConstraintProtocol[_Np]] = None
         if strategy == "pinned_rows":
             _, params = backend_spaces(bkd, len(heat.init_state), _NPARAMS)
-            constraint = PinnedRowsConstraint(
-                adapter.pinned_rows(), system.space, params
-            )
+            constraint = PinnedRowsConstraint(rows, system.space, params)
         elif strategy != "step_end":
             constraint = ResidualFormConstraint(
                 heat.constraint(adapter, strategy), form

@@ -243,6 +243,59 @@ class Jacobian(Generic[V, F_co]):
         return f"{type(self).__name__}.{level}"
 
 
+SnapshotMap = Callable[[JacobianSnapshotProtocol[V, G]], JacobianSnapshotProtocol[V, G]]
+"""A map of a Jacobian snapshot to another of the same format, the same at
+every state and time."""
+
+
+class _MappedGeneral(Generic[V, G]):
+    def __init__(self, fn: JacobianFn[V, G], transform: SnapshotMap[V, G]) -> None:
+        self._fn, self._transform = fn, transform
+
+    def __call__(
+        self, state: V, time: float, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[V, G]:
+        return self._transform(self._fn(state, time, point))
+
+
+class _MappedStateFree(Generic[V, G]):
+    def __init__(
+        self, fn: StateFreeJacobianFn[V, G], transform: SnapshotMap[V, G]
+    ) -> None:
+        self._fn, self._transform = fn, transform
+
+    def __call__(
+        self, time: float, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[V, G]:
+        return self._transform(self._fn(time, point))
+
+
+class _MappedConstant(Generic[V, G]):
+    def __init__(
+        self, fn: ConstantJacobianFn[V, G], transform: SnapshotMap[V, G]
+    ) -> None:
+        self._fn, self._transform = fn, transform
+
+    def __call__(self, point: LinearizationPoint) -> JacobianSnapshotProtocol[V, G]:
+        return self._transform(self._fn(point))
+
+
+def map_jacobian(
+    jacobian: Jacobian[W, G], transform: SnapshotMap[W, G]
+) -> Jacobian[W, G]:
+    """``jacobian`` with ``transform`` applied to every snapshot, at the
+    same level: a map that is the same at every state and time (zeroing a
+    fixed set of rows, say) sees neither, so a state-free or constant
+    Jacobian stays one."""
+    if jacobian._constant is not None:
+        return Jacobian.constant(_MappedConstant(jacobian._constant, transform))
+    if jacobian._state_free is not None:
+        return Jacobian.state_free(_MappedStateFree(jacobian._state_free, transform))
+    if jacobian._general is None:
+        raise AssertionError("a Jacobian holds exactly one function")
+    return Jacobian.general(_MappedGeneral(jacobian._general, transform))
+
+
 def as_jacobian(
     jacobian: Union[JacobianFn[W, G], Jacobian[W, G]],
 ) -> Jacobian[W, G]:

@@ -4,7 +4,9 @@ r"""Reuse of stage factorizations within one solve, on a Galerkin problem.
 u(0) = 0 and a moving right end 0.5 sin 4t (its rate supplied), from
 0.3 sin(pi x), 20 steps of dt = 0.001 to T = 0.02 (``FixedStep``: the
 sizes are given exactly, the last one landing on T), Newton tolerance
-1e-13, the essential rows pinned in each step's last block. With the
+1e-13, the essential rows in differentiated form (the unconstrained
+system under ``differentiated_rows``) and pinned in each step's last
+block. With the
 diffusivity :math:`\kappa = 1 + x` declared time-independent the Jacobian
 is constant though the forcing and the boundary move, so one solve
 factors each distinct stage operator once per distinct step size (two:
@@ -30,6 +32,7 @@ from typing import Any, Callable, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.differentiated_rows import differentiated_rows
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import RowPinning
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -53,12 +56,12 @@ from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import (
-    NeutralizedRows,
-    skfem_discretization,
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
+    EssentialPinnedRows,
 )
-from pyapprox.pde.models.galerkin.physics_adapter import (
-    create_galerkin_physics_ode_residual,
+from pyapprox.pde.models.galerkin.unconstrained_system import (
+    galerkin_unconstrained_system,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import (
@@ -153,15 +156,16 @@ class _Run:
             ],
         )
         self.lu = _CountingLU()
-        adapter = create_galerkin_physics_ode_residual(
-            skfem_discretization(system), self.lu, row_treatment=NeutralizedRows
-        )
+        discretization = skfem_discretization(system)
+        rows = EssentialPinnedRows(discretization)
         newton: Newton[_Np, _Np] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
         self.stepper = RungeKuttaStepper(
             make(),
-            adapter.mass_form_system(),
+            differentiated_rows(
+                galerkin_unconstrained_system(discretization, self.lu), rows
+            ),
             newton,
-            RowPinning(adapter.pinned_rows()),
+            RowPinning(rows),
             reuse,
         )
         x = np.asarray(basis.dof_coordinates())[0]

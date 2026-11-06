@@ -118,6 +118,12 @@ class PinnedPrey(Generic[Array]):
     def values(self, time: float) -> Array:
         return self._bkd.asarray([[self.data(time)], [0.0]])
 
+    def rates(self) -> Optional[Callable[[float], Array]]:
+        return self._rate
+
+    def _rate(self, time: float) -> Array:
+        return self._bkd.asarray([[3.0 * float(np.cos(3.0 * time))], [0.0]])
+
 
 _S = [[0.3], [-0.2], [0.5], [0.1]]
 

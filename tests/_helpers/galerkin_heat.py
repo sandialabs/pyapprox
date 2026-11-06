@@ -67,9 +67,10 @@ def _right_rate(x: _Np, t: float) -> _Np:
 
 class MovingEndHeat:
     """The parameterized heat system, its initial state, its end DOFs and
-    the DOF next to the moving end."""
+    the DOF next to the moving end; ``supply_rate`` False leaves the moving
+    end's rate undeclared."""
 
-    def __init__(self, bkd: NumpyBkd) -> None:
+    def __init__(self, bkd: NumpyBkd, supply_rate: bool = True) -> None:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = AdvectionDiffusionReaction(
@@ -79,7 +80,8 @@ class MovingEndHeat:
             forcing=TimeDependent(heat_forcing),
         )
         right = BoundarySignal(
-            TimeDependent(_right_value), [TimeDependent(_right_rate)]
+            TimeDependent(_right_value),
+            [TimeDependent(_right_rate)] if supply_rate else [],
         )
         self.system: GalerkinSystem[_Np] = compose_galerkin_system(
             physics,
