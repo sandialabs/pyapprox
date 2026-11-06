@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import adams_bashforth2, bdf2
-from pyapprox.ode.pinned_rows import RowPinning
+from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinning
 from pyapprox.ode.protocols import StepperProtocol
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.ode.stepping_methods import (
@@ -139,6 +139,9 @@ class _Fixed(Generic[Array]):
 
     def rates(self) -> Optional[Callable[[float], Array]]:
         return None
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        return PinnedRowsParamDerivatives.independent()
 
 
 class TestRefusals:

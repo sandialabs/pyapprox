@@ -65,6 +65,7 @@ from pyapprox.ode.multistep_methods import (
     MultistepFormulaProtocol,
 )
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
+from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.step_quadrature import MultistepQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -368,12 +369,27 @@ class _MultistepExtension(Generic[V, A, F]):
             for lag, state in enumerate(stepper._lag_states(window))
             if coefficients.slopes[lag] != 0.0
         ]
-        block = (
-            self._solved(ScaledSum(terms, space, params.component(0)))
-            if terms
-            else None
-        )
-        return BlockOperator([[block]], params, stepper.state_space())
+        pin = stepper.pin()
+        data = None if pin is None else pin.data_param(time, space)
+        if data is None:
+            block = (
+                self._solved(ScaledSum(terms, space, params.component(0)))
+                if terms
+                else None
+            )
+            return BlockOperator([[block]], params, stepper.state_space())
+        # The pinned rows hold g(t; p): E^{-1} (P op + (I - P) g_p).
+        pinned: List[tuple[float, DerivativeOperator[V]]] = [(1.0, data)]
+        if terms and pin is not None:
+            pinned.append(
+                (1.0, pin.coupled(ScaledSum(terms, space, params.component(0))))
+            )
+        factors: List[LinearMapProtocol[V]] = [
+            self._handle(),
+            ScaledSum(pinned, space, params.component(0)),
+        ]
+        solved: LinearMapProtocol[V] = Product(factors)
+        return BlockOperator([[solved]], params, stepper.state_space())
 
     def _lag_weights(
         self, window: StepWindow[V], time: float, weights: V
@@ -477,7 +493,16 @@ class _MultistepExtension(Generic[V, A, F]):
                 1.0, bundle.param_param(*term).apply(direction), 1.0, value
             )
             total = value if total is None else params.axpby(1.0, value, 1.0, total)
-        return total
+        # The pinned rows hold g(t; p): (E^{-T} lambda)_R^T g_pp v.
+        pin = stepper.pin()
+        if pin is None:
+            return total
+        x = self._handle().apply_transpose(weights)
+        data = pin.data_curvature(x, time, stepper.system().space)
+        if data is None:
+            return total
+        value = data.apply(direction)
+        return value if total is None else params.axpby(1.0, value, 1.0, total)
 
 
 class LinearMultistepStepper(Generic[V, A, F]):
@@ -1047,9 +1072,19 @@ class LinearMultistepStepper(Generic[V, A, F]):
             if formula.beta[lag] != 0.0
         ]
         params = self._param_block_space()
-        block = ScaledSum(terms, self._system.space, params.component(0))
-        # The step-end rows do not depend on the parameters.
-        pinned = block if self._pin is None else self._pin.coupled(block)
+        space = self._system.space
+        block = ScaledSum(terms, space, params.component(0))
+        if self._pin is None:
+            return BlockOperator([[block]], params, self._residual_space)
+        # The step-end rows read y_R - g_R(t; p): their parameter Jacobian
+        # is the data's, negated.
+        coupled = self._pin.coupled(block)
+        data = self._pin.data_param(window.lag_time(0), space)
+        pinned = (
+            coupled
+            if data is None
+            else ScaledSum([(1.0, coupled), (-1.0, data)], space, params.component(0))
+        )
         return BlockOperator([[pinned]], params, self._residual_space)
 
     def _weighted(
@@ -1115,16 +1150,27 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self, window: StepWindow[V], adj: BlockVector[V]
     ) -> StepOperator[V]:
         r""":math:`\mu^\top \partial^2 R_n/\partial p^2 = \sum_l
-        \lambda_l^\top f_{pp}(y_{n+1-l})`."""
+        \lambda_l^\top f_{pp}(y_{n+1-l})`, less the pinned rows'
+        :math:`\sum_{i \in R} \mu_i\, \partial^2 g_i/\partial p^2` at
+        :math:`t_{n+1}`."""
         field = self._system.rhs.derivatives().param_param
         if field is None:
             raise ValueError("the residual has no second derivatives")
         params = self._param_block_space()
-        terms = [
+        terms: List[tuple[float, DerivativeOperator[V]]] = [
             (1.0, field(*weighted))
             for lag in range(len(window.past_states) + 1)
             if (weighted := self._weighted(window, adj, lag)) is not None
         ]
+        data = (
+            None
+            if self._pin is None
+            else self._pin.data_curvature(
+                adj.blocks[0], window.lag_time(0), self._system.space
+            )
+        )
+        if data is not None:
+            terms.append((-1.0, data))
         return BlockOperator([[ScaledSum(terms, params.component(0))]], params, params)
 
     def derivatives(self) -> StepperDerivatives[V]:

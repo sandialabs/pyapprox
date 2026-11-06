@@ -49,6 +49,7 @@ from pyapprox.ode.continuous_extension import (
 )
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
+from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.step_quadrature import TableauQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -347,12 +348,27 @@ class _TableauExtension(Generic[V, A, F]):
             )
             if weight != 0.0
         ]
-        block = (
-            self._solved(ScaledSum(terms, space, params.component(0)))
-            if terms
-            else None
-        )
-        return BlockOperator([[block]], params, stepper.state_space())
+        pin = stepper._block_pin(self._last())
+        data = None if pin is None else pin.data_param(time, space)
+        if data is None:
+            block = (
+                self._solved(ScaledSum(terms, space, params.component(0)))
+                if terms
+                else None
+            )
+            return BlockOperator([[block]], params, stepper.state_space())
+        # The pinned rows hold g(t; p): E^{-1} (P op + (I - P) g_p).
+        pinned: List[tuple[float, DerivativeOperator[V]]] = [(1.0, data)]
+        if terms and pin is not None:
+            pinned.append(
+                (1.0, pin.coupled(ScaledSum(terms, space, params.component(0))))
+            )
+        factors: List[LinearMapProtocol[V]] = [
+            stepper._mass_block_handle(self._last()),
+            ScaledSum(pinned, space, params.component(0)),
+        ]
+        solved: LinearMapProtocol[V] = Product(factors)
+        return BlockOperator([[solved]], params, stepper.state_space())
 
     def _stage_weights(
         self, window: StepWindow[V], time: float, weights: V
@@ -467,7 +483,17 @@ class _TableauExtension(Generic[V, A, F]):
                 1.0, bundle.param_param(*term).apply(direction), 1.0, value
             )
             total = value if total is None else params.axpby(1.0, value, 1.0, total)
-        return total
+        # The pinned rows hold g(t; p): (E^{-T} lambda)_R^T g_pp v.
+        last = self._last()
+        pin = stepper._block_pin(last)
+        if pin is None:
+            return total
+        x = stepper._mass_block_handle(last).apply_transpose(weights)
+        data = pin.data_curvature(x, time, stepper.system().space)
+        if data is None:
+            return total
+        value = data.apply(direction)
+        return value if total is None else params.axpby(1.0, value, 1.0, total)
 
 
 class RungeKuttaStepper(Generic[V, A, F]):
@@ -1210,8 +1236,22 @@ class RungeKuttaStepper(Generic[V, A, F]):
             ]
             block = ScaledSum(terms, space, params.component(0))
             pin = self._block_pin(r)
-            # A pinned block's rows do not depend on the parameters.
-            grid.append([block if pin is None else pin.coupled(block)])
+            if pin is None:
+                grid.append([block])
+                continue
+            # A pinned block's rows read Y_R - g_R(t; p): their parameter
+            # Jacobian is the data's, negated.
+            coupled = pin.coupled(block)
+            data = pin.data_param(self._block_time(window, r), space)
+            grid.append(
+                [
+                    coupled
+                    if data is None
+                    else ScaledSum(
+                        [(1.0, coupled), (-1.0, data)], space, params.component(0)
+                    )
+                ]
+            )
         return BlockOperator(grid, params, self._residual_space)
 
     def _stage_adjoints(self, window: StepWindow[V], adj: BlockVector[V]) -> List[V]:
@@ -1328,7 +1368,9 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self, window: StepWindow[V], adj: BlockVector[V]
     ) -> StepOperator[V]:
         r""":math:`\mu^\top \partial^2 R_n/\partial p^2 = \sum_j
-        \lambda_j^\top f_{pp}(Y_j)`.
+        \lambda_j^\top f_{pp}(Y_j)`, less each pinned block's
+        :math:`\sum_{i \in R} \mu_{r,i}\, \partial^2 g_i/\partial p^2` at
+        its time.
 
         Parameters
         ----------
@@ -1341,10 +1383,21 @@ class RungeKuttaStepper(Generic[V, A, F]):
         if field is None:
             raise ValueError("the residual has no second derivatives")
         params = self._param_block_space()
-        total = ScaledSum(
-            [(1.0, field(*term)) for term in self._stage_terms(window, adj)],
-            params.component(0),
-        )
+        terms: List[tuple[float, DerivativeOperator[V]]] = [
+            (1.0, field(*term)) for term in self._stage_terms(window, adj)
+        ]
+        for r, mu in enumerate(adj.blocks):
+            pin = self._block_pin(r)
+            data = (
+                None
+                if pin is None
+                else pin.data_curvature(
+                    mu, self._block_time(window, r), self._system.space
+                )
+            )
+            if data is not None:
+                terms.append((-1.0, data))
+        total = ScaledSum(terms, params.component(0))
         return BlockOperator([[total]], params, params)
 
     def derivatives(self) -> StepperDerivatives[V]:

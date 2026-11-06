@@ -42,7 +42,11 @@ from pyapprox.ode.differentiated_rows import (
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import bdf2
-from pyapprox.ode.pinned_rows import PinnedRowsProtocol, RowPinning
+from pyapprox.ode.pinned_rows import (
+    PinnedRowsParamDerivatives,
+    PinnedRowsProtocol,
+    RowPinning,
+)
 from pyapprox.ode.residual_derivatives import (
     Jacobian,
     backend_spaces,
@@ -321,13 +325,13 @@ class _Split(Generic[Array]):
         base: _System[Array] = dense_mass_form_system(self.fast)
         self.prey: PinnedPrey[Array] = PinnedPrey(bkd)
         rows, form, space = self.prey.rows(), base.form, base.space
-        rates = self.prey.rates()
-        assert rates is not None
         version = self.fast.parameters_version
         self.per_partition: _System[Array] = MassFormSystem(
             rhs=SummedRightHandSide(
                 [
-                    treatment.rated(self.fast, rows, rates, form, base.mass, space),
+                    treatment.differentiated(
+                        self.fast, self.prey, form, space, base.mass
+                    ),
                     ZeroedRowsRightHandSide(self.slow, rows, form),
                 ],
                 space,
@@ -410,6 +414,9 @@ class _NoRate(Generic[Array]):
 
     def rates(self) -> Optional[Callable[[float], Array]]:
         return None
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        return self._prey.parameter_derivatives()
 
 
 class TestRefusals:

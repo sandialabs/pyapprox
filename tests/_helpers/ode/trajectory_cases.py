@@ -28,7 +28,7 @@ from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
 from pyapprox.ode.observation_terms import MisfitTerm, TikhonovTerm
-from pyapprox.ode.pinned_rows import RowPinningProtocol
+from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
@@ -123,6 +123,9 @@ class PinnedPrey(Generic[Array]):
 
     def _rate(self, time: float) -> Array:
         return self._bkd.asarray([[3.0 * float(np.cos(3.0 * time))], [0.0]])
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        return PinnedRowsParamDerivatives.independent()
 
 
 _S = [[0.3], [-0.2], [0.5], [0.1]]

@@ -12,6 +12,7 @@ stepper) or the integrator pinning them after each step
 
 from typing import Callable, Generic, Optional, TypeVar
 
+from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives
 from pyapprox.pde.galerkin.time_integration.stack_discretization import (
     GalerkinStackDiscretization,
 )
@@ -88,6 +89,11 @@ class EssentialPinnedRows(Generic[Array]):
         :meth:`values`, from the boundary conditions' declared rates; None
         when a time-varying condition supplies none."""
         return self._rates
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        """Independent of the parameters: a parameterization writes
+        coefficients of the physics, never essential boundary values."""
+        return PinnedRowsParamDerivatives.independent()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nrows={self._rows.count()})"
