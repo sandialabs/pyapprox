@@ -92,10 +92,16 @@ class LatentMapProtocol(Protocol, Generic[Array]):
         """Number of output codes the map produces."""
         ...
 
-    def __call__(self, coefs: Array) -> Array:
+    def __call__(self, coefs: Array, /) -> Array:
         """Map input codes to output codes.
 
         ``(nvars, nsamples) -> (nqoi, nsamples)``.
+
+        The argument is positional-only: every consumer passes it
+        positionally, and an implementation is free to name it as fits
+        its own vocabulary (a ``PolynomialChaosExpansion`` calls it
+        ``samples``). Pinning the name here would exclude such
+        implementations for a distinction no caller relies on.
         """
         ...
 
@@ -119,12 +125,15 @@ class LinearInParamsLatentMapProtocol(LatentMapProtocol[Array], Protocol):
     no index set at all.
     """
 
-    def basis_matrix(self, coefs: Array) -> Array:
+    def basis_matrix(self, coefs: Array, /) -> Array:
         """Return :math:`\\Phi`. ``(nvars, nsamples) -> (nsamples, nterms)``.
 
         Note the transpose relative to this package's usual
         samples-are-columns convention: the design matrix is what a
         linear solver takes, and it is points-down-rows.
+
+        Positional-only for the same reason as :meth:`__call__`: a
+        ``PolynomialChaosExpansion`` names this argument ``samples``.
         """
         ...
 
