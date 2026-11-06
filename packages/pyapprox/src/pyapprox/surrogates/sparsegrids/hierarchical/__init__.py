@@ -6,6 +6,7 @@ from .error_indicators import (
     HierarchicalErrorIndicator,
     L2SurplusPointIndicator,
 )
+from .fit_result import HierarchicalSparseGridFitResult
 from .hierarchical_fitter import (
     MultiFidelityHierarchicalFitter,
     SingleFidelityHierarchicalFitter,
@@ -18,6 +19,7 @@ __all__ = [
     "DeferredTask",
     "GammaIndicator",
     "HierarchicalErrorIndicator",
+    "HierarchicalSparseGridFitResult",
     "HierarchicalSurrogate",
     "L2SurplusPointIndicator",
     "MultiFidelityHierarchicalFitter",

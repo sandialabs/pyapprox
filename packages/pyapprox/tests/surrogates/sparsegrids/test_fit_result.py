@@ -8,7 +8,7 @@ from pyapprox.surrogates.affine.indices.admissibility import MaxLevelCriteria
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
     HierarchicalBasis1D,
 )
-from pyapprox.surrogates.sparsegrids.fit_result import (
+from pyapprox.surrogates.sparsegrids.hierarchical.fit_result import (
     HierarchicalSparseGridFitResult,
 )
 from pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_fitter import (

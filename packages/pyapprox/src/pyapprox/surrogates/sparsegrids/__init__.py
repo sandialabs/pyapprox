@@ -57,7 +57,6 @@ from .error_indicators import (
 )
 from .fit_result import (
     AdaptiveSparseGridFitResult,
-    HierarchicalSparseGridFitResult,
     IsotropicSparseGridFitResult,
 )
 from .hierarchical.error_indicators import (
@@ -65,6 +64,7 @@ from .hierarchical.error_indicators import (
     HierarchicalErrorIndicator,
     L2SurplusPointIndicator,
 )
+from .hierarchical.fit_result import HierarchicalSparseGridFitResult
 from .hierarchical.hierarchical_fitter import (
     MultiFidelityHierarchicalFitter,
     SingleFidelityHierarchicalFitter,

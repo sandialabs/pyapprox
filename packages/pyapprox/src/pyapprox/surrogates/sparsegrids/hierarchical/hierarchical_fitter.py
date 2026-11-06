@@ -18,15 +18,15 @@ from pyapprox.surrogates.sparsegrids.cost_model import (
     ConstantCostModel,
     CostModelProtocol,
 )
-from pyapprox.surrogates.sparsegrids.fit_result import (
-    HierarchicalSparseGridFitResult,
-)
 from pyapprox.surrogates.sparsegrids.hierarchical.deferred_registry import (
     DeferredRefinementRegistry,
 )
 from pyapprox.surrogates.sparsegrids.hierarchical.error_indicators import (
     GammaIndicator,
     HierarchicalErrorIndicator,
+)
+from pyapprox.surrogates.sparsegrids.hierarchical.fit_result import (
+    HierarchicalSparseGridFitResult,
 )
 from pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_surrogate import (
     HierarchicalSurrogate,
