@@ -4,16 +4,16 @@ from typing import Generic, Tuple, runtime_checkable
 
 from typing_extensions import Protocol
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, Array_contra, Backend
 
 
 @runtime_checkable
-class HierarchicalErrorIndicator(Protocol[Array]):
+class HierarchicalErrorIndicator(Protocol[Array_contra]):
     """Per-point error indicator for the priority queue."""
 
     def __call__(
         self,
-        surplus: Array,
+        surplus: Array_contra,
         quad_weight: float,
         cost: float,
     ) -> Tuple[float, float]:
