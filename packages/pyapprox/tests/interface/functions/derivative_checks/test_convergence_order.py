@@ -290,6 +290,16 @@ class TestBroadBottom:
         assert abs(report.order - 1.0) < 1e-12
         assert not report.truncation_free and report.passed
 
+    def test_a_window_the_caller_reads_from_the_curve(self) -> None:
+        """Given the steps 1e-5 to 1e-1, where the curve is plainly
+        truncation, the order is fitted there, 1, and the curve passes;
+        given the flat bottom's steps, the same curve fails: the window is
+        the caller's, used as given."""
+        curve = FDCurve(self._ERRORS, self._STEPS)
+        report = curve.v_shape(order_steps=(1e-5, 1e-1))
+        assert abs(report.order - 1.0) < 1e-12 and report.passed
+        assert not curve.v_shape(order_steps=(1e-9, 1e-7)).passed
+
 
 class TestFDCurve:
     def test_min_error(self) -> None:

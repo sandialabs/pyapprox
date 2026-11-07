@@ -76,6 +76,14 @@ _FINAL_TIME, _DELTAT = 0.4, 0.1
 # the rounding tail (measured 1.7e-7 to 9.0e-7 locally, 1.1e-6 to 2.6e-6
 # on CI). Central differences reach 8e-10 to 2.5e-9 for both steppers.
 _FD_EPS = NumpyBkd().flip(NumpyBkd().logspace(-13, -1, 13))
+# Every central-difference curve here (gradient, and the HVP test's
+# Jacobian and HVP, both steppers) falls two decades a decade from h = 1e-1
+# to 1e-3 (backward Euler's gradient 2.0e-5, 2.0e-7, 2.0e-9) and bottoms at
+# 1e-5 or 1e-4 near 1e-11; at 1e-4 rounding already enters, by an amount
+# that differs between platforms (a fit over 1e-4 to 1e-2 gave 1.63 on
+# macOS CI for the gradient, 1.90 locally for the HVP test's Jacobian).
+# So the order is fitted over the clean decades.
+_ORDER_STEPS = (1e-3, 1e-1)
 
 
 def _make_physics(
@@ -175,7 +183,10 @@ class TestTransientAdjointGradient:
         )[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-6
-        assert checker.check_v_shape(errors, _FD_EPS, central=True).passed
+        report = checker.check_v_shape(
+            errors, _FD_EPS, central=True, order_steps=_ORDER_STEPS
+        )
+        assert report.passed, report
 
 
 class TestTransientAdjointHVP:
@@ -211,6 +222,7 @@ class TestTransientAdjointHVP:
         for capability_errors in errors:
             ratio = float(bkd.to_numpy(checker.error_ratio(capability_errors)))
             assert ratio <= 1e-6
-            assert checker.check_v_shape(
-                capability_errors, _FD_EPS, central=True
-            ).passed
+            report = checker.check_v_shape(
+                capability_errors, _FD_EPS, central=True, order_steps=_ORDER_STEPS
+            )
+            assert report.passed, report

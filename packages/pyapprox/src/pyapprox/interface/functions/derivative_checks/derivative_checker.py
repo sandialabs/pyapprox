@@ -133,6 +133,7 @@ class FDCurve:
         order_tol: float = 0.25,
         max_bottom_step: Optional[float] = None,
         rounding_factor: float = 100.0,
+        order_steps: Optional[Tuple[float, float]] = None,
     ) -> VShapeReport:
         r"""Test that the errors form the V of a correct derivative, or
         are rounding throughout where the differences are exact.
@@ -163,7 +164,9 @@ class FDCurve:
            ``rounding_factor`` times its predicted rounding: a V with a
            broad bottom puts steps a decade above its minimum where
            rounding and truncation are comparable, which flattens a fit
-           there, by an amount that differs between platforms.
+           there, by an amount that differs between platforms. Given
+           ``order_steps``, over exactly the steps in that range, chosen
+           by the caller from the curve.
 
         A quantity linear along the direction has no truncation error, so
         its error is rounding at every step and only rises as the step
@@ -185,6 +188,11 @@ class FDCurve:
         rounding_factor : float
             How many times its predicted rounding an error may be and
             still count as rounding.
+        order_steps : tuple of float, optional
+            ``(low, high)``: fit the order over the steps in this range
+            instead of the window chosen from the minimum or the
+            prediction. For a curve whose truncation side the caller has
+            read, so the fit stays clear of the bottom on every platform.
         """
         errors, steps = self.errors, self.steps
         if max_bottom_step is None:
@@ -195,11 +203,15 @@ class FDCurve:
         smaller = [error for error, h in zip(errors, steps) if h < h_min]
         rounding_side_rises = bool(smaller) and max(smaller) >= 10.0 * min_error
         bottom_is_rounding_limited = h_min <= max_bottom_step
-        fitted = (
-            _fitted_order(errors, steps)
-            if self.rounding is None
-            else _truncation_order(errors, steps, self.rounding, rounding_factor, h_min)
-        )
+        if order_steps is not None:
+            # The ends are computed steps, so allow for their rounding.
+            fitted = _slope(errors, steps, order_steps[0], order_steps[1], 1e-12)
+        elif self.rounding is None:
+            fitted = _fitted_order(errors, steps)
+        else:
+            fitted = _truncation_order(
+                errors, steps, self.rounding, rounding_factor, h_min
+            )
         order = math.nan if fitted is None else fitted
         order_matches = abs(order - expected) <= order_tol
         rounding_ratio = (
@@ -435,6 +447,7 @@ class DerivativeChecker(Generic[Array]):
         central: bool = False,
         order_tol: float = 0.25,
         max_bottom_step: Optional[float] = None,
+        order_steps: Optional[Tuple[float, float]] = None,
     ) -> "VShapeReport":
         """Test that the finite-difference errors form the V of a correct
         derivative, by :meth:`FDCurve.v_shape` (which says what is
@@ -457,9 +470,12 @@ class DerivativeChecker(Generic[Array]):
         max_bottom_step : float, optional
             Largest step allowed for the minimum. Default ``1e-5`` forward,
             ``1e-3`` central, which assumes inputs of order one.
+        order_steps : tuple of float, optional
+            ``(low, high)``: the steps the order is fitted over, as
+            :meth:`FDCurve.v_shape` takes them.
         """
         curve = self.curve(errors, fd_eps, central)
-        return curve.v_shape(order_tol, max_bottom_step)
+        return curve.v_shape(order_tol, max_bottom_step, order_steps=order_steps)
 
     def curve(
         self,
