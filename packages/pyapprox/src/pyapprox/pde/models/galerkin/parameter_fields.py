@@ -14,12 +14,15 @@ The parameter and initial-state Jacobians arrive as dense matrices and
 become dense operators here, the one place they are converted.
 """
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar, Union
 
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
+    CurvatureFn,
+    InitialStateFn,
     Jacobian,
     ODEResidualDerivatives,
+    StatedZero,
     dense_operator,
     matrix_free_initial_state_curvature,
     matrix_free_second_derivative,
@@ -108,17 +111,28 @@ def residual_derivatives(
     states: VectorSpaceProtocol[Array],
     params: VectorSpaceProtocol[Array],
     bkd: Backend[Array],
+    *,
+    initial_state: Union[ParamDerivatives[Array], StatedZero],
 ) -> ODEResidualDerivatives[Array, F]:
     r"""The bundle of a right-hand side with state Jacobian ``jacobian``
     and the given parameter and state derivatives, read at the current
     parameters of ``parameters``.
 
     Its order is decided here, once, by which fields are present: first
-    order with ``param_jacobian`` and ``initial_param_jacobian``; second
-    order when, besides, the three parameter contractions,
-    ``initial_param_hvp`` and ``state_state_hvp`` are all present; the
-    state Jacobian alone otherwise. A Jacobian that cannot see the state
-    (:math:`f` affine) gives the stated zero state curvature.
+    order with ``param_jacobian``; second order when, besides, the three
+    parameter contractions, ``state_state_hvp`` and the initial state's
+    curvature are all present; the state Jacobian alone without
+    ``param_jacobian``. A Jacobian that cannot see the state (:math:`f`
+    affine) gives the stated zero state curvature.
+
+    The initial state's derivatives are not :math:`f`'s, so where they
+    come from is the caller's explicit choice: a bundle whose
+    ``initial_param_jacobian`` (and, for second order,
+    ``initial_param_hvp``) they are read from, or
+    :data:`~pyapprox.ode.residual_derivatives.STATED_ZERO` for an initial
+    state independent of the parameters (a steady problem has none). A
+    bundle without ``initial_param_jacobian`` is refused rather than
+    dropping the parameter derivatives.
 
     Parameters
     ----------
@@ -134,26 +148,50 @@ def residual_derivatives(
         The state and parameter spaces.
     bkd : Backend
         The backend of the states.
+    initial_state : ParamDerivatives or STATED_ZERO
+        Where the initial state's derivatives come from (see above).
+
+    Raises
+    ------
+    ValueError
+        If ``param_jacobian`` is present and ``initial_state`` is a bundle
+        without ``initial_param_jacobian``.
     """
     param_jacobian = param_derivatives.param_jacobian
-    initial_param_jacobian = param_derivatives.initial_param_jacobian
-    if param_jacobian is None or initial_param_jacobian is None:
+    if param_jacobian is None:
         return ODEResidualDerivatives.state_only(jacobian)
     param = dense_operator(
         _ParamJacobianAt(param_jacobian, parameters), params, states, bkd
     )
-    initial = dense_operator(
-        _InitialParamJacobianAt(initial_param_jacobian, parameters),
-        params,
-        states,
-        bkd,
-    )
-    initial_param_hvp = param_derivatives.initial_param_hvp
+    initial: Union[InitialStateFn[Array], StatedZero] = STATED_ZERO
+    curvature: Union[CurvatureFn[Array], StatedZero, None] = STATED_ZERO
+    if not isinstance(initial_state, StatedZero):
+        initial_param_jacobian = initial_state.initial_param_jacobian
+        if initial_param_jacobian is None:
+            raise ValueError(
+                "the parameterization has a parameter Jacobian but no "
+                "initial_param_jacobian: supply it, or state the initial state "
+                "independent of the parameters (initial_state=STATED_ZERO)"
+            )
+        initial = dense_operator(
+            _InitialParamJacobianAt(initial_param_jacobian, parameters),
+            params,
+            states,
+            bkd,
+        )
+        initial_param_hvp = initial_state.initial_param_hvp
+        curvature = (
+            None
+            if initial_param_hvp is None
+            else matrix_free_initial_state_curvature(
+                _InitialParamHVPAt(initial_param_hvp, parameters), params, bkd
+            )
+        )
     param_param_hvp = param_derivatives.param_param_hvp
     state_param_hvp = param_derivatives.state_param_hvp
     param_state_hvp = param_derivatives.param_state_hvp
     if (
-        initial_param_hvp is None
+        curvature is None
         or param_param_hvp is None
         or state_param_hvp is None
         or param_state_hvp is None
@@ -170,9 +208,7 @@ def residual_derivatives(
         jacobian=jacobian,
         param=param,
         initial_state=initial,
-        initial_state_curvature=matrix_free_initial_state_curvature(
-            _InitialParamHVPAt(initial_param_hvp, parameters), params, bkd
-        ),
+        initial_state_curvature=curvature,
         # A Jacobian that cannot see the state means f is affine, with
         # zero state curvature, stated as such.
         state_state=(

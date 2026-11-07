@@ -15,10 +15,10 @@ included), the same Jacobian classification and the same conversion of
 the parameterization's derivatives; it treats no row.
 """
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar, Union
 
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
+from pyapprox.ode.residual_derivatives import ODEResidualDerivatives, StatedZero
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
     GalerkinJacobianOperator,
@@ -29,6 +29,7 @@ from pyapprox.pde.galerkin.time_integration.stack_discretization import (
 )
 from pyapprox.pde.models.galerkin.parameter_fields import residual_derivatives
 from pyapprox.pde.parameterizations.binding import require_owned_targets
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
@@ -55,6 +56,12 @@ class GalerkinUnconstrainedRightHandSide(Generic[Array, F]):
     parameters : ParameterState, optional
         The parameters, shared with the solved system; none for a system
         without them.
+    initial_state : ParamDerivatives or STATED_ZERO, optional
+        Where the initial state's parameter derivatives come from: the
+        parameterization's own bundle by default (a transient problem),
+        :data:`~pyapprox.ode.residual_derivatives.STATED_ZERO` for none (a
+        steady problem, or an initial state independent of the
+        parameters).
 
     Raises
     ------
@@ -62,13 +69,16 @@ class GalerkinUnconstrainedRightHandSide(Generic[Array, F]):
         If ``discretization`` is not a ``GalerkinStackDiscretization`` or
         ``parameters`` not a ``ParameterState``.
     ValueError
-        If the parameterization writes objects the system does not hold.
+        If the parameterization writes objects the system does not hold,
+        or has a parameter Jacobian and the initial state's bundle no
+        ``initial_param_jacobian``.
     """
 
     def __init__(
         self,
         discretization: GalerkinStackDiscretization[Array, Array, F],
         parameters: Optional[ParameterState[Array]] = None,
+        initial_state: Optional[Union[ParamDerivatives[Array], StatedZero]] = None,
     ) -> None:
         if not isinstance(discretization, GalerkinStackDiscretization):
             raise TypeError(
@@ -93,14 +103,18 @@ class GalerkinUnconstrainedRightHandSide(Generic[Array, F]):
             return
         parameterization = parameters.parameterization()
         require_owned_targets(parameterization, system)
+        param_derivatives = parameterization.param_derivatives()
         self._derivatives = residual_derivatives(
             jacobian,
-            parameterization.param_derivatives(),
+            param_derivatives,
             self._spatial_operator.state_derivatives().state_state_hvp,
             parameters,
             discretization.space(),
             discretization.parameter_space(parameters.nparams()),
             system.bkd(),
+            initial_state=(
+                param_derivatives if initial_state is None else initial_state
+            ),
         )
 
     def bkd(self) -> Backend[Array]:

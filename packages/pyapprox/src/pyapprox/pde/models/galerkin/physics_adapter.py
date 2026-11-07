@@ -223,6 +223,7 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
             self._discretization.space(),
             self._discretization.parameter_space(self.nparams()),
             self._bkd,
+            initial_state=self._bundle_parts,
         )
 
 

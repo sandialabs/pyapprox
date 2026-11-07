@@ -48,6 +48,7 @@ from pyapprox.ode.integration import Integrator
 from pyapprox.ode.observation_terms import StateEntries
 from pyapprox.ode.pinned_rows import RowPinning
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
+from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -88,6 +89,7 @@ from pyapprox.pde.models.galerkin.unconstrained_system import (
     GalerkinUnconstrainedRightHandSide,
     galerkin_unconstrained_system,
 )
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import LinearizationPoint
@@ -330,6 +332,91 @@ class TestTheRightHandSide:
             GalerkinUnconstrainedRightHandSide(
                 discretization, ParameterState(other.parameterization)
             )
+
+
+class _WithoutInitialState:
+    """The heat problem's parameterization with its initial-state
+    derivatives left out, as a steady parameterization would."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    def nparams(self) -> int:
+        return int(self._inner.nparams())
+
+    def targets(self) -> Any:
+        return self._inner.targets()
+
+    def owned_coefficients(self) -> Any:
+        return self._inner.owned_coefficients()
+
+    def apply(self, params_1d: _Np) -> None:
+        self._inner.apply(params_1d)
+
+    def param_derivatives(self) -> ParamDerivatives[_Np]:
+        return ParamDerivatives(
+            param_jacobian=self._inner.param_derivatives().param_jacobian
+        )
+
+
+class TestTheInitialStateChoice:
+    """The initial state's derivatives are the caller's explicit choice:
+    a parameterization without them is refused, not quietly stripped of
+    its parameter derivatives; stated zero gives first order with a zero
+    initial-state derivative."""
+
+    def test_a_missing_initial_state_derivative_is_refused(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        heat = MovingEndHeat(numpy_bkd)
+        parameters = ParameterState(_WithoutInitialState(heat.parameterization))
+        with pytest.raises(ValueError, match="initial_param_jacobian"):
+            GalerkinUnconstrainedRightHandSide(
+                skfem_discretization(heat.system), parameters
+            )
+
+    def test_stated_zero_keeps_the_parameter_derivatives(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        heat = MovingEndHeat(bkd)
+        parameters = ParameterState(_WithoutInitialState(heat.parameterization))
+        parameters.set_param(bkd.asarray(HEAT_PARAM[:, 0]))
+        raw: GalerkinUnconstrainedRightHandSide[_Np, Any] = (
+            GalerkinUnconstrainedRightHandSide(
+                skfem_discretization(heat.system),
+                parameters,
+                initial_state=STATED_ZERO,
+            )
+        )
+        bundle = raw.derivatives()
+        assert bundle.param is not None and bundle.initial_state is not None
+        assert bundle.state_state is None
+        direction = bkd.asarray([[0.3], [-0.2], [0.5]])
+        nstates = heat.system.nstates()
+        bkd.assert_allclose(
+            bundle.initial_state().apply(direction), bkd.zeros((nstates, 1))
+        )
+        state = bkd.asarray(np.linspace(0.1, 0.9, nstates))
+        assert float(np.max(np.abs(bundle.param(state, _TIME).apply(direction)))) > 0
+
+    def test_by_default_it_is_the_parameterizations(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        case = _Case(bkd, backward_euler(), final_time=_DELTAT)
+        bundle = case.unconstrained.system().rhs.derivatives()
+        assert bundle.initial_state is not None
+        direction = bkd.asarray([[0.3], [-0.2], [0.5]])
+        expected = case.heat.parameterization.param_derivatives()
+        assert expected.initial_param_jacobian is not None
+        bkd.assert_allclose(
+            bundle.initial_state().apply(direction),
+            bkd.dot(
+                expected.initial_param_jacobian(bkd.asarray(HEAT_PARAM[:, 0])),
+                direction,
+            ),
+        )
 
 
 class TestTheDifferentiatedSystem:
