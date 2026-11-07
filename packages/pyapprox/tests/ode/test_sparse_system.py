@@ -33,7 +33,6 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
     skfem_ode_residual,
 )
-from pyapprox.util.linalg.scipy_stack import CSRFormat
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
 from pyapprox.util.linalg.scipy_stack import CSRFormat

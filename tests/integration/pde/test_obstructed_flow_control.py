@@ -78,7 +78,7 @@ def _make_problem(
 
 
 def _mass_ledger(
-    problem: ObstructedFlowControlProblem[NumpyArray],
+    problem: ObstructedFlowControlProblem,
     model: "GalerkinTransientForwardModel[NumpyArray]",
     controls: NumpyArray,
     bkd: NumpyBkd,

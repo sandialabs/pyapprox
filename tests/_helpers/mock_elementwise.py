@@ -171,6 +171,10 @@ class MockP1Operator(Generic[Array]):
     def is_time_invariant(self) -> bool:
         return True
 
+    def jacobian_is_time_invariant(self) -> bool:
+        # F is time-invariant, so its Jacobian is too.
+        return True
+
     def diffusivity_jacobian(self, state: Array) -> Array:
         """dF/dkappa. Shape: (ncells + 1, ncells)."""
         bkd = self._bkd
