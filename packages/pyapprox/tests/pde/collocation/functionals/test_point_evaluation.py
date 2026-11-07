@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
+from pyapprox.implicitfunction.functionals.protocols import (
     SteadyFunctionalProtocol,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D

@@ -1,6 +1,6 @@
 import pytest
 
-from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
+from pyapprox.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
 

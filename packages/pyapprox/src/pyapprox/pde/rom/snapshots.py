@@ -16,7 +16,7 @@ depends on the discretization that produced them.
 from dataclasses import dataclass
 from typing import Generic, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+from pyapprox.implicitfunction.state_equations.protocols import (
     SteadyStateEquationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

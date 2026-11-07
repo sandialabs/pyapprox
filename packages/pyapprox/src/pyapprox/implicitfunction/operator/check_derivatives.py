@@ -1,5 +1,8 @@
 from typing import Generic, Optional, TypeVar
 
+from pyapprox.implicitfunction.operator.protocols import (
+    ImplicitOperatorProtocol,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -9,9 +12,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
-)
-from pyapprox.optimization.implicitfunction.operator.protocols import (
-    ImplicitOperatorProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 

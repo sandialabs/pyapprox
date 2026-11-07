@@ -17,14 +17,14 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.ode.functionals.endpoint import EndpointFunctional
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
 )
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+from pyapprox.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,

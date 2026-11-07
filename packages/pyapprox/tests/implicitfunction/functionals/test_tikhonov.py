@@ -6,6 +6,18 @@ from typing import Any, Literal, Optional, Set
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
+from pyapprox.implicitfunction.functionals.mean_squared_error import (  # noqa: E501
+    MSEFunctional,
+)
+from pyapprox.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesFunctional,
+)
+from pyapprox.implicitfunction.functionals.tikhonov import (
+    TikhonovAugmentedSteadyFunctional,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -14,18 +26,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
-    SteadyFunctionalDerivatives,
-)
-from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (  # noqa: E501
-    MSEFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.tikhonov import (
-    TikhonovAugmentedSteadyFunctional,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 

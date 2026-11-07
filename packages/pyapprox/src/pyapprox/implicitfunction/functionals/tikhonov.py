@@ -8,12 +8,12 @@ default), adding a direct parameter dependence.
 
 from typing import Generic, Literal, Optional
 
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
     SteadyFunctionalHVPFn,
     SteadyFunctionalJacobianFn,
 )
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
+from pyapprox.implicitfunction.functionals.protocols import (
     SteadyFunctionalProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

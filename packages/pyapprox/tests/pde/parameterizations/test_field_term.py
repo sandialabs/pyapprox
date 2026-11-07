@@ -18,20 +18,20 @@ from typing import Tuple
 
 import numpy as np
 
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
+from pyapprox.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
+from pyapprox.implicitfunction.operator.check_derivatives import (
+    ImplicitFunctionDerivativeChecker,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
-)
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,

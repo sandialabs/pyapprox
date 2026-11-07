@@ -18,16 +18,16 @@ different geometry.
 
 from typing import Generic, Optional
 
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
+from pyapprox.implicitfunction.functionals.protocols import (
     SteadyFunctionalProtocol,
 )
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+from pyapprox.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+from pyapprox.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
 )
-from pyapprox.optimization.implicitfunction.operator.as_function import (
+from pyapprox.implicitfunction.operator.as_function import (
     ImplicitFunctionOfParameters,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

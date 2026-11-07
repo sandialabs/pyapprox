@@ -21,6 +21,9 @@ from typing import Any, Literal
 
 import numpy as np
 
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -29,9 +32,6 @@ from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldVelocity,

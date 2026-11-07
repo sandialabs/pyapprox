@@ -3,19 +3,19 @@
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.mean_squared_error import (
+    MSEFunctional,
+)
+from pyapprox.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesFunctional,
+)
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
-    MSEFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.coupled_state_equations import (
     CoupledStateEquationsForwardUQ,

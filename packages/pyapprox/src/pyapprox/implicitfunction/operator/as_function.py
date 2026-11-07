@@ -10,16 +10,16 @@ operator supports. This module bridges the two.
 
 from typing import Generic, Optional
 
+from pyapprox.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
+from pyapprox.implicitfunction.operator.derivatives import (
+    OperatorHVPFn,
+)
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
     validate_samples,
-)
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.optimization.implicitfunction.operator.derivatives import (
-    OperatorHVPFn,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

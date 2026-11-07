@@ -3,14 +3,14 @@
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
-)
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    SteadyFunctionalProtocol,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.functionals.subdomain_integral import (

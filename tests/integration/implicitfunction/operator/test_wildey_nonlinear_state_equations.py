@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+from pyapprox.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+from pyapprox.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
 )
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
+from pyapprox.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolverOptions

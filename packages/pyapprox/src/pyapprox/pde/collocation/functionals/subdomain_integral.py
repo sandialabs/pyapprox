@@ -11,7 +11,7 @@ projected to collocation nodes.
 
 from typing import Callable, Generic, Literal, Optional, Tuple
 
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
 )
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (

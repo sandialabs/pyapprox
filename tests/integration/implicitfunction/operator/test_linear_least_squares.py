@@ -1,15 +1,15 @@
 import numpy as np
 
-from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
+from pyapprox.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
-from pyapprox.optimization.implicitfunction.functionals.tikhonov import (
+from pyapprox.implicitfunction.functionals.tikhonov import (
     TikhonovAugmentedSteadyFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+from pyapprox.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
 )
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
+from pyapprox.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
 from pyapprox_benchmarks.functions.algebraic.linear_state_equation import (

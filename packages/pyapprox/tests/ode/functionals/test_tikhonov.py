@@ -5,6 +5,9 @@ from typing import Literal
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -24,9 +27,6 @@ from pyapprox.ode.functionals.weighted_endpoint import (
 from pyapprox.ode.time_quadrature import (
     TrajectoryQuadratureProtocol,
     trapezoidal_quadrature,
-)
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.symmetric_weight import DenseMatrixWeight

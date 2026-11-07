@@ -81,7 +81,7 @@ def _steady_model(bkd: Backend[Array]) -> Any:
 
     The reaction makes the periodic problem nonsingular.
     """
-    from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+    from pyapprox.implicitfunction.functionals.weighted_sum import (
         WeightedSumFunctional,
     )
     from pyapprox.pde.models.collocation.steady import SteadyForwardModel

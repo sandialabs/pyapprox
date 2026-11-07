@@ -198,7 +198,7 @@ against the state equation and functional the problem is built from, and then
 compared with the gradient the problem already exposes.
 
 ```{python}
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+from pyapprox.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
 from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (

@@ -124,7 +124,7 @@ prior, and the adjoint machinery are untouched.
 import numpy as np
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
+from pyapprox.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
 from pyapprox_benchmarks.problems.coupled_state_equations import (

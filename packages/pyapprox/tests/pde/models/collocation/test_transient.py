@@ -5,6 +5,9 @@ import math
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.subset_of_states import (
+    SubsetOfStatesFunctional,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -16,9 +19,6 @@ from pyapprox.interface.functions.protocols import (
 )
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesFunctional,
-)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     gradient_robin_bc,

@@ -12,7 +12,7 @@ All satisfy SteadyFunctionalProtocol.
 
 from typing import Generic, Literal
 
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
 )
 from pyapprox.pde.collocation.post_processing.stress import (

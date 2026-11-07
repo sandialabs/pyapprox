@@ -1,10 +1,10 @@
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
+from pyapprox.implicitfunction.functionals.subset_of_states import (
     SubsetOfStatesFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
+from pyapprox.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
-from pyapprox.optimization.implicitfunction.operator.sensitivities import (
+from pyapprox.implicitfunction.operator.sensitivities import (
     ForwardSensitivityOperator,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolverOptions

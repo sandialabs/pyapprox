@@ -13,16 +13,16 @@ import pickle
 import numpy as np
 import pytest
 
-from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+from pyapprox.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+from pyapprox.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
 )
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
+from pyapprox.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.robin import traction_neumann_bc

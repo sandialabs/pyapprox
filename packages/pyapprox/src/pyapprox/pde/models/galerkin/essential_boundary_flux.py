@@ -19,14 +19,14 @@ negative of the total applied load).
 
 from typing import Generic, List, Literal, Optional, Tuple
 
+from pyapprox.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.ode.functionals.protocols import TransientFunctionalDerivatives
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.time_quadrature import (
     StepResidualRuleProtocol,
     TrajectoryQuadratureProtocol,
-)
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
-    SteadyFunctionalDerivatives,
 )
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,

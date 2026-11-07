@@ -5,6 +5,15 @@ import math
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.subset_of_states import (
+    SubsetOfStatesFunctional,
+)
+from pyapprox.implicitfunction.operator.check_derivatives import (
+    ImplicitFunctionDerivativeChecker,
+)
+from pyapprox.implicitfunction.operator.sensitivities import (
+    ForwardSensitivityOperator,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -15,15 +24,6 @@ from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
 )
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesFunctional,
-)
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.sensitivities import (
-    ForwardSensitivityOperator,
-)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
@@ -542,7 +542,7 @@ class TestSteadyForwardModelTiers:
     """Construction-time derivative-tier selection."""
 
     def _scalar_functional(self, bkd, npts, nparams):
-        from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+        from pyapprox.implicitfunction.functionals.weighted_sum import (
             WeightedSumFunctional,
         )
 

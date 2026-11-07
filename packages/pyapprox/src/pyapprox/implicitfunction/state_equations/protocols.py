@@ -1,6 +1,6 @@
 from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+from pyapprox.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend

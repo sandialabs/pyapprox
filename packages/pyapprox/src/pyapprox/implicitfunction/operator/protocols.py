@@ -1,15 +1,15 @@
 from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
+from pyapprox.implicitfunction.functionals.protocols import (
     SteadyFunctionalProtocol,
 )
-from pyapprox.optimization.implicitfunction.operator.derivatives import (
+from pyapprox.implicitfunction.operator.derivatives import (
     ImplicitOperatorDerivatives,
 )
-from pyapprox.optimization.implicitfunction.operator.storage import (
+from pyapprox.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+from pyapprox.implicitfunction.state_equations.protocols import (
     SteadyStateEquationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

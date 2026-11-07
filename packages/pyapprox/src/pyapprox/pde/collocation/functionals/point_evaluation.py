@@ -9,7 +9,7 @@ state Jacobian.
 
 from typing import Generic, Literal
 
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
 )
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (

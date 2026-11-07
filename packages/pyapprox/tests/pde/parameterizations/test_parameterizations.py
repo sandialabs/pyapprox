@@ -5,23 +5,23 @@ import math
 
 import pytest
 
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
+from pyapprox.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
+from pyapprox.implicitfunction.operator.check_derivatives import (
+    ImplicitFunctionDerivativeChecker,
+)
+from pyapprox.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
-)
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
-    SteadyStateEquationDerivatives,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc

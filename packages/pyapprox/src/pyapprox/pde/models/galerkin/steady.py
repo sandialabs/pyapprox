@@ -11,28 +11,28 @@ it.
 import warnings
 from typing import Generic, Optional, Union
 
+from pyapprox.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
+from pyapprox.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesFunctional,
+)
+from pyapprox.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
+from pyapprox.implicitfunction.operator.derivatives import (
+    OperatorHVPFn,
+)
+from pyapprox.implicitfunction.operator.sensitivities import (
+    ForwardSensitivityOperator,
+)
+from pyapprox.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
     validate_samples,
-)
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    SteadyFunctionalProtocol,
-)
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesFunctional,
-)
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.optimization.implicitfunction.operator.derivatives import (
-    OperatorHVPFn,
-)
-from pyapprox.optimization.implicitfunction.operator.sensitivities import (
-    ForwardSensitivityOperator,
-)
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
-    SteadyStateEquationDerivatives,
 )
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.models.galerkin.constrained_derivatives import (

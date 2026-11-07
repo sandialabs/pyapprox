@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+from pyapprox.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
 )
 

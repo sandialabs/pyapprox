@@ -9,25 +9,25 @@ SteadyStateEquationProtocol) and SteadyForwardModel
 import warnings
 from typing import Generic, Optional, Union
 
-from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
+from pyapprox.implicitfunction.functionals.protocols import (
     SteadyFunctionalProtocol,
 )
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
+from pyapprox.implicitfunction.functionals.subset_of_states import (
     SubsetOfStatesFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+from pyapprox.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
 )
-from pyapprox.optimization.implicitfunction.operator.derivatives import (
+from pyapprox.implicitfunction.operator.derivatives import (
     OperatorHVPFn,
 )
-from pyapprox.optimization.implicitfunction.operator.sensitivities import (
+from pyapprox.implicitfunction.operator.sensitivities import (
     ForwardSensitivityOperator,
 )
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+from pyapprox.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.protocols.boundary import (
     BCPhysicalSensitivities,
     BoundaryConditionProtocol,

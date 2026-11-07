@@ -24,6 +24,7 @@ forbidden_modules =
     pyapprox.interface
     pyapprox.probability
     pyapprox.optimization
+    pyapprox.implicitfunction
     pyapprox.ode
     pyapprox.surrogates
     pyapprox.inverse
@@ -41,6 +42,7 @@ source_modules =
 forbidden_modules =
     pyapprox.probability
     pyapprox.optimization
+    pyapprox.implicitfunction
     pyapprox.ode
     pyapprox.surrogates
     pyapprox.inverse
@@ -50,7 +52,48 @@ forbidden_modules =
     pyapprox.statest
     pyapprox.expdesign
 
-# ── Contract 3: Layering of probability, inverse and expdesign ───────────
+# ── Contract 3: Implicit functions under ODEs under PDEs ─────────────────
+# Implicit functions (R(u; p) = 0, time-free) are the general layer; ODEs
+# (time-indexed right-hand sides, steppers, trajectory sweeps) build on
+# them, and PDE discretizations on both.
+[importlinter:contract:physics-layers]
+name = pde above ode above implicitfunction
+type = layers
+layers =
+    pyapprox.pde
+    pyapprox.ode
+    pyapprox.implicitfunction
+
+[importlinter:contract:implicitfunction-isolation]
+name = implicitfunction imports only util and interface
+type = forbidden
+source_modules =
+    pyapprox.implicitfunction
+forbidden_modules =
+    pyapprox.optimization
+    pyapprox.ode
+    pyapprox.pde
+    pyapprox.surrogates
+    pyapprox.probability
+    pyapprox.inverse
+    pyapprox.generative
+    pyapprox.sensitivity
+    pyapprox.statest
+    pyapprox.expdesign
+    pyapprox.risk
+
+[importlinter:contract:implicitfunction-no-array-libraries]
+name = implicitfunction reaches array libraries only through util
+type = forbidden
+source_modules =
+    pyapprox.implicitfunction
+forbidden_modules =
+    numpy
+    scipy
+    torch
+allow_indirect_imports = True
+
+# ── Contract 4: Layering of probability, inverse and expdesign ───────────
 [importlinter:contract:probability-isolation]
 name = probability must not import inverse or expdesign
 type = forbidden

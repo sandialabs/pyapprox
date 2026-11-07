@@ -12,6 +12,15 @@ from typing import Any, Callable, Dict, Literal, Set
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.mean_squared_error import (  # noqa: E501
+    MSEFunctional,
+)
+from pyapprox.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesFunctional,
+)
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
@@ -33,15 +42,6 @@ from pyapprox.ode.functionals.weighted_endpoint import (
 from pyapprox.ode.time_quadrature import (
     midpoint_quadrature,
     trapezoidal_quadrature,
-)
-from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (  # noqa: E501
-    MSEFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.inner_product import EuclideanInnerProduct

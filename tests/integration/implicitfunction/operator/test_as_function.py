@@ -3,22 +3,22 @@
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesFunctional,
+)
+from pyapprox.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
+from pyapprox.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
+from pyapprox.implicitfunction.operator.as_function import (
+    ImplicitFunctionOfParameters,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.optimization.implicitfunction.operator.as_function import (
-    ImplicitFunctionOfParameters,
-)
 from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (
     NonLinearCoupledStateEquations,
 )

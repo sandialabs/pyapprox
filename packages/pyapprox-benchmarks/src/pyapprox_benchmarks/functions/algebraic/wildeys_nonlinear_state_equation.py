@@ -1,13 +1,13 @@
 from typing import Generic
 
-from pyapprox.interface.functions.protocols.validation import (
-    validate_sample,
-)
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+from pyapprox.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
 )
-from pyapprox.optimization.implicitfunction.state_equations.wrappers import (
+from pyapprox.implicitfunction.state_equations.wrappers import (
     ParameterizedStateEquationAsNewtonEquation,
+)
+from pyapprox.interface.functions.protocols.validation import (
+    validate_sample,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend

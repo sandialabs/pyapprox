@@ -1,6 +1,6 @@
 from typing import Generic, Literal
 
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend

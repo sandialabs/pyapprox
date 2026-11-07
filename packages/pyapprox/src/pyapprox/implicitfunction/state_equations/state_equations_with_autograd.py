@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Generic
 
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+from pyapprox.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
 )
 from pyapprox.util.backends.autodiff import AutodiffBackend
@@ -32,18 +32,23 @@ class StateEquationsWithAutoGrad(Generic[Array]):
         backend : Backend
             Backend used for computations (e.g., NumPy or PyTorch).
         """
-        self._validate_backend(backend)
-        self._bkd = backend
+        self._bkd: AutodiffBackend[Array] = self._validate_backend(backend)
         self._param = self._bkd.zeros((self.nparams(),))
 
-    def _validate_backend(self, backend: Backend[Array]) -> None:
+    def _validate_backend(self, backend: Backend[Array]) -> AutodiffBackend[Array]:
         """
-        Validate the backend.
+        Validate the backend and return it as the differentiating backend
+        it was checked to be.
 
         Parameters
         ----------
         backend : Backend
             Backend to validate.
+
+        Returns
+        -------
+        AutodiffBackend
+            ``backend``.
 
         Raises
         ------
@@ -58,6 +63,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
                 "Backend must support automatic differentiation "
                 "(AutodiffBackend: methods named 'jacobian' and 'hvp')."
             )
+        return backend
 
     @abstractmethod
     def nparams(self) -> int:
@@ -212,9 +218,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
             raise ValueError(
                 f"state has shape {state.shape} but must have shape {(self.nstates(),)}"
             )
-        jac = self._bkd.jacobian(  # type: ignore
-            lambda p: self._value(state, p), param
-        )
+        jac = self._bkd.jacobian(lambda p: self._value(state, p), param)
         if jac.shape != (self.nstates(), self.nparams()):
             raise RuntimeError(
                 f"jac has shape {jac.shape} but must have "
@@ -242,9 +246,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
             raise ValueError(
                 f"state has shape {state.shape} but must have shape {(self.nstates(),)}"
             )
-        jac = self._bkd.jacobian(  # type: ignore
-            lambda y: self._value(y, param), state
-        )
+        jac = self._bkd.jacobian(lambda y: self._value(y, param), state)
         if jac.shape != (self.nstates(), self.nstates()):
             raise RuntimeError(
                 f"jac has shape {jac.shape} but must have "

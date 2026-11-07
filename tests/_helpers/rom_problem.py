@@ -9,7 +9,7 @@ run the ROM tests without it.
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+from pyapprox.implicitfunction.state_equations.protocols import (
     SteadyStateEquationProtocol,
 )
 from pyapprox.pde.boundary import ConstraintSetProtocol

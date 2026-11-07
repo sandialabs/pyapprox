@@ -1,10 +1,10 @@
 from typing import Generic
 
+from pyapprox.implicitfunction.state_equations.protocols import (
+    SteadyStateEquationProtocol,
+)
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
-)
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    SteadyStateEquationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

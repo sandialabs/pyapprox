@@ -1,22 +1,22 @@
 from typing import Generic, Optional
 
-from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalHVPFn,
     SteadyFunctionalJacobianFn,
 )
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
+from pyapprox.implicitfunction.functionals.protocols import (
     SteadyFunctionalProtocol,
 )
-from pyapprox.optimization.implicitfunction.operator.derivatives import (
+from pyapprox.implicitfunction.operator.derivatives import (
     ImplicitOperatorDerivatives,
 )
-from pyapprox.optimization.implicitfunction.operator.storage import (
+from pyapprox.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
-from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+from pyapprox.implicitfunction.state_equations.derivatives import (
     StateEquationHVPFn,
 )
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+from pyapprox.implicitfunction.state_equations.protocols import (
     SteadyStateEquationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
