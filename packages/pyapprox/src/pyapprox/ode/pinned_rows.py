@@ -43,6 +43,16 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.pinned_rows import (
+    PinnedValuesData,
+    PinnedValuesParamDerivatives,
+    PinnedValuesProtocol,
+    RowReplacement,
+    RowsKept,
+    kept_rows,
+    present_data_field,
+)
+from pyapprox.implicitfunction.pinned_rows import RowPin as CorePin
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
@@ -54,11 +64,9 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     IdentityOperator,
     MatrixFree,
-    OperatorProperties,
     RowReplacedOperator,
     RowSetProtocol,
     RowsZeroedOperator,
-    SpaceDescriptor,
     VectorSpaceProtocol,
 )
 
@@ -136,61 +144,11 @@ class PinnedRowsParamDerivatives(Generic[V]):
         )
 
 
-class _RowsKept(Generic[V]):
-    r""":math:`(I - P) A`: an operator with the rows outside :math:`R`
-    zeroed; ``MatrixFree``. ``out`` is ignored."""
-
-    def __init__(
-        self,
-        op: DerivativeOperator[V],
-        rows: RowSetProtocol[V],
-        states: VectorSpaceProtocol[V],
-    ) -> None:
-        self._op, self._rows, self._states = op, rows, states
-
-    def domain(self) -> SpaceDescriptor:
-        return self._op.domain()
-
-    def range(self) -> SpaceDescriptor:
-        return self._op.range()
-
-    def properties(self) -> OperatorProperties:
-        return OperatorProperties()
-
-    def format(self) -> MatrixFree:
-        return MatrixFree()
-
-    def apply(self, x: V, out: Optional[V] = None) -> V:
-        y = self._op.apply(x)
-        return self._states.axpby(1.0, y, -1.0, self._rows.zero_rows(y))
-
-    def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
-        kept = self._states.axpby(1.0, y, -1.0, self._rows.zero_rows(y))
-        return self._op.apply_transpose(kept)
-
-
-def _present(
-    field: Union[Callable[..., DerivativeOperator[V]], StatedZero, None],
-    what: str,
-    owner: object,
-) -> Optional[Callable[..., DerivativeOperator[V]]]:
-    """The field's function, None for the stated zero; refused when not
-    available."""
-    if isinstance(field, StatedZero):
-        return None
-    if field is None:
-        raise ValueError(
-            f"{type(owner).__name__} does not declare {what} of its data, "
-            "which these derivatives need: declare it, or that the data do "
-            "not depend on the parameters (PinnedRowsParamDerivatives."
-            "independent())"
-        )
-    return field
-
-
 class PinnedData(Generic[V]):
-    r"""A declaration's data derivatives read on its rows :math:`R`: what
-    every consumer adds there, None where the declaration states zero.
+    r"""A declaration's data derivatives at a time, read on its rows
+    :math:`R`: the values' through the time-free core at that time
+    (:func:`values_at_time`), the rate's here, the rate being the ODE's
+    alone; None where the declaration states zero.
 
     Parameters
     ----------
@@ -213,45 +171,38 @@ class PinnedData(Generic[V]):
         self._rows = declaration.rows()
         self._bundle = declaration.parameter_derivatives()
 
-    def _kept(self, op: DerivativeOperator[V]) -> DerivativeOperator[V]:
-        return _RowsKept(op, self._rows, self._states)
-
-    def _weights(self, weights: V) -> V:
-        return self._states.axpby(1.0, weights, -1.0, self._rows.zero_rows(weights))
-
     def values_param(self, time: float) -> Optional[DerivativeOperator[V]]:
         r""":math:`(I - P)\, \partial g/\partial p` at ``time``."""
-        fn = _present(self._bundle.values, "the parameter Jacobian", self._declaration)
-        return None if fn is None else self._kept(fn(time))
-
-    def rates_param(self, time: float) -> Optional[DerivativeOperator[V]]:
-        r""":math:`(I - P)\, \partial \dot g/\partial p` at ``time``."""
-        fn = _present(
-            self._bundle.rates, "the rate's parameter Jacobian", self._declaration
-        )
-        return None if fn is None else self._kept(fn(time))
+        at_time = values_at_time(self._declaration, time)
+        return PinnedValuesData(at_time, self._states).values_param()
 
     def values_curvature(
         self, time: float, weights: V
     ) -> Optional[DerivativeOperator[V]]:
-        r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2`."""
-        fn = _present(
-            self._bundle.values_curvature,
-            "the second parameter derivatives",
-            self._declaration,
+        r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2` at
+        ``time``."""
+        at_time = values_at_time(self._declaration, time)
+        return PinnedValuesData(at_time, self._states).values_curvature(weights)
+
+    def rates_param(self, time: float) -> Optional[DerivativeOperator[V]]:
+        r""":math:`(I - P)\, \partial \dot g/\partial p` at ``time``."""
+        fn = present_data_field(
+            self._bundle.rates, "the rate's parameter Jacobian", self._declaration
         )
-        return None if fn is None else fn(time, self._weights(weights))
+        return None if fn is None else RowsKept(fn(time), self._rows, self._states)
 
     def rates_curvature(
         self, time: float, weights: V
     ) -> Optional[DerivativeOperator[V]]:
         r""":math:`\sum_{i \in R} w_i\, \partial^2 \dot g_i/\partial p^2`."""
-        fn = _present(
+        fn = present_data_field(
             self._bundle.rates_curvature,
             "the rate's second parameter derivatives",
             self._declaration,
         )
-        return None if fn is None else fn(time, self._weights(weights))
+        if fn is None:
+            return None
+        return fn(time, kept_rows(self._rows, self._states, weights))
 
 
 @runtime_checkable
@@ -278,6 +229,62 @@ class PinnedRowsProtocol(Protocol[V]):
         :meth:`PinnedRowsParamDerivatives.independent` when they do not.
         Which fields are present is fixed for the declaration's life."""
         ...
+
+
+class _ValuesParamAtTime(Generic[V]):
+    def __init__(self, fn: DataParamFn[V], time: float) -> None:
+        self._fn, self._time = fn, time
+
+    def __call__(self) -> DerivativeOperator[V]:
+        return self._fn(self._time)
+
+
+class _ValuesCurvatureAtTime(Generic[V]):
+    def __init__(self, fn: DataCurvatureFn[V], time: float) -> None:
+        self._fn, self._time = fn, time
+
+    def __call__(self, weights: V) -> DerivativeOperator[V]:
+        return self._fn(self._time, weights)
+
+
+class _ValuesAtTime(Generic[V]):
+    """A time-indexed declaration at one time: rows, values and their
+    parameter derivatives, time-free."""
+
+    def __init__(self, declaration: "PinnedRowsProtocol[V]", time: float) -> None:
+        self._declaration, self._time = declaration, time
+
+    def rows(self) -> RowSetProtocol[V]:
+        return self._declaration.rows()
+
+    def values(self) -> V:
+        return self._declaration.values(self._time)
+
+    def parameter_derivatives(self) -> PinnedValuesParamDerivatives[V]:
+        bundle, time = self._declaration.parameter_derivatives(), self._time
+        values, curvature = bundle.values, bundle.values_curvature
+        return PinnedValuesParamDerivatives(
+            (
+                values
+                if values is None or isinstance(values, StatedZero)
+                else _ValuesParamAtTime(values, time)
+            ),
+            (
+                curvature
+                if curvature is None or isinstance(curvature, StatedZero)
+                else _ValuesCurvatureAtTime(curvature, time)
+            ),
+        )
+
+
+def values_at_time(
+    declaration: "PinnedRowsProtocol[V]", time: float
+) -> PinnedValuesProtocol[V]:
+    r"""``declaration`` at ``time``: its rows, the values :math:`g(t)` and
+    their parameter derivatives at that time, as the time-free core reads
+    a declaration (:class:`~pyapprox.implicitfunction.pinned_rows.
+    PinnedValuesProtocol`). The rates are the ODE's and are left out."""
+    return _ValuesAtTime(declaration, time)
 
 
 @runtime_checkable
@@ -407,7 +414,11 @@ class AtEveryBlock:
 
 
 class RowPin(Generic[V]):
-    """Pins the declared rows of a residual block.
+    """Pins the declared rows of a residual block at the block's time: the
+    time-free core's row algebra
+    (:class:`~pyapprox.implicitfunction.pinned_rows.RowReplacement`), and
+    its pin of the declaration at that time (:func:`values_at_time`) for
+    the data's terms.
 
     Parameters
     ----------
@@ -416,38 +427,41 @@ class RowPin(Generic[V]):
     """
 
     def __init__(self, rows: PinnedRowsProtocol[V]) -> None:
-        self._declared, self._rows = rows, rows.rows()
+        self._declared = rows
+        self._algebra = RowReplacement(rows.rows())
+
+    def _at(self, time: float) -> CorePin[V]:
+        return CorePin(values_at_time(self._declared, time))
 
     def residual(
         self, block: V, state: V, time: float, space: VectorSpaceProtocol[V]
     ) -> V:
-        pinned = space.axpby(1.0, state, -1.0, self._declared.values(time))
-        return self._rows.replace_rows(block, pinned)
+        return self._at(time).residual(block, state, space)
 
     def right_hand_side(self, rhs: V, time: float) -> V:
-        return self._rows.replace_rows(rhs, self._declared.values(time))
+        return self._at(time).right_hand_side(rhs)
 
     def own(self, op: ActionOperatorProtocol[V, F]) -> RowReplacedOperator[V, F]:
-        return RowReplacedOperator(op, self._rows)
+        return self._algebra.own(op)
 
     def coupled(self, op: ActionOperatorProtocol[V, F]) -> RowsZeroedOperator[V, F]:
-        return RowsZeroedOperator(op, self._rows)
+        return self._algebra.coupled(op)
 
     def adjoint(self, block: V, space: VectorSpaceProtocol[V]) -> V:
-        return self._rows.zero_rows(space.copy(block))
+        return self._algebra.adjoint(block, space)
 
     def data_param(
         self, time: float, space: VectorSpaceProtocol[V]
     ) -> Optional[DerivativeOperator[V]]:
-        return PinnedData(self._declared, space).values_param(time)
+        return self._at(time).data_param(space)
 
     def data_curvature(
         self, weights: V, time: float, space: VectorSpaceProtocol[V]
     ) -> Optional[DerivativeOperator[V]]:
-        return PinnedData(self._declared, space).values_curvature(time, weights)
+        return self._at(time).data_curvature(weights, space)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(nrows={self._rows.count()})"
+        return f"{self.__class__.__name__}(nrows={self._algebra.rows().count()})"
 
 
 class RowPinning(Generic[V]):
@@ -582,7 +596,8 @@ class PinnedRowsConstraint(Generic[V]):
         bundle, data = rows.parameter_derivatives(), PinnedData(rows, space)
         param: Union[_ConstraintParam[V], StatedZero] = (
             STATED_ZERO
-            if _present(bundle.values, "the parameter Jacobian", rows) is None
+            if present_data_field(bundle.values, "the parameter Jacobian", rows)
+            is None
             else _ConstraintParam(data)
         )
         if bundle.values_curvature is None:
