@@ -13,6 +13,11 @@ directions: the value, the state Jacobian (dense), the parameter
 Jacobian, and the four adjoint-weighted second-derivative products agree
 to 1e-12, relative. The pinned rows of the value read u - g(t*), which
 for the moving end is 0.9 - 0.5 sin 0.12.
+
+Solved by ``SteadySystem`` with stack ``Newton`` (atol 1e-13) and SuperLU
+from zero, the steady state equals ``SteadyStateSolver`` on the view to
+1e-12 relative, in one step and one factorization, which the solved
+point's handle reuses.
 """
 
 import pytest
@@ -26,15 +31,17 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import issparse
+from scipy.sparse import csr_matrix, issparse
 
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
 from pyapprox.implicitfunction.residual_derivatives import DerivativeOperator
+from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.ode.pinned_rows import values_at_time
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
 from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.residual_form import BackendColumnForm
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
     EssentialPinnedRows,
@@ -50,9 +57,14 @@ from pyapprox.pde.models.galerkin.unconstrained_system import (
 )
 from pyapprox.pde.steady_view import SteadyView
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.operators import LinearizationPoint
+from pyapprox.util.linalg.operators import (
+    InnerProductSpaceProtocol,
+    LinearizationPoint,
+)
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.galerkin_heat import HEAT_PARAM, MovingEndHeat
+from tests._helpers.linalg.counting_solver import CountingSolver
 
 _Np = NDArray[Any]
 _TIME = 0.03
@@ -65,6 +77,7 @@ class _Case:
         self.bkd = bkd
         self.heat = MovingEndHeat(bkd)
         discretization = skfem_discretization(self.heat.system)
+        self.discretization = discretization
         adapter = create_galerkin_physics_ode_residual(
             discretization, ScipySparseLU(), self.heat.parameterization
         )
@@ -129,7 +142,7 @@ class TestAgainstTheSteadyView:
         state = case.column(case.state)
         _close(
             case.dense(bundle.jacobian(state, _POINT), case.n),
-            old_jacobian.toarray(),
+            csr_matrix(old_jacobian).toarray(),
         )
         assert case.old.param_jacobian is not None
         _close(
@@ -168,3 +181,21 @@ class TestAgainstTheSteadyView:
         case = _Case(numpy_bkd)
         version = case.pinned.parameters_version()
         assert version == case.residual.parameters_version() > 0
+
+
+class TestTheSteadySolve:
+    def test_it_equals_the_steady_state_solver(self, numpy_bkd: NumpyBkd) -> None:
+        case = _Case(numpy_bkd)
+        space = case.discretization.space()
+        assert isinstance(space, InnerProductSpaceProtocol)
+        lu: CountingSolver[_Np, Any] = CountingSolver(ScipySparseLU())
+        system = SteadySystem(case.pinned, space, lu)
+        assert system.is_affine()
+        point = system.solve(
+            Newton(atol=1e-13, rtol=0.0, maxiters=20), np.zeros((case.n, 1))
+        )
+        assert point.converged() and point.info().iterations == 1
+        old = SteadyStateSolver(case.view).solve()
+        _close(point.state()[:, 0], old.solution)
+        point.jacobian_handle()
+        assert lu.setups == 1
