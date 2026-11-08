@@ -50,7 +50,11 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.ode.mass_form_system import MassFormSystem, RightHandSideProtocol
+from pyapprox.ode.mass_form_system import (
+    MassFormSystem,
+    RightHandSideProtocol,
+    parameters_version_reader,
+)
 from pyapprox.ode.pinned_rows import (
     PinnedData,
     PinnedRowsParamDerivatives,
@@ -89,15 +93,6 @@ F = TypeVar("F", bound=FormatProtocol)
 RatesFn = Callable[[float], V]
 r""":math:`t \mapsto \dot g(t)`, a single column whose rows :math:`R` hold
 the rate."""
-
-
-@runtime_checkable
-class _Versioned(Protocol):
-    def parameters_version(self) -> int: ...
-
-
-def _unversioned() -> int:
-    return 0
 
 
 # ----------------------------------------------------------------------
@@ -216,9 +211,7 @@ class ZeroedRowsRightHandSide(Generic[V, F]):
                 f"{type(rhs).__name__}"
             )
         self._rhs, self._rows, self._form = rhs, rows, form
-        self._version: Callable[[], int] = (
-            rhs.parameters_version if isinstance(rhs, _Versioned) else _unversioned
-        )
+        self._version = parameters_version_reader(rhs)
         # Which fields are present is fixed for the right-hand side's life.
         self._derivatives = _zeroed_derivatives(rhs.derivatives(), rows, form)
 

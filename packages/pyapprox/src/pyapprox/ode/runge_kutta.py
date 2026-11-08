@@ -32,22 +32,19 @@ where :math:`f` and :math:`J` are called.
 from functools import partial
 from itertools import count
 from typing import (
-    Callable,
     Dict,
     Generic,
     List,
     Optional,
-    Protocol,
     Sequence,
     TypeVar,
-    runtime_checkable,
 )
 
 from pyapprox.ode.continuous_extension import (
     ContinuousExtensionDerivatives,
     fraction_of_step,
 )
-from pyapprox.ode.mass_form_system import MassFormSystem
+from pyapprox.ode.mass_form_system import MassFormSystem, parameters_version_reader
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
 from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.step_quadrature import TableauQuadrature
@@ -87,18 +84,6 @@ V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 F = TypeVar("F", bound=FormatProtocol)
 G = TypeVar("G", bound=FormatProtocol)
-
-
-@runtime_checkable
-class _VersionedProtocol(Protocol):
-    """A residual that reports its parameter version."""
-
-    def parameters_version(self) -> int: ...
-
-
-def _unversioned() -> int:
-    """The version of a residual without parameters: one for its life."""
-    return 0
 
 
 class _StageSystem(Generic[V, A, F]):
@@ -551,12 +536,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self._reuse: ReusePolicyProtocol = KeepWithinSolve() if reuse is None else reuse
         # Whether the residual reports a version is fixed for its life, so
         # decided once rather than by a protocol check on every call.
-        rhs = system.rhs
-        self._version: Callable[[], int] = (
-            rhs.parameters_version
-            if isinstance(rhs, _VersionedProtocol)
-            else _unversioned
-        )
+        self._version = parameters_version_reader(system.rhs)
         self._tableau = tableau
         self._quadrature = TableauQuadrature(tableau)
         self._system = system

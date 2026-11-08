@@ -18,6 +18,7 @@ stack whose Jacobian is a dense array.
 
 from dataclasses import dataclass
 from typing import (
+    Callable,
     Generic,
     Hashable,
     Optional,
@@ -64,6 +65,31 @@ class RightHandSideProtocol(Protocol[V, F_co]):
     def __call__(self, state: V, time: float) -> V: ...
 
     def derivatives(self) -> ODEResidualDerivatives[V, F_co]: ...
+
+
+@runtime_checkable
+class VersionedRightHandSideProtocol(RightHandSideProtocol[V, F_co], Protocol):
+    """A right-hand side that reports its parameter version: the number of
+    ``set_param`` calls so far (see
+    :mod:`pyapprox.ode.protocols.differentiable_residual`)."""
+
+    def parameters_version(self) -> int: ...
+
+
+def _unversioned() -> int:
+    """The version of a right-hand side without parameters: one for its
+    life."""
+    return 0
+
+
+def parameters_version_reader(rhs: RightHandSideProtocol[V, F_co]) -> Callable[[], int]:
+    """How to read ``rhs``'s parameter version: its own
+    ``parameters_version``, or a constant 0 for a right-hand side without
+    parameters. Whether it reports one is fixed for its life, so a consumer
+    decides once, at construction."""
+    if isinstance(rhs, VersionedRightHandSideProtocol):
+        return rhs.parameters_version
+    return _unversioned
 
 
 @dataclass(frozen=True)
