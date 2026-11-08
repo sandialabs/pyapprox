@@ -23,7 +23,8 @@ invariants.
 | `SteadyConstrainedDerivatives` | `pde.models.galerkin.constrained_derivatives` | built by `steady_constrained_derivatives` | Galerkin steady adapter |
 | `SteadyFunctionalDerivatives` | `implicitfunction.functionals.derivatives` | `derivatives()` | steady functionals |
 | `TransientFunctionalDerivatives` | `ode.functionals.protocols` | `derivatives()` | transient functionals |
-| `ParameterTermDerivatives`, `StateTermDerivatives`, `StepTermDerivatives` | `ode.trajectory_terms` | `derivatives()` | the terms of a `TrajectoryFunctional` the sweeps differentiate (second order, weighted by the value weights) |
+| `ParameterTermDerivatives` | `implicitfunction.functional_terms` | `derivatives()` | parameter terms of any functional, steady or of a trajectory (second order weighted by the value weights) |
+| `StateTermDerivatives`, `StepTermDerivatives` | `ode.trajectory_terms` | `derivatives()` | the terms of a `TrajectoryFunctional` the sweeps differentiate (second order, weighted by the value weights) |
 | `IntegrandDerivatives` | `ode.time_integral` | `derivatives()` | integrands of time integrals |
 | `ContinuousExtensionDerivatives` | `ode.continuous_extension` | `derivatives()` | a stepping method's continuous extension, y(t) inside a step (second order weighted by a state weight) |
 | `SteadyStateEquationDerivatives` | `implicitfunction.state_equations.derivatives` | `derivatives()` | steady state equations |

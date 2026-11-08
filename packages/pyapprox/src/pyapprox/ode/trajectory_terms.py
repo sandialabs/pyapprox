@@ -52,6 +52,12 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.functional_terms import (
+    LinearizationProtocol,
+    ParameterTermDerivatives,
+    ParameterTermProtocol,
+    value_weights,
+)
 from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import BlockVector
@@ -59,46 +65,6 @@ from pyapprox.util.linalg.operators import BlockVector
 V = TypeVar("V")
 X = TypeVar("X")
 A = TypeVar("A", bound=ArrayProtocol)
-
-
-@runtime_checkable
-class LinearizationProtocol(Protocol[X, A]):
-    r"""A term's first derivative in one argument, :math:`D = \partial
-    c/\partial x`, as a linear map from that argument's vectors to value
-    columns."""
-
-    def apply(self, x: X) -> A:
-        r""":math:`D x`, a column of ``nqoi`` entries."""
-        ...
-
-    def apply_transpose(self, weights: A) -> X:
-        r""":math:`D^\top \omega` for a column of value weights; may be
-        the term's own storage, valid until its next call."""
-        ...
-
-
-class BackendScalarGradient(Generic[A]):
-    r"""The linearization of a scalar by its gradient column :math:`g`, on
-    the backend stack (vectors and values both backend arrays): forward
-    :math:`g^\top x`, shape ``(1, 1)``; transposed :math:`g\, \omega`. Its
-    products keep an autograd graph through :math:`g`.
-
-    Parameters
-    ----------
-    gradient : A
-        :math:`g`, a column.
-    bkd : Backend
-        The backend.
-    """
-
-    def __init__(self, gradient: A, bkd: Backend[A]) -> None:
-        self._gradient, self._bkd = gradient, bkd
-
-    def apply(self, x: A) -> A:
-        return self._bkd.dot(self._gradient.T, x)
-
-    def apply_transpose(self, weights: A) -> A:
-        return self._gradient * weights
 
 
 @dataclass(frozen=True)
@@ -226,47 +192,6 @@ StepParamLinearizationFn = Callable[
 ]
 """``(step, window) ->`` :math:`\\partial c_n/\\partial p`; None when
 zero."""
-
-
-@dataclass(frozen=True)
-class ParameterTermDerivatives(Generic[V, A]):
-    r"""A parameter term's optional derivatives: :math:`\partial r/\partial
-    p` as a linearization, and :math:`(\omega^\top r)_{pp}\, v` as
-    ``(weights, v) ->`` a parameter column (None when zero). Build with
-    :meth:`none`, :meth:`first_order` or :meth:`second_order`.
-
-    Raises
-    ------
-    ValueError
-        If the second derivative is given without the first.
-    """
-
-    wrt_param: Optional[Callable[[], LinearizationProtocol[V, A]]] = None
-    param_param: Optional[Callable[[A, V], Optional[V]]] = None
-
-    def __post_init__(self) -> None:
-        if self.param_param is not None and self.wrt_param is None:
-            raise ValueError("a second derivative needs the first")
-
-    @staticmethod
-    def none() -> "ParameterTermDerivatives[V, A]":
-        """No derivatives: the term is only evaluated."""
-        return ParameterTermDerivatives()
-
-    @staticmethod
-    def first_order(
-        wrt_param: Callable[[], LinearizationProtocol[V, A]],
-    ) -> "ParameterTermDerivatives[V, A]":
-        """The first derivative."""
-        return ParameterTermDerivatives(wrt_param)
-
-    @staticmethod
-    def second_order(
-        wrt_param: Callable[[], LinearizationProtocol[V, A]],
-        param_param: Callable[[A, V], Optional[V]],
-    ) -> "ParameterTermDerivatives[V, A]":
-        """The first and second derivatives."""
-        return ParameterTermDerivatives(wrt_param, param_param)
 
 
 @dataclass(frozen=True)
@@ -441,24 +366,6 @@ class StepTermDerivatives(Generic[V, A]):
 
 
 @runtime_checkable
-class ParameterTermProtocol(Protocol[V, A]):
-    r"""A term :math:`r(p)` read from the parameters alone, at the
-    parameters currently set."""
-
-    def nqoi(self) -> int:
-        """The number of entries of the term's value."""
-        ...
-
-    def value(self) -> A:
-        """:math:`r(p)`, a column of ``nqoi`` entries."""
-        ...
-
-    def derivatives(self) -> ParameterTermDerivatives[V, A]:
-        """The optional derivatives."""
-        ...
-
-
-@runtime_checkable
 class StateTermProtocol(Protocol[V, A]):
     r"""A term :math:`\sum_m g_m(y_m;\, p)` over the stored states it
     names, each read alone.
@@ -597,18 +504,7 @@ class TrajectoryFunctional(Generic[V, A]):
             If ``given`` is not of shape ``(nqoi, 1)``, or none is given
             for a functional of several entries.
         """
-        if given is not None:
-            if tuple(given.shape) != (self.nqoi(), 1):
-                raise ValueError(
-                    f"weights must have shape ({self.nqoi()}, 1), got "
-                    f"{tuple(given.shape)}"
-                )
-            return given
-        if self.nqoi() != 1:
-            raise ValueError(
-                f"a functional of {self.nqoi()} entries needs its weights given"
-            )
-        return self.zero + 1.0
+        return value_weights(self.zero, given)
 
     def __add__(
         self, other: "TrajectoryFunctional[V, A]"

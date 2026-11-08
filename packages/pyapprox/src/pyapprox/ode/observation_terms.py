@@ -25,12 +25,12 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.ode.trajectory_terms import (
+from pyapprox.implicitfunction.functional_terms import (
     BackendScalarGradient,
     LinearizationProtocol,
     ParameterTermDerivatives,
-    StateTermDerivatives,
 )
+from pyapprox.ode.trajectory_terms import StateTermDerivatives
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 
 V = TypeVar("V")

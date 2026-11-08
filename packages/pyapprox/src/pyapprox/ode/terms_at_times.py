@@ -23,6 +23,7 @@ with no code of its own.
 
 from typing import Generic, List, Optional, Sequence, TypeVar
 
+from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
 from pyapprox.ode.continuous_extension import (
     ContinuousExtensionDerivatives,
     ContinuousExtensionProtocol,
@@ -31,7 +32,6 @@ from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_terms import (
     ChainedLinearization,
     ChainPart,
-    LinearizationProtocol,
     StateTermDerivatives,
     StateTermProtocol,
     StepTermDerivatives,

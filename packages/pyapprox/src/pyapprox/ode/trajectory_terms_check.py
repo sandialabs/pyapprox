@@ -43,6 +43,10 @@ parameter derivatives, how to set the parameters the terms read
 from dataclasses import replace
 from typing import Callable, Dict, Generic, Optional, Sequence, TypeVar
 
+from pyapprox.implicitfunction.functional_terms import (
+    LinearizationProtocol,
+    ParameterTermProtocol,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     FDCurve,
 )
@@ -60,8 +64,6 @@ from pyapprox.ode.residual_derivatives_check import (
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
-    LinearizationProtocol,
-    ParameterTermProtocol,
     StateCurvatureFn,
     StateTermDerivatives,
     StateTermProtocol,

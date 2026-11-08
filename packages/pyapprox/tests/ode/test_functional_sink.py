@@ -26,6 +26,7 @@ from typing import Any, Callable, Generic
 
 import pytest
 
+from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
 from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.functional_sink import (
     FunctionalSink,
@@ -44,10 +45,7 @@ from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import crank_nicolson
 from pyapprox.ode.time_integral import IntegrandDerivatives, TimeIntegral
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
-from pyapprox.ode.trajectory_terms import (
-    ParameterTermDerivatives,
-    StateTermDerivatives,
-)
+from pyapprox.ode.trajectory_terms import StateTermDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import BlockVector
 from tests._helpers.ode.multistep_cases import lm_stepper

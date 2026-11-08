@@ -8,6 +8,7 @@ from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
 
+from pyapprox.implicitfunction.functional_terms import BackendScalarGradient
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -50,7 +51,7 @@ from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
 )
-from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendRowSet, DenseFormat
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper

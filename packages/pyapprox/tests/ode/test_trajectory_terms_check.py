@@ -36,6 +36,11 @@ from typing import Any, Callable, Generic, Optional
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.functional_terms import (
+    BackendScalarGradient,
+    LinearizationProtocol,
+    ParameterTermDerivatives,
+)
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import bdf2
@@ -46,9 +51,6 @@ from pyapprox.ode.time_integral import IntegrandDerivatives, TimeIntegral
 from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
-    BackendScalarGradient,
-    LinearizationProtocol,
-    ParameterTermDerivatives,
     StateTermDerivatives,
     StateTermProtocol,
     StepTermDerivatives,

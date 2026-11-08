@@ -35,6 +35,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -79,7 +80,6 @@ from pyapprox.ode.trajectory_derivatives import (
 )
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
-    ParameterTermDerivatives,
     StateTermDerivatives,
     StateTermProtocol,
     TrajectoryFunctional,

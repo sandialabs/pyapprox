@@ -36,6 +36,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.functional_terms import ParameterTermProtocol
 from pyapprox.ode.step_quadrature import (
     StepQuadratureProtocol,
     StepRule,
@@ -44,7 +45,6 @@ from pyapprox.ode.step_quadrature import (
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_terms import (
-    ParameterTermProtocol,
     StateTermProtocol,
     StepTermProtocol,
 )

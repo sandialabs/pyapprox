@@ -39,6 +39,7 @@ from typing import Callable, Generic
 
 import pytest
 
+from pyapprox.implicitfunction.functional_terms import BackendScalarGradient
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -65,7 +66,7 @@ from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
 )
-from pyapprox.ode.trajectory_terms import BackendScalarGradient, TrajectoryFunctional
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.ode.runge_kutta_cases import LV_PARAM, lotka_volterra_with_mass

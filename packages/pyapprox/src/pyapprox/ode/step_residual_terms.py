@@ -31,6 +31,7 @@ solved stepper's parameter version, not this one's.
 
 from typing import Dict, Generic, Optional, TypeVar
 
+from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
 from pyapprox.ode.observation_terms import ObservationOperatorProtocol
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
 from pyapprox.ode.stepper_derivatives import (
@@ -42,7 +43,6 @@ from pyapprox.ode.stepper_derivatives import (
 from pyapprox.ode.trajectory_terms import (
     ChainedLinearization,
     ChainPart,
-    LinearizationProtocol,
     StepTermDerivatives,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol

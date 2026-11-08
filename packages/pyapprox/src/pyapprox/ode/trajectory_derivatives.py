@@ -114,6 +114,14 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.functional_terms import (
+    LinearizationProtocol,
+    accumulate,
+    no_first_derivatives,
+    no_second_derivatives,
+    parameter_first_derivatives,
+    parameter_second_derivatives,
+)
 from pyapprox.ode.integration import DifferentiableStackConstraintProtocol
 from pyapprox.ode.mass_form_system import RightHandSideProtocol
 from pyapprox.ode.protocols import (
@@ -133,7 +141,6 @@ from pyapprox.ode.trajectory_store import (
     TrajectoryStoreProtocol,
 )
 from pyapprox.ode.trajectory_terms import (
-    LinearizationProtocol,
     StateCurvatureFn,
     StateLinearizationFn,
     StateParamLinearizationFn,
@@ -154,7 +161,6 @@ from pyapprox.util.linalg.operators import (
     InnerProductSpaceProtocol,
     SolveFailedError,
     SolverHandleProtocol,
-    VectorSpaceProtocol,
 )
 
 V = TypeVar("V")
@@ -205,23 +211,14 @@ class _FirstOrder(Generic[V, A]):
     """
 
     def __init__(self, functional: TrajectoryFunctional[V, A], ntimes: int) -> None:
-        def refuse(term: object) -> TypeError:
-            return TypeError(
-                f"{type(term).__name__}'s derivatives() has no first derivatives, "
-                "so the functional is only evaluated"
-            )
-
-        self.parameters: List[Callable[[], LinearizationProtocol[V, A]]] = []
-        for parameter_term in functional.parameter_terms:
-            wrt_param = parameter_term.derivatives().wrt_param
-            if wrt_param is None:
-                raise refuse(parameter_term)
-            self.parameters.append(wrt_param)
+        self.parameters: List[Callable[[], LinearizationProtocol[V, A]]] = (
+            parameter_first_derivatives(functional.parameter_terms)
+        )
         self._states_at: Dict[int, List[_StateFirst[V, A]]] = {}
         for state_term in functional.state_terms:
             bundle = state_term.derivatives()
             if bundle.wrt_state is None:
-                raise refuse(state_term)
+                raise no_first_derivatives(state_term)
             first = _StateFirst(bundle.wrt_state, bundle.wrt_param)
             for index in _indices_read(state_term, ntimes):
                 self._states_at.setdefault(index, []).append(first)
@@ -233,7 +230,7 @@ class _FirstOrder(Generic[V, A]):
                 or step_bundle.wrt_lag is None
                 or step_bundle.wrt_param is None
             ):
-                raise refuse(step_term)
+                raise no_first_derivatives(step_term)
             self.steps.append(
                 _StepFirst(
                     step_bundle.wrt_unknown, step_bundle.wrt_lag, step_bundle.wrt_param
@@ -244,20 +241,6 @@ class _FirstOrder(Generic[V, A]):
         """The first derivatives of the state terms reading state
         ``index``."""
         return self._states_at.get(index, [])
-
-
-def _accumulate(
-    total: Optional[W], term: Optional[W], space: VectorSpaceProtocol[W]
-) -> Optional[W]:
-    """``total + term``, into ``total`` when there is one (a new vector the
-    caller owns); a term starting the total is copied, since it may be a
-    term's own storage, overwritten by that term's next call. So each
-    term is added as soon as it is returned, never kept for later."""
-    if term is None:
-        return total
-    if total is None:
-        return space.copy(term)
-    return space.axpby(1.0, term, 1.0, total, out=total)
 
 
 @runtime_checkable
@@ -1372,16 +1355,7 @@ class _FunctionalCurvatures(Generic[V, A]):
         TypeError
             If a term's bundle has no second derivatives.
         """
-        parameters = []
-        for parameter_term in functional.parameter_terms:
-            param_param = parameter_term.derivatives().param_param
-            if param_param is None:
-                raise TypeError(
-                    f"{type(parameter_term).__name__}'s derivatives() has no "
-                    "second derivative, so the functional has no Hessian-vector "
-                    "products"
-                )
-            parameters.append(param_param)
+        parameters = parameter_second_derivatives(functional.parameter_terms)
         states = []
         for state_term in functional.state_terms:
             bundle = state_term.derivatives()
@@ -1391,10 +1365,7 @@ class _FunctionalCurvatures(Generic[V, A]):
                 or bundle.param_state is None
                 or bundle.param_param is None
             ):
-                raise TypeError(
-                    f"{type(state_term).__name__}'s derivatives() has no second "
-                    "derivatives, so the functional has no Hessian-vector products"
-                )
+                raise no_second_derivatives(state_term)
             states.append(
                 _StateCurvature(
                     frozenset(_indices_read(state_term, ntimes)),
@@ -1464,7 +1435,7 @@ class _FirstOrderSources(Generic[V, A]):
         total: Optional[V] = None
         for term in terms:
             by_state = term.wrt_state(index, time, state)
-            total = _accumulate(
+            total = accumulate(
                 total, by_state.apply_transpose(self._weights), self._space
             )
         return total
@@ -1474,7 +1445,7 @@ class _FirstOrderSources(Generic[V, A]):
         # derivatives come per state, from at_state.
         total: Optional[V] = None
         for wrt_param in self._first.parameters:
-            total = _accumulate(
+            total = accumulate(
                 total, wrt_param().apply_transpose(self._weights), self._params
             )
         return self._params.zeros() if total is None else total
@@ -1491,7 +1462,7 @@ class _FirstOrderSources(Generic[V, A]):
                 continue
             by_param = term.wrt_param(index, time, state)
             if by_param is not None:
-                total = _accumulate(
+                total = accumulate(
                     total, by_param.apply_transpose(self._weights), self._params
                 )
         return None, total
@@ -1506,7 +1477,7 @@ class _FirstOrderSources(Generic[V, A]):
         for term in self._first.steps:
             by_unknown = term.wrt_unknown(step, window)
             if by_unknown is not None:
-                total = _accumulate(
+                total = accumulate(
                     total, by_unknown.apply_transpose(self._weights), self._unknowns
                 )
         return total
@@ -1516,7 +1487,7 @@ class _FirstOrderSources(Generic[V, A]):
         for term in self._first.steps:
             by_param = term.wrt_param(step, window)
             if by_param is not None:
-                total = _accumulate(
+                total = accumulate(
                     total, by_param.apply_transpose(self._weights), self._params
                 )
         return total
@@ -1526,7 +1497,7 @@ class _FirstOrderSources(Generic[V, A]):
         for term in self._first.steps:
             by_lag = term.wrt_lag(step, window, lag)
             if by_lag is not None:
-                total = _accumulate(
+                total = accumulate(
                     total, by_lag.apply_transpose(self._weights), self._space
                 )
         return total
@@ -1600,10 +1571,10 @@ class _SecondOrderSources(Generic[V, A]):
         w, v, omega = self._tangents.state(index), self._direction, self._weights
         total: Optional[V] = None
         for term in terms:
-            total = _accumulate(
+            total = accumulate(
                 total, term.state_state(index, time, state, omega, w), self._space
             )
-            total = _accumulate(
+            total = accumulate(
                 total, term.state_param(index, time, state, omega, v), self._space
             )
         return total
@@ -1614,7 +1585,7 @@ class _SecondOrderSources(Generic[V, A]):
         # from at_state, so the tangents are read backward only.
         total: Optional[V] = None
         for param_param in self._curvatures.parameters:
-            total = _accumulate(
+            total = accumulate(
                 total, param_param(self._weights, self._direction), self._params
             )
         return self._params.zeros() if total is None else total
@@ -1631,12 +1602,12 @@ class _SecondOrderSources(Generic[V, A]):
             time, state = self._store.time(index), self._store.state(index)
             omega = self._weights
             for term in terms:
-                to_param = _accumulate(
+                to_param = accumulate(
                     to_param,
                     term.param_state(index, time, state, omega, w),
                     self._params,
                 )
-                to_param = _accumulate(
+                to_param = accumulate(
                     to_param,
                     term.param_param(index, time, state, omega, v),
                     self._params,
@@ -1650,13 +1621,13 @@ class _SecondOrderSources(Generic[V, A]):
         to_state: Optional[V] = None
         for op, x in ((ops.state_state, dx), (ops.state_param, v)):
             if not op.properties().zero:
-                to_state = _accumulate(to_state, op.apply(x), self._space)
+                to_state = accumulate(to_state, op.apply(x), self._space)
         if not ops.state_param.properties().zero:
-            to_param = _accumulate(
+            to_param = accumulate(
                 to_param, ops.state_param.apply_transpose(dx), self._params
             )
         if not ops.param_param.properties().zero:
-            to_param = _accumulate(to_param, ops.param_param.apply(v), self._params)
+            to_param = accumulate(to_param, ops.param_param.apply(v), self._params)
         return to_state, to_param
 
     def begin_step(self, step: int, window: StepWindow[V]) -> None:
@@ -1726,7 +1697,7 @@ class _SecondOrderSources(Generic[V, A]):
         )
         total = self._curvature_at_lag(step, window, 0)
         for term in self._curvatures.steps:
-            total = _accumulate(
+            total = accumulate(
                 total,
                 term.wrt_unknown(step, window, tangents, v, omega),
                 self._unknowns,
@@ -1745,7 +1716,7 @@ class _SecondOrderSources(Generic[V, A]):
         )
         tangents, v = self._tangent_window_of(step), self._direction
         for term in self._curvatures.steps:
-            total = _accumulate(
+            total = accumulate(
                 total, term.wrt_param(step, window, tangents, v, self._weights), params
             )
         return total
@@ -1755,7 +1726,7 @@ class _SecondOrderSources(Generic[V, A]):
         tangents, v = self._tangent_window_of(step), self._direction
         total = None if read is None else read.blocks[0]
         for term in self._curvatures.steps:
-            total = _accumulate(
+            total = accumulate(
                 total,
                 term.wrt_lag(step, window, tangents, lag, v, self._weights),
                 self._space,

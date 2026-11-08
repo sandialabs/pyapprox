@@ -37,6 +37,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
 from pyapprox.ode.functional_sink import (
     FunctionalSink,
     RunningRecursion,
@@ -52,7 +53,6 @@ from pyapprox.ode.step_quadrature import (
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
-    LinearizationProtocol,
     RecursionWeighted,
     StepTermDerivatives,
     TrajectoryFunctional,
