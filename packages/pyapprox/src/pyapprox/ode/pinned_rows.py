@@ -58,12 +58,14 @@ from pyapprox.ode.residual_derivatives import (
     DerivativeOperator,
     StatedZero,
 )
-from pyapprox.ode.state_constraint import StateConstraintDerivatives
+from pyapprox.ode.state_constraint import (
+    ConstantDerivative,
+    StateConstraintDerivatives,
+)
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
     IdentityOperator,
-    MatrixFree,
     RowReplacedOperator,
     RowSetProtocol,
     RowsZeroedOperator,
@@ -504,17 +506,6 @@ class RowPinning(Generic[V]):
         return f"{self.__class__.__name__}({self._pin!r}, {self._placement!r})"
 
 
-class _PinTangent(Generic[V]):
-    """The pin's tangent, the identity with the rows zeroed, the same at
-    every state and time."""
-
-    def __init__(self, op: RowsZeroedOperator[V, MatrixFree]) -> None:
-        self._op = op
-
-    def __call__(self, state: V, time: float) -> RowsZeroedOperator[V, MatrixFree]:
-        return self._op
-
-
 class _ConstraintParam(Generic[V]):
     r""":math:`\partial \Pi/\partial p = (I - P)\, \partial g/\partial p`."""
 
@@ -586,7 +577,10 @@ class PinnedRowsConstraint(Generic[V]):
         row_set = rows.rows()
         space.descriptor().require_same(row_set.descriptor(), "the pinned rows")
         self._declared, self._rows = rows, row_set
-        tangent = _PinTangent(RowsZeroedOperator(IdentityOperator(space), row_set))
+        # The identity with the rows zeroed, the same at every state and time.
+        tangent = ConstantDerivative(
+            RowsZeroedOperator(IdentityOperator(space), row_set)
+        )
         self._derivs: StateConstraintDerivatives[V]
         if param_space is None:
             self._derivs = StateConstraintDerivatives.state_only(tangent)

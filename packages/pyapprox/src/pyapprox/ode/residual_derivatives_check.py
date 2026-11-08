@@ -146,7 +146,15 @@ def _unparameterized() -> int:
     return 0
 
 
-def _present(field: Optional[T], name: str) -> T:
+def refetched(field: Optional[T], name: str) -> T:
+    """A bundle field fetched again after ``set_param``.
+
+    Raises
+    ------
+    ValueError
+        If the field is absent: which fields a bundle holds must not
+        depend on the parameter values.
+    """
     if field is None:
         raise ValueError(
             f"a bundle fetched after set_param lacks '{name}', which the first "
@@ -428,7 +436,7 @@ class ODEResidualBundleChecker(Generic[Array]):
         self, bundle: _Bundle[Array], state: Array, time: float
     ) -> DerivativeOperator[Array]:
         point = LinearizationPoint(self._parameters_version(), next(self._points))
-        return _present(bundle.jacobian, "jacobian")(state, time, point)
+        return refetched(bundle.jacobian, "jacobian")(state, time, point)
 
     def _terms(
         self,
@@ -466,14 +474,14 @@ class ODEResidualBundleChecker(Generic[Array]):
             return f(state, time)
 
         def param_action(p: Array, v: Array) -> Array:
-            return _present(self._fetch(p).param, "param")(state, time).apply(v)
+            return refetched(self._fetch(p).param, "param")(state, time).apply(v)
 
         terms.append(("param", param, residual_of_param, param_action))
         y0 = self._initial_state
         if y0 is not None:
 
             def initial_state(p: Array, v: Array) -> Array:
-                field = _present(self._fetch(p).initial_state, "initial_state")
+                field = refetched(self._fetch(p).initial_state, "initial_state")
                 return field().apply(v)
 
             terms.append(("initial_state", param, y0, initial_state))
@@ -484,7 +492,7 @@ class ODEResidualBundleChecker(Generic[Array]):
             return self._jacobian(base(), y, time).apply_transpose(lam)[:, 0]
 
         def state_state(y: Array, w: Array) -> Array:
-            field = _present(base().state_state, "state_state")
+            field = refetched(base().state_state, "state_state")
             return field(y, time, adj).apply(w)
 
         def adjoint_jacobian_of_param(p: Array) -> Array:
@@ -493,23 +501,23 @@ class ODEResidualBundleChecker(Generic[Array]):
             ]
 
         def state_param(p: Array, v: Array) -> Array:
-            field = _present(self._fetch(p).state_param, "state_param")
+            field = refetched(self._fetch(p).state_param, "state_param")
             return field(state, time, adj).apply(v)
 
         def adjoint_param(y: Array) -> Array:
-            field = _present(base().param, "param")
+            field = refetched(base().param, "param")
             return field(y, time).apply_transpose(lam)[:, 0]
 
         def param_state(y: Array, w: Array) -> Array:
-            field = _present(base().state_param, "state_param")
+            field = refetched(base().state_param, "state_param")
             return field(y, time, adj).apply_transpose(w)
 
         def adjoint_param_of_param(p: Array) -> Array:
-            field = _present(self._fetch(p).param, "param")
+            field = refetched(self._fetch(p).param, "param")
             return field(state, time).apply_transpose(lam)[:, 0]
 
         def param_param(p: Array, v: Array) -> Array:
-            field = _present(self._fetch(p).param_param, "param_param")
+            field = refetched(self._fetch(p).param_param, "param_param")
             return field(state, time, adj).apply(v)
 
         terms += [
@@ -521,11 +529,11 @@ class ODEResidualBundleChecker(Generic[Array]):
         if y0 is not None:
 
             def adjoint_initial_state(p: Array) -> Array:
-                field = _present(self._fetch(p).initial_state, "initial_state")
+                field = refetched(self._fetch(p).initial_state, "initial_state")
                 return field().apply_transpose(lam)[:, 0]
 
             def curvature(p: Array, v: Array) -> Array:
-                field = _present(
+                field = refetched(
                     self._fetch(p).initial_state_curvature, "initial_state_curvature"
                 )
                 return field(adj).apply(v)

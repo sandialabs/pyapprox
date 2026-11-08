@@ -53,7 +53,10 @@ from pyapprox.ode._space_checks import (
     space_fd_check,
 )
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
-from pyapprox.ode.residual_derivatives_check import BundleCheckReport
+from pyapprox.ode.residual_derivatives_check import (
+    BundleCheckReport,
+    refetched,
+)
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
@@ -83,16 +86,6 @@ T = TypeVar("T")
 
 def _one(vector: W) -> BlockVector[W]:
     return BlockVector((vector,))
-
-
-def _present(field: Optional[T], name: str) -> T:
-    if field is None:
-        raise ValueError(
-            f"a bundle fetched after set_param lacks '{name}', which the first "
-            "fetch had; which fields are present must not depend on the "
-            "parameter values"
-        )
-    return field
 
 
 class _Results:
@@ -427,7 +420,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def wrt_param(p: V) -> LinearizationProtocol[V, A]:
             self._at(p)
-            return _present(term.derivatives().wrt_param, "wrt_param")()
+            return refetched(term.derivatives().wrt_param, "wrt_param")()
 
         def value(x: BlockVector[V]) -> BlockVector[A]:
             self._at(x.blocks[0])
@@ -448,7 +441,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def second(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
             self._at(x.blocks[0])
-            field = _present(term.derivatives().param_param, "param_param")
+            field = refetched(term.derivatives().param_param, "param_param")
             result = field(weights, d.blocks[0])
             return params.zeros() if result is None else _one(result)
 
@@ -479,7 +472,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def wrt_state(y: V, p: Optional[V]) -> LinearizationProtocol[V, A]:
             self._at(p)
-            field = _present(term.derivatives().wrt_state, "wrt_state")
+            field = refetched(term.derivatives().wrt_state, "wrt_state")
             return field(index, time, y)
 
         def wrt_param(y: V, p: Optional[V]) -> Optional[LinearizationProtocol[V, A]]:
@@ -519,7 +512,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
             def state_state(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
                 self._at(param)
-                field = _present(term.derivatives().state_state, "state_state")
+                field = refetched(term.derivatives().state_state, "state_state")
                 result = field(index, time, x.blocks[0], weights, d.blocks[0])
                 return states.zeros() if result is None else _one(result)
 
@@ -588,7 +581,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
             def block(y: V, p: V, x: V) -> BlockVector[V]:
                 self._at(p)
-                result = _present(select(term.derivatives()), name)(
+                result = refetched(select(term.derivatives()), name)(
                     index, time, y, weights, x
                 )
                 return output.zeros() if result is None else _one(result)
@@ -651,7 +644,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def first_unknown(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[A]:
             self._at(param)
-            field = _present(term.derivatives().wrt_unknown, "wrt_unknown")
+            field = refetched(term.derivatives().wrt_unknown, "wrt_unknown")
             lin = field(step, replace(window, unknown=x))
             return values.zeros() if lin is None else _one(lin.apply(d))
 
@@ -665,7 +658,7 @@ class TrajectoryTermChecker(Generic[V, A]):
             first_unknown,
         )
         self._at(param)
-        at_unknown = _present(term.derivatives().wrt_unknown, "wrt_unknown")(
+        at_unknown = refetched(term.derivatives().wrt_unknown, "wrt_unknown")(
             step, window
         )
         if at_unknown is not None:
@@ -714,7 +707,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def lag_linearization(y: V) -> Optional[LinearizationProtocol[V, A]]:
             self._at(param)
-            field = _present(term.derivatives().wrt_lag, "wrt_lag")
+            field = refetched(term.derivatives().wrt_lag, "wrt_lag")
             return field(step, placed(y), lag)
 
         def value(x: BlockVector[V]) -> BlockVector[A]:
@@ -746,7 +739,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def param_linearization(p: V) -> Optional[LinearizationProtocol[V, A]]:
             self._at(p)
-            return _present(term.derivatives().wrt_param, "wrt_param")(step, window)
+            return refetched(term.derivatives().wrt_param, "wrt_param")(step, window)
 
         def value(x: BlockVector[V]) -> BlockVector[A]:
             self._at(x.blocks[0])
@@ -807,7 +800,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def unknown_gradient(x: BlockVector[V]) -> BlockVector[V]:
             at = placed(x)
-            field = _present(term.derivatives().wrt_unknown, "wrt_unknown")
+            field = refetched(term.derivatives().wrt_unknown, "wrt_unknown")
             lin = field(step, at)
             return unknowns.zeros() if lin is None else lin.apply_transpose(weights)
 
@@ -815,7 +808,7 @@ class TrajectoryTermChecker(Generic[V, A]):
             x: BlockVector[V], d: BlockVector[V]
         ) -> BlockVector[V]:
             at = placed(x)
-            field = _present(
+            field = refetched(
                 term.derivatives().curvature_wrt_unknown, "curvature_wrt_unknown"
             )
             result = field(step, at, tangents(d), d.blocks[-1], weights)
@@ -842,12 +835,12 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def param_gradient(x: BlockVector[V]) -> BlockVector[V]:
             at = placed(x)
-            lin = _present(term.derivatives().wrt_param, "wrt_param")(step, at)
+            lin = refetched(term.derivatives().wrt_param, "wrt_param")(step, at)
             return params.zeros() if lin is None else _one(lin.apply_transpose(weights))
 
         def param_curvature(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
             at = placed(x)
-            field = _present(
+            field = refetched(
                 term.derivatives().curvature_wrt_param, "curvature_wrt_param"
             )
             result = field(step, at, tangents(d), d.blocks[-1], weights)
@@ -880,12 +873,12 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def gradient(x: BlockVector[V]) -> BlockVector[V]:
             at = placed(x)
-            lin = _present(term.derivatives().wrt_lag, "wrt_lag")(step, at, lag)
+            lin = refetched(term.derivatives().wrt_lag, "wrt_lag")(step, at, lag)
             return states.zeros() if lin is None else _one(lin.apply_transpose(weights))
 
         def curvature(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
             at = placed(x)
-            field = _present(term.derivatives().curvature_wrt_lag, "curvature_wrt_lag")
+            field = refetched(term.derivatives().curvature_wrt_lag, "curvature_wrt_lag")
             result = field(step, at, tangents(d), lag, d.blocks[-1], weights)
             return states.zeros() if result is None else _one(result)
 

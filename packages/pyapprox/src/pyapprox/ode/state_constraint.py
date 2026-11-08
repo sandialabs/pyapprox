@@ -59,13 +59,21 @@ _FIELDS = ("tangent", "param", "state_state", "state_param", "param_param")
 _SECOND_ORDER = ("state_state", "state_param", "param_param")
 
 
-class _ZeroParam(Generic[V]):
-    """``param`` for constraint data independent of the parameters."""
+class ConstantDerivative(Generic[V]):
+    """A first-derivative field, ``(state, time) -> op``, whose operator is
+    the same at every state and time: the tangent or parameter derivative
+    of a constraint affine in the state with time-independent rows.
 
-    def __init__(self, op: ZeroOperator[V]) -> None:
+    Parameters
+    ----------
+    op : DerivativeOperator
+        The operator returned at every call.
+    """
+
+    def __init__(self, op: DerivativeOperator[V]) -> None:
         self._op = op
 
-    def __call__(self, state: V, time: float) -> ZeroOperator[V]:
+    def __call__(self, state: V, time: float) -> DerivativeOperator[V]:
         return self._op
 
 
@@ -172,7 +180,7 @@ def _param(
     param_space: VectorSpaceProtocol[W],
 ) -> ParamFn[W]:
     if isinstance(given, StatedZero):
-        return _ZeroParam(ZeroOperator(param_space, state_space))
+        return ConstantDerivative(ZeroOperator(param_space, state_space))
     return given
 
 
@@ -207,16 +215,6 @@ def sweep_tangent(
     return tangent
 
 
-class _IdentityTangent(Generic[Array]):
-    """The identity constraint's tangent."""
-
-    def __init__(self, op: IdentityOperator[Array]) -> None:
-        self._op = op
-
-    def __call__(self, state: Array, time: float) -> IdentityOperator[Array]:
-        return self._op
-
-
 class IdentityConstraint(Generic[Array]):
     r""":math:`\Pi_t = I`: no constraint.
 
@@ -240,7 +238,7 @@ class IdentityConstraint(Generic[Array]):
         state_space: VectorSpaceProtocol[Array],
         param_space: Optional[VectorSpaceProtocol[Array]] = None,
     ) -> None:
-        tangent = _IdentityTangent(IdentityOperator(state_space))
+        tangent = ConstantDerivative(IdentityOperator(state_space))
         self._derivs: StateConstraintDerivatives[Array] = (
             StateConstraintDerivatives.state_only(tangent)
             if param_space is None

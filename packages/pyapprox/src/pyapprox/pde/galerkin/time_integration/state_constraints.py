@@ -31,7 +31,10 @@ from scipy.sparse import csr_matrix, diags, spmatrix
 
 from pyapprox.ode.mass_matrix import create_mass_matrix
 from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_spaces
-from pyapprox.ode.state_constraint import StateConstraintDerivatives
+from pyapprox.ode.state_constraint import (
+    ConstantDerivative,
+    StateConstraintDerivatives,
+)
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
@@ -49,19 +52,6 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
     VectorSpaceProtocol,
 )
-
-
-class _PinTangent(Generic[Array]):
-    """The pin's tangent, the identity with the essential rows zeroed,
-    the same at every state and time."""
-
-    def __init__(self, op: RowsZeroedOperator[Array, MatrixFree]) -> None:
-        self._op = op
-
-    def __call__(
-        self, state: Array, time: float
-    ) -> RowsZeroedOperator[Array, MatrixFree]:
-        return self._op
 
 
 class EssentialPin(Generic[Array]):
@@ -90,7 +80,11 @@ class EssentialPin(Generic[Array]):
         states, params = backend_spaces(bkd, system.nstates(), nparams)
         dofs = [int(dof) for dof in bkd.to_numpy(self._constraint_set.dofs())]
         rows = BackendRowSet(states.descriptor(), dofs, bkd)
-        tangent = _PinTangent(RowsZeroedOperator(IdentityOperator(states), rows))
+        # The identity with the essential rows zeroed, the same at every
+        # state and time.
+        tangent = ConstantDerivative(
+            RowsZeroedOperator(IdentityOperator(states), rows)
+        )
         self._derivs: StateConstraintDerivatives[Array] = (
             StateConstraintDerivatives.second_order(
                 states,
@@ -248,18 +242,6 @@ class _ColumnMap(Protocol[Array]):
     def __call__(self, column: Array) -> Array: ...
 
 
-class _ConstantTangent(Generic[Array]):
-    """A tangent that is the same operator at every state and time."""
-
-    def __init__(self, op: _MassConsistentTangentOperator[Array]) -> None:
-        self._op = op
-
-    def __call__(
-        self, state: Array, time: float
-    ) -> _MassConsistentTangentOperator[Array]:
-        return self._op
-
-
 class MassConsistentProjection(Generic[Array]):
     r""":math:`\Pi_t(z) = (z_I + M_{II}^{-1} M_{ID} (z_D - g(t)),\; g(t))`.
 
@@ -303,7 +285,7 @@ class MassConsistentProjection(Generic[Array]):
         if self._correction is None:
             self._derivs = self._pin.derivatives()
             return
-        tangent = _ConstantTangent(
+        tangent = ConstantDerivative(
             _MassConsistentTangentOperator(
                 states, self._constraint_set, self._correction, bkd
             )
