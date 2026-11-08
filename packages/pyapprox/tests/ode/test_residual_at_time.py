@@ -13,15 +13,24 @@ r"""An ODE right-hand side's bundle at one time: a time-free residual's.
   constant; an affine second-order bundle keeps its stated-zero state
   curvature.
 - A state-only bundle stays state-only, and no derivatives stay none.
+- ``RightHandSideAtTime`` of the same Lotka-Volterra at :math:`t = 0.3`
+  satisfies ``ResidualProtocol``; its value and every field, given
+  single columns, equal the ODE's given the 1-D arrays; its version
+  follows ``set_param``; a right-hand side without a version, or a
+  non-form, is refused.
 """
 
 from dataclasses import fields
 from typing import Generic
 
+import pytest
+
+from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
     is_stated_zero,
 )
+from pyapprox.ode.residual_at_time import RightHandSideAtTime
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     ODEResidualDerivatives,
@@ -30,6 +39,7 @@ from pyapprox.ode.residual_derivatives import (
     dense_operator,
     state_free_jacobian,
 )
+from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
 from pyapprox.util.linalg.operators import LinearizationPoint
@@ -142,3 +152,55 @@ class TestAffineBundles:
 
     def test_no_derivatives_stay_none(self, bkd: Backend[Array]) -> None:
         assert ODEResidualDerivatives.none().at_time(_TIME).jacobian is None
+
+
+class TestTheRightHandSideAtTime:
+    """The member at t = 0.3 as a time-free residual of single columns."""
+
+    def test_value_and_fields_take_columns(self, bkd: Backend[Array]) -> None:
+        model = lotka_volterra_with_mass(bkd)
+        model.set_param(bkd.asarray(LV_PARAM))
+        residual = RightHandSideAtTime(model, _TIME, BackendColumnForm(bkd))
+        assert isinstance(residual, ResidualProtocol)
+        assert residual.time() == _TIME
+        flat, adj_flat = bkd.asarray([10.0, 5.0]), bkd.asarray([0.9, -0.4])
+        state, adj = bkd.reshape(flat, (2, 1)), bkd.reshape(adj_flat, (2, 1))
+        bkd.assert_allclose(residual(state)[:, 0], model(flat, _TIME))
+        ode, core = model.derivatives(), residual.derivatives()
+        direction = bkd.asarray([[0.7], [-1.3]])
+        pdir = bkd.asarray([[0.3], [-0.2], [0.5], [0.1]])
+        assert ode.jacobian is not None and core.jacobian is not None
+        bkd.assert_allclose(
+            core.jacobian(state, _POINT).apply(direction),
+            ode.jacobian(flat, _TIME, _POINT).apply(direction),
+        )
+        assert ode.param is not None and core.param is not None
+        bkd.assert_allclose(
+            core.param(state).apply(pdir), ode.param(flat, _TIME).apply(pdir)
+        )
+        assert ode.state_state is not None and core.state_state is not None
+        assert ode.state_param is not None and core.state_param is not None
+        bkd.assert_allclose(
+            core.state_state(state, adj).apply(direction),
+            ode.state_state(flat, _TIME, adj_flat).apply(direction),
+        )
+        bkd.assert_allclose(
+            core.state_param(state, adj).apply(pdir),
+            ode.state_param(flat, _TIME, adj_flat).apply(pdir),
+        )
+        # The stated-zero parameter curvature reads no vector and stays stated.
+        assert is_stated_zero(core.param_param)
+
+    def test_the_version_is_the_right_hand_sides(self, bkd: Backend[Array]) -> None:
+        model = lotka_volterra_with_mass(bkd)
+        residual = RightHandSideAtTime(model, _TIME, BackendColumnForm(bkd))
+        version = residual.parameters_version()
+        model.set_param(bkd.asarray(LV_PARAM))
+        assert residual.parameters_version() == version + 1
+
+    def test_refusals(self, bkd: Backend[Array]) -> None:
+        model = lotka_volterra_with_mass(bkd)
+        with pytest.raises(TypeError, match="VersionedRightHandSideProtocol"):
+            RightHandSideAtTime(3.0, _TIME, BackendColumnForm(bkd))  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="ResidualFormProtocol"):
+            RightHandSideAtTime(model, _TIME, 3.0)  # type: ignore[arg-type]

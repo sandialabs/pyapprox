@@ -292,6 +292,14 @@ class RowPin(Generic[V]):
         self._declaration = declaration
         self._algebra = RowReplacement(declaration.rows())
 
+    def rows(self) -> RowSetProtocol[V]:
+        """The rows :math:`R`."""
+        return self._algebra.rows()
+
+    def parameter_derivatives(self) -> PinnedValuesParamDerivatives[V]:
+        """How the data depend on the parameters, as declared."""
+        return self._declaration.parameter_derivatives()
+
     def residual(self, block: V, state: V, space: VectorSpaceProtocol[V]) -> V:
         r"""A new residual block, its rows :math:`R` reading :math:`u_R -
         g_R` for ``state`` the block's unknown."""

@@ -10,8 +10,9 @@ spaces.
 
 Every field is a callable returning an **operator** between spaces of the
 stack, never a matrix; states, adjoints and parameters are all vectors of
-one type ``V``, and the states and adjoints passed to the callables are in
-the residual's state form.
+one type ``V``, and the states and adjoints passed to the callables are
+single-column vectors of the state space. A bundle written for another
+layout is adapted once, where it enters, by :func:`precompose_states`.
 
 - ``jacobian(state, point)``: :math:`\partial R/\partial u`, labeled with
   ``point`` (a ``JacobianSnapshotProtocol``), at one of two levels
@@ -34,7 +35,7 @@ residuals, one per time: :meth:`~pyapprox.ode.residual_derivatives.
 ODEResidualDerivatives.at_time` gives the bundle of one member.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Generic, Optional, TypeVar, Union
 
 from pyapprox.util.linalg.operators import (
@@ -59,6 +60,12 @@ ConstantJacobianFn = Callable[[LinearizationPoint], JacobianSnapshotProtocol[V, 
 """A Jacobian independent of the state: :math:`R` affine."""
 ResidualParamFn = Callable[[V], DerivativeOperator[V]]
 ResidualSecondDerivativeFn = Callable[[V, V], DerivativeOperator[V]]
+SnapshotMap = Callable[[JacobianSnapshotProtocol[V, G]], JacobianSnapshotProtocol[V, G]]
+"""A map of a Jacobian snapshot to another of the same format, the same at
+every state (and, for a time-indexed family, every time)."""
+StateMap = Callable[[V], V]
+"""A map of the vectors a consumer holds to the ones a bundle's callables
+take."""
 
 
 class StatedZero:
@@ -259,3 +266,107 @@ class ResidualDerivatives(Generic[V, F_co]):
             param_param=_second_derivative(param_param, param_space, param_space),
             param_space=param_space,
         )
+
+
+class MappedConstantJacobian(Generic[V, G]):
+    """A constant Jacobian's function with a snapshot map applied: still
+    a function of the label alone."""
+
+    def __init__(
+        self, fn: ConstantJacobianFn[V, G], transform: SnapshotMap[V, G]
+    ) -> None:
+        self._fn, self._transform = fn, transform
+
+    def __call__(self, point: LinearizationPoint) -> JacobianSnapshotProtocol[V, G]:
+        return self._transform(self._fn(point))
+
+
+class _MappedGeneral(Generic[V, G]):
+    def __init__(
+        self, fn: GeneralJacobianFn[V, G], transform: SnapshotMap[V, G]
+    ) -> None:
+        self._fn, self._transform = fn, transform
+
+    def __call__(
+        self, state: V, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[V, G]:
+        return self._transform(self._fn(state, point))
+
+
+def map_jacobian(
+    jacobian: ResidualJacobian[W, G], transform: SnapshotMap[W, G]
+) -> ResidualJacobian[W, G]:
+    """``jacobian`` with ``transform`` applied to every snapshot, at the
+    same level: a map that is the same at every state (replacing a fixed
+    set of rows, say) keeps a constant Jacobian constant."""
+    if jacobian._constant is not None:
+        return ResidualJacobian.constant(
+            MappedConstantJacobian(jacobian._constant, transform)
+        )
+    if jacobian._general is None:
+        raise AssertionError("a Jacobian holds exactly one function")
+    return ResidualJacobian.general(_MappedGeneral(jacobian._general, transform))
+
+
+class _GeneralOfMapped(Generic[V, G]):
+    def __init__(self, fn: GeneralJacobianFn[V, G], states: StateMap[V]) -> None:
+        self._fn, self._states = fn, states
+
+    def __call__(
+        self, state: V, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[V, G]:
+        return self._fn(self._states(state), point)
+
+
+class _ParamOfMapped(Generic[V]):
+    def __init__(self, fn: ResidualParamFn[V], states: StateMap[V]) -> None:
+        self._fn, self._states = fn, states
+
+    def __call__(self, state: V) -> DerivativeOperator[V]:
+        return self._fn(self._states(state))
+
+
+class _SecondOfMapped(Generic[V]):
+    def __init__(self, fn: ResidualSecondDerivativeFn[V], states: StateMap[V]) -> None:
+        self._fn, self._states = fn, states
+
+    def __call__(self, state: V, adj: V) -> DerivativeOperator[V]:
+        return self._fn(self._states(state), self._states(adj))
+
+
+def _second_of_mapped(
+    field: Optional[ResidualSecondDerivativeFn[W]], states: StateMap[W]
+) -> Optional[ResidualSecondDerivativeFn[W]]:
+    """A second derivative of mapped vectors; absent stays absent and a
+    stated zero, which reads neither, stays stated."""
+    if field is None or is_stated_zero(field):
+        return field
+    return _SecondOfMapped(field, states)
+
+
+def precompose_states(
+    bundle: ResidualDerivatives[W, G], states: StateMap[W]
+) -> ResidualDerivatives[W, G]:
+    """``bundle`` with every state and adjoint passed through ``states``
+    before its own callables see them.
+
+    The one place a bundle written for another layout of the state's
+    entries (a residual taking 1-D arrays, say) meets the single-column
+    vectors generic code holds. The operators returned are unchanged: they
+    already act on the stack's vectors. Absent fields stay absent, stated
+    zeros stay stated, and a constant Jacobian, which never sees the
+    state, is kept as it is.
+    """
+    jacobian, param = bundle.jacobian, bundle.param
+    return replace(
+        bundle,
+        jacobian=(
+            jacobian
+            if jacobian is None or jacobian._general is None
+            else ResidualJacobian.general(_GeneralOfMapped(jacobian._general, states))
+        ),
+        param=None if param is None else _ParamOfMapped(param, states),
+        state_state=_second_of_mapped(bundle.state_state, states),
+        state_param=_second_of_mapped(bundle.state_param, states),
+        param_param=_second_of_mapped(bundle.param_param, states),
+    )

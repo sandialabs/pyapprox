@@ -66,13 +66,16 @@ from pyapprox.implicitfunction.residual_derivatives import (
     STATED_ZERO as STATED_ZERO,
 )
 from pyapprox.implicitfunction.residual_derivatives import (
-    DerivativeOperator as DerivativeOperator,
-)
-from pyapprox.implicitfunction.residual_derivatives import (
+    ConstantJacobianFn,
+    MappedConstantJacobian,
     ResidualDerivatives,
     ResidualJacobian,
     ResidualSecondDerivativeFn,
+    SnapshotMap,
     zero_second_derivative,
+)
+from pyapprox.implicitfunction.residual_derivatives import (
+    DerivativeOperator as DerivativeOperator,
 )
 from pyapprox.implicitfunction.residual_derivatives import (
     StatedZero as StatedZero,
@@ -109,10 +112,9 @@ JacobianFn = Callable[[V, float, LinearizationPoint], JacobianSnapshotProtocol[V
 StateFreeJacobianFn = Callable[
     [float, LinearizationPoint], JacobianSnapshotProtocol[V, G]
 ]
-"""A Jacobian that cannot see the state: :math:`J(t)`, :math:`f` affine."""
-ConstantJacobianFn = Callable[[LinearizationPoint], JacobianSnapshotProtocol[V, G]]
-"""A Jacobian that sees neither state nor time: :math:`f` affine with a
-time-invariant :math:`J`."""
+"""A Jacobian that cannot see the state: :math:`J(t)`, :math:`f` affine.
+A Jacobian that sees neither state nor time (:math:`f` affine with a
+time-invariant :math:`J`) is the core's ``ConstantJacobianFn``."""
 ParamFn = Callable[[V, float], DerivativeOperator[V]]
 InitialStateFn = Callable[[], DerivativeOperator[V]]
 CurvatureFn = Callable[[V], DerivativeOperator[V]]
@@ -247,11 +249,6 @@ class Jacobian(Generic[V, F_co]):
         return f"{type(self).__name__}.{level}"
 
 
-SnapshotMap = Callable[[JacobianSnapshotProtocol[V, G]], JacobianSnapshotProtocol[V, G]]
-"""A map of a Jacobian snapshot to another of the same format, the same at
-every state and time."""
-
-
 class _MappedGeneral(Generic[V, G]):
     def __init__(self, fn: JacobianFn[V, G], transform: SnapshotMap[V, G]) -> None:
         self._fn, self._transform = fn, transform
@@ -274,16 +271,6 @@ class _MappedStateFree(Generic[V, G]):
         return self._transform(self._fn(time, point))
 
 
-class _MappedConstant(Generic[V, G]):
-    def __init__(
-        self, fn: ConstantJacobianFn[V, G], transform: SnapshotMap[V, G]
-    ) -> None:
-        self._fn, self._transform = fn, transform
-
-    def __call__(self, point: LinearizationPoint) -> JacobianSnapshotProtocol[V, G]:
-        return self._transform(self._fn(point))
-
-
 def map_jacobian(
     jacobian: Jacobian[W, G], transform: SnapshotMap[W, G]
 ) -> Jacobian[W, G]:
@@ -292,7 +279,9 @@ def map_jacobian(
     fixed set of rows, say) sees neither, so a state-free or constant
     Jacobian stays one."""
     if jacobian._constant is not None:
-        return Jacobian.constant(_MappedConstant(jacobian._constant, transform))
+        return Jacobian.constant(
+            MappedConstantJacobian(jacobian._constant, transform)
+        )
     if jacobian._state_free is not None:
         return Jacobian.state_free(_MappedStateFree(jacobian._state_free, transform))
     if jacobian._general is None:
@@ -458,6 +447,10 @@ class ODEResidualDerivatives(Generic[V, F_co]):
         A constant Jacobian's snapshots carry no time, so a consumer that
         reuses them across bundles of different times labels them with the
         time itself.
+
+        The fields still take states and adjoints in :math:`f`'s form;
+        :class:`~pyapprox.ode.residual_at_time.RightHandSideAtTime` adapts
+        them to the stack's vectors.
         """
         jacobian = self.jacobian
         if jacobian is None:
