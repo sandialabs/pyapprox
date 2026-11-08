@@ -59,6 +59,24 @@ the parameter values.
 from dataclasses import dataclass
 from typing import Callable, Generic, Optional, ParamSpec, TypeVar, Union
 
+# The stated zero and the derivative-operator type are the core's; they
+# are re-exported here for the ODE bundle's users, which state their zeros
+# and type their fields with them.
+from pyapprox.implicitfunction.residual_derivatives import (
+    STATED_ZERO as STATED_ZERO,
+)
+from pyapprox.implicitfunction.residual_derivatives import (
+    DerivativeOperator as DerivativeOperator,
+)
+from pyapprox.implicitfunction.residual_derivatives import (
+    ResidualDerivatives,
+    ResidualJacobian,
+    ResidualSecondDerivativeFn,
+    zero_second_derivative,
+)
+from pyapprox.implicitfunction.residual_derivatives import (
+    StatedZero as StatedZero,
+)
 from pyapprox.ode.dense_jacobian_operator import DenseJacobianOperator
 from pyapprox.ode.matrix_free_jacobian_operator import MatrixFreeJacobianOperator
 from pyapprox.util.backends.protocols import Array, Backend
@@ -70,7 +88,6 @@ from pyapprox.util.linalg.backend_dense import (
 )
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
-    FormatProtocol,
     JacobianSnapshotProtocol,
     LinearizationPoint,
     LinearizedOperator,
@@ -88,8 +105,6 @@ F_co = TypeVar("F_co", covariant=True)
 G = TypeVar("G")
 P = ParamSpec("P")
 
-DerivativeOperator = ActionOperatorProtocol[V, FormatProtocol]
-"""A derivative that is applied but never solved with: any format."""
 JacobianFn = Callable[[V, float, LinearizationPoint], JacobianSnapshotProtocol[V, G]]
 StateFreeJacobianFn = Callable[
     [float, LinearizationPoint], JacobianSnapshotProtocol[V, G]
@@ -118,17 +133,6 @@ _SECOND_ORDER = (
     "state_param",
     "param_param",
 )
-
-
-class StatedZero:
-    """The type of :data:`STATED_ZERO`."""
-
-    def __repr__(self) -> str:
-        return "STATED_ZERO"
-
-
-STATED_ZERO = StatedZero()
-"""Declares a derivative term identically zero (not merely unavailable)."""
 
 
 class _ZeroInitialState(Generic[V]):
@@ -440,6 +444,94 @@ class ODEResidualDerivatives(Generic[V, F_co]):
             ),
             param_space=param_space,
         )
+
+    def at_time(self, time: float) -> ResidualDerivatives[V, F_co]:
+        r"""The bundle of :math:`f(\cdot, t; p)` at ``time``: one member of
+        the family, a residual of :math:`u` alone.
+
+        Each field present is bound to ``time``; absent ones stay absent
+        and stated zeros stay stated. The Jacobian's level drops with the
+        time: a general one stays general, a state-free or constant one is
+        constant at a fixed time. The initial-state fields are not
+        :math:`f`'s and are left out.
+
+        A constant Jacobian's snapshots carry no time, so a consumer that
+        reuses them across bundles of different times labels them with the
+        time itself.
+        """
+        jacobian = self.jacobian
+        if jacobian is None:
+            return ResidualDerivatives.none()
+        param, params = self.param, self.param_space
+        return ResidualDerivatives(
+            jacobian=_jacobian_at_time(jacobian, time),
+            param=(
+                None
+                if param is None or params is None
+                else _ParamAtTime(param, time)
+            ),
+            state_state=_second_at_time(self.state_state, time),
+            state_param=_second_at_time(self.state_param, time),
+            param_param=_second_at_time(self.param_param, time),
+            param_space=None if param is None else params,
+        )
+
+
+class _GeneralAtTime(Generic[V, G]):
+    def __init__(self, fn: JacobianFn[V, G], time: float) -> None:
+        self._fn, self._time = fn, time
+
+    def __call__(
+        self, state: V, point: LinearizationPoint
+    ) -> JacobianSnapshotProtocol[V, G]:
+        return self._fn(state, self._time, point)
+
+
+class _StateFreeAtTime(Generic[V, G]):
+    def __init__(self, fn: StateFreeJacobianFn[V, G], time: float) -> None:
+        self._fn, self._time = fn, time
+
+    def __call__(self, point: LinearizationPoint) -> JacobianSnapshotProtocol[V, G]:
+        return self._fn(self._time, point)
+
+
+def _jacobian_at_time(jacobian: Jacobian[W, G], time: float) -> ResidualJacobian[W, G]:
+    """``jacobian`` at ``time``: general stays general; state-free and
+    constant are both constant once the time is fixed."""
+    if jacobian._constant is not None:
+        return ResidualJacobian.constant(jacobian._constant)
+    if jacobian._state_free is not None:
+        return ResidualJacobian.constant(_StateFreeAtTime(jacobian._state_free, time))
+    if jacobian._general is None:
+        raise AssertionError("a Jacobian holds exactly one function")
+    return ResidualJacobian.general(_GeneralAtTime(jacobian._general, time))
+
+
+class _ParamAtTime(Generic[V]):
+    def __init__(self, fn: ParamFn[V], time: float) -> None:
+        self._fn, self._time = fn, time
+
+    def __call__(self, state: V) -> DerivativeOperator[V]:
+        return self._fn(state, self._time)
+
+
+class _SecondAtTime(Generic[V]):
+    def __init__(self, fn: SecondDerivativeFn[V], time: float) -> None:
+        self._fn, self._time = fn, time
+
+    def __call__(self, state: V, adj: V) -> DerivativeOperator[V]:
+        return self._fn(state, self._time, adj)
+
+
+def _second_at_time(
+    field: Optional[SecondDerivativeFn[W]], time: float
+) -> Optional[ResidualSecondDerivativeFn[W]]:
+    """A second derivative at ``time``; a stated zero stays one."""
+    if field is None:
+        return None
+    if isinstance(field, _ZeroSecondDerivative):
+        return zero_second_derivative(field._op)
+    return _SecondAtTime(field, time)
 
 
 def _initial_state(
