@@ -152,6 +152,23 @@ class TestTheHessian:
         bkd.assert_allclose(hessian, hessian.T, rtol=1e-12, atol=1e-14)
 
 
+class TestTheTangent:
+    def test_it_is_the_gradient_along_the_direction(self, bkd: Backend[Array]) -> None:
+        """Forward and adjoint give the same derivative: dQ v = grad q . v."""
+        case = _Case(bkd)
+        p = _param(bkd)
+        point = case.solve(p)
+        gradient = case.derivs.gradient(case.derivs.adjoint(point))
+        direction = bkd.asarray([[0.5], [-0.2]])
+        bkd.assert_allclose(
+            case.derivs.tangent(point, direction),
+            gradient.T @ direction,
+            rtol=1e-12,
+        )
+        with pytest.raises(ValueError, match="one parameter vector"):
+            case.derivs.tangent(point, bkd.ones((2, 2)))
+
+
 class TestSetups:
     def test_every_derivative_solve_shares_the_point_handle(
         self, bkd: Backend[Array]
@@ -166,6 +183,7 @@ class TestSetups:
         case.derivs.gradient(adjoint)
         hessian.hvp(adjoint, bkd.ones((2, 1)))
         hessian.hvp(adjoint, bkd.zeros((2, 1)) + 0.5)
+        case.derivs.tangent(point, bkd.ones((2, 1)))
         assert case.lu.setups == iterations + 1
 
     def test_a_constant_jacobian_is_set_up_once(self, bkd: Backend[Array]) -> None:

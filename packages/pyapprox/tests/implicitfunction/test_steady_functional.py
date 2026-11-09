@@ -9,7 +9,8 @@ solved by Newton (atol 1e-13) with dense LU; :math:`Q_2 = r` alone.
 - ``stack([Q, Q_2])`` has the two values one above another, and with
   weights :math:`\omega = (\omega_0, \omega_1)` its adjoint gradient and
   HVP are :math:`\omega_0` times :math:`Q`'s plus :math:`\omega_1` times
-  :math:`Q_2`'s, to 1e-12.
+  :math:`Q_2`'s, to 1e-12; its tangent along a direction is the two
+  parts' tangents one above another.
 - An empty stack is refused.
 """
 
@@ -88,6 +89,13 @@ class TestTheStack:
             )
         bkd.assert_allclose(gradient, expected_gradient, rtol=1e-12)
         bkd.assert_allclose(hvp, expected_hvp, rtol=1e-12)
+        # Forward: one solve gives both entries, each its part's.
+        expected_tangent = bkd.vstack(
+            [part.tangent(point, direction) for part in parts]
+        )
+        bkd.assert_allclose(
+            stacked.tangent(point, direction), expected_tangent, rtol=1e-12
+        )
 
     def test_an_empty_stack(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="at least one functional"):

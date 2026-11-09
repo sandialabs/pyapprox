@@ -1,16 +1,25 @@
 r"""The parameter derivatives of a steady functional through the solved
-state: the adjoint gradient and the second-order adjoint Hessian-vector
-product.
+state: the forward (tangent) product, the adjoint gradient and the
+second-order adjoint Hessian-vector product.
 
-At a solution :math:`u(p)` of :math:`R(u;\, p) = 0`, the weighted
-functional :math:`q(p) = \omega^\top Q(u(p);\, p)` has the gradient
+At a solution :math:`u(p)` of :math:`R(u;\, p) = 0`, the functional's
+derivative along a parameter direction :math:`v` is
+
+.. math::
+
+    dQ\, v = Q_u\, \delta u + Q_p v, \qquad R_u\, \delta u = -R_p v,
+
+one solve per direction for every entry (forward: cheap with few
+parameters); the weighted functional :math:`q(p) = \omega^\top Q(u(p);\,
+p)` has the gradient
 
 .. math::
 
     \nabla q = Q_p^\top \omega + R_p^\top \lambda, \qquad
     R_u^\top \lambda = -Q_u^\top \omega,
 
-and, with the Lagrangian :math:`L = \omega^\top Q + \lambda^\top R`, the
+one solve per weighting for every parameter (adjoint: cheap with few
+entries), and, with the Lagrangian :math:`L = \omega^\top Q + \lambda^\top R`, the
 Hessian-vector product along :math:`v`
 
 .. math::
@@ -84,9 +93,20 @@ class _Linearized(Generic[V, A]):
         r""":math:`R_p^\top \lambda`, a new vector."""
         return self.params.copy(self._residual_param(state).apply_transpose(adjoint))
 
-    def param_tangent(self, state: V, direction: V) -> V:
-        r""":math:`R_p v`, a state vector."""
-        return self._residual_param(state).apply(direction)
+    def state_tangent(self, point: SteadyPoint[V, A], state: V, direction: V) -> V:
+        r""":math:`\delta u` solving :math:`R_u\, \delta u = -R_p v`: the
+        state's derivative along ``direction``.
+
+        Raises
+        ------
+        ValueError
+            If ``direction`` is not one parameter vector, or the solve
+            fails.
+        """
+        if self.params.ncols(direction) != 1:
+            raise ValueError("direction must be one parameter vector")
+        rhs = self._residual_param(state).apply(direction)
+        return self.solve(point, self.space.scale(-1.0, rhs), False)
 
     def solve(self, point: SteadyPoint[V, A], rhs: V, transpose: bool) -> V:
         r"""Solve with :math:`R_u` (:math:`R_u^\top` when ``transpose``) on
@@ -143,13 +163,9 @@ class SteadyHessian(Generic[V, A]):
             If ``direction`` is not one parameter vector, or a solve fails.
         """
         lin = self._linearized
-        if lin.params.ncols(direction) != 1:
-            raise ValueError("direction must be one parameter vector")
         point, omega, lam = adjoint.point, adjoint.weights, adjoint.vector
         state = point.solution()
-        tangent = lin.solve(
-            point, lin.space.scale(-1.0, lin.param_tangent(state, direction)), False
-        )
+        tangent = lin.state_tangent(point, state, direction)
         state_param = self._state_param(state, lam)
         # L_uu du + L_up v, a state vector.
         to_state = lin.space.axpby(
@@ -309,6 +325,32 @@ class SteadyDerivatives(Generic[V, A, F]):
             by_param = term.wrt_param(state)
             if by_param is not None:
                 total = _add(total, by_param.apply_transpose(omega), lin.params)
+        return total
+
+    def tangent(self, point: SteadyPoint[V, A], direction: V) -> A:
+        r""":math:`dQ\, v = Q_u\, \delta u + Q_p v` with :math:`R_u\, \delta
+        u = -R_p v`: every entry's derivative along ``direction``, a column
+        of ``nqoi`` entries, from one solve.
+
+        Raises
+        ------
+        ValueError
+            If the point is not a solution of the current residual,
+            ``direction`` is not one parameter vector, or the solve fails.
+        """
+        lin = self._linearized
+        state = point.solution()
+        delta = lin.state_tangent(point, state, direction)
+        total = self._functional.zero
+        for wrt_param in self._parameter_terms:
+            total = total + wrt_param().apply(direction)
+        for term in self._state_terms:
+            total = total + term.wrt_state(state).apply(delta)
+            if term.wrt_param is None:
+                continue
+            by_param = term.wrt_param(state)
+            if by_param is not None:
+                total = total + by_param.apply(direction)
         return total
 
     def hessian(self) -> Optional[SteadyHessian[V, A]]:

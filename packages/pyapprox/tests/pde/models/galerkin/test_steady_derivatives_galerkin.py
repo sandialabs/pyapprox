@@ -7,14 +7,15 @@ three smooth modes :math:`0.4 \sin((k+1)\pi x)/(k+1)`, at
 :math:`\theta = (0.4, -0.3, 0.2)`; :math:`Q = w^\top u` with :math:`w`
 the indicator of the first free node (``WeightedSumFunctional``).
 
-Old: ``AdjointOperator`` on ``GalerkinParameterizedStateEquation``. New:
+Old: ``AdjointOperator`` and ``ForwardSensitivityOperator`` on
+``GalerkinParameterizedStateEquation``. New:
 ``SteadyDerivatives`` on ``SteadySystem`` (stack ``Newton``, atol 1e-13,
 SuperLU) of the pinned unconstrained right-hand side at t = 0, with the
 functional wrapped as a state term (``SteadyFunctionalTerm``). The
-gradient agrees to 1e-12 and the HVP along v = (0.5, 0.7, -0.6) to
-1e-10, relative; one factorization per Newton step plus one at the
-solution serves the adjoint and the HVP's two solves (one in all for the
-linear problem).
+gradient and the forward product along v = (0.5, 0.7, -0.6) agree to
+1e-12 and the HVP along v to 1e-10, relative; one factorization per
+Newton step plus one at the solution serves the adjoint, the forward
+product and the HVP's two solves (one in all for the linear problem).
 """
 
 import pytest
@@ -36,6 +37,9 @@ from pyapprox.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
 from pyapprox.implicitfunction.operator.adjoint_operator import AdjointOperator
+from pyapprox.implicitfunction.operator.sensitivities import (
+    ForwardSensitivityOperator,
+)
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
@@ -103,7 +107,14 @@ class _Fixed:
 
 def _problem(
     bkd: NumpyBkd, nonlinear: bool
-) -> Tuple[AdjointOperator[_Np], SteadyDerivatives[_Np, _Np, Any], Any, Any, int]:
+) -> Tuple[
+    AdjointOperator[_Np],
+    ForwardSensitivityOperator[_Np],
+    SteadyDerivatives[_Np, _Np, Any],
+    Any,
+    Any,
+    int,
+]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     reaction = (
@@ -148,10 +159,11 @@ def _problem(
     weights = np.zeros((nstates, 1))
     weights[next(i for i in range(nstates) if i not in constrained)] = 1.0
     functional = WeightedSumFunctional(bkd.asarray(weights), _NPARAMS, bkd)
-    old = AdjointOperator(
-        GalerkinParameterizedStateEquation(system.steady(), parameterization, bkd),
-        functional,
+    state_equation = GalerkinParameterizedStateEquation(
+        system.steady(), parameterization, bkd
     )
+    old = AdjointOperator(state_equation, functional)
+    forward = ForwardSensitivityOperator(state_equation, functional)
 
     discretization = skfem_discretization(system)
     adapter = create_galerkin_physics_ode_residual(
@@ -178,7 +190,7 @@ def _problem(
             bkd, 1, state_terms=(SteadyFunctionalTerm(functional, _Fixed(_PARAM)),)
         ),
     )
-    return old, new, steady, lu, nstates
+    return old, forward, new, steady, lu, nstates
 
 
 def _close(actual: _Np, expected: _Np, rtol: float) -> None:
@@ -190,7 +202,7 @@ class TestAgainstTheMethodBasedAdjoint:
     @pytest.mark.parametrize("nonlinear", [False, True])
     def test_gradient_and_hvp(self, numpy_bkd: NumpyBkd, nonlinear: bool) -> None:
         bkd = numpy_bkd
-        old, new, steady, lu, nstates = _problem(bkd, nonlinear)
+        old, forward, new, steady, lu, nstates = _problem(bkd, nonlinear)
         init = np.zeros((nstates, 1))
         vvec = np.array([[0.5], [0.7], [-0.6]])
         old_gradient = old.jacobian(init, _PARAM)
@@ -208,4 +220,5 @@ class TestAgainstTheMethodBasedAdjoint:
         assert hessian is not None
         _close(hessian.hvp(adjoint, vvec), expected_hvp, 1e-10)
         _close(new.value(point), old(init, _PARAM), 1e-12)
+        _close(new.tangent(point, vvec), forward.jacobian(init, _PARAM) @ vvec, 1e-12)
         assert lu.setups == (1 if not nonlinear else iterations + 1)
