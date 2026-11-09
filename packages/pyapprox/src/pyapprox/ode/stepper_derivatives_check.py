@@ -43,10 +43,13 @@ a vector space provides.
 from dataclasses import dataclass, replace
 from typing import Callable, Dict, Generic, List, Optional, Sequence, Tuple, TypeVar
 
+from pyapprox.interface.functions.derivative_checks.bundle_checks import (
+    BundleCheckReport,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     FDCurve,
 )
-from pyapprox.ode._space_checks import (
+from pyapprox.interface.functions.derivative_checks.space_checks import (
     DEFAULT_FD_STEPS,
     SpaceSampler,
     scalar,
@@ -54,7 +57,6 @@ from pyapprox.ode._space_checks import (
     space_fd_check,
 )
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
-from pyapprox.ode.residual_derivatives_check import BundleCheckReport
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
     StepperDerivatives,

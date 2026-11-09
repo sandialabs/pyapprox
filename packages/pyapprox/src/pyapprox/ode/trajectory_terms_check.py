@@ -50,20 +50,20 @@ from pyapprox.implicitfunction.functional_terms import (
     StateTermDerivatives,
     StateTermProtocol,
 )
+from pyapprox.interface.functions.derivative_checks.bundle_checks import (
+    BundleCheckReport,
+    refetched,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     FDCurve,
 )
-from pyapprox.ode._space_checks import (
+from pyapprox.interface.functions.derivative_checks.space_checks import (
     DEFAULT_FD_STEPS,
     SpaceSampler,
     space_dot_test_error,
     space_fd_check,
 )
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
-from pyapprox.ode.residual_derivatives_check import (
-    BundleCheckReport,
-    refetched,
-)
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
