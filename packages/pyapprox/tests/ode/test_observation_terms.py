@@ -119,8 +119,9 @@ class TestConformance:
                 "param_param",
             )
         }
+        assert endpoint.reads(last, True) and not endpoint.reads(last, False)
         bkd.assert_allclose(
-            endpoint.value(last, case.store.time(last), case.store.state(last)),
+            endpoint.at(last, case.store.time(last)).value(case.store.state(last)),
             case.store.state(last),
             rtol=1e-15,
         )
@@ -143,8 +144,6 @@ class TestAgainstTheOldFunctionals:
         old.set_observations(bkd.asarray(_DATA))
         trajectory = bkd.hstack([store.state(n) for n in range(store.ntimes())])
         ntimes = store.ntimes()
-        wrt_state = misfit.derivatives().wrt_state
-        assert wrt_state is not None
         total = bkd.zeros((1, 1))
         old_gradient = old.state_jacobian(trajectory, case.param)
         for index in range(ntimes):
@@ -154,8 +153,11 @@ class TestAgainstTheOldFunctionals:
                     old_gradient[:, index : index + 1], bkd.zeros((2, 1)), atol=0.0
                 )
                 continue
-            total = total + misfit.value(index, time, state)
-            gradient = wrt_state(index, time, state).apply_transpose(bkd.ones((1, 1)))
+            member = misfit.at(index, time)
+            wrt_state = member.derivatives().wrt_state
+            assert wrt_state is not None
+            total = total + member.value(state)
+            gradient = wrt_state(state).apply_transpose(bkd.ones((1, 1)))
             bkd.assert_allclose(
                 gradient, old_gradient[:, index : index + 1], rtol=1e-13
             )

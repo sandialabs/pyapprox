@@ -35,7 +35,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
+from pyapprox.implicitfunction.functional_terms import (
+    ParameterTermDerivatives,
+    StateTermDerivatives,
+    StateTermProtocol,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -80,8 +84,9 @@ from pyapprox.ode.trajectory_derivatives import (
 )
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
-    StateTermDerivatives,
-    StateTermProtocol,
+    AtStoredStates,
+    StoredStates,
+    StoredStateTermProtocol,
     TrajectoryFunctional,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -287,16 +292,16 @@ class TestHessianVectorProduct:
         assert tangents.nsteps() == store.nsteps()
         assert tangents.times() == store.times()
         (tikhonov,), (misfit,) = functional.parameter_terms, functional.state_terms
-        wrt_param, wrt_state = (
-            tikhonov.derivatives().wrt_param,
-            misfit.derivatives().wrt_state,
-        )
-        assert wrt_param is not None and wrt_state is not None
+        wrt_param = tikhonov.derivatives().wrt_param
+        assert wrt_param is not None
         total = wrt_param().apply(direction)
         ntimes = store.ntimes()
         for index in range(ntimes):
             if misfit.reads(index, index == ntimes - 1):
-                linearization = wrt_state(index, store.time(index), store.state(index))
+                member = misfit.at(index, store.time(index))
+                wrt_state = member.derivatives().wrt_state
+                assert wrt_state is not None
+                linearization = wrt_state(store.state(index))
                 total = total + linearization.apply(tangents.state(index))
         expected = sweeps.tangent(store, functional, direction)
         bkd.assert_allclose(total, expected, rtol=1e-12)
@@ -399,7 +404,7 @@ class _FlatStart(ScaledStart[Array]):
 
 
 class _Truncated(Generic[Array]):
-    """A state term keeping its value and only the derivatives up to
+    """A one-state term keeping its value and only the derivatives up to
     ``order`` (0: none, 1: the first)."""
 
     def __init__(self, inner: StateTermProtocol[Array, Array], order: int) -> None:
@@ -414,14 +419,29 @@ class _Truncated(Generic[Array]):
     def nqoi(self) -> int:
         return self._inner.nqoi()
 
-    def reads(self, index: int, last: bool) -> bool:
-        return self._inner.reads(index, last)
-
-    def value(self, index: int, time: float, state: Array) -> Array:
-        return self._inner.value(index, time, state)
+    def value(self, state: Array) -> Array:
+        return self._inner.value(state)
 
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
         return self._derivatives
+
+
+class _EachTruncated(Generic[Array]):
+    """A stored-state term whose every member is :class:`_Truncated`."""
+
+    def __init__(
+        self, inner: StoredStateTermProtocol[Array, Array], order: int
+    ) -> None:
+        self._inner, self._order = inner, order
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def reads(self, index: int, last: bool) -> bool:
+        return self._inner.reads(index, last)
+
+    def at(self, index: int, time: float) -> StateTermProtocol[Array, Array]:
+        return _Truncated(self._inner.at(index, time), self._order)
 
 
 class TestHessianVectorProductRefusals:
@@ -434,7 +454,7 @@ class TestHessianVectorProductRefusals:
         )
         misfit = problem.coupling(store, param).state_terms[0]
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_Truncated(misfit, 1),)
+            bkd, 1, state_terms=(_EachTruncated(misfit, 1),)
         )
         with pytest.raises(TypeError, match="_Truncated.*no second derivatives"):
             sweeps.hvp(store, functional, random_direction(bkd))
@@ -450,7 +470,7 @@ class TestHessianVectorProductRefusals:
         )
         misfit = problem.coupling(store, param).state_terms[0]
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_Truncated(misfit, 0),)
+            bkd, 1, state_terms=(_EachTruncated(misfit, 0),)
         )
         direction = random_direction(bkd)
         with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
@@ -667,10 +687,11 @@ class _MockColumn:
 
 
 class _MockLastTerm:
-    r"""The state term :math:`g(y_N;\, p) = a\, c^\top y_N + \tfrac{b}{2}
-    |y_N|^2 + x\, (c^\top y_N)(e^\top p)` at the last stored state of a mock
-    trajectory, at the parameters it was made with; a coefficient of zero
-    drops its part, its second derivatives stated zero (None)."""
+    r"""The one-state term :math:`g(y;\, p) = a\, c^\top y + \tfrac{b}{2}
+    |y|^2 + x\, (c^\top y)(e^\top p)` on a mock state, at the parameters it
+    was made with, read at the last stored state by :func:`_at_last`; a
+    coefficient of zero drops its part, its second derivatives stated zero
+    (None)."""
 
     def __init__(
         self, param: NDArray[Any], linear: float, quadratic: float, cross: float
@@ -682,10 +703,7 @@ class _MockLastTerm:
     def nqoi(self) -> int:
         return 1
 
-    def reads(self, index: int, last: bool) -> bool:
-        return last
-
-    def value(self, index: int, time: float, state: MockVector) -> NDArray[Any]:
+    def value(self, state: MockVector) -> NDArray[Any]:
         y, c, e = peek(state), self._c, self._e
         result: NDArray[Any] = (
             self._a * c.T @ y
@@ -694,14 +712,12 @@ class _MockLastTerm:
         )
         return result
 
-    def wrt_state(self, index: int, time: float, state: MockVector) -> _MockColumn:
+    def wrt_state(self, state: MockVector) -> _MockColumn:
         y, c, e = peek(state), self._c, self._e
         gradient = self._a * c + self._b * y + self._x * c * (e.T @ self._param)
         return _MockColumn(gradient, MOCK_STATE)
 
-    def wrt_param(
-        self, index: int, time: float, state: MockVector
-    ) -> Optional[_MockColumn]:
+    def wrt_param(self, state: MockVector) -> Optional[_MockColumn]:
         if self._x == 0.0:
             return None
         return _MockColumn(self._x * self._e * (self._c.T @ peek(state)), _MOCK_PARAM)
@@ -717,24 +733,14 @@ class _MockLastTerm:
         )
 
     def state_state(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        w: MockVector,
+        self, state: MockVector, weights: NDArray[Any], w: MockVector
     ) -> Optional[MockVector]:
         if self._b == 0.0:
             return None
         return wrap(self._b * peek(w) * weights[0, 0], MOCK_STATE)
 
     def state_param(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        v: MockVector,
+        self, state: MockVector, weights: NDArray[Any], v: MockVector
     ) -> Optional[MockVector]:
         if self._x == 0.0:
             return None
@@ -742,12 +748,7 @@ class _MockLastTerm:
         return wrap(value, MOCK_STATE)
 
     def param_state(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        w: MockVector,
+        self, state: MockVector, weights: NDArray[Any], w: MockVector
     ) -> Optional[MockVector]:
         if self._x == 0.0:
             return None
@@ -755,14 +756,16 @@ class _MockLastTerm:
         return wrap(value, _MOCK_PARAM)
 
     def param_param(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        v: MockVector,
+        self, state: MockVector, weights: NDArray[Any], v: MockVector
     ) -> Optional[MockVector]:
         return None
+
+
+def _at_last(
+    term: StateTermProtocol[MockVector, NDArray[Any]],
+) -> AtStoredStates[MockVector, NDArray[Any]]:
+    """``term`` read at the last stored state."""
+    return AtStoredStates(term, StoredStates(last=True))
 
 
 class _MockParamTerm:
@@ -796,11 +799,12 @@ def _mock_functional(
     state_term: StateTermProtocol[MockVector, NDArray[Any]],
     parameter_term: _MockParamTerm,
 ) -> TrajectoryFunctional[MockVector, NDArray[Any]]:
-    """A scalar mock functional of one state term and one parameter term."""
+    """A scalar mock functional of one state term, read at the last
+    stored state, and one parameter term."""
     return TrajectoryFunctional(
         np.zeros((1, 1)),
         parameter_terms=(parameter_term,),
-        state_terms=(state_term,),
+        state_terms=(_at_last(state_term),),
     )
 
 
@@ -860,19 +864,14 @@ class _OneBuffer:
     def nqoi(self) -> int:
         return 1
 
-    def reads(self, index: int, last: bool) -> bool:
-        return self._inner.reads(index, last)
+    def value(self, state: MockVector) -> NDArray[Any]:
+        return self._inner.value(state)
 
-    def value(self, index: int, time: float, state: MockVector) -> NDArray[Any]:
-        return self._inner.value(index, time, state)
+    def wrt_state(self, state: MockVector) -> _Buffered:
+        return _Buffered(self._inner.wrt_state(state), self._into_state)
 
-    def wrt_state(self, index: int, time: float, state: MockVector) -> _Buffered:
-        return _Buffered(self._inner.wrt_state(index, time, state), self._into_state)
-
-    def wrt_param(
-        self, index: int, time: float, state: MockVector
-    ) -> Optional[_Buffered]:
-        inner = self._inner.wrt_param(index, time, state)
+    def wrt_param(self, state: MockVector) -> Optional[_Buffered]:
+        inner = self._inner.wrt_param(state)
         return None if inner is None else _Buffered(inner, self._into_param)
 
     def derivatives(self) -> StateTermDerivatives[MockVector, NDArray[Any]]:
@@ -886,45 +885,25 @@ class _OneBuffer:
         )
 
     def state_state(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        w: MockVector,
+        self, state: MockVector, weights: NDArray[Any], w: MockVector
     ) -> Optional[MockVector]:
-        value = self._inner.state_state(index, time, state, weights, w)
+        value = self._inner.state_state(state, weights, w)
         return None if value is None else self._into_state(value)
 
     def state_param(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        v: MockVector,
+        self, state: MockVector, weights: NDArray[Any], v: MockVector
     ) -> Optional[MockVector]:
-        value = self._inner.state_param(index, time, state, weights, v)
+        value = self._inner.state_param(state, weights, v)
         return None if value is None else self._into_state(value)
 
     def param_state(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        w: MockVector,
+        self, state: MockVector, weights: NDArray[Any], w: MockVector
     ) -> Optional[MockVector]:
-        value = self._inner.param_state(index, time, state, weights, w)
+        value = self._inner.param_state(state, weights, w)
         return None if value is None else self._into_param(value)
 
     def param_param(
-        self,
-        index: int,
-        time: float,
-        state: MockVector,
-        weights: NDArray[Any],
-        v: MockVector,
+        self, state: MockVector, weights: NDArray[Any], v: MockVector
     ) -> Optional[MockVector]:
         return None
 
@@ -1246,17 +1225,19 @@ class TestMockStack:
         v = wrap(direction, _MOCK_PARAM)
         zero = np.zeros((1, 1))
         gradient, hvp = sweeps.gradient_and_hvp(
-            store, TrajectoryFunctional(zero, state_terms=(reusing,)), v
+            store, TrajectoryFunctional(zero, state_terms=(_at_last(reusing),)), v
         )
         reusing.check_untouched()
         expected_gradient, expected_hvp = sweeps.gradient_and_hvp(
-            store, TrajectoryFunctional(zero, state_terms=(plain,)), v
+            store, TrajectoryFunctional(zero, state_terms=(_at_last(plain),)), v
         )
         np.testing.assert_array_equal(peek(gradient), peek(expected_gradient))
         np.testing.assert_array_equal(peek(hvp), peek(expected_hvp))
         # The same reusing term twice: each result is added before the
         # term's next call overwrites it.
-        twice = TrajectoryFunctional(zero, state_terms=(reusing, reusing))
+        twice = TrajectoryFunctional(
+            zero, state_terms=(_at_last(reusing), _at_last(reusing))
+        )
         gradient, hvp = sweeps.gradient_and_hvp(store, twice, v)
         np.testing.assert_allclose(
             peek(gradient), 2.0 * peek(expected_gradient), rtol=1e-14

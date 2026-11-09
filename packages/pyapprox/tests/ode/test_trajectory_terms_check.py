@@ -40,6 +40,8 @@ from pyapprox.implicitfunction.functional_terms import (
     BackendScalarGradient,
     LinearizationProtocol,
     ParameterTermDerivatives,
+    StateTermDerivatives,
+    StateTermProtocol,
 )
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
@@ -51,10 +53,10 @@ from pyapprox.ode.time_integral import IntegrandDerivatives, TimeIntegral
 from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
-    StateTermDerivatives,
-    StateTermProtocol,
+    AtStoredStates,
     StepTermDerivatives,
     StepTermProtocol,
+    StoredStates,
     TrajectoryFunctional,
 )
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
@@ -82,9 +84,9 @@ from tests._helpers.ode.trajectory_cases import (
 
 
 class _Observation(Generic[Array]):
-    r""":math:`g_m = (c^\top p)\, y_m^\top y_m / 10` at stored states 2, 5
-    and the last, :math:`c = (0.2, 0.4, -0.1, 0.3)`, with every second
-    derivative (:math:`g_{pp} = 0`)."""
+    r""":math:`g(y) = (c^\top p)\, y^\top y / 10`, :math:`c = (0.2, 0.4,
+    -0.1, 0.3)`, with every second derivative (:math:`g_{pp} = 0`); read
+    at stored states 2, 5 and the last by :func:`_at_observed`."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
@@ -97,43 +99,30 @@ class _Observation(Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def reads(self, index: int, last: bool) -> bool:
-        return last or index in (2, 5)
-
     def _weight(self) -> Array:
         return self._bkd.dot(self._c.T, self._param)
 
-    def value(self, index: int, time: float, state: Array) -> Array:
+    def value(self, state: Array) -> Array:
         return self._weight() * self._bkd.dot(state.T, state) / 10.0
 
-    def _wrt_state(
-        self, index: int, time: float, state: Array
-    ) -> BackendScalarGradient[Array]:
+    def _wrt_state(self, state: Array) -> BackendScalarGradient[Array]:
         return BackendScalarGradient(2.0 * self._weight() * state / 10.0, self._bkd)
 
-    def _wrt_param(
-        self, index: int, time: float, state: Array
-    ) -> BackendScalarGradient[Array]:
+    def _wrt_param(self, state: Array) -> BackendScalarGradient[Array]:
         gradient = self._c * self._bkd.dot(state.T, state) / 10.0
         return BackendScalarGradient(gradient, self._bkd)
 
-    def _state_state(
-        self, index: int, time: float, state: Array, weights: Array, w: Array
-    ) -> Array:
+    def _state_state(self, state: Array, weights: Array, w: Array) -> Array:
         return 2.0 * self._weight() * w / 10.0 * weights
 
-    def _state_param(
-        self, index: int, time: float, state: Array, weights: Array, v: Array
-    ) -> Array:
+    def _state_param(self, state: Array, weights: Array, v: Array) -> Array:
         return 2.0 * state / 10.0 * self._bkd.dot(self._c.T, v) * weights
 
-    def _param_state(
-        self, index: int, time: float, state: Array, weights: Array, w: Array
-    ) -> Array:
+    def _param_state(self, state: Array, weights: Array, w: Array) -> Array:
         return self._c * 2.0 * self._bkd.dot(state.T, w) / 10.0 * weights
 
     def _param_param(
-        self, index: int, time: float, state: Array, weights: Array, v: Array
+        self, state: Array, weights: Array, v: Array
     ) -> Optional[Array]:
         return None
 
@@ -146,6 +135,13 @@ class _Observation(Generic[Array]):
             self._param_state,
             self._param_param,
         )
+
+
+def _at_observed(
+    term: StateTermProtocol[Array, Array],
+) -> AtStoredStates[Array, Array]:
+    """``term`` read at stored states 2, 5 and the last."""
+    return AtStoredStates(term, StoredStates((2, 5), last=True))
 
 
 class _Tikhonov(Generic[Array]):
@@ -212,7 +208,7 @@ class _Case(Generic[Array]):
             self.bkd,
             1,
             parameter_terms=(self.tikhonov,),
-            state_terms=(self.observation,),
+            state_terms=(_at_observed(self.observation),),
         )
 
     def window(self, step: int) -> StepWindow[Array]:
@@ -255,12 +251,7 @@ class TestEveryTermPasses:
     ) -> None:
         case = _Case(bkd, heun())
         report = case.checker.check_state_term(
-            _ValueOnly(case.observation),
-            2,
-            case.store.time(2),
-            case.store.state(2),
-            case.ones(),
-            case.param,
+            _ValueOnly(case.observation), case.store.state(2), case.ones(), case.param
         )
         assert dict(report.fd_checks) == {} and report.failures() == []
 
@@ -274,11 +265,8 @@ class _ValueOnly(Generic[Array]):
     def nqoi(self) -> int:
         return self._term.nqoi()
 
-    def reads(self, index: int, last: bool) -> bool:
-        return self._term.reads(index, last)
-
-    def value(self, index: int, time: float, state: Array) -> Array:
-        return self._term.value(index, time, state)
+    def value(self, state: Array) -> Array:
+        return self._term.value(state)
 
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
         return StateTermDerivatives.none()
@@ -318,11 +306,8 @@ class _EditedState(Generic[Array]):
     def nqoi(self) -> int:
         return self._term.nqoi()
 
-    def reads(self, index: int, last: bool) -> bool:
-        return self._term.reads(index, last)
-
-    def value(self, index: int, time: float, state: Array) -> Array:
-        return self._term.value(index, time, state)
+    def value(self, state: Array) -> Array:
+        return self._term.value(state)
 
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
         return self._edit(self._term.derivatives())
@@ -335,10 +320,8 @@ def _scale_wrt_state(forward: float, transposed: float) -> _StateEdit[Array]:
         field = bundle.wrt_state
         assert field is not None
 
-        def wrt_state(
-            index: int, time: float, state: Array
-        ) -> LinearizationProtocol[Array, Array]:
-            return _Scaled(field(index, time, state), forward, transposed)
+        def wrt_state(state: Array) -> LinearizationProtocol[Array, Array]:
+            return _Scaled(field(state), forward, transposed)
 
         return replace(bundle, wrt_state=wrt_state)
 
@@ -357,10 +340,8 @@ def _scale_state_param(
     field = bundle.state_param
     assert field is not None
 
-    def state_param(
-        index: int, time: float, state: Array, weights: Array, v: Array
-    ) -> Optional[Array]:
-        result = field(index, time, state, weights, v)
+    def state_param(state: Array, weights: Array, v: Array) -> Optional[Array]:
+        result = field(state, weights, v)
         return None if result is None else 1.01 * result
 
     return replace(bundle, state_param=state_param)
@@ -426,8 +407,6 @@ class TestPlantedFaults:
         case = _Case(bkd, backward_euler())
         report = case.checker.check_state_term(
             _EditedState(case.observation, edit),
-            5,
-            case.store.time(5),
             case.store.state(5),
             case.ones(),
             case.param,
@@ -457,8 +436,6 @@ class TestPlantedFaults:
         case = _Case(bkd, backward_euler())
         report = case.checker.check_state_term(
             _EditedState(case.observation, _scale_wrt_state(1.0, 1.01)),
-            5,
-            case.store.time(5),
             case.store.state(5),
             case.ones(),
             case.param,

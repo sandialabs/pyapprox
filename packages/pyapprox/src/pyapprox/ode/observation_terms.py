@@ -4,7 +4,9 @@ states, their misfit, and a Tikhonov regularization of the parameters.
 Each is a term of :mod:`pyapprox.ode.trajectory_terms`: it holds no
 trajectory, is handed each stored state it reads, and gives its value and
 its derivatives in its bundle, so one term serves the value sink and every
-sweep, on any store.
+sweep, on any store. The terms of one state, :class:`ObservationMisfit`
+and :class:`ObservedValue`, are the members the stored-state terms
+:class:`MisfitTerm` and :class:`EndpointTerm` read at each state.
 
 An observation is a linear map :math:`H` from a stored state to observed
 values (:class:`ObservationOperatorProtocol`), applied forward and
@@ -29,8 +31,10 @@ from pyapprox.implicitfunction.functional_terms import (
     BackendScalarGradient,
     LinearizationProtocol,
     ParameterTermDerivatives,
+    StateTermDerivatives,
+    StateTermProtocol,
 )
-from pyapprox.ode.trajectory_terms import StateTermDerivatives
+from pyapprox.ode.trajectory_terms import AtStoredStates, StoredStates
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 
 V = TypeVar("V")
@@ -127,13 +131,101 @@ class _MisfitLinearization(Generic[V, A]):
         return self._operator.apply_transpose(self._scale * self._residual * weights)
 
 
+def _no_block(state: V, weights: A, x: V) -> Optional[V]:
+    """A second-derivative block that is zero."""
+    return None
+
+
+class ObservationMisfit(Generic[V, A]):
+    r"""The misfit :math:`\|H y - d\|^2 / (2\sigma^2)` of one observation
+    of a state, a one-state term with a value of one entry.
+
+    It does not read the parameters, so its parameter derivatives are zero
+    and its state second derivative is :math:`H^\top H / \sigma^2`.
+
+    Parameters
+    ----------
+    bkd : Backend
+        The backend of the values.
+    operator : ObservationOperatorProtocol
+        :math:`H`.
+    data : A
+        :math:`d`, a column of ``operator.nobs()`` values.
+    noise_std : float, default 1
+        :math:`\sigma`, fixed.
+
+    Raises
+    ------
+    TypeError
+        If ``operator`` does not satisfy :class:`ObservationOperatorProtocol`.
+    ValueError
+        If the datum's shape differs from the observation's, or
+        ``noise_std`` is not positive.
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[A],
+        operator: ObservationOperatorProtocol[V, A],
+        data: A,
+        noise_std: float = 1.0,
+    ) -> None:
+        if not isinstance(operator, ObservationOperatorProtocol):
+            raise TypeError(
+                "each observation must satisfy ObservationOperatorProtocol, "
+                f"got {type(operator).__name__}"
+            )
+        if tuple(data.shape) != (operator.nobs(), 1):
+            raise ValueError(
+                f"the data must have shape ({operator.nobs()}, 1), got "
+                f"{tuple(data.shape)}"
+            )
+        if not noise_std > 0.0:
+            raise ValueError(f"noise_std must be positive, got {noise_std}")
+        self._bkd, self._operator, self._data = bkd, operator, data
+        self._scale = 1.0 / noise_std**2
+        self._derivatives: StateTermDerivatives[V, A] = (
+            StateTermDerivatives.second_order(
+                self._wrt_state,
+                None,
+                self._state_state,
+                _no_block,
+                _no_block,
+                _no_block,
+            )
+        )
+
+    def nqoi(self) -> int:
+        return 1
+
+    def _residual(self, state: V) -> A:
+        return self._operator.apply(state) - self._data
+
+    def value(self, state: V) -> A:
+        residual = self._residual(state)
+        return (0.5 * self._scale) * self._bkd.sum(
+            residual * residual, axis=0, keepdims=True
+        )
+
+    def derivatives(self) -> StateTermDerivatives[V, A]:
+        return self._derivatives
+
+    def _wrt_state(self, state: V) -> LinearizationProtocol[V, A]:
+        return _MisfitLinearization(
+            self._operator, self._residual(state), self._bkd, self._scale
+        )
+
+    def _state_state(self, state: V, weights: A, w: V) -> Optional[V]:
+        operator = self._operator
+        return operator.apply_transpose(self._scale * operator.apply(w) * weights)
+
+
 class MisfitTerm(Generic[V, A]):
     r"""The misfit :math:`\sum_m \|H_m y_m - d_m\|^2 / (2\sigma^2)` of
     observations of stored states, a state term with a value of one entry.
 
-    It reads stored state ``m`` for each observed index ``m``; it does not
-    read the parameters, so its parameter derivatives are zero and its
-    state second derivative is :math:`H_m^\top H_m / \sigma^2`.
+    It reads stored state ``m`` for each observed index ``m``, its member
+    there the :class:`ObservationMisfit` of :math:`(H_m, d_m)`.
 
     Parameters
     ----------
@@ -166,34 +258,17 @@ class MisfitTerm(Generic[V, A]):
             raise ValueError("a misfit needs at least one observed state")
         if not noise_std > 0.0:
             raise ValueError(f"noise_std must be positive, got {noise_std}")
+        self._members: dict[int, ObservationMisfit[V, A]] = {}
         for index, (operator, data) in observations.items():
             if index < 0:
                 raise ValueError(
                     f"observed state indices must be non-negative, got {index}"
                 )
-            if not isinstance(operator, ObservationOperatorProtocol):
-                raise TypeError(
-                    "each observation must satisfy ObservationOperatorProtocol, "
-                    f"got {type(operator).__name__}"
-                )
-            if tuple(data.shape) != (operator.nobs(), 1):
-                raise ValueError(
-                    f"the data at state {index} must have shape "
-                    f"({operator.nobs()}, 1), got {tuple(data.shape)}"
-                )
-        self._bkd = bkd
-        self._observations = dict(observations)
-        self._scale = 1.0 / noise_std**2
-        self._derivatives: StateTermDerivatives[V, A] = (
-            StateTermDerivatives.second_order(
-                self._wrt_state,
-                None,
-                self._state_state,
-                _no_block,
-                _no_block,
-                _no_block,
-            )
-        )
+            try:
+                member = ObservationMisfit(bkd, operator, data, noise_std)
+            except ValueError as error:
+                raise ValueError(f"at stored state {index}: {error}") from error
+            self._members[index] = member
 
     @staticmethod
     def from_state_times(
@@ -258,45 +333,16 @@ class MisfitTerm(Generic[V, A]):
         return 1
 
     def reads(self, index: int, last: bool) -> bool:
-        return index in self._observations
+        return index in self._members
 
-    def _residual(
-        self, index: int, state: V
-    ) -> Tuple[ObservationOperatorProtocol[V, A], A]:
-        operator, data = self._observations[index]
-        return operator, operator.apply(state) - data
-
-    def value(self, index: int, time: float, state: V) -> A:
-        _, residual = self._residual(index, state)
-        return (0.5 * self._scale) * self._bkd.sum(
-            residual * residual, axis=0, keepdims=True
-        )
-
-    def derivatives(self) -> StateTermDerivatives[V, A]:
-        return self._derivatives
-
-    def _wrt_state(
-        self, index: int, time: float, state: V
-    ) -> LinearizationProtocol[V, A]:
-        operator, residual = self._residual(index, state)
-        return _MisfitLinearization(operator, residual, self._bkd, self._scale)
-
-    def _state_state(
-        self, index: int, time: float, state: V, weights: A, w: V
-    ) -> Optional[V]:
-        operator, _ = self._observations[index]
-        return operator.apply_transpose(self._scale * operator.apply(w) * weights)
+    def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
+        return self._members[index]
 
 
-def _no_block(index: int, time: float, state: V, weights: A, x: V) -> Optional[V]:
-    """A second-derivative block that is zero."""
-    return None
-
-
-class EndpointTerm(Generic[V, A]):
-    r"""The observation :math:`H y_N` of the last stored state, a state
-    term with ``H.nobs()`` entries: linear, so :math:`H` is its derivative
-    and its second derivatives are zero.
+class ObservedValue(Generic[V, A]):
+    r"""The observation :math:`H y` of a state, a one-state term with
+    ``H.nobs()`` entries: linear, so :math:`H` is its derivative and its
+    second derivatives are zero.
 
     Parameters
     ----------
@@ -325,19 +371,33 @@ class EndpointTerm(Generic[V, A]):
     def nqoi(self) -> int:
         return self._operator.nobs()
 
-    def reads(self, index: int, last: bool) -> bool:
-        return last
-
-    def value(self, index: int, time: float, state: V) -> A:
+    def value(self, state: V) -> A:
         return self._operator.apply(state)
 
     def derivatives(self) -> StateTermDerivatives[V, A]:
         return self._derivatives
 
-    def _wrt_state(
-        self, index: int, time: float, state: V
-    ) -> LinearizationProtocol[V, A]:
+    def _wrt_state(self, state: V) -> LinearizationProtocol[V, A]:
         return self._operator
+
+
+class EndpointTerm(AtStoredStates[V, A]):
+    r"""The observation :math:`H y_N` of the last stored state: the
+    :class:`ObservedValue` of :math:`H` read at the last state alone.
+
+    Parameters
+    ----------
+    operator : ObservationOperatorProtocol
+        :math:`H`.
+
+    Raises
+    ------
+    TypeError
+        If ``operator`` does not satisfy :class:`ObservationOperatorProtocol`.
+    """
+
+    def __init__(self, operator: ObservationOperatorProtocol[V, A]) -> None:
+        super().__init__(ObservedValue(operator), StoredStates(last=True))
 
 
 class TikhonovTerm(Generic[Array]):

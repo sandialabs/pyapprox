@@ -45,8 +45,8 @@ from pyapprox.ode.step_quadrature import (
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_terms import (
-    StateTermProtocol,
     StepTermProtocol,
+    StoredStateTermProtocol,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol
 
@@ -177,7 +177,7 @@ class FunctionalSink(Generic[V, A]):
         self,
         zero: A,
         parameter_terms: Sequence[ParameterTermProtocol[V, A]] = (),
-        state_terms: Sequence[StateTermProtocol[V, A]] = (),
+        state_terms: Sequence[StoredStateTermProtocol[V, A]] = (),
         step_terms: Sequence[
             Tuple[StepTermProtocol[V, A], StepCombinationProtocol[A]]
         ] = (),
@@ -196,7 +196,7 @@ class FunctionalSink(Generic[V, A]):
         total = self._zero
         for term in self._state_terms:
             if term.reads(index, last):
-                total = total + term.value(index, time, state)
+                total = total + term.at(index, time).value(state)
         return total
 
     def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:

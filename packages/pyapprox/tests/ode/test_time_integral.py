@@ -22,6 +22,14 @@ time and the parameters.
   product, to 1e-12 (Heun, BDF2); weights are required for two entries
   and checked for shape, and functionals of different sizes do not add.
 - Binding the integral to a trajectory reads no stored state.
+- Time-dependent state terms: backward Euler's own integral on the
+  uneven times (0, 0.03, 0.08, 0.1, 0.17, 0.2, 0.26) is :math:`\sum_{m
+  \ge 1} h_{m-1} q(y_m, t_m)`; the same sum as a stored-state term, each
+  member built at its state's time, and through :class:`TermAtTimes` at
+  the stored times, gives its value, gradient and HVP to 1e-12 (measured
+  about 1e-16). Members built at :math:`t = 0` instead miss the gradient
+  by 1.4e-3 and the HVP by 2.5e-3, relative (asserted above 5e-4 for the
+  gradient).
 - The sensitivities :math:`\theta_n = \partial z_N/\partial b_n` (``b_n``
   step :math:`n`'s right-hand side) equal the last row of
   :math:`L^{-1}`, :math:`L` the lower-triangular matrix whose row
@@ -35,11 +43,17 @@ time and the parameters.
   integrand has no second derivatives.
 """
 
-from typing import Callable, Generic
+from typing import Callable, Generic, Optional
 
 import pytest
 
-from pyapprox.implicitfunction.functional_terms import BackendScalarGradient
+from pyapprox.implicitfunction.functional_terms import (
+    BackendScalarGradient,
+    LinearizationProtocol,
+    StateTermDerivatives,
+    StateTermProtocol,
+)
+from pyapprox.implicitfunction.mapped_terms import MappedStateTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -48,15 +62,17 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
 from pyapprox.ode.accumulating_sink import MultiSink
-from pyapprox.ode.functional_sink import FunctionalSink
+from pyapprox.ode.functional_sink import FunctionalSink, PlainSum
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import (
     adams_bashforth2,
     bdf2,
 )
+from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import backward_euler, classical_rk4, heun
+from pyapprox.ode.terms_at_times import TermAtTimes
 from pyapprox.ode.time_integral import (
     IntegrandDerivatives,
     TimeIntegral,
@@ -366,6 +382,184 @@ class TestStoreReads:
         Integrator(problem.stepper()).solve(bkd.asarray(START), STEPS, store)
         problem.integral().trajectory_functional(store)
         assert store.state_reads == 0
+
+
+class _Scale(Generic[Array]):
+    """The value map multiplying by a fixed weight, its own transpose."""
+
+    def __init__(self, weight: float) -> None:
+        self._weight = weight
+
+    def out(self, value: Array) -> Array:
+        return self._weight * value
+
+    def back(self, weights: Array) -> Array:
+        return self._weight * weights
+
+    def nqoi(self, inner: int) -> int:
+        return inner
+
+
+class _IntegrandAt(Generic[Array]):
+    r""":math:`q(\cdot, t)` at a fixed time :math:`t`, a one-state term:
+    the time is bound here and never passed again."""
+
+    def __init__(self, integrand: EnergyIntegrand[Array], time: float) -> None:
+        self._integrand, self._time = integrand, time
+        self._q = integrand.derivatives()
+        self._bundle: StateTermDerivatives[Array, Array] = (
+            StateTermDerivatives.second_order(
+                self._wrt_state,
+                self._wrt_param,
+                self._state_state,
+                self._state_param,
+                self._param_state,
+                self._param_param,
+            )
+        )
+
+    def nqoi(self) -> int:
+        return 1
+
+    def value(self, state: Array) -> Array:
+        return self._integrand.value(state, self._time)
+
+    def derivatives(self) -> StateTermDerivatives[Array, Array]:
+        return self._bundle
+
+    def _wrt_state(self, state: Array) -> LinearizationProtocol[Array, Array]:
+        field = self._q.state
+        assert field is not None
+        return field(state, self._time)
+
+    def _wrt_param(self, state: Array) -> LinearizationProtocol[Array, Array]:
+        field = self._q.param
+        assert field is not None
+        return field(state, self._time)
+
+    def _state_state(self, state: Array, weights: Array, x: Array) -> Array:
+        field = self._q.state_state
+        assert field is not None
+        return field(state, self._time, weights, x)
+
+    def _state_param(self, state: Array, weights: Array, x: Array) -> Array:
+        field = self._q.state_param
+        assert field is not None
+        return field(state, self._time, weights, x)
+
+    def _param_state(self, state: Array, weights: Array, x: Array) -> Array:
+        field = self._q.param_state
+        assert field is not None
+        return field(state, self._time, weights, x)
+
+    def _param_param(self, state: Array, weights: Array, x: Array) -> Array:
+        field = self._q.param_param
+        assert field is not None
+        return field(state, self._time, weights, x)
+
+
+class _Quadrature(Generic[Array]):
+    r""":math:`\sum_k w_k\, q(y_k, t_k)` over the indices ``weights``
+    names, member :math:`k` built at the time it is read at, or at
+    ``frozen`` for the wrong-model control."""
+
+    def __init__(
+        self,
+        integrand: EnergyIntegrand[Array],
+        weights: dict[int, float],
+        frozen: Optional[float] = None,
+    ) -> None:
+        self._integrand, self._weights, self._frozen = integrand, weights, frozen
+
+    def nqoi(self) -> int:
+        return 1
+
+    def reads(self, index: int, last: bool) -> bool:
+        return index in self._weights
+
+    def at(self, index: int, time: float) -> StateTermProtocol[Array, Array]:
+        at = time if self._frozen is None else self._frozen
+        return MappedStateTerm(
+            _IntegrandAt(self._integrand, at), _Scale(self._weights[index])
+        )
+
+
+# Uneven steps, so each stored state's time and weight differ.
+_UNEVEN = [0.0, 0.03, 0.08, 0.1, 0.17, 0.2, 0.26]
+
+
+class TestTimeDependentStateTerms:
+    r"""Backward Euler's own integral is :math:`\sum_{m \ge 1} h_{m-1}\,
+    q(y_m, t_m)`, its one stage the new state. The same sum as a
+    stored-state term (member :math:`m` built at :math:`t_m`), and read
+    through the extension at the stored times by :class:`TermAtTimes`
+    (member :math:`k` at the :math:`k`-th time), gives the integral's
+    value, gradient and Hessian-vector product: the time each member is
+    built at is the one the sweeps and the value sink use."""
+
+    def test_both_forms_are_the_integral(self, bkd: Backend[Array]) -> None:
+        model = lotka_volterra_with_mass(bkd)
+        stepper: Stepper[Array] = make_stepper(
+            backward_euler(), dense_mass_form_system(model)
+        )
+        integrand = EnergyIntegrand(bkd)
+        integral: TimeIntegral[Array, Array] = TimeIntegral(integrand, stepper, bkd)
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        model.set_param(param)
+        integrand.set_param(param)
+        plan = GivenSizes.from_times(_UNEVEN)
+        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        Integrator(stepper).solve(bkd.asarray(START), plan, store)
+        times = store.times()
+        sizes = [times[m + 1] - times[m] for m in range(len(times) - 1)]
+        stored = _Quadrature(integrand, {m + 1: h for m, h in enumerate(sizes)})
+        at_times = TermAtTimes(
+            _Quadrature(integrand, dict(enumerate(sizes))),
+            stepper.continuous_extension(),
+            times[1:],
+            bkd,
+        )
+        frozen = _Quadrature(
+            integrand, {m + 1: h for m, h in enumerate(sizes)}, frozen=0.0
+        )
+
+        # The values, by the sink as the trajectory is computed.
+        zero = bkd.zeros((1, 1))
+        expected_sink = integral.sink()
+        stored_sink: FunctionalSink[Array, Array] = FunctionalSink(
+            zero, state_terms=(stored,)
+        )
+        at_times_sink: FunctionalSink[Array, Array] = FunctionalSink(
+            zero, step_terms=((at_times, PlainSum[Array]()),)
+        )
+        Integrator(stepper).solve(
+            bkd.asarray(START),
+            plan,
+            MultiSink([expected_sink, stored_sink, at_times_sink]),
+        )
+        expected = expected_sink.value()
+        bkd.assert_allclose(stored_sink.value(), expected, rtol=1e-13)
+        bkd.assert_allclose(at_times_sink.value(), expected, rtol=1e-12)
+
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(stepper)
+        reference = integral.trajectory_functional(store)
+        gradient = sweeps.gradient(store, reference)
+        hvp = sweeps.hvp(store, reference, direction)
+        forms = [
+            TrajectoryFunctional.from_terms(bkd, 1, state_terms=(stored,)),
+            TrajectoryFunctional.from_terms(bkd, 1, step_terms=(at_times,)),
+        ]
+        for functional in forms:
+            bkd.assert_allclose(
+                sweeps.gradient(store, functional), gradient, rtol=1e-12
+            )
+            bkd.assert_allclose(
+                sweeps.hvp(store, functional, direction), hvp, rtol=1e-12
+            )
+        # Wrong-model control: members built at t = 0 miss the integral.
+        wrong = TrajectoryFunctional.from_terms(bkd, 1, state_terms=(frozen,))
+        miss = bkd.to_float(bkd.norm(sweeps.gradient(store, wrong) - gradient))
+        assert miss > 5e-4 * bkd.to_float(bkd.norm(gradient))
 
 
 class TestAgainstAutograd:

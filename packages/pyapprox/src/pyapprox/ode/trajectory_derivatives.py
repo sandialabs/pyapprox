@@ -102,7 +102,6 @@ from typing import (
     Callable,
     Deque,
     Dict,
-    FrozenSet,
     Generic,
     Iterator,
     List,
@@ -116,11 +115,15 @@ from typing import (
 
 from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
+    StateCurvature,
+    StateFirst,
+    StateTermProtocol,
     accumulate,
     no_first_derivatives,
-    no_second_derivatives,
     parameter_first_derivatives,
     parameter_second_derivatives,
+    state_first_derivatives,
+    state_second_derivatives,
 )
 from pyapprox.ode.integration import DifferentiableStackConstraintProtocol
 from pyapprox.ode.mass_form_system import RightHandSideProtocol
@@ -141,10 +144,6 @@ from pyapprox.ode.trajectory_store import (
     TrajectoryStoreProtocol,
 )
 from pyapprox.ode.trajectory_terms import (
-    StateCurvatureFn,
-    StateLinearizationFn,
-    StateParamLinearizationFn,
-    StateTermProtocol,
     StepLagCurvatureFn,
     StepLagLinearizationFn,
     StepParamCurvatureFn,
@@ -168,20 +167,18 @@ W = TypeVar("W")
 A = TypeVar("A", bound=ArrayProtocol)
 
 
-def _indices_read(term: StateTermProtocol[V, A], ntimes: int) -> List[int]:
-    """The stored states of a trajectory of ``ntimes`` that ``term``
-    reads."""
-    return [
-        index for index in range(ntimes) if term.reads(index, index == ntimes - 1)
-    ]
-
-
-@dataclass(frozen=True)
-class _StateFirst(Generic[V, A]):
-    """A state term's first derivatives, read from its bundle."""
-
-    wrt_state: StateLinearizationFn[V, A]
-    wrt_param: Optional[StateParamLinearizationFn[V, A]]
+def _members(
+    functional: TrajectoryFunctional[V, A], store: TrajectoryStoreProtocol[V]
+) -> Dict[int, List[StateTermProtocol[V, A]]]:
+    """The state terms' members by the stored state each reads, each built
+    once for its state and time."""
+    ntimes = store.ntimes()
+    found: Dict[int, List[StateTermProtocol[V, A]]] = {}
+    for term in functional.state_terms:
+        for index in range(ntimes):
+            if term.reads(index, index == ntimes - 1):
+                found.setdefault(index, []).append(term.at(index, store.time(index)))
+    return found
 
 
 @dataclass(frozen=True)
@@ -195,33 +192,33 @@ class _StepFirst(Generic[V, A]):
 
 class _FirstOrder(Generic[V, A]):
     """Every term's first derivatives, read once from the bundles, the
-    state terms' by the stored state each reads.
+    state terms' from their members by the stored state each reads.
 
     Parameters
     ----------
     functional : TrajectoryFunctional
         The terms.
-    ntimes : int
-        The number of stored states.
+    store : TrajectoryStoreProtocol
+        The trajectory, for the stored states and times the members are
+        built at.
 
     Raises
     ------
     TypeError
-        If a term's bundle has no first derivatives (it is only evaluated).
+        If a term's bundle, or a state term's member's, has no first
+        derivatives (it is only evaluated).
     """
 
-    def __init__(self, functional: TrajectoryFunctional[V, A], ntimes: int) -> None:
+    def __init__(
+        self, functional: TrajectoryFunctional[V, A], store: TrajectoryStoreProtocol[V]
+    ) -> None:
         self.parameters: List[Callable[[], LinearizationProtocol[V, A]]] = (
             parameter_first_derivatives(functional.parameter_terms)
         )
-        self._states_at: Dict[int, List[_StateFirst[V, A]]] = {}
-        for state_term in functional.state_terms:
-            bundle = state_term.derivatives()
-            if bundle.wrt_state is None:
-                raise no_first_derivatives(state_term)
-            first = _StateFirst(bundle.wrt_state, bundle.wrt_param)
-            for index in _indices_read(state_term, ntimes):
-                self._states_at.setdefault(index, []).append(first)
+        self._states_at: Dict[int, List[StateFirst[V, A]]] = {
+            index: state_first_derivatives(members)
+            for index, members in _members(functional, store).items()
+        }
         self.steps: List[_StepFirst[V, A]] = []
         for step_term in functional.step_terms:
             step_bundle = step_term.derivatives()
@@ -237,7 +234,7 @@ class _FirstOrder(Generic[V, A]):
                 )
             )
 
-    def states_at(self, index: int) -> List[_StateFirst[V, A]]:
+    def states_at(self, index: int) -> List[StateFirst[V, A]]:
         """The first derivatives of the state terms reading state
         ``index``."""
         return self._states_at.get(index, [])
@@ -629,7 +626,7 @@ class TrajectoryDerivatives(Generic[V, A]):
             If a step's solve fails.
         """
         # Read every term's bundle once, refusing before any solve.
-        first = _FirstOrder(functional, store.ntimes())
+        first = _FirstOrder(functional, store)
         total = functional.zero
         for wrt_param in first.parameters:
             total = total + wrt_param().apply(direction)
@@ -639,13 +636,11 @@ class TrajectoryDerivatives(Generic[V, A]):
         for index, tangent in enumerate(states):
             here = first.states_at(index)
             if here:
-                time, state = store.time(index), store.state(index)
+                state = store.state(index)
             for state_first in here:
-                total = total + state_first.wrt_state(index, time, state).apply(
-                    tangent.state
-                )
+                total = total + state_first.wrt_state(state).apply(tangent.state)
                 if state_first.wrt_param is not None:
-                    by_param = state_first.wrt_param(index, time, state)
+                    by_param = state_first.wrt_param(state)
                     if by_param is not None:
                         total = total + by_param.apply(direction)
             if first.steps and tangent.unknown is not None:
@@ -992,7 +987,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         # Read every term's bundle once, first order then second, refusing
         # before any sweep runs.
         first_sources = _FirstOrderSources(functional, self, store, omega)
-        curvatures = _FunctionalCurvatures.of(functional, store.ntimes())
+        curvatures = _FunctionalCurvatures.of(functional, store)
         tangents: TrajectoryStoreProtocol[V] = (
             InMemoryTrajectoryStore() if tangent_store is None else tangent_store
         )
@@ -1314,18 +1309,6 @@ class _AdjointSweep(Generic[V, A]):
 
 
 @dataclass(frozen=True)
-class _StateCurvature(Generic[V, A]):
-    """A state term's second derivatives, read from its bundle and known
-    present, with the stored states it reads."""
-
-    indices: FrozenSet[int]
-    state_state: StateCurvatureFn[V, A]
-    state_param: StateCurvatureFn[V, A]
-    param_state: StateCurvatureFn[V, A]
-    param_param: StateCurvatureFn[V, A]
-
-
-@dataclass(frozen=True)
 class _StepCurvature(Generic[V, A]):
     """A step term's derivatives along a tangent, read from its bundle
     and known present."""
@@ -1340,41 +1323,29 @@ class _FunctionalCurvatures(Generic[V, A]):
     """Every term's second derivatives, read once from the bundles."""
 
     parameters: Tuple[Callable[[A, V], Optional[V]], ...]
-    states: Tuple[_StateCurvature[V, A], ...]
+    # The state terms' members' second derivatives, by the stored state
+    # each reads.
+    states: Dict[int, List[StateCurvature[V, A]]]
     steps: Tuple[_StepCurvature[V, A], ...]
 
     @staticmethod
     def of(
-        functional: TrajectoryFunctional[V, A], ntimes: int
+        functional: TrajectoryFunctional[V, A], store: TrajectoryStoreProtocol[V]
     ) -> "_FunctionalCurvatures[V, A]":
-        """Read the terms' bundles, for a trajectory of ``ntimes``
-        states.
+        """Read the terms' bundles, the state terms' from their members on
+        the trajectory in ``store``.
 
         Raises
         ------
         TypeError
-            If a term's bundle has no second derivatives.
+            If a term's bundle, or a state term's member's, has no second
+            derivatives.
         """
         parameters = parameter_second_derivatives(functional.parameter_terms)
-        states = []
-        for state_term in functional.state_terms:
-            bundle = state_term.derivatives()
-            if (
-                bundle.state_state is None
-                or bundle.state_param is None
-                or bundle.param_state is None
-                or bundle.param_param is None
-            ):
-                raise no_second_derivatives(state_term)
-            states.append(
-                _StateCurvature(
-                    frozenset(_indices_read(state_term, ntimes)),
-                    bundle.state_state,
-                    bundle.state_param,
-                    bundle.param_state,
-                    bundle.param_param,
-                )
-            )
+        states = {
+            index: state_second_derivatives(members)
+            for index, members in _members(functional, store).items()
+        }
         steps = []
         for step_term in functional.step_terms:
             step_bundle = step_term.derivatives()
@@ -1394,7 +1365,7 @@ class _FunctionalCurvatures(Generic[V, A]):
                     step_bundle.curvature_wrt_param,
                 )
             )
-        return _FunctionalCurvatures(tuple(parameters), tuple(states), tuple(steps))
+        return _FunctionalCurvatures(tuple(parameters), states, tuple(steps))
 
 
 class _FirstOrderSources(Generic[V, A]):
@@ -1424,17 +1395,17 @@ class _FirstOrderSources(Generic[V, A]):
         self._space, self._params = owner._state_space(), owner._param_space()
         self._unknowns = owner.stepper().unknown_space()
         # Every term's bundle, read once, refusing before any solve.
-        self._first = _FirstOrder(functional, store.ntimes())
+        self._first = _FirstOrder(functional, store)
 
     def state(self, index: int) -> Optional[V]:
         # sum over the terms reading y_m of (dg_m/dy_m)^T omega
         terms = self._first.states_at(index)
         if not terms:
             return None
-        time, state = self._store.time(index), self._store.state(index)
+        state = self._store.state(index)
         total: Optional[V] = None
         for term in terms:
-            by_state = term.wrt_state(index, time, state)
+            by_state = term.wrt_state(state)
             total = accumulate(
                 total, by_state.apply_transpose(self._weights), self._space
             )
@@ -1455,12 +1426,12 @@ class _FirstOrderSources(Generic[V, A]):
         terms = self._first.states_at(index)
         if not terms:
             return None, None
-        time, state = self._store.time(index), self._store.state(index)
+        state = self._store.state(index)
         total: Optional[V] = None
         for term in terms:
             if term.wrt_param is None:
                 continue
-            by_param = term.wrt_param(index, time, state)
+            by_param = term.wrt_param(state)
             if by_param is not None:
                 total = accumulate(
                     total, by_param.apply_transpose(self._weights), self._params
@@ -1546,11 +1517,6 @@ class _SecondOrderSources(Generic[V, A]):
         self._owner, self._store, self._curvatures = owner, store, curvatures
         self._tangents, self._direction, self._adjoint = tangents, direction, adjoint
         self._weights = weights
-        # The state terms' curvatures by the stored state each reads.
-        self._states_at: Dict[int, List[_StateCurvature[V, A]]] = {}
-        for curvature in curvatures.states:
-            for index in curvature.indices:
-                self._states_at.setdefault(index, []).append(curvature)
         self._p_dir = BlockVector((direction,))
         self._second = owner._step_second_order()
         self._space, self._params = owner._state_space(), owner._param_space()
@@ -1564,19 +1530,15 @@ class _SecondOrderSources(Generic[V, A]):
     def state(self, index: int) -> Optional[V]:
         # (omega^T g_m)_yy w_m + (omega^T g_m)_yp v over the state terms
         # reading y_m, each added as returned.
-        terms = self._states_at.get(index, [])
+        terms = self._curvatures.states.get(index, [])
         if not terms:
             return None
-        time, state = self._store.time(index), self._store.state(index)
+        state = self._store.state(index)
         w, v, omega = self._tangents.state(index), self._direction, self._weights
         total: Optional[V] = None
         for term in terms:
-            total = accumulate(
-                total, term.state_state(index, time, state, omega, w), self._space
-            )
-            total = accumulate(
-                total, term.state_param(index, time, state, omega, v), self._space
-            )
+            total = accumulate(total, term.state_state(state, omega, w), self._space)
+            total = accumulate(total, term.state_param(state, omega, v), self._space)
         return total
 
     def param(self) -> V:
@@ -1597,20 +1559,15 @@ class _SecondOrderSources(Generic[V, A]):
         # nu the first order's cotangent of this state.
         w, v = self._tangents.state(index), self._direction
         to_param: Optional[V] = None
-        terms = self._states_at.get(index, [])
+        terms = self._curvatures.states.get(index, [])
         if terms:
-            time, state = self._store.time(index), self._store.state(index)
-            omega = self._weights
+            state, omega = self._store.state(index), self._weights
             for term in terms:
                 to_param = accumulate(
-                    to_param,
-                    term.param_state(index, time, state, omega, w),
-                    self._params,
+                    to_param, term.param_state(state, omega, w), self._params
                 )
                 to_param = accumulate(
-                    to_param,
-                    term.param_param(index, time, state, omega, v),
-                    self._params,
+                    to_param, term.param_param(state, omega, v), self._params
                 )
         ops = self._owner._constraint_second_order(
             self._store, index, self._adjoint.cotangent(index)

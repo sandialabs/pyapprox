@@ -26,7 +26,10 @@ from typing import Any, Callable, Generic
 
 import pytest
 
-from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
+from pyapprox.implicitfunction.functional_terms import (
+    ParameterTermDerivatives,
+    StateTermDerivatives,
+)
 from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.functional_sink import (
     FunctionalSink,
@@ -45,7 +48,7 @@ from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import crank_nicolson
 from pyapprox.ode.time_integral import IntegrandDerivatives, TimeIntegral
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
-from pyapprox.ode.trajectory_terms import StateTermDerivatives
+from pyapprox.ode.trajectory_terms import AtStoredStates, StoredStates
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import BlockVector
 from tests._helpers.ode.multistep_cases import lm_stepper
@@ -71,8 +74,8 @@ class _Energy(Generic[Array]):
         return IntegrandDerivatives.none()
 
 
-class _Endpoint(Generic[Array]):
-    r"""The state term :math:`\mathbf 1^\top y_N`: the last state only."""
+class _Sum(Generic[Array]):
+    r""":math:`\mathbf 1^\top y`, value only."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
@@ -80,14 +83,16 @@ class _Endpoint(Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def reads(self, index: int, last: bool) -> bool:
-        return last
-
-    def value(self, index: int, time: float, state: Array) -> Array:
+    def value(self, state: Array) -> Array:
         return self._bkd.sum(state, axis=0, keepdims=True)
 
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
         return StateTermDerivatives.none()
+
+
+def _endpoint(bkd: Backend[Array]) -> AtStoredStates[Array, Array]:
+    r"""The state term :math:`\mathbf 1^\top y_N`: the last state only."""
+    return AtStoredStates(_Sum(bkd), StoredStates(last=True))
 
 
 class _Constant(Generic[Array]):
@@ -160,7 +165,7 @@ class TestReplay:
         integral: TimeIntegral[Array, Array] = TimeIntegral(
             _Energy(bkd), stepper, bkd
         )
-        endpoint = _Endpoint(bkd)
+        endpoint = _endpoint(bkd)
         sink: FunctionalSink[Array, Array] = FunctionalSink(
             bkd.zeros((1, 1)),
             state_terms=(endpoint,),
@@ -179,9 +184,8 @@ class TestReplay:
         replay = bkd.zeros((1, 1))
         for index in range(ntimes):
             if endpoint.reads(index, index == ntimes - 1):
-                replay = replay + endpoint.value(
-                    index, store.time(index), store.state(index)
-                )
+                member = endpoint.at(index, store.time(index))
+                replay = replay + member.value(store.state(index))
         combination = RunningRecursion[Array](integral.quadrature(), stepper.depth())
         for step in range(store.nsteps()):
             window = store.window(step, min(stepper.depth(), step + 1))
@@ -198,7 +202,7 @@ class TestStreaming:
         sink: FunctionalSink[Array, Array] = FunctionalSink(
             bkd.zeros((1, 1)),
             parameter_terms=(_Constant(bkd),),
-            state_terms=(_Endpoint(bkd),),
+            state_terms=(_endpoint(bkd),),
         )
         states = [bkd.full((3, 1), float(n)) for n in range(4)]
         sink.append(0.0, states[0])

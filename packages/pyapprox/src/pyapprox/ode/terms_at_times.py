@@ -21,9 +21,13 @@ any native state term (a misfit, an observation) is read between steps
 with no code of its own.
 """
 
-from typing import Generic, List, Optional, Sequence, TypeVar
+from typing import Dict, Generic, List, Optional, Sequence, TypeVar
 
-from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
+from pyapprox.implicitfunction.functional_terms import (
+    LinearizationProtocol,
+    StateTermDerivatives,
+    StateTermProtocol,
+)
 from pyapprox.ode.continuous_extension import (
     ContinuousExtensionDerivatives,
     ContinuousExtensionProtocol,
@@ -32,9 +36,8 @@ from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_terms import (
     ChainedLinearization,
     ChainPart,
-    StateTermDerivatives,
-    StateTermProtocol,
     StepTermDerivatives,
+    StoredStateTermProtocol,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import BlockVector
@@ -76,9 +79,11 @@ class TermAtTimes(Generic[V, A]):
 
     Parameters
     ----------
-    term : StateTermProtocol
+    term : StoredStateTermProtocol
         The term; its index :math:`k` names ``times[k]``, and it is read
-        for each :math:`k` its ``reads(k, False)`` accepts.
+        for each :math:`k` its ``reads(k, False)`` accepts, by its member
+        ``term.at(k, times[k])``, built here once. The term has the
+        derivatives every member read has.
     extension : ContinuousExtensionProtocol
         The stepping method's continuous extension.
     times : sequence of float
@@ -97,14 +102,15 @@ class TermAtTimes(Generic[V, A]):
 
     def __init__(
         self,
-        term: StateTermProtocol[V, A],
+        term: StoredStateTermProtocol[V, A],
         extension: ContinuousExtensionProtocol[V, A],
         times: Sequence[float],
         bkd: Backend[A],
     ) -> None:
-        if not isinstance(term, StateTermProtocol):
+        if not isinstance(term, StoredStateTermProtocol):
             raise TypeError(
-                f"term must satisfy StateTermProtocol, got {type(term).__name__}"
+                "term must satisfy StoredStateTermProtocol, got "
+                f"{type(term).__name__}"
             )
         if not isinstance(extension, ContinuousExtensionProtocol):
             raise TypeError(
@@ -116,11 +122,18 @@ class TermAtTimes(Generic[V, A]):
         self._term, self._extension, self._bkd = term, extension, bkd
         self._times = tuple(times)
         self._read = tuple(k for k in range(len(times)) if term.reads(k, False))
-        own, extended = term.derivatives(), extension.derivatives()
-        first = own.wrt_state is not None and extended.wrt_unknown is not None
+        self._members: Dict[int, StateTermProtocol[V, A]] = {
+            k: term.at(k, self._times[k]) for k in self._read
+        }
+        owns = [member.derivatives() for member in self._members.values()]
+        extended = extension.derivatives()
+        first = (
+            all(own.wrt_state is not None for own in owns)
+            and extended.wrt_unknown is not None
+        )
         second = (
             first
-            and own.state_state is not None
+            and all(own.state_state is not None for own in owns)
             and extended.curvature_wrt_unknown is not None
         )
         self._derivatives: StepTermDerivatives[V, A] = (
@@ -152,9 +165,7 @@ class TermAtTimes(Generic[V, A]):
         total = self._bkd.zeros((self.nqoi(), 1))
         for k in self._in(window):
             time = self._times[k]
-            total = total + self._term.value(
-                k, time, self._extension.value(window, time)
-            )
+            total = total + self._members[k].value(self._extension.value(window, time))
         return total
 
     def derivatives(self) -> StepTermDerivatives[V, A]:
@@ -164,8 +175,9 @@ class TermAtTimes(Generic[V, A]):
     # The pieces of the chain rule
     # ------------------------------------------------------------------
 
-    def _own(self) -> StateTermDerivatives[V, A]:
-        return self._term.derivatives()
+    def _own(self, k: int) -> StateTermDerivatives[V, A]:
+        """The derivatives of the member read at ``times[k]``."""
+        return self._members[k].derivatives()
 
     def _extended(self) -> ContinuousExtensionDerivatives[V]:
         return self._extension.derivatives()
@@ -176,10 +188,10 @@ class TermAtTimes(Generic[V, A]):
         """:math:`y(t_k)` and :math:`G_k` there."""
         time = self._times[k]
         state = self._extension.value(window, time)
-        field = self._own().wrt_state
+        field = self._own(k).wrt_state
         if field is None:
             raise ValueError("the term has no state derivative")
-        return state, field(k, time, state)
+        return state, field(state)
 
     # Each returns a new vector: x + y, or a copy of y for x None, since
     # a term's results may be its own storage, valid until its next call.
@@ -238,13 +250,13 @@ class TermAtTimes(Generic[V, A]):
     def _wrt_param(
         self, step: int, window: StepWindow[V]
     ) -> Optional[LinearizationProtocol[V, A]]:
-        extended, own = self._extended().wrt_param, self._own().wrt_param
+        extended = self._extended().wrt_param
         parts: List[ChainPart[V, V, A]] = []
         for k in self._in(window):
-            time = self._times[k]
+            time, own = self._times[k], self._own(k).wrt_param
             y, state = self._state_derivative(k, window)
             extension = None if extended is None else extended(window, time)
-            direct = None if own is None else own(k, time, y)
+            direct = None if own is None else own(y)
             if extension is not None or direct is not None:
                 parts.append(ChainPart(_OnFirstBlock(state), extension, direct))
         if not parts:
@@ -280,13 +292,13 @@ class TermAtTimes(Generic[V, A]):
     ) -> Optional[V]:
         r""":math:`(\omega^\top g_k)_{yy}\, \delta y_k + (\omega^\top
         g_k)_{yp}\, v`, a state; None for zero."""
-        own, time = self._own(), self._times[k]
+        own = self._own(k)
         if own.state_state is None or own.state_param is None:
             raise ValueError("the term has no second derivatives")
         total: Optional[V] = None
         for value in (
-            own.state_state(k, time, y, weights, tangent),
-            own.state_param(k, time, y, weights, direction)
+            own.state_state(y, weights, tangent),
+            own.state_param(y, weights, direction)
             if self._extension.param_space() is not None
             else None,
         ):
@@ -394,22 +406,22 @@ class TermAtTimes(Generic[V, A]):
         direction: V,
         weights: A,
     ) -> Optional[V]:
-        extended, own = self._extended(), self._own()
+        extended = self._extended()
         if extended.curvature_wrt_param is None:
             raise ValueError("the extension has no curvature")
-        if own.param_state is None or own.param_param is None:
-            raise ValueError("the term has no second derivatives")
         total: Optional[V] = None
         for k, y, adjoint, tangent, curvature in self._per_time(
             window, tangents, direction, weights
         ):
-            time = self._times[k]
+            time, own = self._times[k], self._own(k)
+            if own.param_state is None or own.param_param is None:
+                raise ValueError("the term has no second derivatives")
             pieces: List[Optional[V]] = [
                 extended.curvature_wrt_param(
                     window, time, tangents, direction, adjoint
                 ),
-                own.param_state(k, time, y, weights, tangent),
-                own.param_param(k, time, y, weights, direction),
+                own.param_state(y, weights, tangent),
+                own.param_param(y, weights, direction),
             ]
             if curvature is not None and extended.wrt_param is not None:
                 pieces.append(

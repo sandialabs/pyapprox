@@ -46,6 +46,9 @@ from typing import Callable, Dict, Generic, Optional, Sequence, TypeVar
 from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
     ParameterTermProtocol,
+    StateCurvatureFn,
+    StateTermDerivatives,
+    StateTermProtocol,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     FDCurve,
@@ -64,9 +67,6 @@ from pyapprox.ode.residual_derivatives_check import (
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
-    StateCurvatureFn,
-    StateTermDerivatives,
-    StateTermProtocol,
     StepTermProtocol,
     TrajectoryFunctional,
 )
@@ -211,9 +211,7 @@ class TrajectoryTermChecker(Generic[V, A]):
                     if not state_term.reads(index, index == ntimes - 1):
                         continue
                     self._state_term(
-                        state_term,
-                        index,
-                        store.time(index),
+                        state_term.at(index, store.time(index)),
                         store.state(index),
                         omega,
                         param,
@@ -265,13 +263,12 @@ class TrajectoryTermChecker(Generic[V, A]):
     def check_state_term(
         self,
         term: StateTermProtocol[V, A],
-        index: int,
-        time: float,
         state: V,
         weights: A,
         param: Optional[V] = None,
     ) -> BundleCheckReport:
-        """Check one state term at one stored state.
+        """Check one term of one state at ``state``: a stored-state term's
+        member, ``term.at(index, time)``.
 
         Raises
         ------
@@ -290,9 +287,7 @@ class TrajectoryTermChecker(Generic[V, A]):
             )
         self._sampler = SpaceSampler(self._sample, self._seed)
         try:
-            return self._state_term(
-                term, index, time, state, weights, param, _Results()
-            ).report()
+            return self._state_term(term, state, weights, param, _Results()).report()
         finally:
             self._at(param)
 
@@ -457,8 +452,6 @@ class TrajectoryTermChecker(Generic[V, A]):
     def _state_term(
         self,
         term: StateTermProtocol[V, A],
-        index: int,
-        time: float,
         state: V,
         weights: A,
         param: Optional[V],
@@ -475,16 +468,16 @@ class TrajectoryTermChecker(Generic[V, A]):
         def wrt_state(y: V, p: Optional[V]) -> LinearizationProtocol[V, A]:
             self._at(p)
             field = refetched(term.derivatives().wrt_state, "wrt_state")
-            return field(index, time, y)
+            return field(y)
 
         def wrt_param(y: V, p: Optional[V]) -> Optional[LinearizationProtocol[V, A]]:
             self._at(p)
             field = term.derivatives().wrt_param
-            return None if field is None else field(index, time, y)
+            return None if field is None else field(y)
 
         def value_in_state(x: BlockVector[V]) -> BlockVector[A]:
             self._at(param)
-            return _one(term.value(index, time, x.blocks[0]))
+            return _one(term.value(x.blocks[0]))
 
         def first_in_state(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[A]:
             return _one(wrt_state(x.blocks[0], param).apply(d.blocks[0]))
@@ -515,7 +508,7 @@ class TrajectoryTermChecker(Generic[V, A]):
             def state_state(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
                 self._at(param)
                 field = refetched(term.derivatives().state_state, "state_state")
-                result = field(index, time, x.blocks[0], weights, d.blocks[0])
+                result = field(x.blocks[0], weights, d.blocks[0])
                 return states.zeros() if result is None else _one(result)
 
             self._fd(
@@ -533,7 +526,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
         def value_in_param(x: BlockVector[V]) -> BlockVector[A]:
             self._at(x.blocks[0])
-            return _one(term.value(index, time, state))
+            return _one(term.value(state))
 
         def first_in_param(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[A]:
             linearization = wrt_param(state, x.blocks[0])
@@ -583,9 +576,7 @@ class TrajectoryTermChecker(Generic[V, A]):
 
             def block(y: V, p: V, x: V) -> BlockVector[V]:
                 self._at(p)
-                result = refetched(select(term.derivatives()), name)(
-                    index, time, y, weights, x
-                )
+                result = refetched(select(term.derivatives()), name)(y, weights, x)
                 return output.zeros() if result is None else _one(result)
 
             if in_state:

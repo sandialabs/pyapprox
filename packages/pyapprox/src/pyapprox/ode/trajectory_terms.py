@@ -6,8 +6,10 @@ is a sum of terms of three kinds, each read where it lives:
 - a parameter term :math:`r(p)` (a regularization), read from the
   parameters alone (:class:`ParameterTermProtocol`);
 - a state term :math:`\sum_{m} g_m(y_m;\, p)` over the stored states it
-  names (an observation, an endpoint value), read from one stored state
-  at a time (:class:`StateTermProtocol`);
+  names (an observation, an endpoint value): a family of the core's
+  one-state terms (:class:`~pyapprox.implicitfunction.functional_terms.
+  StateTermProtocol`), member :math:`g_m` built for stored state
+  :math:`m` at its time (:class:`StoredStateTermProtocol`);
 - a step term :math:`\sum_n c_n(u_n;\, y_n, \dots, y_{n+1-k};\, p)`,
   read from each step's window (its unknown, so its stages, and the
   stored states it read): a time integral, or a residual of the step
@@ -22,9 +24,10 @@ a column of ``nqoi`` entries) and transposed (:math:`(\partial c)^\top
 \omega` for weights :math:`\omega` of the values, the adjoint sweep);
 its second derivatives are weighted by :math:`\omega` as an adjoint
 weighs them. Each sweep reads the bundles once and refuses, naming the
-term, when one lacks what it needs. A term holds no trajectory: it is
-handed the state or window it reads, so the same term serves any store
-and the value sink.
+term, when one lacks what it needs; a state term's family is as capable
+as its weakest member read. A term holds no trajectory: it is handed the
+state or window it reads, so the same term serves any store and the value
+sink.
 
 :class:`TrajectoryFunctional` gathers the terms; the sweeps of
 :mod:`pyapprox.ode.trajectory_derivatives` add their derivatives, so a
@@ -42,7 +45,9 @@ own, inside its linearizations.
 from dataclasses import dataclass
 from typing import (
     Callable,
+    FrozenSet,
     Generic,
+    Iterable,
     List,
     Optional,
     Protocol,
@@ -55,11 +60,12 @@ from typing import (
 from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
     ParameterTermProtocol,
+    StateTermProtocol,
     value_weights,
 )
 from pyapprox.implicitfunction.mapped_terms import (
-    MappedLinearization,
     MappedParameterTerm,
+    MappedStateTerm,
     ValueMapProtocol,
     mapped,
     row_blocks,
@@ -149,11 +155,6 @@ class ChainedLinearization(Generic[X, V, A]):
         return total
 
 
-StateCurvatureFn = Callable[[int, float, V, A, V], Optional[V]]
-"""``(index, time, state, weights, x) ->`` a state term's
-:math:`\\omega`-weighted second derivative at stored state ``index``
-applied to the column ``x``; None for a zero block."""
-
 StepUnknownCurvatureFn = Callable[
     [int, StepWindow[V], StepWindow[V], V, A], Optional[BlockVector[V]]
 ]
@@ -170,16 +171,6 @@ derivative of :math:`(\\partial c_n/\\partial y_{n+1-\\mathrm{lag}})^\\top
 StepParamCurvatureFn = Callable[[int, StepWindow[V], StepWindow[V], V, A], Optional[V]]
 """``(step, window, tangents, direction, weights) ->`` the derivative of
 :math:`(\\partial c_n/\\partial p)^\\top \\omega` along the tangent."""
-
-StateLinearizationFn = Callable[[int, float, V], LinearizationProtocol[V, A]]
-"""``(index, time, state) ->`` a state term's first derivative at stored
-state ``index``."""
-
-StateParamLinearizationFn = Callable[
-    [int, float, V], Optional[LinearizationProtocol[V, A]]
-]
-"""``(index, time, state) ->`` a state term's parameter derivative at
-stored state ``index``; None where it is zero."""
 
 StepUnknownLinearizationFn = Callable[
     [int, StepWindow[V]], Optional[LinearizationProtocol[BlockVector[V], A]]
@@ -198,95 +189,6 @@ StepParamLinearizationFn = Callable[
 ]
 """``(step, window) ->`` :math:`\\partial c_n/\\partial p`; None when
 zero."""
-
-
-@dataclass(frozen=True)
-class StateTermDerivatives(Generic[V, A]):
-    r"""A state term's optional derivatives at one stored state: the first
-    as linearizations, the second weighted by :math:`\omega`.
-
-    The second derivative in the states is block diagonal over the stored
-    states (:math:`\partial^2 g/\partial y_m \partial y_k = 0` for
-    :math:`m \ne k`): a term coupling states of one step is a step term.
-    Build with :meth:`none`, :meth:`first_order` or :meth:`second_order`.
-
-    Parameters
-    ----------
-    wrt_state : callable, optional
-        :math:`\partial g_m/\partial y_m`; None without derivatives.
-    wrt_param : callable, optional
-        :math:`\partial g_m/\partial p`; None when :math:`g` does not read
-        the parameters.
-    state_state : callable, optional
-        :math:`(\omega^\top g_m)_{yy}\, w`, state to state.
-    state_param : callable, optional
-        :math:`(\omega^\top g_m)_{yp}\, v`, parameters to state.
-    param_state : callable, optional
-        :math:`(\omega^\top g_m)_{py}\, w`, state to parameters.
-    param_param : callable, optional
-        :math:`(\omega^\top g_m)_{pp}\, v`, parameters to parameters.
-
-    Raises
-    ------
-    ValueError
-        If a parameter derivative or second derivatives are given without
-        ``wrt_state``, or some but not all four second derivatives (the
-        second-order sweep needs every one).
-    """
-
-    wrt_state: Optional[StateLinearizationFn[V, A]] = None
-    wrt_param: Optional[StateParamLinearizationFn[V, A]] = None
-    state_state: Optional[StateCurvatureFn[V, A]] = None
-    state_param: Optional[StateCurvatureFn[V, A]] = None
-    param_state: Optional[StateCurvatureFn[V, A]] = None
-    param_param: Optional[StateCurvatureFn[V, A]] = None
-
-    def __post_init__(self) -> None:
-        given = [
-            field is not None
-            for field in (
-                self.state_state,
-                self.state_param,
-                self.param_state,
-                self.param_param,
-            )
-        ]
-        if any(given) and not all(given):
-            raise ValueError("a state term's second derivatives come all four or none")
-        if self.wrt_state is None and (self.wrt_param is not None or any(given)):
-            raise ValueError("a state term's other derivatives need wrt_state")
-
-    @staticmethod
-    def none() -> "StateTermDerivatives[V, A]":
-        """No derivatives: the term is only evaluated."""
-        return StateTermDerivatives()
-
-    @staticmethod
-    def first_order(
-        wrt_state: StateLinearizationFn[V, A],
-        wrt_param: Optional[StateParamLinearizationFn[V, A]] = None,
-    ) -> "StateTermDerivatives[V, A]":
-        """The first derivatives."""
-        return StateTermDerivatives(wrt_state, wrt_param)
-
-    @staticmethod
-    def second_order(
-        wrt_state: StateLinearizationFn[V, A],
-        wrt_param: Optional[StateParamLinearizationFn[V, A]],
-        state_state: StateCurvatureFn[V, A],
-        state_param: StateCurvatureFn[V, A],
-        param_state: StateCurvatureFn[V, A],
-        param_param: StateCurvatureFn[V, A],
-    ) -> "StateTermDerivatives[V, A]":
-        """The first derivatives and all four second derivatives."""
-        return StateTermDerivatives(
-            wrt_state,
-            wrt_param,
-            state_state,
-            state_param,
-            param_state,
-            param_param,
-        )
 
 
 @dataclass(frozen=True)
@@ -372,19 +274,29 @@ class StepTermDerivatives(Generic[V, A]):
 
 
 @runtime_checkable
-class StateTermProtocol(Protocol[V, A]):
+class StoredStateTermProtocol(Protocol[V, A]):
     r"""A term :math:`\sum_m g_m(y_m;\, p)` over the stored states it
-    names, each read alone.
+    names, each read alone: a family of one-state terms, member
+    :math:`g_m` a :class:`~pyapprox.implicitfunction.functional_terms.
+    StateTermProtocol` with its value and its derivatives.
 
     It holds no trajectory: it says which stored states it reads, by
-    index and whether a state is the last, and is handed each one it reads
-    with its index and time. Naming the last state by ``last``, not by an
-    index, lets a sink evaluate the term while the trajectory is still
-    being computed, its length unknown (an adaptive plan's).
+    index and whether a state is the last, and builds the member for each
+    one it reads from its index and time, so a member's time is bound
+    once, never passed per call. Naming the last state by ``last``, not
+    by an index, lets a sink evaluate the term while the trajectory is
+    still being computed, its length unknown (an adaptive plan's).
+
+    The second derivative in the states is block diagonal over the stored
+    states (:math:`\partial^2 g/\partial y_m \partial y_k = 0` for
+    :math:`m \ne k`): a term coupling states of one step is a step term.
+    The family is as capable as its weakest member read: a consumer reads
+    every member's bundle once, before any sweep, and refuses naming the
+    member that lacks what it needs.
     """
 
     def nqoi(self) -> int:
-        """The number of entries of the term's value."""
+        """The number of entries of every member's value."""
         ...
 
     def reads(self, index: int, last: bool) -> bool:
@@ -392,14 +304,88 @@ class StateTermProtocol(Protocol[V, A]):
         last when ``last``."""
         ...
 
-    def value(self, index: int, time: float, state: V) -> A:
-        """:math:`g_m` at stored state ``index``, a column of ``nqoi``
-        entries."""
+    def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
+        """:math:`g_m`, the member for stored state ``index`` at ``time``;
+        called only for a state the term reads. A member serves the
+        trajectory whose time it was built at: consumers build members
+        anew for each trajectory, whose times an adaptive plan changes."""
         ...
 
-    def derivatives(self) -> StateTermDerivatives[V, A]:
-        """The optional derivatives."""
-        ...
+
+class StoredStates:
+    """Which stored states a term reads: those of ``indices``, and the
+    last when ``last``.
+
+    Parameters
+    ----------
+    indices : iterable of int, optional
+        Stored-state indices, non-negative.
+    last : bool, default False
+        Whether the trajectory's last state is read, whatever its index.
+
+    Raises
+    ------
+    ValueError
+        If no state is named or an index is negative.
+    """
+
+    def __init__(self, indices: Iterable[int] = (), last: bool = False) -> None:
+        self._indices: FrozenSet[int] = frozenset(indices)
+        if not self._indices and not last:
+            raise ValueError("a term reads at least one stored state")
+        if any(index < 0 for index in self._indices):
+            raise ValueError(
+                "stored-state indices must be non-negative, got "
+                f"{sorted(self._indices)}"
+            )
+        self._last = last
+
+    def reads(self, index: int, last: bool) -> bool:
+        """Whether stored state ``index`` is named, the trajectory's last
+        when ``last``."""
+        return index in self._indices or (self._last and last)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({sorted(self._indices)}, last={self._last})"
+
+
+class AtStoredStates(Generic[V, A]):
+    r"""One state term read at several stored states, the same member at
+    each: :math:`\sum_m g(y_m;\, p)` over the states ``where`` names (the
+    last alone, for an endpoint value).
+
+    Parameters
+    ----------
+    term : StateTermProtocol
+        :math:`g`, a term of one state that reads no time.
+    where : StoredStates
+        The stored states read.
+
+    Raises
+    ------
+    TypeError
+        If ``term`` does not satisfy :class:`~pyapprox.implicitfunction.
+        functional_terms.StateTermProtocol`.
+    """
+
+    def __init__(self, term: StateTermProtocol[V, A], where: StoredStates) -> None:
+        if not isinstance(term, StateTermProtocol):
+            raise TypeError(
+                f"term must satisfy StateTermProtocol, got {type(term).__name__}"
+            )
+        self._term, self._where = term, where
+
+    def nqoi(self) -> int:
+        return self._term.nqoi()
+
+    def reads(self, index: int, last: bool) -> bool:
+        return self._where.reads(index, last)
+
+    def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
+        return self._term
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._term!r}, {self._where!r})"
 
 
 @runtime_checkable
@@ -451,7 +437,7 @@ class TrajectoryFunctional(Generic[V, A]):
 
     zero: A
     parameter_terms: Tuple[ParameterTermProtocol[V, A], ...] = ()
-    state_terms: Tuple[StateTermProtocol[V, A], ...] = ()
+    state_terms: Tuple[StoredStateTermProtocol[V, A], ...] = ()
     step_terms: Tuple[StepTermProtocol[V, A], ...] = ()
 
     def __post_init__(self) -> None:
@@ -461,7 +447,7 @@ class TrajectoryFunctional(Generic[V, A]):
             )
         checks: Tuple[tuple[Sequence[object], type, str], ...] = (
             (self.parameter_terms, ParameterTermProtocol, "ParameterTermProtocol"),
-            (self.state_terms, StateTermProtocol, "StateTermProtocol"),
+            (self.state_terms, StoredStateTermProtocol, "StoredStateTermProtocol"),
             (self.step_terms, StepTermProtocol, "StepTermProtocol"),
         )
         for terms, protocol, name in checks:
@@ -486,7 +472,7 @@ class TrajectoryFunctional(Generic[V, A]):
         bkd: Backend[A],
         nqoi: int,
         parameter_terms: Tuple[ParameterTermProtocol[V, A], ...] = (),
-        state_terms: Tuple[StateTermProtocol[V, A], ...] = (),
+        state_terms: Tuple[StoredStateTermProtocol[V, A], ...] = (),
         step_terms: Tuple[StepTermProtocol[V, A], ...] = (),
     ) -> "TrajectoryFunctional[V, A]":
         """The functional of these terms, with values of ``nqoi`` entries
@@ -548,7 +534,7 @@ class TrajectoryFunctional(Generic[V, A]):
             If no functional is given.
         """
         parameter_terms: list[ParameterTermProtocol[V, A]] = []
-        state_terms: list[StateTermProtocol[V, A]] = []
+        state_terms: list[StoredStateTermProtocol[V, A]] = []
         step_terms: list[StepTermProtocol[V, A]] = []
         sizes = [functional.nqoi() for functional in functionals]
         for functional, rows in zip(functionals, row_blocks(bkd, sizes)):
@@ -556,7 +542,7 @@ class TrajectoryFunctional(Generic[V, A]):
                 MappedParameterTerm(term, rows) for term in functional.parameter_terms
             ]
             state_terms += [
-                _MappedStateTerm(term, rows) for term in functional.state_terms
+                _MappedStoredStateTerm(term, rows) for term in functional.state_terms
             ]
             step_terms += [
                 _MappedStepTerm(term, _EveryStep(rows))
@@ -616,25 +602,14 @@ class _AtStep(Generic[A]):
         return self._values.nqoi(inner)
 
 
-class _MappedStateTerm(Generic[V, A]):
-    """A state term with its values mapped; its bundle mirrors the inner
-    one's."""
+class _MappedStoredStateTerm(Generic[V, A]):
+    """A stored-state term with its values mapped: each member the core's
+    mapped term of the inner member."""
 
     def __init__(
-        self, term: StateTermProtocol[V, A], values: ValueMapProtocol[A]
+        self, term: StoredStateTermProtocol[V, A], values: ValueMapProtocol[A]
     ) -> None:
         self._term, self._values = term, values
-        inner = term.derivatives()
-        self._inner = inner
-        second = inner.state_state is not None
-        self._derivatives: StateTermDerivatives[V, A] = StateTermDerivatives(
-            None if inner.wrt_state is None else self._wrt_state,
-            None if inner.wrt_param is None else self._wrt_param,
-            self._state_state if second else None,
-            self._state_param if second else None,
-            self._param_state if second else None,
-            self._param_param if second else None,
-        )
 
     def nqoi(self) -> int:
         return self._values.nqoi(self._term.nqoi())
@@ -642,60 +617,11 @@ class _MappedStateTerm(Generic[V, A]):
     def reads(self, index: int, last: bool) -> bool:
         return self._term.reads(index, last)
 
-    def value(self, index: int, time: float, state: V) -> A:
-        return self._values.out(self._term.value(index, time, state))
+    def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
+        return MappedStateTerm(self._term.at(index, time), self._values)
 
-    def derivatives(self) -> StateTermDerivatives[V, A]:
-        return self._derivatives
-
-    def _wrt_state(
-        self, index: int, time: float, state: V
-    ) -> LinearizationProtocol[V, A]:
-        field = self._inner.wrt_state
-        if field is None:
-            raise RuntimeError("the term has no derivative")
-        return MappedLinearization(field(index, time, state), self._values)
-
-    def _wrt_param(
-        self, index: int, time: float, state: V
-    ) -> Optional[LinearizationProtocol[V, A]]:
-        field = self._inner.wrt_param
-        if field is None:
-            raise RuntimeError("the term has no parameter derivative")
-        return mapped(field(index, time, state), self._values)
-
-    def _call(
-        self,
-        field: Optional[StateCurvatureFn[V, A]],
-        index: int,
-        time: float,
-        state: V,
-        weights: A,
-        x: V,
-    ) -> Optional[V]:
-        if field is None:
-            raise RuntimeError("the term has no second derivatives")
-        return field(index, time, state, self._values.back(weights), x)
-
-    def _state_state(
-        self, index: int, time: float, state: V, weights: A, x: V
-    ) -> Optional[V]:
-        return self._call(self._inner.state_state, index, time, state, weights, x)
-
-    def _state_param(
-        self, index: int, time: float, state: V, weights: A, x: V
-    ) -> Optional[V]:
-        return self._call(self._inner.state_param, index, time, state, weights, x)
-
-    def _param_state(
-        self, index: int, time: float, state: V, weights: A, x: V
-    ) -> Optional[V]:
-        return self._call(self._inner.param_state, index, time, state, weights, x)
-
-    def _param_param(
-        self, index: int, time: float, state: V, weights: A, x: V
-    ) -> Optional[V]:
-        return self._call(self._inner.param_param, index, time, state, weights, x)
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._term!r})"
 
 
 class _MappedStepTerm(Generic[V, A]):
