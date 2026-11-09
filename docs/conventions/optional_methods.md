@@ -116,6 +116,18 @@ fields, an `InexactSuite` alongside other fields).
   provide theirs. Steady and transient objects satisfy overlapping
   protocols, so consumers that need one kind check `time_dependence()` at
   runtime as well as the protocol.
+- **A family is as capable as its weakest member.** Some objects carry no
+  bundle of their own but build members that do: a trajectory's
+  stored-state term (`StoredStateTermProtocol`) builds one core state term
+  per stored state by `at(index, time)`. The member binds the context (the
+  index and time) once, so its bundle's fields keep the context-free
+  arities of its family, and the family has no `derivatives()`. A consumer
+  builds every member it will read before any solve and reads each
+  member's bundle once: a sweep refuses, naming the member, if one lacks
+  what it needs (`state_first_derivatives`, `state_second_derivatives`);
+  a consumer whose own capability is optional (`TermAtTimes`) offers a
+  level only when every member it read has it. Members are built for one
+  trajectory and not reused on another, whose times may differ.
 - **Use the resolvers.** Never read `Derivatives`' raw hvp/whvp pair; call
   `d.resolved_hvp(obj.nqoi(), obj.bkd())` / `d.resolved_whvp(obj.nqoi())`
   with the owning object's nqoi (a constraint's own, never the
