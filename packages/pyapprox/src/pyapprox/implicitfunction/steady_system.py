@@ -27,7 +27,10 @@ solve with.
 from typing import Generic, Optional, TypeVar
 
 from pyapprox.implicitfunction.residual import ResidualProtocol
-from pyapprox.implicitfunction.residual_derivatives import ResidualJacobian
+from pyapprox.implicitfunction.residual_derivatives import (
+    ResidualDerivatives,
+    ResidualJacobian,
+)
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
@@ -39,6 +42,7 @@ from pyapprox.util.linalg.operators import (
     LinearSolverProtocol,
     ReuseKey,
     ReusePolicyProtocol,
+    SolverCapabilities,
     SolverHandleProtocol,
 )
 from pyapprox.util.rootfinding.nonlinear import (
@@ -85,9 +89,8 @@ class SteadyPoint(Generic[V, A]):
         """Whether the state solves :math:`R(u; p) = 0`."""
         return self._info.converged
 
-    def jacobian_handle(self) -> SolverHandleProtocol[V]:
-        r"""A handle for :math:`R_u` at the state, set up on first request
-        and kept; for a constant :math:`R_u`, the setup the solve used.
+    def solution(self) -> V:
+        r"""The state, as a solution of the current residual.
 
         Raises
         ------
@@ -107,6 +110,18 @@ class SteadyPoint(Generic[V, A]):
                 f"the residual's parameters changed (version {self._version} "
                 f"-> {current}) after this solve; solve again"
             )
+        return self._state
+
+    def jacobian_handle(self) -> SolverHandleProtocol[V]:
+        r"""A handle for :math:`R_u` at the state, set up on first request
+        and kept; for a constant :math:`R_u`, the setup the solve used.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`solution`.
+        """
+        self.solution()
         if self._handle is None:
             self._handle = self._system.solution_handle(self._state, self._version)
         return self._handle
@@ -188,6 +203,14 @@ class SteadySystem(Generic[V, A, F]):
     def residual_version(self) -> int:
         """The residual's current parameter version."""
         return self._residual.parameters_version()
+
+    def residual_derivatives(self) -> ResidualDerivatives[V, F]:
+        """The residual's derivatives bundle."""
+        return self._residual.derivatives()
+
+    def solver_capabilities(self) -> SolverCapabilities:
+        """What the linear solver can do: whether it solves transposed."""
+        return self._solver.capabilities()
 
     def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
         r"""A handle for :math:`R_u` at the Newton iterate ``x``."""

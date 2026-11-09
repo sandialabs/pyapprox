@@ -5,11 +5,18 @@ r"""A small nonlinear residual with rows pinned to parameter-dependent data.
 3)`, at :math:`p = (0.7, -0.4)` (:math:`p_0 = 0` for the affine case);
 the rows :math:`\{0, 2\}` pinned to :math:`g = (p_0^2 + 1, \cdot, p_0
 p_1)`. Every derivative is analytic; the data read :math:`F`'s
-parameters, so one ``set_param`` moves both.
+parameters, so one ``set_param`` moves both. A functional :math:`Q = g + r`
+of a state term :math:`g = \tfrac12 u^\top D u + p_1 u_1` and a
+parameter term :math:`r = \tfrac{3}{20}\|p\|^2` reads them too.
 """
 
 from typing import Generic, List, Optional
 
+from pyapprox.implicitfunction.functional_terms import (
+    BackendScalarGradient,
+    ParameterTermDerivatives,
+    StateTermDerivatives,
+)
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import (
     PinnedValuesParamDerivatives,
@@ -21,6 +28,7 @@ from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
     ResidualJacobian,
 )
+from pyapprox.implicitfunction.steady_functional import SteadyFunctional
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -195,6 +203,107 @@ class QuadraticPinnedData(Generic[Array]):
             [self.bkd.stack([2.0 * w0, w2]), self.bkd.stack([w2, 0.0 * w2])]
         )
         return self._f.dense(matrix, square_params=True)
+
+
+class QuadraticStateTerm(Generic[Array]):
+    r""":math:`g(u; p) = \tfrac12 u^\top D u + p_1 u_1`, :math:`D =
+    \mathrm{diag}(1, 2, 3)`, reading :math:`F`'s parameters; second order
+    unless ``order=1``, none with ``order=0``."""
+
+    def __init__(self, residual: QuadraticResidual[Array], order: int = 2) -> None:
+        self._f, self.bkd = residual, residual.bkd
+        self._d = self.bkd.asarray([[1.0], [2.0], [3.0]])
+        self._bundle: StateTermDerivatives[Array, Array]
+        if order == 0:
+            self._bundle = StateTermDerivatives.none()
+        elif order == 1:
+            self._bundle = StateTermDerivatives.first_order(
+                self._wrt_state, self._wrt_param
+            )
+        else:
+            self._bundle = StateTermDerivatives.second_order(
+                self._wrt_state,
+                self._wrt_param,
+                self._state_state,
+                self._state_param,
+                self._param_state,
+                self._param_param,
+            )
+
+    def _unit(self, n: int, k: int, entry: Array) -> Array:
+        zero = self.bkd.zeros(())
+        return self.bkd.reshape(
+            self.bkd.stack([entry if i == k else zero for i in range(n)]), (n, 1)
+        )
+
+    def nqoi(self) -> int:
+        return 1
+
+    def value(self, state: Array) -> Array:
+        return self.bkd.reshape(
+            0.5 * self.bkd.sum(self._d * state**2) + self._f.p[1, 0] * state[1, 0],
+            (1, 1),
+        )
+
+    def derivatives(self) -> StateTermDerivatives[Array, Array]:
+        return self._bundle
+
+    def _wrt_state(self, state: Array) -> BackendScalarGradient[Array]:
+        gradient = self._d * state + self._unit(3, 1, self._f.p[1, 0])
+        return BackendScalarGradient(gradient, self.bkd)
+
+    def _wrt_param(self, state: Array) -> BackendScalarGradient[Array]:
+        return BackendScalarGradient(self._unit(2, 1, state[1, 0]), self.bkd)
+
+    def _state_state(self, state: Array, weights: Array, x: Array) -> Array:
+        return weights[0, 0] * self._d * x
+
+    def _state_param(self, state: Array, weights: Array, x: Array) -> Array:
+        return self._unit(3, 1, weights[0, 0] * x[1, 0])
+
+    def _param_state(self, state: Array, weights: Array, x: Array) -> Array:
+        return self._unit(2, 1, weights[0, 0] * x[1, 0])
+
+    def _param_param(self, state: Array, weights: Array, x: Array) -> None:
+        return None
+
+
+class QuadraticParameterTerm(Generic[Array]):
+    r""":math:`r(p) = \tfrac{3}{20} \|p\|^2`, reading :math:`F`'s
+    parameters."""
+
+    def __init__(self, residual: QuadraticResidual[Array]) -> None:
+        self._f, self.bkd = residual, residual.bkd
+        self._bundle: ParameterTermDerivatives[Array, Array] = (
+            ParameterTermDerivatives.second_order(self._wrt_param, self._param_param)
+        )
+
+    def nqoi(self) -> int:
+        return 1
+
+    def value(self) -> Array:
+        return self.bkd.reshape(0.15 * self.bkd.sum(self._f.p**2), (1, 1))
+
+    def derivatives(self) -> ParameterTermDerivatives[Array, Array]:
+        return self._bundle
+
+    def _wrt_param(self) -> BackendScalarGradient[Array]:
+        return BackendScalarGradient(0.3 * self._f.p, self.bkd)
+
+    def _param_param(self, weights: Array, x: Array) -> Array:
+        return weights[0, 0] * 0.3 * x
+
+
+def quadratic_functional(
+    residual: QuadraticResidual[Array], order: int = 2
+) -> SteadyFunctional[Array, Array]:
+    """:math:`Q = g + r` on :math:`F`'s parameters."""
+    return SteadyFunctional.from_terms(
+        residual.bkd,
+        1,
+        parameter_terms=(QuadraticParameterTerm(residual),),
+        state_terms=(QuadraticStateTerm(residual, order),),
+    )
 
 
 def pinned_quadratic(
