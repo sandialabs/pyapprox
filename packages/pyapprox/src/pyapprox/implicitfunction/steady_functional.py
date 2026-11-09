@@ -15,6 +15,7 @@ from typing import Generic, Optional, Sequence, Tuple, TypeVar
 from pyapprox.implicitfunction.functional_terms import (
     ParameterTermProtocol,
     StateTermProtocol,
+    check_terms,
     value_weights,
 )
 from pyapprox.implicitfunction.mapped_terms import (
@@ -54,29 +55,13 @@ class SteadyFunctional(Generic[V, A]):
     state_terms: Tuple[StateTermProtocol[V, A], ...] = ()
 
     def __post_init__(self) -> None:
-        if self.zero.ndim != 2 or self.zero.shape[1] != 1:
-            raise ValueError(
-                f"zero must be a column (nqoi, 1), got shape {tuple(self.zero.shape)}"
-            )
-        checks: Tuple[Tuple[Sequence[object], type, str], ...] = (
-            (self.parameter_terms, ParameterTermProtocol, "ParameterTermProtocol"),
-            (self.state_terms, StateTermProtocol, "StateTermProtocol"),
+        check_terms(
+            self.zero,
+            (
+                (self.parameter_terms, ParameterTermProtocol, "ParameterTermProtocol"),
+                (self.state_terms, StateTermProtocol, "StateTermProtocol"),
+            ),
         )
-        for terms, protocol, name in checks:
-            for term in terms:
-                if not isinstance(term, protocol):
-                    raise TypeError(
-                        f"each term must satisfy {name}, got {type(term).__name__}"
-                    )
-        sizes = [
-            *((type(t).__name__, t.nqoi()) for t in self.parameter_terms),
-            *((type(t).__name__, t.nqoi()) for t in self.state_terms),
-        ]
-        for name, size in sizes:
-            if size != self.nqoi():
-                raise ValueError(
-                    f"{name} has nqoi {size}, the functional {self.nqoi()}"
-                )
 
     @staticmethod
     def from_terms(

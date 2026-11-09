@@ -61,6 +61,7 @@ from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
     ParameterTermProtocol,
     StateTermProtocol,
+    check_terms,
     value_weights,
 )
 from pyapprox.implicitfunction.mapped_terms import (
@@ -70,6 +71,7 @@ from pyapprox.implicitfunction.mapped_terms import (
     mapped,
     row_blocks,
 )
+from pyapprox.implicitfunction.steady_functional import SteadyFunctional
 from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import BlockVector
@@ -441,31 +443,14 @@ class TrajectoryFunctional(Generic[V, A]):
     step_terms: Tuple[StepTermProtocol[V, A], ...] = ()
 
     def __post_init__(self) -> None:
-        if self.zero.ndim != 2 or self.zero.shape[1] != 1:
-            raise ValueError(
-                f"zero must be a column (nqoi, 1), got shape {tuple(self.zero.shape)}"
-            )
-        checks: Tuple[tuple[Sequence[object], type, str], ...] = (
-            (self.parameter_terms, ParameterTermProtocol, "ParameterTermProtocol"),
-            (self.state_terms, StoredStateTermProtocol, "StoredStateTermProtocol"),
-            (self.step_terms, StepTermProtocol, "StepTermProtocol"),
+        check_terms(
+            self.zero,
+            (
+                (self.parameter_terms, ParameterTermProtocol, "ParameterTermProtocol"),
+                (self.state_terms, StoredStateTermProtocol, "StoredStateTermProtocol"),
+                (self.step_terms, StepTermProtocol, "StepTermProtocol"),
+            ),
         )
-        for terms, protocol, name in checks:
-            for term in terms:
-                if not isinstance(term, protocol):
-                    raise TypeError(
-                        f"each term must satisfy {name}, got {type(term).__name__}"
-                    )
-        sizes = [
-            *((type(t).__name__, t.nqoi()) for t in self.parameter_terms),
-            *((type(t).__name__, t.nqoi()) for t in self.state_terms),
-            *((type(t).__name__, t.nqoi()) for t in self.step_terms),
-        ]
-        for name, size in sizes:
-            if size != self.nqoi():
-                raise ValueError(
-                    f"{name} has nqoi {size}, the functional {self.nqoi()}"
-                )
 
     @staticmethod
     def from_terms(
@@ -479,6 +464,23 @@ class TrajectoryFunctional(Generic[V, A]):
         on ``bkd`` (its ``zero`` made here)."""
         return TrajectoryFunctional(
             bkd.zeros((nqoi, 1)), parameter_terms, state_terms, step_terms
+        )
+
+    @staticmethod
+    def at_last(
+        functional: SteadyFunctional[V, A],
+    ) -> "TrajectoryFunctional[V, A]":
+        r""":math:`Q(y_N;\, p)`: a functional of one state :math:`Q(u;\,
+        p)` read at the trajectory's last stored state, its parameter terms
+        unchanged and each state term an :class:`AtStoredStates` of the
+        last state."""
+        return TrajectoryFunctional(
+            functional.zero,
+            functional.parameter_terms,
+            tuple(
+                AtStoredStates(term, StoredStates(last=True))
+                for term in functional.state_terms
+            ),
         )
 
     def nqoi(self) -> int:

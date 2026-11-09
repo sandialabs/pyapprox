@@ -54,6 +54,7 @@ from pyapprox.implicitfunction.functional_terms import (
     StateTermProtocol,
 )
 from pyapprox.implicitfunction.mapped_terms import MappedStateTerm
+from pyapprox.implicitfunction.steady_functional import SteadyFunctional
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -69,6 +70,7 @@ from pyapprox.ode.multistep_methods import (
     adams_bashforth2,
     bdf2,
 )
+from pyapprox.ode.observation_terms import TikhonovTerm
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import backward_euler, classical_rk4, heun
@@ -560,6 +562,94 @@ class TestTimeDependentStateTerms:
         wrong = TrajectoryFunctional.from_terms(bkd, 1, state_terms=(frozen,))
         miss = bkd.to_float(bkd.norm(sweeps.gradient(store, wrong) - gradient))
         assert miss > 5e-4 * bkd.to_float(bkd.norm(gradient))
+
+
+class _AtLast(Generic[Array]):
+    r""":math:`p \mapsto Q(y_N(p);\, p)` for the functional of one state
+    :math:`Q(u;\, p) = q(u, t_N) + 0.15\, p^\top p` read at the last state
+    by :meth:`TrajectoryFunctional.at_last`, with the sweeps' gradient and
+    Hessian-vector product."""
+
+    def __init__(self, bkd: Backend[Array], method: Method) -> None:
+        self._bkd = bkd
+        self._model = lotka_volterra_with_mass(bkd)
+        self._stepper: Stepper[Array] = make_stepper(
+            method, dense_mass_form_system(self._model)
+        )
+        self._integrand = EnergyIntegrand(bkd)
+        self._tikhonov = TikhonovTerm(bkd, 0.3)
+        self.steady: SteadyFunctional[Array, Array] = SteadyFunctional.from_terms(
+            bkd,
+            1,
+            parameter_terms=(self._tikhonov,),
+            state_terms=(_IntegrandAt(self._integrand, STEPS.times()[-1]),),
+        )
+        self.functional = TrajectoryFunctional.at_last(self.steady)
+        self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
+            self._stepper
+        )
+
+    def solve(self, param: Array) -> tuple[Array, InMemoryTrajectoryStore[Array]]:
+        self._model.set_param(param)
+        self._integrand.set_param(param)
+        self._tikhonov.set_param(param)
+        sink: FunctionalSink[Array, Array] = FunctionalSink(
+            self.functional.zero,
+            self.functional.parameter_terms,
+            self.functional.state_terms,
+        )
+        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        Integrator(self._stepper).solve(
+            self._bkd.asarray(START), STEPS, MultiSink([sink, store])
+        )
+        return sink.value(), store
+
+    def value(self, samples: Array) -> Array:
+        return self._bkd.hstack(
+            [self.solve(samples[:, k : k + 1])[0] for k in range(samples.shape[1])]
+        )
+
+    def gradient(self, sample: Array) -> Array:
+        _, store = self.solve(sample)
+        return self._sweeps.gradient(store, self.functional).T
+
+    def gradients(self, samples: Array) -> Array:
+        return self._bkd.hstack(
+            [self.gradient(samples[:, k : k + 1]).T for k in range(samples.shape[1])]
+        )
+
+    def hvp(self, sample: Array, direction: Array) -> Array:
+        _, store = self.solve(sample)
+        return self._sweeps.hvp(store, self.functional, direction)
+
+
+class TestAOneStateFunctionalAtTheLastState:
+    r"""A functional of one state, :math:`Q(u;\, p)`, read at the
+    trajectory's final state: :math:`p \mapsto Q(y_N(p);\, p)`."""
+
+    @pytest.mark.parametrize("make", [heun, bdf2], ids=["Heun", "BDF2"])
+    def test_value_gradient_and_hvp(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        problem = _AtLast(bkd, make())
+        param = bkd.asarray(LV_PARAM)
+        value, store = problem.solve(param)
+        bkd.assert_allclose(
+            value, problem.steady.value(store.state(store.ntimes() - 1)), rtol=1e-14
+        )
+        assert problem.functional.nqoi() == 1
+        gradient = DerivativeChecker(
+            FunctionWithJacobianFromCallable(
+                nqoi=1, nvars=4, fun=problem.value, jacobian=problem.gradient, bkd=bkd
+            )
+        ).check_derivatives(param, relative=True, central=True)[0]
+        assert bkd.to_float(bkd.min(gradient)) < 1e-7
+        hvp = DerivativeChecker(
+            FunctionWithJVPFromCallable(
+                nqoi=4, nvars=4, fun=problem.gradients, jvp=problem.hvp, bkd=bkd
+            )
+        ).check_derivatives(param, relative=True, central=True)[0]
+        assert bkd.to_float(bkd.min(hvp)) < 1e-7
 
 
 class TestAgainstAutograd:

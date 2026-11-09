@@ -31,6 +31,7 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
+    Tuple,
     TypeVar,
     runtime_checkable,
 )
@@ -402,6 +403,46 @@ def accumulate(
     if total is None:
         return space.copy(term)
     return space.axpby(1.0, term, 1.0, total, out=total)
+
+
+class _Sized(Protocol):
+    """What every kind of term has: the size of its value."""
+
+    def nqoi(self) -> int: ...
+
+
+def check_terms(
+    zero: ArrayProtocol, kinds: Sequence[Tuple[Sequence[_Sized], type, str]]
+) -> None:
+    """Check a functional's terms: ``zero`` a column, and each term of each
+    ``(terms, protocol, name)`` kind satisfying its protocol with the
+    functional's ``nqoi``.
+
+    Raises
+    ------
+    TypeError
+        If a term does not satisfy its protocol.
+    ValueError
+        If ``zero`` is not a column, or a term's ``nqoi`` differs.
+    """
+    if zero.ndim != 2 or zero.shape[1] != 1:
+        raise ValueError(
+            f"zero must be a column (nqoi, 1), got shape {tuple(zero.shape)}"
+        )
+    nqoi = int(zero.shape[0])
+    for terms, protocol, name in kinds:
+        for term in terms:
+            if not isinstance(term, protocol):
+                raise TypeError(
+                    f"each term must satisfy {name}, got {type(term).__name__}"
+                )
+    for terms, _, _ in kinds:
+        for term in terms:
+            if term.nqoi() != nqoi:
+                raise ValueError(
+                    f"{type(term).__name__} has nqoi {term.nqoi()}, "
+                    f"the functional {nqoi}"
+                )
 
 
 def value_weights(zero: A, given: Optional[A] = None) -> A:
