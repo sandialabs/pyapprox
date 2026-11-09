@@ -54,9 +54,15 @@ from typing import (
 
 from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
-    ParameterTermDerivatives,
     ParameterTermProtocol,
     value_weights,
+)
+from pyapprox.implicitfunction.mapped_terms import (
+    MappedLinearization,
+    MappedParameterTerm,
+    ValueMapProtocol,
+    mapped,
+    row_blocks,
 )
 from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
@@ -541,62 +547,35 @@ class TrajectoryFunctional(Generic[V, A]):
         ValueError
             If no functional is given.
         """
-        if not functionals:
-            raise ValueError("stack needs at least one functional")
-        total = sum(functional.nqoi() for functional in functionals)
         parameter_terms: list[ParameterTermProtocol[V, A]] = []
         state_terms: list[StateTermProtocol[V, A]] = []
         step_terms: list[StepTermProtocol[V, A]] = []
-        start = 0
-        for functional in functionals:
-            rows = _Rows(bkd, start, functional.nqoi(), total)
+        sizes = [functional.nqoi() for functional in functionals]
+        for functional, rows in zip(functionals, row_blocks(bkd, sizes)):
             parameter_terms += [
-                _MappedParameterTerm(term, rows) for term in functional.parameter_terms
+                MappedParameterTerm(term, rows) for term in functional.parameter_terms
             ]
             state_terms += [
                 _MappedStateTerm(term, rows) for term in functional.state_terms
             ]
             step_terms += [
-                _MappedStepTerm(term, rows) for term in functional.step_terms
+                _MappedStepTerm(term, _EveryStep(rows))
+                for term in functional.step_terms
             ]
-            start += functional.nqoi()
         return TrajectoryFunctional.from_terms(
-            bkd, total, tuple(parameter_terms), tuple(state_terms), tuple(step_terms)
+            bkd,
+            sum(sizes),
+            tuple(parameter_terms),
+            tuple(state_terms),
+            tuple(step_terms),
         )
 
 
-class _Rows(Generic[A]):
-    """Rows ``start`` to ``start + size`` of a stacked value of ``total``
-    entries, as a value map: values are placed there, weights read from
-    there, at every step alike."""
-
-    def __init__(self, bkd: Backend[A], start: int, size: int, total: int) -> None:
-        self._bkd, self._start, self._size, self._total = bkd, start, size, total
-
-    def out(self, step: int, value: A) -> A:
-        """``value`` in these rows, zero elsewhere (by stacking, so an
-        autograd graph through ``value`` is kept)."""
-        bkd, end = self._bkd, self._start + self._size
-        blocks = [value]
-        if self._start > 0:
-            blocks.insert(0, bkd.zeros((self._start, 1)))
-        if end < self._total:
-            blocks.append(bkd.zeros((self._total - end, 1)))
-        return blocks[0] if len(blocks) == 1 else bkd.vstack(blocks)
-
-    def back(self, step: int, weights: A) -> A:
-        """These rows of ``weights``."""
-        return weights[self._start : self._start + self._size]
-
-    def nqoi(self, inner: int) -> int:
-        return self._total
-
-
-class _ValueMapProtocol(Protocol[A]):
-    r"""A linear map of a term's values, ``out`` (to the functional's
-    values) and its transpose ``back`` (functional weights to the term's),
-    possibly depending on the step: a stack's placement in rows, or the
-    recursion's :math:`\theta_n`."""
+class _StepValueMapProtocol(Protocol[A]):
+    r"""A linear map of a step term's values that may depend on the step:
+    ``out`` (to the functional's values) and its transpose ``back``
+    (functional weights to the term's); the recursion's :math:`\theta_n`,
+    or a stack's rows at every step alike."""
 
     def out(self, step: int, value: A) -> A: ...
 
@@ -605,77 +584,44 @@ class _ValueMapProtocol(Protocol[A]):
     def nqoi(self, inner: int) -> int: ...
 
 
-class _MappedLinearization(Generic[X, A]):
-    r""":math:`P D` for a linearization :math:`D` and a value map
-    :math:`P` at one step: forward through ``out``, transposed through
-    ``back``, so no stack vector is touched here."""
+class _EveryStep(Generic[A]):
+    """A value map the same at every step."""
 
-    def __init__(
-        self,
-        inner: LinearizationProtocol[X, A],
-        values: _ValueMapProtocol[A],
-        step: int,
-    ) -> None:
-        self._inner, self._values, self._step = inner, values, step
+    def __init__(self, values: ValueMapProtocol[A]) -> None:
+        self._values = values
 
-    def apply(self, x: X) -> A:
-        return self._values.out(self._step, self._inner.apply(x))
+    def out(self, step: int, value: A) -> A:
+        return self._values.out(value)
 
-    def apply_transpose(self, weights: A) -> X:
-        return self._inner.apply_transpose(self._values.back(self._step, weights))
+    def back(self, step: int, weights: A) -> A:
+        return self._values.back(weights)
+
+    def nqoi(self, inner: int) -> int:
+        return self._values.nqoi(inner)
 
 
-def _mapped(
-    inner: Optional[LinearizationProtocol[X, A]],
-    values: _ValueMapProtocol[A],
-    step: int,
-) -> Optional[LinearizationProtocol[X, A]]:
-    return None if inner is None else _MappedLinearization(inner, values, step)
+class _AtStep(Generic[A]):
+    """A step's value map at one step."""
 
+    def __init__(self, values: _StepValueMapProtocol[A], step: int) -> None:
+        self._values, self._step = values, step
 
-class _MappedParameterTerm(Generic[V, A]):
-    """A parameter term with its values mapped (step 0 for the map); its
-    bundle mirrors the inner one's."""
+    def out(self, value: A) -> A:
+        return self._values.out(self._step, value)
 
-    def __init__(
-        self, term: ParameterTermProtocol[V, A], values: _ValueMapProtocol[A]
-    ) -> None:
-        self._term, self._values = term, values
-        inner = term.derivatives()
-        self._inner = inner
-        self._derivatives: ParameterTermDerivatives[V, A] = ParameterTermDerivatives(
-            None if inner.wrt_param is None else self._wrt_param,
-            None if inner.param_param is None else self._param_param,
-        )
+    def back(self, weights: A) -> A:
+        return self._values.back(self._step, weights)
 
-    def nqoi(self) -> int:
-        return self._values.nqoi(self._term.nqoi())
-
-    def value(self) -> A:
-        return self._values.out(0, self._term.value())
-
-    def derivatives(self) -> ParameterTermDerivatives[V, A]:
-        return self._derivatives
-
-    def _wrt_param(self) -> LinearizationProtocol[V, A]:
-        field = self._inner.wrt_param
-        if field is None:
-            raise RuntimeError("the term has no derivative")
-        return _MappedLinearization(field(), self._values, 0)
-
-    def _param_param(self, weights: A, v: V) -> Optional[V]:
-        field = self._inner.param_param
-        if field is None:
-            raise RuntimeError("the term has no second derivative")
-        return field(self._values.back(0, weights), v)
+    def nqoi(self, inner: int) -> int:
+        return self._values.nqoi(inner)
 
 
 class _MappedStateTerm(Generic[V, A]):
-    """A state term with its values mapped (step 0 for the map); its
-    bundle mirrors the inner one's."""
+    """A state term with its values mapped; its bundle mirrors the inner
+    one's."""
 
     def __init__(
-        self, term: StateTermProtocol[V, A], values: _ValueMapProtocol[A]
+        self, term: StateTermProtocol[V, A], values: ValueMapProtocol[A]
     ) -> None:
         self._term, self._values = term, values
         inner = term.derivatives()
@@ -697,7 +643,7 @@ class _MappedStateTerm(Generic[V, A]):
         return self._term.reads(index, last)
 
     def value(self, index: int, time: float, state: V) -> A:
-        return self._values.out(0, self._term.value(index, time, state))
+        return self._values.out(self._term.value(index, time, state))
 
     def derivatives(self) -> StateTermDerivatives[V, A]:
         return self._derivatives
@@ -708,7 +654,7 @@ class _MappedStateTerm(Generic[V, A]):
         field = self._inner.wrt_state
         if field is None:
             raise RuntimeError("the term has no derivative")
-        return _MappedLinearization(field(index, time, state), self._values, 0)
+        return MappedLinearization(field(index, time, state), self._values)
 
     def _wrt_param(
         self, index: int, time: float, state: V
@@ -716,7 +662,7 @@ class _MappedStateTerm(Generic[V, A]):
         field = self._inner.wrt_param
         if field is None:
             raise RuntimeError("the term has no parameter derivative")
-        return _mapped(field(index, time, state), self._values, 0)
+        return mapped(field(index, time, state), self._values)
 
     def _call(
         self,
@@ -729,7 +675,7 @@ class _MappedStateTerm(Generic[V, A]):
     ) -> Optional[V]:
         if field is None:
             raise RuntimeError("the term has no second derivatives")
-        return field(index, time, state, self._values.back(0, weights), x)
+        return field(index, time, state, self._values.back(weights), x)
 
     def _state_state(
         self, index: int, time: float, state: V, weights: A, x: V
@@ -757,7 +703,7 @@ class _MappedStepTerm(Generic[V, A]):
     bundle mirrors the inner one's."""
 
     def __init__(
-        self, term: StepTermProtocol[V, A], values: _ValueMapProtocol[A]
+        self, term: StepTermProtocol[V, A], values: _StepValueMapProtocol[A]
     ) -> None:
         self._term, self._values = term, values
         inner = term.derivatives()
@@ -788,7 +734,7 @@ class _MappedStepTerm(Generic[V, A]):
         field = self._inner.wrt_unknown
         if field is None:
             raise RuntimeError("the term has no derivatives")
-        return _mapped(field(step, window), self._values, step)
+        return mapped(field(step, window), _AtStep(self._values, step))
 
     def _wrt_lag(
         self, step: int, window: StepWindow[V], lag: int
@@ -796,7 +742,7 @@ class _MappedStepTerm(Generic[V, A]):
         field = self._inner.wrt_lag
         if field is None:
             raise RuntimeError("the term has no derivatives")
-        return _mapped(field(step, window, lag), self._values, step)
+        return mapped(field(step, window, lag), _AtStep(self._values, step))
 
     def _wrt_param(
         self, step: int, window: StepWindow[V]
@@ -804,7 +750,7 @@ class _MappedStepTerm(Generic[V, A]):
         field = self._inner.wrt_param
         if field is None:
             raise RuntimeError("the term has no derivatives")
-        return _mapped(field(step, window), self._values, step)
+        return mapped(field(step, window), _AtStep(self._values, step))
 
     def _curvature_wrt_unknown(
         self,

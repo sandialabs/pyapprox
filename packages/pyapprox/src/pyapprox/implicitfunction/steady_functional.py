@@ -4,8 +4,9 @@ Its terms are parameter terms :math:`r(p)` and state terms :math:`g(u;\,
 p)` read from the one state (:class:`~pyapprox.implicitfunction.
 functional_terms.ParameterTermProtocol`, :class:`~pyapprox.
 implicitfunction.functional_terms.StateTermProtocol`).
-:class:`SteadyFunctional` gathers them, and ``a + b`` is the functional
-of both.
+:class:`SteadyFunctional` gathers them; ``a + b`` is the functional of
+both, and :meth:`SteadyFunctional.stack` places several one above
+another as the entries of one.
 """
 
 from dataclasses import dataclass
@@ -15,6 +16,11 @@ from pyapprox.implicitfunction.functional_terms import (
     ParameterTermProtocol,
     StateTermProtocol,
     value_weights,
+)
+from pyapprox.implicitfunction.mapped_terms import (
+    MappedParameterTerm,
+    MappedStateTerm,
+    row_blocks,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 
@@ -124,4 +130,32 @@ class SteadyFunctional(Generic[V, A]):
             self.zero,
             self.parameter_terms + other.parameter_terms,
             self.state_terms + other.state_terms,
+        )
+
+    @staticmethod
+    def stack(
+        bkd: Backend[A], functionals: Sequence["SteadyFunctional[V, A]"]
+    ) -> "SteadyFunctional[V, A]":
+        """The functionals' values one above another: each functional's
+        terms placed in its own rows of the stacked value, so its value
+        and forward derivatives land there and its transposed derivatives
+        and curvatures read only its rows of the weights.
+
+        Raises
+        ------
+        ValueError
+            If no functional is given.
+        """
+        parameter_terms: list[ParameterTermProtocol[V, A]] = []
+        state_terms: list[StateTermProtocol[V, A]] = []
+        sizes = [functional.nqoi() for functional in functionals]
+        for functional, rows in zip(functionals, row_blocks(bkd, sizes)):
+            parameter_terms += [
+                MappedParameterTerm(term, rows) for term in functional.parameter_terms
+            ]
+            state_terms += [
+                MappedStateTerm(term, rows) for term in functional.state_terms
+            ]
+        return SteadyFunctional.from_terms(
+            bkd, sum(sizes), tuple(parameter_terms), tuple(state_terms)
         )
