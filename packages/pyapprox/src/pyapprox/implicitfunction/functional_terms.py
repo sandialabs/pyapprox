@@ -17,8 +17,8 @@ Two kinds of term live here, each read where it lives:
 - a state term :math:`g(u;\, p)` (:class:`StateTermProtocol`), read from
   one state it is handed.
 
-A steady functional (:mod:`pyapprox.implicitfunction.steady_functional`)
-is a sum of both. Terms read the parameters currently set and hold no
+A functional of one state (:mod:`pyapprox.implicitfunction.
+state_functional`) is a sum of both. Terms read the parameters currently set and hold no
 state. The readers here take what a derivative computation needs from the
 bundles once and refuse, naming the term, when one lacks it.
 """

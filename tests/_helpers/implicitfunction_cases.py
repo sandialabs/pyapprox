@@ -28,7 +28,7 @@ from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
     ResidualJacobian,
 )
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -296,9 +296,9 @@ class QuadraticParameterTerm(Generic[Array]):
 
 def quadratic_functional(
     residual: QuadraticResidual[Array], order: int = 2
-) -> SteadyFunctional[Array, Array]:
+) -> StateFunctional[Array, Array]:
     """:math:`Q = g + r` on :math:`F`'s parameters."""
-    return SteadyFunctional.from_terms(
+    return StateFunctional.from_terms(
         residual.bkd,
         1,
         parameter_terms=(QuadraticParameterTerm(residual),),

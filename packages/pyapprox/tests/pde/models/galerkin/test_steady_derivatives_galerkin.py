@@ -42,8 +42,8 @@ from pyapprox.implicitfunction.operator.sensitivities import (
 )
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.ode.pinned_rows import values_at_time
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
@@ -186,7 +186,7 @@ def _problem(
     steady = SteadySystem(pinned, space, lu)
     new = SteadyDerivatives(
         steady,
-        SteadyFunctional.from_terms(
+        StateFunctional.from_terms(
             bkd, 1, state_terms=(SteadyFunctionalTerm(functional, _Fixed(_PARAM)),)
         ),
     )

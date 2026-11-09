@@ -54,7 +54,7 @@ from pyapprox.implicitfunction.functional_terms import (
     StateTermProtocol,
 )
 from pyapprox.implicitfunction.mapped_terms import MappedStateTerm
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -578,13 +578,13 @@ class _AtLast(Generic[Array]):
         )
         self._integrand = EnergyIntegrand(bkd)
         self._tikhonov = TikhonovTerm(bkd, 0.3)
-        self.steady: SteadyFunctional[Array, Array] = SteadyFunctional.from_terms(
+        self.one_state: StateFunctional[Array, Array] = StateFunctional.from_terms(
             bkd,
             1,
             parameter_terms=(self._tikhonov,),
             state_terms=(_IntegrandAt(self._integrand, STEPS.times()[-1]),),
         )
-        self.functional = TrajectoryFunctional.at_last(self.steady)
+        self.functional = TrajectoryFunctional.at_last(self.one_state)
         self._sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self._stepper
         )
@@ -635,7 +635,9 @@ class TestAOneStateFunctionalAtTheLastState:
         param = bkd.asarray(LV_PARAM)
         value, store = problem.solve(param)
         bkd.assert_allclose(
-            value, problem.steady.value(store.state(store.ntimes() - 1)), rtol=1e-14
+            value,
+            problem.one_state.value(store.state(store.ntimes() - 1)),
+            rtol=1e-14,
         )
         assert problem.functional.nqoi() == 1
         gradient = DerivativeChecker(

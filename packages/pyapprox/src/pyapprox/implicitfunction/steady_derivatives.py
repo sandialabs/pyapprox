@@ -53,7 +53,7 @@ from pyapprox.implicitfunction.residual_derivatives import (
     ResidualParamFn,
     ResidualSecondDerivativeFn,
 )
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
@@ -210,7 +210,7 @@ class SteadyDerivatives(Generic[V, A, F]):
     system : SteadySystem
         :math:`R(u;\, p) = 0`; its residual's bundle must have the
         parameter Jacobian and its solver a transpose.
-    functional : SteadyFunctional
+    functional : StateFunctional
         :math:`Q(u;\, p)`; every term's bundle must have first
         derivatives.
 
@@ -223,15 +223,15 @@ class SteadyDerivatives(Generic[V, A, F]):
     """
 
     def __init__(
-        self, system: SteadySystem[V, A, F], functional: SteadyFunctional[V, A]
+        self, system: SteadySystem[V, A, F], functional: StateFunctional[V, A]
     ) -> None:
         if not isinstance(system, SteadySystem):
             raise TypeError(
                 f"system must be a SteadySystem, got {type(system).__name__}"
             )
-        if not isinstance(functional, SteadyFunctional):
+        if not isinstance(functional, StateFunctional):
             raise TypeError(
-                "functional must be a SteadyFunctional, got "
+                "functional must be a StateFunctional, got "
                 f"{type(functional).__name__}"
             )
         bundle = system.residual_derivatives()

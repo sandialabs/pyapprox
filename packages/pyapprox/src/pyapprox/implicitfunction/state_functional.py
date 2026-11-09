@@ -1,11 +1,14 @@
-r"""A functional of a steady state, :math:`Q(u;\, p)`, as a sum of terms.
+r"""A functional of one state, :math:`Q(u;\, p)`, as a sum of terms.
 
 Its terms are parameter terms :math:`r(p)` and state terms :math:`g(u;\,
 p)` read from the one state (:class:`~pyapprox.implicitfunction.
 functional_terms.ParameterTermProtocol`, :class:`~pyapprox.
-implicitfunction.functional_terms.StateTermProtocol`).
-:class:`SteadyFunctional` gathers them; ``a + b`` is the functional of
-both, and :meth:`SteadyFunctional.stack` places several one above
+implicitfunction.functional_terms.StateTermProtocol`). The state may be a
+steady solution (:mod:`pyapprox.implicitfunction.steady_derivatives`) or
+a trajectory's last state (:meth:`~pyapprox.ode.trajectory_terms.
+TrajectoryFunctional.at_last`).
+:class:`StateFunctional` gathers them; ``a + b`` is the functional of
+both, and :meth:`StateFunctional.stack` places several one above
 another as the entries of one.
 """
 
@@ -30,7 +33,7 @@ A = TypeVar("A", bound=ArrayProtocol)
 
 
 @dataclass(frozen=True)
-class SteadyFunctional(Generic[V, A]):
+class StateFunctional(Generic[V, A]):
     r""":math:`Q(u;\, p)`: a sum of parameter and state terms, with values
     of ``nqoi`` entries.
 
@@ -69,10 +72,10 @@ class SteadyFunctional(Generic[V, A]):
         nqoi: int,
         parameter_terms: Tuple[ParameterTermProtocol[V, A], ...] = (),
         state_terms: Tuple[StateTermProtocol[V, A], ...] = (),
-    ) -> "SteadyFunctional[V, A]":
+    ) -> "StateFunctional[V, A]":
         """The functional of these terms, with values of ``nqoi`` entries
         on ``bkd`` (its ``zero`` made here)."""
-        return SteadyFunctional(bkd.zeros((nqoi, 1)), parameter_terms, state_terms)
+        return StateFunctional(bkd.zeros((nqoi, 1)), parameter_terms, state_terms)
 
     def nqoi(self) -> int:
         """The number of entries of the functional's value."""
@@ -99,7 +102,7 @@ class SteadyFunctional(Generic[V, A]):
             total = total + state_term.value(state)
         return total
 
-    def __add__(self, other: "SteadyFunctional[V, A]") -> "SteadyFunctional[V, A]":
+    def __add__(self, other: "StateFunctional[V, A]") -> "StateFunctional[V, A]":
         """The sum of the two functionals: their terms together.
 
         Raises
@@ -111,7 +114,7 @@ class SteadyFunctional(Generic[V, A]):
             raise ValueError(
                 f"cannot add functionals of {self.nqoi()} and {other.nqoi()} entries"
             )
-        return SteadyFunctional(
+        return StateFunctional(
             self.zero,
             self.parameter_terms + other.parameter_terms,
             self.state_terms + other.state_terms,
@@ -119,8 +122,8 @@ class SteadyFunctional(Generic[V, A]):
 
     @staticmethod
     def stack(
-        bkd: Backend[A], functionals: Sequence["SteadyFunctional[V, A]"]
-    ) -> "SteadyFunctional[V, A]":
+        bkd: Backend[A], functionals: Sequence["StateFunctional[V, A]"]
+    ) -> "StateFunctional[V, A]":
         """The functionals' values one above another: each functional's
         terms placed in its own rows of the stacked value, so its value
         and forward derivatives land there and its transposed derivatives
@@ -141,6 +144,6 @@ class SteadyFunctional(Generic[V, A]):
             state_terms += [
                 MappedStateTerm(term, rows) for term in functional.state_terms
             ]
-        return SteadyFunctional.from_terms(
+        return StateFunctional.from_terms(
             bkd, sum(sizes), tuple(parameter_terms), tuple(state_terms)
         )

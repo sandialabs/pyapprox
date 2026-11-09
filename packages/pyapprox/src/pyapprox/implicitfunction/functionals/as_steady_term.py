@@ -1,5 +1,5 @@
 r"""A method-based steady functional :math:`Q(u, p)` as a state term of a
-:class:`~pyapprox.implicitfunction.steady_functional.SteadyFunctional`.
+:class:`~pyapprox.implicitfunction.state_functional.StateFunctional`.
 
 Transitional: the method-based functionals take the parameters as an
 argument and return dense Jacobians; a state term reads the parameters

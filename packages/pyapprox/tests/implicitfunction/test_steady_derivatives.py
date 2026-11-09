@@ -27,8 +27,8 @@ from typing import Callable, Generic, Tuple
 import pytest
 
 from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -210,7 +210,7 @@ class TestLevels:
         self, bkd: Backend[Array]
     ) -> None:
         case = _Case(bkd)
-        functional: SteadyFunctional[Array, Array] = SteadyFunctional.from_terms(
+        functional: StateFunctional[Array, Array] = StateFunctional.from_terms(
             bkd, 1, parameter_terms=(QuadraticParameterTerm(case.f),)
         )
         derivs = SteadyDerivatives(case.system, functional)
@@ -239,7 +239,7 @@ class TestRefusals:
             def derivatives(self) -> ParameterTermDerivatives[Array, Array]:
                 return ParameterTermDerivatives.none()
 
-        functional: SteadyFunctional[Array, Array] = SteadyFunctional.from_terms(
+        functional: StateFunctional[Array, Array] = StateFunctional.from_terms(
             bkd, 1, parameter_terms=(_ValueOnly(f),)
         )
         with pytest.raises(TypeError, match="_ValueOnly.*only evaluated"):
@@ -264,5 +264,5 @@ class TestRefusals:
         f: QuadraticResidual[Array] = QuadraticResidual(bkd)
         with pytest.raises(TypeError, match="SteadySystem"):
             SteadyDerivatives(3.0, quadratic_functional(f))  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="SteadyFunctional"):
+        with pytest.raises(TypeError, match="StateFunctional"):
             SteadyDerivatives(case.system, 3.0)  # type: ignore[arg-type]

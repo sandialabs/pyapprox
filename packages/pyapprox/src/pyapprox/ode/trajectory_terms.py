@@ -71,7 +71,7 @@ from pyapprox.implicitfunction.mapped_terms import (
     mapped,
     row_blocks,
 )
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import BlockVector
@@ -468,7 +468,7 @@ class TrajectoryFunctional(Generic[V, A]):
 
     @staticmethod
     def at_last(
-        functional: SteadyFunctional[V, A],
+        functional: StateFunctional[V, A],
     ) -> "TrajectoryFunctional[V, A]":
         r""":math:`Q(y_N;\, p)`: a functional of one state :math:`Q(u;\,
         p)` read at the trajectory's last stored state, its parameter terms

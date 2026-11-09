@@ -1,4 +1,4 @@
-r"""A steady functional's value, sum and stack.
+r"""A functional of one state: its value, sum and stack.
 
 The pinned quadratic and :math:`Q = g + r` of
 ``tests._helpers.implicitfunction_cases`` at :math:`p = (0.7, -0.4)`,
@@ -16,8 +16,8 @@ solved by Newton (atol 1e-13) with dense LU; :math:`Q_2 = r` alone.
 
 import pytest
 
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
-from pyapprox.implicitfunction.steady_functional import SteadyFunctional
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseLU
@@ -33,8 +33,8 @@ from tests._helpers.implicitfunction_cases import (
 
 def _penalty(
     f: QuadraticResidual[Array], bkd: Backend[Array]
-) -> SteadyFunctional[Array, Array]:
-    return SteadyFunctional.from_terms(
+) -> StateFunctional[Array, Array]:
+    return StateFunctional.from_terms(
         bkd, 1, parameter_terms=(QuadraticParameterTerm(f),)
     )
 
@@ -50,7 +50,7 @@ class TestTheValue:
         both = q + q
         bkd.assert_allclose(both.value(state), 2.0 * (g + r), rtol=1e-14)
         bkd.assert_allclose(q.weights(), bkd.ones((1, 1)))
-        stacked = SteadyFunctional.stack(bkd, [q, _penalty(f, bkd)])
+        stacked = StateFunctional.stack(bkd, [q, _penalty(f, bkd)])
         assert stacked.nqoi() == 2
         bkd.assert_allclose(stacked.value(state), bkd.vstack([g + r, r]), rtol=1e-14)
         with pytest.raises(ValueError, match="needs its weights given"):
@@ -65,7 +65,7 @@ class TestTheStack:
         system = SteadySystem(pinned, f.states, BackendDenseLU(bkd))
         point = system.solve(Newton(atol=1e-13, rtol=0.0), bkd.zeros((3, 1)))
         q, q2 = quadratic_functional(f), _penalty(f, bkd)
-        stacked = SteadyDerivatives(system, SteadyFunctional.stack(bkd, [q, q2]))
+        stacked = SteadyDerivatives(system, StateFunctional.stack(bkd, [q, q2]))
         parts = [SteadyDerivatives(system, q), SteadyDerivatives(system, q2)]
         omega = bkd.asarray([[0.6], [-1.3]])
         direction = bkd.asarray([[0.5], [-0.2]])
@@ -99,4 +99,4 @@ class TestTheStack:
 
     def test_an_empty_stack(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="at least one functional"):
-            SteadyFunctional.stack(bkd, [])
+            StateFunctional.stack(bkd, [])
