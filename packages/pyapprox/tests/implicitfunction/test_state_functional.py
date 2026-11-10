@@ -16,6 +16,7 @@ solved by Newton (atol 1e-13) with dense LU; :math:`Q_2 = r` alone.
 
 import pytest
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
 from pyapprox.implicitfunction.steady_system import SteadySystem
@@ -62,7 +63,7 @@ class TestTheValue:
 class TestTheStack:
     def test_derivatives_are_the_weighted_parts(self, bkd: Backend[Array]) -> None:
         f, pinned = pinned_quadratic(bkd)
-        system = SteadySystem(pinned, f.states, BackendDenseLU(bkd))
+        system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         point = system.solve(Newton(atol=1e-13, rtol=0.0), bkd.zeros((3, 1)))
         q, q2 = quadratic_functional(f), _penalty(f, bkd)
         stacked = SteadyDerivatives(system, StateFunctional.stack(bkd, [q, q2]))

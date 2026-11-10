@@ -1,48 +1,37 @@
 r"""The steady problem :math:`R(u; p) = 0`, solved on any stack.
 
 A :class:`SteadySystem` is a residual (:class:`~pyapprox.implicitfunction.
-residual.ResidualProtocol`), its state space and a linear solver, as a
+residual.ResidualProtocol`), its state space and a setup strategy
+(:class:`~pyapprox.implicitfunction.setups.SetupStrategyProtocol`), as a
 nonlinear solver reads them
 (:class:`~pyapprox.util.rootfinding.nonlinear.NonlinearSystemProtocol`):
 the value is :math:`R`, a Newton step solves with :math:`R_u`.
 
-Solver setups are labeled so they are reused exactly when the operator
-is the same. Labels hold identity tokens and typed values, never names,
-so labels of different systems cannot be equal even in a shared cache:
-
-- A constant :math:`R_u` (an affine :math:`R`) is labeled by the
-  system's own identity and the parameter version, so one setup serves
-  every Newton step, the solved point and repeated solves until the
-  parameters change.
-- A :math:`R_u` that depends on the state is labeled with a fresh
-  identity at each Newton iterate, provisionally, and at the solved
-  point, so no setup is reused for another state.
+Every handle for :math:`R_u` is a request to the strategy, which decides
+whether to set it up or return one it kept; the system acts the same under
+every strategy. A Newton iterate is requested without a position, so its
+setup is never found again; a solved point is its own position, so a
+strategy keeping setups at solutions answers every sensitivity solve at
+the point with one setup.
 
 :meth:`SteadySystem.solve` returns a :class:`SteadyPoint`: the state, the
-parameter version it was solved at, how the solve ended, and a handle for
-:math:`R_u` at the state, set up on first request, which sensitivities
-solve with.
+parameter version it was solved at, how the solve ended, and handles for
+:math:`R_u` there, which sensitivities solve with.
 """
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Hashable, Optional, TypeVar
 
 from pyapprox.implicitfunction.residual import ResidualProtocol
-from pyapprox.implicitfunction.residual_derivatives import (
-    ResidualDerivatives,
-    ResidualJacobian,
+from pyapprox.implicitfunction.residual_derivatives import ResidualDerivatives
+from pyapprox.implicitfunction.setups import (
+    ResidualJacobianBuilder,
+    SetupStrategyProtocol,
+    SteadyRequest,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     InnerProductSpaceProtocol,
-    JacobianSnapshotProtocol,
-    KeepWithinSolve,
-    KeyedSolverProtocol,
-    LinearizationPoint,
-    LinearSolverProtocol,
-    ReuseKey,
-    ReusePolicyProtocol,
-    SolverCapabilities,
     SolverHandleProtocol,
 )
 from pyapprox.util.rootfinding.nonlinear import (
@@ -57,7 +46,8 @@ F = TypeVar("F", bound=FormatProtocol)
 
 class SteadyPoint(Generic[V, A]):
     """A solve of a :class:`SteadySystem`: where it ended, at which
-    parameters, and :math:`R_u` there.
+    parameters, and :math:`R_u` there. The point is the position its
+    state is requested at.
 
     Build with :meth:`SteadySystem.solve`.
     """
@@ -71,7 +61,6 @@ class SteadyPoint(Generic[V, A]):
     ) -> None:
         self._system = system
         self._state, self._version, self._info = state, parameters_version, info
-        self._handle: Optional[SolverHandleProtocol[V]] = None
 
     def state(self) -> V:
         """The last iterate; the solution when :meth:`converged`."""
@@ -113,18 +102,15 @@ class SteadyPoint(Generic[V, A]):
         return self._state
 
     def jacobian_handle(self) -> SolverHandleProtocol[V]:
-        r"""A handle for :math:`R_u` at the state, set up on first request
-        and kept; for a constant :math:`R_u`, the setup the solve used.
+        r"""A handle for :math:`R_u` at the solution, requested from the
+        system's strategy with this point as the position.
 
         Raises
         ------
         ValueError
             As :meth:`solution`.
         """
-        self.solution()
-        if self._handle is None:
-            self._handle = self._system.solution_handle(self._state, self._version)
-        return self._handle
+        return self._system.jacobian_handle(self.solution(), position=self)
 
     def __repr__(self) -> str:
         return (
@@ -145,11 +131,10 @@ class SteadySystem(Generic[V, A, F]):
         :math:`R`, with a Jacobian in format ``F``.
     space : InnerProductSpaceProtocol
         The state space; states are its single-column vectors.
-    solver : LinearSolverProtocol
-        Solves with :math:`R_u`; pairs with ``F``.
-    reuse : ReusePolicyProtocol, optional
-        How setups are kept; by default one is (``KeepWithinSolve(1)``),
-        enough for a constant :math:`R_u`.
+    setups : SetupStrategyProtocol
+        Sets up :math:`R_u` or returns a kept handle, with its linear
+        solver, which pairs with ``F``. Whoever changes the residual's
+        parameters calls its ``clear``.
 
     Raises
     ------
@@ -162,8 +147,7 @@ class SteadySystem(Generic[V, A, F]):
         self,
         residual: ResidualProtocol[V, F],
         space: InnerProductSpaceProtocol[V, A],
-        solver: LinearSolverProtocol[V, F],
-        reuse: Optional[ReusePolicyProtocol] = None,
+        setups: SetupStrategyProtocol[SteadyRequest[V, F], V, F],
     ) -> None:
         if not isinstance(residual, ResidualProtocol):
             raise TypeError(
@@ -182,11 +166,9 @@ class SteadySystem(Generic[V, A, F]):
             )
         self._residual, self._space = residual, space
         # Which fields are present is fixed for the residual's life.
-        self._jacobian: ResidualJacobian[V, F] = jacobian
-        policy = KeepWithinSolve(1) if reuse is None else reuse
-        self._solver: KeyedSolverProtocol[V, F] = policy.solver(solver, 1)
-        # Names this system's constant R_u; equal only to itself.
-        self._identity = object()
+        self._affine = jacobian.affine()
+        self._setups = setups
+        self._builder = ResidualJacobianBuilder(residual)
 
     def space(self) -> InnerProductSpaceProtocol[V, A]:
         return self._space
@@ -198,7 +180,7 @@ class SteadySystem(Generic[V, A, F]):
     def is_affine(self) -> bool:
         """Whether :math:`R_u` is constant, so one exact Newton step
         solves."""
-        return self._jacobian.affine()
+        return self._affine
 
     def residual_version(self) -> int:
         """The residual's current parameter version."""
@@ -208,34 +190,22 @@ class SteadySystem(Generic[V, A, F]):
         """The residual's derivatives bundle."""
         return self._residual.derivatives()
 
-    def solver_capabilities(self) -> SolverCapabilities:
-        """What the linear solver can do: whether it solves transposed."""
-        return self._solver.capabilities()
-
-    def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
-        r"""A handle for :math:`R_u` at the Newton iterate ``x``."""
-        version = self.residual_version()
-        if self.is_affine():
-            return self._constant_handle(x, version)
-        point = LinearizationPoint(version, object(), provisional=True)
-        return self._solver.setup(self._jacobian(x, point))
-
-    def solution_handle(
-        self, state: V, parameters_version: int
+    def jacobian_handle(
+        self, x: V, position: Optional[Hashable] = None
     ) -> SolverHandleProtocol[V]:
-        r"""A handle for :math:`R_u` at a solved ``state``, not provisional;
-        the constant one's kept setup when :math:`R_u` is constant."""
-        if self.is_affine():
-            return self._constant_handle(state, parameters_version)
-        point = LinearizationPoint(parameters_version, object())
-        return self._solver.setup(self._jacobian(state, point))
+        r"""A handle for :math:`R_u` at ``x``, from the strategy.
 
-    def _constant_handle(self, x: V, version: int) -> SolverHandleProtocol[V]:
-        label = LinearizationPoint(version, self._identity)
-        descriptor = self._space.descriptor()
-        return self._solver.setup_keyed(
-            ReuseKey(label, descriptor, descriptor), _Labeled(self._jacobian, x, label)
-        )
+        Parameters
+        ----------
+        x : V
+            A single column of the state space; read only while the
+            handle is formed.
+        position : hashable, optional
+            Names ``x`` when it is a solution (a :class:`SteadyPoint`);
+            None for a Newton iterate.
+        """
+        request = SteadyRequest(self._residual, x, position)
+        return self._setups.handle(request, self._builder)
 
     def solve(
         self, nonlinear: NonlinearSolverProtocol[V, A], initial_guess: V
@@ -247,16 +217,4 @@ class SteadySystem(Generic[V, A, F]):
         return SteadyPoint(self, state, version, info)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._residual!r})"
-
-
-class _Labeled(Generic[V, F]):
-    """Builds :math:`R_u` at a state under a fixed label, on demand."""
-
-    def __init__(
-        self, jacobian: ResidualJacobian[V, F], state: V, label: LinearizationPoint
-    ) -> None:
-        self._jacobian, self._state, self._label = jacobian, state, label
-
-    def __call__(self) -> JacobianSnapshotProtocol[V, F]:
-        return self._jacobian(self._state, self._label)
+        return f"{type(self).__name__}({self._residual!r}, {self._setups!r})"

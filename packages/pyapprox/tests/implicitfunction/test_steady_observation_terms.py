@@ -29,6 +29,7 @@ from pyapprox.implicitfunction.observation_terms import (
     StateEntries,
     StateObservationProtocol,
 )
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
@@ -56,7 +57,9 @@ class _Case(Generic[Array]):
     def __init__(self, bkd: Backend[Array]) -> None:
         self.bkd = bkd
         self.f, pinned = pinned_quadratic(bkd)
-        self.system = SteadySystem(pinned, self.f.states, BackendDenseLU(bkd))
+        self.system = SteadySystem(
+            pinned, self.f.states, RecomputeAlways(BackendDenseLU(bkd))
+        )
         self.observation = StateEntries(bkd, 3, _ROWS)
         self.tikhonov = TikhonovTerm(bkd, 0.3, bkd.asarray(_WEIGHT))
 

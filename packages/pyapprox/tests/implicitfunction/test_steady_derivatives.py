@@ -13,9 +13,12 @@ by Newton (``atol`` 1e-13) with dense LU, and :math:`Q = g + r` with
 - Wrong-model control: the direct :math:`Q_p` alone, without the
   adjoint's :math:`R_p^\top \lambda`, misses the gradient by more than
   1e-2 relative.
-- Setups: every adjoint and HVP solve uses the solved point's one
-  handle; a constant Jacobian is set up once for the solve and every
-  derivative.
+- Setups, cumulative after a solve of k Newton steps, the adjoint, two
+  HVPs and a tangent: ``KeepAll`` k + 1 (every derivative solve at the
+  point shares one setup), ``RecomputeAlways`` and ``KeepStateFree``
+  k + 6. Affine, a solve, the adjoint and an HVP: ``KeepAll`` and
+  ``KeepStateFree`` 1, ``RecomputeAlways`` 4. The case clears its
+  strategy whenever it sets the parameters.
 - Levels: first-order bundles give no Hessian; a functional of the
   parameters alone needs no adjoint solve.
 - Refusals: a residual without a parameter Jacobian, a term without
@@ -27,6 +30,13 @@ from typing import Callable, Generic, Tuple
 import pytest
 
 from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
+from pyapprox.implicitfunction.setups import (
+    KeepAll,
+    KeepStateFree,
+    RecomputeAlways,
+    SetupStrategyProtocol,
+    SteadyRequest,
+)
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
@@ -49,6 +59,13 @@ from tests._helpers.implicitfunction_cases import (
 )
 from tests._helpers.linalg.counting_solver import CountingSolver
 
+_StrategyOf = Callable[
+    [CountingSolver[Array, DenseFormat[Array]]],
+    SetupStrategyProtocol[
+        SteadyRequest[Array, DenseFormat[Array]], Array, DenseFormat[Array]
+    ],
+]
+
 
 class _Case(Generic[Array]):
     """The pinned quadratic, its system and the functional's derivatives."""
@@ -59,18 +76,22 @@ class _Case(Generic[Array]):
         residual_order: int = 2,
         functional_order: int = 2,
         affine: bool = False,
+        strategy: "_StrategyOf[Array]" = KeepAll,
     ) -> None:
         self.bkd = bkd
         self.f, self.pinned = pinned_quadratic(bkd, residual_order, affine)
         self.lu: CountingSolver[Array, DenseFormat[Array]] = CountingSolver(
             BackendDenseLU(bkd)
         )
-        self.system = SteadySystem(self.pinned, self.f.states, self.lu)
+        self.setups = strategy(self.lu)
+        self.system = SteadySystem(self.pinned, self.f.states, self.setups)
         self.functional = quadratic_functional(self.f, functional_order)
         self.derivs = SteadyDerivatives(self.system, self.functional)
 
     def solve(self, p: Array) -> SteadyPoint[Array, Array]:
+        # Whoever sets the parameters drops the setups kept for the old ones.
         self.f.set_param(p)
+        self.setups.clear()
         point = self.system.solve(
             Newton(atol=1e-13, rtol=0.0, maxiters=30), self.bkd.zeros((3, 1))
         )
@@ -196,6 +217,42 @@ class TestSetups:
         hessian.hvp(adjoint, bkd.ones((2, 1)))
         assert case.lu.setups == 1
 
+    @pytest.mark.parametrize(
+        "strategy, beyond_newton, affine",
+        [
+            (RecomputeAlways, 6, 4),
+            (KeepStateFree, 6, 1),
+            (KeepAll, 1, 1),
+        ],
+        ids=["RecomputeAlways", "KeepStateFree", "KeepAll"],
+    )
+    def test_counts_per_strategy(
+        self,
+        bkd: Backend[Array],
+        strategy: "_StrategyOf[Array]",
+        beyond_newton: int,
+        affine: int,
+    ) -> None:
+        """Nonlinear: k Newton setups, then the adjoint, two HVPs (two
+        solves each) and a tangent, 6 requests at the solution. Affine: one
+        Newton step, the adjoint and one HVP, 4 requests."""
+        case = _Case(bkd, strategy=strategy)
+        point = case.solve(_param(bkd))
+        k = point.info().iterations
+        hessian = case.derivs.hessian()
+        assert hessian is not None
+        adjoint = case.derivs.adjoint(point)
+        hessian.hvp(adjoint, bkd.ones((2, 1)))
+        hessian.hvp(adjoint, bkd.zeros((2, 1)) + 0.5)
+        case.derivs.tangent(point, bkd.ones((2, 1)))
+        assert case.lu.setups == k + beyond_newton
+        flat = _Case(bkd, affine=True, strategy=strategy)
+        point = flat.solve(bkd.reshape(bkd.asarray([0.0, -0.4]), (2, 1)))
+        hessian = flat.derivs.hessian()
+        assert hessian is not None
+        hessian.hvp(flat.derivs.adjoint(point), bkd.ones((2, 1)))
+        assert flat.lu.setups == affine
+
 
 class TestLevels:
     @pytest.mark.parametrize("orders", [(1, 2), (2, 1)])
@@ -225,13 +282,13 @@ class TestLevels:
 class TestRefusals:
     def test_a_residual_without_a_parameter_jacobian(self, bkd: Backend[Array]) -> None:
         f, pinned = pinned_quadratic(bkd, order=0)
-        system = SteadySystem(pinned, f.states, BackendDenseLU(bkd))
+        system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         with pytest.raises(TypeError, match="no parameter Jacobian"):
             SteadyDerivatives(system, quadratic_functional(f))
 
     def test_a_term_without_derivatives(self, bkd: Backend[Array]) -> None:
         f, pinned = pinned_quadratic(bkd)
-        system = SteadySystem(pinned, f.states, BackendDenseLU(bkd))
+        system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         with pytest.raises(TypeError, match="QuadraticStateTerm.*only evaluated"):
             SteadyDerivatives(system, quadratic_functional(f, order=0))
 

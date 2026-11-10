@@ -36,6 +36,7 @@ from scipy.sparse import csr_matrix, issparse
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
 from pyapprox.implicitfunction.residual_derivatives import DerivativeOperator
+from pyapprox.implicitfunction.setups import KeepAll
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.ode.pinned_rows import values_at_time
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
@@ -189,7 +190,7 @@ class TestTheSteadySolve:
         space = case.discretization.space()
         assert isinstance(space, InnerProductSpaceProtocol)
         lu: CountingSolver[_Np, Any] = CountingSolver(ScipySparseLU())
-        system = SteadySystem(case.pinned, space, lu)
+        system = SteadySystem(case.pinned, space, KeepAll(lu))
         assert system.is_affine()
         point = system.solve(
             Newton(atol=1e-13, rtol=0.0, maxiters=20), np.zeros((case.n, 1))

@@ -209,7 +209,8 @@ class SteadyDerivatives(Generic[V, A, F]):
     ----------
     system : SteadySystem
         :math:`R(u;\, p) = 0`; its residual's bundle must have the
-        parameter Jacobian and its solver a transpose.
+        parameter Jacobian. The adjoint solves transposed: a solver whose
+        handles have no transpose is refused at the first adjoint solve.
     functional : StateFunctional
         :math:`Q(u;\, p)`; every term's bundle must have first
         derivatives.
@@ -218,8 +219,7 @@ class SteadyDerivatives(Generic[V, A, F]):
     ------
     TypeError
         If an argument is of the wrong type, the residual's bundle has no
-        parameter Jacobian, the solver no transpose, or a term no first
-        derivatives.
+        parameter Jacobian, or a term no first derivatives.
     """
 
     def __init__(
@@ -239,10 +239,6 @@ class SteadyDerivatives(Generic[V, A, F]):
             raise TypeError(
                 "the residual's derivatives bundle has no parameter Jacobian; "
                 "the adjoint gradient needs one"
-            )
-        if not system.solver_capabilities().transpose:
-            raise TypeError(
-                "the linear solver cannot solve transposed; the adjoint needs it"
             )
         self._functional = functional
         self._linearized: _Linearized[V, A] = _Linearized(

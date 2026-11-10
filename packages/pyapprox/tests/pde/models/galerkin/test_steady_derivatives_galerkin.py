@@ -42,6 +42,7 @@ from pyapprox.implicitfunction.operator.sensitivities import (
 )
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
+from pyapprox.implicitfunction.setups import KeepAll
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
 from pyapprox.implicitfunction.steady_system import SteadySystem
@@ -183,7 +184,7 @@ def _problem(
     space = discretization.space()
     assert isinstance(space, InnerProductSpaceProtocol)
     lu: CountingSolver[_Np, Any] = CountingSolver(ScipySparseLU())
-    steady = SteadySystem(pinned, space, lu)
+    steady = SteadySystem(pinned, space, KeepAll(lu))
     new = SteadyDerivatives(
         steady,
         StateFunctional.from_terms(
