@@ -113,10 +113,11 @@ class MassFormSystem(Generic[V, A, F]):
         Converts the space's vectors to the residual's state form and
         back.
 
-    Raises
-    ------
-    TypeError
-        If the residual's bundle has no Jacobian.
+    A bundle without a Jacobian is accepted: an explicit method steps
+    forward solving with :math:`M` alone. The consumers that need
+    :math:`J` (an implicit method, the derivative sweeps) refuse such a
+    system themselves; the Jacobian-reading methods here raise
+    ``TypeError`` if called on one.
     """
 
     rhs: RightHandSideProtocol[V, F]
@@ -129,11 +130,6 @@ class MassFormSystem(Generic[V, A, F]):
         descriptor = self.space.descriptor()
         descriptor.require_same(self.mass.domain(), "domain of the mass")
         descriptor.require_same(self.mass.range(), "range of the mass")
-        if self.rhs.derivatives().jacobian is None:
-            raise TypeError(
-                f"{type(self.rhs).__name__}'s derivatives bundle has no "
-                "jacobian; a mass-form stepper needs one"
-            )
 
     def jacobian(
         self, state: V, time: float, point: LinearizationPoint
@@ -194,8 +190,8 @@ class MassFormSystem(Generic[V, A, F]):
         jacobian = self.rhs.derivatives().jacobian
         if jacobian is None:
             raise TypeError(
-                f"{type(self.rhs).__name__}'s derivatives bundle lost its "
-                "jacobian; which fields are present must not change"
+                f"{type(self.rhs).__name__}'s derivatives bundle has no "
+                "jacobian; only an explicit forward solve works without one"
             )
         return jacobian
 
@@ -225,11 +221,6 @@ def dense_mass_form_system(
         Supplies :math:`f`, its mass and a bundle with a dense Jacobian.
     solver : LinearSolverProtocol, optional
         Defaults to the backend's dense LU.
-
-    Raises
-    ------
-    TypeError
-        If the model's bundle has no Jacobian.
     """
     bkd = model.bkd()
     mass = model.mass_matrix()

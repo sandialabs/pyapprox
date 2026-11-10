@@ -520,8 +520,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
     ------
     TypeError
         If the method does not satisfy its protocol, is implicit and no
-        nonlinear solver is given, or ``row_pinning`` or ``reuse`` does not
-        satisfy its protocol.
+        nonlinear solver is given or the residual's bundle has no
+        Jacobian, or ``row_pinning`` or ``reuse`` does not satisfy its
+        protocol.
     """
 
     def __init__(
@@ -548,6 +549,11 @@ class LinearMultistepStepper(Generic[V, A, F]):
         if not method.is_explicit() and nonlinear_solver is None:
             raise TypeError(
                 f"{method.name} is implicit, so it needs a nonlinear solver"
+            )
+        if not method.is_explicit() and system.rhs.derivatives().jacobian is None:
+            raise TypeError(
+                f"{method.name} is implicit, solving with the Jacobian; "
+                f"{type(system.rhs).__name__}'s derivatives bundle has none"
             )
         if row_pinning is not None and not isinstance(row_pinning, RowPinningProtocol):
             raise TypeError(
@@ -1158,9 +1164,12 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def derivatives(self) -> StepperDerivatives[V]:
         """The step's derivatives, as far as the residual's bundle goes:
         the coupling to the stored states always, the parameters with the
-        bundle's ``param``, the second derivatives with its second order.
-        Valid for the parameters set when fetched."""
+        bundle's ``param``, the second derivatives with its second order;
+        none without the bundle's Jacobian. Valid for the parameters set
+        when fetched."""
         bundle = self._system.rhs.derivatives()
+        if bundle.jacobian is None:
+            return StepperDerivatives.none()
         if bundle.param is None:
             return StepperDerivatives.state_only(self._off_diag)
         if bundle.state_state is None:

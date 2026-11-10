@@ -150,7 +150,8 @@ def _zeroed_derivatives(
     is adjusted, absent ones stay absent, and a stated zero stays one."""
     jacobian = bundle.jacobian
     if jacobian is None:
-        raise TypeError("a right-hand side's bundle needs a Jacobian")
+        # Without a Jacobian the bundle has no other field either.
+        return bundle
     param = bundle.param
     state_state = bundle.state_state
     state_param = bundle.state_param

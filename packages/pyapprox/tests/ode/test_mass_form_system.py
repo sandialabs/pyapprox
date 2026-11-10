@@ -7,7 +7,8 @@ backends:
 - after the residual replaces its bundle (c from 1 to 2.5), a system built
   before the change gives the new Jacobian, so it holds no copy that could
   disagree with the residual;
-- a residual whose bundle has no Jacobian is refused at construction;
+- a residual whose bundle has no Jacobian makes a system (an explicit
+  forward solve needs none), which refuses when asked for the Jacobian;
 - reuse labels follow the Jacobian's level: none for a general one, one
   for every time for a constant one (but per parameter version and per
   key), one per time for a state-free one.
@@ -106,11 +107,12 @@ class TestTheJacobianIsTheResiduals:
         residual.set_scale(2.5)
         bkd.assert_allclose(_matrix(bkd, system), 2.5 * bkd.asarray(LINEAR_K), rtol=0.0)
 
-    def test_a_residual_without_a_jacobian_is_refused(
+    def test_a_residual_without_a_jacobian_has_none_to_give(
         self, bkd: Backend[Array]
     ) -> None:
+        system = dense_mass_form_system(_NoJacobian(bkd))
         with pytest.raises(TypeError, match="has no jacobian"):
-            dense_mass_form_system(_NoJacobian(bkd))
+            _matrix(bkd, system)
 
 
 class _GrowingK(Generic[Array]):
