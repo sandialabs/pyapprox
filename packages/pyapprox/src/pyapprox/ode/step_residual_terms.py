@@ -32,7 +32,7 @@ solved stepper's parameter version, not this one's.
 from typing import Dict, Generic, Optional, TypeVar
 
 from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
-from pyapprox.ode.observation_terms import ObservationOperatorProtocol
+from pyapprox.implicitfunction.observation_terms import StateObservationProtocol
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
 from pyapprox.ode.stepper_derivatives import (
     StepOperator,
@@ -59,7 +59,7 @@ class LastBlock(Generic[V, A]):
 
     Parameters
     ----------
-    observation : ObservationOperatorProtocol
+    observation : StateObservationProtocol
         :math:`H`, on a single block.
     residual_space : BlockInnerProductSpace
         The step residual's space.
@@ -68,17 +68,17 @@ class LastBlock(Generic[V, A]):
     ------
     TypeError
         If ``observation`` does not satisfy
-        :class:`ObservationOperatorProtocol`.
+        :class:`StateObservationProtocol`.
     """
 
     def __init__(
         self,
-        observation: ObservationOperatorProtocol[V, A],
+        observation: StateObservationProtocol[V, A],
         residual_space: BlockInnerProductSpace[V, A],
     ) -> None:
-        if not isinstance(observation, ObservationOperatorProtocol):
+        if not isinstance(observation, StateObservationProtocol):
             raise TypeError(
-                "observation must satisfy ObservationOperatorProtocol, got "
+                "observation must satisfy StateObservationProtocol, got "
                 f"{type(observation).__name__}"
             )
         self._observation, self._space = observation, residual_space
@@ -119,7 +119,7 @@ class StepResidualTerm(Generic[V, A]):
         The unconstrained stepper: the solved stepper's method on the
         system before its rows were replaced, reading the same
         parameters.
-    observation : ObservationOperatorProtocol
+    observation : StateObservationProtocol
         :math:`\Omega`, on the step residual (a block vector of the
         stepper's residual space), e.g. :class:`LastBlock`.
 
@@ -132,16 +132,16 @@ class StepResidualTerm(Generic[V, A]):
     def __init__(
         self,
         stepper: DifferentiableStepperProtocol[V, A],
-        observation: ObservationOperatorProtocol[BlockVector[V], A],
+        observation: StateObservationProtocol[BlockVector[V], A],
     ) -> None:
         if not isinstance(stepper, DifferentiableStepperProtocol):
             raise TypeError(
                 "stepper must satisfy DifferentiableStepperProtocol, got "
                 f"{type(stepper).__name__}"
             )
-        if not isinstance(observation, ObservationOperatorProtocol):
+        if not isinstance(observation, StateObservationProtocol):
             raise TypeError(
-                "observation must satisfy ObservationOperatorProtocol, got "
+                "observation must satisfy StateObservationProtocol, got "
                 f"{type(observation).__name__}"
             )
         self._stepper, self._observation = stepper, observation

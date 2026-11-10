@@ -44,6 +44,7 @@ from typing import Callable, Generic
 
 import pytest
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -63,7 +64,7 @@ from pyapprox.ode.multistep_methods import (
     adams_moulton3,
     bdf2,
 )
-from pyapprox.ode.observation_terms import MisfitTerm, StateEntries
+from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow

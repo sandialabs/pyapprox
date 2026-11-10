@@ -31,6 +31,7 @@ from typing import Any, Callable, Generic, Optional
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -41,7 +42,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import bdf2
-from pyapprox.ode.observation_terms import StateEntries
 from pyapprox.ode.pinned_rows import RowPinning
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.step_residual_terms import LastBlock, StepResidualTerm
@@ -207,9 +207,9 @@ class TestTheFlux:
         )
         with pytest.raises(TypeError, match="DifferentiableStepperProtocol"):
             StepResidualTerm(object(), prey)  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="ObservationOperatorProtocol"):
+        with pytest.raises(TypeError, match="StateObservationProtocol"):
             StepResidualTerm(case.unconstrained, object())  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="ObservationOperatorProtocol"):
+        with pytest.raises(TypeError, match="StateObservationProtocol"):
             LastBlock(object(), case.unconstrained.residual_space())  # type: ignore[arg-type]
 
 

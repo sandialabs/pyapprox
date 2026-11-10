@@ -9,6 +9,7 @@ from typing import Callable, Generic, List, Optional, Union
 import numpy as np
 
 from pyapprox.implicitfunction.functional_terms import BackendScalarGradient
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -28,7 +29,7 @@ from pyapprox.ode.integration import (
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
-from pyapprox.ode.observation_terms import MisfitTerm, TikhonovTerm
+from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,

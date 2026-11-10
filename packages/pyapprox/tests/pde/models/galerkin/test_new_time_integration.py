@@ -43,6 +43,7 @@ from typing import Any, Callable, List, Literal, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.ode.differentiated_rows import (
     CoupledRows,
     SymmetricRows,
@@ -55,7 +56,7 @@ from pyapprox.ode.integration import (
     Integrator,
     ResidualFormConstraint,
 )
-from pyapprox.ode.observation_terms import EndpointTerm, StateEntries
+from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.pinned_rows import PinnedRowsConstraint, RowPinning
 from pyapprox.ode.protocols import StateConstraintProtocol

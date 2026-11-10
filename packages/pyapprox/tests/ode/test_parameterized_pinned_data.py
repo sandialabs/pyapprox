@@ -32,6 +32,7 @@ from typing import Callable, Generic, List, Optional
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -51,7 +52,7 @@ from pyapprox.ode.integration import (
 )
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import bdf2
-from pyapprox.ode.observation_terms import EndpointTerm, MisfitTerm, StateEntries
+from pyapprox.ode.observation_terms import EndpointTerm, MisfitTerm
 from pyapprox.ode.pinned_rows import (
     AtEveryBlock,
     AtStepEnd,

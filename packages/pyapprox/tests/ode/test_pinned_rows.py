@@ -33,9 +33,10 @@ from typing import Callable, Generic, List, Optional
 
 import pytest
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
-from pyapprox.ode.observation_terms import MisfitTerm, StateEntries
+from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.pinned_rows import (
     AtEveryBlock,
     AtStepEnd,

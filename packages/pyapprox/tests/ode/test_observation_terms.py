@@ -1,4 +1,5 @@
-r"""The native observation, misfit, endpoint and Tikhonov terms.
+r"""The misfit and endpoint stored-state terms, with the core Tikhonov
+term, on a trajectory.
 
 Lotka-Volterra with a mass from (10, 5), parameters (1, 0.1, 0.075, 1.5),
 ten steps of 0.05 by Heun.
@@ -17,10 +18,10 @@ ten steps of 0.05 by Heun.
   inner product, passes the checker for backward Euler, first and state
   second derivatives (the stepper has no parameters): the term reaches
   states only through its observation.
-- Refusals: empty or out-of-range entries; an empty misfit, a negative
-  index, data of the wrong shape, a non-operator, a non-positive noise;
-  values of the wrong length; a non-square or asymmetric weight, an unset
-  or non-column parameter; an endpoint of a non-operator.
+- Refusals: an empty misfit, a negative index, data of the wrong shape,
+  a non-operator, a non-positive noise; values of the wrong length; an
+  endpoint of a non-operator. The one-state terms' own refusals are
+  tested in ``tests/implicitfunction/test_observation_terms.py``.
 """
 
 from typing import Any, Generic
@@ -28,15 +29,14 @@ from typing import Any, Generic
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.observation_terms import (
+    StateEntries,
+    StateObservationProtocol,
+)
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.integration import Integrator
-from pyapprox.ode.observation_terms import (
-    EndpointTerm,
-    MisfitTerm,
-    ObservationOperatorProtocol,
-    StateEntries,
-    TikhonovTerm,
-)
+from pyapprox.ode.observation_terms import EndpointTerm, MisfitTerm
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.tableau import backward_euler, heun
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
@@ -200,7 +200,7 @@ class TestOnAnOpaqueStack:
             mock_sample(space.descriptor(), 3), GivenSizes(0.0, [0.1] * 4), store
         )
         observation = _MockEntry(space, mock_sample(space.descriptor(), 5))
-        assert isinstance(observation, ObservationOperatorProtocol)
+        assert isinstance(observation, StateObservationProtocol)
         data = {1: bkd.asarray([[0.4]]), 4: bkd.asarray([[-0.2]])}
         misfit: MisfitTerm[MockVector, NDArray[Any]] = MisfitTerm(
             bkd, {index: (observation, datum) for index, datum in data.items()}
@@ -219,12 +219,6 @@ class TestOnAnOpaqueStack:
 
 
 class TestRefusals:
-    def test_state_entries(self, bkd: Backend[Array]) -> None:
-        with pytest.raises(ValueError, match="at least one entry"):
-            StateEntries(bkd, 2, [])
-        with pytest.raises(ValueError, match="not all in"):
-            StateEntries(bkd, 2, [0, 2])
-
     def test_misfit(self, bkd: Backend[Array]) -> None:
         entries = StateEntries(bkd, 2, [0])
         datum = bkd.asarray([[1.0]])
@@ -234,24 +228,13 @@ class TestRefusals:
             MisfitTerm(bkd, {-1: (entries, datum)})
         with pytest.raises(ValueError, match="must have shape"):
             MisfitTerm(bkd, {0: (entries, bkd.asarray([[1.0], [2.0]]))})
-        with pytest.raises(TypeError, match="ObservationOperatorProtocol"):
+        with pytest.raises(TypeError, match="StateObservationProtocol"):
             MisfitTerm(bkd, {0: (object(), datum)})  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="positive"):
             MisfitTerm(bkd, {0: (entries, datum)}, noise_std=0.0)
         with pytest.raises(ValueError, match="one datum per observation|shape"):
             MisfitTerm.from_state_times(bkd, 2, [(0, (1, 2))], bkd.asarray([1.0]))
 
-    def test_tikhonov(self, bkd: Backend[Array]) -> None:
-        with pytest.raises(ValueError, match="square"):
-            TikhonovTerm(bkd, 1.0, bkd.ones((2, 3)))
-        with pytest.raises(ValueError, match="symmetric"):
-            TikhonovTerm(bkd, 1.0, bkd.asarray([[1.0, 2.0], [0.0, 1.0]]))
-        term = TikhonovTerm(bkd, 1.0)
-        with pytest.raises(ValueError, match="set_param"):
-            term.value()
-        with pytest.raises(ValueError, match="column"):
-            term.set_param(bkd.ones((2,)))
-
     def test_endpoint(self) -> None:
-        with pytest.raises(TypeError, match="ObservationOperatorProtocol"):
+        with pytest.raises(TypeError, match="StateObservationProtocol"):
             EndpointTerm(object())  # type: ignore[arg-type]

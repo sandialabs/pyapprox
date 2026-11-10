@@ -42,10 +42,10 @@ from typing import Any, Callable, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.differentiated_rows import differentiated_rows
 from pyapprox.ode.integration import Integrator
-from pyapprox.ode.observation_terms import StateEntries
 from pyapprox.ode.pinned_rows import RowPinning
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
 from pyapprox.ode.residual_derivatives import STATED_ZERO

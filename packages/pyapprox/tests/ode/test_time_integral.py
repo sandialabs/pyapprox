@@ -55,6 +55,7 @@ from pyapprox.implicitfunction.functional_terms import (
 )
 from pyapprox.implicitfunction.mapped_terms import MappedStateTerm
 from pyapprox.implicitfunction.state_functional import StateFunctional
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -70,7 +71,6 @@ from pyapprox.ode.multistep_methods import (
     adams_bashforth2,
     bdf2,
 )
-from pyapprox.ode.observation_terms import TikhonovTerm
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import backward_euler, classical_rk4, heun
