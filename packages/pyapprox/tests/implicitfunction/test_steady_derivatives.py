@@ -22,7 +22,8 @@ by Newton (``atol`` 1e-13) with dense LU, and :math:`Q = g + r` with
 - Levels: first-order bundles give no Hessian; a functional of the
   parameters alone needs no adjoint solve.
 - Refusals: a residual without a parameter Jacobian, a term without
-  derivatives, a stale adjoint, a multi-column direction.
+  derivatives, a stale adjoint, a multi-column direction; arguments of
+  the wrong type, a point among them.
 """
 
 from typing import Callable, Generic, Tuple
@@ -86,7 +87,7 @@ class _Case(Generic[Array]):
         self.setups = strategy(self.lu)
         self.system = SteadySystem(self.pinned, self.f.states, self.setups)
         self.functional = quadratic_functional(self.f, functional_order)
-        self.derivs = SteadyDerivatives(self.system, self.functional)
+        self.derivs = SteadyDerivatives(self.pinned, self.f.states, self.functional)
 
     def solve(self, p: Array) -> SteadyPoint[Array, Array]:
         # Whoever sets the parameters drops the setups kept for the old ones.
@@ -270,7 +271,7 @@ class TestLevels:
         functional: StateFunctional[Array, Array] = StateFunctional.from_terms(
             bkd, 1, parameter_terms=(QuadraticParameterTerm(case.f),)
         )
-        derivs = SteadyDerivatives(case.system, functional)
+        derivs = SteadyDerivatives(case.pinned, case.f.states, functional)
         p = _param(bkd)
         point = case.solve(p)
         setups = case.lu.setups
@@ -282,15 +283,13 @@ class TestLevels:
 class TestRefusals:
     def test_a_residual_without_a_parameter_jacobian(self, bkd: Backend[Array]) -> None:
         f, pinned = pinned_quadratic(bkd, order=0)
-        system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         with pytest.raises(TypeError, match="no parameter Jacobian"):
-            SteadyDerivatives(system, quadratic_functional(f))
+            SteadyDerivatives(pinned, f.states, quadratic_functional(f))
 
     def test_a_term_without_derivatives(self, bkd: Backend[Array]) -> None:
         f, pinned = pinned_quadratic(bkd)
-        system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         with pytest.raises(TypeError, match="QuadraticStateTerm.*only evaluated"):
-            SteadyDerivatives(system, quadratic_functional(f, order=0))
+            SteadyDerivatives(pinned, f.states, quadratic_functional(f, order=0))
 
         class _ValueOnly(QuadraticParameterTerm[Array]):
             def derivatives(self) -> ParameterTermDerivatives[Array, Array]:
@@ -300,7 +299,7 @@ class TestRefusals:
             bkd, 1, parameter_terms=(_ValueOnly(f),)
         )
         with pytest.raises(TypeError, match="_ValueOnly.*only evaluated"):
-            SteadyDerivatives(system, functional)
+            SteadyDerivatives(pinned, f.states, functional)
 
     def test_a_stale_adjoint(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd)
@@ -319,7 +318,15 @@ class TestRefusals:
         with pytest.raises(ValueError, match="weights must have shape"):
             case.derivs.adjoint(adjoint.point, bkd.ones((2, 1)))
         f: QuadraticResidual[Array] = QuadraticResidual(bkd)
-        with pytest.raises(TypeError, match="SteadySystem"):
-            SteadyDerivatives(3.0, quadratic_functional(f))  # type: ignore[arg-type]
+        functional = quadratic_functional(f)
+        with pytest.raises(TypeError, match="ResidualProtocol"):
+            SteadyDerivatives(3.0, f.states, functional)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="InnerProductSpaceProtocol"):
+            SteadyDerivatives(f, 3.0, functional)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="StateFunctional"):
-            SteadyDerivatives(case.system, 3.0)  # type: ignore[arg-type]
+            SteadyDerivatives(f, f.states, 3.0)  # type: ignore[arg-type]
+        for method in (case.derivs.value, case.derivs.adjoint):
+            with pytest.raises(TypeError, match="SteadyPointProtocol"):
+                method(3.0)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="SteadyPointProtocol"):
+            case.derivs.tangent(3.0, bkd.ones((2, 1)))  # type: ignore[arg-type]

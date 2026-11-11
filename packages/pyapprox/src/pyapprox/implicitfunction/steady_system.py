@@ -22,7 +22,6 @@ parameter version it was solved at, how the solve ended, and handles for
 from typing import Generic, Hashable, Optional, TypeVar
 
 from pyapprox.implicitfunction.residual import ResidualProtocol
-from pyapprox.implicitfunction.residual_derivatives import ResidualDerivatives
 from pyapprox.implicitfunction.setups import (
     ResidualJacobianBuilder,
     SetupStrategyProtocol,
@@ -185,10 +184,6 @@ class SteadySystem(Generic[V, A, F]):
     def residual_version(self) -> int:
         """The residual's current parameter version."""
         return self._residual.parameters_version()
-
-    def residual_derivatives(self) -> ResidualDerivatives[V, F]:
-        """The residual's derivatives bundle."""
-        return self._residual.derivatives()
 
     def jacobian_handle(
         self, x: V, position: Optional[Hashable] = None

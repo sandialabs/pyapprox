@@ -28,15 +28,24 @@ Hessian-vector product along :math:`v`
     R_u^\top \mu = -(L_{uu}\, \delta u + L_{up}\, v), \qquad
     \nabla^2 q\, v = L_{pu}\, \delta u + L_{pp}\, v + R_p^\top \mu.
 
-Every solve is with :math:`R_u` at the solved state, on the one handle of
-the :class:`~pyapprox.implicitfunction.steady_system.SteadyPoint`
-(transposed for the adjoints), so a constant :math:`R_u` is set up once
-for the solve and all its derivatives, and a state-dependent one once
-more, at the solution.
+Every solve is with :math:`R_u` at the solved state, on a handle the
+solved point gives (:class:`SteadyPointProtocol`; transposed for the
+adjoints). How often :math:`R_u` is set up is the point's business: a
+:class:`~pyapprox.implicitfunction.steady_system.SteadyPoint` asks its
+system's setup strategy.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Generic, List, Optional, Tuple, TypeVar
+from typing import (
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
@@ -49,16 +58,17 @@ from pyapprox.implicitfunction.functional_terms import (
     state_first_derivatives,
     state_second_derivatives,
 )
+from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.residual_derivatives import (
     ResidualParamFn,
     ResidualSecondDerivativeFn,
 )
 from pyapprox.implicitfunction.state_functional import StateFunctional
-from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     InnerProductSpaceProtocol,
+    SolverHandleProtocol,
     VectorSpaceProtocol,
 )
 
@@ -67,14 +77,38 @@ A = TypeVar("A", bound=ArrayProtocol)
 F = TypeVar("F", bound=FormatProtocol)
 
 
+@runtime_checkable
+class SteadyPointProtocol(Protocol[V]):
+    r"""A solved point of :math:`R(u;\, p) = 0`, as the derivatives read
+    it."""
+
+    def solution(self) -> V:
+        """The solved state; raises ``ValueError`` when it is not a
+        solution of the current residual."""
+        ...
+
+    def jacobian_handle(self) -> SolverHandleProtocol[V]:
+        r"""A handle for :math:`R_u` at the solution; raises as
+        :meth:`solution`."""
+        ...
+
+
 @dataclass(frozen=True)
 class SteadyAdjoint(Generic[V, A]):
     r"""The adjoint :math:`\lambda` of a solve for value weights
     :math:`\omega`. Build with :meth:`SteadyDerivatives.adjoint`."""
 
-    point: SteadyPoint[V, A]
+    point: SteadyPointProtocol[V]
     weights: A
     vector: V
+
+
+def _checked(point: SteadyPointProtocol[V]) -> SteadyPointProtocol[V]:
+    if not isinstance(point, SteadyPointProtocol):
+        raise TypeError(
+            f"point must satisfy SteadyPointProtocol, got {type(point).__name__}"
+        )
+    return point
 
 
 class _Linearized(Generic[V, A]):
@@ -93,7 +127,7 @@ class _Linearized(Generic[V, A]):
         r""":math:`R_p^\top \lambda`, a new vector."""
         return self.params.copy(self._residual_param(state).apply_transpose(adjoint))
 
-    def state_tangent(self, point: SteadyPoint[V, A], state: V, direction: V) -> V:
+    def state_tangent(self, point: SteadyPointProtocol[V], state: V, direction: V) -> V:
         r""":math:`\delta u` solving :math:`R_u\, \delta u = -R_p v`: the
         state's derivative along ``direction``.
 
@@ -108,7 +142,7 @@ class _Linearized(Generic[V, A]):
         rhs = self._residual_param(state).apply(direction)
         return self.solve(point, self.space.scale(-1.0, rhs), False)
 
-    def solve(self, point: SteadyPoint[V, A], rhs: V, transpose: bool) -> V:
+    def solve(self, point: SteadyPointProtocol[V], rhs: V, transpose: bool) -> V:
         r"""Solve with :math:`R_u` (:math:`R_u^\top` when ``transpose``) on
         ``point``'s handle.
 
@@ -205,12 +239,18 @@ class SteadyDerivatives(Generic[V, A, F]):
     r"""The adjoint gradient of a steady functional, and its Hessian-vector
     product when every bundle carries second derivatives.
 
+    The methods take any solved point of the residual
+    (:class:`SteadyPointProtocol`), such as a
+    :class:`~pyapprox.implicitfunction.steady_system.SteadyPoint`.
+
     Parameters
     ----------
-    system : SteadySystem
-        :math:`R(u;\, p) = 0`; its residual's bundle must have the
-        parameter Jacobian. The adjoint solves transposed: a solver whose
-        handles have no transpose is refused at the first adjoint solve.
+    residual : ResidualProtocol
+        :math:`R(u;\, p)`; its bundle must have the parameter Jacobian.
+        The adjoint solves transposed: a point whose handle has no
+        transpose is refused at the first adjoint solve.
+    space : InnerProductSpaceProtocol
+        The state space.
     functional : StateFunctional
         :math:`Q(u;\, p)`; every term's bundle must have first
         derivatives.
@@ -223,18 +263,26 @@ class SteadyDerivatives(Generic[V, A, F]):
     """
 
     def __init__(
-        self, system: SteadySystem[V, A, F], functional: StateFunctional[V, A]
+        self,
+        residual: ResidualProtocol[V, F],
+        space: InnerProductSpaceProtocol[V, A],
+        functional: StateFunctional[V, A],
     ) -> None:
-        if not isinstance(system, SteadySystem):
+        if not isinstance(residual, ResidualProtocol):
             raise TypeError(
-                f"system must be a SteadySystem, got {type(system).__name__}"
+                f"residual must satisfy ResidualProtocol, got {type(residual).__name__}"
+            )
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError(
+                "space must satisfy InnerProductSpaceProtocol, got "
+                f"{type(space).__name__}"
             )
         if not isinstance(functional, StateFunctional):
             raise TypeError(
                 "functional must be a StateFunctional, got "
                 f"{type(functional).__name__}"
             )
-        bundle = system.residual_derivatives()
+        bundle = residual.derivatives()
         if bundle.param is None or bundle.param_space is None:
             raise TypeError(
                 "the residual's derivatives bundle has no parameter Jacobian; "
@@ -242,7 +290,7 @@ class SteadyDerivatives(Generic[V, A, F]):
             )
         self._functional = functional
         self._linearized: _Linearized[V, A] = _Linearized(
-            system.space(), bundle.param_space, bundle.param
+            space, bundle.param_space, bundle.param
         )
         # The first derivatives of Q's terms, one entry per term; every
         # state term reads the one solved state.
@@ -269,13 +317,14 @@ class SteadyDerivatives(Generic[V, A, F]):
                 tuple(state_second_derivatives(functional.state_terms)),
             )
 
-    def value(self, point: SteadyPoint[V, A]) -> A:
+    def value(self, point: SteadyPointProtocol[V]) -> A:
         """:math:`Q(u)` at a solved point (refused as :meth:`~pyapprox.
-        implicitfunction.steady_system.SteadyPoint.solution` refuses)."""
-        return self._functional.value(point.solution())
+        implicitfunction.steady_system.SteadyPoint.solution` refuses, and
+        with ``TypeError`` if ``point`` is not a :class:`SteadyPointProtocol`)."""
+        return self._functional.value(_checked(point).solution())
 
     def adjoint(
-        self, point: SteadyPoint[V, A], weights: Optional[A] = None
+        self, point: SteadyPointProtocol[V], weights: Optional[A] = None
     ) -> SteadyAdjoint[V, A]:
         r""":math:`\lambda` for the value weights ``weights``
         (:math:`\omega = 1` for a scalar functional): one transposed solve,
@@ -283,12 +332,14 @@ class SteadyDerivatives(Generic[V, A, F]):
 
         Raises
         ------
+        TypeError
+            If ``point`` is not a :class:`SteadyPointProtocol`.
         ValueError
             If the point is not a solution of the current residual, the
             weights have the wrong shape, or the solve fails.
         """
         lin = self._linearized
-        state = point.solution()
+        state = _checked(point).solution()
         omega = self._functional.weights(weights)
         rhs: Optional[V] = None
         for term in self._state_terms:
@@ -323,19 +374,21 @@ class SteadyDerivatives(Generic[V, A, F]):
                 total = _add(total, by_param.apply_transpose(omega), lin.params)
         return total
 
-    def tangent(self, point: SteadyPoint[V, A], direction: V) -> A:
+    def tangent(self, point: SteadyPointProtocol[V], direction: V) -> A:
         r""":math:`dQ\, v = Q_u\, \delta u + Q_p v` with :math:`R_u\, \delta
         u = -R_p v`: every entry's derivative along ``direction``, a column
         of ``nqoi`` entries, from one solve.
 
         Raises
         ------
+        TypeError
+            If ``point`` is not a :class:`SteadyPointProtocol`.
         ValueError
             If the point is not a solution of the current residual,
             ``direction`` is not one parameter vector, or the solve fails.
         """
         lin = self._linearized
-        state = point.solution()
+        state = _checked(point).solution()
         delta = lin.state_tangent(point, state, direction)
         total = self._functional.zero
         for wrt_param in self._parameter_terms:

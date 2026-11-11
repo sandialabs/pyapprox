@@ -9,9 +9,10 @@ the indicator of the first free node (``WeightedSumFunctional``).
 
 Old: ``AdjointOperator`` and ``ForwardSensitivityOperator`` on
 ``GalerkinParameterizedStateEquation``. New:
-``SteadyDerivatives`` on ``SteadySystem`` (stack ``Newton``, atol 1e-13,
-SuperLU) of the pinned unconstrained right-hand side at t = 0, with the
-functional wrapped as a state term (``SteadyFunctionalTerm``). The
+``SteadyDerivatives`` of the pinned unconstrained right-hand side at
+t = 0, on the point ``SteadySystem`` solves (stack ``Newton``, atol 1e-13,
+SuperLU, ``KeepAll``), with the functional wrapped as a state term
+(``SteadyFunctionalTerm``). The
 gradient and the forward product along v = (0.5, 0.7, -0.6) agree to
 1e-12 and the HVP along v to 1e-10, relative; one factorization per
 Newton step plus one at the solution serves the adjoint, the forward
@@ -186,7 +187,8 @@ def _problem(
     lu: CountingSolver[_Np, Any] = CountingSolver(ScipySparseLU())
     steady = SteadySystem(pinned, space, KeepAll(lu))
     new = SteadyDerivatives(
-        steady,
+        pinned,
+        space,
         StateFunctional.from_terms(
             bkd, 1, state_terms=(SteadyFunctionalTerm(functional, _Fixed(_PARAM)),)
         ),

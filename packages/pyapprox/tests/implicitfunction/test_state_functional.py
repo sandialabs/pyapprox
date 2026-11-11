@@ -66,8 +66,13 @@ class TestTheStack:
         system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         point = system.solve(Newton(atol=1e-13, rtol=0.0), bkd.zeros((3, 1)))
         q, q2 = quadratic_functional(f), _penalty(f, bkd)
-        stacked = SteadyDerivatives(system, StateFunctional.stack(bkd, [q, q2]))
-        parts = [SteadyDerivatives(system, q), SteadyDerivatives(system, q2)]
+        stacked = SteadyDerivatives(
+            pinned, f.states, StateFunctional.stack(bkd, [q, q2])
+        )
+        parts = [
+            SteadyDerivatives(pinned, f.states, q),
+            SteadyDerivatives(pinned, f.states, q2),
+        ]
         omega = bkd.asarray([[0.6], [-1.3]])
         direction = bkd.asarray([[0.5], [-0.2]])
 

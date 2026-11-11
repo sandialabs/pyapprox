@@ -56,9 +56,9 @@ class _Case(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self.bkd = bkd
-        self.f, pinned = pinned_quadratic(bkd)
+        self.f, self.pinned = pinned_quadratic(bkd)
         self.system = SteadySystem(
-            pinned, self.f.states, RecomputeAlways(BackendDenseLU(bkd))
+            self.pinned, self.f.states, RecomputeAlways(BackendDenseLU(bkd))
         )
         self.observation = StateEntries(bkd, 3, _ROWS)
         self.tikhonov = TikhonovTerm(bkd, 0.3, bkd.asarray(_WEIGHT))
@@ -103,7 +103,7 @@ class TestTheMisfitAndTikhonovTerms:
     def test_the_value(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd)
         p = _param(bkd)
-        derivs = SteadyDerivatives(case.system, case.misfit_functional())
+        derivs = SteadyDerivatives(case.pinned, case.f.states, case.misfit_functional())
         point = case.solve(p)
         u = case.system.space().copy(point.solution())
         residual = u[1:3] - bkd.asarray(_DATA)
@@ -114,7 +114,7 @@ class TestTheMisfitAndTikhonovTerms:
 
     def test_gradient_and_hvp(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd)
-        derivs = SteadyDerivatives(case.system, case.misfit_functional())
+        derivs = SteadyDerivatives(case.pinned, case.f.states, case.misfit_functional())
         hessian = derivs.hessian()
         assert hessian is not None
 
@@ -144,7 +144,7 @@ class TestTheObservedValue:
         functional: StateFunctional[Array, Array] = StateFunctional.from_terms(
             bkd, 2, state_terms=(ObservedValue(case.observation),)
         )
-        derivs = SteadyDerivatives(case.system, functional)
+        derivs = SteadyDerivatives(case.pinned, case.f.states, functional)
 
         def value(p: Array) -> Array:
             return derivs.value(case.solve(p))
