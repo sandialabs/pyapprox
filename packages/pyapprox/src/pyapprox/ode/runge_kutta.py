@@ -29,9 +29,7 @@ tableau. States are stack vectors, converted to the residual's form only
 where :math:`f` and :math:`J` are called.
 """
 
-from itertools import count
 from typing import (
-    Dict,
     Generic,
     List,
     Optional,
@@ -73,9 +71,7 @@ from pyapprox.util.linalg.operators import (
     IdentityOperator,
     InnerProductSpaceProtocol,
     KeepWithinSolve,
-    KeyedSolverProtocol,
     LinearizationPoint,
-    LinearizedOperator,
     LinearMapProtocol,
     Product,
     ReusePolicyProtocol,
@@ -164,19 +160,12 @@ class _StageSystem(Generic[V, A, F]):
 
 
 class _RungeKuttaSession(Generic[V, A, F]):
-    """One solve's steps of a :class:`RungeKuttaStepper`.
-
-    The implicit stages are set up through the stepper's setup strategy,
-    which decides what is kept and for how long. The session keeps only
-    the sweeps' diagonal blocks that are :math:`M` alone, through one
-    keyed solver made by the stepper's reuse policy for the session.
-    """
+    """One solve's steps of a :class:`RungeKuttaStepper`: the stepper's
+    own, since every setup goes through its setup strategy, which decides
+    what is kept and for how long."""
 
     def __init__(self, stepper: "RungeKuttaStepper[V, A, F]") -> None:
         self._stepper = stepper
-        self._solver: KeyedSolverProtocol[V, F] = stepper.reuse().solver(
-            stepper.system().solver, stepper._distinct_mass_blocks()
-        )
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`RungeKuttaStepper.step`)."""
@@ -186,9 +175,8 @@ class _RungeKuttaSession(Generic[V, A, F]):
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
         """The step's diagonal handle (see
-        :meth:`RungeKuttaStepper.diag_handle`), its blocks set up through
-        this session."""
-        return self._stepper._diag_handle(window, self._solver)
+        :meth:`RungeKuttaStepper.diag_handle`)."""
+        return self._stepper.diag_handle(window)
 
 
 class _TableauExtension(Generic[V, A, F]):
@@ -266,16 +254,25 @@ class _TableauExtension(Generic[V, A, F]):
             self._curvature_wrt_param,
         )
 
+    def _handle(self, window: StepWindow[V], time: float) -> SolverHandleProtocol[V]:
+        """:math:`E`'s handle, from the stepper's setup strategy: the
+        request of the block producing :math:`y_{n+1}`."""
+        return self._stepper._mass_block_handle(
+            self._last(), time, window.past_state(1)
+        )
+
     def _solved(
-        self, op: Optional[ActionOperatorProtocol[V, G]]
+        self,
+        op: Optional[ActionOperatorProtocol[V, G]],
+        window: StepWindow[V],
+        time: float,
     ) -> Optional[LinearMapProtocol[V]]:
         r""":math:`E^{-1} P\, \mathrm{op}`, or None for a zero ``op``."""
         if op is None:
             return None
-        stepper = self._stepper
-        pin = stepper._block_pin(self._last())
+        pin = self._stepper._block_pin(self._last())
         coupled = op if pin is None else pin.coupled(op)
-        return Product([stepper._mass_block_handle(self._last()), coupled])
+        return Product([self._handle(window, time), coupled])
 
     def _wrt_unknown(self, window: StepWindow[V], time: float) -> StepOperator[V]:
         stepper = self._stepper
@@ -291,7 +288,7 @@ class _TableauExtension(Generic[V, A, F]):
                 continue
             jacobian = stepper._jacobian_at(window, stages[k + offset], k + offset)
             row[k] = self._solved(
-                ScaledSum([(deltat * weight, jacobian)], system.space)
+                ScaledSum([(deltat * weight, jacobian)], system.space), window, time
             )
         return BlockOperator([row], unknown, stepper.state_space())
 
@@ -309,7 +306,7 @@ class _TableauExtension(Generic[V, A, F]):
         if stepper.tableau().has_trivial_first_stage() and weight != 0.0:
             jacobian = stepper._jacobian_at(window, window.past_state(1), 0)
             terms.append((window.deltat() * weight, jacobian))
-        block = self._solved(ScaledSum(terms, system.space))
+        block = self._solved(ScaledSum(terms, system.space), window, time)
         states = stepper.state_space()
         return BlockOperator([[block]], states, states)
 
@@ -334,7 +331,9 @@ class _TableauExtension(Generic[V, A, F]):
         data = None if pin is None else pin.data_param(time, space)
         if data is None:
             block = (
-                self._solved(ScaledSum(terms, space, params.component(0)))
+                self._solved(
+                    ScaledSum(terms, space, params.component(0)), window, time
+                )
                 if terms
                 else None
             )
@@ -346,7 +345,7 @@ class _TableauExtension(Generic[V, A, F]):
                 (1.0, pin.coupled(ScaledSum(terms, space, params.component(0))))
             )
         factors: List[LinearMapProtocol[V]] = [
-            stepper._mass_block_handle(self._last()),
+            self._handle(window, time),
             ScaledSum(pinned, space, params.component(0)),
         ]
         solved: LinearMapProtocol[V] = Product(factors)
@@ -360,9 +359,8 @@ class _TableauExtension(Generic[V, A, F]):
         residual's form; None for a stage with a zero weight."""
         stepper = self._stepper
         space, to_residual = stepper.system().space, stepper.system().form.to_residual
-        last = self._last()
-        x = stepper._mass_block_handle(last).apply_transpose(weights)
-        pin = stepper._block_pin(last)
+        x = self._handle(window, time).apply_transpose(weights)
+        pin = stepper._block_pin(self._last())
         if pin is not None:
             # Pinned rows carry no f, so no curvature.
             x = pin.adjoint(x, space)
@@ -466,11 +464,10 @@ class _TableauExtension(Generic[V, A, F]):
             )
             total = value if total is None else params.axpby(1.0, value, 1.0, total)
         # The pinned rows hold g(t; p): (E^{-T} lambda)_R^T g_pp v.
-        last = self._last()
-        pin = stepper._block_pin(last)
+        pin = stepper._block_pin(self._last())
         if pin is None:
             return total
-        x = stepper._mass_block_handle(last).apply_transpose(weights)
+        x = self._handle(window, time).apply_transpose(weights)
         data = pin.data_curvature(x, time, stepper.system().space)
         if data is None:
             return total
@@ -574,12 +571,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self._unknown_space = BlockInnerProductSpace([space] * nblocks, "unknown")
         self._residual_space = BlockInnerProductSpace([space] * nblocks, "residual")
         self._state_space = BlockInnerProductSpace([space], "state")
-        self._mass_handle: Optional[SolverHandleProtocol[V]] = None
         self._row_pinning = row_pinning
-        # Each pinned block's row-replaced mass, for its explicit solve,
-        # set up once.
-        self._pinned_mass_handles: Dict[int, SolverHandleProtocol[V]] = {}
-        self._points = count()
         # The stage operators a step forms: one per diagonal coefficient,
         # and per pinned block, since its rows are replaced.
         offset = self._first_stage_offset()
@@ -607,20 +599,6 @@ class RungeKuttaStepper(Generic[V, A, F]):
         a_{ii} J` one step forms at a fixed step size: one per diagonal
         coefficient, and one per pinned block, whose rows are replaced."""
         return self._distinct
-
-    def _distinct_mass_blocks(self) -> int:
-        """The diagonal blocks of :meth:`diag` that are :math:`M` alone (an
-        explicit stage, the final block), counted once per pinning: a
-        sweep's session keeps a handle for each."""
-        stages = len(self._unknown_stages)
-        kinds = set()
-        for r in range(self._unknown_space.nblocks()):
-            if r < stages and not self._tableau.is_explicit_stage(
-                self._unknown_stages[r]
-            ):
-                continue
-            kinds.add(None if self._block_pin(r) is None else r)
-        return len(kinds)
 
     def system(self) -> MassFormSystem[V, A, F]:
         """What the stepper steps."""
@@ -718,20 +696,15 @@ class RungeKuttaStepper(Generic[V, A, F]):
             return None
         return self._row_pinning.at(StepBlock(block, self._unknown_space.nblocks()))
 
-    def _mass_block_handle(self, block: int) -> SolverHandleProtocol[V]:
+    def _mass_block_handle(
+        self, block: int, time: float, state: V
+    ) -> SolverHandleProtocol[V]:
         r"""A handle for block ``block``'s operator when its own block is
         :math:`M` alone: :math:`M`, or :math:`P M + I - P` when the block
-        is pinned, each set up once."""
-        pin = self._block_pin(block)
-        if pin is None:
-            if self._mass_handle is None:
-                self._mass_handle = self._system.solver.setup(self._system.mass)
-            return self._mass_handle
-        handle = self._pinned_mass_handles.get(block)
-        if handle is None:
-            handle = self._system.solver.setup(pin.own(self._system.mass))
-            self._pinned_mass_handles[block] = handle
-        return handle
+        is pinned, from the setup strategy. The block's ``time`` and
+        ``state`` complete the request; with :math:`s = 0` neither enters
+        the operator or its key."""
+        return self._shift_handle(0.0, self._block_pin(block), time, state, None)
 
     def _explicit_solve(self, block: int, state: V, increment: V, time: float) -> V:
         r"""Block ``block``'s value :math:`Y` from :math:`M (Y - y_n) = `
@@ -739,7 +712,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         Y = P (M y_n + \mathrm{increment}) + (I - P)\, g(t)` instead: one
         solve either way."""
         space, pin = self._system.space, self._block_pin(block)
-        handle = self._mass_block_handle(block)
+        handle = self._mass_block_handle(block, time, state)
         if pin is None:
             solution, info = handle.solve(increment)
             if not info.converged:
@@ -956,10 +929,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
         return window.time() + self._tableau.c[j] * window.deltat()
 
     def _converged_point(self, window: StepWindow[V]) -> LinearizationPoint:
-        """A label for a linearization at a converged step."""
-        return LinearizationPoint(
-            window.parameters_version, ("window", next(self._points))
-        )
+        """A label for a linearization at a converged step, equal to no
+        other: these Jacobians are applied, never set up, so nothing keys
+        on it."""
+        return LinearizationPoint(window.parameters_version, object())
 
     def _jacobian_at(
         self, window: StepWindow[V], stage: V, j: int
@@ -1047,20 +1020,13 @@ class RungeKuttaStepper(Generic[V, A, F]):
     def diag_handle(
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """A solver handle for :meth:`diag`, as a session of this one
-        window: forward substitution with each diagonal block set up by
-        the system's solver."""
-        return self.session().diag_handle(window)
-
-    def _diag_handle(
-        self, window: StepWindow[V], solver: KeyedSolverProtocol[V, F]
-    ) -> SolverHandleProtocol[BlockVector[V]]:
-        r""":meth:`diag_handle`: each stage block :math:`M - \Delta t\,
-        a_{ii} J(Y_i)` from the setup strategy, asked with the forward
+        r"""A solver handle for :meth:`diag`: forward substitution, each
+        diagonal block's handle from the setup strategy. A stage block
+        :math:`M - \Delta t\, a_{ii} J(Y_i)` is asked with the forward
         stage's :math:`s` and time and named by the window's origin and
-        the block (a window built by hand names nothing); each block that
-        is :math:`M` alone by ``solver``, under a label fixed for the
-        system's life."""
+        the block (a window built by hand names nothing), so a kept
+        forward or earlier sweep's setup serves it; a block that is
+        :math:`M` alone is the forward solve's mass request."""
         grid = self._diag_blocks(window)
         stages = self.stage_values(window)
         handles: List[SolverHandleProtocol[V]] = []
@@ -1083,9 +1049,11 @@ class RungeKuttaStepper(Generic[V, A, F]):
                         )
                     )
                     continue
-            pinned = None if self._block_pin(r) is None else r
-            label = LinearizationPoint(window.parameters_version, ("mass", pinned))
-            handles.append(solver.setup(LinearizedOperator(block, label)))
+            handles.append(
+                self._mass_block_handle(
+                    r, self._block_time(window, r), window.past_state(1)
+                )
+            )
         operator = BlockOperator(grid, self._unknown_space, self._residual_space)
         return BlockLowerTriangularHandle(operator, handles)
 

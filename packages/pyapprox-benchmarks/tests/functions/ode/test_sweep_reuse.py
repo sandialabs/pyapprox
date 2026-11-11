@@ -12,11 +12,12 @@ the gradient and the HVP:
 - ``KeepStateFree`` and ``KeepAll``: backward Euler, Crank-Nicolson and
   SDIRK3 factor their stage operator once per step size in the forward
   solve (2), and the sweeps, asking for the same operators, factor
-  nothing: 2, 2, 2.
-- ``RecomputeAlways``: every implicit stage is factored in every pass
-  (steps times implicit stages for the forward solve and for the
-  gradient's sweep, twice that for the HVP: the tangent sweep, and the
-  adjoints sharing one handle per step): 10, 20, 40 (SDIRK3 30, 60, 120).
+  nothing: 2, 2, 2. Heun, explicit, factors the mass once: 1, 1, 1.
+- ``RecomputeAlways``: every solve is factored in every pass (steps
+  times solves per step for the forward solve and for the gradient's
+  sweep, twice that for the HVP: the tangent sweep, and the adjoints
+  sharing one handle per step): 10, 20, 40 (SDIRK3 30, 60, 120; Heun,
+  an explicit stage and a final block per step, 20, 40, 80).
 - The gradient and HVP of every strategy equal the recomputed ones to
   1e-13.
 """
@@ -39,6 +40,7 @@ from pyapprox.ode.tableau import (
     alexander_sdirk3,
     backward_euler,
     crank_nicolson,
+    heun,
 )
 from pyapprox.ode.trajectory_derivatives import (
     ResidualInitialState,
@@ -146,8 +148,17 @@ class _Run:
         return (solved, after_gradient, self.lu.setups), gradient, hvp
 
 
-_TABLEAUX = [(backward_euler, 1), (crank_nicolson, 1), (alexander_sdirk3, 3)]
-_IDS = ["backward_euler", "crank_nicolson", "sdirk3"]
+# Each tableau with its solves per step (implicit stages; for Heun its
+# explicit stage and final block, each a mass solve) and the distinct
+# operators a keeping strategy sets up over the run (one stage operator
+# per step size; Heun's mass alone).
+_TABLEAUX = [
+    (backward_euler, 1, 2),
+    (crank_nicolson, 1, 2),
+    (alexander_sdirk3, 3, 2),
+    (heun, 2, 1),
+]
+_IDS = ["backward_euler", "crank_nicolson", "sdirk3", "heun"]
 _KEEPING: List[_StrategyOf] = [KeepStateFree, KeepAll]
 
 
@@ -155,32 +166,34 @@ class TestSweepReuse:
     @pytest.mark.parametrize(
         "strategy_of", _KEEPING, ids=["keep_state_free", "keep_all"]
     )
-    @pytest.mark.parametrize("make, implicit_stages", _TABLEAUX, ids=_IDS)
+    @pytest.mark.parametrize("make, solves, distinct", _TABLEAUX, ids=_IDS)
     def test_the_sweeps_reuse_the_forward_setups(
         self,
         numpy_bkd: NumpyBkd,
         make: Callable[[], ButcherTableau],
-        implicit_stages: int,
+        solves: int,
+        distinct: int,
         strategy_of: _StrategyOf,
     ) -> None:
         assert len(set(_STEPS.sizes())) == 2
         counts, gradient, hvp = _Run(numpy_bkd, make, strategy_of).counted()
-        assert counts == (2, 2, 2)
+        assert counts == (distinct, distinct, distinct)
         _, expected_gradient, expected_hvp = _Run(
             numpy_bkd, make, RecomputeAlways
         ).counted()
         np.testing.assert_allclose(gradient, expected_gradient, rtol=1e-13, atol=1e-15)
         np.testing.assert_allclose(hvp, expected_hvp, rtol=1e-13, atol=1e-15)
 
-    @pytest.mark.parametrize("make, implicit_stages", _TABLEAUX, ids=_IDS)
+    @pytest.mark.parametrize("make, solves, distinct", _TABLEAUX, ids=_IDS)
     def test_recompute_always_factors_every_solve(
         self,
         numpy_bkd: NumpyBkd,
         make: Callable[[], ButcherTableau],
-        implicit_stages: int,
+        solves: int,
+        distinct: int,
     ) -> None:
-        # One setup per implicit stage per step, in each pass: the sweeps'
-        # diagonal blocks are the stages'.
-        per_pass = _NSTEPS * implicit_stages
+        # One setup per solve per step, in each pass: the sweeps' diagonal
+        # blocks are the forward solves' operators.
+        per_pass = _NSTEPS * solves
         counts, _, _ = _Run(numpy_bkd, make, RecomputeAlways).counted()
         assert counts == (per_pass, 2 * per_pass, 4 * per_pass)

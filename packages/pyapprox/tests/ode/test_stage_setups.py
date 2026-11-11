@@ -17,9 +17,13 @@ adjoint sweep), with ``s`` stages per step:
 - Gradients and HVPs equal across strategies and stores to 1e-13.
 - Kept setups name the trajectory, not the store: a dropped store is
   freed while its setups stay kept.
+- After a solve and its sweeps, an SDIRK3 stepper pickles under every
+  strategy, and the copy steps the same trajectory (1e-14).
 """
 
 import gc
+import pickle
+import warnings
 import weakref
 from dataclasses import dataclass
 from typing import Callable, Generic, List, Tuple
@@ -164,6 +168,30 @@ class TestStageSetups:
             assert result.sweep_setups == expected, label
             bkd.assert_allclose(result.gradient, recomputed.gradient, rtol=1e-13)
             bkd.assert_allclose(result.hvp, recomputed.hvp, rtol=1e-13)
+
+    @pytest.mark.parametrize(
+        "strategy_of",
+        [RecomputeAlways, KeepStateFree, KeepAll],
+        ids=["recompute_always", "keep_state_free", "keep_all"],
+    )
+    def test_a_stepper_pickles_after_a_solve(
+        self, bkd: Backend[Array], strategy_of: _StrategyOf[Array]
+    ) -> None:
+        """The stepper holds no setup of its own, so after a solve and
+        its sweeps it pickles with its strategy, and the copy steps the
+        same trajectory."""
+        run = _Run(bkd, alexander_sdirk3, strategy_of)
+        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        run.sequence(store, _direction(bkd))
+        # Deprecated pickling (an itertools counter, say) fails here
+        # rather than on a later Python.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            copy = pickle.loads(pickle.dumps(run.stepper))
+        again: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        Integrator(copy).solve(bkd.asarray(START), STEPS, again)
+        for n in range(store.ntimes()):
+            bkd.assert_allclose(again.state(n), store.state(n), rtol=1e-14)
 
     def test_kept_setups_do_not_hold_the_store(self, bkd: Backend[Array]) -> None:
         strategy: KeepAll[Array, DenseFormat[Array]] = KeepAll(BackendDenseLU(bkd))
