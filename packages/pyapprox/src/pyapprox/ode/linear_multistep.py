@@ -40,7 +40,6 @@ whatever the step sizes. States are stack vectors, converted to the
 residual's form only where :math:`f` and its derivatives are called.
 """
 
-from functools import partial
 from itertools import count
 from typing import (
     Dict,
@@ -65,7 +64,9 @@ from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepB
 from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.setups import (
     MassShiftBuilderProtocol,
+    MassShiftRequest,
     MassShiftStrategy,
+    StatePosition,
     stepper_setups,
 )
 from pyapprox.ode.step_quadrature import MultistepQuadrature
@@ -92,7 +93,6 @@ from pyapprox.util.linalg.operators import (
     LinearizedOperator,
     LinearMapProtocol,
     Product,
-    ReuseKey,
     ReusePolicyProtocol,
     ScaledSum,
     SolveFailedError,
@@ -122,7 +122,7 @@ class _NewStateSystem(Generic[V, A, F]):
     Parameters
     ----------
     stepper : LinearMultistepStepper
-        Supplies the system, :math:`f`, :math:`J` and the labels.
+        Supplies the system, :math:`f`, and the step operator's handle.
     known : V
         :math:`k`, a single column of the state space.
     time : float
@@ -131,8 +131,6 @@ class _NewStateSystem(Generic[V, A, F]):
         The step's coefficients.
     deltat : float
         The step size.
-    solver : KeyedSolverProtocol
-        The session's solver, which sets up the step's operator.
     """
 
     def __init__(
@@ -142,12 +140,10 @@ class _NewStateSystem(Generic[V, A, F]):
         time: float,
         formula: MultistepCoefficients,
         deltat: float,
-        solver: KeyedSolverProtocol[V, F],
     ) -> None:
         self._stepper, self._known, self._time = stepper, known, time
         self._alpha0 = formula.alpha[0]
         self._scale = deltat * formula.beta[0]
-        self._solver = solver
 
     def space(self) -> InnerProductSpaceProtocol[V, A]:
         return self._stepper.system().space
@@ -165,8 +161,9 @@ class _NewStateSystem(Generic[V, A, F]):
         return value if pin is None else pin.residual(value, x, self._time, space)
 
     def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
-        return self._stepper.new_state_handle(
-            x, self._time, self._alpha0, self._scale, self._solver
+        # An iterate, not a converged state: it has no position.
+        return self._stepper._shift_handle(
+            self._alpha0, self._scale, self._time, x, None
         )
 
     def is_affine(self) -> bool:
@@ -179,12 +176,11 @@ class _NewStateSystem(Generic[V, A, F]):
 class _MultistepSession(Generic[V, A, F]):
     """One solve's steps of a :class:`LinearMultistepStepper`.
 
-    Implicit steps are set up through one keyed solver, made by the
-    stepper's reuse policy for the session only: under the default policy
-    a step operator the system labels for reuse (see
-    :meth:`MassFormSystem.operator_label`) is formed and set up once per
-    label, keeping one handle, since a step forms one operator and a
-    startup formula's is not used again.
+    Implicit steps are set up through the stepper's setup strategy, which
+    decides what is kept and for how long. The session keeps only the
+    sweeps' diagonal blocks of explicit steps (:math:`\\alpha_0 M`),
+    through one keyed solver made by the stepper's reuse policy for the
+    session.
     """
 
     def __init__(self, stepper: "LinearMultistepStepper[V, A, F]") -> None:
@@ -195,7 +191,7 @@ class _MultistepSession(Generic[V, A, F]):
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`LinearMultistepStepper.step`)."""
-        return self._stepper._step(past_states, span, self._solver)
+        return self._stepper._step(past_states, span)
 
     def diag_handle(
         self, window: StepWindow[V]
@@ -675,81 +671,38 @@ class LinearMultistepStepper(Generic[V, A, F]):
         system = self._system
         return system.jacobian(system.form.to_residual(state), time, point)
 
-    def _new_state_operator(
+    def _shift_handle(
         self,
-        state: V,
-        time: float,
         alpha0: float,
         scale: float,
-        point: LinearizationPoint,
-    ) -> ActionOperatorProtocol[V, F]:
-        r""":math:`\alpha_0 M - s\, J(y, t)`, :math:`J` labeled ``point``,
-        with the step-end rows replaced when they are pinned."""
-        system = self._system
-        jacobian = self._jacobian(state, time, point)
-        operator = ScaledSum([(alpha0, system.mass), (-scale, jacobian)], system.space)
-        return operator if self._pin is None else self._pin.own(operator)
-
-    def _labeled_new_state_operator(
-        self,
-        state: V,
         time: float,
-        alpha0: float,
-        scale: float,
-        label: LinearizationPoint,
-    ) -> LinearizedOperator[V, F]:
-        """The step operator with :math:`J` labeled ``label``, wrapped
-        under ``label`` so a caching solver keys it."""
-        return LinearizedOperator(
-            self._new_state_operator(state, time, alpha0, scale, label), label
-        )
-
-    def new_state_handle(
-        self,
         state: V,
-        time: float,
-        alpha0: float,
-        scale: float,
-        solver: KeyedSolverProtocol[V, F],
+        position: Optional[StatePosition],
     ) -> SolverHandleProtocol[V]:
-        r"""A handle for the step operator :math:`\alpha_0 M - s\, J(y, t)`
-        with :math:`s = \Delta t\, \beta_0`, its step-end rows replaced when
-        they are pinned.
-
-        Set up by ``solver`` under the system's reuse label when it gives
-        one: equal step operators of a session then share one setup, and
-        one whose handle is kept is not formed again. A :math:`J` that sees
-        the state gives no label, and each Newton iterate is set up afresh.
+        r"""A handle for the step operator :math:`\alpha_0 M - s\, J(y, t)`,
+        its step-end rows replaced when they are pinned, from the setup
+        strategy: the forward step and the sweeps' diagonal block ask with
+        the same :math:`\alpha_0`, :math:`s` and time, so a kept setup
+        serves both.
 
         Parameters
         ----------
-        state : V
-            A single column of the state space.
-        time : float
-            :math:`t_{n+1}`.
         alpha0 : float
             :math:`\alpha_0`.
         scale : float
-            :math:`s`.
-        solver : KeyedSolverProtocol
-            The session's solver.
+            :math:`s = \Delta t\, \beta_0`.
+        time : float
+            :math:`t_{n+1}`.
+        state : V
+            A single column of the state space.
+        position : StatePosition, optional
+            Names ``state`` when it is a stored step's converged new
+            state; None for a Newton iterate.
         """
-        system = self._system
-        version = self.parameters_version()
-        label = system.operator_label(version, time, ("new state", alpha0, scale))
-        if label is None:
-            return solver.setup(
-                self._new_state_operator(
-                    state, time, alpha0, scale, self._point(True, version)
-                )
-            )
-        descriptor = system.space.descriptor()
-        return solver.setup_keyed(
-            ReuseKey(label, descriptor, descriptor),
-            partial(
-                self._labeled_new_state_operator, state, time, alpha0, scale, label
-            ),
+        request = MassShiftRequest(
+            self._system, alpha0, scale, self._pin, time, state, position
         )
+        return self._setups.handle(request, self._builder)
 
     def _mass_handle_for(self, alpha0: float) -> SolverHandleProtocol[V]:
         r"""A handle for the new-state block of an explicit step: :math:`M`
@@ -865,14 +818,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
         """
         return self.session().step(past_states, span)
 
-    def _step(
-        self,
-        past_states: Sequence[V],
-        span: StepSpan,
-        linear_solver: KeyedSolverProtocol[V, F],
-    ) -> BlockVector[V]:
-        """:meth:`step`, an implicit step's operator set up by
-        ``linear_solver``."""
+    def _step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
+        """:meth:`step`, an implicit step's operator set up through the
+        strategy."""
         check_step_span(span, len(past_states))
         formula = self._formula(span)
         space = self._system.space
@@ -890,7 +838,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         solver = self._nonlinear_solver
         if solver is None:
             raise TypeError(f"{self._method.name} needs a nonlinear solver")
-        system = _NewStateSystem(self, known, new_time, formula, deltat, linear_solver)
+        system = _NewStateSystem(self, known, new_time, formula, deltat)
         new_state, info = solver.solve(system, past_states[0])
         if not info.converged:
             raise SolveFailedError(
@@ -962,7 +910,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
             return block
         return pin.own(block) if lag == 0 else pin.coupled(block)
 
-    def diag(self, window: StepWindow[V]) -> StepOperator[V]:
+    def diag(self, window: StepWindow[V]) -> BlockOperator[V]:
         r""":math:`\partial R_n/\partial u_n = \alpha_0 M - \Delta t\,
         \beta_0 J(u_n)`.
 
@@ -982,32 +930,35 @@ class LinearMultistepStepper(Generic[V, A, F]):
         window, set up by the system's solver."""
         return self.session().diag_handle(window)
 
-    def _diag_label(self, window: StepWindow[V]) -> Optional[LinearizationPoint]:
-        r"""The reuse label of the diagonal block, or None: an implicit
-        step's :math:`\alpha_0 M - \Delta t\, \beta_0 J` labeled exactly as
-        the forward step labels it, an explicit step's :math:`\alpha_0 M`
-        by the mass and :math:`\alpha_0`."""
-        formula = self._window_formula(window)
-        alpha0, beta0 = formula.alpha[0], formula.beta[0]
-        version = window.parameters_version
-        if beta0 == 0.0:
-            return LinearizationPoint(version, ("mass", alpha0))
-        key = ("new state", alpha0, window.deltat() * beta0)
-        return self._system.operator_label(version, window.lag_time(0), key)
-
     def _diag_handle(
         self, window: StepWindow[V], solver: KeyedSolverProtocol[V, F]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """:meth:`diag_handle`, the block set up by ``solver`` under its
-        reuse label when it has one."""
+        r""":meth:`diag_handle`: an implicit step's :math:`\alpha_0 M -
+        \Delta t\, \beta_0 J(y_{n+1})` from the setup strategy, asked with
+        the forward step's :math:`\alpha_0`, :math:`s` and time and named
+        by the window's origin (a window built by hand names nothing); an
+        explicit step's :math:`\alpha_0 M` by ``solver``, under a label
+        fixed for the system's life."""
         # alpha_0 != 0, so the diagonal block is never zero.
         block = self._lag_block(window, 0)
         if block is None:
             raise AssertionError("alpha_0 is nonzero")
-        label = self._diag_label(window)
-        labeled = block if label is None else LinearizedOperator(block, label)
+        formula = self._window_formula(window)
+        alpha0, beta0 = formula.alpha[0], formula.beta[0]
+        if beta0 != 0.0:
+            origin = window.origin
+            handle = self._shift_handle(
+                alpha0,
+                window.deltat() * beta0,
+                window.lag_time(0),
+                window.unknown.blocks[0],
+                None if origin is None else StatePosition(origin, 0),
+            )
+        else:
+            label = LinearizationPoint(window.parameters_version, ("mass", alpha0))
+            handle = solver.setup(LinearizedOperator(block, label))
         operator = BlockOperator([[block]], self._unknown_space, self._residual_space)
-        return BlockLowerTriangularHandle(operator, [solver.setup(labeled)])
+        return BlockLowerTriangularHandle(operator, [handle])
 
     def _off_diag(self, window: StepWindow[V], lag: int) -> StepOperator[V]:
         r""":math:`\partial R_n/\partial y_{n+1-l} = \alpha_l M - \Delta t\,

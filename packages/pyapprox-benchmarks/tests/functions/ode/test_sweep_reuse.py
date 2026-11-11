@@ -22,14 +22,20 @@ the gradient and the HVP:
   1e-13.
 """
 
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, List, Tuple, Union
 
 import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.setups import KeepAll, KeepStateFree, RecomputeAlways
 from pyapprox.ode.integration import Integrator
+from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import dense_mass_form_system
+from pyapprox.ode.multistep_methods import (
+    MultistepFormulaProtocol,
+    adams_moulton3,
+    bdf2,
+)
 from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -87,13 +93,17 @@ _StrategyOf = Callable[
 ]
 
 
+_Method = Union[ButcherTableau, MultistepFormulaProtocol]
+
+
 class _Run:
-    """The linear ODE stepped by one tableau under one setup strategy."""
+    """The linear ODE stepped by one method (a tableau or a multistep
+    formula) under one setup strategy."""
 
     def __init__(
         self,
         bkd: NumpyBkd,
-        make: Callable[[], ButcherTableau],
+        make: Callable[[], _Method],
         strategy_of: _StrategyOf,
     ) -> None:
         amat = bkd.asarray([[-1.0, 0.3, 0.0], [0.2, -0.8, 0.1], [0.0, 0.4, -1.2]])
@@ -104,11 +114,15 @@ class _Run:
         self.residual.set_param(self.param)
         self.lu = _CountingLU(bkd)
         newton: Newton[_Np, _Np] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
-        self.stepper = RungeKuttaStepper(
-            make(),
-            dense_mass_form_system(self.residual, self.lu),
-            strategy_of(self.lu),
-            newton,
+        method = make()
+        system = dense_mass_form_system(self.residual, self.lu)
+        self.stepper: Union[
+            RungeKuttaStepper[_Np, _Np, DenseFormat[_Np]],
+            LinearMultistepStepper[_Np, _Np, DenseFormat[_Np]],
+        ] = (
+            RungeKuttaStepper(method, system, strategy_of(self.lu), newton)
+            if isinstance(method, ButcherTableau)
+            else LinearMultistepStepper(method, system, strategy_of(self.lu), newton)
         )
         self.store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
         Integrator(self.stepper).solve(
@@ -148,6 +162,19 @@ class _Run:
         return (solved, after_gradient, self.lu.setups), gradient, hvp
 
 
+def _distinct_step_operators(method: MultistepFormulaProtocol, run: _Run) -> int:
+    r"""The distinct step operators :math:`\alpha_0 M - \Delta t\, \beta_0
+    A` of a multistep run, from the method's coefficients over each stored
+    step's span (a startup step reads fewer states, the last step has a
+    size of its own)."""
+    operators = set()
+    for step in range(run.store.nsteps()):
+        span = run.store.span(step, min(method.depth(), step + 1))
+        formula = method.coefficients_at(span)
+        operators.add((formula.alpha[0], span.deltat() * formula.beta[0]))
+    return len(operators)
+
+
 # Each tableau with its solves per step (implicit stages; for Heun its
 # explicit stage and final block, each a mass solve) and the distinct
 # operators a keeping strategy sets up over the run (one stage operator
@@ -160,6 +187,11 @@ _TABLEAUX = [
 ]
 _IDS = ["backward_euler", "crank_nicolson", "sdirk3", "heun"]
 _KEEPING: List[_StrategyOf] = [KeepStateFree, KeepAll]
+_IMPLICIT_MULTISTEP: List[Callable[[], MultistepFormulaProtocol]] = [
+    bdf2,
+    adams_moulton3,
+]
+_MULTISTEP_IDS = ["bdf2", "adams_moulton3"]
 
 
 class TestSweepReuse:
@@ -197,3 +229,33 @@ class TestSweepReuse:
         per_pass = _NSTEPS * solves
         counts, _, _ = _Run(numpy_bkd, make, RecomputeAlways).counted()
         assert counts == (per_pass, 2 * per_pass, 4 * per_pass)
+
+    @pytest.mark.parametrize(
+        "strategy_of", _KEEPING, ids=["keep_state_free", "keep_all"]
+    )
+    @pytest.mark.parametrize("make", _IMPLICIT_MULTISTEP, ids=_MULTISTEP_IDS)
+    def test_multistep_sweeps_reuse_the_forward_setups(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], MultistepFormulaProtocol],
+        strategy_of: _StrategyOf,
+    ) -> None:
+        run = _Run(numpy_bkd, make, strategy_of)
+        distinct = _distinct_step_operators(make(), run)
+        # Startup, the full formula, the last step's: more than one, fewer
+        # than the steps, so the count tells keeping from recomputing.
+        assert 1 < distinct < _NSTEPS
+        counts, gradient, hvp = run.counted()
+        assert counts == (distinct, distinct, distinct)
+        _, expected_gradient, expected_hvp = _Run(
+            numpy_bkd, make, RecomputeAlways
+        ).counted()
+        np.testing.assert_allclose(gradient, expected_gradient, rtol=1e-13, atol=1e-15)
+        np.testing.assert_allclose(hvp, expected_hvp, rtol=1e-13, atol=1e-15)
+
+    @pytest.mark.parametrize("make", _IMPLICIT_MULTISTEP, ids=_MULTISTEP_IDS)
+    def test_multistep_recompute_always_factors_every_step(
+        self, numpy_bkd: NumpyBkd, make: Callable[[], MultistepFormulaProtocol]
+    ) -> None:
+        counts, _, _ = _Run(numpy_bkd, make, RecomputeAlways).counted()
+        assert counts == (_NSTEPS, 2 * _NSTEPS, 4 * _NSTEPS)

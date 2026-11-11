@@ -2,12 +2,14 @@ r"""Stage setups shared by the forward solve and the sweeps, by position.
 
 Lotka-Volterra with the mass ``[[2, 0.5], [0.5, 1]]`` at ``LV_PARAM``
 from (10, 5), ten steps of 0.05, under the Tikhonov-augmented MSE of
-``native_tikhonov_mse``; backward Euler (one implicit stage) and SDIRK3
-(three), both stiffly accurate, so every setup is a stage's. The
-Jacobian sees the state, so a forward Newton iterate's setup is never
-kept; a sweep's stage block is named by its window's origin and block.
-Setups added by a gradient, then two HVPs (each a tangent and an
-adjoint sweep), with ``s`` stages per step:
+``native_tikhonov_mse``; backward Euler (one implicit stage), SDIRK3
+(three), both stiffly accurate, and BDF2 and Adams-Moulton 3 (one
+implicit solve per step, startup steps included), so every setup is an
+implicit solve's. The Jacobian sees the state, so a forward Newton
+iterate's setup is never kept; a sweep's diagonal block is named by its
+window's origin and block. Setups added by a gradient, then two HVPs
+(each a tangent and an adjoint sweep), with ``s`` implicit solves per
+step:
 
 - ``KeepAll``: the gradient 10 s, each HVP none (every sweep reads the
   same positions); the same with a store copying every state it gives
@@ -26,13 +28,19 @@ import pickle
 import warnings
 import weakref
 from dataclasses import dataclass
-from typing import Callable, Generic, List, Tuple
+from typing import Callable, Generic, List, Tuple, Union
 
 import pytest
 
 from pyapprox.implicitfunction.setups import KeepAll, KeepStateFree, RecomputeAlways
 from pyapprox.ode.integration import Integrator
+from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import dense_mass_form_system
+from pyapprox.ode.multistep_methods import (
+    MultistepFormulaProtocol,
+    adams_moulton3,
+    bdf2,
+)
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.stepper_derivatives import StepWindow
@@ -45,15 +53,28 @@ from pyapprox.util.linalg.operators import BlockVector, LinearSolverProtocol
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.linalg.counting_solver import CountingSolver
 from tests._helpers.ode.runge_kutta_cases import LV_PARAM, lotka_volterra_with_mass
-from tests._helpers.ode.trajectory_cases import START, STEPS, native_tikhonov_mse
+from tests._helpers.ode.trajectory_cases import (
+    START,
+    STEPS,
+    Stepper,
+    native_tikhonov_mse,
+)
 
 _Strategy = MassShiftStrategy[Array, Array, DenseFormat[Array]]
 _StrategyOf = Callable[
     [LinearSolverProtocol[Array, DenseFormat[Array]]], _Strategy[Array]
 ]
 _NSTEPS = len(STEPS.sizes())
-_TABLEAUS = [(backward_euler, 1), (alexander_sdirk3, 3)]
-_TABLEAU_IDS = ["backward_euler", "sdirk3"]
+_Method = Union[ButcherTableau, MultistepFormulaProtocol]
+# Each method with its implicit solves per step: a tableau's implicit
+# stages, an implicit multistep formula's one (its startup steps too).
+_TABLEAUS: List[Tuple[Callable[[], _Method], int]] = [
+    (backward_euler, 1),
+    (alexander_sdirk3, 3),
+    (bdf2, 1),
+    (adams_moulton3, 1),
+]
+_TABLEAU_IDS = ["backward_euler", "sdirk3", "bdf2", "adams_moulton3"]
 
 
 class _CopyingStore(InMemoryTrajectoryStore[Array]):
@@ -95,7 +116,7 @@ class _Run(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        make: Callable[[], ButcherTableau],
+        make: Callable[[], _Method],
         strategy_of: _StrategyOf[Array],
     ) -> None:
         self.bkd = bkd
@@ -106,8 +127,11 @@ class _Run(Generic[Array]):
         )
         self.strategy = strategy_of(self.lu)
         newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
-        self.stepper = RungeKuttaStepper(
-            make(), dense_mass_form_system(model, self.lu), self.strategy, newton
+        method, system = make(), dense_mass_form_system(model, self.lu)
+        self.stepper: Stepper[Array] = (
+            RungeKuttaStepper(method, system, self.strategy, newton)
+            if isinstance(method, ButcherTableau)
+            else LinearMultistepStepper(method, system, self.strategy, newton)
         )
         self.sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
             self.stepper, None, None
