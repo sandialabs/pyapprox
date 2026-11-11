@@ -883,15 +883,15 @@ class TrajectoryDerivatives(Generic[V, A]):
         store: TrajectoryStoreProtocol[V],
         functional: TrajectoryFunctional[V, A],
         direction: V,
-        tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
         *,
+        tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
         weights: Optional[A] = None,
     ) -> V:
         r""":math:`(d^2 \omega^\top Q/dp^2)\, v`; see
         :meth:`gradient_and_hvp`, which also returns the gradient at no
         extra cost."""
         return self.gradient_and_hvp(
-            store, functional, direction, tangent_store, weights=weights
+            store, functional, direction, tangent_store=tangent_store, weights=weights
         )[1]
 
     def gradient_and_hvp(
@@ -899,8 +899,8 @@ class TrajectoryDerivatives(Generic[V, A]):
         store: TrajectoryStoreProtocol[V],
         functional: TrajectoryFunctional[V, A],
         direction: V,
-        tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
         *,
+        tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
         weights: Optional[A] = None,
     ) -> tuple[V, V]:
         r""":math:`d(\omega^\top Q)/dp` and :math:`(d^2 \omega^\top

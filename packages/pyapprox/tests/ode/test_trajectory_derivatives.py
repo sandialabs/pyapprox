@@ -287,7 +287,7 @@ class TestHessianVectorProduct:
             ResidualFormConstraint(problem.pin(), BackendColumnForm(bkd)),
             problem.start(),
         )
-        sweeps.hvp(store, functional, direction, tangents)
+        sweeps.hvp(store, functional, direction, tangent_store=tangents)
         assert tangents.ntimes() == store.ntimes()
         assert tangents.nsteps() == store.nsteps()
         assert tangents.times() == store.times()
@@ -306,7 +306,7 @@ class TestHessianVectorProduct:
         expected = sweeps.tangent(store, functional, direction)
         bkd.assert_allclose(total, expected, rtol=1e-12)
         with pytest.raises(ValueError, match="tangent store must be empty"):
-            sweeps.hvp(store, functional, direction, tangents)
+            sweeps.hvp(store, functional, direction, tangent_store=tangents)
 
 
 class TestHessianVectorProductContracts:
@@ -338,7 +338,7 @@ class TestHessianVectorProductContracts:
         )
         tangents: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         functional = problem.coupling(store, param)
-        sweeps.hvp(store, functional, direction, tangents)
+        sweeps.hvp(store, functional, direction, tangent_store=tangents)
         initial = sweeps.tangent_initial(store, direction)
         bkd.assert_allclose(initial.state, tangents.state(0), rtol=0.0)
         recent = tangents.state(4)

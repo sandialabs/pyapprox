@@ -3,8 +3,8 @@ r"""Which steps a solve takes: injected, and taking them itself.
 An integrator records accepted steps and applies the state constraint; it
 does not choose steps. A :class:`StepPlanProtocol` does: each solve
 starts a fresh :class:`StepSequenceProtocol` from it, which, asked for the
-next step, chooses its size, takes it through the solve's step session
-and returns it, or returns None when the plan is done. A sequence that
+next step, chooses its size, takes it with the solve's stepper and
+returns it, or returns None when the plan is done. A sequence that
 takes the step itself always knows the time exactly (it made the span),
 so it lands on the times it must hit without being told where it is, and
 the integrator sees accepted steps only.
@@ -12,7 +12,8 @@ the integrator sees accepted steps only.
 A fixed grid takes the steps it was given. An adaptive plan is another
 implementation of the same protocols: its sequence proposes a size,
 takes the trial step, estimates the error, and accepts it or retries
-with a smaller one, retries reusing the session's factorizations; the
+with a smaller one, whatever the stepper's setup strategy keeps serving
+the retries; the
 estimator, the norm and the step-size policy are its own parts, so the
 integrator and the steppers need not change for it.
 
@@ -33,7 +34,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.ode.protocols import StepSessionProtocol
+from pyapprox.ode.protocols import StepTakerProtocol
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.util.linalg.operators import BlockVector
 
@@ -55,11 +56,11 @@ class StepSequenceProtocol(Protocol):
     solve and dropped with it: it is never shared or reused."""
 
     def next_step(
-        self, session: StepSessionProtocol[W], past_states: Sequence[W]
+        self, stepper: StepTakerProtocol[W], past_states: Sequence[W]
     ) -> Optional[TakenStep[W]]:
         """Take the next step from ``past_states`` (most recent first, the
-        stored states it reads) through ``session``, or return None when
-        the plan is done."""
+        stored states it reads) with ``stepper``, or return None when the
+        plan is done."""
         ...
 
 
@@ -85,7 +86,7 @@ class _GivenSequence:
         self._last: Optional[StepSpan] = None
 
     def next_step(
-        self, session: StepSessionProtocol[W], past_states: Sequence[W]
+        self, stepper: StepTakerProtocol[W], past_states: Sequence[W]
     ) -> Optional[TakenStep[W]]:
         if self._taken == len(self._sizes):
             return None
@@ -99,7 +100,7 @@ class _GivenSequence:
             span = StepSpan.first(self._origin, size)
         else:
             span = self._last.advanced(size, len(past_states))
-        unknown = session.step(past_states, span)
+        unknown = stepper.step(past_states, span)
         self._last = span
         self._taken += 1
         return TakenStep(span, unknown)

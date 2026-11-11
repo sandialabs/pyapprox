@@ -159,26 +159,6 @@ class _StageSystem(Generic[V, A, F]):
         return self._stepper.system().is_affine()
 
 
-class _RungeKuttaSession(Generic[V, A, F]):
-    """One solve's steps of a :class:`RungeKuttaStepper`: the stepper's
-    own, since every setup goes through its setup strategy, which decides
-    what is kept and for how long."""
-
-    def __init__(self, stepper: "RungeKuttaStepper[V, A, F]") -> None:
-        self._stepper = stepper
-
-    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        """Solve one step (see :meth:`RungeKuttaStepper.step`)."""
-        return self._stepper._step(past_states, span)
-
-    def diag_handle(
-        self, window: StepWindow[V]
-    ) -> SolverHandleProtocol[BlockVector[V]]:
-        """The step's diagonal handle (see
-        :meth:`RungeKuttaStepper.diag_handle`)."""
-        return self._stepper.diag_handle(window)
-
-
 class _TableauExtension(Generic[V, A, F]):
     r"""A tableau stepper's continuous extension (see
     :meth:`RungeKuttaStepper.continuous_extension`).
@@ -733,14 +713,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
     # The forward step
     # ------------------------------------------------------------------
 
-    def session(self) -> _RungeKuttaSession[V, A, F]:
-        """A new session for one solve's steps, sharing stage setups
-        between them and with no other session."""
-        return _RungeKuttaSession(self)
-
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        r"""Solve step :math:`n` from :math:`y_n`, as a session of this one
-        step (its stages may share a setup; nothing is kept after it).
+        r"""Solve step :math:`n` from :math:`y_n`, every stage operator
+        and mass solve set up through the setup strategy, which decides
+        what is kept.
 
         Parameters
         ----------
@@ -764,10 +740,6 @@ class RungeKuttaStepper(Generic[V, A, F]):
         SolveFailedError
             If a stage's nonlinear solve or a mass solve fails.
         """
-        return self.session().step(past_states, span)
-
-    def _step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        """:meth:`step`, its implicit stages set up through the strategy."""
         if len(past_states) != 1:
             raise ValueError(
                 f"a one-step method reads one state, got {len(past_states)}"

@@ -35,61 +35,8 @@ A = TypeVar("A", bound=ArrayProtocol)
 
 
 @runtime_checkable
-class StepSessionProtocol(Protocol[V]):
-    """The steps of one solve.
-
-    A session may reuse work between its steps (a factorization of a stage
-    operator that is provably the same), and only between them: it is
-    opened for one solve and dropped with it, so nothing it keeps outlives
-    the parameters it was opened at.
-    """
-
-    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        """Solve one step, as :meth:`ForwardStepperProtocol.step`."""
-        ...
-
-
-@runtime_checkable
-class DifferentiableSessionProtocol(Protocol[V]):
-    """The step solves of one derivative sweep (or of sweeps run
-    together, a tangent and its adjoints).
-
-    Like a step session, it may reuse a setup between the steps it serves,
-    and only while it is held: a diagonal block that is provably the same
-    operator at two steps (a Jacobian constant in time, steps of one size)
-    is set up once. A forward session's handles are not reused here: they
-    were set up at Newton iterates, not at the converged steps a sweep
-    differentiates.
-    """
-
-    def diag_handle(
-        self, window: StepWindow[V]
-    ) -> SolverHandleProtocol[BlockVector[V]]:
-        """A solver handle for the step's diagonal block, as
-        :meth:`DifferentiableStepperProtocol.diag_handle`."""
-        ...
-
-
-@runtime_checkable
-class StepperSessionProtocol(
-    StepSessionProtocol[V], DifferentiableSessionProtocol[V], Protocol[V]
-):
-    """A session that steps and differentiates: what a stepping method's
-    stepper opens."""
-
-
-@runtime_checkable
-class ForwardStepperProtocol(Protocol[V]):
-    """What an integrator needs of a stepper to march forward."""
-
-    def depth(self) -> int:
-        """The number of past stored states a step reads at most."""
-        ...
-
-    def session(self) -> StepSessionProtocol[V]:
-        """A new session for one solve's steps, reusing nothing from any
-        other."""
-        ...
+class StepTakerProtocol(Protocol[V]):
+    """Takes one step: what a step sequence needs of a stepper."""
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step from the stored states it reads, most recent
@@ -97,8 +44,17 @@ class ForwardStepperProtocol(Protocol[V]):
         them, or all there are at a startup step. ``span`` gives the
         step's size and the time of every lag exactly (see
         :class:`~pyapprox.ode.step_span.StepSpan`), one size per state
-        read. Returns the step's unknown. A session of this one step:
-        nothing is reused from or for another call."""
+        read. Returns the step's unknown. What the step sets up is kept
+        or dropped as the stepper's setup strategy decides."""
+        ...
+
+
+@runtime_checkable
+class ForwardStepperProtocol(StepTakerProtocol[V], Protocol[V]):
+    """What an integrator needs of a stepper to march forward."""
+
+    def depth(self) -> int:
+        """The number of past stored states a step reads at most."""
         ...
 
     def readout(self) -> StepOperator[V]:
@@ -160,13 +116,8 @@ class DifferentiableStepperProtocol(Protocol[V, A]):
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
         """A solver handle for :meth:`diag`; its ``transpose()`` serves
-        the adjoint sweep. A session of this one window: nothing is reused
-        from or for another call."""
-        ...
-
-    def session(self) -> DifferentiableSessionProtocol[V]:
-        """A new session for one sweep's step solves (or sweeps run
-        together), reusing nothing from any other."""
+        the adjoint sweep. Its setups are kept or dropped as the
+        stepper's setup strategy decides."""
         ...
 
     def derivatives(self) -> StepperDerivatives[V]:
@@ -186,8 +137,3 @@ class StepperProtocol(
 ):
     """A stepper the integrator marches and the sweeps differentiate:
     what a stepping method builds."""
-
-    def session(self) -> StepperSessionProtocol[V]:
-        """A new session that steps and differentiates, reusing nothing
-        from any other."""
-        ...

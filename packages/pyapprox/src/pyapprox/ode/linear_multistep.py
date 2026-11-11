@@ -169,26 +169,6 @@ class _NewStateSystem(Generic[V, A, F]):
         return self._stepper.system().is_affine()
 
 
-class _MultistepSession(Generic[V, A, F]):
-    """One solve's steps of a :class:`LinearMultistepStepper`: the
-    stepper's own, since every setup goes through its setup strategy,
-    which decides what is kept and for how long."""
-
-    def __init__(self, stepper: "LinearMultistepStepper[V, A, F]") -> None:
-        self._stepper = stepper
-
-    def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        """Solve one step (see :meth:`LinearMultistepStepper.step`)."""
-        return self._stepper._step(past_states, span)
-
-    def diag_handle(
-        self, window: StepWindow[V]
-    ) -> SolverHandleProtocol[BlockVector[V]]:
-        """The step's diagonal handle (see
-        :meth:`LinearMultistepStepper.diag_handle`)."""
-        return self._stepper.diag_handle(window)
-
-
 class _MultistepExtension(Generic[V, A, F]):
     r"""A multistep stepper's continuous extension (see
     :meth:`LinearMultistepStepper.continuous_extension`).
@@ -749,14 +729,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 known = space.axpby(-deltat * beta, slope, 1.0, known, out=known)
         return known
 
-    def session(self) -> _MultistepSession[V, A, F]:
-        """A new session for one solve's steps, sharing step setups
-        between them and with no other session."""
-        return _MultistepSession(self)
-
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        r"""Solve step :math:`n` for :math:`y_{n+1}`, as a session of this
-        one step (nothing is kept after it).
+        r"""Solve step :math:`n` for :math:`y_{n+1}`, every operator set
+        up through the setup strategy, which decides what is kept.
 
         Parameters
         ----------
@@ -782,10 +757,6 @@ class LinearMultistepStepper(Generic[V, A, F]):
         SolveFailedError
             If the nonlinear solve or a mass solve fails.
         """
-        return self.session().step(past_states, span)
-
-    def _step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        """:meth:`step`, every operator set up through the strategy."""
         check_step_span(span, len(past_states))
         formula = self._formula(span)
         known = self._known(past_states, span, formula)

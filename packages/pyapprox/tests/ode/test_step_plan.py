@@ -8,7 +8,7 @@
   a short one; a stop at 0.0105 is a stored time.
 - ``GivenSizes`` keeps its sizes as given; ``from_times`` keeps a grid's
   times exactly.
-- A sequence asks its session for each step over the span it made,
+- A sequence asks the stepper for each step over the span it made,
   reading as many states as it is given, advancing the span by the next
   size, and returns None when the plan is done; each start is a fresh
   sequence.
@@ -21,6 +21,7 @@ from typing import List, Sequence, Tuple
 
 import pytest
 
+from pyapprox.ode.protocols import StepTakerProtocol
 from pyapprox.ode.step_plan import (
     FixedStep,
     GivenSizes,
@@ -31,7 +32,7 @@ from pyapprox.ode.step_span import StepSpan
 from pyapprox.util.linalg.operators import BlockVector
 
 
-class _RecordingSession:
+class _RecordingStepper:
     """Records the spans and state counts it is asked to step; the
     unknown is the first past state."""
 
@@ -116,17 +117,18 @@ class TestSequences:
         plan = GivenSizes(0.0, (0.25, 0.5, 0.25))
         sequence = plan.start()
         assert isinstance(sequence, StepSequenceProtocol)
-        session = _RecordingSession()
+        stepper = _RecordingStepper()
+        assert isinstance(stepper, StepTakerProtocol)
         # The states read grow to two, as a two-step method's would.
         nread = [1, 2, 2]
         for n, count in enumerate(nread):
-            taken = sequence.next_step(session, [float(k) for k in range(count)])
+            taken = sequence.next_step(stepper, [float(k) for k in range(count)])
             assert taken is not None
-            assert taken.span is session.asked[-1][0]
+            assert taken.span is stepper.asked[-1][0]
             assert taken.unknown.blocks == (0.0,)
-            assert len(session.asked) == n + 1
-        assert sequence.next_step(session, [0.0, 1.0]) is None
-        spans = [span for span, _ in session.asked]
+            assert len(stepper.asked) == n + 1
+        assert sequence.next_step(stepper, [0.0, 1.0]) is None
+        spans = [span for span, _ in stepper.asked]
         assert [span.times() for span in spans] == [
             (0.0, 0.25),
             (0.0, 0.25, 0.75),
@@ -134,10 +136,10 @@ class TestSequences:
         ]
         assert [span.deltat() for span in spans] == [0.25, 0.5, 0.25]
         # Each start is a fresh sequence.
-        fresh = plan.start().next_step(_RecordingSession(), [0.0])
+        fresh = plan.start().next_step(_RecordingStepper(), [0.0])
         assert fresh is not None and fresh.span.times() == (0.0, 0.25)
 
     def test_the_first_step_reads_the_initial_state_alone(self) -> None:
         sequence = FixedStep(0.5, (0.0, 1.0)).start()
         with pytest.raises(ValueError, match="initial state alone"):
-            sequence.next_step(_RecordingSession(), [0.0, 1.0])
+            sequence.next_step(_RecordingStepper(), [0.0, 1.0])

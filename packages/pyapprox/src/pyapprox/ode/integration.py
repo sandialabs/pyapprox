@@ -223,7 +223,7 @@ class Integrator(Generic[V]):
         steps : StepPlanProtocol
             Which steps to take, from its origin :math:`t_0`; a fresh
             sequence of them is started for this solve, and it takes each
-            step through this solve's session.
+            step with the stepper.
         sink : TrajectorySinkProtocol
             Empty; receives :math:`y_0, \\dots, y_N` and each step's
             window (its span, the states it read, its unknown). A store,
@@ -245,10 +245,6 @@ class Integrator(Generic[V]):
         if sink.ntimes() != 0:
             raise ValueError("the sink must be empty")
         stepper = self._stepper
-        # One session for this solve: its steps may share setups (a factored
-        # stage operator), which are dropped with it, so nothing reused
-        # outlives the parameters the solve ran at.
-        session = stepper.session()
         sequence = steps.start()
         # With a constraint, each stored state is recorded with the value
         # the constraint was applied to, where the sweeps linearize it.
@@ -259,7 +255,7 @@ class Integrator(Generic[V]):
         # The states the next step reads, most recent first: the
         # stepper's depth of them once there are that many.
         recent: Deque[V] = deque([state], maxlen=stepper.depth())
-        while (taken := sequence.next_step(session, tuple(recent))) is not None:
+        while (taken := sequence.next_step(stepper, tuple(recent))) is not None:
             # The step's window, built once here for every sink: the
             # states it read (one per size of its span) and its unknown.
             read = tuple(list(recent)[: len(taken.span.sizes)])
