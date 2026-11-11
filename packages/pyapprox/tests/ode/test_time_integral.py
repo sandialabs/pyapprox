@@ -364,9 +364,10 @@ class _CountingStore(InMemoryTrajectoryStore[Array]):
         self.state_reads += 1
         return super().state(index)
 
-    def window(self, step: int, depth: int = 1) -> StepWindow[Array]:
-        self.state_reads += depth
-        return super().window(step, depth)
+    def window(self, step: int) -> StepWindow[Array]:
+        window = super().window(step)
+        self.state_reads += len(window.past_states)
+        return window
 
 
 class TestStoreReads:

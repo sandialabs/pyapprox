@@ -177,7 +177,7 @@ class TestNonlinearSteps:
         )
         store = _solve(bkd, stepper, 0.05, 0.5)
         for n in range(store.nsteps()):
-            window = store.window(n, min(stepper.depth(), n + 1))
+            window = store.window(n)
             residual = stepper.residual_space().norm(stepper.step_residual(window))
             assert bkd.to_float(residual[0, 0]) < 1e-10
 
@@ -198,7 +198,7 @@ class TestDerivatives:
         model.set_param(param)
         stepper = lm_stepper(make(), dense_mass_form_system(model))
         store = _solve(bkd, stepper, 0.05, 0.5)
-        window = store.window(step, min(stepper.depth(), step + 1))
+        window = store.window(step)
         sample = backend_sample(bkd)
         adj = BlockVector(
             (sample(stepper.residual_space().component(0).descriptor(), 99),)
@@ -232,7 +232,7 @@ class TestOnAnOpaqueStack:
         steps = FixedStep(0.1, (0.0, 0.5))
         Integrator(stepper).solve(wrap(_Y0, MOCK_STATE), steps, store)
         for step in (0, 3):
-            window = store.window(step, min(stepper.depth(), step + 1))
+            window = store.window(step)
             report = StepperBundleChecker(stepper, mock_sample).check(window)
             assert report.failures() == []
 
@@ -342,7 +342,7 @@ class TestVariableSteps:
         steps = GivenSizes.from_times([0.0, 0.05, 0.08, 0.15, 0.2])
         Integrator(stepper).solve(bkd.asarray([[10.0], [5.0]]), steps, store)
         # Step 2 spans steps of 0.03 and 0.07.
-        window = store.window(2, stepper.depth())
+        window = store.window(2)
         sample = backend_sample(bkd)
         adj = BlockVector(
             (sample(stepper.residual_space().component(0).descriptor(), 99),)

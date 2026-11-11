@@ -48,16 +48,17 @@ class TestInMemoryTrajectoryStore:
         assert store.state(-1) is states[-1]
 
     def test_times_are_derived_from_the_sizes(self, bkd: Backend[Array]) -> None:
-        """Steps of 0.1 from 0: the stored times are the running sums, not
-        0.1 n, and every window's span gives them back bit for bit."""
+        """Steps of 0.1 from 0, each reading up to three states: the
+        stored times are the running sums, not 0.1 n, and every window's
+        span gives them back bit for bit."""
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         state = bkd.zeros((2, 1))
         store.append(0.0, state)
         span = StepSpan.first(0.0, 0.1)
-        for _ in range(10):
-            window = StepWindow(span, (state,), BlockVector((state,)))
-            store.append_step(window, state)
-            span = span.advanced(0.1, 1)
+        for n in range(10):
+            read = (state,) * len(span.sizes)
+            store.append_step(StepWindow(span, read, BlockVector((state,))), state)
+            span = span.advanced(0.1, min(3, n + 2))
         sums = [0.0]
         for _ in range(10):
             sums.append(sums[-1] + 0.1)
@@ -65,7 +66,7 @@ class TestInMemoryTrajectoryStore:
         assert store.time(-1) != 1.0
         for step in range(2, 10):
             expected = tuple(sums[step - 2 : step + 2])
-            assert store.window(step, 3).span.times() == expected
+            assert store.window(step).span.times() == expected
             assert store.window(step).deltat() == 0.1
 
     def test_refuses_a_second_initial_state_and_a_misplaced_step(
@@ -99,17 +100,20 @@ class TestInMemoryTrajectoryStore:
 
 
 def _stepped_store(
-    bkd: Backend[Array],
+    bkd: Backend[Array], reads: Sequence[int] = (1, 2, 3)
 ) -> tuple[InMemoryTrajectoryStore[Array], list[Array], list[BlockVector[Array]]]:
-    """A store of the four states, each later one appended as a step whose
-    unknown is two blocks and whose parameter version is its index."""
+    """A store of the four states, each later one appended as a step
+    reading ``reads[n]`` states, whose unknown is two blocks and whose
+    parameter version is its index."""
     states = _states(bkd, (2, 1))
     unknowns = [BlockVector((state, 2.0 * state)) for state in states[1:]]
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
     store.append(_TIMES[0], states[0])
     for n, state in enumerate(states[1:]):
-        span = StepSpan.from_times(_TIMES[n : n + 2])
-        store.append_step(StepWindow(span, (states[n],), unknowns[n], n), state)
+        nread = reads[n]
+        span = StepSpan.from_times(_TIMES[n + 1 - nread : n + 2])
+        past = tuple(states[n - lag] for lag in range(nread))
+        store.append_step(StepWindow(span, past, unknowns[n], n), state)
     return store, states, unknowns
 
 
@@ -120,7 +124,7 @@ class TestStepWindows:
         window = store.window(1)
         assert window.time() == 0.25
         assert window.deltat() == 0.25
-        assert window.past_states == (states[1],)
+        assert window.past_states == (states[1], states[0])
         assert window.unknown is unknowns[1]
         assert window.parameters_version == 1
         assert store.window(-1).unknown is unknowns[2]
@@ -129,22 +133,27 @@ class TestStepWindows:
         self, bkd: Backend[Array]
     ) -> None:
         store, states, _ = _stepped_store(bkd)
-        assert store.window(2, depth=3).past_states == (
-            states[2],
-            states[1],
-            states[0],
-        )
-        with pytest.raises(ValueError, match="preceded by 2 states"):
-            store.window(1, depth=3)
+        assert store.window(2).past_states == (states[2], states[1], states[0])
+
+    def test_a_restarted_step_reads_what_it_read(self, bkd: Backend[Array]) -> None:
+        """A step reading one state after a step that read two (a
+        multistep history restarted mid-run) is read back with one state
+        and one size, not the method's depth."""
+        store, states, _ = _stepped_store(bkd, reads=(1, 2, 1))
+        window = store.window(2)
+        assert window.past_states == (states[2],)
+        assert window.span.times() == (0.5, 1.0)
+        assert store.span(2) == window.span
+        assert store.window(1).span.times() == (0.0, 0.25, 0.5)
 
     def test_windows_carry_their_origin(self, bkd: Backend[Array]) -> None:
         """Every read of a step's window names the same step of this
-        store's trajectory, at any depth and by ``-1``; other steps and
-        other stores name others; a window built by hand names none."""
+        store's trajectory, by ``-1`` too; other steps and other stores
+        name others; a window built by hand names none."""
         store, states, unknowns = _stepped_store(bkd)
         origin = store.window(2).origin
         assert origin is not None and origin.step() == 2
-        assert store.window(2, depth=3).origin == origin
+        assert store.window(2).origin == origin
         assert store.window(-1).origin == origin
         assert store.window(1).origin != origin
         other, _, _ = _stepped_store(bkd)
@@ -153,13 +162,12 @@ class TestStepWindows:
         assert StepWindow(span, (states[0],), unknowns[0]).origin is None
 
     def test_span_is_the_windows_span(self, bkd: Backend[Array]) -> None:
-        """The span read alone equals the window's, at every step and
-        depth the step has, the last step by ``-1`` too."""
+        """The span read alone equals the window's at every step, the last
+        step by ``-1`` too."""
         store, _, _ = _stepped_store(bkd)
         for step in range(store.nsteps()):
-            for depth in range(1, step + 2):
-                assert store.span(step, depth) == store.window(step, depth).span
-        assert store.span(-1, 2) == store.span(2, 2)
+            assert store.span(step) == store.window(step).span
+        assert store.span(-1) == store.span(2)
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         empty: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
@@ -176,8 +184,17 @@ class TestStepWindows:
             store.window(-4)
         with pytest.raises(IndexError):
             store.span(3)
-        with pytest.raises(ValueError, match="preceded by 2 states"):
-            store.span(1, depth=3)
+        short: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        short.append(0.25, state)
+        with pytest.raises(ValueError, match="reads 2 states, but 1 are stored"):
+            short.append_step(
+                StepWindow(
+                    StepSpan.from_times((0.0, 0.25, 0.5)),
+                    (state, state),
+                    BlockVector((state,)),
+                ),
+                state,
+            )
 
 
 class TestTrajectoryArray:

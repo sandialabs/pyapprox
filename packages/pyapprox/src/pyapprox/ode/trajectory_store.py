@@ -16,7 +16,10 @@ A store also keeps each step's unknown :math:`u_n` (the stage values the
 step solved for) with the state it produced, so a sweep can rebuild step
 :math:`n`'s :class:`~pyapprox.ode.stepper_derivatives.StepWindow`: the
 step's span, the stored states it read, its unknown, and the parameter
-version it was taken at. Sweeps ask for windows in reverse step order,
+version it was taken at. How many states each step read is recorded with
+it, not inferred from the method, so a multistep run that restarted its
+history mid-run (reading fewer states after a stop) is read back with the
+formula each step used. Sweeps ask for windows in reverse step order,
 which lets a checkpointing store recompute instead of holding every step.
 
 A store keeps the initial time and each step's size, and derives the
@@ -104,24 +107,25 @@ class TrajectoryStoreProtocol(TrajectorySinkProtocol[V], Protocol[V]):
         """The number of recorded steps."""
         ...
 
-    def span(self, step: int, depth: int = 1) -> StepSpan:
-        """Step ``step``'s span, reading the ``depth`` states up to state
-        ``step``: the span of :meth:`window` without reading any state, so
-        a store that recomputes states need not, for what depends on the
-        step sizes alone."""
+    def span(self, step: int) -> StepSpan:
+        """Step ``step``'s span, one size per state the step read (as
+        recorded when it was appended): the span of :meth:`window` without
+        reading any state, so a store that recomputes states need not, for
+        what depends on the step sizes alone."""
         ...
 
-    def window(self, step: int, depth: int = 1) -> StepWindow[V]:
+    def window(self, step: int) -> StepWindow[V]:
         """Step ``step``'s window: from state ``step`` to state
-        ``step + 1``, reading the ``depth`` states up to state ``step``,
-        over :meth:`span`, its ``origin`` naming this store's trajectory
-        and the step (counted from 0), the same on every read."""
+        ``step + 1``, with the states the step read up to state ``step``
+        (as many as recorded), over :meth:`span`, its ``origin`` naming
+        this store's trajectory and the step (counted from 0), the same on
+        every read."""
         ...
 
 
 class InMemoryTrajectoryStore(Generic[V]):
     """A trajectory held in memory: the initial time, the step sizes, the
-    states and each step's unknown.
+    states and each step's unknown and the number of states it read.
 
     Satisfies :class:`TrajectoryStoreProtocol` for any vector type.
 
@@ -129,8 +133,8 @@ class InMemoryTrajectoryStore(Generic[V]):
     ------
     ValueError
         From :meth:`append`, if the store is not empty; from
-        :meth:`append_step`, if it is, or the step does not start at the
-        last stored time.
+        :meth:`append_step`, if it is, the step does not start at the last
+        stored time, or it reads more states than are stored.
     IndexError
         From :meth:`time`, :meth:`state` and :meth:`window`, for an index
         out of range.
@@ -142,8 +146,9 @@ class InMemoryTrajectoryStore(Generic[V]):
         self._times: list[float] = []
         self._sizes: list[float] = []
         self._states: list[V] = []
-        # Step n's unknown and parameter version, aligned with the steps.
-        self._steps: list[tuple[BlockVector[V], int]] = []
+        # Step n's unknown, parameter version and the number of states it
+        # read, aligned with the steps.
+        self._steps: list[tuple[BlockVector[V], int, int]] = []
         # The value the constraint was applied to, aligned with the
         # states; None where the state was appended without one.
         self._unconstrained: list[Optional[V]] = []
@@ -164,15 +169,17 @@ class InMemoryTrajectoryStore(Generic[V]):
     def append_step(
         self, window: StepWindow[V], state: V, unconstrained: Optional[V] = None
     ) -> None:
-        """Add the state a step produced, with the step's unknown and
-        parameter version from its window; the window's past states are
-        the store's own and are not kept twice.
+        """Add the state a step produced, with the step's unknown,
+        parameter version and the number of states it read (one per size
+        of its span) from its window; the window's past states are the
+        store's own and are not kept twice.
 
         Raises
         ------
         ValueError
-            If the store is empty (a step starts from a stored state) or
-            the span does not start at the last stored time.
+            If the store is empty (a step starts from a stored state), the
+            span does not start at the last stored time, or the step reads
+            more states than are stored.
         """
         span = window.span
         if not self._times:
@@ -182,80 +189,72 @@ class InMemoryTrajectoryStore(Generic[V]):
                 f"the step starts at {span.time()}, not at the last stored time "
                 f"{self._times[-1]}"
             )
+        nread = len(span.sizes)
+        if nread > len(self._states):
+            raise ValueError(
+                f"the step reads {nread} states, but {len(self._states)} are stored"
+            )
         self._sizes.append(span.deltat())
         self._times.append(span.end())
         self._states.append(state)
         self._unconstrained.append(unconstrained)
-        self._steps.append((window.unknown, window.parameters_version))
+        self._steps.append((window.unknown, window.parameters_version, nread))
 
     def nsteps(self) -> int:
         return len(self._steps)
 
-    def _step_index(self, step: int, depth: int) -> int:
-        """``step`` as a nonnegative index, checked against ``depth``.
+    def _step_index(self, step: int) -> int:
+        """``step`` as a nonnegative index.
 
         Raises
         ------
         IndexError
             If ``step`` is out of range.
-        ValueError
-            If fewer than ``depth`` states precede it.
         """
         if not -len(self._steps) <= step < len(self._steps):
             raise IndexError(f"step {step} is out of range for {self.nsteps()} steps")
-        step = step % len(self._steps)
-        if depth > step + 1:
-            raise ValueError(
-                f"step {step} is preceded by {step + 1} states, not {depth}"
-            )
-        return step
+        return step % len(self._steps)
 
-    def span(self, step: int, depth: int = 1) -> StepSpan:
-        """Step ``step``'s span from the recorded sizes alone.
+    def span(self, step: int) -> StepSpan:
+        """Step ``step``'s span from the recorded sizes alone, one per
+        state the step read.
 
         Parameters
         ----------
         step : int
             The step, from state ``step`` to state ``step + 1``; ``-1`` is
             the last step.
-        depth : int, default 1
-            How many stored states the step reads.
 
         Raises
         ------
         IndexError
             If ``step`` is out of range.
-        ValueError
-            If fewer than ``depth`` states precede it.
         """
-        step = self._step_index(step, depth)
+        step = self._step_index(step)
         # From the oldest state read, by the recorded sizes: the same
         # additions that made the stored times.
-        oldest = step + 1 - depth
+        oldest = step + 1 - self._steps[step][2]
         return StepSpan(self._times[oldest], tuple(self._sizes[oldest : step + 1]))
 
-    def window(self, step: int, depth: int = 1) -> StepWindow[V]:
-        """Step ``step``'s window, over :meth:`span`.
+    def window(self, step: int) -> StepWindow[V]:
+        """Step ``step``'s window, over :meth:`span`, with the states the
+        step read, most recent first.
 
         Parameters
         ----------
         step : int
             The step, from state ``step`` to state ``step + 1``; ``-1`` is
             the last step.
-        depth : int, default 1
-            How many stored states the step reads, most recent first.
 
         Raises
         ------
         IndexError
             If ``step`` is out of range.
-        ValueError
-            If fewer than ``depth`` states precede it.
         """
-        span = self.span(step, depth)
-        step = self._step_index(step, depth)
-        unknown, version = self._steps[step]
-        past = tuple(self._states[step - lag] for lag in range(depth))
+        span = self.span(step)
+        step = self._step_index(step)
+        unknown, version, nread = self._steps[step]
+        past = tuple(self._states[step - lag] for lag in range(nread))
         origin = StepOrigin(self._trajectory, step)
         return StepWindow(span, past, unknown, version, origin)
 

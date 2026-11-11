@@ -92,8 +92,8 @@ class _CopyingStore(InMemoryTrajectoryStore[Array]):
     def state(self, index: int) -> Array:
         return self._bkd.copy(super().state(index))
 
-    def window(self, step: int, depth: int = 1) -> StepWindow[Array]:
-        window = super().window(step, depth)
+    def window(self, step: int) -> StepWindow[Array]:
+        window = super().window(step)
         copy = self._bkd.copy
         return StepWindow(
             window.span,
@@ -107,8 +107,8 @@ class _CopyingStore(InMemoryTrajectoryStore[Array]):
 class _UnnamedStore(InMemoryTrajectoryStore[Array]):
     """Gives out windows naming no origin, as a window built by hand."""
 
-    def window(self, step: int, depth: int = 1) -> StepWindow[Array]:
-        window = super().window(step, depth)
+    def window(self, step: int) -> StepWindow[Array]:
+        window = super().window(step)
         return StepWindow(
             window.span, window.past_states, window.unknown, window.parameters_version
         )

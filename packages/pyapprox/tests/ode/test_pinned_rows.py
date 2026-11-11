@@ -128,7 +128,7 @@ class _Pinned(Generic[Array]):
         Integrator(self.stepper).solve(bkd.asarray([[10.0], [5.0]]), STEPS, self.store)
 
     def window(self, step: int) -> StepWindow[Array]:
-        return self.store.window(step, min(self.stepper.depth(), step + 1))
+        return self.store.window(step)
 
 
 class TestPinnedInsideTheSolve:

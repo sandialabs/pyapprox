@@ -301,7 +301,7 @@ class TestPinnedInsideTheSolve:
             )
         )
         checker = StepperBundleChecker(stepper, sample, set_param=problem.set_param)
-        window = store.window(3, min(stepper.depth(), 4))
+        window = store.window(3)
         assert checker.check(window, adj, problem.param).failures() == []
 
     @pytest.mark.parametrize("placement", _PLACEMENTS, ids=_PLACEMENT_IDS)

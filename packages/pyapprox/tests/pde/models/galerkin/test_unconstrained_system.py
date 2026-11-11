@@ -190,7 +190,7 @@ class _Case:
         return store
 
     def window(self, step: int) -> StepWindow[_Np]:
-        return self.store.window(step, min(self.solver.depth(), step + 1))
+        return self.store.window(step)
 
     def flux(
         self, stepper: Optional[DifferentiableStepperProtocol[_Np, _Np]] = None

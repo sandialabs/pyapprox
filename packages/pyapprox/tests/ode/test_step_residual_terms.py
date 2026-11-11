@@ -102,7 +102,7 @@ class _Case(Generic[Array]):
     def window(
         self, store: InMemoryTrajectoryStore[Array], step: int
     ) -> StepWindow[Array]:
-        return store.window(step, min(self.solver.depth(), step + 1))
+        return store.window(step)
 
     def flux(self) -> StepResidualTerm[Array, Array]:
         prey = LastBlock(

@@ -253,7 +253,7 @@ class TimeIntegral(Generic[V, A]):
             raise TypeError(
                 f"stepper must satisfy StepperProtocol, got {type(stepper).__name__}"
             )
-        self._integrand, self._stepper, self._bkd = integrand, stepper, bkd
+        self._integrand, self._bkd = integrand, bkd
         self._combination = combination
         self._quadrature = stepper.time_quadrature()
         self._depth = stepper.depth()
@@ -292,11 +292,7 @@ class TimeIntegral(Generic[V, A]):
     def _rules(self, store: TrajectoryStoreProtocol[V]) -> List[StepRule]:
         """Every step's recursion, over the span the sweeps' window has,
         from the step sizes alone: no state is read."""
-        depth = self._stepper.depth()
-        return [
-            self._quadrature.rule(store.span(n, min(depth, n + 1)))
-            for n in range(store.nsteps())
-        ]
+        return [self._quadrature.rule(store.span(n)) for n in range(store.nsteps())]
 
     def trajectory_functional(
         self, store: TrajectoryStoreProtocol[V]

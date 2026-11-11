@@ -188,7 +188,7 @@ class TestReplay:
                 replay = replay + member.value(store.state(index))
         combination = RunningRecursion[Array](integral.quadrature(), stepper.depth())
         for step in range(store.nsteps()):
-            window = store.window(step, min(stepper.depth(), step + 1))
+            window = store.window(step)
             combination.add(window.span, integral.step_term().value(step, window))
         combined = combination.value()
         assert combined is not None

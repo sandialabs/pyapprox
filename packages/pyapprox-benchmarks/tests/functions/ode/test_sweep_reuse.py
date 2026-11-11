@@ -176,7 +176,7 @@ def _distinct_step_operators(method: MultistepFormulaProtocol, run: _Run) -> int
     size of its own)."""
     operators = set()
     for step in range(run.store.nsteps()):
-        span = run.store.span(step, min(method.depth(), step + 1))
+        span = run.store.span(step)
         formula = method.coefficients_at(span)
         operators.add((formula.alpha[0], span.deltat() * formula.beta[0]))
     return len(operators)

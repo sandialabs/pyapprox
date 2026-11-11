@@ -40,7 +40,7 @@ from pyapprox.ode.residual_derivatives import (
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.state_constraint import StateConstraintDerivatives
-from pyapprox.ode.step_plan import GivenSizes
+from pyapprox.ode.step_plan import GivenSizes, StepPlanProtocol
 from pyapprox.ode.tableau import (
     ButcherTableau,
     backward_euler,
@@ -397,6 +397,8 @@ class TrajectoryProblem(Generic[Array]):
         Rows pinned inside the stepper's solves.
     stack_constraint : DifferentiableStackConstraintProtocol, optional
         A constraint on stack vectors at stored states, instead of ``pin``.
+    plan : StepPlanProtocol, optional
+        The steps to take, instead of the steps between ``times``.
     """
 
     def __init__(
@@ -416,9 +418,14 @@ class TrajectoryProblem(Generic[Array]):
         predator: tuple[int, ...] = (3, 10),
         row_pinning: Optional[RowPinningProtocol[Array]] = None,
         stack_constraint: Optional[DifferentiableStackConstraintProtocol[Array]] = None,
+        plan: Optional[StepPlanProtocol] = None,
     ) -> None:
         self._bkd, self._pin, self._start = bkd, pin, start
-        self._times = TIMES if times is None else times
+        self._plan: StepPlanProtocol = (
+            GivenSizes.from_times(TIMES if times is None else times)
+            if plan is None
+            else plan
+        )
         self._model = lotka_volterra_with_mass(bkd)
         build = dense_mass_form_system if system is None else system
         self._stepper: Stepper[Array] = make_stepper(
@@ -464,7 +471,7 @@ class TrajectoryProblem(Generic[Array]):
             else self._start.start(param)
         )
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
-        plan = GivenSizes.from_times(self._times)
+        plan = self._plan
         if sink is None:
             self._integrator.solve(start, plan, store)
             return store

@@ -140,9 +140,8 @@ class _Case(Generic[Array]):
     def window(
         self, store: InMemoryTrajectoryStore[Array], step: int
     ) -> StepWindow[Array]:
-        """Step ``step``'s window, reading the stepper's depth of states
-        or all there are at a startup step."""
-        return store.window(step, min(self.stepper.depth(), step + 1))
+        """Step ``step``'s window, with the states the step read."""
+        return store.window(step)
 
     def misfit(self) -> TermAtTimes[Array, Array]:
         """Both states observed at ``_OBSERVED``, noise 0.5."""

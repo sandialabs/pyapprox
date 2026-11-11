@@ -212,7 +212,7 @@ class _Case(Generic[Array]):
         )
 
     def window(self, step: int) -> StepWindow[Array]:
-        return self.store.window(step, min(self.stepper.depth(), step + 1))
+        return self.store.window(step)
 
     def ones(self) -> Array:
         return self.bkd.ones((1, 1))
@@ -554,9 +554,9 @@ class _BackwardOnlyStore(InMemoryTrajectoryStore[Array]):
         self._read("state", index, self.ntimes())
         return super().state(index)
 
-    def window(self, step: int, depth: int = 1) -> StepWindow[Array]:
+    def window(self, step: int) -> StepWindow[Array]:
         self._read("window", step, self.nsteps())
-        return super().window(step, depth)
+        return super().window(step)
 
 
 class TestTheAdjointSweepReadsBackward:

@@ -288,7 +288,7 @@ class TestPinnedAtTheStepEnd:
         checker = StepperBundleChecker(
             stepper, sample, set_param=pinned.case.model.set_param
         )
-        window = store.window(3, min(stepper.depth(), 4))
+        window = store.window(3)
         assert checker.check(window, adj, pinned.param).failures() == []
 
     @pytest.mark.parametrize("treatment", _TREATMENTS, ids=_TREATMENT_IDS)

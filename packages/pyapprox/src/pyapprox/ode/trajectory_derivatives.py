@@ -489,18 +489,17 @@ class TrajectoryDerivatives(Generic[V, A]):
         """Step ``step``'s window, refused when it was recorded at other
         parameters than those set now (the bundle would not match it).
 
-        The window reads the stepper's depth of past states, or all the
-        states before the step when fewer precede it: a multistep method's
-        startup steps read the history there is, and every lag loop runs
-        over ``len(window.past_states)``.
+        The window holds the states the step read, as the store recorded
+        them: a multistep method's startup steps, and steps after a
+        restart, read fewer than its depth, and every lag loop runs over
+        ``len(window.past_states)``.
 
         Raises
         ------
         ValueError
             If the window's parameter version is not the stepper's.
         """
-        depth = min(self._stepper.depth(), step + 1)
-        window = store.window(step, depth)
+        window = store.window(step)
         current = self._stepper.parameters_version()
         if window.parameters_version != current:
             raise ValueError(
@@ -682,13 +681,14 @@ class TrajectoryDerivatives(Generic[V, A]):
         """
         initial = self.tangent_initial(store, direction)
         yield initial
-        # The tangents of the states the next step reads, most recent
-        # first: recent[l - 1] is w_{n+1-l}.
+        # The tangents of the latest states, most recent first:
+        # recent[l - 1] is w_{n+1-l}. A step reads as many as its window
+        # holds, fewer than the depth after a restart.
         recent: Deque[V] = deque([initial.state], maxlen=self._stepper.depth())
         for n in range(store.nsteps()):
-            tangent = self.tangent_step(
-                store, n, self._window(store, n), tuple(recent), direction
-            )
+            window = self._window(store, n)
+            read = tuple(recent)[: len(window.past_states)]
+            tangent = self.tangent_step(store, n, window, read, direction)
             yield tangent
             recent.appendleft(tangent.state)
 
@@ -1002,7 +1002,7 @@ class TrajectoryDerivatives(Generic[V, A]):
             else:
                 # The primal step's own span, so the tangent store's times
                 # are the primal's, derived from the same sizes.
-                span = store.span(index - 1, min(depth, index))
+                span = store.span(index - 1)
                 read = tuple(list(recent)[: len(span.sizes)])
                 window = StepWindow(span, read, tangent.unknown, version)
                 tangents.append_step(window, tangent.state, tangent.unconstrained)
@@ -1550,10 +1550,11 @@ class _SecondOrderSources(Generic[V, A]):
         return to_state, to_param
 
     def begin_step(self, step: int, window: StepWindow[V]) -> None:
-        """Read the tangent store's window of step ``step`` once, at the
-        primal window's depth: :math:`dX_b` by lag, the step's unknown at
-        0 and the states it read at :math:`l \\ge 1`."""
-        tangent_window = self._tangents.window(step, len(window.past_states))
+        """Read the tangent store's window of step ``step`` once (recorded
+        over the primal step's span, so it reads as many states):
+        :math:`dX_b` by lag, the step's unknown at 0 and the states it
+        read at :math:`l \\ge 1`."""
+        tangent_window = self._tangents.window(step)
         self._lag_tangents = {0: tangent_window.unknown}
         for lag in range(1, len(window.past_states) + 1):
             self._lag_tangents[lag] = BlockVector((tangent_window.past_state(lag),))

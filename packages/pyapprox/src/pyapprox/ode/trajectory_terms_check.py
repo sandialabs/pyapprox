@@ -217,10 +217,9 @@ class TrajectoryTermChecker(Generic[V, A]):
                         param,
                         _Results(f"state_terms[{i}]@{index}."),
                     ).merge_into(results)
-            depth = self._stepper.depth()
             for i, step_term in enumerate(functional.step_terms):
                 for step in range(store.nsteps()):
-                    window = store.window(step, min(depth, step + 1))
+                    window = store.window(step)
                     self._step_term(
                         step_term,
                         step,
