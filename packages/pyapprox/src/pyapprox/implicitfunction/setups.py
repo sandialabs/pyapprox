@@ -105,6 +105,12 @@ class _Unpositioned:
         return "unpositioned"
 
 
+def state_key(position: Optional[Hashable]) -> Hashable:
+    """The key part naming a state: its position, or, for a state with
+    none, a part equal to no other."""
+    return _Unpositioned() if position is None else position
+
+
 @runtime_checkable
 class SetupRequestProtocol(Protocol):
     """A description of one operator and the point it is evaluated at.
@@ -204,9 +210,7 @@ class SteadyRequest(Generic[V, F]):
         self._state = state
         self._position = position
         self._sees_state = not jacobian.affine()
-        where: Hashable = None
-        if self._sees_state:
-            where = _Unpositioned() if position is None else position
+        where = state_key(position) if self._sees_state else None
         self._key = SetupKey((source,), (where,))
 
     def source(self) -> ResidualProtocol[V, F]:
