@@ -63,6 +63,11 @@ from pyapprox.ode.multistep_methods import (
 )
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
 from pyapprox.ode.residual_derivatives import DerivativeOperator
+from pyapprox.ode.setups import (
+    MassShiftBuilderProtocol,
+    MassShiftStrategy,
+    stepper_setups,
+)
 from pyapprox.ode.step_quadrature import MultistepQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -503,6 +508,11 @@ class LinearMultistepStepper(Generic[V, A, F]):
     system : MassFormSystem
         :math:`f`, :math:`M`, :math:`J`, the state space, the linear
         solver and the residual form.
+    setups : SetupStrategyProtocol
+        Sets up each operator the stepper solves with
+        (:class:`~pyapprox.ode.setups.MassShiftRequest`) or returns a kept
+        handle; its solver pairs with ``F``. Whoever changes the
+        parameters calls its ``clear``.
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves implicit steps; required exactly when the method is
         implicit.
@@ -515,24 +525,30 @@ class LinearMultistepStepper(Generic[V, A, F]):
         How a solve keeps step setups between steps: by default the
         current one (:class:`KeepWithinSolve`); :class:`NoReuse` keeps
         none, to save memory.
+    builder : OperatorBuilderProtocol, optional
+        Forms the operators ``setups`` sets up; by default
+        :class:`~pyapprox.ode.setups.MassShiftBuilder` of ``system``.
 
     Raises
     ------
     TypeError
         If the method does not satisfy its protocol, is implicit and no
         nonlinear solver is given or the residual's bundle has no
-        Jacobian, or ``row_pinning`` or ``reuse`` does not satisfy its
-        protocol.
+        Jacobian, or ``setups``, ``row_pinning``, ``reuse`` or ``builder``
+        does not satisfy its protocol.
     """
 
     def __init__(
         self,
         method: MultistepFormulaProtocol,
         system: MassFormSystem[V, A, F],
+        setups: MassShiftStrategy[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
         reuse: Optional[ReusePolicyProtocol] = None,
+        builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> None:
+        self._setups, self._builder = stepper_setups(system, setups, builder)
         if reuse is not None and not isinstance(reuse, ReusePolicyProtocol):
             raise TypeError(
                 f"reuse must satisfy ReusePolicyProtocol, got {type(reuse).__name__}"

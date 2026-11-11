@@ -22,7 +22,12 @@ kept for them. An iterate of a stage solve has no position.
 
 from typing import Generic, Hashable, List, Optional, Tuple, TypeVar
 
-from pyapprox.implicitfunction.setups import SetupKey, state_key
+from pyapprox.implicitfunction.setups import (
+    OperatorBuilderProtocol,
+    SetupKey,
+    SetupStrategyProtocol,
+    state_key,
+)
 from pyapprox.ode.mass_form_system import MassFormSystem, parameters_version_reader
 from pyapprox.ode.pinned_rows import BlockPinProtocol
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
@@ -257,3 +262,37 @@ class MassShiftBuilder(Generic[V, A, F]):
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._system!r})"
+
+
+MassShiftStrategy = SetupStrategyProtocol[MassShiftRequest[V, A, F], V, F]
+"""A strategy serving a mass-form stepper's requests."""
+
+MassShiftBuilderProtocol = OperatorBuilderProtocol[MassShiftRequest[V, A, F], V, F]
+"""A builder of a mass-form stepper's operators."""
+
+
+def stepper_setups(
+    system: MassFormSystem[V, A, F],
+    setups: MassShiftStrategy[V, A, F],
+    builder: Optional[MassShiftBuilderProtocol[V, A, F]],
+) -> Tuple[MassShiftStrategy[V, A, F], MassShiftBuilderProtocol[V, A, F]]:
+    """What a stepper of ``system`` sets up through: ``setups``, checked,
+    and ``builder``, by default :class:`MassShiftBuilder` of ``system``.
+
+    Raises
+    ------
+    TypeError
+        If ``setups`` or ``builder`` does not satisfy its protocol.
+    """
+    if not isinstance(setups, SetupStrategyProtocol):
+        raise TypeError(
+            f"setups must satisfy SetupStrategyProtocol, got {type(setups).__name__}"
+        )
+    if builder is None:
+        return setups, MassShiftBuilder(system)
+    if not isinstance(builder, OperatorBuilderProtocol):
+        raise TypeError(
+            "builder must satisfy OperatorBuilderProtocol, got "
+            f"{type(builder).__name__}"
+        )
+    return setups, builder

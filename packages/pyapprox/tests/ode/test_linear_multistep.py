@@ -33,6 +33,7 @@ import pytest
 from numpy.typing import NDArray
 from scipy.linalg import expm
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import dense_mass_form_system
@@ -51,7 +52,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import BlockVector
 from pyapprox.util.rootfinding.nonlinear import Newton
-from tests._helpers.linalg.mock_stack import MockVector, wrap
+from tests._helpers.linalg.mock_stack import MockFormat, MockVector, wrap
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
 from tests._helpers.ode.runge_kutta_cases import (
     LINEAR_K,
@@ -210,10 +211,14 @@ class TestDerivatives:
 
 def _mock_stepper(
     method: MultistepFormulaProtocol,
-) -> LinearMultistepStepper[MockVector, NDArray[Any], Any]:
+) -> LinearMultistepStepper[MockVector, NDArray[Any], MockFormat]:
     newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
+    system = mock_linear_system()
     return LinearMultistepStepper(
-        method, mock_linear_system(), None if method.is_explicit() else newton
+        method,
+        system,
+        RecomputeAlways(system.solver),
+        None if method.is_explicit() else newton,
     )
 
 
@@ -236,8 +241,9 @@ class TestRefusals:
     def test_an_implicit_method_needs_a_nonlinear_solver(
         self, bkd: Backend[Array]
     ) -> None:
+        system = dense_mass_form_system(LinearMassModel(bkd))
         with pytest.raises(TypeError, match="needs a nonlinear solver"):
-            LinearMultistepStepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))
+            LinearMultistepStepper(bdf2(), system, RecomputeAlways(system.solver))
 
     def test_too_many_states(self, bkd: Backend[Array]) -> None:
         stepper = lm_stepper(bdf2(), dense_mass_form_system(LinearMassModel(bkd)))

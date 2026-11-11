@@ -32,6 +32,7 @@ from typing import Any, Callable, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.differentiated_rows import differentiated_rows
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import RowPinning
@@ -45,20 +46,24 @@ from pyapprox.ode.tableau import (
     crank_nicolson,
 )
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
-from pyapprox.pde.boundary import BoundarySignal
+from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     CoordinateDiffusion,
     TimeDependent,
     TimeIndependent,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.boundary import DirichletBC
+from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.mesh.structured import StructuredMesh1D
+from pyapprox.pde.galerkin.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
     EssentialPinnedRows,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
 )
 from pyapprox.pde.models.galerkin.unconstrained_system import (
     galerkin_unconstrained_system,
@@ -164,6 +169,7 @@ class _Run:
             differentiated_rows(
                 galerkin_unconstrained_system(discretization, self.lu), rows
             ),
+            RecomputeAlways(self.lu),
             newton,
             RowPinning(rows),
             reuse,

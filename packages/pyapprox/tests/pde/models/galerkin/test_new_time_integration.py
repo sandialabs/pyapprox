@@ -44,6 +44,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.implicitfunction.observation_terms import StateEntries
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.differentiated_rows import (
     CoupledRows,
     SymmetricRows,
@@ -59,7 +60,7 @@ from pyapprox.ode.integration import (
 from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.pinned_rows import PinnedRowsConstraint, RowPinning
-from pyapprox.ode.protocols import StateConstraintProtocol
+from pyapprox.ode.protocols.state_constraint import StateConstraintProtocol
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
@@ -80,14 +81,18 @@ from pyapprox.ode.trajectory_derivatives import (
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
-    NeutralizedRows,
-    SymmetricNeutralizedRows,
+from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
-    skfem_discretization,
 )
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
     EssentialPinnedRows,
+)
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
+    NeutralizedRows,
+    SymmetricNeutralizedRows,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
 )
 from pyapprox.pde.galerkin.time_integration.stack_discretization import (
     GalerkinStackDiscretization,
@@ -220,6 +225,7 @@ class _Paths:
         self._stepper = RungeKuttaStepper(
             tableau,
             system,
+            RecomputeAlways(system.solver),
             None if tableau.is_explicit() else newton,
             RowPinning(rows) if strategy == "step_end" else None,
         )

@@ -138,6 +138,7 @@ Q = TypeVar("Q", bound=SetupRequestProtocol)
 Q_contra = TypeVar("Q_contra", bound=SetupRequestProtocol, contravariant=True)
 
 
+@runtime_checkable
 class OperatorBuilderProtocol(Protocol[Q_contra, V, F_co]):
     """Forms the operator a request describes; a function of the request
     alone, keeping nothing between calls."""
@@ -145,6 +146,7 @@ class OperatorBuilderProtocol(Protocol[Q_contra, V, F_co]):
     def build(self, request: Q_contra) -> ActionOperatorProtocol[V, F_co]: ...
 
 
+@runtime_checkable
 class SetupStrategyProtocol(Protocol[Q, V, F_contra]):
     """What a consumer of one request family holds: decides, per request,
     whether to set up or return a kept handle."""
@@ -161,6 +163,7 @@ class SetupStrategyProtocol(Protocol[Q, V, F_contra]):
         ...
 
 
+@runtime_checkable
 class AnyRequestStrategyProtocol(Protocol[V, F_contra]):
     """A strategy serving every request family; what a strategy composed
     of others holds."""

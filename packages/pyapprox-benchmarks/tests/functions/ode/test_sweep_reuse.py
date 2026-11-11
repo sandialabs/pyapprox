@@ -27,6 +27,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.observation_terms import MisfitTerm
@@ -97,7 +98,12 @@ class _Run:
         self.lu = _CountingLU(bkd)
         newton: Newton[_Np, _Np] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
         self.stepper = RungeKuttaStepper(
-            make(), dense_mass_form_system(self.residual, self.lu), newton, None, reuse
+            make(),
+            dense_mass_form_system(self.residual, self.lu),
+            RecomputeAlways(self.lu),
+            newton,
+            None,
+            reuse,
         )
         self.store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
         Integrator(self.stepper).solve(

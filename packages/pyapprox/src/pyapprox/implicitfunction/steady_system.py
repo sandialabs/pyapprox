@@ -139,7 +139,8 @@ class SteadySystem(Generic[V, A, F]):
     ------
     TypeError
         If ``residual`` does not satisfy :class:`ResidualProtocol` or its
-        bundle has no Jacobian, or ``space`` is not an inner-product space.
+        bundle has no Jacobian, ``space`` is not an inner-product space, or
+        ``setups`` does not satisfy its protocol.
     """
 
     def __init__(
@@ -156,6 +157,11 @@ class SteadySystem(Generic[V, A, F]):
             raise TypeError(
                 "space must satisfy InnerProductSpaceProtocol, got "
                 f"{type(space).__name__}"
+            )
+        if not isinstance(setups, SetupStrategyProtocol):
+            raise TypeError(
+                "setups must satisfy SetupStrategyProtocol, got "
+                f"{type(setups).__name__}"
             )
         jacobian = residual.derivatives().jacobian
         if jacobian is None:

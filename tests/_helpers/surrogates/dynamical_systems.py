@@ -9,6 +9,7 @@
 import math
 from typing import List, Tuple
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
@@ -53,7 +54,8 @@ def solve_batched(
         trajectory-matching loss requires of them too.
     """
     bkd = wrapper.bkd()
-    stepper = method.stepper(wrapper.mass_form_system())
+    system = wrapper.mass_form_system()
+    stepper = method.stepper(system, RecomputeAlways(system.solver))
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
     steps = GivenSizes.from_times(times)
     Integrator(stepper).solve(bkd.reshape(init_state, (-1, 1)), steps, store)

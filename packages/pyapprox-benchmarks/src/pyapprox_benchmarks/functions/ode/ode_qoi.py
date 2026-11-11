@@ -19,6 +19,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.accumulating_sink import AccumulatingSinkProtocol, PerStateSink
 from pyapprox.ode.integration import Integrator
@@ -379,7 +380,9 @@ class ODEQoIFunction(Generic[Array]):
         self._residual.set_param(param)
         # A new stepper per solve: the system is built at the parameters
         # just set.
-        stepper = self._method.stepper(dense_mass_form_system(self._residual))
+        system = dense_mass_form_system(self._residual)
+        # Keeps no setup, so none outlives a change of the parameters.
+        stepper = self._method.stepper(system, RecomputeAlways(system.solver))
         init_state = (
             self._init_state
             if self._initial_state_residual is None

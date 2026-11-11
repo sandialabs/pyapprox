@@ -44,6 +44,7 @@ from typing import (
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -60,7 +61,7 @@ from pyapprox.ode.mass_form_system import DenseModelProtocol, dense_mass_form_sy
 from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
-from pyapprox.ode.protocols import ODEResidualProtocol
+from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.step_plan import GivenSizes
@@ -91,12 +92,14 @@ from pyapprox_benchmarks.functions.ode.nonlinear_decoupled import (
 from pyapprox_benchmarks.functions.ode.time_modulated_quadratic import (
     TimeModulatedQuadraticODE,
 )
-from pyapprox_benchmarks.ode import (
+from pyapprox_benchmarks.ode.chemical_reaction import (
     build_chemical_reaction_surface,
-    build_coupled_springs_2mass,
-    build_hastings_ecology_3species,
-    build_lotka_volterra_3species,
 )
+from pyapprox_benchmarks.ode.coupled_springs import build_coupled_springs_2mass
+from pyapprox_benchmarks.ode.hastings_ecology import (
+    build_hastings_ecology_3species,
+)
+from pyapprox_benchmarks.ode.lotka_volterra import build_lotka_volterra_3species
 from pyapprox_benchmarks.problems.ode import ODEForwardUQProblem
 
 # The old path's stepper name for each tableau, for the same method.
@@ -304,9 +307,11 @@ class _Paths(Generic[Array]):
         self._start = case.start(self._residual, self._param)
         tableau = make()
         newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
+        system = dense_mass_form_system(self._residual)
         self._stepper = RungeKuttaStepper(
             tableau,
-            dense_mass_form_system(self._residual),
+            system,
+            RecomputeAlways(system.solver),
             None if tableau.is_explicit() else newton,
         )
         self._store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()

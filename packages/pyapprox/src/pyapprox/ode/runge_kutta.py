@@ -47,6 +47,11 @@ from pyapprox.ode.continuous_extension import (
 from pyapprox.ode.mass_form_system import MassFormSystem, parameters_version_reader
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
 from pyapprox.ode.residual_derivatives import DerivativeOperator
+from pyapprox.ode.setups import (
+    MassShiftBuilderProtocol,
+    MassShiftStrategy,
+    stepper_setups,
+)
 from pyapprox.ode.step_quadrature import TableauQuadrature
 from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import (
@@ -491,6 +496,11 @@ class RungeKuttaStepper(Generic[V, A, F]):
     system : MassFormSystem
         :math:`f`, :math:`M`, :math:`J`, the state space, the linear
         solver and the residual form.
+    setups : SetupStrategyProtocol
+        Sets up each operator the stepper solves with
+        (:class:`~pyapprox.ode.setups.MassShiftRequest`) or returns a kept
+        handle; its solver pairs with ``F``. Whoever changes the
+        parameters calls its ``clear``.
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves the implicit stages; required exactly when the tableau has
         one.
@@ -503,23 +513,30 @@ class RungeKuttaStepper(Generic[V, A, F]):
         How a solve keeps stage setups between steps: by default a handle
         per distinct stage operator of a step (:class:`KeepWithinSolve`);
         :class:`NoReuse` keeps none, to save memory.
+    builder : OperatorBuilderProtocol, optional
+        Forms the operators ``setups`` sets up; by default
+        :class:`~pyapprox.ode.setups.MassShiftBuilder` of ``system``.
 
     Raises
     ------
     TypeError
         If the tableau has an implicit stage and no nonlinear solver is
-        given or the residual's bundle has no Jacobian, or ``row_pinning``
-        or ``reuse`` does not satisfy its protocol.
+        given or the residual's bundle has no Jacobian, or ``setups``,
+        ``row_pinning``, ``reuse`` or ``builder`` does not satisfy its
+        protocol.
     """
 
     def __init__(
         self,
         tableau: ButcherTableau,
         system: MassFormSystem[V, A, F],
+        setups: MassShiftStrategy[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
         reuse: Optional[ReusePolicyProtocol] = None,
+        builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> None:
+        self._setups, self._builder = stepper_setups(system, setups, builder)
         if not tableau.is_explicit() and nonlinear_solver is None:
             raise TypeError(
                 f"{tableau.name} has implicit stages, so it needs a nonlinear solver"

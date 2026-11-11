@@ -23,6 +23,7 @@ from typing import Any, Callable, Generic, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix
 from pyapprox.ode.pinned_rows import RowPinningProtocol
@@ -143,11 +144,15 @@ def rk_stepper(
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
     row_pinning: Optional[RowPinningProtocol[Array]] = None,
 ) -> RungeKuttaStepper[Array, Array, DenseFormat[Array]]:
-    """A backend stepper, with Newton (atol 1e-13) for implicit stages and
-    the given row pinning."""
+    """A backend stepper, with Newton (atol 1e-13) for implicit stages,
+    the given row pinning, and setups recomputed on the system's solver."""
     newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
     return RungeKuttaStepper(
-        tableau, system, None if tableau.is_explicit() else newton, row_pinning
+        tableau,
+        system,
+        RecomputeAlways(system.solver),
+        None if tableau.is_explicit() else newton,
+        row_pinning,
     )
 
 
@@ -265,6 +270,10 @@ def mock_stepper(
 ) -> RungeKuttaStepper[MockVector, NDArray[Any], MockFormat]:
     """A mock-stack stepper for :func:`mock_linear_system`."""
     newton: Newton[MockVector, NDArray[Any]] = Newton(atol=1e-13, rtol=0.0)
+    system = mock_linear_system()
     return RungeKuttaStepper(
-        tableau, mock_linear_system(), None if tableau.is_explicit() else newton
+        tableau,
+        system,
+        RecomputeAlways(system.solver),
+        None if tableau.is_explicit() else newton,
     )

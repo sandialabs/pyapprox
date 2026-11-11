@@ -8,6 +8,7 @@ r"""Shared cases for testing the linear multistep stepper.
 
 from typing import Callable, List, Optional
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.multistep_methods import (
@@ -36,9 +37,13 @@ def lm_stepper(
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
     row_pinning: Optional[RowPinningProtocol[Array]] = None,
 ) -> LinearMultistepStepper[Array, Array, DenseFormat[Array]]:
-    """A backend stepper, with Newton (atol 1e-13) for implicit methods
-    and the given row pinning."""
+    """A backend stepper, with Newton (atol 1e-13) for implicit methods,
+    the given row pinning, and setups recomputed on the system's solver."""
     newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
     return LinearMultistepStepper(
-        method, system, None if method.is_explicit() else newton, row_pinning
+        method,
+        system,
+        RecomputeAlways(system.solver),
+        None if method.is_explicit() else newton,
+        row_pinning,
     )

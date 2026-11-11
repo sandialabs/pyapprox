@@ -43,11 +43,14 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.implicitfunction.observation_terms import StateEntries
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.differentiated_rows import differentiated_rows
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import RowPinning
-from pyapprox.ode.protocols import DifferentiableStepperProtocol
+from pyapprox.ode.protocols.differentiable_stepper import (
+    DifferentiableStepperProtocol,
+)
 from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.ode.residual_form import BackendColumnForm
@@ -72,19 +75,23 @@ from pyapprox.ode.trajectory_derivatives import (
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
     EssentialPinnedRows,
 )
-from pyapprox.pde.models.galerkin import (
-    GalerkinParameterizedResidual,
-    GalerkinTransientForwardModel,
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
+from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     TimeIntegratedEssentialBoundaryFluxFunctional,
+)
+from pyapprox.pde.models.galerkin.parameterized_residual import (
+    GalerkinParameterizedResidual,
 )
 from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithSetParamAdapter,
     create_galerkin_physics_ode_residual,
 )
+from pyapprox.pde.models.galerkin.transient import GalerkinTransientForwardModel
 from pyapprox.pde.models.galerkin.unconstrained_system import (
     GalerkinUnconstrainedRightHandSide,
     galerkin_unconstrained_system,
@@ -154,16 +161,19 @@ class _Case:
         self.solver = RungeKuttaStepper(
             tableau,
             self.solved,
+            RecomputeAlways(self.solved.solver),
             _newton() if implicit else None,
             RowPinning(self.rows),
         )
+        unconstrained = galerkin_unconstrained_system(
+            self.discretization,
+            ScipySparseLU(),
+            self.adapter.parameter_state(),
+        )
         self.unconstrained = RungeKuttaStepper(
             tableau,
-            galerkin_unconstrained_system(
-                self.discretization,
-                ScipySparseLU(),
-                self.adapter.parameter_state(),
-            ),
+            unconstrained,
+            RecomputeAlways(unconstrained.solver),
             _newton() if implicit else None,
         )
         nsteps = round(final_time / _DELTAT)

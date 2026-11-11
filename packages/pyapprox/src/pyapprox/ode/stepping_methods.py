@@ -6,7 +6,9 @@ that system with :meth:`SteppingMethodProtocol.stepper`. A method carries
 everything about the scheme that is not the system: its coefficients and,
 for an implicit method, the nonlinear solver its stages use. An explicit
 method takes no solver, so pairing one with solver settings is refused
-rather than ignored.
+rather than ignored. How the stepper's linear solves are set up (the
+setup strategy, with its linear solver, and the builder) is given at
+binding, with the system whose format the solver must match.
 
 New methods satisfy :class:`SteppingMethodProtocol` and are passed in;
 nothing here enumerates them.
@@ -20,6 +22,7 @@ from pyapprox.ode.multistep_methods import MultistepFormulaProtocol
 from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.setups import MassShiftBuilderProtocol, MassShiftStrategy
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import FormatProtocol, ReusePolicyProtocol
@@ -41,17 +44,28 @@ class SteppingMethodProtocol(Protocol[V, A]):
     def stepper(
         self,
         system: MassFormSystem[V, A, F],
+        setups: MassShiftStrategy[V, A, F],
         row_pinning: Optional[RowPinningProtocol[V]] = None,
+        builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> StepperProtocol[V, A]:
         """A stepper of this method for ``system``.
+
+        ``F`` is bound per call, so one method steps systems of any
+        format, and ``setups``' solver must pair with ``system``'s.
 
         Parameters
         ----------
         system : MassFormSystem
             What to step.
+        setups : SetupStrategyProtocol
+            Sets up the operators the stepper solves with, or returns kept
+            handles (see :mod:`pyapprox.ode.setups`).
         row_pinning : RowPinningProtocol, optional
             Rows pinned to boundary data inside the step's solves (see
             :mod:`pyapprox.ode.pinned_rows`); None for none.
+        builder : OperatorBuilderProtocol, optional
+            Forms those operators; by default
+            :class:`~pyapprox.ode.setups.MassShiftBuilder` of ``system``.
 
         Returns
         -------
@@ -112,7 +126,9 @@ class RungeKutta(Generic[V, A]):
     Examples
     --------
     >>> method = RungeKutta(backward_euler(), Newton(atol=1e-12, rtol=0.0))
-    >>> stepper = method.stepper(dense_mass_form_system(model))
+    >>> stepper = method.stepper(
+    ...     dense_mass_form_system(model), RecomputeAlways(BackendDenseLU(bkd))
+    ... )
     """
 
     def __init__(
@@ -142,11 +158,19 @@ class RungeKutta(Generic[V, A]):
     def stepper(
         self,
         system: MassFormSystem[V, A, F],
+        setups: MassShiftStrategy[V, A, F],
         row_pinning: Optional[RowPinningProtocol[V]] = None,
+        builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> RungeKuttaStepper[V, A, F]:
         """A :class:`RungeKuttaStepper` of this tableau for ``system``."""
         return RungeKuttaStepper(
-            self._tableau, system, self._solver, row_pinning, self._reuse
+            self._tableau,
+            system,
+            setups,
+            self._solver,
+            row_pinning,
+            self._reuse,
+            builder,
         )
 
     def __repr__(self) -> str:
@@ -204,12 +228,20 @@ class LinearMultistep(Generic[V, A]):
     def stepper(
         self,
         system: MassFormSystem[V, A, F],
+        setups: MassShiftStrategy[V, A, F],
         row_pinning: Optional[RowPinningProtocol[V]] = None,
+        builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> LinearMultistepStepper[V, A, F]:
         """A :class:`LinearMultistepStepper` of this method for
         ``system``."""
         return LinearMultistepStepper(
-            self._method, system, self._solver, row_pinning, self._reuse
+            self._method,
+            system,
+            setups,
+            self._solver,
+            row_pinning,
+            self._reuse,
+            builder,
         )
 
     def __repr__(self) -> str:

@@ -40,6 +40,7 @@ from pyapprox.implicitfunction.functional_terms import (
     StateTermDerivatives,
     StateTermProtocol,
 )
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -47,18 +48,17 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
     FunctionWithJVPFromCallable,
 )
-from pyapprox.ode.explicit_steppers import ForwardEulerHVP, HeunHVP
-from pyapprox.ode.implicit_steppers import (
-    BackwardEulerHVP,
-    CrankNicolsonHVP,
-    ImplicitMidpointHVP,
-)
+from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerHVP
+from pyapprox.ode.explicit_steppers.heun import HeunHVP
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerHVP
+from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonHVP
+from pyapprox.ode.implicit_steppers.implicit_midpoint import ImplicitMidpointHVP
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.integration import Integrator, ResidualFormConstraint
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
-from pyapprox.ode.protocols import TimeSteppingResidualProtocol
+from pyapprox.ode.protocols.time_stepping import TimeSteppingResidualProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
@@ -1007,10 +1007,11 @@ def _mock_problem(
     )
     method = make()
     solver = None if method.is_explicit() else newton
+    setups = RecomputeAlways(system.solver)
     stepper: _MockStepper = (
-        RungeKuttaStepper(method, system, solver)
+        RungeKuttaStepper(method, system, setups, solver)
         if isinstance(method, ButcherTableau)
-        else LinearMultistepStepper(method, system, solver)
+        else LinearMultistepStepper(method, system, setups, solver)
     )
     start = np.array([[1.0], [-0.5], [0.8]])
 

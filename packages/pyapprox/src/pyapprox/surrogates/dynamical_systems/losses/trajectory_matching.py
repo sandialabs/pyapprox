@@ -11,11 +11,12 @@ method's steps
 
 from typing import Generic, List, Sequence, Tuple
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.functional_sink import FunctionalSink
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.observation_terms import MisfitTerm
-from pyapprox.ode.protocols import StepperProtocol
+from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
@@ -91,8 +92,10 @@ class TrajectoryMatchingLoss(Generic[Array]):
         self._steps = GivenSizes.from_times(times)
         # The steppers take states as single columns.
         self._init_states = self._bkd.reshape(init_states, (-1, 1))
+        system = wrapper.mass_form_system()
+        # Keeps no setup, so none outlives a change of the parameters.
         self._stepper: StepperProtocol[Array, Array] = method.stepper(
-            wrapper.mass_form_system()
+            system, RecomputeAlways(system.solver)
         )
         # The initial states are supplied, not parameters: the residual
         # states their derivative zero.

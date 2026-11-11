@@ -10,7 +10,9 @@ parameters (1, 0.1, 0.075, 1.5), dt 0.05 to 0.5:
   agreeing with the tight one to Newton's tolerance;
 - row pinning is forwarded (the pinned row holds its data);
 - refusals: an explicit method given a solver, a solver or coefficients of
-  the wrong type.
+  the wrong type, setups or a builder of the wrong type at binding; a
+  strategy whose solver is of another format than the system's is a
+  static type error.
 """
 
 from typing import Any, Callable, Generic, List, Optional
@@ -18,11 +20,12 @@ from typing import Any, Callable, Generic, List, Optional
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import adams_bashforth2, bdf2
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinning
-from pyapprox.ode.protocols import StepperProtocol
+from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.ode.stepping_methods import (
     LinearMultistep,
@@ -31,8 +34,10 @@ from pyapprox.ode.stepping_methods import (
 )
 from pyapprox.ode.tableau import ButcherTableau, backward_euler, heun
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendRowSet, DenseFormat
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS
 from tests._helpers.ode.runge_kutta_cases import (
@@ -81,7 +86,7 @@ class TestBinding:
     ) -> None:
         system = _system(bkd)
         method: SteppingMethodProtocol[Array, Array] = _method(make(), tight=True)
-        stepper = method.stepper(system)
+        stepper = method.stepper(system, RecomputeAlways(system.solver))
         assert isinstance(stepper, StepperProtocol)
         bkd.assert_allclose(
             _trajectory(bkd, stepper),
@@ -101,8 +106,9 @@ class TestBinding:
             make(), tight=False
         )
         tight_method: SteppingMethodProtocol[Array, Array] = _method(make(), tight=True)
-        default = _trajectory(bkd, default_method.stepper(system))
-        tight = _trajectory(bkd, tight_method.stepper(system))
+        setups = RecomputeAlways(system.solver)
+        default = _trajectory(bkd, default_method.stepper(system, setups))
+        tight = _trajectory(bkd, tight_method.stepper(system, setups))
         bkd.assert_allclose(default, tight, rtol=1e-6)
 
     @pytest.mark.parametrize("make", [heun, bdf2], ids=["heun", "bdf2"])
@@ -113,7 +119,8 @@ class TestBinding:
         rows: BackendRowSet[Array] = BackendRowSet(states.descriptor(), [0], bkd)
         pinning: RowPinning[Array] = RowPinning(_Fixed(bkd, rows))
         method: SteppingMethodProtocol[Array, Array] = _method(make(), tight=True)
-        stepper = method.stepper(_system(bkd), pinning)
+        system = _system(bkd)
+        stepper = method.stepper(system, RecomputeAlways(system.solver), pinning)
         trajectory = _trajectory(bkd, stepper)
         bkd.assert_allclose(
             trajectory[0, 1:], bkd.full((trajectory.shape[1] - 1,), 7.0)
@@ -159,3 +166,28 @@ class TestRefusals:
             RungeKutta(bdf2())  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="MultistepFormulaProtocol"):
             LinearMultistep(backward_euler())  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("make", [heun, bdf2], ids=["heun", "bdf2"])
+    def test_setups_and_builder_are_checked_at_binding(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        system = _system(bkd)
+        method: SteppingMethodProtocol[Array, Array] = _method(make(), tight=True)
+        with pytest.raises(TypeError, match="SetupStrategyProtocol"):
+            method.stepper(system, system.solver)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="OperatorBuilderProtocol"):
+            method.stepper(
+                system,
+                RecomputeAlways(system.solver),
+                builder=3.0,  # type: ignore[arg-type]
+            )
+
+    def test_a_solver_of_another_format_is_a_type_error(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Static only: the ignore below is flagged as unused if mypy ever
+        accepts a sparse solver's strategy for a dense system. Binding
+        itself does not check formats."""
+        system = _system(numpy_bkd)
+        method: SteppingMethodProtocol[NDArray[Any], NDArray[Any]] = RungeKutta(heun())
+        method.stepper(system, RecomputeAlways(ScipySparseLU()))  # type: ignore[misc]

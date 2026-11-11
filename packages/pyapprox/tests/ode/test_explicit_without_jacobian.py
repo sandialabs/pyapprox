@@ -17,6 +17,7 @@ from typing import List
 
 import pytest
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import dense_mass_form_system
@@ -46,12 +47,14 @@ def _trajectory(
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
     init = bkd.asarray([[1.0], [-0.5], [2.0]])
     steps = FixedStep(0.1, (0.0, 0.5))
+    setups = RecomputeAlways(system.solver)
     if method == "AB2":
-        lmm = LinearMultistepStepper(adams_bashforth2(), system)
+        lmm = LinearMultistepStepper(adams_bashforth2(), system, setups)
         Integrator(lmm).solve(init, steps, store)
     else:
         tableau = forward_euler() if method == "FE" else heun()
-        Integrator(RungeKuttaStepper(tableau, system)).solve(init, steps, store)
+        rk = RungeKuttaStepper(tableau, system, setups)
+        Integrator(rk).solve(init, steps, store)
     return [store.state(n) for n in range(store.ntimes())]
 
 
@@ -68,9 +71,10 @@ class TestAnExplicitForwardSolve:
 
     def test_the_steppers_have_no_derivatives(self, bkd: Backend[Array]) -> None:
         system = dense_mass_form_system(_NoJacobian(bkd))
+        setups = RecomputeAlways(system.solver)
         for derivatives in (
-            RungeKuttaStepper(heun(), system).derivatives(),
-            LinearMultistepStepper(adams_bashforth2(), system).derivatives(),
+            RungeKuttaStepper(heun(), system, setups).derivatives(),
+            LinearMultistepStepper(adams_bashforth2(), system, setups).derivatives(),
         ):
             assert derivatives.off_diag is None and derivatives.param is None
 
@@ -82,8 +86,9 @@ class TestAnImplicitMethodRefuses:
     ) -> None:
         system = dense_mass_form_system(_NoJacobian(bkd))
         newton: Newton[Array, Array] = Newton()
+        setups = RecomputeAlways(system.solver)
         with pytest.raises(TypeError, match="_NoJacobian's derivatives bundle has"):
             if which == "RK":
-                RungeKuttaStepper(backward_euler(), system, newton)
+                RungeKuttaStepper(backward_euler(), system, setups, newton)
             else:
-                LinearMultistepStepper(bdf2(), system, newton)
+                LinearMultistepStepper(bdf2(), system, setups, newton)

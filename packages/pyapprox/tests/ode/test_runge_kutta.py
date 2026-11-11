@@ -38,6 +38,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.step_span import StepSpan
@@ -47,6 +48,7 @@ from pyapprox.ode.tableau import (
     backward_euler,
     classical_rk4,
     forward_euler,
+    heun,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -234,9 +236,22 @@ class TestLinearStep:
     def test_an_implicit_tableau_needs_a_nonlinear_solver(
         self, bkd: Backend[Array]
     ) -> None:
+        system = dense_mass_form_system(LinearMassModel(bkd))
         with pytest.raises(TypeError, match="needs a nonlinear solver"):
+            RungeKuttaStepper(backward_euler(), system, RecomputeAlways(system.solver))
+
+    def test_setups_and_a_builder_must_satisfy_their_protocols(
+        self, bkd: Backend[Array]
+    ) -> None:
+        system = dense_mass_form_system(LinearMassModel(bkd))
+        with pytest.raises(TypeError, match="SetupStrategyProtocol"):
+            RungeKuttaStepper(heun(), system, system.solver)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="OperatorBuilderProtocol"):
             RungeKuttaStepper(
-                backward_euler(), dense_mass_form_system(LinearMassModel(bkd))
+                heun(),
+                system,
+                RecomputeAlways(system.solver),
+                builder=3.0,  # type: ignore[arg-type]
             )
 
 

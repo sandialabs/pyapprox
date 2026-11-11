@@ -149,6 +149,8 @@ class TestRefusals:
             SteadySystem(3.0, f.states, setups)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="InnerProductSpaceProtocol"):
             SteadySystem(f, 3.0, setups)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="SetupStrategyProtocol"):
+            SteadySystem(f, f.states, BackendDenseLU(bkd))  # type: ignore[arg-type]
 
         class _NoJacobian(QuadraticResidual[Array]):
             def derivatives(self) -> ResidualDerivatives[Array, DenseFormat[Array]]:
