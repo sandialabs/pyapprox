@@ -16,8 +16,12 @@ Two layers act on a declaration:
 - :class:`RowPin` adds the data: the replaced rows read :math:`u_R -
   g_R`, a linear solve's right-hand side carries :math:`g_R`, and the
   rows' parameter Jacobian and curvature are the data's, negated
-  (:meth:`RowPin.data_param`, :meth:`RowPin.data_curvature`), read on
-  the rows by :class:`PinnedValuesData`.
+  (:meth:`RowPin.data_param_jacobian`, :meth:`RowPin.data_param_curvature`),
+  read on the rows by :class:`PinnedValuesData`: None where the
+  declaration does not make a derivative available, a zero operator
+  where it states one zero. A consumer refuses the first
+  (:func:`require_data_derivative`) and may skip the second (its
+  properties declare ``zero``).
 
 A time-indexed declaration (:mod:`pyapprox.ode.pinned_rows`) is a family
 of these, one per time.
@@ -49,6 +53,7 @@ from pyapprox.util.linalg.operators import (
     RowsZeroedOperator,
     SpaceDescriptor,
     VectorSpaceProtocol,
+    ZeroOperator,
 )
 
 V = TypeVar("V")
@@ -161,27 +166,29 @@ class RowsKept(Generic[V]):
         return self._op.apply_transpose(kept)
 
 
-def present_data_field(
-    field: Union[Callable[..., DerivativeOperator[V]], StatedZero, None],
-    what: str,
-    owner: object,
-) -> Optional[Callable[..., DerivativeOperator[V]]]:
-    """A data-derivative field's function, None for the stated zero.
+def undeclared_data_derivative(what: str, owner: object) -> ValueError:
+    """The refusal of a data derivative a consumer needs and ``owner`` does
+    not make available, naming both."""
+    return ValueError(
+        f"{type(owner).__name__} does not declare {what} of its data, "
+        "which these derivatives need: declare it, or that the data do "
+        "not depend on the parameters (independent())"
+    )
+
+
+def require_data_derivative(
+    op: Optional[DerivativeOperator[V]], what: str, owner: object
+) -> DerivativeOperator[V]:
+    """``op``, a data derivative a consumer needs.
 
     Raises
     ------
     ValueError
-        If the field is not available, naming ``owner`` and ``what``.
+        If ``op`` is None (not available), naming ``owner`` and ``what``.
     """
-    if isinstance(field, StatedZero):
-        return None
-    if field is None:
-        raise ValueError(
-            f"{type(owner).__name__} does not declare {what} of its data, "
-            "which these derivatives need: declare it, or that the data do "
-            "not depend on the parameters (independent())"
-        )
-    return field
+    if op is None:
+        raise undeclared_data_derivative(what, owner)
+    return op
 
 
 def kept_rows(rows: RowSetProtocol[V], states: VectorSpaceProtocol[V], x: V) -> V:
@@ -191,7 +198,8 @@ def kept_rows(rows: RowSetProtocol[V], states: VectorSpaceProtocol[V], x: V) -> 
 
 class PinnedValuesData(Generic[V]):
     r"""A declaration's data derivatives read on its rows :math:`R`: what a
-    consumer adds there, None where the declaration states zero.
+    consumer adds there; a zero operator where the declaration states zero,
+    None where it does not make the derivative available.
 
     Parameters
     ----------
@@ -199,12 +207,6 @@ class PinnedValuesData(Generic[V]):
         The rows and their data.
     states : VectorSpaceProtocol
         The state space.
-
-    Raises
-    ------
-    ValueError
-        From a method, if the declaration does not make available the
-        derivative it reads.
     """
 
     def __init__(
@@ -214,22 +216,28 @@ class PinnedValuesData(Generic[V]):
         self._rows = declaration.rows()
         self._bundle = declaration.parameter_derivatives()
 
-    def values_param(self) -> Optional[DerivativeOperator[V]]:
-        r""":math:`(I - P)\, \partial g/\partial p`."""
-        fn = present_data_field(
-            self._bundle.values, "the parameter Jacobian", self._declaration
-        )
-        return None if fn is None else RowsKept(fn(), self._rows, self._states)
-
-    def values_curvature(self, weights: V) -> Optional[DerivativeOperator[V]]:
-        r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2`."""
-        fn = present_data_field(
-            self._bundle.curvature,
-            "the second parameter derivatives",
-            self._declaration,
-        )
+    def values_param_jacobian(
+        self, params: VectorSpaceProtocol[V]
+    ) -> Optional[DerivativeOperator[V]]:
+        r""":math:`(I - P)\, \partial g/\partial p`, from ``params`` to the
+        states."""
+        fn = self._bundle.values
         if fn is None:
             return None
+        if isinstance(fn, StatedZero):
+            return ZeroOperator(params, self._states)
+        return RowsKept(fn(), self._rows, self._states)
+
+    def values_param_curvature(
+        self, weights: V, params: VectorSpaceProtocol[V]
+    ) -> Optional[DerivativeOperator[V]]:
+        r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2`, on
+        ``params``."""
+        fn = self._bundle.curvature
+        if fn is None:
+            return None
+        if isinstance(fn, StatedZero):
+            return ZeroOperator(params)
         return fn(kept_rows(self._rows, self._states, weights))
 
 
@@ -320,22 +328,31 @@ class RowPin(Generic[V]):
     def adjoint(self, block: V, space: VectorSpaceProtocol[V]) -> V:
         return self._algebra.adjoint(block, space)
 
-    def data_param(
-        self, space: VectorSpaceProtocol[V]
+    def data_param_jacobian(
+        self, space: VectorSpaceProtocol[V], params: VectorSpaceProtocol[V]
     ) -> Optional[DerivativeOperator[V]]:
         r""":math:`(I - P)\, \partial g/\partial p`: the pinned rows'
-        parameter Jacobian is its negative. None when the data do not
-        depend on the parameters."""
-        return PinnedValuesData(self._declaration, space).values_param()
+        parameter Jacobian is its negative. A zero operator when the data
+        do not depend on the parameters, None when the declaration does
+        not make it available."""
+        return PinnedValuesData(self._declaration, space).values_param_jacobian(
+            params
+        )
 
-    def data_curvature(
-        self, weights: V, space: VectorSpaceProtocol[V]
+    def data_param_curvature(
+        self,
+        weights: V,
+        space: VectorSpaceProtocol[V],
+        params: VectorSpaceProtocol[V],
     ) -> Optional[DerivativeOperator[V]]:
         r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2` for an
         adjoint block ``weights`` unzeroed: the pinned rows' parameter
-        curvature is its negative. None when the data do not depend on the
-        parameters."""
-        return PinnedValuesData(self._declaration, space).values_curvature(weights)
+        curvature is its negative. A zero operator when the data do not
+        depend on the parameters, None when the declaration does not make
+        it available."""
+        return PinnedValuesData(self._declaration, space).values_param_curvature(
+            weights, params
+        )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nrows={self._algebra.rows().count()})"

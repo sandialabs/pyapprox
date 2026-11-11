@@ -42,7 +42,13 @@ from pyapprox.ode.continuous_extension import (
     fraction_of_step,
 )
 from pyapprox.ode.mass_form_system import MassFormSystem, parameters_version_reader
-from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
+from pyapprox.ode.pinned_rows import (
+    BlockPinProtocol,
+    RowPinningProtocol,
+    StepBlock,
+    data_curvature_term,
+    data_jacobian_term,
+)
 from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.setups import (
     MassShiftBuilderProtocol,
@@ -308,7 +314,11 @@ class _TableauExtension(Generic[V, A, F]):
             if weight != 0.0
         ]
         pin = stepper._block_pin(self._last())
-        data = None if pin is None else pin.data_param(time, space)
+        data = (
+            None
+            if pin is None
+            else data_jacobian_term(pin, time, space, params.component(0))
+        )
         if data is None:
             block = (
                 self._solved(
@@ -448,7 +458,7 @@ class _TableauExtension(Generic[V, A, F]):
         if pin is None:
             return total
         x = self._handle(window, time).apply_transpose(weights)
-        data = pin.data_curvature(x, time, stepper.system().space)
+        data = data_curvature_term(pin, x, time, stepper.system().space, params)
         if data is None:
             return total
         value = data.apply(direction)
@@ -1117,7 +1127,9 @@ class RungeKuttaStepper(Generic[V, A, F]):
             # A pinned block's rows read Y_R - g_R(t; p): their parameter
             # Jacobian is the data's, negated.
             coupled = pin.coupled(block)
-            data = pin.data_param(self._block_time(window, r), space)
+            data = data_jacobian_term(
+                pin, self._block_time(window, r), space, params.component(0)
+            )
             grid.append(
                 [
                     coupled
@@ -1266,8 +1278,12 @@ class RungeKuttaStepper(Generic[V, A, F]):
             data = (
                 None
                 if pin is None
-                else pin.data_curvature(
-                    mu, self._block_time(window, r), self._system.space
+                else data_curvature_term(
+                    pin,
+                    mu,
+                    self._block_time(window, r),
+                    self._system.space,
+                    params.component(0),
                 )
             )
             if data is not None:

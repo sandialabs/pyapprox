@@ -50,6 +50,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.pinned_rows import require_data_derivative
 from pyapprox.ode.mass_form_system import (
     MassFormSystem,
     RightHandSideProtocol,
@@ -83,7 +84,6 @@ from pyapprox.util.linalg.operators import (
     ScaledSum,
     SymmetricEliminatedOperator,
     VectorSpaceProtocol,
-    ZeroOperator,
 )
 
 V = TypeVar("V")
@@ -270,7 +270,7 @@ class _RatedCurvature(Generic[V]):
             (1.0, self._base(state, time, adj))
         ]
         curvature = self._owner._rate_curvature(time, adj)
-        if curvature is not None:
+        if not curvature.properties().zero:
             terms.append((1.0, curvature))
         return ScaledSum(terms, self._params)
 
@@ -354,8 +354,11 @@ class DifferentiatedRowsRightHandSide(Generic[V, F]):
 
     def _rate_param(self, time: float) -> DerivativeOperator[V]:
         r""":math:`(I - P)\, \partial \dot g/\partial p`, or a zero."""
-        op = self._data.rates_param(time)
-        return ZeroOperator(self._zeroed_params(), self._space) if op is None else op
+        return require_data_derivative(
+            self._data.rates_param_jacobian(time, self._zeroed_params()),
+            "the rate's parameter Jacobian",
+            self._declaration,
+        )
 
     def _zeroed_params(self) -> VectorSpaceProtocol[V]:
         params = self._zeroed.derivatives().param_space
@@ -363,10 +366,17 @@ class DifferentiatedRowsRightHandSide(Generic[V, F]):
             raise AssertionError("checked at construction")
         return params
 
-    def _rate_curvature(self, time: float, adj: V) -> Optional[DerivativeOperator[V]]:
+    def _rate_curvature(self, time: float, adj: V) -> DerivativeOperator[V]:
         r""":math:`\sum_{i \in R} \lambda_i\, \partial^2 \dot g_i/\partial
-        p^2` at the adjoint ``adj`` (in the state form)."""
-        return self._data.rates_curvature(time, self._form.from_residual(adj))
+        p^2` at the adjoint ``adj`` (in the state form), or a zero."""
+        return self._required_rate_curvature(time, self._form.from_residual(adj))
+
+    def _required_rate_curvature(self, time: float, weight: V) -> DerivativeOperator[V]:
+        return require_data_derivative(
+            self._data.rates_param_curvature(time, weight, self._zeroed_params()),
+            "the rate's second parameter derivatives",
+            self._declaration,
+        )
 
     def _rated(self, state: V, time: float) -> V:
         """The value in the space's form, rows :math:`R` the rate."""
@@ -430,13 +440,13 @@ class EliminatedDifferentiatedRowsRightHandSide(
             [(1.0, rate), (-1.0, coupling)], self._space, self._zeroed_params()
         )
 
-    def _rate_curvature(self, time: float, adj: V) -> Optional[DerivativeOperator[V]]:
+    def _rate_curvature(self, time: float, adj: V) -> DerivativeOperator[V]:
         r"""The rate's curvature at the weight :math:`\lambda - M^\top P
         \lambda`, restricted to the rows."""
         mu = self._form.from_residual(adj)
         coupled = self._mass.apply_transpose(self._rows.zero_rows(mu))
         weight = self._space.axpby(1.0, mu, -1.0, coupled)
-        return self._data.rates_curvature(time, weight)
+        return self._required_rate_curvature(time, weight)
 
 
 # ----------------------------------------------------------------------

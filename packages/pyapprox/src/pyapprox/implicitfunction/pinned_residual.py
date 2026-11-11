@@ -25,7 +25,11 @@ Stated zeros are kept, so a consumer may still skip them.
 
 from typing import Generic, List, TypeVar, Union
 
-from pyapprox.implicitfunction.pinned_rows import RowPin, present_data_field
+from pyapprox.implicitfunction.pinned_rows import (
+    RowPin,
+    require_data_derivative,
+    undeclared_data_derivative,
+)
 from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.residual_derivatives import (
     STATED_ZERO,
@@ -82,9 +86,11 @@ class _PinnedParam(Generic[V]):
         zeroed = self._pin.coupled(self._fn(state))
         if not self._data_depend:
             return zeroed
-        data = self._pin.data_param(self._states)
-        if data is None:
-            raise AssertionError("checked at construction")
+        data = require_data_derivative(
+            self._pin.data_param_jacobian(self._states, self._params),
+            "the parameter Jacobian",
+            self._pin,
+        )
         return ScaledSum([(1.0, zeroed), (-1.0, data)], self._states, self._params)
 
 
@@ -122,8 +128,12 @@ class _PinnedParamCurvature(Generic[V]):
         terms: List[tuple[float, DerivativeOperator[V]]] = [
             (1.0, self._fn(state, self._pin.adjoint(adj, self._states)))
         ]
-        data = self._pin.data_curvature(adj, self._states)
-        if data is not None:
+        data = require_data_derivative(
+            self._pin.data_param_curvature(adj, self._states, self._params),
+            "the second parameter derivatives",
+            self._pin,
+        )
+        if not data.properties().zero:
             terms.append((-1.0, data))
         return ScaledSum(terms, self._params)
 
@@ -185,13 +195,15 @@ class PinnedResidual(Generic[V, F]):
         if param is None or params is None:
             return ResidualDerivatives.state_only(pinned_jacobian)
         data = self._pin.parameter_derivatives()
-        # Refuses data whose parameter Jacobian is unavailable; None is the
-        # stated zero of data independent of the parameters.
-        data_values = present_data_field(
-            data.values, "the parameter Jacobian", self._pin
-        )
+        # Refuses data whose parameter Jacobian is unavailable.
+        if data.values is None:
+            raise undeclared_data_derivative("the parameter Jacobian", self._pin)
         pinned_param = _PinnedParam(
-            param, self._pin, self._space, params, data_values is not None
+            param,
+            self._pin,
+            self._space,
+            params,
+            not isinstance(data.values, StatedZero),
         )
         state_state, state_param = bundle.state_state, bundle.state_param
         param_param = bundle.param_param

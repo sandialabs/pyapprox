@@ -50,7 +50,8 @@ from pyapprox.implicitfunction.pinned_rows import (
     RowReplacement,
     RowsKept,
     kept_rows,
-    present_data_field,
+    require_data_derivative,
+    undeclared_data_derivative,
 )
 from pyapprox.implicitfunction.pinned_rows import RowPin as CorePin
 from pyapprox.ode.residual_derivatives import (
@@ -70,6 +71,7 @@ from pyapprox.util.linalg.operators import (
     RowSetProtocol,
     RowsZeroedOperator,
     VectorSpaceProtocol,
+    ZeroOperator,
 )
 
 V = TypeVar("V")
@@ -150,7 +152,8 @@ class PinnedData(Generic[V]):
     r"""A declaration's data derivatives at a time, read on its rows
     :math:`R`: the values' through the time-free core at that time
     (:func:`values_at_time`), the rate's here, the rate being the ODE's
-    alone; None where the declaration states zero.
+    alone; a zero operator where the declaration states zero, None where it
+    does not make the derivative available.
 
     Parameters
     ----------
@@ -158,12 +161,6 @@ class PinnedData(Generic[V]):
         The rows and their data.
     states : VectorSpaceProtocol
         The state space.
-
-    Raises
-    ------
-    ValueError
-        From a method, if the declaration does not make available the
-        derivative it reads.
     """
 
     def __init__(
@@ -173,37 +170,43 @@ class PinnedData(Generic[V]):
         self._rows = declaration.rows()
         self._bundle = declaration.parameter_derivatives()
 
-    def values_param(self, time: float) -> Optional[DerivativeOperator[V]]:
+    def values_param_jacobian(
+        self, time: float, params: VectorSpaceProtocol[V]
+    ) -> Optional[DerivativeOperator[V]]:
         r""":math:`(I - P)\, \partial g/\partial p` at ``time``."""
         at_time = values_at_time(self._declaration, time)
-        return PinnedValuesData(at_time, self._states).values_param()
+        return PinnedValuesData(at_time, self._states).values_param_jacobian(params)
 
-    def values_curvature(
-        self, time: float, weights: V
+    def values_param_curvature(
+        self, time: float, weights: V, params: VectorSpaceProtocol[V]
     ) -> Optional[DerivativeOperator[V]]:
         r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2` at
         ``time``."""
         at_time = values_at_time(self._declaration, time)
-        return PinnedValuesData(at_time, self._states).values_curvature(weights)
-
-    def rates_param(self, time: float) -> Optional[DerivativeOperator[V]]:
-        r""":math:`(I - P)\, \partial \dot g/\partial p` at ``time``."""
-        fn = present_data_field(
-            self._bundle.rates, "the rate's parameter Jacobian", self._declaration
+        return PinnedValuesData(at_time, self._states).values_param_curvature(
+            weights, params
         )
-        return None if fn is None else RowsKept(fn(time), self._rows, self._states)
 
-    def rates_curvature(
-        self, time: float, weights: V
+    def rates_param_jacobian(
+        self, time: float, params: VectorSpaceProtocol[V]
     ) -> Optional[DerivativeOperator[V]]:
-        r""":math:`\sum_{i \in R} w_i\, \partial^2 \dot g_i/\partial p^2`."""
-        fn = present_data_field(
-            self._bundle.rates_curvature,
-            "the rate's second parameter derivatives",
-            self._declaration,
-        )
+        r""":math:`(I - P)\, \partial \dot g/\partial p` at ``time``."""
+        fn = self._bundle.rates
         if fn is None:
             return None
+        if isinstance(fn, StatedZero):
+            return ZeroOperator(params, self._states)
+        return RowsKept(fn(time), self._rows, self._states)
+
+    def rates_param_curvature(
+        self, time: float, weights: V, params: VectorSpaceProtocol[V]
+    ) -> Optional[DerivativeOperator[V]]:
+        r""":math:`\sum_{i \in R} w_i\, \partial^2 \dot g_i/\partial p^2`."""
+        fn = self._bundle.rates_curvature
+        if fn is None:
+            return None
+        if isinstance(fn, StatedZero):
+            return ZeroOperator(params)
         return fn(time, kept_rows(self._rows, self._states, weights))
 
 
@@ -319,22 +322,76 @@ class BlockPinProtocol(Protocol[V]):
         zeroed, for the second-derivative contractions."""
         ...
 
-    def data_param(
-        self, time: float, space: VectorSpaceProtocol[V]
+    def data_param_jacobian(
+        self,
+        time: float,
+        space: VectorSpaceProtocol[V],
+        params: VectorSpaceProtocol[V],
     ) -> Optional[DerivativeOperator[V]]:
         r""":math:`(I - P)\, \partial g/\partial p` at the block's time: the
-        pinned rows' parameter Jacobian is its negative. None when the
-        data do not depend on the parameters."""
+        pinned rows' parameter Jacobian is its negative. A zero operator
+        when the data do not depend on the parameters, None when the
+        declaration does not make it available."""
         ...
 
-    def data_curvature(
-        self, weights: V, time: float, space: VectorSpaceProtocol[V]
+    def data_param_curvature(
+        self,
+        weights: V,
+        time: float,
+        space: VectorSpaceProtocol[V],
+        params: VectorSpaceProtocol[V],
     ) -> Optional[DerivativeOperator[V]]:
         r""":math:`\sum_{i \in R} w_i\, \partial^2 g_i/\partial p^2` for
         ``weights`` :math:`w`, the step adjoint's block unzeroed; the
-        pinned rows' parameter curvature is its negative. None when the
-        data do not depend on the parameters."""
+        pinned rows' parameter curvature is its negative. A zero operator
+        when the data do not depend on the parameters, None when the
+        declaration does not make it available."""
         ...
+
+
+def data_jacobian_term(
+    pin: BlockPinProtocol[V],
+    time: float,
+    space: VectorSpaceProtocol[V],
+    params: VectorSpaceProtocol[V],
+) -> Optional[DerivativeOperator[V]]:
+    r"""What a pinned block's data add to its parameter Jacobian,
+    :meth:`BlockPinProtocol.data_param_jacobian`; None when it is zero, for
+    a consumer to skip.
+
+    Raises
+    ------
+    ValueError
+        If the declaration does not make the derivative available.
+    """
+    op = require_data_derivative(
+        pin.data_param_jacobian(time, space, params), "the parameter Jacobian", pin
+    )
+    return None if op.properties().zero else op
+
+
+def data_curvature_term(
+    pin: BlockPinProtocol[V],
+    weights: V,
+    time: float,
+    space: VectorSpaceProtocol[V],
+    params: VectorSpaceProtocol[V],
+) -> Optional[DerivativeOperator[V]]:
+    r"""What a pinned block's data add to its parameter curvature,
+    :meth:`BlockPinProtocol.data_param_curvature`; None when it is zero,
+    for a consumer to skip.
+
+    Raises
+    ------
+    ValueError
+        If the declaration does not make the derivative available.
+    """
+    op = require_data_derivative(
+        pin.data_param_curvature(weights, time, space, params),
+        "the second parameter derivatives",
+        pin,
+    )
+    return None if op.properties().zero else op
 
 
 @dataclass(frozen=True)
@@ -452,15 +509,22 @@ class RowPin(Generic[V]):
     def adjoint(self, block: V, space: VectorSpaceProtocol[V]) -> V:
         return self._algebra.adjoint(block, space)
 
-    def data_param(
-        self, time: float, space: VectorSpaceProtocol[V]
+    def data_param_jacobian(
+        self,
+        time: float,
+        space: VectorSpaceProtocol[V],
+        params: VectorSpaceProtocol[V],
     ) -> Optional[DerivativeOperator[V]]:
-        return self._at(time).data_param(space)
+        return self._at(time).data_param_jacobian(space, params)
 
-    def data_curvature(
-        self, weights: V, time: float, space: VectorSpaceProtocol[V]
+    def data_param_curvature(
+        self,
+        weights: V,
+        time: float,
+        space: VectorSpaceProtocol[V],
+        params: VectorSpaceProtocol[V],
     ) -> Optional[DerivativeOperator[V]]:
-        return self._at(time).data_curvature(weights, space)
+        return self._at(time).data_param_curvature(weights, space, params)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nrows={self._algebra.rows().count()})"
@@ -509,28 +573,40 @@ class RowPinning(Generic[V]):
 class _ConstraintParam(Generic[V]):
     r""":math:`\partial \Pi/\partial p = (I - P)\, \partial g/\partial p`."""
 
-    def __init__(self, data: PinnedData[V]) -> None:
-        self._data = data
+    def __init__(
+        self,
+        declaration: PinnedRowsProtocol[V],
+        data: PinnedData[V],
+        params: VectorSpaceProtocol[V],
+    ) -> None:
+        self._declaration, self._data, self._params = declaration, data, params
 
     def __call__(self, state: V, time: float) -> DerivativeOperator[V]:
-        op = self._data.values_param(time)
-        if op is None:
-            raise AssertionError("the data's parameter Jacobian is not zero")
-        return op
+        return require_data_derivative(
+            self._data.values_param_jacobian(time, self._params),
+            "the parameter Jacobian",
+            self._declaration,
+        )
 
 
 class _ConstraintCurvature(Generic[V]):
     r""":math:`\lambda^\top \partial^2 \Pi/\partial p^2 = \sum_{i \in R}
     \lambda_i\, \partial^2 g_i/\partial p^2`."""
 
-    def __init__(self, data: PinnedData[V]) -> None:
-        self._data = data
+    def __init__(
+        self,
+        declaration: PinnedRowsProtocol[V],
+        data: PinnedData[V],
+        params: VectorSpaceProtocol[V],
+    ) -> None:
+        self._declaration, self._data, self._params = declaration, data, params
 
     def __call__(self, state: V, time: float, adj: V) -> DerivativeOperator[V]:
-        op = self._data.values_curvature(time, adj)
-        if op is None:
-            raise AssertionError("the data's curvature is not zero")
-        return op
+        return require_data_derivative(
+            self._data.values_param_curvature(time, adj, self._params),
+            "the second parameter derivatives",
+            self._declaration,
+        )
 
 
 class PinnedRowsConstraint(Generic[V]):
@@ -588,11 +664,12 @@ class PinnedRowsConstraint(Generic[V]):
         # The data's parameter derivatives on the rows; the state enters
         # linearly, with no curvature.
         bundle, data = rows.parameter_derivatives(), PinnedData(rows, space)
+        if bundle.values is None:
+            raise undeclared_data_derivative("the parameter Jacobian", rows)
         param: Union[_ConstraintParam[V], StatedZero] = (
             STATED_ZERO
-            if present_data_field(bundle.values, "the parameter Jacobian", rows)
-            is None
-            else _ConstraintParam(data)
+            if isinstance(bundle.values, StatedZero)
+            else _ConstraintParam(rows, data, param_space)
         )
         if bundle.values_curvature is None:
             self._derivs = StateConstraintDerivatives.first_order(
@@ -609,7 +686,7 @@ class PinnedRowsConstraint(Generic[V]):
             param_param=(
                 STATED_ZERO
                 if isinstance(bundle.values_curvature, StatedZero)
-                else _ConstraintCurvature(data)
+                else _ConstraintCurvature(rows, data, param_space)
             ),
         )
 

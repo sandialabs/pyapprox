@@ -58,7 +58,13 @@ from pyapprox.ode.multistep_methods import (
     MultistepContinuousCoefficients,
     MultistepFormulaProtocol,
 )
-from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepBlock
+from pyapprox.ode.pinned_rows import (
+    BlockPinProtocol,
+    RowPinningProtocol,
+    StepBlock,
+    data_curvature_term,
+    data_jacobian_term,
+)
 from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.setups import (
     MassShiftBuilderProtocol,
@@ -326,7 +332,11 @@ class _MultistepExtension(Generic[V, A, F]):
             if coefficients.slopes[lag] != 0.0
         ]
         pin = stepper.pin()
-        data = None if pin is None else pin.data_param(time, space)
+        data = (
+            None
+            if pin is None
+            else data_jacobian_term(pin, time, space, params.component(0))
+        )
         if data is None:
             block = (
                 self._solved(
@@ -456,7 +466,7 @@ class _MultistepExtension(Generic[V, A, F]):
         if pin is None:
             return total
         x = self._handle(window, time).apply_transpose(weights)
-        data = pin.data_curvature(x, time, stepper.system().space)
+        data = data_curvature_term(pin, x, time, stepper.system().space, params)
         if data is None:
             return total
         value = data.apply(direction)
@@ -960,7 +970,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
         # The step-end rows read y_R - g_R(t; p): their parameter Jacobian
         # is the data's, negated.
         coupled = self._pin.coupled(block)
-        data = self._pin.data_param(window.lag_time(0), space)
+        data = data_jacobian_term(
+            self._pin, window.lag_time(0), space, params.component(0)
+        )
         pinned = (
             coupled
             if data is None
@@ -1046,8 +1058,12 @@ class LinearMultistepStepper(Generic[V, A, F]):
         data = (
             None
             if self._pin is None
-            else self._pin.data_curvature(
-                adj.blocks[0], window.lag_time(0), self._system.space
+            else data_curvature_term(
+                self._pin,
+                adj.blocks[0],
+                window.lag_time(0),
+                self._system.space,
+                params.component(0),
             )
         )
         if data is not None:
