@@ -15,7 +15,9 @@ step:
   same positions); the same with a store copying every state it gives
   out; with windows carrying no origin, as ``RecomputeAlways``.
 - ``RecomputeAlways`` (and ``KeepStateFree``, which keeps nothing here):
-  the gradient 10 s, each HVP 20 s.
+  the gradient 10 s, each HVP 20 s: 10 s for the tangent sweep and 10 s
+  for the first- and second-order adjoints, which share each step's
+  handle whatever the strategy (30 s if they did not).
 - Gradients and HVPs equal across strategies and stores to 1e-13.
 - Kept setups name the trajectory, not the store: a dropped store is
   freed while its setups stay kept.

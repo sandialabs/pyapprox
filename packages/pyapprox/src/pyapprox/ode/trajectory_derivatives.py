@@ -127,10 +127,7 @@ from pyapprox.implicitfunction.functional_terms import (
 )
 from pyapprox.ode.integration import DifferentiableStackConstraintProtocol
 from pyapprox.ode.mass_form_system import RightHandSideProtocol
-from pyapprox.ode.protocols import (
-    DifferentiableSessionProtocol,
-    DifferentiableStepperProtocol,
-)
+from pyapprox.ode.protocols import DifferentiableStepperProtocol
 from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.residual_form import ResidualFormProtocol
 from pyapprox.ode.stepper_derivatives import (
@@ -513,24 +510,18 @@ class TrajectoryDerivatives(Generic[V, A]):
             )
         return window
 
-    def _session(
-        self, session: Optional[DifferentiableSessionProtocol[V]]
-    ) -> DifferentiableSessionProtocol[V]:
-        """``session``, or a new one of the stepper for this call."""
-        return self._stepper.session() if session is None else session
-
     def _transposed_handle(
-        self, window: StepWindow[V], session: DifferentiableSessionProtocol[V]
+        self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """A solver handle for the transposed diagonal block, set up
-        through ``session``.
+        """A solver handle for the transposed diagonal block, from the
+        stepper.
 
         Raises
         ------
         TypeError
             If the stepper's handle cannot solve transposed.
         """
-        transposed = session.diag_handle(window).transpose()
+        transposed = self._stepper.diag_handle(window).transpose()
         if transposed is None:
             raise TypeError(
                 f"{type(self._stepper).__name__}'s diag_handle cannot solve "
@@ -594,7 +585,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         store: TrajectoryStoreProtocol[V],
         functional: TrajectoryFunctional[V, A],
         direction: V,
-        session: Optional[DifferentiableSessionProtocol[V]] = None,
     ) -> A:
         r""":math:`dQ/dp\, v`, by one forward sweep: every entry of the
         functional's value at once.
@@ -607,9 +597,6 @@ class TrajectoryDerivatives(Generic[V, A]):
             :math:`Q`'s terms.
         direction : V
             :math:`v`, a single column of the parameter space.
-        session : DifferentiableSessionProtocol, optional
-            Sets up the step solves; a new one of the stepper by default,
-            so steps whose diagonal block repeats share a setup.
 
         Returns
         -------
@@ -632,7 +619,7 @@ class TrajectoryDerivatives(Generic[V, A]):
             total = total + wrt_param().apply(direction)
         # The tangents of the states the next step reads, most recent first.
         recent: Deque[V] = deque(maxlen=self._stepper.depth())
-        states = self._tangent_states(store, direction, self._session(session))
+        states = self._tangent_states(store, direction)
         for index, tangent in enumerate(states):
             here = first.states_at(index)
             if here:
@@ -681,10 +668,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         return products
 
     def _tangent_states(
-        self,
-        store: TrajectoryStoreProtocol[V],
-        direction: V,
-        session: DifferentiableSessionProtocol[V],
+        self, store: TrajectoryStoreProtocol[V], direction: V
     ) -> Iterator[TangentState[V]]:
         r"""The tangent sweep, one stored state at a time from :math:`y_0`:
         :meth:`tangent_initial`, then :meth:`tangent_step` per step.
@@ -695,8 +679,6 @@ class TrajectoryDerivatives(Generic[V, A]):
             A trajectory recorded at the parameters currently set.
         direction : V
             :math:`v`, a single column of the parameter space.
-        session : DifferentiableSessionProtocol
-            Sets up the step solves.
         """
         initial = self.tangent_initial(store, direction)
         yield initial
@@ -705,7 +687,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         recent: Deque[V] = deque([initial.state], maxlen=self._stepper.depth())
         for n in range(store.nsteps()):
             tangent = self.tangent_step(
-                store, n, self._window(store, n), tuple(recent), direction, session
+                store, n, self._window(store, n), tuple(recent), direction
             )
             yield tangent
             recent.appendleft(tangent.state)
@@ -739,7 +721,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         window: StepWindow[V],
         recent: Sequence[V],
         direction: V,
-        session: Optional[DifferentiableSessionProtocol[V]] = None,
     ) -> TangentState[V]:
         r"""One step of the tangent sweep: from the tangents of the states
         step ``step`` reads to the tangent of the state it produces,
@@ -770,9 +751,6 @@ class TrajectoryDerivatives(Generic[V, A]):
             the window.
         direction : V
             :math:`v`, a single column of the parameter space.
-        session : DifferentiableSessionProtocol, optional
-            Sets up the step's solve; the stepper's own, of this one step,
-            by default.
 
         Raises
         ------
@@ -795,7 +773,7 @@ class TrajectoryDerivatives(Generic[V, A]):
             coupled = off_diag(window, lag).apply(BlockVector((w,)))
             rhs = residuals.axpby(1.0, coupled, 1.0, rhs, out=rhs)
         rhs = residuals.scale(-1.0, rhs, out=rhs)
-        handle = self._session(session).diag_handle(window)
+        handle = stepper.diag_handle(window)
         delta = self._solve(handle, rhs, f"tangent sweep, step {step}")
         dx = stepper.readout().apply(delta).blocks[0]
         w = self._constrained_tangent(store, step + 1, dx, direction)
@@ -861,7 +839,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         self,
         store: TrajectoryStoreProtocol[V],
         functional: TrajectoryFunctional[V, A],
-        session: Optional[DifferentiableSessionProtocol[V]] = None,
         *,
         weights: Optional[A] = None,
     ) -> V:
@@ -873,9 +850,6 @@ class TrajectoryDerivatives(Generic[V, A]):
             A trajectory recorded at the parameters currently set.
         functional : TrajectoryFunctional
             :math:`Q`'s terms.
-        session : DifferentiableSessionProtocol, optional
-            Sets up the step solves; a new one of the stepper by default,
-            so steps whose diagonal block repeats share a setup.
         weights : A, optional
             :math:`\omega`, shape ``(nqoi, 1)``; 1 for a scalar functional
             by default (a row of the Jacobian for a unit :math:`\omega`).
@@ -898,7 +872,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         sources = _FirstOrderSources(
             functional, self, store, functional.weights(weights)
         )
-        handles = _SharedHandles(self, self._session(session))
+        handles = _SharedHandles(self)
         sweep = _AdjointSweep(self, store, sources, handles)
         for n in reversed(range(store.nsteps())):
             sweep.step(n, self._window(store, n))
@@ -910,7 +884,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         functional: TrajectoryFunctional[V, A],
         direction: V,
         tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
-        session: Optional[DifferentiableSessionProtocol[V]] = None,
         *,
         weights: Optional[A] = None,
     ) -> V:
@@ -918,7 +891,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         :meth:`gradient_and_hvp`, which also returns the gradient at no
         extra cost."""
         return self.gradient_and_hvp(
-            store, functional, direction, tangent_store, session, weights=weights
+            store, functional, direction, tangent_store, weights=weights
         )[1]
 
     def gradient_and_hvp(
@@ -927,7 +900,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         functional: TrajectoryFunctional[V, A],
         direction: V,
         tangent_store: Optional[TrajectoryStoreProtocol[V]] = None,
-        session: Optional[DifferentiableSessionProtocol[V]] = None,
         *,
         weights: Optional[A] = None,
     ) -> tuple[V, V]:
@@ -957,10 +929,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         tangent_store : TrajectoryStoreProtocol, optional
             Empty; receives the tangent trajectory, which the backward
             sweeps read in reverse step order. In memory by default.
-        session : DifferentiableSessionProtocol, optional
-            Sets up the step solves of all three sweeps; a new one of the
-            stepper by default, so steps whose diagonal block repeats
-            share a setup, across the sweeps too.
         weights : A, optional
             :math:`\omega`, shape ``(nqoi, 1)``; 1 for a scalar functional
             by default.
@@ -991,9 +959,8 @@ class TrajectoryDerivatives(Generic[V, A]):
         tangents: TrajectoryStoreProtocol[V] = (
             InMemoryTrajectoryStore() if tangent_store is None else tangent_store
         )
-        shared = self._session(session)
-        self._record_tangents(store, direction, tangents, shared)
-        handles = _SharedHandles(self, shared)
+        self._record_tangents(store, direction, tangents)
+        handles = _SharedHandles(self)
         adjoint = _AdjointSweep(self, store, first_sources, handles)
         second_sources = _SecondOrderSources(
             self, store, curvatures, tangents, direction, adjoint, omega
@@ -1013,10 +980,9 @@ class TrajectoryDerivatives(Generic[V, A]):
         store: TrajectoryStoreProtocol[V],
         direction: V,
         tangents: TrajectoryStoreProtocol[V],
-        session: DifferentiableSessionProtocol[V],
     ) -> None:
-        """Run the tangent sweep through ``session``, recording it into
-        ``tangents`` at the primal trajectory's times.
+        """Run the tangent sweep, recording it into ``tangents`` at the
+        primal trajectory's times.
 
         Raises
         ------
@@ -1028,7 +994,7 @@ class TrajectoryDerivatives(Generic[V, A]):
         version, depth = self._stepper.parameters_version(), self._stepper.depth()
         # The tangents of the states the next step read, most recent first.
         recent: Deque[V] = deque(maxlen=depth)
-        states = self._tangent_states(store, direction, session)
+        states = self._tangent_states(store, direction)
         for index, tangent in enumerate(states):
             # Only the initial tangent has no unknown: no step produced it.
             if tangent.unknown is None:
@@ -1117,25 +1083,21 @@ class _FirstOrderAdjointProtocol(Protocol[V]):
 
 
 class _SharedHandles(Generic[V, A]):
-    """Each step's transposed handle, set up once for the sweeps running
-    in lockstep over that step, and released at the next step; its setup
-    goes through ``session``, which may share it across steps too when
-    the step's diagonal block repeats.
+    """Each step's transposed handle, asked of the stepper once for the
+    sweeps running in lockstep over that step, and released at the next
+    step. Whether a setup is shared across steps or with the forward solve
+    is the stepper's setup strategy's decision; this shares it within one
+    step whatever the strategy, so the first- and second-order adjoints
+    cost one setup per step even when nothing is kept.
 
     Parameters
     ----------
     owner : TrajectoryDerivatives
-        Sets up the handles.
-    session : DifferentiableSessionProtocol
-        The sweeps' session.
+        Asks its stepper for the handles.
     """
 
-    def __init__(
-        self,
-        owner: TrajectoryDerivatives[V, A],
-        session: DifferentiableSessionProtocol[V],
-    ) -> None:
-        self._owner, self._session = owner, session
+    def __init__(self, owner: TrajectoryDerivatives[V, A]) -> None:
+        self._owner = owner
         self._step: Optional[int] = None
         self._handle: Optional[SolverHandleProtocol[BlockVector[V]]] = None
 
@@ -1144,7 +1106,7 @@ class _SharedHandles(Generic[V, A]):
     ) -> SolverHandleProtocol[BlockVector[V]]:
         """Step ``step``'s transposed handle."""
         if self._handle is None or self._step != step:
-            self._handle = self._owner._transposed_handle(window, self._session)
+            self._handle = self._owner._transposed_handle(window)
             self._step = step
         return self._handle
 
