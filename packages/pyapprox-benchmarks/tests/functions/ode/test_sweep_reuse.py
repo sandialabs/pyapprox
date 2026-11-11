@@ -1,38 +1,38 @@
-r"""Factorization reuse across a solve and its derivative sweeps.
+r"""Stage factorizations shared by a solve and its derivative sweeps, per
+setup strategy.
 
 The linear ODE :math:`\dot y = A y + B p` (3 states, 2 parameters, its
 Jacobian :math:`A` declared constant), from (1, -0.5, 2), 10 steps of
 0.1 to T = 1 (``FixedStep``: the last step lands on 1 with a size of its
 own, so a step forms two different stage operators over the run), an MSE
-with noise 0.5 observing every state at step 2 and the last. The stepper's solver
-counts its setups.
+with noise 0.5 observing every state at step 2 and the last. The
+stepper's solver counts its setups; cumulative after the forward solve,
+the gradient and the HVP:
 
-- Backward Euler, Crank-Nicolson and SDIRK3 factor their stage operator
-  once per step size: 2 setups for the forward solve, 2 for the gradient's
-  adjoint sweep, and 2 for the HVP's tangent and two adjoint sweeps
-  together, which share one session.
-- With ``NoReuse`` every implicit stage is factored afresh in every pass
+- ``KeepStateFree`` and ``KeepAll``: backward Euler, Crank-Nicolson and
+  SDIRK3 factor their stage operator once per step size in the forward
+  solve (2), and the sweeps, asking for the same operators, factor
+  nothing: 2, 2, 2.
+- ``RecomputeAlways``: every implicit stage is factored in every pass
   (steps times implicit stages for the forward solve and for the
   gradient's sweep, twice that for the HVP: the tangent sweep, and the
-  adjoints sharing one handle per step), and the gradient and HVP equal
-  the reused ones to 1e-13.
-
-The default keeps two step sizes' operators: the tangent sweep ends on
-the last step's size and the adjoints start there, so with one the 0.1
-operator would be factored a third time.
+  adjoints sharing one handle per step): 10, 20, 40 (SDIRK3 30, 60, 120).
+- The gradient and HVP of every strategy equal the recomputed ones to
+  1e-13.
 """
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Tuple
 
 import numpy as np
 import pytest
 
-from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.setups import KeepAll, KeepStateFree, RecomputeAlways
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
+from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.tableau import (
     ButcherTableau,
@@ -50,8 +50,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
-    NoReuse,
-    ReusePolicyProtocol,
+    LinearSolverProtocol,
     SolverCapabilities,
     SolverHandleProtocol,
 )
@@ -80,14 +79,20 @@ class _CountingLU:
         return self._lu.setup(op)
 
 
+_StrategyOf = Callable[
+    [LinearSolverProtocol[_Np, DenseFormat[_Np]]],
+    MassShiftStrategy[_Np, _Np, DenseFormat[_Np]],
+]
+
+
 class _Run:
-    """The linear ODE stepped by one tableau under one reuse policy."""
+    """The linear ODE stepped by one tableau under one setup strategy."""
 
     def __init__(
         self,
         bkd: NumpyBkd,
         make: Callable[[], ButcherTableau],
-        reuse: Optional[ReusePolicyProtocol] = None,
+        strategy_of: _StrategyOf,
     ) -> None:
         amat = bkd.asarray([[-1.0, 0.3, 0.0], [0.2, -0.8, 0.1], [0.0, 0.4, -1.2]])
         bmat = bkd.asarray([[1.0, 0.0], [0.5, -0.2], [0.0, 1.0]])
@@ -100,10 +105,8 @@ class _Run:
         self.stepper = RungeKuttaStepper(
             make(),
             dense_mass_form_system(self.residual, self.lu),
-            RecomputeAlways(self.lu),
+            strategy_of(self.lu),
             newton,
-            None,
-            reuse,
         )
         self.store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
         Integrator(self.stepper).solve(
@@ -133,43 +136,51 @@ class _Run:
         direction = self.bkd.asarray([[0.4], [-1.1]])
         return self.sweeps.hvp(self.store, self.misfit, direction)
 
+    def counted(self) -> Tuple[Tuple[int, int, int], _Np, _Np]:
+        """The cumulative setups after the solve, the gradient and the
+        HVP, and the gradient and HVP."""
+        solved = self.lu.setups
+        gradient = self.gradient()
+        after_gradient = self.lu.setups
+        hvp = self.hvp()
+        return (solved, after_gradient, self.lu.setups), gradient, hvp
+
 
 _TABLEAUX = [(backward_euler, 1), (crank_nicolson, 1), (alexander_sdirk3, 3)]
 _IDS = ["backward_euler", "crank_nicolson", "sdirk3"]
+_KEEPING: List[_StrategyOf] = [KeepStateFree, KeepAll]
 
 
 class TestSweepReuse:
+    @pytest.mark.parametrize(
+        "strategy_of", _KEEPING, ids=["keep_state_free", "keep_all"]
+    )
     @pytest.mark.parametrize("make, implicit_stages", _TABLEAUX, ids=_IDS)
-    def test_a_constant_jacobian_is_factored_once_per_size_per_session(
+    def test_the_sweeps_reuse_the_forward_setups(
         self,
         numpy_bkd: NumpyBkd,
         make: Callable[[], ButcherTableau],
         implicit_stages: int,
+        strategy_of: _StrategyOf,
     ) -> None:
         assert len(set(_STEPS.sizes())) == 2
-        run = _Run(numpy_bkd, make)
-        assert run.lu.setups == 2
-        run.gradient()
-        assert run.lu.setups == 4
-        run.hvp()
-        assert run.lu.setups == 6
+        counts, gradient, hvp = _Run(numpy_bkd, make, strategy_of).counted()
+        assert counts == (2, 2, 2)
+        _, expected_gradient, expected_hvp = _Run(
+            numpy_bkd, make, RecomputeAlways
+        ).counted()
+        np.testing.assert_allclose(gradient, expected_gradient, rtol=1e-13, atol=1e-15)
+        np.testing.assert_allclose(hvp, expected_hvp, rtol=1e-13, atol=1e-15)
 
     @pytest.mark.parametrize("make, implicit_stages", _TABLEAUX, ids=_IDS)
-    def test_no_reuse_factors_every_solve_and_changes_nothing(
+    def test_recompute_always_factors_every_solve(
         self,
         numpy_bkd: NumpyBkd,
         make: Callable[[], ButcherTableau],
         implicit_stages: int,
     ) -> None:
-        kept = _Run(numpy_bkd, make)
-        run = _Run(numpy_bkd, make, NoReuse())
         # One setup per implicit stage per step, in each pass: the sweeps'
         # diagonal blocks are the stages'.
         per_pass = _NSTEPS * implicit_stages
-        assert run.lu.setups == per_pass
-        gradient = run.gradient()
-        assert run.lu.setups == 2 * per_pass
-        hvp = run.hvp()
-        assert run.lu.setups == 4 * per_pass
-        np.testing.assert_allclose(gradient, kept.gradient(), rtol=1e-13, atol=1e-15)
-        np.testing.assert_allclose(hvp, kept.hvp(), rtol=1e-13, atol=1e-15)
+        counts, _, _ = _Run(numpy_bkd, make, RecomputeAlways).counted()
+        assert counts == (per_pass, 2 * per_pass, 4 * per_pass)

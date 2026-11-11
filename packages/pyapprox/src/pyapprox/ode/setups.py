@@ -14,10 +14,12 @@ a_{ii}`; an explicit stage, a final block or an explicit multistep step
 and :class:`MassShiftBuilder` forms it; the strategies of
 :mod:`pyapprox.implicitfunction.setups` decide which setups to keep.
 
-A converged state is named by its :class:`StatePosition` (the trajectory
-store, the step and the block of that step), never by the state object,
-so a store that recomputes states from checkpoints still finds the setups
-kept for them. An iterate of a stage solve has no position.
+A converged state is named by its :class:`StatePosition` (the origin a
+trajectory store stamps on the step's window, and the block of that
+step), never by the state object, so a store that recomputes states from
+checkpoints still finds the setups kept for them, and a kept setup holds
+no store. An iterate of a stage solve, or a state of a window built by
+hand, has no position.
 """
 
 from typing import Generic, Hashable, List, Optional, Tuple, TypeVar
@@ -30,7 +32,7 @@ from pyapprox.implicitfunction.setups import (
 )
 from pyapprox.ode.mass_form_system import MassFormSystem, parameters_version_reader
 from pyapprox.ode.pinned_rows import BlockPinProtocol
-from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
+from pyapprox.ode.stepper_derivatives import StepOrigin
 from pyapprox.util.backends.protocols import ArrayProtocol
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
@@ -44,38 +46,38 @@ A = TypeVar("A", bound=ArrayProtocol)
 F = TypeVar("F", bound=FormatProtocol)
 
 
-class StatePosition(Generic[V]):
-    """Where a converged state sits: its trajectory store (compared by
-    identity), the step and the block of that step.
+class StatePosition:
+    """Where a converged state sits: a step of a trajectory (the origin a
+    store stamps on the step's window) and the block of that step.
 
     Parameters
     ----------
-    store : TrajectoryStoreProtocol
-        The store holding the trajectory.
-    step : int
-        The step, counted from 0.
+    origin : StepOrigin
+        The trajectory and step.
     block : int
         The residual block of the step (a stage, say), counted from 0.
 
     Raises
     ------
+    TypeError
+        If ``origin`` is not a :class:`~pyapprox.ode.stepper_derivatives.StepOrigin`.
     ValueError
-        If ``step`` or ``block`` is negative.
+        If ``block`` is negative.
     """
 
-    __slots__ = ("_store", "_step", "_block")
+    __slots__ = ("_origin", "_block")
 
-    def __init__(
-        self, store: TrajectoryStoreProtocol[V], step: int, block: int
-    ) -> None:
-        if step < 0 or block < 0:
-            raise ValueError(
-                f"step and block must be nonnegative, got {step} and {block}"
+    def __init__(self, origin: StepOrigin, block: int) -> None:
+        if not isinstance(origin, StepOrigin):
+            raise TypeError(
+                f"origin must be a StepOrigin, got {type(origin).__name__}"
             )
-        self._store, self._step, self._block = store, step, block
+        if block < 0:
+            raise ValueError(f"block must be nonnegative, got {block}")
+        self._origin, self._block = origin, block
 
-    def step(self) -> int:
-        return self._step
+    def origin(self) -> StepOrigin:
+        return self._origin
 
     def block(self) -> int:
         return self._block
@@ -83,17 +85,13 @@ class StatePosition(Generic[V]):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, StatePosition):
             return NotImplemented
-        return (
-            other._store is self._store
-            and other._step == self._step
-            and other._block == self._block
-        )
+        return other._origin == self._origin and other._block == self._block
 
     def __hash__(self) -> int:
-        return hash((id(self._store), self._step, self._block))
+        return hash((self._origin, self._block))
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(step={self._step}, block={self._block})"
+        return f"{type(self).__name__}({self._origin!r}, block={self._block})"
 
 
 class MassShiftRequest(Generic[V, A, F]):
@@ -150,7 +148,7 @@ class MassShiftRequest(Generic[V, A, F]):
         pin: Optional[BlockPinProtocol[V]],
         time: float,
         state: V,
-        position: Optional[StatePosition[V]],
+        position: Optional[StatePosition],
     ) -> None:
         self._a, self._s, self._time = float(a), float(s), float(time)
         if self._a == 0.0 and self._s == 0.0:
@@ -191,7 +189,7 @@ class MassShiftRequest(Generic[V, A, F]):
     def state(self) -> V:
         return self._state
 
-    def position(self) -> Optional[StatePosition[V]]:
+    def position(self) -> Optional[StatePosition]:
         return self._position
 
     def at_solution(self) -> bool:

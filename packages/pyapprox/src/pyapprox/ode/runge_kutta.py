@@ -29,7 +29,6 @@ tableau. States are stack vectors, converted to the residual's form only
 where :math:`f` and :math:`J` are called.
 """
 
-from functools import partial
 from itertools import count
 from typing import (
     Dict,
@@ -49,7 +48,9 @@ from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPinningProtocol, StepB
 from pyapprox.ode.residual_derivatives import DerivativeOperator
 from pyapprox.ode.setups import (
     MassShiftBuilderProtocol,
+    MassShiftRequest,
     MassShiftStrategy,
+    StatePosition,
     stepper_setups,
 )
 from pyapprox.ode.step_quadrature import TableauQuadrature
@@ -77,7 +78,6 @@ from pyapprox.util.linalg.operators import (
     LinearizedOperator,
     LinearMapProtocol,
     Product,
-    ReuseKey,
     ReusePolicyProtocol,
     ScaledSum,
     SolveFailedError,
@@ -104,7 +104,7 @@ class _StageSystem(Generic[V, A, F]):
     Parameters
     ----------
     stepper : RungeKuttaStepper
-        Supplies the system, :math:`f`, :math:`J` and the labels.
+        Supplies the system, :math:`f`, and the stage operator's handle.
     state : V
         :math:`y_n`, a single column of the state space.
     known : V
@@ -119,8 +119,6 @@ class _StageSystem(Generic[V, A, F]):
         The stage's residual block.
     pin : BlockPinProtocol, optional
         How the stage's rows are pinned, at its time; None for none.
-    solver : KeyedSolverProtocol
-        The session's solver, which sets up the stage operator.
     """
 
     def __init__(
@@ -133,12 +131,11 @@ class _StageSystem(Generic[V, A, F]):
         deltat: float,
         block: int,
         pin: Optional[BlockPinProtocol[V]],
-        solver: KeyedSolverProtocol[V, F],
     ) -> None:
         self._stepper = stepper
         self._state, self._known = state, known
         self._time, self._scale, self._deltat = time, scale, deltat
-        self._block, self._pin, self._solver = block, pin, solver
+        self._block, self._pin = block, pin
 
     def space(self) -> InnerProductSpaceProtocol[V, A]:
         return self._stepper.system().space
@@ -156,9 +153,8 @@ class _StageSystem(Generic[V, A, F]):
         return self._pin.residual(value, x, self._time, space)
 
     def jacobian_handle(self, x: V) -> SolverHandleProtocol[V]:
-        return self._stepper.stage_handle(
-            x, self._time, self._scale, self._block, self._pin, self._solver
-        )
+        # An iterate, not a converged stage: it has no position.
+        return self._stepper._shift_handle(self._scale, self._pin, self._time, x, None)
 
     def is_affine(self) -> bool:
         """Whether the stage equation is affine in the stage value: the
@@ -170,25 +166,21 @@ class _StageSystem(Generic[V, A, F]):
 class _RungeKuttaSession(Generic[V, A, F]):
     """One solve's steps of a :class:`RungeKuttaStepper`.
 
-    The implicit stages are set up through one keyed solver, made by the
-    stepper's reuse policy for the session only: under the default policy
-    it keeps a handle per distinct stage operator of a step, so a stage
-    operator the system labels for reuse (see
-    :meth:`MassFormSystem.operator_label`) is formed and set up once per
-    label, and a Jacobian constant in time at a fixed step size is
-    factored once per solve.
+    The implicit stages are set up through the stepper's setup strategy,
+    which decides what is kept and for how long. The session keeps only
+    the sweeps' diagonal blocks that are :math:`M` alone, through one
+    keyed solver made by the stepper's reuse policy for the session.
     """
 
     def __init__(self, stepper: "RungeKuttaStepper[V, A, F]") -> None:
         self._stepper = stepper
         self._solver: KeyedSolverProtocol[V, F] = stepper.reuse().solver(
-            stepper.system().solver, stepper.distinct_stage_operators()
-            + stepper._distinct_mass_blocks()
+            stepper.system().solver, stepper._distinct_mass_blocks()
         )
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`RungeKuttaStepper.step`)."""
-        return self._stepper._step(past_states, span, self._solver)
+        return self._stepper._step(past_states, span)
 
     def diag_handle(
         self, window: StepWindow[V]
@@ -613,9 +605,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
     def distinct_stage_operators(self) -> int:
         r"""The number of different stage operators :math:`M - \Delta t\,
         a_{ii} J` one step forms at a fixed step size: one per diagonal
-        coefficient, and one per pinned block, whose rows are replaced.
-        A session keeps this many handles by default, and one per
-        :meth:`_distinct_mass_blocks` more for the sweeps."""
+        coefficient, and one per pinned block, whose rows are replaced."""
         return self._distinct
 
     def _distinct_mass_blocks(self) -> int:
@@ -690,87 +680,37 @@ class RungeKuttaStepper(Generic[V, A, F]):
         its derivatives (see :mod:`pyapprox.ode.continuous_extension`)."""
         return _TableauExtension(self)
 
-    def _point(self) -> LinearizationPoint:
-        """A new label for a linearization at a Newton iterate: never
-        reused, since an iterate is not a converged point."""
-        return LinearizationPoint(
-            self.parameters_version(), ("stage", next(self._points)), provisional=True
-        )
-
-    def _stage_operator(
+    def _shift_handle(
         self,
-        state: V,
-        time: float,
         scale: float,
         pin: Optional[BlockPinProtocol[V]],
-        point: LinearizationPoint,
-    ) -> ActionOperatorProtocol[V, F]:
-        r""":math:`M - s\, J(y, t)`, :math:`J` labeled ``point``, with the
-        rows ``pin`` pins replaced."""
-        system = self._system
-        jacobian = system.jacobian(system.form.to_residual(state), time, point)
-        operator = ScaledSum([(1.0, system.mass), (-scale, jacobian)], system.space)
-        return operator if pin is None else pin.own(operator)
-
-    def _labeled_stage_operator(
-        self,
-        state: V,
         time: float,
-        scale: float,
-        pin: Optional[BlockPinProtocol[V]],
-        label: LinearizationPoint,
-    ) -> LinearizedOperator[V, F]:
-        """The stage operator with :math:`J` labeled ``label``, wrapped
-        under ``label`` so a caching solver keys it."""
-        return LinearizedOperator(
-            self._stage_operator(state, time, scale, pin, label), label
-        )
-
-    def stage_handle(
-        self,
         state: V,
-        time: float,
-        scale: float,
-        block: int,
-        pin: Optional[BlockPinProtocol[V]],
-        solver: KeyedSolverProtocol[V, F],
+        position: Optional[StatePosition],
     ) -> SolverHandleProtocol[V]:
-        r"""A handle for the stage operator :math:`M - s\, J(y, t)` with
-        :math:`s = \Delta t\, a_{ii}`, the rows of residual block ``block``
-        replaced as ``pin`` says.
-
-        Set up by ``solver`` under the system's reuse label when it gives
-        one: equal stage operators of a session then share one setup, and
-        one whose handle is kept is not formed again. A :math:`J` that sees
-        the state gives no label, and each Newton iterate is set up afresh.
+        r"""A handle for the stage operator :math:`M - s\, J(y, t)`, its
+        rows replaced as ``pin`` says, from the setup strategy: the forward
+        stages and the sweeps' stage blocks ask with the same :math:`s`
+        and time, so a kept setup serves both.
 
         Parameters
         ----------
-        state : V
-            A single column of the state space.
-        time : float
-            The stage time.
         scale : float
-            :math:`s`.
-        block : int
-            The stage's residual block.
+            :math:`s = \Delta t\, a_{ii}`.
         pin : BlockPinProtocol, optional
             How the block's rows are pinned; None for none.
-        solver : KeyedSolverProtocol
-            The session's solver.
+        time : float
+            The stage time.
+        state : V
+            A single column of the state space.
+        position : StatePosition, optional
+            Names ``state`` when it is a converged stage of a stored
+            step; None for a Newton iterate.
         """
-        system = self._system
-        key = ("stage", scale, None if pin is None else block)
-        label = system.operator_label(self.parameters_version(), time, key)
-        if label is None:
-            return solver.setup(
-                self._stage_operator(state, time, scale, pin, self._point())
-            )
-        descriptor = system.space.descriptor()
-        return solver.setup_keyed(
-            ReuseKey(label, descriptor, descriptor),
-            partial(self._labeled_stage_operator, state, time, scale, pin, label),
+        request = MassShiftRequest(
+            self._system, 1.0, scale, pin, time, state, position
         )
+        return self._setups.handle(request, self._builder)
 
     def _block_pin(self, block: int) -> Optional[BlockPinProtocol[V]]:
         """How residual block ``block`` is pinned, or None."""
@@ -853,13 +793,8 @@ class RungeKuttaStepper(Generic[V, A, F]):
         """
         return self.session().step(past_states, span)
 
-    def _step(
-        self,
-        past_states: Sequence[V],
-        span: StepSpan,
-        solver: KeyedSolverProtocol[V, F],
-    ) -> BlockVector[V]:
-        """:meth:`step`, its implicit stages set up by ``solver``."""
+    def _step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
+        """:meth:`step`, its implicit stages set up through the strategy."""
         if len(past_states) != 1:
             raise ValueError(
                 f"a one-step method reads one state, got {len(past_states)}"
@@ -888,9 +823,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
                     i - offset, state, space.scale(deltat, known), stage_time
                 )
             else:
-                stage = self._implicit_stage(
-                    i, state, known, stage_time, deltat, solver
-                )
+                stage = self._implicit_stage(i, state, known, stage_time, deltat)
             stages.append(stage)
             # f(Y_i) only when a later stage or the final block reads it;
             # a stiffly accurate method's last slope is never used.
@@ -918,11 +851,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
         known: V,
         stage_time: float,
         deltat: float,
-        linear_solver: KeyedSolverProtocol[V, F],
     ) -> V:
         """Solve implicit stage ``i`` from the guess :math:`y_n`, its rows
         pinned in its Newton system when its block is, its stage operator
-        set up by ``linear_solver``."""
+        set up through the strategy."""
         solver = self._nonlinear_solver
         if solver is None:
             raise TypeError(f"{self._tableau.name} needs a nonlinear solver")
@@ -937,7 +869,6 @@ class RungeKuttaStepper(Generic[V, A, F]):
             deltat,
             block,
             self._block_pin(block),
-            linear_solver,
         )
         stage, info = solver.solve(system, state)
         if not info.converged:
@@ -1099,7 +1030,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
             ]
         return grid
 
-    def diag(self, window: StepWindow[V]) -> StepOperator[V]:
+    def diag(self, window: StepWindow[V]) -> BlockOperator[V]:
         r""":math:`\partial R_n/\partial u_n`, block lower triangular: the
         stage rows' :math:`\delta_{ik} M - \Delta t\, a_{ik} J_k`, the final
         row's :math:`-\Delta t\, b_k J_k` and :math:`M`.
@@ -1121,39 +1052,40 @@ class RungeKuttaStepper(Generic[V, A, F]):
         the system's solver."""
         return self.session().diag_handle(window)
 
-    def _diag_label(
-        self, window: StepWindow[V], r: int
-    ) -> Optional[LinearizationPoint]:
-        """The reuse label of diagonal block ``r``, or None: a stage block
-        :math:`M - \\Delta t\\, a_{rr} J` is labeled exactly as the forward
-        step labels it (so a sweep's blocks repeat as the steps' do); a
-        block that is :math:`M` alone (an explicit stage, the final block)
-        by the mass, fixed for the system's life."""
-        pinned = None if self._block_pin(r) is None else r
-        version = window.parameters_version
-        if r < len(self._unknown_stages):
-            i = self._unknown_stages[r]
-            diagonal = self._tableau.a[i][i]
-            if diagonal != 0.0:
-                key = ("stage", window.deltat() * diagonal, pinned)
-                time = self._stage_time(window, i)
-                return self._system.operator_label(version, time, key)
-        return LinearizationPoint(version, ("mass", pinned))
-
     def _diag_handle(
         self, window: StepWindow[V], solver: KeyedSolverProtocol[V, F]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """:meth:`diag_handle`, each diagonal block set up by ``solver``
-        under its reuse label when it has one."""
+        r""":meth:`diag_handle`: each stage block :math:`M - \Delta t\,
+        a_{ii} J(Y_i)` from the setup strategy, asked with the forward
+        stage's :math:`s` and time and named by the window's origin and
+        the block (a window built by hand names nothing); each block that
+        is :math:`M` alone by ``solver``, under a label fixed for the
+        system's life."""
         grid = self._diag_blocks(window)
-        handles = []
+        stages = self.stage_values(window)
+        handles: List[SolverHandleProtocol[V]] = []
         for r, row in enumerate(grid):
             block = row[r]
             if block is None:
                 raise ValueError(f"{self._tableau.name}: diagonal block {r} is zero")
-            label = self._diag_label(window, r)
-            labeled = block if label is None else LinearizedOperator(block, label)
-            handles.append(solver.setup(labeled))
+            if r < len(self._unknown_stages):
+                i = self._unknown_stages[r]
+                diagonal = self._tableau.a[i][i]
+                if diagonal != 0.0:
+                    origin = window.origin
+                    handles.append(
+                        self._shift_handle(
+                            window.deltat() * diagonal,
+                            self._block_pin(r),
+                            self._stage_time(window, i),
+                            stages[i],
+                            None if origin is None else StatePosition(origin, r),
+                        )
+                    )
+                    continue
+            pinned = None if self._block_pin(r) is None else r
+            label = LinearizationPoint(window.parameters_version, ("mass", pinned))
+            handles.append(solver.setup(LinearizedOperator(block, label)))
         operator = BlockOperator(grid, self._unknown_space, self._residual_space)
         return BlockLowerTriangularHandle(operator, handles)
 

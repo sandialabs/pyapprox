@@ -137,6 +137,21 @@ class TestStepWindows:
         with pytest.raises(ValueError, match="preceded by 2 states"):
             store.window(1, depth=3)
 
+    def test_windows_carry_their_origin(self, bkd: Backend[Array]) -> None:
+        """Every read of a step's window names the same step of this
+        store's trajectory, at any depth and by ``-1``; other steps and
+        other stores name others; a window built by hand names none."""
+        store, states, unknowns = _stepped_store(bkd)
+        origin = store.window(2).origin
+        assert origin is not None and origin.step() == 2
+        assert store.window(2, depth=3).origin == origin
+        assert store.window(-1).origin == origin
+        assert store.window(1).origin != origin
+        other, _, _ = _stepped_store(bkd)
+        assert other.window(2).origin != origin
+        span = StepSpan.from_times(_TIMES[:2])
+        assert StepWindow(span, (states[0],), unknowns[0]).origin is None
+
     def test_span_is_the_windows_span(self, bkd: Backend[Array]) -> None:
         """The span read alone equals the window's, at every step and
         depth the step has, the last step by ``-1`` too."""

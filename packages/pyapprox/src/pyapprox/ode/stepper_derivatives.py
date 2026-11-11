@@ -76,6 +76,64 @@ def check_step_span(span: StepSpan, nstates: int) -> None:
         )
 
 
+class TrajectoryId:
+    """Names one trajectory: equal only to itself.
+
+    A trajectory store makes one and stamps it on the windows it gives
+    out, so whatever keeps a step's setups holds this name rather than
+    the store and its states.
+    """
+
+    __slots__ = ("__weakref__",)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(0x{id(self):x})"
+
+
+class StepOrigin:
+    """Step ``step`` of the trajectory ``trajectory`` names.
+
+    Parameters
+    ----------
+    trajectory : TrajectoryId
+        The trajectory, compared by identity.
+    step : int
+        The step, counted from 0.
+
+    Raises
+    ------
+    TypeError
+        If ``trajectory`` is not a :class:`TrajectoryId`.
+    ValueError
+        If ``step`` is negative.
+    """
+
+    __slots__ = ("_trajectory", "_step")
+
+    def __init__(self, trajectory: TrajectoryId, step: int) -> None:
+        if not isinstance(trajectory, TrajectoryId):
+            raise TypeError(
+                f"trajectory must be a TrajectoryId, got {type(trajectory).__name__}"
+            )
+        if step < 0:
+            raise ValueError(f"step must be nonnegative, got {step}")
+        self._trajectory, self._step = trajectory, step
+
+    def step(self) -> int:
+        return self._step
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, StepOrigin):
+            return NotImplemented
+        return other._trajectory is self._trajectory and other._step == self._step
+
+    def __hash__(self) -> int:
+        return hash((id(self._trajectory), self._step))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._trajectory!r}, step={self._step})"
+
+
 @dataclass(frozen=True)
 class StepWindow(Generic[V]):
     """Where a step's derivatives are evaluated.
@@ -99,6 +157,11 @@ class StepWindow(Generic[V]):
         stepper's unknown space.
     parameters_version : int, default 0
         The residual's parameter version the step was taken at.
+    origin : StepOrigin, optional
+        Which step of which trajectory the window is, set by the store
+        that gave it out; None for a window built by hand. Setups at the
+        window's converged states are named by it, so they can be kept
+        across sweeps (see :class:`~pyapprox.ode.setups.StatePosition`).
 
     Raises
     ------
@@ -110,6 +173,7 @@ class StepWindow(Generic[V]):
     past_states: Tuple[V, ...]
     unknown: BlockVector[V]
     parameters_version: int = 0
+    origin: Optional[StepOrigin] = None
 
     def __post_init__(self) -> None:
         check_step_span(self.span, len(self.past_states))

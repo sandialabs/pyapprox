@@ -34,7 +34,7 @@ serves a solve that needs no sweep.
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.ode.step_span import StepSpan
-from pyapprox.ode.stepper_derivatives import StepWindow
+from pyapprox.ode.stepper_derivatives import StepOrigin, StepWindow, TrajectoryId
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import BlockVector
 
@@ -114,7 +114,8 @@ class TrajectoryStoreProtocol(TrajectorySinkProtocol[V], Protocol[V]):
     def window(self, step: int, depth: int = 1) -> StepWindow[V]:
         """Step ``step``'s window: from state ``step`` to state
         ``step + 1``, reading the ``depth`` states up to state ``step``,
-        over :meth:`span`."""
+        over :meth:`span`, its ``origin`` naming this store's trajectory
+        and the step (counted from 0), the same on every read."""
         ...
 
 
@@ -146,6 +147,9 @@ class InMemoryTrajectoryStore(Generic[V]):
         # The value the constraint was applied to, aligned with the
         # states; None where the state was appended without one.
         self._unconstrained: list[Optional[V]] = []
+        # Stamped on every window, so setups kept for a step name it
+        # without holding the store.
+        self._trajectory = TrajectoryId()
 
     def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
         if self._times:
@@ -252,7 +256,8 @@ class InMemoryTrajectoryStore(Generic[V]):
         step = self._step_index(step, depth)
         unknown, version = self._steps[step]
         past = tuple(self._states[step - lag] for lag in range(depth))
-        return StepWindow(span, past, unknown, version)
+        origin = StepOrigin(self._trajectory, step)
+        return StepWindow(span, past, unknown, version, origin)
 
     def ntimes(self) -> int:
         return len(self._times)

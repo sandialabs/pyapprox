@@ -10,7 +10,8 @@ bundle reads them. Pinned blocks pin the first row
 
 - Keys: which changes to a request leave its key equal, per level, for
   :math:`s \ne 0` and for :math:`s = 0`.
-- Positions: equal for one store, step and block; refused when negative.
+- Positions: equal for one trajectory, step and block; refused when
+  negative or given the wrong type.
 - The builder forms :math:`a M - s J(y, t)` with the pinned rows identity
   rows (dense, to 1e-15 relative) and refuses another system's request.
 - The checker: every shipped strategy returns only right handles over a
@@ -44,7 +45,7 @@ from pyapprox.ode.residual_derivatives import (
     state_free_jacobian,
 )
 from pyapprox.ode.setups import MassShiftBuilder, MassShiftRequest, StatePosition
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.stepper_derivatives import StepOrigin, TrajectoryId
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
@@ -141,7 +142,7 @@ class _Args(Generic[Array]):
     pin: Optional[BlockPinProtocol[Array]]
     time: float
     state: Array
-    position: Optional[StatePosition[Array]]
+    position: Optional[StatePosition]
 
     def request(self) -> _Request[Array]:
         return MassShiftRequest(
@@ -154,20 +155,15 @@ class _Case(Generic[Array]):
         self.bkd = bkd
         self.model = level(bkd)
         self.system: _System[Array] = dense_mass_form_system(self.model)
-        self.store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        self.trajectory = TrajectoryId()
         self.pin: RowPin[Array] = RowPin(PinnedPrey(bkd))
         self.state = bkd.asarray([[0.4], [-0.7]])
 
+    def position(self, step: int, block: int) -> StatePosition:
+        return StatePosition(StepOrigin(self.trajectory, step), block)
+
     def args(self, s: float = 0.25) -> _Args[Array]:
-        return _Args(
-            self.system,
-            1.0,
-            s,
-            None,
-            0.1,
-            self.state,
-            StatePosition(self.store, 3, 1),
-        )
+        return _Args(self.system, 1.0, s, None, 0.1, self.state, self.position(3, 1))
 
     def dense(self, op: ActionOperatorProtocol[Array, DenseFormat[Array]]) -> Array:
         eye = self.bkd.eye(2)
@@ -187,7 +183,7 @@ def _variants(
         ("another time", replace(base, time=0.3), (yes, no, no)),
         (
             "another position",
-            replace(base, position=StatePosition(case.store, 4, 1)),
+            replace(base, position=case.position(4, 1)),
             (yes, yes, no),
         ),
         ("an iterate", replace(base, position=None), (yes, yes, no)),
@@ -237,21 +233,28 @@ class TestKeys:
 
 class TestPositions:
     def test_equality(self) -> None:
-        store: InMemoryTrajectoryStore[object] = InMemoryTrajectoryStore()
-        position = StatePosition(store, 2, 0)
-        assert position == StatePosition(store, 2, 0)
-        assert hash(position) == hash(StatePosition(store, 2, 0))
-        assert position != StatePosition(store, 2, 1)
-        assert position != StatePosition(store, 1, 0)
-        assert position != StatePosition(InMemoryTrajectoryStore(), 2, 0)
-        assert (position.step(), position.block()) == (2, 0)
+        trajectory = TrajectoryId()
+        origin = StepOrigin(trajectory, 2)
+        position = StatePosition(origin, 0)
+        assert position == StatePosition(StepOrigin(trajectory, 2), 0)
+        assert hash(position) == hash(StatePosition(StepOrigin(trajectory, 2), 0))
+        assert position != StatePosition(origin, 1)
+        assert position != StatePosition(StepOrigin(trajectory, 1), 0)
+        assert position != StatePosition(StepOrigin(TrajectoryId(), 2), 0)
+        assert position.origin() == origin and position.block() == 0
+        assert origin.step() == 2
 
     def test_negative_is_refused(self) -> None:
-        store: InMemoryTrajectoryStore[object] = InMemoryTrajectoryStore()
         with pytest.raises(ValueError, match="nonnegative"):
-            StatePosition(store, -1, 0)
+            StepOrigin(TrajectoryId(), -1)
         with pytest.raises(ValueError, match="nonnegative"):
-            StatePosition(store, 0, -1)
+            StatePosition(StepOrigin(TrajectoryId(), 0), -1)
+
+    def test_a_wrong_type_is_refused(self) -> None:
+        with pytest.raises(TypeError, match="TrajectoryId"):
+            StepOrigin(object(), 0)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="StepOrigin"):
+            StatePosition(TrajectoryId(), 0)  # type: ignore[arg-type]
 
 
 class TestTheBuilder:
@@ -303,7 +306,7 @@ class TestWithTheStrategies:
             replace(base, position=None, state=moved),
             base,
             replace(base, state=bkd.copy(base.state)),
-            replace(base, position=StatePosition(case.store, 4, 0), state=moved),
+            replace(base, position=case.position(4, 0), state=moved),
             replace(base, s=0.0),
             replace(base, s=0.0, pin=case.pin),
             replace(base, pin=case.pin),
