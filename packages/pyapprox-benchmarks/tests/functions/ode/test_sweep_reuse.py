@@ -13,11 +13,17 @@ the gradient and the HVP:
   SDIRK3 factor their stage operator once per step size in the forward
   solve (2), and the sweeps, asking for the same operators, factor
   nothing: 2, 2, 2. Heun, explicit, factors the mass once: 1, 1, 1.
+  BDF2 and Adams-Moulton 3 factor each distinct step operator
+  :math:`\alpha_0 M - \Delta t\, \beta_0 A` once, read from the method's
+  coefficients over the stored spans (startup, full formula, last step):
+  3, 3, 3; Adams-Bashforth 2, explicit with :math:`\alpha_0 = 1`, the
+  mass once: 1, 1, 1.
 - ``RecomputeAlways``: every solve is factored in every pass (steps
   times solves per step for the forward solve and for the gradient's
   sweep, twice that for the HVP: the tangent sweep, and the adjoints
   sharing one handle per step): 10, 20, 40 (SDIRK3 30, 60, 120; Heun,
-  an explicit stage and a final block per step, 20, 40, 80).
+  an explicit stage and a final block per step, 20, 40, 80; each
+  multistep method 10, 20, 40).
 - The gradient and HVP of every strategy equal the recomputed ones to
   1e-13.
 """
@@ -33,6 +39,7 @@ from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import (
     MultistepFormulaProtocol,
+    adams_bashforth2,
     adams_moulton3,
     bdf2,
 )
@@ -187,11 +194,12 @@ _TABLEAUX = [
 ]
 _IDS = ["backward_euler", "crank_nicolson", "sdirk3", "heun"]
 _KEEPING: List[_StrategyOf] = [KeepStateFree, KeepAll]
-_IMPLICIT_MULTISTEP: List[Callable[[], MultistepFormulaProtocol]] = [
+_MULTISTEP: List[Callable[[], MultistepFormulaProtocol]] = [
     bdf2,
     adams_moulton3,
+    adams_bashforth2,
 ]
-_MULTISTEP_IDS = ["bdf2", "adams_moulton3"]
+_MULTISTEP_IDS = ["bdf2", "adams_moulton3", "adams_bashforth2"]
 
 
 class TestSweepReuse:
@@ -233,7 +241,7 @@ class TestSweepReuse:
     @pytest.mark.parametrize(
         "strategy_of", _KEEPING, ids=["keep_state_free", "keep_all"]
     )
-    @pytest.mark.parametrize("make", _IMPLICIT_MULTISTEP, ids=_MULTISTEP_IDS)
+    @pytest.mark.parametrize("make", _MULTISTEP, ids=_MULTISTEP_IDS)
     def test_multistep_sweeps_reuse_the_forward_setups(
         self,
         numpy_bkd: NumpyBkd,
@@ -242,9 +250,10 @@ class TestSweepReuse:
     ) -> None:
         run = _Run(numpy_bkd, make, strategy_of)
         distinct = _distinct_step_operators(make(), run)
-        # Startup, the full formula, the last step's: more than one, fewer
-        # than the steps, so the count tells keeping from recomputing.
-        assert 1 < distinct < _NSTEPS
+        # Fewer than the steps, so the count tells keeping from
+        # recomputing: an implicit formula's startup, full and last-step
+        # operators; an explicit one's mass alone.
+        assert distinct == (1 if make().is_explicit() else 3)
         counts, gradient, hvp = run.counted()
         assert counts == (distinct, distinct, distinct)
         _, expected_gradient, expected_hvp = _Run(
@@ -253,7 +262,7 @@ class TestSweepReuse:
         np.testing.assert_allclose(gradient, expected_gradient, rtol=1e-13, atol=1e-15)
         np.testing.assert_allclose(hvp, expected_hvp, rtol=1e-13, atol=1e-15)
 
-    @pytest.mark.parametrize("make", _IMPLICIT_MULTISTEP, ids=_MULTISTEP_IDS)
+    @pytest.mark.parametrize("make", _MULTISTEP, ids=_MULTISTEP_IDS)
     def test_multistep_recompute_always_factors_every_step(
         self, numpy_bkd: NumpyBkd, make: Callable[[], MultistepFormulaProtocol]
     ) -> None:

@@ -40,9 +40,7 @@ whatever the step sizes. States are stack vectors, converted to the
 residual's form only where :math:`f` and its derivatives are called.
 """
 
-from itertools import count
 from typing import (
-    Dict,
     Generic,
     List,
     Optional,
@@ -88,9 +86,7 @@ from pyapprox.util.linalg.operators import (
     IdentityOperator,
     InnerProductSpaceProtocol,
     KeepWithinSolve,
-    KeyedSolverProtocol,
     LinearizationPoint,
-    LinearizedOperator,
     LinearMapProtocol,
     Product,
     ReusePolicyProtocol,
@@ -174,20 +170,12 @@ class _NewStateSystem(Generic[V, A, F]):
 
 
 class _MultistepSession(Generic[V, A, F]):
-    """One solve's steps of a :class:`LinearMultistepStepper`.
-
-    Implicit steps are set up through the stepper's setup strategy, which
-    decides what is kept and for how long. The session keeps only the
-    sweeps' diagonal blocks of explicit steps (:math:`\\alpha_0 M`),
-    through one keyed solver made by the stepper's reuse policy for the
-    session.
-    """
+    """One solve's steps of a :class:`LinearMultistepStepper`: the
+    stepper's own, since every setup goes through its setup strategy,
+    which decides what is kept and for how long."""
 
     def __init__(self, stepper: "LinearMultistepStepper[V, A, F]") -> None:
         self._stepper = stepper
-        self._solver: KeyedSolverProtocol[V, F] = stepper.reuse().solver(
-            stepper.system().solver, 1
-        )
 
     def step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
         """Solve one step (see :meth:`LinearMultistepStepper.step`)."""
@@ -197,9 +185,8 @@ class _MultistepSession(Generic[V, A, F]):
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
         """The step's diagonal handle (see
-        :meth:`LinearMultistepStepper.diag_handle`), set up through this
-        session."""
-        return self._stepper._diag_handle(window, self._solver)
+        :meth:`LinearMultistepStepper.diag_handle`)."""
+        return self._stepper.diag_handle(window)
 
 
 class _MultistepExtension(Generic[V, A, F]):
@@ -246,9 +233,10 @@ class _MultistepExtension(Generic[V, A, F]):
             )
         return coefficients
 
-    def _handle(self) -> SolverHandleProtocol[V]:
-        """:math:`E^{-1}`: the mass, pinned as the new state is."""
-        return self._stepper._mass_handle_for(1.0)
+    def _handle(self, window: StepWindow[V], time: float) -> SolverHandleProtocol[V]:
+        """:math:`E^{-1}`: the mass, pinned as the new state is, from the
+        stepper's setup strategy."""
+        return self._stepper._mass_handle(1.0, time, window.past_state(1))
 
     def value(self, window: StepWindow[V], time: float) -> V:
         """:math:`y(t)` for ``time`` in the window's span."""
@@ -266,7 +254,7 @@ class _MultistepExtension(Generic[V, A, F]):
         pin = stepper.pin()
         if pin is not None:
             rhs = pin.right_hand_side(rhs, time)
-        solution, info = self._handle().solve(rhs)
+        solution, info = self._handle(window, time).solve(rhs)
         if not info.converged:
             raise SolveFailedError(
                 f"{stepper.method().name}: continuous extension's mass solve: "
@@ -297,12 +285,12 @@ class _MultistepExtension(Generic[V, A, F]):
         )
 
     def _solved(
-        self, op: ActionOperatorProtocol[V, G]
+        self, op: ActionOperatorProtocol[V, G], window: StepWindow[V], time: float
     ) -> LinearMapProtocol[V]:
         r""":math:`E^{-1} P\, \mathrm{op}`."""
         pin = self._stepper.pin()
         coupled = op if pin is None else pin.coupled(op)
-        return Product([self._handle(), coupled])
+        return Product([self._handle(window, time), coupled])
 
     def _lag_block(
         self, window: StepWindow[V], time: float, lag: int
@@ -321,7 +309,7 @@ class _MultistepExtension(Generic[V, A, F]):
             )
         if not terms:
             return None
-        return self._solved(ScaledSum(terms, stepper.system().space))
+        return self._solved(ScaledSum(terms, stepper.system().space), window, time)
 
     def _wrt_unknown(self, window: StepWindow[V], time: float) -> StepOperator[V]:
         stepper = self._stepper
@@ -361,7 +349,9 @@ class _MultistepExtension(Generic[V, A, F]):
         data = None if pin is None else pin.data_param(time, space)
         if data is None:
             block = (
-                self._solved(ScaledSum(terms, space, params.component(0)))
+                self._solved(
+                    ScaledSum(terms, space, params.component(0)), window, time
+                )
                 if terms
                 else None
             )
@@ -373,7 +363,7 @@ class _MultistepExtension(Generic[V, A, F]):
                 (1.0, pin.coupled(ScaledSum(terms, space, params.component(0))))
             )
         factors: List[LinearMapProtocol[V]] = [
-            self._handle(),
+            self._handle(window, time),
             ScaledSum(pinned, space, params.component(0)),
         ]
         solved: LinearMapProtocol[V] = Product(factors)
@@ -388,7 +378,7 @@ class _MultistepExtension(Generic[V, A, F]):
         stepper = self._stepper
         space, to_residual = stepper.system().space, stepper.system().form.to_residual
         coefficients = self._coefficients(window, time)
-        x = self._handle().apply_transpose(weights)
+        x = self._handle(window, time).apply_transpose(weights)
         pin = stepper.pin()
         if pin is not None:
             # Pinned rows carry no f, so no curvature.
@@ -485,7 +475,7 @@ class _MultistepExtension(Generic[V, A, F]):
         pin = stepper.pin()
         if pin is None:
             return total
-        x = self._handle().apply_transpose(weights)
+        x = self._handle(window, time).apply_transpose(weights)
         data = pin.data_curvature(x, time, stepper.system().space)
         if data is None:
             return total
@@ -580,12 +570,8 @@ class LinearMultistepStepper(Generic[V, A, F]):
         self._unknown_space = BlockInnerProductSpace([space], "unknown")
         self._residual_space = BlockInnerProductSpace([space], "residual")
         self._state_space = BlockInnerProductSpace([space], "state")
-        self._mass_handle: Optional[SolverHandleProtocol[V]] = None
         # The one block, of one, is the step end.
         self._pin = None if row_pinning is None else row_pinning.at(StepBlock(0, 1))
-        # Explicit steps' row-replaced alpha_0 M, set up once per alpha_0.
-        self._pinned_mass_handles: Dict[float, SolverHandleProtocol[V]] = {}
-        self._points = count()
 
     def method(self) -> MultistepFormulaProtocol:
         """The method."""
@@ -657,12 +643,11 @@ class LinearMultistepStepper(Generic[V, A, F]):
         extension (a fixed table) is refused when the extension is read."""
         return _MultistepExtension(self)
 
-    def _point(self, provisional: bool, version: int) -> LinearizationPoint:
-        """A new label for a linearization: provisional at a Newton
-        iterate, never reused."""
-        return LinearizationPoint(
-            version, ("multistep", next(self._points)), provisional=provisional
-        )
+    def _converged_point(self, window: StepWindow[V]) -> LinearizationPoint:
+        """A label for a linearization at a converged step, equal to no
+        other: these Jacobians are applied, never set up, so nothing keys
+        on it."""
+        return LinearizationPoint(window.parameters_version, object())
 
     def _jacobian(
         self, state: V, time: float, point: LinearizationPoint
@@ -704,46 +689,27 @@ class LinearMultistepStepper(Generic[V, A, F]):
         )
         return self._setups.handle(request, self._builder)
 
-    def _mass_handle_for(self, alpha0: float) -> SolverHandleProtocol[V]:
-        r"""A handle for the new-state block of an explicit step: :math:`M`
-        (the right-hand side then carries :math:`1/\alpha_0`), or
-        :math:`P \alpha_0 M + I - P` with the step-end rows pinned, each set
-        up once (per :math:`\alpha_0` when pinned)."""
-        pin = self._pin
-        if pin is None:
-            if self._mass_handle is None:
-                self._mass_handle = self._system.solver.setup(self._system.mass)
-            return self._mass_handle
-        handle = self._pinned_mass_handles.get(alpha0)
-        if handle is None:
-            scaled = ScaledSum([(alpha0, self._system.mass)], self._system.space)
-            handle = self._system.solver.setup(pin.own(scaled))
-            self._pinned_mass_handles[alpha0] = handle
-        return handle
+    def _mass_handle(
+        self, alpha0: float, time: float, state: V
+    ) -> SolverHandleProtocol[V]:
+        r"""A handle for :math:`P \alpha_0 M + I - P` (:math:`\alpha_0 M`
+        unpinned) from the setup strategy. ``time`` and ``state`` complete
+        the request; with :math:`s = 0` neither enters the operator or its
+        key."""
+        return self._shift_handle(alpha0, 0.0, time, state, None)
 
-    def _mass_solve(self, rhs: V) -> V:
-        """:math:`M^{-1}` ``rhs``, with the mass set up once."""
-        if self._pin is not None:
-            raise AssertionError("only called without step-end rows")
-        solution, info = self._mass_handle_for(1.0).solve(rhs)
-        if not info.converged:
-            raise SolveFailedError(f"{self._method.name}: mass solve: {info.message}")
-        return solution
-
-    def _pinned_mass_solve(self, known: V, alpha0: float, time: float) -> V:
-        r"""An explicit step with the step-end rows pinned:
-        :math:`(P \alpha_0 M + I - P)\, y_{n+1} = -P k + (I - P)\, g(t)`,
-        one solve as without them, its operator set up once per
-        :math:`\alpha_0`."""
-        pin = self._pin
-        if pin is None:
-            raise AssertionError("only called with step-end rows")
-        handle = self._mass_handle_for(alpha0)
+    def _explicit_solve(self, known: V, alpha0: float, time: float, state: V) -> V:
+        r"""An explicit step: :math:`(P \alpha_0 M + I - P)\, y_{n+1} = -P k
+        + (I - P)\, g(t)`, :math:`P = I` unpinned, the operator the sweeps'
+        diagonal block asks for too."""
+        handle = self._mass_handle(alpha0, time, state)
         rhs = self._system.space.scale(-1.0, known)
-        solution, info = handle.solve(pin.right_hand_side(rhs, time))
+        if self._pin is not None:
+            rhs = self._pin.right_hand_side(rhs, time)
+        solution, info = handle.solve(rhs)
         if not info.converged:
             raise SolveFailedError(
-                f"{self._method.name}: pinned mass solve: {info.message}"
+                f"{self._method.name}: explicit step's mass solve: {info.message}"
             )
         return solution
 
@@ -819,21 +785,16 @@ class LinearMultistepStepper(Generic[V, A, F]):
         return self.session().step(past_states, span)
 
     def _step(self, past_states: Sequence[V], span: StepSpan) -> BlockVector[V]:
-        """:meth:`step`, an implicit step's operator set up through the
-        strategy."""
+        """:meth:`step`, every operator set up through the strategy."""
         check_step_span(span, len(past_states))
         formula = self._formula(span)
-        space = self._system.space
         known = self._known(past_states, span, formula)
         new_time, deltat = span.end(), span.deltat()
         if formula.is_explicit():
             # alpha_0 M y_{n+1} = -k
-            if self._pin is None:
-                new_state = self._mass_solve(
-                    space.scale(-1.0 / formula.alpha[0], known)
-                )
-            else:
-                new_state = self._pinned_mass_solve(known, formula.alpha[0], new_time)
+            new_state = self._explicit_solve(
+                known, formula.alpha[0], new_time, past_states[0]
+            )
             return BlockVector((new_state,))
         solver = self._nonlinear_solver
         if solver is None:
@@ -885,7 +846,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         return self._jacobian(
             state,
             window.lag_time(lag),
-            self._point(False, window.parameters_version),
+            self._converged_point(window),
         )
 
     def _lag_block(
@@ -926,19 +887,12 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def diag_handle(
         self, window: StepWindow[V]
     ) -> SolverHandleProtocol[BlockVector[V]]:
-        """A solver handle for :meth:`diag`, as a session of this one
-        window, set up by the system's solver."""
-        return self.session().diag_handle(window)
-
-    def _diag_handle(
-        self, window: StepWindow[V], solver: KeyedSolverProtocol[V, F]
-    ) -> SolverHandleProtocol[BlockVector[V]]:
-        r""":meth:`diag_handle`: an implicit step's :math:`\alpha_0 M -
-        \Delta t\, \beta_0 J(y_{n+1})` from the setup strategy, asked with
-        the forward step's :math:`\alpha_0`, :math:`s` and time and named
-        by the window's origin (a window built by hand names nothing); an
-        explicit step's :math:`\alpha_0 M` by ``solver``, under a label
-        fixed for the system's life."""
+        r"""A solver handle for :meth:`diag`, from the setup strategy: an
+        implicit step's :math:`\alpha_0 M - \Delta t\, \beta_0 J(y_{n+1})`
+        asked with the forward step's :math:`\alpha_0`, :math:`s` and time
+        and named by the window's origin (a window built by hand names
+        nothing); an explicit step's :math:`\alpha_0 M`, the forward step's
+        own request."""
         # alpha_0 != 0, so the diagonal block is never zero.
         block = self._lag_block(window, 0)
         if block is None:
@@ -955,8 +909,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 None if origin is None else StatePosition(origin, 0),
             )
         else:
-            label = LinearizationPoint(window.parameters_version, ("mass", alpha0))
-            handle = solver.setup(LinearizedOperator(block, label))
+            handle = self._mass_handle(
+                alpha0, window.lag_time(0), window.past_state(1)
+            )
         operator = BlockOperator([[block]], self._unknown_space, self._residual_space)
         return BlockLowerTriangularHandle(operator, [handle])
 

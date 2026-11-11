@@ -19,8 +19,9 @@ step:
 - Gradients and HVPs equal across strategies and stores to 1e-13.
 - Kept setups name the trajectory, not the store: a dropped store is
   freed while its setups stay kept.
-- After a solve and its sweeps, an SDIRK3 stepper pickles under every
-  strategy, and the copy steps the same trajectory (1e-14).
+- After a solve and its sweeps, an SDIRK3, a BDF2 and an Adams-Bashforth
+  2 stepper pickle under every strategy, and the copy steps the same
+  trajectory (1e-14).
 """
 
 import gc
@@ -38,6 +39,7 @@ from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import dense_mass_form_system
 from pyapprox.ode.multistep_methods import (
     MultistepFormulaProtocol,
+    adams_bashforth2,
     adams_moulton3,
     bdf2,
 )
@@ -198,13 +200,21 @@ class TestStageSetups:
         [RecomputeAlways, KeepStateFree, KeepAll],
         ids=["recompute_always", "keep_state_free", "keep_all"],
     )
+    @pytest.mark.parametrize(
+        "make",
+        [alexander_sdirk3, bdf2, adams_bashforth2],
+        ids=["sdirk3", "bdf2", "adams_bashforth2"],
+    )
     def test_a_stepper_pickles_after_a_solve(
-        self, bkd: Backend[Array], strategy_of: _StrategyOf[Array]
+        self,
+        bkd: Backend[Array],
+        make: Callable[[], _Method],
+        strategy_of: _StrategyOf[Array],
     ) -> None:
         """The stepper holds no setup of its own, so after a solve and
         its sweeps it pickles with its strategy, and the copy steps the
         same trajectory."""
-        run = _Run(bkd, alexander_sdirk3, strategy_of)
+        run = _Run(bkd, make, strategy_of)
         store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         run.sequence(store, _direction(bkd))
         # Deprecated pickling (an itertools counter, say) fails here
