@@ -51,7 +51,6 @@ from pyapprox.ode.time_quadrature import (
 )
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
-from pyapprox.util.linalg.operators.solvers import require_transposes
 
 F = TypeVar("F")
 
@@ -182,15 +181,6 @@ class ImplicitMidpointAdjoint(
     """Implicit midpoint with adjoint capability for gradient computation."""
 
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
-
-    def __init__(
-        self,
-        residual: ODEResidualProtocol[Array],
-        system: Optional[ResidualFormSystemProtocol[Array, Array, F]] = None,
-    ) -> None:
-        super().__init__(residual, system)
-        if system is not None:
-            require_transposes(system.solver(), type(self).__name__)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t

@@ -30,7 +30,6 @@ from pyapprox.util.linalg.operators.protocols import (
 )
 from pyapprox.util.linalg.operators.solvers import (
     SolveInfo,
-    SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
     merge_column_reports,
@@ -641,9 +640,6 @@ class ScipySparseLU:
     report ``converged=False``; ``setup`` does not raise for it.
     """
 
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
-
     def setup(
         self, op: ActionOperatorProtocol[NDArray[S], CSRFormat]
     ) -> SolverHandleProtocol[NDArray[S]]:
@@ -893,9 +889,6 @@ class ScipyCG:
         self._tol = tol
         self._maxiter = maxiter
 
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
-
     def setup(
         self, op: ActionOperatorProtocol[NDArray[S], G]
     ) -> SolverHandleProtocol[NDArray[S]]:
@@ -937,9 +930,6 @@ class ScipyGMRES:
         self._tol = tol
         self._maxiter = maxiter
         self._restart = restart
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
 
     def setup(
         self, op: ActionOperatorProtocol[NDArray[S], G]

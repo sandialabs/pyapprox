@@ -64,7 +64,7 @@ class TestDirectSolver:
         a = _well_conditioned(0)
         handle = case.direct_solver().setup(case.build(a, _U))
         assert isinstance(handle, SolverHandleProtocol)
-        assert case.direct_solver().capabilities().transpose
+        assert handle.transpose() is not None
         b = case.vec(_U, 3, 1)
         x, info = handle.solve(b)
         assert info.converged and info.iterations == 0

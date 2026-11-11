@@ -1,7 +1,7 @@
 """A dense solver whose handles offer no transposed solve.
 
-For tests of consumers that must refuse a solver without transposes
-when they need one (an adjoint's transposed solves).
+For tests of consumers that must refuse a solver without transposes at
+their first transposed solve (an adjoint's).
 """
 
 from typing import Generic, Optional
@@ -11,7 +11,6 @@ from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     SolveInfo,
-    SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
 )
@@ -38,9 +37,6 @@ class NoTransposeSolver(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._lu = BackendDenseLU(bkd)
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=False)
 
     def setup(
         self, op: ActionOperatorProtocol[Array, DenseFormat[Array]]

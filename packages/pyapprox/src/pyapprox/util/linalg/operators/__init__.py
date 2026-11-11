@@ -64,7 +64,6 @@ from pyapprox.util.linalg.operators.solvers import (
     LinearSolverProtocol,
     SolveFailedError,
     SolveInfo,
-    SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
 )
@@ -107,7 +106,6 @@ __all__ = [
     "ScaledSum",
     "SolveFailedError",
     "SolveInfo",
-    "SolverCapabilities",
     "SolverHandleBase",
     "SolverHandleProtocol",
     "SymmetricEliminatedOperator",

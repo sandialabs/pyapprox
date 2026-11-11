@@ -99,7 +99,6 @@ class TestBehavior:
     def test_satisfies_the_protocol_and_pairs_with_matrix_free(self) -> None:
         solver: LinearSolverProtocol[NDArray[np.float64], MatrixFree] = ScipyGMRES()
         assert isinstance(solver, LinearSolverProtocol)
-        assert solver.capabilities().transpose
 
     def test_agrees_with_the_generic_gmres(self) -> None:
         a = random_matrix(6, 6, 5) + 4.0 * np.eye(6)

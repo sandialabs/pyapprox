@@ -37,7 +37,6 @@ from pyapprox.util.linalg.operators import (
     GMRES,
     ActionOperatorProtocol,
     SolveFailedError,
-    SolverCapabilities,
     SolverHandleProtocol,
     SpaceDescriptor,
 )
@@ -248,9 +247,6 @@ class _CountingLU(Generic[Array]):
     def setups(self) -> int:
         return self._setups
 
-    def capabilities(self) -> SolverCapabilities:
-        return self._lu.capabilities()
-
     def setup(
         self, op: ActionOperatorProtocol[Array, DenseFormat[Array]]
     ) -> SolverHandleProtocol[Array]:
@@ -315,14 +311,17 @@ class TestMassSolve:
     def test_adjoint_tiers_refuse_a_solver_without_transposes(
         self, bkd: Backend[Array]
     ) -> None:
+        """Refused at the first transposed solve, the adjoint's initial
+        condition; building and stepping forward need no transpose."""
         model = _model(bkd)
         system = dense_system(model, solver=NoTransposeSolver(bkd))
-        with pytest.raises(TypeError, match="needs transposed solves"):
-            ForwardEulerHVP(model, system)
-        with pytest.raises(TypeError, match="needs transposed solves"):
-            HeunHVP(model, system)
-        # A forward-only stepper does not need them.
+        ctx, state = _ctx(bkd), bkd.asarray([10.0, 5.0])
         HeunStepper(model, system)
+        for stepper in (ForwardEulerHVP(model, system), HeunHVP(model, system)):
+            stepper.bind(ctx)
+            stepper.linsolve(state, stepper(state))
+            with pytest.raises(TypeError, match="no transposed solve"):
+                stepper.adjoint_initial_condition(ctx, state, bkd.asarray([0.3, 0.7]))
 
     def test_refuses_a_non_system(self, bkd: Backend[Array]) -> None:
         with pytest.raises(TypeError, match="MassSystemProtocol"):

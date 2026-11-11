@@ -78,20 +78,6 @@ def merge_column_reports(reports: Sequence[SolveInfo]) -> SolveInfo:
     )
 
 
-@dataclass(frozen=True)
-class SolverCapabilities:
-    r"""What a solver can do, read before it is set up.
-
-    Parameters
-    ----------
-    transpose : bool
-        Whether its handles can solve with :math:`A^\top` (their
-        ``transpose()`` is not ``None``).
-    """
-
-    transpose: bool
-
-
 class SolveFailedError(RuntimeError):
     """Raised by a handle's ``apply`` when the solve does not converge."""
 
@@ -118,11 +104,12 @@ class SolverHandleProtocol(ActionOperatorProtocol[V, MatrixFree], Protocol[V]):
 
 @runtime_checkable
 class LinearSolverProtocol(Protocol, Generic[V, F_contra]):
-    """A solver accepting operators whose format is ``F_contra``."""
+    """A solver accepting operators whose format is ``F_contra``.
 
-    def capabilities(self) -> SolverCapabilities:
-        """What handles of this solver can do."""
-        ...
+    Whether its handles can solve with the transpose is each handle's
+    ``transpose()``, ``None`` when they cannot; a consumer needing the
+    transpose (an adjoint) is refused at its first transposed solve.
+    """
 
     def setup(self, op: ActionOperatorProtocol[V, F_contra]) -> SolverHandleProtocol[V]:
         """Prepare to solve with ``op`` (factor it, build a preconditioner).
@@ -157,22 +144,6 @@ def require_square(op: LinearMapProtocol[V], solver: str) -> None:
         raise ValueError(
             f"{solver} needs a square operator, got range size "
             f"{op.range().size} and domain size {op.domain().size}"
-        )
-
-
-def require_transposes(solver: LinearSolverProtocol[V, F_contra], user: str) -> None:
-    """Refuse, before any solve, a solver whose handles cannot solve with
-    the transpose, for a ``user`` that will need it (an adjoint).
-
-    Raises
-    ------
-    TypeError
-        If ``solver.capabilities().transpose`` is false.
-    """
-    if not solver.capabilities().transpose:
-        raise TypeError(
-            f"{user} needs transposed solves, which {type(solver).__name__} "
-            "does not offer"
         )
 
 
@@ -281,9 +252,6 @@ class DiagonalSolver(Generic[V]):
 
     def __init__(self, space: VectorSpaceProtocol[V]) -> None:
         self._space = space
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
 
     def setup(self, op: DiagonalCapableProtocol[V, G]) -> SolverHandleProtocol[V]:
         """Raises ``TypeError`` unless ``op`` declares ``diagonal``."""

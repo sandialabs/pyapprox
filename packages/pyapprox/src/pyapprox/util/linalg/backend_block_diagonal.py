@@ -26,7 +26,6 @@ from pyapprox.util.linalg.operators.protocols import (
 )
 from pyapprox.util.linalg.operators.solvers import (
     SolveInfo,
-    SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
     require_format,
@@ -335,9 +334,6 @@ class BlockDiagonalLU(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
 
     def setup(
         self, op: ActionOperatorProtocol[Array, BlockDiagonalFormat[Array]]

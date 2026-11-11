@@ -30,7 +30,6 @@ from pyapprox.util.linalg.operators.protocols import (
 )
 from pyapprox.util.linalg.operators.solvers import (
     LinearSolverProtocol,
-    SolverCapabilities,
     SolverHandleProtocol,
 )
 
@@ -100,9 +99,6 @@ class CachingSolver(Generic[V, F_contra]):
         self._handles: OrderedDict[ReuseKey, SolverHandleProtocol[V]] = OrderedDict()
         self._setups = 0
         self._hits = 0
-
-    def capabilities(self) -> SolverCapabilities:
-        return self._inner.capabilities()
 
     def setup(self, op: ActionOperatorProtocol[V, F_contra]) -> SolverHandleProtocol[V]:
         key = reuse_key(op)
@@ -175,8 +171,6 @@ class KeyedSolverProtocol(Protocol[V, F_contra]):
     operator only when it needs to set one up (see
     :meth:`CachingSolver.setup_keyed`)."""
 
-    def capabilities(self) -> SolverCapabilities: ...
-
     def setup(self, op: ActionOperatorProtocol[V, F_contra]) -> SolverHandleProtocol[V]:
         ...
 
@@ -198,9 +192,6 @@ class UncachedSolver(Generic[V, F_contra]):
 
     def __init__(self, inner: LinearSolverProtocol[V, F_contra]) -> None:
         self._inner = inner
-
-    def capabilities(self) -> SolverCapabilities:
-        return self._inner.capabilities()
 
     def setup(self, op: ActionOperatorProtocol[V, F_contra]) -> SolverHandleProtocol[V]:
         return self._inner.setup(op)

@@ -28,7 +28,6 @@ from pyapprox.util.linalg.operators import (
     OperatorProperties,
     RowSetProtocol,
     SolveInfo,
-    SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
     SpaceDescriptor,
@@ -493,9 +492,6 @@ class _MockLUHandle(SolverHandleBase[MockVector]):
 
 class MockLU:
     """Dense LU of a :class:`MockFormat` operator; refuses any other format."""
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
 
     def setup(
         self, op: ActionOperatorProtocol[MockVector, MockFormat]

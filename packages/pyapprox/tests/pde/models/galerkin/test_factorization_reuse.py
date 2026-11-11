@@ -78,7 +78,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     LinearSolverProtocol,
-    SolverCapabilities,
     SolverHandleProtocol,
 )
 from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
@@ -125,9 +124,6 @@ class _CountingLU:
 
     def setups(self) -> int:
         return self._setups
-
-    def capabilities(self) -> SolverCapabilities:
-        return self._lu.capabilities()
 
     def setup(
         self, op: ActionOperatorProtocol[_Np, CSRFormat]

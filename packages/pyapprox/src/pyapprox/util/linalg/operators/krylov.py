@@ -33,7 +33,6 @@ from pyapprox.util.linalg.operators.protocols import (
 )
 from pyapprox.util.linalg.operators.solvers import (
     SolveInfo,
-    SolverCapabilities,
     SolverHandleBase,
     SolverHandleProtocol,
     merge_column_reports,
@@ -287,9 +286,6 @@ class _KrylovSolver(Generic[V, A]):
         self._bkd = bkd
         self._tol = tol
         self._maxiter = maxiter
-
-    def capabilities(self) -> SolverCapabilities:
-        return SolverCapabilities(transpose=True)
 
     def _check(self, op: ActionOperatorProtocol[V, G]) -> None:
         name = type(self).__name__

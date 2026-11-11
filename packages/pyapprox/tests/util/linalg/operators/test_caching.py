@@ -42,12 +42,9 @@ class TestReuseKey:
 
 
 class TestCachingSolver:
-    def test_is_a_solver_and_forwards_capabilities(
-        self, case: TypedStackCase[V, F, A]
-    ) -> None:
+    def test_is_a_solver(self, case: TypedStackCase[V, F, A]) -> None:
         cache = CachingSolver(case.direct_solver(), capacity=1)
         assert isinstance(cache, LinearSolverProtocol)
-        assert cache.capabilities() == case.direct_solver().capabilities()
 
     def test_equal_keys_share_one_setup(self, case: TypedStackCase[V, F, A]) -> None:
         cache = CachingSolver(case.direct_solver(), capacity=1)
@@ -177,7 +174,6 @@ class TestCachingSolver:
             KeepWithinSolve(0)
         uncached = none.solver(case.direct_solver(), 2)
         assert isinstance(uncached, KeyedSolverProtocol)
-        assert uncached.capabilities() == case.direct_solver().capabilities()
         point = LinearizationPoint(0, "k")
         key = ReuseKey(point, _U, _U)
         builds = []

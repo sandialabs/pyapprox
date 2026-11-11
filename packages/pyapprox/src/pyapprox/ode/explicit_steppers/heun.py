@@ -37,7 +37,6 @@ from pyapprox.ode.time_quadrature import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import ActionOperatorProtocol, FormatProtocol
-from pyapprox.util.linalg.operators.solvers import require_transposes
 
 F = TypeVar("F")
 
@@ -172,15 +171,6 @@ class HeunAdjoint(
     Generic[Array],
 ):
     """Heun's method with adjoint capability for gradient computation."""
-
-    def __init__(
-        self,
-        residual: ODEResidualProtocol[Array],
-        system: Optional[MassSystemProtocol[Array, F]] = None,
-    ) -> None:
-        super().__init__(residual, system)
-        if system is not None:
-            require_transposes(system.solver(), type(self).__name__)
 
     def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute the parameter Jacobian :math:`dR/dp` for one time step.

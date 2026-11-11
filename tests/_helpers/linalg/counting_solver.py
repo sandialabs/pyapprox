@@ -5,7 +5,6 @@ from typing import Generic, TypeVar
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     LinearSolverProtocol,
-    SolverCapabilities,
     SolverHandleProtocol,
 )
 
@@ -19,9 +18,6 @@ class CountingSolver(Generic[V, F]):
     def __init__(self, inner: LinearSolverProtocol[V, F]) -> None:
         self._inner = inner
         self.setups = 0
-
-    def capabilities(self) -> SolverCapabilities:
-        return self._inner.capabilities()
 
     def setup(self, op: ActionOperatorProtocol[V, F]) -> SolverHandleProtocol[V]:
         self.setups += 1

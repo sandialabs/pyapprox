@@ -291,14 +291,23 @@ class TestStagePointsAndCapabilities:
     def test_adjoint_tiers_refuse_a_solver_without_transposes(
         self, bkd: Backend[Array], name: str
     ) -> None:
+        """Refused at the first transposed solve, the adjoint's initial
+        condition; building and a forward stage solve need no
+        transpose."""
         model = _model(bkd)
         system = dense_system(model, solver=NoTransposeSolver(bkd))
-        with pytest.raises(TypeError, match="needs transposed solves"):
-            if name == "midpoint":
-                ImplicitMidpointHVP(model, system)
-            elif name == "crank-nicolson":
-                CrankNicolsonHVP(model, system)
-            else:
-                BackwardEulerHVP(model, system)
-        # A forward-only stepper does not need them.
         BackwardEulerStepper(model, system)
+        stepper = (
+            ImplicitMidpointHVP(model, system)
+            if name == "midpoint"
+            else (
+                CrankNicolsonHVP(model, system)
+                if name == "crank-nicolson"
+                else BackwardEulerHVP(model, system)
+            )
+        )
+        ctx, state = _ctx(bkd), bkd.asarray([10.0, 5.0])
+        stepper.bind(ctx)
+        stepper.linsolve(state, bkd.asarray([1.0, -2.0]))
+        with pytest.raises(TypeError, match="no transposed solve"):
+            stepper.adjoint_initial_condition(ctx, state, bkd.asarray([0.3, 0.7]))

@@ -66,7 +66,6 @@ from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     LinearSolverProtocol,
-    SolverCapabilities,
     SolverHandleProtocol,
 )
 from pyapprox.util.rootfinding.nonlinear import Newton
@@ -83,9 +82,6 @@ class _CountingLU:
     def __init__(self, bkd: NumpyBkd) -> None:
         self._lu = BackendDenseLU(bkd)
         self.setups = 0
-
-    def capabilities(self) -> SolverCapabilities:
-        return self._lu.capabilities()
 
     def setup(
         self, op: ActionOperatorProtocol[_Np, DenseFormat[_Np]]
