@@ -22,8 +22,7 @@ Setups, cumulative over two forward solves:
   the same times, factors nothing.
 - ``clear()`` drops what was kept: the next solve factors as the first.
 
-Every strategy's trajectory equals the recomputed one to round-off. The
-steppers count their distinct stage operators (1, 1, 2).
+Every strategy's trajectory equals the recomputed one to round-off.
 """
 
 import pytest
@@ -230,7 +229,6 @@ class TestFactorizationReuse:
         # is factored once for 0.001 and once for the last step.
         assert len(set(_STEPS.sizes())) == 2
         run = _Run(numpy_bkd, make, _CONSTANT, strategy_of)
-        assert run.stepper.distinct_stage_operators() == distinct
         states, counts = run.two_solves()
         if strategy_of is RecomputeAlways:
             per_solve = _NSTEPS * implicit_stages

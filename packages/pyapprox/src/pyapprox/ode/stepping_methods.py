@@ -25,7 +25,7 @@ from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.setups import MassShiftBuilderProtocol, MassShiftStrategy
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.util.backends.protocols import ArrayProtocol
-from pyapprox.util.linalg.operators import FormatProtocol, ReusePolicyProtocol
+from pyapprox.util.linalg.operators import FormatProtocol
 from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 
 V = TypeVar("V")
@@ -112,9 +112,6 @@ class RungeKutta(Generic[V, A]):
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves the implicit stages. Defaults to :class:`Newton` at its
         defaults for a tableau with implicit stages.
-    reuse : ReusePolicyProtocol, optional
-        How a solve keeps stage setups between steps; the stepper's
-        default when None (see :class:`RungeKuttaStepper`).
 
     Raises
     ------
@@ -135,7 +132,6 @@ class RungeKutta(Generic[V, A]):
         self,
         tableau: ButcherTableau,
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
-        reuse: Optional[ReusePolicyProtocol] = None,
     ) -> None:
         if not isinstance(tableau, ButcherTableau):
             raise TypeError(
@@ -145,7 +141,6 @@ class RungeKutta(Generic[V, A]):
         self._solver = _checked_solver(
             tableau.name, tableau.is_explicit(), nonlinear_solver
         )
-        self._reuse = reuse
 
     def name(self) -> str:
         """The tableau's name."""
@@ -164,13 +159,7 @@ class RungeKutta(Generic[V, A]):
     ) -> RungeKuttaStepper[V, A, F]:
         """A :class:`RungeKuttaStepper` of this tableau for ``system``."""
         return RungeKuttaStepper(
-            self._tableau,
-            system,
-            setups,
-            self._solver,
-            row_pinning,
-            self._reuse,
-            builder,
+            self._tableau, system, setups, self._solver, row_pinning, builder
         )
 
     def __repr__(self) -> str:
@@ -188,9 +177,6 @@ class LinearMultistep(Generic[V, A]):
     nonlinear_solver : NonlinearSolverProtocol, optional
         Solves each step of an implicit method. Defaults to
         :class:`Newton` at its defaults for an implicit method.
-    reuse : ReusePolicyProtocol, optional
-        How a solve keeps step setups between steps; the stepper's
-        default when None (see :class:`LinearMultistepStepper`).
 
     Raises
     ------
@@ -204,7 +190,6 @@ class LinearMultistep(Generic[V, A]):
         self,
         method: MultistepFormulaProtocol,
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
-        reuse: Optional[ReusePolicyProtocol] = None,
     ) -> None:
         if not isinstance(method, MultistepFormulaProtocol):
             raise TypeError(
@@ -215,7 +200,6 @@ class LinearMultistep(Generic[V, A]):
         self._solver = _checked_solver(
             method.name, method.is_explicit(), nonlinear_solver
         )
-        self._reuse = reuse
 
     def name(self) -> str:
         """The method's name."""
@@ -235,13 +219,7 @@ class LinearMultistep(Generic[V, A]):
         """A :class:`LinearMultistepStepper` of this method for
         ``system``."""
         return LinearMultistepStepper(
-            self._method,
-            system,
-            setups,
-            self._solver,
-            row_pinning,
-            self._reuse,
-            builder,
+            self._method, system, setups, self._solver, row_pinning, builder
         )
 
     def __repr__(self) -> str:

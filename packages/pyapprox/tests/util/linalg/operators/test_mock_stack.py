@@ -1,6 +1,6 @@
 """The mock stack: opaque vectors, its own format, and generic code on it.
 
-The generic combinators, constraints, solvers and cache run here on
+The generic combinators, constraints and solvers run here on
 vectors that cannot be indexed or converted, so any hidden reliance on
 array storage fails.
 """
@@ -13,12 +13,9 @@ from scipy.sparse import csr_matrix
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
-    CachingSolver,
     DiagonalCapableProtocol,
     DiagonalSolver,
     InnerProductSpaceProtocol,
-    LinearizationPoint,
-    LinearizedOperator,
     LinearMapProtocol,
     LinearSolverProtocol,
     Product,
@@ -146,12 +143,7 @@ class TestGenericCodeOnTheMock:
         _BKD.assert_allclose(peek(product.apply(x)), peek(x), rtol=1e-10)
         _BKD.assert_allclose(peek(Transposed(product).apply(x)), peek(x), rtol=1e-10)
 
-    def test_cache_and_diagonal_solver(self) -> None:
-        cache = CachingSolver(MockLU(), capacity=1)
-        op = MockOperator.from_dense(spd_matrix(5, 14), _U)
-        for _ in range(3):
-            cache.setup(LinearizedOperator(op, LinearizationPoint(0)))
-        assert (cache.setups(), cache.hits()) == (1, 2)
+    def test_diagonal_solver(self) -> None:
         entries: NDArray[np.float64] = np.arange(1.0, 6.0, dtype=np.float64)[:, None]
         d = wrap(entries, _U)
         handle = DiagonalSolver(MockVectorSpace(_U)).setup(

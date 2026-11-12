@@ -91,11 +91,9 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     IdentityOperator,
     InnerProductSpaceProtocol,
-    KeepWithinSolve,
     LinearizationPoint,
     LinearMapProtocol,
     Product,
-    ReusePolicyProtocol,
     ScaledSum,
     SolveFailedError,
     SolverHandleProtocol,
@@ -497,10 +495,6 @@ class LinearMultistepStepper(Generic[V, A, F]):
         :math:`y_{n+1}`, has rows pinned to boundary data inside its solve,
         and how (see :mod:`pyapprox.ode.pinned_rows`). None for no
         pinning.
-    reuse : ReusePolicyProtocol, optional
-        How a solve keeps step setups between steps: by default the
-        current one (:class:`KeepWithinSolve`); :class:`NoReuse` keeps
-        none, to save memory.
     builder : OperatorBuilderProtocol, optional
         Forms the operators ``setups`` sets up; by default
         :class:`~pyapprox.ode.setups.MassShiftBuilder` of ``system``.
@@ -510,8 +504,8 @@ class LinearMultistepStepper(Generic[V, A, F]):
     TypeError
         If the method does not satisfy its protocol, is implicit and no
         nonlinear solver is given or the residual's bundle has no
-        Jacobian, or ``setups``, ``row_pinning``, ``reuse`` or ``builder``
-        does not satisfy its protocol.
+        Jacobian, or ``setups``, ``row_pinning`` or ``builder`` does not
+        satisfy its protocol.
     """
 
     def __init__(
@@ -521,15 +515,9 @@ class LinearMultistepStepper(Generic[V, A, F]):
         setups: MassShiftStrategy[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
-        reuse: Optional[ReusePolicyProtocol] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> None:
         self._setups, self._builder = stepper_setups(system, setups, builder)
-        if reuse is not None and not isinstance(reuse, ReusePolicyProtocol):
-            raise TypeError(
-                f"reuse must satisfy ReusePolicyProtocol, got {type(reuse).__name__}"
-            )
-        self._reuse: ReusePolicyProtocol = KeepWithinSolve() if reuse is None else reuse
         # Whether the residual reports a version is fixed for its life, so
         # decided once rather than by a protocol check on every call.
         self._version = parameters_version_reader(system.rhs)
@@ -566,10 +554,6 @@ class LinearMultistepStepper(Generic[V, A, F]):
     def method(self) -> MultistepFormulaProtocol:
         """The method."""
         return self._method
-
-    def reuse(self) -> ReusePolicyProtocol:
-        """How a solve keeps step setups between steps."""
-        return self._reuse
 
     def pin(self) -> Optional[BlockPinProtocol[V]]:
         """How the step's block is pinned, or None."""

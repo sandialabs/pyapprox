@@ -24,13 +24,9 @@ from pyapprox.ode.mass_matrix_system import dense_system, matrix_free_system
 from pyapprox.ode.protocols import ResidualFormSystemProtocol
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import (
-    BackendDenseLU,
-    BackendVectorSpace,
-)
+from pyapprox.util.linalg.backend_dense import BackendVectorSpace
 from pyapprox.util.linalg.operators import (
     GMRES,
-    CachingSolver,
     JacobianSnapshotProtocol,
     LinearizationPoint,
     LinearSolverProtocol,
@@ -256,18 +252,9 @@ class TestImplicitStageSolve:
 
 class TestStagePointsAndCapabilities:
     def test_every_linearization_gets_a_new_label(self, bkd: Backend[Array]) -> None:
-        """A caching solver never reuses one Newton iterate's setup for
-        another at the same state and time."""
+        """No two Newton iterates share a label, even at the same time."""
         stage = ImplicitStageSolve(_model(bkd))
         assert stage.stage_point(0.3) != stage.stage_point(0.3)
-        model = _model(bkd)
-        cache = CachingSolver(BackendDenseLU(bkd), 4)
-        stepper = BackwardEulerHVP(model, dense_system(model, solver=cache))
-        stepper.bind(_ctx(bkd))
-        state, rhs = bkd.asarray([10.0, 5.0]), bkd.asarray([1.0, -2.0])
-        stepper.linsolve(state, rhs)
-        stepper.linsolve(state, rhs)
-        assert cache.setups() == 2 and cache.hits() == 0
 
     def test_labels_carry_the_parameter_version(self, bkd: Backend[Array]) -> None:
         """Every set_param bumps the version the labels carry, even with

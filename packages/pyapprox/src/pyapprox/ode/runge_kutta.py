@@ -76,11 +76,9 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     IdentityOperator,
     InnerProductSpaceProtocol,
-    KeepWithinSolve,
     LinearizationPoint,
     LinearMapProtocol,
     Product,
-    ReusePolicyProtocol,
     ScaledSum,
     SolveFailedError,
     SolverHandleProtocol,
@@ -488,10 +486,6 @@ class RungeKuttaStepper(Generic[V, A, F]):
         their solves, and how (see :mod:`pyapprox.ode.pinned_rows`); the
         blocks are the unknown stages in order, then the final block when
         there is one, each pinned at its own time. None for no pinning.
-    reuse : ReusePolicyProtocol, optional
-        How a solve keeps stage setups between steps: by default a handle
-        per distinct stage operator of a step (:class:`KeepWithinSolve`);
-        :class:`NoReuse` keeps none, to save memory.
     builder : OperatorBuilderProtocol, optional
         Forms the operators ``setups`` sets up; by default
         :class:`~pyapprox.ode.setups.MassShiftBuilder` of ``system``.
@@ -501,8 +495,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
     TypeError
         If the tableau has an implicit stage and no nonlinear solver is
         given or the residual's bundle has no Jacobian, or ``setups``,
-        ``row_pinning``, ``reuse`` or ``builder`` does not satisfy its
-        protocol.
+        ``row_pinning`` or ``builder`` does not satisfy its protocol.
     """
 
     def __init__(
@@ -512,7 +505,6 @@ class RungeKuttaStepper(Generic[V, A, F]):
         setups: MassShiftStrategy[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
         row_pinning: Optional[RowPinningProtocol[V]] = None,
-        reuse: Optional[ReusePolicyProtocol] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> None:
         self._setups, self._builder = stepper_setups(system, setups, builder)
@@ -531,11 +523,6 @@ class RungeKuttaStepper(Generic[V, A, F]):
                 "row_pinning must satisfy RowPinningProtocol, got "
                 f"{type(row_pinning).__name__}"
             )
-        if reuse is not None and not isinstance(reuse, ReusePolicyProtocol):
-            raise TypeError(
-                f"reuse must satisfy ReusePolicyProtocol, got {type(reuse).__name__}"
-            )
-        self._reuse: ReusePolicyProtocol = KeepWithinSolve() if reuse is None else reuse
         # Whether the residual reports a version is fixed for its life, so
         # decided once rather than by a protocol check on every call.
         self._version = parameters_version_reader(system.rhs)
@@ -562,33 +549,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self._residual_space = BlockInnerProductSpace([space] * nblocks, "residual")
         self._state_space = BlockInnerProductSpace([space], "state")
         self._row_pinning = row_pinning
-        # The stage operators a step forms: one per diagonal coefficient,
-        # and per pinned block, since its rows are replaced.
-        offset = self._first_stage_offset()
-        self._distinct = len(
-            {
-                (
-                    tableau.a[i][i],
-                    None if self._block_pin(i - offset) is None else i - offset,
-                )
-                for i in self._unknown_stages
-                if not tableau.is_explicit_stage(i)
-            }
-        )
 
     def tableau(self) -> ButcherTableau:
         """The method."""
         return self._tableau
-
-    def reuse(self) -> ReusePolicyProtocol:
-        """How a solve keeps stage setups between steps."""
-        return self._reuse
-
-    def distinct_stage_operators(self) -> int:
-        r"""The number of different stage operators :math:`M - \Delta t\,
-        a_{ii} J` one step forms at a fixed step size: one per diagonal
-        coefficient, and one per pinned block, whose rows are replaced."""
-        return self._distinct
 
     def system(self) -> MassFormSystem[V, A, F]:
         """What the stepper steps."""
