@@ -17,12 +17,13 @@ integration:
   (slow).
 """
 
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import KeepAll
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -57,6 +58,7 @@ from pyapprox.surrogates.dynamical_systems.losses.trajectory_matching import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_block_diagonal import BlockDiagonalFormat
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.surrogates.dynamical_systems import solve_batched, step_times
@@ -247,6 +249,85 @@ class TestTrajectoryMatchingLoss:
             grad_sum = grad_sum + single_loss.jacobian(sample)
 
         bkd.assert_allclose(grad_batched, grad_sum, rtol=1e-8)
+
+
+class _CountingClears(KeepAll[Array, BlockDiagonalFormat[Array]]):
+    """``KeepAll``, counting the calls to ``clear``."""
+
+    def __init__(self, solver: Any) -> None:
+        super().__init__(solver)
+        self.clears = 0
+
+    def clear(self) -> None:
+        self.clears += 1
+        super().clear()
+
+
+class TestTheSetupStrategy:
+    """Backward Euler (Newton atol 1e-13), T = 0.1, dt 0.02, one
+    trajectory from (0.5, 0.3), mu 1, under ``KeepAll``. The loss clears
+    the strategy on every change of the parameters (each value and each
+    gradient sets them); evaluated at the fitted coefficients and then at
+    perturbed ones, its value and gradient equal a fresh default loss's at
+    the perturbed ones."""
+
+    def _loss(
+        self,
+        bkd: Backend[Array],
+        wrapper: BatchedBoundODEResidual[Array],
+        setups: Optional[KeepAll[Array, BlockDiagonalFormat[Array]]] = None,
+    ) -> TrajectoryMatchingLoss[Array]:
+        newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
+        method: SteppingMethodProtocol[Array, Array] = RungeKutta(
+            backward_euler(), newton
+        )
+        times = step_times(0.0, 0.1, 0.02)
+        init = bkd.array([0.5, 0.3])
+        target = solve_batched(wrapper, method, init, times)[0]
+        return TrajectoryMatchingLoss(
+            wrapper=wrapper,
+            method=method,
+            times=times,
+            init_states=init,
+            obs_tuples=_all_observed(bkd, target),
+            observations=bkd.reshape(target, (-1,)),
+            setups=setups,
+        )
+
+    def _wrapper(
+        self, bkd: Backend[Array]
+    ) -> Tuple[BatchedBoundODEResidual[Array], Array]:
+        """The wrapped fitted expansion and its coefficients."""
+        fitted = _build_fitted_expansion(bkd)
+        wrapper = BatchedBoundODEResidual(
+            fitted, n_dynamic=2, mu_batch=bkd.array([[1.0]])
+        )
+        return wrapper, fitted.hyp_list().get_active_values()
+
+    def test_it_clears_on_every_change_of_the_parameters(
+        self, bkd: Backend[Array]
+    ) -> None:
+        wrapper, eta = self._wrapper(bkd)
+        counting: _CountingClears[Array] = _CountingClears(
+            wrapper.mass_form_system().solver
+        )
+        loss = self._loss(bkd, wrapper, counting)
+        assert counting.clears == 0
+        loss(_column(bkd, eta))
+        loss.jacobian(_column(bkd, eta + 0.05))
+        assert counting.clears == 2
+
+    def test_a_cleared_strategy_matches_a_fresh_loss(
+        self, bkd: Backend[Array]
+    ) -> None:
+        wrapper, eta = self._wrapper(bkd)
+        fitted, perturbed = _column(bkd, eta), _column(bkd, eta + 0.05)
+        loss = self._loss(bkd, wrapper, KeepAll(wrapper.mass_form_system().solver))
+        loss.jacobian(fitted)
+        value, gradient = loss(perturbed), loss.jacobian(perturbed)
+        fresh = self._loss(bkd, self._wrapper(bkd)[0])
+        bkd.assert_allclose(value, fresh(perturbed), rtol=1e-12)
+        bkd.assert_allclose(gradient, fresh.jacobian(perturbed), rtol=1e-12)
 
 
 _OLD = [

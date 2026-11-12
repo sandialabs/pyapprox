@@ -25,6 +25,7 @@ from pyapprox.ode.accumulating_sink import AccumulatingSinkProtocol, PerStateSin
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import DenseModelProtocol, dense_mass_form_system
 from pyapprox.ode.protocols.ode_residual import ODEResidualWithParamJacobianProtocol
+from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta, SteppingMethodProtocol
 from pyapprox.ode.tableau import backward_euler
@@ -34,6 +35,7 @@ from pyapprox.ode.trajectory_store import (
     trajectory_array,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import DenseFormat
 
 
 @runtime_checkable
@@ -256,6 +258,11 @@ class ODEQoIFunction(Generic[Array]):
     method : SteppingMethodProtocol, optional
         The time-stepping method, bound to the residual for every solve.
         Defaults to backward Euler with Newton at its defaults.
+    setups : MassShiftStrategy, optional
+        Sets up the stepper's operators, with a solver for the residual's
+        dense system; cleared on every change of the parameters. Defaults
+        to :class:`~pyapprox.implicitfunction.setups.RecomputeAlways` with
+        the backend's dense LU, made afresh for each solve.
 
     Raises
     ------
@@ -277,6 +284,7 @@ class ODEQoIFunction(Generic[Array]):
         time_config: "ODETimeConfig",
         functional: ODEFunctionalProtocol[Array],
         method: Optional[SteppingMethodProtocol[Array, Array]] = None,
+        setups: Optional[MassShiftStrategy[Array, Array, DenseFormat[Array]]] = None,
     ) -> None:
         if not isinstance(residual, ODEBenchmarkResidualProtocol):
             raise TypeError(
@@ -298,6 +306,7 @@ class ODEQoIFunction(Generic[Array]):
         self._method: SteppingMethodProtocol[Array, Array] = (
             RungeKutta(backward_euler()) if method is None else method
         )
+        self._setups = setups
         self._bkd = residual.bkd()
         self._time_config = time_config
         self._nparams = residual.nparams()
@@ -381,8 +390,17 @@ class ODEQoIFunction(Generic[Array]):
         # A new stepper per solve: the system is built at the parameters
         # just set.
         system = dense_mass_form_system(self._residual)
-        # Keeps no setup, so none outlives a change of the parameters.
-        stepper = self._method.stepper(system, RecomputeAlways(system.solver))
+        if self._setups is None:
+            # Keeps no setup, so none outlives a change of the parameters.
+            setups: MassShiftStrategy[Array, Array, DenseFormat[Array]] = (
+                RecomputeAlways(system.solver)
+            )
+        else:
+            # This function owns the run: no setup outlives the parameters
+            # it was formed at.
+            self._setups.clear()
+            setups = self._setups
+        stepper = self._method.stepper(system, setups)
         init_state = (
             self._init_state
             if self._initial_state_residual is None

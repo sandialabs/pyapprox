@@ -68,9 +68,11 @@ class ParameterState(Generic[Array]):
                 f"param must be 1D with shape (nparams,), got shape "
                 f"{tuple(param.shape)}"
             )
+        # The version moves before the coefficients do: an apply that
+        # fails partway has still changed what the systems read.
+        self._version += 1
         self._current = param
         self._parameterization.apply(param)
-        self._version += 1
 
     def parameters_version(self) -> int:
         """The number of ``set_param`` calls so far."""

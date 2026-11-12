@@ -9,7 +9,7 @@ method's steps
 (:class:`~pyapprox.ode.trajectory_derivatives.TrajectoryDerivatives`).
 """
 
-from typing import Generic, List, Sequence, Tuple
+from typing import Generic, List, Optional, Sequence, Tuple
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivatives import Derivatives
@@ -18,6 +18,7 @@ from pyapprox.ode.integration import Integrator
 from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.residual_form import BackendColumnForm
+from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.ode.trajectory_derivatives import (
@@ -33,6 +34,7 @@ from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
     BatchedBoundODEResidual,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_block_diagonal import BlockDiagonalFormat
 
 
 class TrajectoryMatchingLoss(Generic[Array]):
@@ -65,6 +67,13 @@ class TrajectoryMatchingLoss(Generic[Array]):
     noise_std : float
         Noise standard deviation :math:`\\sigma` of the misfit
         :math:`\\sum \\|y - d\\|^2 / (2\\sigma^2)`.
+    setups : MassShiftStrategy, optional
+        Sets up the stepper's operators, with a solver pairing with
+        ``wrapper``'s system; cleared on every change of the parameters,
+        so a setup is shared only by one evaluation's forward solve and
+        gradient sweep. Defaults to
+        :class:`~pyapprox.implicitfunction.setups.RecomputeAlways` with
+        the system's solver.
 
     Raises
     ------
@@ -81,6 +90,9 @@ class TrajectoryMatchingLoss(Generic[Array]):
         obs_tuples: List[Tuple[int, Array]],
         observations: Array,
         noise_std: float = 1.0,
+        setups: Optional[
+            MassShiftStrategy[Array, Array, BlockDiagonalFormat[Array]]
+        ] = None,
     ) -> None:
         if not isinstance(method, SteppingMethodProtocol):
             raise TypeError(
@@ -93,9 +105,11 @@ class TrajectoryMatchingLoss(Generic[Array]):
         # The steppers take states as single columns.
         self._init_states = self._bkd.reshape(init_states, (-1, 1))
         system = wrapper.mass_form_system()
-        # Keeps no setup, so none outlives a change of the parameters.
+        self._setups: MassShiftStrategy[Array, Array, BlockDiagonalFormat[Array]] = (
+            RecomputeAlways(system.solver) if setups is None else setups
+        )
         self._stepper: StepperProtocol[Array, Array] = method.stepper(
-            system, RecomputeAlways(system.solver)
+            system, self._setups
         )
         # The initial states are supplied, not parameters: the residual
         # states their derivative zero.
@@ -140,6 +154,9 @@ class TrajectoryMatchingLoss(Generic[Array]):
         """Solve at parameters ``sample`` (shape (nparams, 1)) into
         ``sink``."""
         self._wrapper.set_param(sample[:, 0])
+        # This loss owns the run: no setup outlives the parameters it was
+        # formed at.
+        self._setups.clear()
         Integrator(self._stepper).solve(self._init_states, self._steps, sink)
 
     def __call__(self, samples: Array) -> Array:

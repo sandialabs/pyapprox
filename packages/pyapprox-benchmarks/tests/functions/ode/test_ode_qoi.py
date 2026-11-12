@@ -19,10 +19,11 @@ dt = 0.1 (so the last step is shortened to 0.05) unless stated:
 - The time grid shortens the last step and counts it; refusals.
 """
 
-from typing import List
+from typing import List, Optional
 
 import pytest
 
+from pyapprox.implicitfunction.setups import KeepStateFree
 from pyapprox.ode.accumulating_sink import MultiSink, PerStateSink
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.multistep_methods import bdf2
@@ -32,8 +33,9 @@ from pyapprox.ode.stepping_methods import (
     RungeKutta,
     SteppingMethodProtocol,
 )
-from pyapprox.ode.tableau import backward_euler, crank_nicolson
+from pyapprox.ode.tableau import backward_euler, crank_nicolson, heun
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from pyapprox_benchmarks.expdesign.lotka_volterra import (
     ObservationFunctional,
@@ -170,6 +172,64 @@ class TestAgainstTheOldPath:
         method: SteppingMethodProtocol[Array, Array] = LinearMultistep(bdf2())
         value = problem.function(method=method)(problem.nominal_parameters())
         assert value.shape == (3, 1)
+
+
+class _CountingClears(KeepStateFree[Array, DenseFormat[Array]]):
+    """``KeepStateFree``, counting the calls to ``clear``."""
+
+    def __init__(self, solver: BackendDenseLU[Array]) -> None:
+        super().__init__(solver)
+        self.clears = 0
+
+    def clear(self) -> None:
+        self.clears += 1
+        super().clear()
+
+
+class TestTheSetupStrategy:
+    """Heun under ``KeepStateFree``, whose mass solves it keeps. The
+    function clears the strategy on every change of the parameters (each
+    sample sets them); at the nominal parameters and then 1.1 times them,
+    the endpoint QoI equals a fresh default function's."""
+
+    def _function(
+        self,
+        problem: ODEForwardUQProblem[Array],
+        setups: Optional[KeepStateFree[Array, DenseFormat[Array]]] = None,
+    ) -> ODEQoIFunction[Array]:
+        return ODEQoIFunction(
+            problem.residual(),
+            problem.initial_condition(),
+            problem.time_config(),
+            AllStatesEndpointODEFunctional(3),
+            RungeKutta(heun()),
+            setups,
+        )
+
+    def test_it_clears_on_every_change_of_the_parameters(
+        self, bkd: Backend[Array]
+    ) -> None:
+        problem = _problem(bkd)
+        counting: _CountingClears[Array] = _CountingClears(BackendDenseLU(bkd))
+        function = self._function(problem, counting)
+        assert counting.clears == 0
+        nominal = problem.nominal_parameters()
+        function(bkd.hstack([nominal, 1.1 * nominal]))
+        assert counting.clears == 2
+
+    def test_a_cleared_strategy_matches_a_fresh_function(
+        self, bkd: Backend[Array]
+    ) -> None:
+        problem = _problem(bkd)
+        nominal = problem.nominal_parameters()
+        kept: KeepStateFree[Array, DenseFormat[Array]] = KeepStateFree(
+            BackendDenseLU(bkd)
+        )
+        function = self._function(problem, kept)
+        function(nominal)
+        value = function(1.1 * nominal)
+        fresh = self._function(_problem(bkd))
+        bkd.assert_allclose(value, fresh(1.1 * nominal), rtol=1e-12)
 
 
 class TestTimeGrid:
