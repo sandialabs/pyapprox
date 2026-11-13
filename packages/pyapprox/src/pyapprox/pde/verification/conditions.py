@@ -5,9 +5,10 @@ sympy expression from the problem's exact solution, so the data come from
 the problem, not from the code under test. Nothing here evaluates; how a
 discretization evaluates and enforces a condition is its own business.
 
-With :math:`u^*` the exact solution, :math:`q(u^*)` the flux the problem
-states (rows by component, columns by direction) and :math:`n` the
-outward unit normal (symbols ``nx, ny, nz``):
+A condition acts on one row (equation) of a problem. With :math:`u^*` the
+exact solution of that row's field, :math:`q(u^*)` the flux of the row's
+divergence terms and :math:`n` the outward unit normal (symbols ``nx,
+ny, nz``):
 
 - :class:`Dirichlet`: :math:`u = g`, :math:`g = u^*`;
 - :class:`Neumann`: :math:`q(u)\, n = g`, :math:`g = q(u^*)\, n`;
@@ -29,11 +30,12 @@ visitor's method for that kind. A new kind adds a visitor method, so mypy
 reports every stack that does not yet handle it.
 """
 
-from typing import Protocol, Tuple, TypeVar, Union, runtime_checkable
+from typing import Protocol, TypeVar, Union, runtime_checkable
 
 import sympy as sp
 
-from pyapprox.pde.expressions.symbols import coordinates, time
+from pyapprox.pde.expressions.symbols import coordinates, pde_names, time
+from pyapprox.util.expressions.parsing import parse
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
@@ -58,15 +60,16 @@ class ConditionVisitorProtocol(Protocol[T_co]):
 
 @runtime_checkable
 class BoundaryFieldsProtocol(Protocol):
-    """The exact-solution expressions a condition's data are built from."""
+    """The exact-solution expressions of one row that a condition's data
+    are built from."""
 
-    def solution(self) -> Tuple[sp.Expr, ...]:
-        r""":math:`u^*`, one expression per component."""
+    def solution(self) -> sp.Expr:
+        r""":math:`u^*` of the row's field."""
         ...
 
-    def normal_flux(self) -> Tuple[sp.Expr, ...]:
-        r""":math:`q(u^*)\, n`, one expression per component, in the
-        coordinate and normal symbols."""
+    def normal_flux(self) -> sp.Expr:
+        r""":math:`q(u^*)\, n` of the row, in the coordinate, time and
+        normal symbols."""
         ...
 
 
@@ -74,8 +77,8 @@ class BoundaryFieldsProtocol(Protocol):
 class ConditionProtocol(Protocol):
     """A kind of boundary equation, and its data."""
 
-    def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
-        """The right-hand side :math:`g`, one expression per component."""
+    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
+        """The right-hand side :math:`g` on the row."""
         ...
 
     def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
@@ -87,7 +90,7 @@ class ConditionProtocol(Protocol):
 class Dirichlet:
     r""":math:`u = u^*`."""
 
-    def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
+    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
         r""":math:`u^*`."""
         return fields.solution()
 
@@ -102,7 +105,7 @@ class Dirichlet:
 class Neumann:
     r""":math:`q(u)\, n = q(u^*)\, n`."""
 
-    def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
+    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
         r""":math:`q(u^*)\, n`."""
         return fields.normal_flux()
 
@@ -131,7 +134,7 @@ class Robin:
     """
 
     def __init__(self, alpha: Union[float, str]) -> None:
-        expression = sp.sympify(alpha)
+        expression = parse(alpha, pde_names(3))
         allowed = set(coordinates(3)) | {time()}
         if not expression.free_symbols <= allowed:
             names = sorted(str(s) for s in expression.free_symbols - allowed)
@@ -143,12 +146,10 @@ class Robin:
         r""":math:`\alpha`, in the coordinate and time symbols."""
         return self._expression
 
-    def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
+    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
         r""":math:`q(u^*)\, n - \alpha u^*`."""
-        return tuple(
-            flux - self._expression * u
-            for u, flux in zip(fields.solution(), fields.normal_flux())
-        )
+        result: sp.Expr = fields.normal_flux() - self._expression * fields.solution()
+        return result
 
     def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
         """``visitor.robin(self)``."""

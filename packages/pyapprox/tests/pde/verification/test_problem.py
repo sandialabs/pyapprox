@@ -1,31 +1,39 @@
-r"""Symbolic verification problems.
+r"""Symbolic verification problems built from terms.
 
-Hand-derived values on one case, :math:`u^* = x^2 y` on the unit square
-with :math:`D = 2`, :math:`v = (x, 0)`, :math:`R(u) = u^2`: gradient
-:math:`(2xy, x^2)`, so
+Hand-derived values:
 
-- conservative: :math:`q = (-4xy + x^3 y, -2x^2)`,
-  :math:`f = -4y + 3x^2 y - x^4 y^2`;
-- non-conservative: :math:`q = (-4xy, -2x^2)`,
-  :math:`f = -4y + 2x^2 y - x^4 y^2`.
+- Advection-diffusion-reaction, :math:`u^* = x^2 y` on the unit square
+  with the constant :math:`D = 2`, :math:`v = (x, 0)`, :math:`R(u) =
+  u^2`, gradient :math:`(2xy, x^2)`:
 
-Boundary data on each side (Dirichlet, Neumann, Robin with a constant and
-a variable :math:`\alpha`) equal :math:`u^*`, :math:`q n` and
-:math:`q n - \alpha u^*` exactly, and ``Robin(0)`` gives ``Neumann()``'s
-data. Transient: :math:`u^* = x(1-x)e^{-t}`
-with :math:`D = 1` has :math:`f = (2 - x(1-x)) e^{-t}`. Domains and
-refusals.
+  - conservative, :math:`q = -D\nabla u + v u = (-4xy + x^3 y, -2x^2)`,
+    :math:`f = -4y + 3x^2 y - x^4 y^2`;
+  - non-conservative, :math:`q = -D\nabla u = (-4xy, -2x^2)`, source
+    :math:`v\cdot\nabla u - u^2`, :math:`f = -4y + 2x^2 y - x^4 y^2`.
+
+  Boundary data (Dirichlet, Neumann, Robin with constant and variable
+  :math:`\alpha`) equal :math:`u^*`, :math:`q n` and :math:`q n - \alpha
+  u^*`; ``Robin(0)`` gives ``Neumann()``'s data.
+- Transient: :math:`u^* = x(1-x)e^{-t}`, :math:`\partial_t u -
+  u_{xx}`, :math:`f = (2 - x(1-x)) e^{-t}`.
+- Stokes, :math:`\mu = 1`, :math:`u^* = (y^2, x^2)`, :math:`p^* = xy`:
+  :math:`f = (-2 + y, -2 + x)`, continuity row :math:`0`; only the
+  velocity rows take boundary conditions, per row on one side (roller).
+- ODE :math:`y' + k y` with :math:`k = 2`, :math:`y^* = e^{-t}`:
+  :math:`f = e^{-t}`; second order :math:`y'' + y`, :math:`y^* =
+  \sin 2t`: :math:`f = -3\sin 2t`; index-1 DAE :math:`y' - z = f_1`,
+  :math:`z - y^2 = f_2`, :math:`(e^t, e^{2t})`: :math:`f = (e^t -
+  e^{2t}, 0)`.
+- A declared constant ``E = 3`` is that constant, not Euler's number.
+
+Domains and refusals.
 """
 
-from typing import Dict
+from typing import Dict, List, Mapping, Union
 
 import pytest
 import sympy as sp
 
-from pyapprox.pde.constitutive.advection import (
-    ConservativeAdvection,
-    NonConservativeAdvection,
-)
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
     Dirichlet,
@@ -33,10 +41,17 @@ from pyapprox.pde.verification.conditions import (
     Robin,
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
-from pyapprox.pde.verification.problem import AdvectionDiffusionReactionProblem
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
+)
 
 x, y, t, nx, ny = sp.symbols("x y t nx ny")
 _SQUARE = Box([(0.0, 1.0), (0.0, 1.0)])
+_LINE = Box([(0.0, 1.0)])
 
 
 def _conditions() -> Dict[str, ConditionProtocol]:
@@ -48,16 +63,20 @@ def _conditions() -> Dict[str, ConditionProtocol]:
     }
 
 
-def _problem(conservative: bool) -> AdvectionDiffusionReactionProblem:
-    form = ConservativeAdvection() if conservative else NonConservativeAdvection()
-    return AdvectionDiffusionReactionProblem(
-        "x**2*y",
-        _SQUARE,
-        _conditions(),
-        diffusion="2",
-        reaction="u**2",
-        velocity=["x", "0"],
-        advection_form=form,
+def _adr(conservative: bool) -> ManufacturedProblem:
+    terms: List[TermProtocol]
+    if conservative:
+        terms = [
+            Divergence("u", ["-D*u_x + x*u", "-D*u_y"]),
+            Source("u", "-u**2"),
+        ]
+    else:
+        terms = [
+            Divergence("u", ["-D*u_x", "-D*u_y"]),
+            Source("u", "x*u_x - u**2"),
+        ]
+    return ManufacturedProblem(
+        {"u": "x**2*y"}, terms, _SQUARE, _conditions(), constants={"D": 2.0}
     )
 
 
@@ -97,118 +116,216 @@ class TestDomains:
 class TestAdvectionDiffusionReaction:
     @pytest.mark.parametrize("conservative", [True, False])
     def test_forcing_and_flux(self, conservative: bool) -> None:
-        problem = _problem(conservative)
-        assert problem.ndim() == 2 and problem.ncomponents() == 1
+        problem = _adr(conservative)
+        assert problem.ndim() == 2 and problem.fields() == ("u",)
         advection = 3 * x**2 * y if conservative else 2 * x**2 * y
-        assert _same(problem.forcing()[0], -4 * y + advection - x**4 * y**2)
-        q = problem.flux()[0]
+        assert _same(problem.forcing("u"), -4 * y + advection - x**4 * y**2)
+        q = problem.flux("u")
+        assert q is not None
         advective = x**3 * y if conservative else 0
         assert _same(q[0], -4 * x * y + advective) and _same(q[1], -2 * x**2)
-        assert _same(problem.normal_flux()[0], q[0] * nx + q[1] * ny)
+        assert _same(problem.normal_flux("u"), q[0] * nx + q[1] * ny)
         assert not problem.is_transient()
+        assert problem.time_order("u") == 0
 
     def test_boundary_data(self) -> None:
-        problem = _problem(True)
+        problem = _adr(True)
         u = x**2 * y
         flux = (-4 * x * y + x**3 * y) * nx - 2 * x**2 * ny
-        assert _same(problem.boundary_data("left")[0], u)
-        assert _same(problem.boundary_data("right")[0], flux)
-        assert _same(problem.boundary_data("bottom")[0], flux - 3 * u)
-        assert _same(problem.boundary_data("top")[0], flux - x * u)
-        neumann = Neumann().data(problem)[0]
-        assert _same(Robin(0.0).data(problem)[0], neumann)
+        assert _same(problem.boundary_data("left")["u"], u)
+        assert _same(problem.boundary_data("right")["u"], flux)
+        assert _same(problem.boundary_data("bottom")["u"], flux - 3 * u)
+        assert _same(problem.boundary_data("top")["u"], flux - x * u)
+        assert isinstance(problem.conditions("left")["u"], Dirichlet)
 
-    def test_coefficients(self) -> None:
-        problem = _problem(True)
-        u = sp.Symbol("u")
-        assert _same(problem.diffusion(), sp.Integer(2))
-        assert _same(problem.reaction(), u**2)
-        assert problem.velocity() == (x, sp.Integer(0))
-        assert isinstance(problem.advection_form(), ConservativeAdvection)
-
-    def test_default_velocity_is_zero(self) -> None:
-        problem = AdvectionDiffusionReactionProblem("x**2*y", _SQUARE, _conditions())
-        assert problem.velocity() == (0, 0)
-        assert _same(problem.forcing()[0], -2 * y)
+    def test_robin_zero_is_neumann(self) -> None:
+        problem = _adr(True)
+        conditions = {**_conditions(), "bottom": Robin(0.0), "top": Neumann()}
+        other = ManufacturedProblem(
+            {"u": "x**2*y"},
+            problem.terms("u"),
+            _SQUARE,
+            conditions,
+            constants={"D": 2.0},
+        )
+        data = other.boundary_data
+        assert _same(data("bottom")["u"], data("top")["u"])
 
     def test_transient_forcing_includes_the_time_derivative(self) -> None:
-        conditions: Dict[str, ConditionProtocol] = {
-            "left": Dirichlet(),
-            "right": Dirichlet(),
-        }
-        problem = AdvectionDiffusionReactionProblem(
-            "x*(1-x)*exp(-t)", Box([(0.0, 1.0)]), conditions
+        problem = ManufacturedProblem(
+            {"u": "x*(1-x)*exp(-t)"},
+            [TimeDerivative("u"), Divergence("u", ["-u_x"])],
+            _LINE,
+            {"left": Dirichlet(), "right": Dirichlet()},
         )
-        assert problem.is_transient()
-        expected = (2 - x * (1 - x)) * sp.exp(-t)
-        assert _same(problem.forcing()[0], expected)
+        assert problem.is_transient() and problem.time_order("u") == 1
+        assert _same(problem.forcing("u"), (2 - x * (1 - x)) * sp.exp(-t))
 
     def test_time_in_boundary_data_alone_is_transient(self) -> None:
-        conditions: Dict[str, ConditionProtocol] = {
-            "left": Dirichlet(),
-            "right": Robin("1 + t"),
-        }
-        problem = AdvectionDiffusionReactionProblem(
-            "x*(1-x)", Box([(0.0, 1.0)]), conditions
+        problem = ManufacturedProblem(
+            {"u": "x*(1-x)"},
+            [Divergence("u", ["-u_x"])],
+            _LINE,
+            {"left": Dirichlet(), "right": Robin("1 + t")},
         )
         assert problem.is_transient()
+
+
+class TestConstants:
+    def test_declared_e_is_the_constant(self) -> None:
+        problem = ManufacturedProblem(
+            {"u": "t"}, [Source("u", "E*u")], constants={"E": 3.0}
+        )
+        assert _same(problem.forcing("u"), 3 * t)
+
+    def test_undeclared_e_is_eulers_number(self) -> None:
+        problem = ManufacturedProblem({"u": "t"}, [Source("u", "E*u")])
+        assert _same(problem.forcing("u"), sp.E * t)
+
+
+class TestStokes:
+    def _problem(self) -> ManufacturedProblem:
+        terms: List[TermProtocol] = [
+            Divergence("ux", ["-mu*ux_x + p", "-mu*ux_y"]),
+            Divergence("uy", ["-mu*uy_x", "-mu*uy_y + p"]),
+            Source("p", "ux_x + uy_y"),
+        ]
+        roller: Dict[str, ConditionProtocol] = {"ux": Dirichlet(), "uy": Neumann()}
+        conditions: Dict[str, Union[ConditionProtocol, Mapping[str, ConditionProtocol]]]
+        conditions = {
+            "left": roller,
+            "right": Dirichlet(),
+            "bottom": Dirichlet(),
+            "top": Dirichlet(),
+        }
+        return ManufacturedProblem(
+            {"ux": "y**2", "uy": "x**2", "p": "x*y"},
+            terms,
+            _SQUARE,
+            conditions,
+            constants={"mu": 1.0},
+        )
+
+    def test_forcing(self) -> None:
+        problem = self._problem()
+        assert _same(problem.forcing("ux"), -2 + y)
+        assert _same(problem.forcing("uy"), -2 + x)
+        assert _same(problem.forcing("p"), sp.Integer(0))
+        assert problem.flux("p") is None
+        assert problem.boundary_rows() == ("ux", "uy")
+        assert problem.time_order("p") == 0
+
+    def test_roller(self) -> None:
+        data = self._problem().boundary_data("left")
+        assert _same(data["ux"], y**2)
+        # q of uy is (-uy_x, -uy_y + p) = (-2x, xy).
+        assert _same(data["uy"], -2 * x * nx + x * y * ny)
+
+
+class TestTime:
+    def test_ode(self) -> None:
+        problem = ManufacturedProblem(
+            {"w": "exp(-t)"},
+            [TimeDerivative("w"), Source("w", "k*w")],
+            constants={"k": 2.0},
+        )
+        assert problem.ndim() == 0 and problem.boundary_rows() == ()
+        assert problem.is_transient()
+        assert _same(problem.forcing("w"), sp.exp(-t))
+
+    def test_second_order(self) -> None:
+        problem = ManufacturedProblem(
+            {"w": "sin(2*t)"}, [TimeDerivative("w", order=2), Source("w", "w")]
+        )
+        assert problem.time_order("w") == 2
+        assert _same(problem.forcing("w"), -3 * sp.sin(2 * t))
+
+    def test_dae(self) -> None:
+        problem = ManufacturedProblem(
+            {"w": "exp(t)", "v": "exp(2*t)"},
+            [TimeDerivative("w"), Source("w", "-v"), Source("v", "v - w**2")],
+        )
+        assert _same(problem.forcing("w"), sp.exp(t) - sp.exp(2 * t))
+        assert _same(problem.forcing("v"), sp.Integer(0))
+        assert problem.time_order("v") == 0
+
+    def test_coordinate_names_are_reserved_without_space(self) -> None:
+        with pytest.raises(ValueError, match="field name"):
+            ManufacturedProblem({"y": "t"}, [Source("y", "y")])
 
 
 class TestRefusals:
     def test_conditions_must_cover_the_boundary(self) -> None:
+        terms = [Divergence("u", ["-u_x", "-u_y"])]
         missing = _conditions()
         del missing["top"]
         with pytest.raises(ValueError, match=r"missing \['top'\]"):
-            AdvectionDiffusionReactionProblem("x", _SQUARE, missing)
+            ManufacturedProblem({"u": "x"}, terms, _SQUARE, missing)
         unknown = {**_conditions(), "circle": Dirichlet()}
         with pytest.raises(ValueError, match=r"unknown \['circle'\]"):
-            AdvectionDiffusionReactionProblem("x", _SQUARE, unknown)
+            ManufacturedProblem({"u": "x"}, terms, _SQUARE, unknown)
+        with pytest.raises(ValueError, match=r"unknown \['left'\]"):
+            ManufacturedProblem(
+                {"w": "t"}, [Source("w", "w")], conditions={"left": Dirichlet()}
+            )
+
+    def test_conditions_must_cover_the_boundary_rows(self) -> None:
+        terms = [Divergence("u", ["-u_x"]), Divergence("v", ["-v_x"])]
+        with pytest.raises(ValueError, match="each boundary row"):
+            ManufacturedProblem(
+                {"u": "x", "v": "x"},
+                terms,
+                _LINE,
+                {"left": Dirichlet(), "right": {"u": Dirichlet()}},
+            )
 
     def test_wrong_types(self) -> None:
+        terms = [Divergence("u", ["-u_x", "-u_y"])]
         with pytest.raises(TypeError, match="DomainProtocol"):
-            AdvectionDiffusionReactionProblem(
-                "x",
+            ManufacturedProblem(
+                {"u": "x"},
+                terms,
                 3.0,  # type: ignore[arg-type]
                 _conditions(),
             )
         bad = {**_conditions(), "top": 3.0}
         with pytest.raises(TypeError, match="ConditionProtocol"):
-            AdvectionDiffusionReactionProblem(
-                "x",
+            ManufacturedProblem(
+                {"u": "x"},
+                terms,
                 _SQUARE,
                 bad,  # type: ignore[arg-type]
             )
-        with pytest.raises(TypeError, match="AdvectionFormProtocol"):
-            AdvectionDiffusionReactionProblem(
-                "x",
-                _SQUARE,
-                _conditions(),
-                advection_form=3.0,  # type: ignore[arg-type]
-            )
+        with pytest.raises(TypeError, match="TermProtocol"):
+            ManufacturedProblem({"u": "t"}, [3.0])  # type: ignore[list-item]
 
-    @pytest.mark.parametrize(
-        "kwargs, match",
-        [
-            ({"solution": "x*z"}, "expressions may depend only on"),
-            ({"diffusion": "1 + u"}, "diffusion may depend only on"),
-            ({"reaction": "w*u"}, "reaction may depend only on"),
-            ({"velocity": ["1"]}, "velocity needs 2 entries"),
-            ({"velocity": ["u", "0"]}, "velocity may depend only on"),
-        ],
-    )
-    def test_symbols_and_shapes(self, kwargs: Dict[str, object], match: str) -> None:
-        arguments: Dict[str, object] = {"solution": "x*y", **kwargs}
-        with pytest.raises(ValueError, match=match):
-            AdvectionDiffusionReactionProblem(
-                domain=_SQUARE,
-                conditions=_conditions(),
-                **arguments,  # type: ignore[arg-type]
-            )
+    def test_rows_and_terms(self) -> None:
+        with pytest.raises(ValueError, match="acts on row 'v'"):
+            ManufacturedProblem({"u": "t"}, [Source("u", "u"), Source("v", "u")])
+        with pytest.raises(ValueError, match=r"rows without terms: \['v'\]"):
+            ManufacturedProblem({"u": "t", "v": "t"}, [Source("u", "u")])
+        with pytest.raises(ValueError, match="order must be 1 or 2"):
+            TimeDerivative("u", order=3)
+        with pytest.raises(ValueError, match="field name"):
+            Source("u_x", "u")
 
-    def test_robin_alpha_symbols(self) -> None:
+    def test_symbols(self) -> None:
+        with pytest.raises(ValueError, match="may depend only on"):
+            ManufacturedProblem({"u": "u_x"}, [Source("u", "u")], _LINE)
+        with pytest.raises(ValueError, match="unknown name 'w'"):
+            ManufacturedProblem({"u": "x"}, [Source("u", "w*u")], _LINE)
+        with pytest.raises(ValueError, match="has 1 entries"):
+            ManufacturedProblem(
+                {"u": "x"}, [Divergence("u", ["-u_x"])], _SQUARE, _conditions()
+            )
         with pytest.raises(ValueError, match="alpha may depend only on"):
-            Robin("w")
+            Robin("nx")
 
-    def test_unknown_boundary_part(self) -> None:
-        with pytest.raises(ValueError, match="no boundary part 'circle'"):
-            _problem(True).boundary_data("circle")
+    def test_lookups(self) -> None:
+        problem = ManufacturedProblem({"w": "t"}, [Source("w", "w")])
+        with pytest.raises(ValueError, match="no boundary part 'left'"):
+            problem.boundary_data("left")
+        with pytest.raises(ValueError, match="no divergence terms"):
+            problem.normal_flux("w")
+        with pytest.raises(ValueError, match="no row 'v'"):
+            problem.forcing("v")

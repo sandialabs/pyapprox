@@ -1,302 +1,266 @@
 r"""Manufactured verification problems, as sympy expressions.
 
-A problem is an exact solution :math:`u^*`, the physics' operator and
-coefficients, a domain and a condition on each named boundary part. It
-gives the solution, the forcing that makes :math:`u^*` exact, the flux
-:math:`q(u^*)` in the convention the problem states, and each boundary
-part's data, all as sympy expressions in the symbols of
+A problem is an exact solution (one expression per field), a strong form
+written as terms on rows (:mod:`pyapprox.pde.verification.terms`), a
+domain, and conditions on its named boundary parts. It gives each row's
+forcing (the strong form at the exact solution), flux and boundary data,
+all as sympy expressions in the symbols of
 :mod:`pyapprox.pde.expressions.symbols`. It evaluates nothing: a stack
 binds the symbols to its own points, so the same problem verifies any
 discretization, serial or distributed.
 
-A problem is transient when its expressions depend on time ``t``; its
-forcing then includes :math:`\partial_t u^*`.
+Named constants stay symbols in the terms and are replaced by their
+values in everything the problem returns. A problem without a domain
+(``ndim = 0``) is an ODE or DAE: no coordinates, no boundary.
 """
 
 from types import MappingProxyType
-from typing import Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import sympy as sp
 
-from pyapprox.pde.constitutive.advection import (
-    AdvectionFormProtocol,
-    ConservativeAdvection,
-)
-from pyapprox.pde.expressions.symbols import coordinates, derivative, normal, time
-from pyapprox.pde.manufactured.advection_diffusion import (
-    ManufacturedAdvectionDiffusionReaction,
-)
+from pyapprox.pde.expressions.symbols import coordinates, normal, pde_names, time
 from pyapprox.pde.verification.conditions import ConditionProtocol
 from pyapprox.pde.verification.domains import DomainProtocol
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.pde.verification.terms import JetSubstitution, TermProtocol
+from pyapprox.util.expressions.names import CustomFunction, Names
+from pyapprox.util.expressions.parsing import Value, parse
 
-_Exprs = Tuple[sp.Expr, ...]
-_Rows = Tuple[Tuple[sp.Expr, ...], ...]
-
-
-def _exprs(values: Iterable[Union[sp.Expr, str, float]]) -> _Exprs:
-    return tuple(sp.sympify(value) for value in values)
+_Conditions = Union[ConditionProtocol, Mapping[str, ConditionProtocol]]
 
 
-def _check_symbols(label: str, expression: sp.Expr, allowed: "set[sp.Symbol]") -> None:
-    extra = expression.free_symbols - allowed
-    if extra:
-        raise ValueError(
-            f"{label} may depend only on {sorted(map(str, allowed))}; got "
-            f"{sorted(map(str, extra))}"
-        )
+class _RowFields:
+    """One row's exact solution and normal flux, for a condition."""
+
+    def __init__(self, solution: sp.Expr, normal_flux: sp.Expr) -> None:
+        self._solution, self._normal_flux = solution, normal_flux
+
+    def solution(self) -> sp.Expr:
+        return self._solution
+
+    def normal_flux(self) -> sp.Expr:
+        return self._normal_flux
 
 
 class ManufacturedProblem:
-    r"""An exact solution, its forcing and flux, a domain and conditions.
+    r"""An exact solution, a strong form, a domain and conditions.
 
     Parameters
     ----------
-    domain : DomainProtocol
-        Where the problem is posed.
-    conditions : Mapping[str, ConditionProtocol]
-        A condition on every boundary part of ``domain``, by name.
-    solution : Sequence
-        :math:`u^*`, one expression per component.
-    forcing : Sequence
-        The forcing for which :math:`u^*` solves the problem, per
-        component.
-    flux : Sequence[Sequence]
-        :math:`q(u^*)`: rows by component, columns by direction.
+    solution : Mapping[str, expression]
+        :math:`u^*` by field name, in the coordinates, ``t`` and constants.
+        The fields name the rows, in this order.
+    terms : Sequence[TermProtocol]
+        The strong form; every row needs at least one term.
+    domain : DomainProtocol, optional
+        Where the problem is posed; ``None`` for an ODE or DAE.
+    conditions : Mapping, optional
+        For every boundary part of ``domain``, by name: one condition for
+        every boundary row, or a mapping from each boundary row to its
+        condition. The boundary rows are those with divergence terms.
+    constants : Mapping[str, float], optional
+        Named constants and their values.
+    functions : Mapping[str, CustomFunction], optional
+        Extra functions the expressions call.
 
     Raises
     ------
     TypeError
-        If ``domain`` or a condition is of the wrong type.
+        If ``domain``, a term or a condition is of the wrong type.
     ValueError
-        If the conditions do not name exactly the domain's boundary parts,
-        the shapes disagree, or an expression has symbols other than the
-        domain's coordinates and time.
+        If a term's row is not a field, a row has no term, the solution
+        depends on anything but coordinates, ``t`` and constants, a flux
+        has the wrong length, or the conditions do not cover exactly the
+        boundary parts and boundary rows.
     """
 
     def __init__(
         self,
-        domain: DomainProtocol,
-        conditions: Mapping[str, ConditionProtocol],
-        solution: Sequence[sp.Expr],
-        forcing: Sequence[sp.Expr],
-        flux: Sequence[Sequence[sp.Expr]],
+        solution: Mapping[str, Value],
+        terms: Sequence[TermProtocol],
+        domain: Optional[DomainProtocol] = None,
+        conditions: Optional[Mapping[str, _Conditions]] = None,
+        constants: Optional[Mapping[str, float]] = None,
+        functions: Optional[Mapping[str, CustomFunction]] = None,
     ) -> None:
-        if not isinstance(domain, DomainProtocol):
+        if domain is not None and not isinstance(domain, DomainProtocol):
             raise TypeError(
                 f"domain must satisfy DomainProtocol, got {type(domain).__name__}"
             )
-        names = set(domain.boundaries())
-        missing, unknown = names - set(conditions), set(conditions) - names
+        ndim = 0 if domain is None else domain.ndim()
+        self._domain, self._ndim = domain, ndim
+        self._fields = tuple(solution)
+        self._names = pde_names(ndim, self._fields, constants, functions)
+        self._solution = {
+            name: parse(value, self._names) for name, value in solution.items()
+        }
+        allowed = set(coordinates(ndim)) | {time()} | set(self._names.constants())
+        for name, expression in self._solution.items():
+            extra = expression.free_symbols - allowed
+            if extra:
+                raise ValueError(
+                    f"the solution of {name!r} may depend only on the "
+                    f"coordinates, t and constants; got {sorted(map(str, extra))}"
+                )
+        self._terms = self._check_terms(terms)
+        jet = JetSubstitution(self._solution, ndim)
+        self._forcing: Dict[str, sp.Expr] = {}
+        self._flux: Dict[str, Tuple[sp.Expr, ...]] = {}
+        for row in self._fields:
+            row_terms = [term for term in self._terms if term.row() == row]
+            self._forcing[row] = sp.Add(
+                *(term.residual(self._names, jet) for term in row_terms)
+            )
+            fluxes = [term.flux(self._names) for term in row_terms]
+            present = [q for q in fluxes if q is not None]
+            if present:
+                self._flux[row] = tuple(
+                    jet(sp.Add(*column)) for column in zip(*present)
+                )
+        self._conditions = self._check_conditions(conditions or {})
+
+    def _check_terms(self, terms: Sequence[TermProtocol]) -> Tuple[TermProtocol, ...]:
+        for term in terms:
+            if not isinstance(term, TermProtocol):
+                raise TypeError(
+                    f"terms must satisfy TermProtocol, got {type(term).__name__}"
+                )
+            if term.row() not in self._fields:
+                raise ValueError(
+                    f"{term!r} acts on row {term.row()!r}; the fields are "
+                    f"{list(self._fields)}"
+                )
+        empty = [row for row in self._fields if all(t.row() != row for t in terms)]
+        if empty:
+            raise ValueError(f"rows without terms: {empty}")
+        return tuple(terms)
+
+    def _check_conditions(
+        self, conditions: Mapping[str, _Conditions]
+    ) -> Mapping[str, Mapping[str, ConditionProtocol]]:
+        parts = set() if self._domain is None else set(self._domain.boundaries())
+        missing, unknown = parts - set(conditions), set(conditions) - parts
         if missing or unknown:
             raise ValueError(
                 "conditions must name every boundary part of the domain and no "
                 f"other: missing {sorted(missing)}, unknown {sorted(unknown)}"
             )
-        for name, condition in conditions.items():
-            if not isinstance(condition, ConditionProtocol):
-                raise TypeError(
-                    f"condition {name!r} must satisfy ConditionProtocol, got "
-                    f"{type(condition).__name__}"
+        rows = self.boundary_rows()
+        checked: Dict[str, Mapping[str, ConditionProtocol]] = {}
+        for part, given in conditions.items():
+            if isinstance(given, Mapping):
+                per_row = dict(given)
+            else:
+                per_row = {row: given for row in rows}
+            if set(per_row) != set(rows):
+                raise ValueError(
+                    f"boundary {part!r} needs a condition on each boundary row "
+                    f"{list(rows)}, got {sorted(per_row)}"
                 )
-        ndim = domain.ndim()
-        self._domain = domain
-        self._conditions = MappingProxyType(dict(conditions))
-        self._solution = _exprs(solution)
-        self._forcing = _exprs(forcing)
-        self._flux: _Rows = tuple(_exprs(row) for row in flux)
-        ncomponents = len(self._solution)
-        if (
-            len(self._forcing) != ncomponents
-            or len(self._flux) != ncomponents
-            or any(len(row) != ndim for row in self._flux)
-        ):
-            raise ValueError(
-                f"with {ncomponents} components in {ndim} dimensions, forcing "
-                f"needs {ncomponents} entries and flux {ncomponents} rows of {ndim}"
-            )
-        allowed = set(coordinates(ndim)) | {time()}
-        for expression in self._solution + self._forcing + sum(self._flux, ()):
-            _check_symbols("expressions", expression, allowed)
+            for row, condition in per_row.items():
+                if not isinstance(condition, ConditionProtocol):
+                    raise TypeError(
+                        f"condition on {part!r}, row {row!r} must satisfy "
+                        f"ConditionProtocol, got {type(condition).__name__}"
+                    )
+            checked[part] = MappingProxyType(per_row)
+        return MappingProxyType(checked)
 
-    def domain(self) -> DomainProtocol:
-        """Where the problem is posed."""
+    def _values(self, expression: sp.Expr) -> sp.Expr:
+        return self._names.substitute_constants(expression)
+
+    def domain(self) -> Optional[DomainProtocol]:
+        """Where the problem is posed; ``None`` for an ODE or DAE."""
         return self._domain
 
-    def conditions(self) -> Mapping[str, ConditionProtocol]:
-        """The condition on each boundary part, by name (read only)."""
-        return self._conditions
-
     def ndim(self) -> int:
-        """The spatial dimension."""
-        return self._domain.ndim()
+        """The spatial dimension (0 for an ODE or DAE)."""
+        return self._ndim
 
-    def ncomponents(self) -> int:
-        """The number of solution components."""
-        return len(self._solution)
+    def fields(self) -> Tuple[str, ...]:
+        """The field names, which name the rows."""
+        return self._fields
+
+    def names(self) -> Names:
+        """What the problem's expressions may use."""
+        return self._names
+
+    def terms(self, row: str) -> Tuple[TermProtocol, ...]:
+        """The terms of ``row``."""
+        return tuple(term for term in self._terms if term.row() == row)
+
+    def time_order(self, row: str) -> int:
+        """The highest time derivative in ``row``; 0 for an algebraic
+        row."""
+        return max(term.time_order() for term in self.terms(row))
+
+    def boundary_rows(self) -> Tuple[str, ...]:
+        """The rows with divergence terms, which take boundary
+        conditions."""
+        return tuple(row for row in self._fields if row in self._flux)
 
     def is_transient(self) -> bool:
-        """Whether any expression, boundary data included, depends on
+        """Whether a row has a time derivative or an expression depends on
         ``t``."""
-        expressions = self._solution + self._forcing + sum(self._flux, ())
-        expressions += sum((self.boundary_data(n) for n in self._conditions), ())
+        if any(term.time_order() > 0 for term in self._terms):
+            return True
+        expressions = list(self._solution.values()) + list(self._forcing.values())
+        for part in self._conditions:
+            expressions += list(self.boundary_data(part).values())
         return any(time() in e.free_symbols for e in expressions)
 
-    def solution(self) -> _Exprs:
-        r""":math:`u^*`, per component."""
-        return self._solution
+    def solution(self, row: str) -> sp.Expr:
+        r""":math:`u^*` of field ``row``."""
+        return self._values(self._solution[self._check_row(row)])
 
-    def forcing(self) -> _Exprs:
-        """The forcing, per component."""
-        return self._forcing
+    def forcing(self, row: str) -> sp.Expr:
+        """The forcing of ``row``: its strong form at the exact
+        solution."""
+        return self._values(self._forcing[self._check_row(row)])
 
-    def flux(self) -> _Rows:
-        r""":math:`q(u^*)`: rows by component, columns by direction."""
-        return self._flux
+    def flux(self, row: str) -> Optional[Tuple[sp.Expr, ...]]:
+        r""":math:`q(u^*)` of ``row`` per direction; ``None`` without
+        divergence terms."""
+        flux = self._flux.get(self._check_row(row))
+        return None if flux is None else tuple(self._values(q) for q in flux)
 
-    def normal_flux(self) -> _Exprs:
-        r""":math:`q(u^*)\, n` per component, in the coordinate, time and
-        normal symbols."""
-        n = normal(self.ndim())
-        return tuple(sp.Add(*(q * nj for q, nj in zip(row, n))) for row in self._flux)
-
-    def boundary_data(self, name: str) -> _Exprs:
-        """The data of the condition on boundary part ``name``.
+    def normal_flux(self, row: str) -> sp.Expr:
+        r""":math:`q(u^*)\, n` of ``row``, in the coordinate, time and
+        normal symbols.
 
         Raises
         ------
         ValueError
-            If the domain has no boundary part ``name``.
+            If ``row`` has no divergence terms.
         """
-        if name not in self._conditions:
-            raise ValueError(
-                f"no boundary part {name!r}; the domain has "
-                f"{list(self._domain.boundaries())}"
+        flux = self.flux(row)
+        if flux is None:
+            raise ValueError(f"row {row!r} has no divergence terms")
+        return sp.Add(*(q * n for q, n in zip(flux, normal(self._ndim))))
+
+    def conditions(self, part: str) -> Mapping[str, ConditionProtocol]:
+        """The condition on each boundary row of boundary part ``part``."""
+        if part not in self._conditions:
+            names = [] if self._domain is None else list(self._domain.boundaries())
+            raise ValueError(f"no boundary part {part!r}; the domain has {names}")
+        return self._conditions[part]
+
+    def boundary_data(self, part: str) -> Dict[str, sp.Expr]:
+        """The data of the conditions on boundary part ``part``, by row."""
+        return {
+            row: condition.data(
+                _RowFields(self.solution(row), self.normal_flux(row))
             )
-        return self._conditions[name].data(self)
+            for row, condition in self.conditions(part).items()
+        }
+
+    def _check_row(self, row: str) -> str:
+        if row not in self._fields:
+            raise ValueError(f"no row {row!r}; the fields are {list(self._fields)}")
+        return row
 
     def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}(solution={list(self._solution)}, "
-            f"domain={self._domain!r}, conditions={dict(self._conditions)!r})"
+            f"{type(self).__name__}(fields={list(self._fields)}, "
+            f"ndim={self._ndim}, domain={self._domain!r})"
         )
-
-
-class AdvectionDiffusionReactionProblem(ManufacturedProblem):
-    r"""An advection-diffusion-reaction problem.
-
-    Strong form, for the scalar :math:`u`:
-
-    .. math::
-
-        \partial_t u - \nabla\cdot(D \nabla u) + a(v, u) - R(u) = f,
-
-    without :math:`\partial_t u` when the solution is steady, and with
-    :math:`a(v, u) = v\cdot\nabla u` (:class:`~pyapprox.pde.constitutive.
-    advection.NonConservativeAdvection`) or :math:`\nabla\cdot(v u)`
-    (:class:`~pyapprox.pde.constitutive.advection.ConservativeAdvection`).
-    The flux, which natural conditions prescribe along the outward normal,
-    is :math:`q = -D \nabla u + v u` for the conservative form and
-    :math:`q = -D \nabla u` for the non-conservative one: the term the weak
-    form integrates by parts.
-
-    Parameters
-    ----------
-    solution : str
-        :math:`u^*`, in ``x``, ``y``, ``z`` and ``t``.
-    domain : DomainProtocol
-        Where the problem is posed.
-    conditions : Mapping[str, ConditionProtocol]
-        A condition on every boundary part, by name.
-    diffusion : str
-        :math:`D`, in the coordinates and time.
-    reaction : str
-        :math:`R(u)`, in ``u``, the coordinates and time.
-    velocity : Sequence[str], optional
-        :math:`v`, one entry per direction. Default: zero.
-    advection_form : AdvectionFormProtocol, optional
-        How :math:`a` is written. Default: conservative.
-
-    Raises
-    ------
-    TypeError
-        If ``domain`` or ``advection_form`` is of the wrong type (and as
-        :class:`ManufacturedProblem`).
-    ValueError
-        If ``velocity`` does not have one entry per direction, or a
-        coefficient depends on other symbols (``diffusion`` on ``u``
-        included) (and as :class:`ManufacturedProblem`).
-    """
-
-    def __init__(
-        self,
-        solution: str,
-        domain: DomainProtocol,
-        conditions: Mapping[str, ConditionProtocol],
-        diffusion: str = "1",
-        reaction: str = "0",
-        velocity: Optional[Sequence[str]] = None,
-        advection_form: Optional[AdvectionFormProtocol] = None,
-    ) -> None:
-        if not isinstance(domain, DomainProtocol):
-            raise TypeError(
-                f"domain must satisfy DomainProtocol, got {type(domain).__name__}"
-            )
-        ndim = domain.ndim()
-        velocity = ["0"] * ndim if velocity is None else list(velocity)
-        if len(velocity) != ndim:
-            raise ValueError(
-                f"velocity needs {ndim} entries, one per direction; got {len(velocity)}"
-            )
-        if advection_form is None:
-            advection_form = ConservativeAdvection()
-        if not isinstance(advection_form, AdvectionFormProtocol):
-            raise TypeError(
-                "advection_form must satisfy AdvectionFormProtocol, got "
-                f"{type(advection_form).__name__}"
-            )
-        allowed = set(coordinates(ndim)) | {time()}
-        self._diffusion: sp.Expr = sp.sympify(diffusion)
-        self._reaction: sp.Expr = sp.sympify(reaction)
-        self._velocity = _exprs(velocity)
-        _check_symbols("diffusion", self._diffusion, allowed)
-        _check_symbols("reaction", self._reaction, allowed | {derivative("u")})
-        for v in self._velocity:
-            _check_symbols("velocity", v, allowed)
-        self._advection_form = advection_form
-        # The generator writes time as T; here it is t. It also builds numpy
-        # callables, which need a backend; only its expressions are read.
-        to_generator = {time(): sp.Symbol("T")}
-        expressions = ManufacturedAdvectionDiffusionReaction(
-            str(sp.sympify(solution).subs(to_generator)),
-            ndim,
-            str(self._diffusion.subs(to_generator)),
-            str(self._reaction.subs(to_generator)),
-            [str(v.subs(to_generator)) for v in self._velocity],
-            NumpyBkd(),
-            advection_form=advection_form,
-        ).expressions()
-        from_generator = {sp.Symbol("T"): time()}
-        super().__init__(
-            domain,
-            conditions,
-            (sp.sympify(expressions["solution"]).subs(from_generator),),
-            (sp.sympify(expressions["forcing"]).subs(from_generator),),
-            (tuple(sp.sympify(q).subs(from_generator) for q in expressions["flux"]),),
-        )
-
-    def diffusion(self) -> sp.Expr:
-        """:math:`D`, in the coordinates and time."""
-        return self._diffusion
-
-    def reaction(self) -> sp.Expr:
-        """:math:`R(u)`, in ``u``, the coordinates and time."""
-        return self._reaction
-
-    def velocity(self) -> _Exprs:
-        """:math:`v`, per direction."""
-        return self._velocity
-
-    def advection_form(self) -> AdvectionFormProtocol:
-        """How the advection term is written."""
-        return self._advection_form
