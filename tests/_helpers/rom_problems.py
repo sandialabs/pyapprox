@@ -19,6 +19,7 @@ from typing import Any, Callable, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -37,11 +38,12 @@ from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
+from pyapprox.pde.galerkin.system import GalerkinSteadySystem
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.dense_discretization import (
+    DenseSteadyDiscretization,
 )
+from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -50,17 +52,14 @@ from pyapprox.pde.rom import (
     AlgebraicLift,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.backend_dense import BackendDenseLU
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     MassInnerProduct,
 )
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.rom_problem import (
-    DenseSteadyState,
-    FixedValue,
-    RomProblem,
-    SolvedFromZero,
-)
+from tests._helpers.rom_problem import FixedValue, RomProblem, SteadyStateAt
 
 _Points = NDArray[np.floating[Any]]
 
@@ -144,14 +143,12 @@ def _galerkin_adr(
         name=name,
         bkd=bkd,
         residual=GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
-        steady_state=SolvedFromZero(
-            GalerkinParameterizedStateEquation(
-                system.steady(),
-                param_obj,
-                bkd,
-                solver=SteadyStateSolver(system.steady(), tol=newton_tol),
-            ),
+        steady_state=SteadyStateAt(
+            skfem_discretization(system),
+            param_obj,
+            RecomputeAlways(ScipySparseLU()),
             bkd,
+            atol=newton_tol,
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, system.nstates()),
@@ -338,8 +335,12 @@ def _finite_difference_adr(bkd: NumpyBkd, name: str, reaction: bool) -> RomProbl
         name=name,
         bkd=bkd,
         residual=GalerkinParameterizedResidual(operator, param_obj),
-        steady_state=DenseSteadyState(
-            operator, param_obj, constraint_set, bkd, atol=1e-12
+        steady_state=SteadyStateAt(
+            DenseSteadyDiscretization(GalerkinSteadySystem(operator, constraint_set)),
+            param_obj,
+            RecomputeAlways(BackendDenseLU(bkd)),
+            bkd,
+            atol=1e-12,
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, nnodes),

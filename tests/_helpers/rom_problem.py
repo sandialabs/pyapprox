@@ -7,26 +7,19 @@ run the ROM tests without it.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Generic, Optional, TypeVar
 
-from pyapprox.implicitfunction.pinned_residual import PinnedResidual
-from pyapprox.implicitfunction.pinned_rows import (
-    PinnedValuesParamDerivatives,
-    RowPin,
-)
-from pyapprox.implicitfunction.residual_derivatives import (
-    ResidualDerivatives,
-    ResidualJacobian,
-)
-from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
 from pyapprox.implicitfunction.state_equations.protocols import (
     SteadyStateEquationProtocol,
 )
 from pyapprox.implicitfunction.steady_system import SteadySystem
-from pyapprox.ode.protocols.spatial_operator import SpatialOperatorProtocol
-from pyapprox.ode.residual_derivatives import backend_spaces
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.elementwise import ElementwiseOperatorProtocol
+from pyapprox.pde.galerkin.protocols.discretization import (
+    SteadyDiscretizationProtocol,
+)
+from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.pde.parameterizations.protocol import ParameterizationProtocol
 from pyapprox.pde.rom import (
@@ -36,20 +29,13 @@ from pyapprox.pde.rom import (
     homogenize,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.backend_dense import (
-    BackendDenseLU,
-    BackendDenseOperator,
-    BackendRowSet,
-    DenseFormat,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
-from pyapprox.util.linalg.operators import (
-    LinearizationPoint,
-    LinearizedOperator,
-    RowSetProtocol,
-)
+from pyapprox.util.linalg.operators import FormatProtocol, InnerProductSpaceProtocol
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.adjoint_checks import NumpyArray
+
+F = TypeVar("F", bound=FormatProtocol)
 
 
 def steady_snapshots(
@@ -119,141 +105,65 @@ class RomProblem:
         return homogenize(self.solve(samples), self.lift, self.constraint_set)
 
 
-class FixedValue:
+class FixedValue(Generic[Array]):
     """An essential condition fixing one DOF to a constant."""
 
-    def __init__(self, dof: int, value: float, bkd: NumpyBkd) -> None:
+    def __init__(self, dof: int, value: float, bkd: Backend[Array]) -> None:
         self._dofs = bkd.asarray([dof], dtype=bkd.int64_dtype())
         self._values = bkd.asarray([value])
         self._bkd = bkd
 
-    def bkd(self) -> NumpyBkd:
+    def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def constrained_dofs(self) -> NumpyArray:
+    def constrained_dofs(self) -> Array:
         return self._dofs
 
-    def constrained_values(self, time: float) -> NumpyArray:
+    def constrained_values(self, time: float) -> Array:
         return self._values
 
     def is_time_invariant(self) -> bool:
         return True
 
-    def constrained_values_derivative(
-        self, order: int
-    ) -> Callable[[float], NumpyArray]:
+    def constrained_values_derivative(self, order: int) -> Callable[[float], Array]:
         zeros = self._bkd.zeros((1,))
         return lambda time: zeros
 
 
-_Dense = DenseFormat[NumpyArray]
-
-
-class _DenseOperatorResidual:
-    r""":math:`F(u; p)` of a spatial operator with a dense Jacobian, at
-    t = 0, as a time-free residual: value and state Jacobian only."""
-
-    def __init__(
-        self,
-        operator: SpatialOperatorProtocol[NumpyArray],
-        parameters: ParameterState[NumpyArray],
-        bkd: NumpyBkd,
-    ) -> None:
-        self._operator, self._parameters, self._bkd = operator, parameters, bkd
-        states, _ = backend_spaces(bkd, operator.nstates(), parameters.nparams())
-        self._states = states.descriptor()
-        self._bundle: ResidualDerivatives[NumpyArray, _Dense] = (
-            ResidualDerivatives.state_only(ResidualJacobian.general(self._jacobian))
-        )
-
-    def __call__(self, state: NumpyArray) -> NumpyArray:
-        return self._operator.spatial_residual(state[:, 0], 0.0)[:, None]
-
-    def derivatives(self) -> ResidualDerivatives[NumpyArray, _Dense]:
-        return self._bundle
-
-    def parameters_version(self) -> int:
-        return self._parameters.parameters_version()
-
-    def _jacobian(
-        self, state: NumpyArray, point: LinearizationPoint
-    ) -> LinearizedOperator[NumpyArray, _Dense]:
-        matrix = self._operator.spatial_jacobian(state[:, 0], 0.0)
-        return LinearizedOperator(
-            BackendDenseOperator(matrix, self._states, self._bkd), point
-        )
-
-
-class _ConstrainedValues:
-    """A constraint set's rows and values at t = 0, independent of the
-    parameters."""
-
-    def __init__(
-        self,
-        constraint_set: ConstraintSetProtocol[NumpyArray],
-        rows: RowSetProtocol[NumpyArray],
-        nstates: int,
-        bkd: NumpyBkd,
-    ) -> None:
-        self._rows = rows
-        values = bkd.zeros((nstates, 1))
-        values[constraint_set.dofs(), 0] = constraint_set.values(0.0)
-        self._values = values
-
-    def rows(self) -> RowSetProtocol[NumpyArray]:
-        return self._rows
-
-    def values(self) -> NumpyArray:
-        return self._values
-
-    def parameter_derivatives(self) -> PinnedValuesParamDerivatives[NumpyArray]:
-        return PinnedValuesParamDerivatives.independent()
-
-
-class DenseSteadyState:
-    """The steady state of a spatial operator with a dense Jacobian and
-    time-invariant essential constraints, for problems built without an
-    assembly library: :math:`F(u; p)` with the constrained rows pinned,
-    solved by Newton (``atol``, no relative tolerance) with dense LU from
-    zero.
+class SteadyStateAt(Generic[F]):
+    """The steady state at a parameter column, on any stack: the steady
+    residual of ``discretization`` solved by ``SteadySystem`` with the
+    injected ``setups``, by Newton (``atol``, no relative tolerance) from
+    zero, so the result does not depend on the order of the samples.
 
     Called with a parameter column (nparams, 1), returns the state
-    (nstates, 1).
+    (nstates, 1). ``setups`` is cleared after every parameter change.
     """
 
     def __init__(
         self,
-        operator: SpatialOperatorProtocol[NumpyArray],
+        discretization: SteadyDiscretizationProtocol[NumpyArray, NumpyArray, F],
         parameterization: ParameterizationProtocol[NumpyArray],
-        constraint_set: ConstraintSetProtocol[NumpyArray],
+        setups: SetupStrategyProtocol[SteadyRequest[NumpyArray, F], NumpyArray, F],
         bkd: NumpyBkd,
         atol: float,
     ) -> None:
-        if not constraint_set.is_time_invariant():
-            raise ValueError("the constraints must be time-invariant")
-        n = operator.nstates()
         self._parameters = ParameterState(parameterization)
-        states, _ = backend_spaces(bkd, n, parameterization.nparams())
-        rows: BackendRowSet[NumpyArray] = BackendRowSet(
-            states.descriptor(),
-            [int(dof) for dof in bkd.to_numpy(constraint_set.dofs())],
-            bkd,
+        space = discretization.space()
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError("the discretization's space has no inner product")
+        self._system: SteadySystem[NumpyArray, NumpyArray, F] = SteadySystem(
+            galerkin_steady_residual(discretization, self._parameters), space, setups
         )
-        pinned = PinnedResidual(
-            _DenseOperatorResidual(operator, self._parameters, bkd),
-            RowPin(_ConstrainedValues(constraint_set, rows, n, bkd)),
-            states,
-        )
-        self._system: SteadySystem[NumpyArray, NumpyArray, _Dense] = SteadySystem(
-            pinned, states, RecomputeAlways(BackendDenseLU(bkd))
-        )
+        self._setups = setups
         self._newton: Newton[NumpyArray, NumpyArray] = Newton(
             atol=atol, rtol=0.0, maxiters=50
         )
-        self._zeros = bkd.zeros((n, 1))
+        self._zeros = bkd.zeros((discretization.nstates(), 1))
 
     def __call__(self, param: NumpyArray) -> NumpyArray:
         self._parameters.set_param(param[:, 0])
+        self._setups.clear()
         point = self._system.solve(self._newton, self._zeros)
         if not point.converged():
             raise RuntimeError(f"the steady solve did not converge: {point.info()}")

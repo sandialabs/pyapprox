@@ -30,6 +30,7 @@ from typing import Any, Generic, Protocol, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.elementwise import (
@@ -37,13 +38,18 @@ from pyapprox.pde.elementwise import (
     check_element_block,
     element_jacobian_blocks,
 )
+from pyapprox.pde.galerkin.system import GalerkinSteadySystem
+from pyapprox.pde.galerkin.time_integration.dense_discretization import (
+    DenseSteadyDiscretization,
+)
 from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.rom import AlgebraicLift
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseLU
 from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
-from tests._helpers.rom_problem import DenseSteadyState, FixedValue, RomProblem
+from tests._helpers.rom_problem import FixedValue, RomProblem, SteadyStateAt
 
 _Points = NDArray[np.floating[Any]]
 
@@ -400,8 +406,12 @@ def _mock_p1_adr(bkd: NumpyBkd, name: str, reaction: bool, ncells: int) -> RomPr
         name=name,
         bkd=bkd,
         residual=GalerkinParameterizedResidual(operator, param_obj),
-        steady_state=DenseSteadyState(
-            operator, param_obj, constraint_set, bkd, atol=1e-10
+        steady_state=SteadyStateAt(
+            DenseSteadyDiscretization(GalerkinSteadySystem(operator, constraint_set)),
+            param_obj,
+            RecomputeAlways(BackendDenseLU(bkd)),
+            bkd,
+            atol=1e-10,
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, nnodes),

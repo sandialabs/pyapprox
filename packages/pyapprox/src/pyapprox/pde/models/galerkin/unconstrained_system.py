@@ -20,6 +20,9 @@ from typing import Generic, Optional, TypeVar, Union
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.residual_derivatives import ODEResidualDerivatives, StatedZero
 from pyapprox.ode.residual_form import BackendColumnForm
+from pyapprox.pde.galerkin.protocols.discretization import (
+    SteadyDiscretizationProtocol,
+)
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
     GalerkinJacobianOperator,
     classified_jacobian,
@@ -51,8 +54,8 @@ class GalerkinUnconstrainedRightHandSide(Generic[Array, F]):
 
     Parameters
     ----------
-    discretization : GalerkinStackDiscretization
-        The system on a stack.
+    discretization : SteadyDiscretizationProtocol
+        The system on a stack; no mass is read.
     parameters : ParameterState, optional
         The parameters, shared with the solved system; none for a system
         without them.
@@ -66,8 +69,9 @@ class GalerkinUnconstrainedRightHandSide(Generic[Array, F]):
     Raises
     ------
     TypeError
-        If ``discretization`` is not a ``GalerkinStackDiscretization`` or
-        ``parameters`` not a ``ParameterState``.
+        If ``discretization`` does not satisfy
+        ``SteadyDiscretizationProtocol`` or ``parameters`` is not a
+        ``ParameterState``.
     ValueError
         If the parameterization writes objects the system does not hold,
         or has a parameter Jacobian and the initial state's bundle no
@@ -76,13 +80,13 @@ class GalerkinUnconstrainedRightHandSide(Generic[Array, F]):
 
     def __init__(
         self,
-        discretization: GalerkinStackDiscretization[Array, Array, F],
+        discretization: SteadyDiscretizationProtocol[Array, Array, F],
         parameters: Optional[ParameterState[Array]] = None,
         initial_state: Optional[Union[ParamDerivatives[Array], StatedZero]] = None,
     ) -> None:
-        if not isinstance(discretization, GalerkinStackDiscretization):
+        if not isinstance(discretization, SteadyDiscretizationProtocol):
             raise TypeError(
-                "discretization must be a GalerkinStackDiscretization, got "
+                "discretization must satisfy SteadyDiscretizationProtocol, got "
                 f"{type(discretization).__name__}"
             )
         if parameters is not None and not isinstance(parameters, ParameterState):

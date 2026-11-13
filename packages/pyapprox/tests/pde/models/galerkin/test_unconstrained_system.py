@@ -332,7 +332,7 @@ class TestTheRightHandSide:
     def test_refusals(self, numpy_bkd: NumpyBkd) -> None:
         heat, other = MovingEndHeat(numpy_bkd), MovingEndHeat(numpy_bkd)
         discretization = skfem_discretization(heat.system)
-        with pytest.raises(TypeError, match="GalerkinStackDiscretization"):
+        with pytest.raises(TypeError, match="SteadyDiscretizationProtocol"):
             GalerkinUnconstrainedRightHandSide(heat.system)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="ParameterState"):
             GalerkinUnconstrainedRightHandSide(

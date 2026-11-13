@@ -13,8 +13,8 @@ stepper) or the integrator pinning them after each step
 from typing import Callable, Generic, Optional, TypeVar
 
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives
-from pyapprox.pde.galerkin.time_integration.stack_discretization import (
-    GalerkinStackDiscretization,
+from pyapprox.pde.galerkin.protocols.discretization import (
+    SteadyDiscretizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import FormatProtocol, RowSetProtocol
@@ -49,14 +49,14 @@ class EssentialPinnedRows(Generic[Array]):
 
     Parameters
     ----------
-    discretization : GalerkinStackDiscretization
+    discretization : SteadyDiscretizationProtocol
         Gives the essential rows (a row set of its state space) and,
         through its system's constraint set, the data. The data must not
         depend on the parameters.
     """
 
     def __init__(
-        self, discretization: GalerkinStackDiscretization[Array, Array, F]
+        self, discretization: SteadyDiscretizationProtocol[Array, Array, F]
     ) -> None:
         system = discretization.system()
         self._rows = discretization.essential_rows()

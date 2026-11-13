@@ -20,6 +20,7 @@ from pyapprox.pde.assembly.protocols import (
     JacobianAssemblerProtocol,
 )
 from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinSteadySystemProtocol,
     GalerkinTransientSystemProtocol,
 )
 from pyapprox.util.backends.protocols import Array
@@ -188,7 +189,7 @@ class _ConstantJacobian(Generic[Array, F]):
 
 
 def classified_jacobian(
-    system: GalerkinTransientSystemProtocol[Array],
+    system: GalerkinSteadySystemProtocol[Array],
     operator: GalerkinJacobianOperator[Array, Array, F],
 ) -> Jacobian[Array, F]:
     r"""``operator`` as a bundle's Jacobian, given only what it depends on.
@@ -201,7 +202,7 @@ def classified_jacobian(
 
     Parameters
     ----------
-    system : GalerkinTransientSystemProtocol
+    system : GalerkinSteadySystemProtocol
         The system whose physics declares what :math:`F` depends on.
     operator : GalerkinJacobianOperator
         The Jacobian, with whatever rows it zeroes.

@@ -25,11 +25,11 @@ from pyapprox.ode.pinned_rows import values_at_time
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
 from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.residual_form import BackendColumnForm
+from pyapprox.pde.galerkin.protocols.discretization import (
+    SteadyDiscretizationProtocol,
+)
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
     EssentialPinnedRows,
-)
-from pyapprox.pde.galerkin.time_integration.stack_discretization import (
-    GalerkinStackDiscretization,
 )
 from pyapprox.pde.models.galerkin.unconstrained_system import (
     GalerkinUnconstrainedRightHandSide,
@@ -42,7 +42,7 @@ F = TypeVar("F", bound=FormatProtocol)
 
 
 def galerkin_steady_residual(
-    discretization: GalerkinStackDiscretization[Array, Array, F],
+    discretization: SteadyDiscretizationProtocol[Array, Array, F],
     parameters: Optional[ParameterState[Array]] = None,
     time: Optional[float] = None,
 ) -> PinnedResidual[Array, F]:
@@ -50,8 +50,9 @@ def galerkin_steady_residual(
 
     Parameters
     ----------
-    discretization : GalerkinStackDiscretization
-        The system on a stack.
+    discretization : SteadyDiscretizationProtocol
+        The system on a stack: skfem's SciPy stack, dense backend arrays,
+        or any other.
     parameters : ParameterState, optional
         The parameters; none for a system without them. The initial state
         plays no part, so its parameter derivatives are stated zero.
@@ -63,17 +64,18 @@ def galerkin_steady_residual(
     Raises
     ------
     TypeError
-        If ``discretization`` is not a ``GalerkinStackDiscretization`` or
-        ``parameters`` not a ``ParameterState``.
+        If ``discretization`` does not satisfy
+        ``SteadyDiscretizationProtocol`` or ``parameters`` is not a
+        ``ParameterState``.
     ValueError
         If ``time`` is omitted and the spatial operator or the essential
         constraints are declared time-dependent: the steady state then
         depends on which time is meant. Also if the parameterization
         writes objects the system does not hold.
     """
-    if not isinstance(discretization, GalerkinStackDiscretization):
+    if not isinstance(discretization, SteadyDiscretizationProtocol):
         raise TypeError(
-            "discretization must be a GalerkinStackDiscretization, got "
+            "discretization must satisfy SteadyDiscretizationProtocol, got "
             f"{type(discretization).__name__}"
         )
     system = discretization.system()

@@ -255,7 +255,7 @@ class TestTheBuilderRefuses:
 
     def test_a_system_that_is_not_discretized(self, numpy_bkd: NumpyBkd) -> None:
         system, _, _ = steady_adr(numpy_bkd, False)
-        with pytest.raises(TypeError, match="GalerkinStackDiscretization"):
+        with pytest.raises(TypeError, match="SteadyDiscretizationProtocol"):
             galerkin_steady_residual(system)  # type: ignore[arg-type]
 
     def test_parameters_that_are_not_a_parameter_state(
