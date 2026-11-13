@@ -22,6 +22,7 @@ from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import (
     SteadyDerivatives,
     SteadyHessian,
+    SteadyPointProtocol,
 )
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.interface.functions.derivatives import Derivatives
@@ -51,6 +52,69 @@ class ParameterSetterProtocol(Protocol[Array_contra]):
         ...
 
 
+@runtime_checkable
+class SteadyJacobianProtocol(Protocol):
+    """How a steady functional's Jacobian is formed from its solved
+    point."""
+
+    def jacobian(
+        self,
+        derivatives: SteadyDerivatives[Array, Array, F],
+        point: SteadyPointProtocol[Array],
+        nqoi: int,
+        nvars: int,
+        bkd: Backend[Array],
+    ) -> Array:
+        """:math:`dQ/dp` at ``point``. Shape: ``(nqoi, nvars)``."""
+        ...
+
+
+class AdjointRows:
+    """The Jacobian by rows: one adjoint solve per entry, each with the
+    transposed :math:`R_u`. Cheap with few entries; needs a linear solver
+    whose handle has a transpose."""
+
+    def jacobian(
+        self,
+        derivatives: SteadyDerivatives[Array, Array, F],
+        point: SteadyPointProtocol[Array],
+        nqoi: int,
+        nvars: int,
+        bkd: Backend[Array],
+    ) -> Array:
+        eye = bkd.eye(nqoi)
+        return bkd.vstack(
+            [
+                derivatives.gradient(derivatives.adjoint(point, eye[:, ii : ii + 1])).T
+                for ii in range(nqoi)
+            ]
+        )
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
+
+class TangentColumns:
+    """The Jacobian by columns: one tangent solve per parameter, with
+    :math:`R_u` itself. Cheap with few parameters; needs no transpose."""
+
+    def jacobian(
+        self,
+        derivatives: SteadyDerivatives[Array, Array, F],
+        point: SteadyPointProtocol[Array],
+        nqoi: int,
+        nvars: int,
+        bkd: Backend[Array],
+    ) -> Array:
+        eye = bkd.eye(nvars)
+        return bkd.hstack(
+            [derivatives.tangent(point, eye[:, jj : jj + 1]) for jj in range(nvars)]
+        )
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
+
 class SteadyImplicitFunction(Generic[Array, F]):
     r""":math:`q(p) = Q(u(p);\, p)` with :math:`R(u(p);\, p) = 0`, as a
     function of the parameters.
@@ -62,9 +126,7 @@ class SteadyImplicitFunction(Generic[Array, F]):
 
     - none when the residual has no parameter Jacobian or a term of
       ``functional`` has no first derivatives;
-    - otherwise the Jacobian, by one adjoint solve per entry when there
-      are no more entries than parameters, else by one tangent solve per
-      parameter;
+    - otherwise the Jacobian, formed by ``jacobian``;
     - for a single entry, also the Hessian-vector product when the
       residual and every term carry second derivatives.
 
@@ -90,12 +152,16 @@ class SteadyImplicitFunction(Generic[Array, F]):
         The initial guess of every solve. Shape: ``(nstates, 1)``.
     bkd : Backend
         The backend of the samples and values.
+    jacobian : SteadyJacobianProtocol, optional
+        How the Jacobian is formed. Default: :class:`AdjointRows` when
+        there are no more entries than parameters, else
+        :class:`TangentColumns`, whichever takes fewer solves.
 
     Raises
     ------
     TypeError
-        If ``parameters`` or ``functional`` is of the wrong type (the
-        others are checked by
+        If ``parameters``, ``functional`` or ``jacobian`` is of the wrong
+        type (the others are checked by
         :class:`~pyapprox.implicitfunction.steady_system.SteadySystem`).
     ValueError
         If ``init_state`` does not have shape ``(nstates, 1)``.
@@ -111,6 +177,7 @@ class SteadyImplicitFunction(Generic[Array, F]):
         functional: StateFunctional[Array, Array],
         init_state: Array,
         bkd: Backend[Array],
+        jacobian: Optional[SteadyJacobianProtocol] = None,
     ) -> None:
         self._system: SteadySystem[Array, Array, F] = SteadySystem(
             residual, space, setups
@@ -124,6 +191,18 @@ class SteadyImplicitFunction(Generic[Array, F]):
             raise TypeError(
                 f"functional must be a StateFunctional, got {type(functional).__name__}"
             )
+        if jacobian is None:
+            jacobian = (
+                AdjointRows()
+                if functional.nqoi() <= parameters.nparams()
+                else TangentColumns()
+            )
+        if not isinstance(jacobian, SteadyJacobianProtocol):
+            raise TypeError(
+                "jacobian must satisfy SteadyJacobianProtocol, got "
+                f"{type(jacobian).__name__}"
+            )
+        self._jacobian_strategy = jacobian
         nstates = space.descriptor().size
         if tuple(init_state.shape) != (nstates, 1):
             raise ValueError(
@@ -226,17 +305,8 @@ class SteadyImplicitFunction(Generic[Array, F]):
         derivatives = self._derivatives_or_raise()
         validate_sample(self.nvars(), sample)
         point = self._solve(sample)
-        bkd, nqoi, nvars = self._bkd, self.nqoi(), self.nvars()
-        if nqoi <= nvars:
-            eye = bkd.eye(nqoi)
-            rows = [
-                derivatives.gradient(derivatives.adjoint(point, eye[:, ii : ii + 1])).T
-                for ii in range(nqoi)
-            ]
-            return bkd.vstack(rows)
-        eye = bkd.eye(nvars)
-        return bkd.hstack(
-            [derivatives.tangent(point, eye[:, jj : jj + 1]) for jj in range(nvars)]
+        return self._jacobian_strategy.jacobian(
+            derivatives, point, self.nqoi(), self.nvars(), self._bkd
         )
 
     def _hvp(self, sample: Array, vec: Array) -> Array:
@@ -253,5 +323,5 @@ class SteadyImplicitFunction(Generic[Array, F]):
     def __repr__(self) -> str:
         return (
             f"{type(self).__name__}(nvars={self.nvars()}, nqoi={self.nqoi()}, "
-            f"derivatives={self._derivs!r})"
+            f"jacobian={self._jacobian_strategy!r}, derivatives={self._derivs!r})"
         )

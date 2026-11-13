@@ -14,6 +14,10 @@ plate at (E, nu) = (1, 0.3); the heat problem frozen at t* = 0.03.
   error below 1e-6).
 - The states at the middle and last-but-one DOFs (two entries, at most the
   number of parameters): the Jacobian to 1e-8 relative.
+- Downgrade: the :math:`u^2` reaction declared without its second
+  derivative gives a residual bundle with no second-order fields (absent,
+  not a stated zero), so the function has no HVP; its Jacobian still
+  passes central finite differences (below 1e-6).
 """
 
 import pytest
@@ -157,3 +161,39 @@ def test_vector_jacobian(numpy_bkd: NumpyBkd, name: str) -> None:
     new, old = pair.new.derivatives(), pair.old.derivatives()
     assert new.jacobian is not None and old.jacobian is not None
     _close(new.jacobian(pair.param), old.jacobian(pair.param), 1e-8)
+
+
+def test_missing_state_curvature_downgrades_to_the_jacobian(
+    numpy_bkd: NumpyBkd,
+) -> None:
+    bkd = numpy_bkd
+    system, parameterization, _ = steady_adr(bkd, True, curvature=False)
+    n = system.nstates()
+    discretization = skfem_discretization(system)
+    space = discretization.space()
+    assert isinstance(space, InnerProductSpaceProtocol)
+    parameters = ParameterState(parameterization)
+    residual = galerkin_steady_residual(discretization, parameters)
+    bundle = residual.derivatives()
+    assert bundle.param is not None
+    assert bundle.state_state is None and bundle.param_param is None
+    functional: StateFunctional[_Np, _Np] = StateFunctional.from_terms(
+        bkd, 1, state_terms=(ObservedValue(StateEntries(bkd, n, [n // 2])),)
+    )
+    function: SteadyImplicitFunction[_Np, Any] = SteadyImplicitFunction(
+        residual,
+        space,
+        parameters,
+        KeepAll(ScipySparseLU()),
+        Newton(atol=1e-13, rtol=0.0, maxiters=30),
+        functional,
+        np.zeros((n, 1)),
+        bkd,
+    )
+    derivs = function.derivatives()
+    assert derivs.jacobian is not None and derivs.hvp is None
+    errors = DerivativeChecker(function).check_derivatives(
+        ADR_PARAM, relative=True, central=True
+    )
+    assert len(errors) == 1
+    assert bkd.to_float(bkd.min(errors[0])) < 1e-6

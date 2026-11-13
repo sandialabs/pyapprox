@@ -70,25 +70,28 @@ def _square_deriv2(x: _Np, u: _Np) -> _Np:
 
 
 def steady_adr(
-    bkd: NumpyBkd, nonlinear: bool
+    bkd: NumpyBkd, nonlinear: bool, curvature: bool = True
 ) -> Tuple[
     GalerkinSystem[_Np],
     AdvectionDiffusionParameterization[_Np],
     LagrangeBasis[_Np],
 ]:
     """The 1D diffusion problem, with the reaction :math:`u^2` if
-    ``nonlinear``: the system, its parameterization and its basis."""
+    ``nonlinear``: the system, its parameterization and its basis.
+    Without ``curvature`` the reaction declares no second derivative, so
+    the physics has no state curvature."""
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
+    reaction = (
+        CallableReaction(_square, _square_deriv, _square_deriv2 if curvature else None)
+        if nonlinear
+        else None
+    )
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=NodalFieldDiffusion(basis),
         bkd=bkd,
-        reaction=(
-            CallableReaction(_square, _square_deriv, _square_deriv2)
-            if nonlinear
-            else None
-        ),
+        reaction=reaction,
         forcing=TimeIndependent(_unit_forcing),
     )
     system = compose_galerkin_system(

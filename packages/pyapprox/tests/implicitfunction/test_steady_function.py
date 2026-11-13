@@ -14,15 +14,17 @@ pinned to :math:`(p_0^2 + 1, p_0 p_1)`) with :math:`Q = g + r`
 - The functional stacked twice (no more entries than parameters: one
   adjoint per entry) and three times (more: one tangent per parameter)
   gives every row equal to the scalar gradient to 1e-12, and no HVP.
+- ``AdjointRows`` and ``TangentColumns`` passed explicitly give the
+  default's Jacobian to 1e-12 for one, two and three entries.
 - No derivatives when the residual has no parameter Jacobian or a term
   has none; the values still work.
 - Each sample clears the setup strategy once.
 - Refusals: ``init_state`` of the wrong shape, a non-setter, a
-  non-functional, parameters the residual does not read, a solve that
-  does not converge.
+  non-functional, a non-strategy, parameters the residual does not read,
+  a solve that does not converge.
 """
 
-from typing import Generic, List, Tuple
+from typing import Generic, List, Optional, Tuple
 
 import pytest
 
@@ -33,7 +35,12 @@ from pyapprox.implicitfunction.setups import (
 )
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
-from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
+from pyapprox.implicitfunction.steady_function import (
+    AdjointRows,
+    SteadyImplicitFunction,
+    SteadyJacobianProtocol,
+    TangentColumns,
+)
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -89,6 +96,7 @@ def _function(
     functional_order: int = 2,
     nqoi: int = 1,
     maxiters: int = 30,
+    jacobian: Optional[SteadyJacobianProtocol] = None,
 ) -> Tuple[SteadyImplicitFunction[Array, _Format[Array]], _CountingClears[Array]]:
     f, pinned = pinned_quadratic(bkd, residual_order)
     one = quadratic_functional(f, functional_order)
@@ -103,6 +111,7 @@ def _function(
         functional,
         bkd.zeros((3, 1)),
         bkd,
+        jacobian,
     )
     return function, setups
 
@@ -173,6 +182,21 @@ class TestDerivatives:
         bkd.assert_allclose(
             derivs.jacobian(p), bkd.vstack([gradient] * nqoi), rtol=1e-12
         )
+
+    @pytest.mark.parametrize("nqoi", [1, 2, 3])
+    @pytest.mark.parametrize(
+        "strategy", [AdjointRows(), TangentColumns()], ids=["adjoint", "tangent"]
+    )
+    def test_either_strategy_overrides_the_default(
+        self, bkd: Backend[Array], nqoi: int, strategy: SteadyJacobianProtocol
+    ) -> None:
+        default, _ = _function(bkd, nqoi=nqoi)
+        chosen, _ = _function(bkd, nqoi=nqoi, jacobian=strategy)
+        expected, actual = default.derivatives().jacobian, chosen.derivatives().jacobian
+        assert expected is not None and actual is not None
+        p = _param(bkd)
+        bkd.assert_allclose(actual(p), expected(p), rtol=1e-12)
+        assert repr(strategy) in repr(chosen)
 
     @pytest.mark.parametrize("orders", [(0, 2), (2, 0)], ids=["residual", "functional"])
     def test_none_without_first_derivatives(
@@ -264,3 +288,7 @@ class TestRefusals:
         function, _ = _function(bkd, maxiters=1)
         with pytest.raises(RuntimeError, match="did not converge"):
             function(_param(bkd))
+
+    def test_a_jacobian_that_is_not_a_strategy(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(TypeError, match="SteadyJacobianProtocol"):
+            _function(bkd, jacobian=3.0)  # type: ignore[arg-type]
