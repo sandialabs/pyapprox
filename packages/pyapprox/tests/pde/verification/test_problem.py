@@ -11,7 +11,8 @@ with :math:`D = 2`, :math:`v = (x, 0)`, :math:`R(u) = u^2`: gradient
 
 Boundary data on each side (Dirichlet, Neumann, Robin with a constant and
 a variable :math:`\alpha`) equal :math:`u^*`, :math:`q n` and
-:math:`\alpha u^* + q n` exactly. Transient: :math:`u^* = x(1-x)e^{-t}`
+:math:`q n - \alpha u^*` exactly, and ``Robin(0)`` gives ``Neumann()``'s
+data. Transient: :math:`u^* = x(1-x)e^{-t}`
 with :math:`D = 1` has :math:`f = (2 - x(1-x)) e^{-t}`. Domains and
 refusals.
 """
@@ -112,8 +113,10 @@ class TestAdvectionDiffusionReaction:
         flux = (-4 * x * y + x**3 * y) * nx - 2 * x**2 * ny
         assert _same(problem.boundary_data("left")[0], u)
         assert _same(problem.boundary_data("right")[0], flux)
-        assert _same(problem.boundary_data("bottom")[0], 3 * u + flux)
-        assert _same(problem.boundary_data("top")[0], x * u + flux)
+        assert _same(problem.boundary_data("bottom")[0], flux - 3 * u)
+        assert _same(problem.boundary_data("top")[0], flux - x * u)
+        neumann = Neumann().data(problem)[0]
+        assert _same(Robin(0.0).data(problem)[0], neumann)
 
     def test_coefficients(self) -> None:
         problem = _problem(True)

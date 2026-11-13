@@ -11,8 +11,14 @@ outward unit normal (symbols ``nx, ny, nz``):
 
 - :class:`Dirichlet`: :math:`u = g`, :math:`g = u^*`;
 - :class:`Neumann`: :math:`q(u)\, n = g`, :math:`g = q(u^*)\, n`;
-- :class:`Robin`: :math:`\alpha u + q(u)\, n = g`, :math:`g = \alpha u^*
-  + q(u^*)\, n`.
+- :class:`Robin`: :math:`q(u)\, n - \alpha u = g`, :math:`g = q(u^*)\, n
+  - \alpha u^*`.
+
+Natural data are written with the outward flux :math:`q\, n`. In Robin
+the outward flux grows with :math:`u`, so a positive :math:`\alpha` is the
+well-posed sign (for diffusion, :math:`q = -D\nabla u` and Robin reads
+:math:`D\,\partial_n u + \alpha u = -g`), and ``Robin(0)`` is
+``Neumann()``.
 
 Time needs nothing here: the data depend on ``t`` exactly when the
 solution or :math:`\alpha` does.
@@ -71,7 +77,8 @@ class Neumann:
 
 
 class Robin:
-    r""":math:`\alpha u + q(u)\, n = \alpha u^* + q(u^*)\, n`.
+    r""":math:`q(u)\, n - \alpha u = q(u^*)\, n - \alpha u^*`; positive
+    :math:`\alpha` is well posed.
 
     Parameters
     ----------
@@ -99,9 +106,9 @@ class Robin:
         return self._expression
 
     def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
-        r""":math:`\alpha u^* + q(u^*)\, n`."""
+        r""":math:`q(u^*)\, n - \alpha u^*`."""
         return tuple(
-            self._expression * u + flux
+            flux - self._expression * u
             for u, flux in zip(fields.solution(), fields.normal_flux())
         )
 
