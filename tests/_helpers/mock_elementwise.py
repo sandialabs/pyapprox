@@ -37,18 +37,13 @@ from pyapprox.pde.elementwise import (
     check_element_block,
     element_jacobian_blocks,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.system import GalerkinSteadySystem
 from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.rom import AlgebraicLift
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
-from tests._helpers.rom_problem import FixedValue, RomProblem
+from tests._helpers.rom_problem import DenseSteadyState, FixedValue, RomProblem
 
 _Points = NDArray[np.floating[Any]]
 
@@ -398,7 +393,6 @@ def _mock_p1_adr(bkd: NumpyBkd, name: str, reaction: bool, ncells: int) -> RomPr
     constraint_set = DirichletConstraintSet(
         [FixedValue(0, 1.0, bkd), FixedValue(nnodes - 1, 2.0, bkd)], nnodes, bkd
     )
-    system = GalerkinSteadySystem(operator, constraint_set)
     weights = np.full(nnodes, 1.0 / ncells)
     weights[[0, -1]] *= 0.5
     rng = np.random.default_rng(0)
@@ -406,11 +400,8 @@ def _mock_p1_adr(bkd: NumpyBkd, name: str, reaction: bool, ncells: int) -> RomPr
         name=name,
         bkd=bkd,
         residual=GalerkinParameterizedResidual(operator, param_obj),
-        state_equation=GalerkinParameterizedStateEquation(
-            system.steady(),
-            param_obj,
-            bkd,
-            solver=SteadyStateSolver(system.steady(), tol=1e-10),
+        steady_state=DenseSteadyState(
+            operator, param_obj, constraint_set, bkd, atol=1e-10
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, nnodes),

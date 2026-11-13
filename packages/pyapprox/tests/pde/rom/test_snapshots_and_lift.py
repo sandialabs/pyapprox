@@ -1,4 +1,4 @@
-"""Snapshot collection and homogenization by a lift.
+"""Snapshots and their homogenization by a lift.
 
 Steady setup: -(kappa u')' = 1 on [0, 1], u(0) = 1, u(1) = 2, P1 on 10
 cells, kappa = exp(W p) with three smooth modes. Transient setup: the
@@ -6,7 +6,7 @@ same operator as a heat equation, u(0, t) = 0 and a moving right end
 u(1, t) = 0.5 sin(4 t), from u(x, 0) = 0.3 sin(pi x), backward Euler
 over [0, 0.02] with dt = 0.005.
 
-Checks are derivation-free: a collected steady snapshot must make the
+Checks are derivation-free: a steady snapshot must make the
 raw residual vanish on every unconstrained row and carry the boundary
 data on the constrained ones; a transient snapshot's right end must
 equal the boundary formula at its own time; a homogenized snapshot must
@@ -60,8 +60,6 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
 from pyapprox.pde.rom import (
     AlgebraicLift,
     SnapshotSet,
-    collect_steady_snapshots,
-    collect_transient_snapshots,
     concatenate_snapshot_sets,
     homogenize,
 )
@@ -69,6 +67,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.rom_problem import SolvedFromZero, steady_snapshots
 
 _Points = NDArray[np.floating[Any]]
 
@@ -190,10 +189,23 @@ def _steady_snapshots(
 ]:
     system, param_obj, basis = _steady_problem(bkd)
     state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
-    snapshots = collect_steady_snapshots(
-        state_eq, bkd.asarray(_SAMPLES), bkd.zeros((system.nstates(), 1))
+    snapshots = steady_snapshots(
+        SolvedFromZero(state_eq, bkd), bkd.asarray(_SAMPLES), bkd
     )
     return snapshots, system, param_obj, basis
+
+
+def _transient_snapshots(
+    model: GalerkinTransientForwardModel[NumpyArray], samples: NumpyArray
+) -> SnapshotSet[NumpyArray]:
+    """Every state of the trajectory at each column of ``samples``."""
+    bkd = model.bkd()
+    sets = []
+    for ii in range(samples.shape[1]):
+        sample = samples[:, ii : ii + 1]
+        states, times = model.forward_solve(sample)
+        sets.append(SnapshotSet.from_trajectory(states, sample, times, bkd))
+    return concatenate_snapshot_sets(sets, bkd)
 
 
 class TestSnapshotSet:
@@ -236,8 +248,33 @@ class TestSnapshotSet:
         with pytest.raises(ValueError, match="steady and transient"):
             concatenate_snapshot_sets([steady, transient], bkd)
 
+    def test_from_trajectory_pairs_every_state_with_the_parameter(
+        self, bkd: Backend[Array]
+    ) -> None:
+        states = bkd.reshape(bkd.arange(6.0), (2, 3))
+        param = bkd.asarray([[0.5], [-1.0]])
+        times = bkd.asarray([0.0, 0.1, 0.2])
+        snapshots = SnapshotSet.from_trajectory(states, param, times, bkd)
+        bkd.assert_allclose(snapshots.states, states)
+        bkd.assert_allclose(
+            snapshots.params, bkd.asarray([[0.5, 0.5, 0.5], [-1.0, -1.0, -1.0]])
+        )
+        assert snapshots.times is not None
+        bkd.assert_allclose(snapshots.times, times)
 
-class TestSteadyCollection:
+    def test_from_trajectory_rejects_bad_shapes(self, bkd: Backend[Array]) -> None:
+        states, times = bkd.zeros((2, 3)), bkd.zeros((3,))
+        with pytest.raises(ValueError, match="nparams, 1"):
+            SnapshotSet.from_trajectory(states, bkd.zeros((2,)), times, bkd)
+        with pytest.raises(ValueError, match="1D"):
+            SnapshotSet.from_trajectory(states, bkd.zeros((2, 1)), states, bkd)
+        with pytest.raises(ValueError, match="columns"):
+            SnapshotSet.from_trajectory(
+                states, bkd.zeros((2, 1)), bkd.zeros((4,)), bkd
+            )
+
+
+class TestSteadySnapshots:
     def test_snapshots_solve_the_raw_residual(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         snapshots, system, param_obj, basis = _steady_snapshots(bkd)
@@ -255,37 +292,13 @@ class TestSteadyCollection:
             bkd.assert_allclose(state[basis.get_dofs("left")], bkd.asarray([1.0]))
             bkd.assert_allclose(state[basis.get_dofs("right")], bkd.asarray([2.0]))
 
-    def test_independent_of_sample_order(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        snapshots, system, param_obj, _ = _steady_snapshots(bkd)
-        state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
-        reversed_snapshots = collect_steady_snapshots(
-            state_eq,
-            bkd.asarray(_SAMPLES[:, ::-1].copy()),
-            bkd.zeros((system.nstates(), 1)),
-        )
-        bkd.assert_allclose(
-            reversed_snapshots.states,
-            bkd.flip(snapshots.states, axis=(1,)),
-            rtol=1e-12,
-        )
 
-    def test_rejects_wrong_sample_shape(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, param_obj, _ = _steady_problem(bkd)
-        state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
-        with pytest.raises(ValueError, match="samples"):
-            collect_steady_snapshots(
-                state_eq, bkd.zeros((2, 1)), bkd.zeros((system.nstates(), 1))
-            )
-
-
-class TestTransientCollection:
+class TestTransientSnapshots:
     def test_columns_pair_states_params_times(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         model, _, basis = _transient_problem(bkd)
         samples = bkd.asarray(_SAMPLES[:, :2].copy())
-        snapshots = collect_transient_snapshots(model, samples)
+        snapshots = _transient_snapshots(model, samples)
         assert snapshots.times is not None
         ntimes = 5
         assert snapshots.nsnapshots() == 2 * ntimes
@@ -331,9 +344,7 @@ class TestHomogenize:
     def test_transient_uses_each_snapshots_time(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         model, system, basis = _transient_problem(bkd)
-        snapshots = collect_transient_snapshots(
-            model, bkd.asarray(_SAMPLES[:, :1].copy())
-        )
+        snapshots = _transient_snapshots(model, bkd.asarray(_SAMPLES[:, :1].copy()))
         constraint_set = system.constraint_set()
         lift = AlgebraicLift(constraint_set, system.nstates())
         homogenized = homogenize(snapshots, lift, constraint_set)
@@ -356,9 +367,7 @@ class TestHomogenize:
     def test_rejects_times_paired_with_wrong_states(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         model, system, _ = _transient_problem(bkd)
-        snapshots = collect_transient_snapshots(
-            model, bkd.asarray(_SAMPLES[:, :1].copy())
-        )
+        snapshots = _transient_snapshots(model, bkd.asarray(_SAMPLES[:, :1].copy()))
         assert snapshots.times is not None
         shuffled = SnapshotSet(
             snapshots.states,

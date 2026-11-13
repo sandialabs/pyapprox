@@ -38,7 +38,6 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.system import GalerkinSteadySystem
 from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinParameterizedStateEquation,
@@ -56,7 +55,12 @@ from pyapprox.util.linalg.inner_product import (
     MassInnerProduct,
 )
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.rom_problem import FixedValue, RomProblem
+from tests._helpers.rom_problem import (
+    DenseSteadyState,
+    FixedValue,
+    RomProblem,
+    SolvedFromZero,
+)
 
 _Points = NDArray[np.floating[Any]]
 
@@ -140,11 +144,14 @@ def _galerkin_adr(
         name=name,
         bkd=bkd,
         residual=GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
-        state_equation=GalerkinParameterizedStateEquation(
-            system.steady(),
-            param_obj,
+        steady_state=SolvedFromZero(
+            GalerkinParameterizedStateEquation(
+                system.steady(),
+                param_obj,
+                bkd,
+                solver=SteadyStateSolver(system.steady(), tol=newton_tol),
+            ),
             bkd,
-            solver=SteadyStateSolver(system.steady(), tol=newton_tol),
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, system.nstates()),
@@ -314,7 +321,7 @@ def _finite_difference_adr(bkd: NumpyBkd, name: str, reaction: bool) -> RomProbl
     Built only from discretization-neutral pieces: a
     ``SpatialOperatorProtocol``, ``DirichletConstraintSet`` over
     ``EssentialBCProtocol`` objects, a parameterization targeting the
-    operator, and the generic steady system and state equation.
+    operator, and the generic pinned steady residual and Newton.
     """
     nnodes = 11
     operator = _FiniteDifferenceADR(nnodes, reaction, bkd)
@@ -324,7 +331,6 @@ def _finite_difference_adr(bkd: NumpyBkd, name: str, reaction: bool) -> RomProbl
         nnodes,
         bkd,
     )
-    system = GalerkinSteadySystem(operator, constraint_set)
     weights = np.full(nnodes, 1.0 / (nnodes - 1))
     weights[[0, -1]] *= 0.5
     rng = np.random.default_rng(0)
@@ -332,8 +338,8 @@ def _finite_difference_adr(bkd: NumpyBkd, name: str, reaction: bool) -> RomProbl
         name=name,
         bkd=bkd,
         residual=GalerkinParameterizedResidual(operator, param_obj),
-        state_equation=GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
+        steady_state=DenseSteadyState(
+            operator, param_obj, constraint_set, bkd, atol=1e-12
         ),
         constraint_set=constraint_set,
         lift=AlgebraicLift(constraint_set, nnodes),

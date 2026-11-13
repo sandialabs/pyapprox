@@ -2,8 +2,9 @@
 
 Snapshots
 ---------
-- SnapshotSet: full-order states with the parameter and time of each
-- collect_steady_snapshots / collect_transient_snapshots
+- SnapshotSet: full-order states with the parameter and time of each,
+  however the caller computed them; ``from_trajectory`` pairs one
+  trajectory with its parameter
 - concatenate_snapshot_sets
 
 Lifts
@@ -87,9 +88,6 @@ from .projection import (
 from .sampled import ElementSampledResidual
 from .snapshots import (
     SnapshotSet,
-    TrajectorySolverProtocol,
-    collect_steady_snapshots,
-    collect_transient_snapshots,
     concatenate_snapshot_sets,
 )
 from .steady import ReducedNewtonResidual, full_state, solve_reduced_steady
@@ -106,9 +104,6 @@ from .trial_space import (
 
 __all__ = [
     "SnapshotSet",
-    "TrajectorySolverProtocol",
-    "collect_steady_snapshots",
-    "collect_transient_snapshots",
     "concatenate_snapshot_sets",
     "LiftProtocol",
     "AlgebraicLift",

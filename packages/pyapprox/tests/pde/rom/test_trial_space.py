@@ -58,7 +58,6 @@ from pyapprox.pde.rom import (
     LinearTrialSpace,
     SnapshotSet,
     TrialSpaceProtocol,
-    collect_steady_snapshots,
     fit_pod_trial_space,
     homogenize,
     projection_errors,
@@ -73,6 +72,7 @@ from pyapprox.util.linalg.inner_product import (
     MassInnerProduct,
 )
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.rom_problem import SolvedFromZero, steady_snapshots
 
 _Points = NDArray[np.floating[Any]]
 
@@ -147,8 +147,8 @@ def _galerkin(
     )
     state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
     samples = np.random.default_rng(2).uniform(-0.5, 0.5, size=(3, 12))
-    snapshots = collect_steady_snapshots(
-        state_eq, bkd.asarray(samples), bkd.zeros((system.nstates(), 1))
+    snapshots = steady_snapshots(
+        SolvedFromZero(state_eq, bkd), bkd.asarray(samples), bkd
     )
     constraint_set = system.constraint_set()
     homogenized = homogenize(

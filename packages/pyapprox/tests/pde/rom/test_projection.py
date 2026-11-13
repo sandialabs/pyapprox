@@ -68,7 +68,6 @@ from pyapprox.pde.rom import (
     SnapshotSet,
     TangentOperatorProtocol,
     TrialSpaceProtocol,
-    collect_steady_snapshots,
     fit_pod_trial_space,
     homogenize,
 )
@@ -76,6 +75,7 @@ from pyapprox.surrogates.kle import as_basis_operator
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.inner_product import MassInnerProduct
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.rom_problem import SolvedFromZero, steady_snapshots
 
 _NSAMPLES = 12
 
@@ -137,8 +137,8 @@ class _Problem:
         )
         state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
         samples = np.random.default_rng(5).uniform(-0.5, 0.5, size=(3, _NSAMPLES))
-        snapshots = collect_steady_snapshots(
-            state_eq, bkd.asarray(samples), bkd.zeros((system.nstates(), 1))
+        snapshots = steady_snapshots(
+            SolvedFromZero(state_eq, bkd), bkd.asarray(samples), bkd
         )
         constraint_set = system.constraint_set()
         self.lift = AlgebraicLift(constraint_set, system.nstates())

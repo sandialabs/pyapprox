@@ -8,17 +8,14 @@ residuals evaluated at that parameter and time. :class:`SnapshotSet`
 keeps the three together, one column per snapshot, so they cannot be
 paired up wrongly downstream.
 
-Snapshots are collected through protocols every steady state equation
-and every transient forward model already satisfies, so nothing here
-depends on the discretization that produced them.
+How the states are computed is the caller's choice: a reduced model reads
+only the data, so nothing here depends on the solver or the
+discretization that produced them.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, Sequence, Tuple, runtime_checkable
+from typing import Generic, Optional, Sequence
 
-from pyapprox.implicitfunction.state_equations.protocols import (
-    SteadyStateEquationProtocol,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -73,6 +70,39 @@ class SnapshotSet(Generic[Array]):
                     f"has {nsnapshots} columns"
                 )
 
+    @staticmethod
+    def from_trajectory(
+        states: Array, param: Array, times: Array, bkd: Backend[Array]
+    ) -> "SnapshotSet[Array]":
+        """One trajectory's states, each paired with the parameter that
+        produced the whole trajectory and with its own time.
+
+        Parameters
+        ----------
+        states : Array
+            The trajectory's states. Shape: (nstates, ntimes).
+        param : Array
+            The parameter it was solved at. Shape: (nparams, 1).
+        times : Array
+            The time of each state. Shape: (ntimes,).
+        bkd : Backend
+            The arrays' backend.
+
+        Raises
+        ------
+        ValueError
+            If ``param`` is not a single column, or the arrays disagree on
+            the number of snapshots.
+        """
+        if param.ndim != 2 or param.shape[1] != 1:
+            raise ValueError(
+                f"param must have shape (nparams, 1), got {tuple(param.shape)}"
+            )
+        if times.ndim != 1:
+            raise ValueError(f"times must be 1D (ntimes,), got ndim={times.ndim}")
+        params = bkd.dot(param, bkd.ones((1, int(times.shape[0]))))
+        return SnapshotSet(states, params, times)
+
     def nstates(self) -> int:
         """Return the number of states per snapshot."""
         return int(self.states.shape[0])
@@ -123,119 +153,3 @@ def concatenate_snapshot_sets(
         return SnapshotSet(states, params)
     times = bkd.concatenate([s.times for s in snapshot_sets if s.times is not None])
     return SnapshotSet(states, params, times)
-
-
-def collect_steady_snapshots(
-    state_equation: SteadyStateEquationProtocol[Array],
-    samples: Array,
-    init_state: Array,
-) -> SnapshotSet[Array]:
-    """Solve a steady state equation at every parameter sample.
-
-    Parameters
-    ----------
-    state_equation : SteadyStateEquationProtocol
-        ``R(u, p) = 0`` with its solve, e.g. the state equation of a
-        steady forward model.
-    samples : Array
-        Parameter samples. Shape: (nparams, nsamples).
-    init_state : Array
-        Initial Newton guess, used for every sample so the result does
-        not depend on the sample order. Shape: (nstates, 1).
-
-    Returns
-    -------
-    SnapshotSet
-        One steady snapshot per sample.
-
-    Raises
-    ------
-    TypeError
-        If ``state_equation`` does not satisfy the protocol.
-    ValueError
-        If ``samples`` or ``init_state`` has the wrong shape.
-    """
-    if not isinstance(state_equation, SteadyStateEquationProtocol):
-        raise TypeError(
-            "state_equation must satisfy SteadyStateEquationProtocol, got "
-            f"{type(state_equation).__name__}"
-        )
-    bkd = state_equation.bkd()
-    nparams, nstates = state_equation.nparams(), state_equation.nstates()
-    if samples.ndim != 2 or samples.shape[0] != nparams:
-        raise ValueError(
-            f"samples must have shape ({nparams}, nsamples), got {tuple(samples.shape)}"
-        )
-    if tuple(init_state.shape) != (nstates, 1):
-        raise ValueError(
-            f"init_state must have shape ({nstates}, 1), got {tuple(init_state.shape)}"
-        )
-    columns = [
-        state_equation.solve(init_state, samples[:, ii : ii + 1])
-        for ii in range(samples.shape[1])
-    ]
-    return SnapshotSet(bkd.hstack(columns), bkd.copy(samples))
-
-
-@runtime_checkable
-class TrajectorySolverProtocol(Protocol, Generic[Array]):
-    """A transient model that returns the trajectory it solves for.
-
-    Satisfied by the Galerkin and collocation transient forward models.
-    """
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
-
-    def nvars(self) -> int:
-        """Return the number of parameters."""
-        ...
-
-    def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
-        """Solve at one parameter sample (nvars, 1).
-
-        Returns the states (nstates, ntimes) and times (ntimes,).
-        """
-        ...
-
-
-def collect_transient_snapshots(
-    model: TrajectorySolverProtocol[Array], samples: Array
-) -> SnapshotSet[Array]:
-    """Solve a transient model at every parameter sample.
-
-    Every time step of every trajectory becomes a snapshot, with its
-    sample repeated as the parameter and its step time as the time.
-
-    Parameters
-    ----------
-    model : TrajectorySolverProtocol
-        The transient model.
-    samples : Array
-        Parameter samples. Shape: (nvars, nsamples).
-
-    Raises
-    ------
-    TypeError
-        If ``model`` does not satisfy the protocol.
-    ValueError
-        If ``samples`` has the wrong shape.
-    """
-    if not isinstance(model, TrajectorySolverProtocol):
-        raise TypeError(
-            f"model must satisfy TrajectorySolverProtocol, got {type(model).__name__}"
-        )
-    bkd = model.bkd()
-    nvars = model.nvars()
-    if samples.ndim != 2 or samples.shape[0] != nvars:
-        raise ValueError(
-            f"samples must have shape ({nvars}, nsamples), got {tuple(samples.shape)}"
-        )
-    sets = []
-    for ii in range(samples.shape[1]):
-        sample = samples[:, ii : ii + 1]
-        states, times = model.forward_solve(sample)
-        params = bkd.dot(sample, bkd.ones((1, int(times.shape[0]))))
-        sets.append(SnapshotSet(states, params, times))
-    return concatenate_snapshot_sets(sets, bkd)
