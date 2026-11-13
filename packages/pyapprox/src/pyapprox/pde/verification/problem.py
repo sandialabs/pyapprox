@@ -11,15 +11,23 @@ discretization, serial or distributed.
 
 Named constants stay symbols in the terms and are replaced by their
 values in everything the problem returns. A problem without a domain
-(``ndim = 0``) is an ODE or DAE: no coordinates, no boundary.
+(``ndim = 0``) is an ODE or DAE: no coordinates, no boundary. The
+coordinates are the domain's, so kinetic equations pose on a phase space
+(``x, v``) the same way PDEs pose on physical space.
 """
 
 from types import MappingProxyType
-from typing import Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import sympy as sp
 
-from pyapprox.pde.expressions.symbols import coordinates, normal, pde_names, time
+from pyapprox.pde.expressions.symbols import (
+    coordinates,
+    jets,
+    normal,
+    pde_names,
+    time,
+)
 from pyapprox.pde.verification.conditions import ConditionProtocol
 from pyapprox.pde.verification.domains import DomainProtocol
 from pyapprox.pde.verification.terms import JetSubstitution, TermProtocol
@@ -30,16 +38,21 @@ _Conditions = Union[ConditionProtocol, Mapping[str, ConditionProtocol]]
 
 
 class _RowFields:
-    """One row's exact solution and normal flux, for a condition."""
+    """One row's exact solution and normal flux, for a condition; the flux
+    is formed only if the condition asks (a row without divergence terms
+    has none)."""
 
-    def __init__(self, solution: sp.Expr, normal_flux: sp.Expr) -> None:
-        self._solution, self._normal_flux = solution, normal_flux
+    def __init__(self, problem: "ManufacturedProblem", row: str) -> None:
+        self._problem, self._row = problem, row
 
     def solution(self) -> sp.Expr:
-        return self._solution
+        return self._problem.solution(self._row)
 
     def normal_flux(self) -> sp.Expr:
-        return self._normal_flux
+        return self._problem.normal_flux(self._row)
+
+    def names(self) -> Names:
+        return self._problem.names()
 
 
 class ManufacturedProblem:
@@ -87,14 +100,14 @@ class ManufacturedProblem:
             raise TypeError(
                 f"domain must satisfy DomainProtocol, got {type(domain).__name__}"
             )
-        ndim = 0 if domain is None else domain.ndim()
-        self._domain, self._ndim = domain, ndim
+        coords = () if domain is None else domain.coordinates()
+        self._domain, self._coords = domain, coords
         self._fields = tuple(solution)
-        self._names = pde_names(ndim, self._fields, constants, functions)
+        self._names = pde_names(coords, self._fields, constants, functions)
         self._solution = {
             name: parse(value, self._names) for name, value in solution.items()
         }
-        allowed = set(coordinates(ndim)) | {time()} | set(self._names.constants())
+        allowed = set(coordinates(coords)) | {time()} | set(self._names.constants())
         for name, expression in self._solution.items():
             extra = expression.free_symbols - allowed
             if extra:
@@ -103,9 +116,15 @@ class ManufacturedProblem:
                     f"coordinates, t and constants; got {sorted(map(str, extra))}"
                 )
         self._terms = self._check_terms(terms)
-        jet = JetSubstitution(self._solution, ndim)
+        intervals: Dict[str, Tuple[float, float]] = {}
+        for coordinate in coords:
+            interval = None if domain is None else domain.interval(coordinate)
+            if interval is not None:
+                intervals[coordinate] = interval
+        jet = JetSubstitution(self._solution, coords, intervals)
         self._forcing: Dict[str, sp.Expr] = {}
         self._flux: Dict[str, Tuple[sp.Expr, ...]] = {}
+        self._boundary_rows: List[str] = []
         for row in self._fields:
             row_terms = [term for term in self._terms if term.row() == row]
             self._forcing[row] = sp.Add(
@@ -117,6 +136,13 @@ class ManufacturedProblem:
                 self._flux[row] = tuple(
                     jet(sp.Add(*column)) for column in zip(*present)
                 )
+            own = set(jets(row, coords)) - {sp.Symbol(row)}
+            used: "set[sp.Basic]" = set()
+            for term in row_terms:
+                for expression in term.expressions(self._names):
+                    used |= expression.free_symbols
+            if present or used & own:
+                self._boundary_rows.append(row)
         self._conditions = self._check_conditions(conditions or {})
 
     def _check_terms(self, terms: Sequence[TermProtocol]) -> Tuple[TermProtocol, ...]:
@@ -146,6 +172,11 @@ class ManufacturedProblem:
                 f"other: missing {sorted(missing)}, unknown {sorted(unknown)}"
             )
         rows = self.boundary_rows()
+        allowed = (
+            set(coordinates(self._coords))
+            | {time()}
+            | set(self._names.constants())
+        )
         checked: Dict[str, Mapping[str, ConditionProtocol]] = {}
         for part, given in conditions.items():
             if isinstance(given, Mapping):
@@ -163,6 +194,14 @@ class ManufacturedProblem:
                         f"condition on {part!r}, row {row!r} must satisfy "
                         f"ConditionProtocol, got {type(condition).__name__}"
                     )
+                for expression in condition.expressions(self._names):
+                    extra = expression.free_symbols - allowed
+                    if extra:
+                        raise ValueError(
+                            f"{condition!r} on {part!r} may depend only on the "
+                            f"coordinates, t and constants; got "
+                            f"{sorted(map(str, extra))}"
+                        )
             checked[part] = MappingProxyType(per_row)
         return MappingProxyType(checked)
 
@@ -174,8 +213,12 @@ class ManufacturedProblem:
         return self._domain
 
     def ndim(self) -> int:
-        """The spatial dimension (0 for an ODE or DAE)."""
-        return self._ndim
+        """The number of coordinates (0 for an ODE or DAE)."""
+        return len(self._coords)
+
+    def coordinates(self) -> Tuple[str, ...]:
+        """The coordinate names."""
+        return self._coords
 
     def fields(self) -> Tuple[str, ...]:
         """The field names, which name the rows."""
@@ -195,9 +238,11 @@ class ManufacturedProblem:
         return max(term.time_order() for term in self.terms(row))
 
     def boundary_rows(self) -> Tuple[str, ...]:
-        """The rows with divergence terms, which take boundary
-        conditions."""
-        return tuple(row for row in self._fields if row in self._flux)
+        """The rows that take boundary conditions: those with a divergence
+        term or a spatial derivative of their own field (a transport row
+        in advective form). A row differentiating only other fields (a
+        Stokes continuity row) takes none."""
+        return tuple(self._boundary_rows)
 
     def is_transient(self) -> bool:
         """Whether a row has a time derivative or an expression depends on
@@ -236,7 +281,7 @@ class ManufacturedProblem:
         flux = self.flux(row)
         if flux is None:
             raise ValueError(f"row {row!r} has no divergence terms")
-        return sp.Add(*(q * n for q, n in zip(flux, normal(self._ndim))))
+        return sp.Add(*(q * n for q, n in zip(flux, normal(self._coords))))
 
     def conditions(self, part: str) -> Mapping[str, ConditionProtocol]:
         """The condition on each boundary row of boundary part ``part``."""
@@ -246,13 +291,14 @@ class ManufacturedProblem:
         return self._conditions[part]
 
     def boundary_data(self, part: str) -> Dict[str, sp.Expr]:
-        """The data of the conditions on boundary part ``part``, by row."""
-        return {
-            row: condition.data(
-                _RowFields(self.solution(row), self.normal_flux(row))
-            )
-            for row, condition in self.conditions(part).items()
-        }
+        """The data of the conditions on boundary part ``part``, by row;
+        rows whose condition has no data (periodic) are left out."""
+        data: Dict[str, sp.Expr] = {}
+        for row, condition in self.conditions(part).items():
+            value = condition.data(_RowFields(self, row))
+            if value is not None:
+                data[row] = self._values(value)
+        return data
 
     def _check_row(self, row: str) -> str:
         if row not in self._fields:
@@ -262,5 +308,5 @@ class ManufacturedProblem:
     def __repr__(self) -> str:
         return (
             f"{type(self).__name__}(fields={list(self._fields)}, "
-            f"ndim={self._ndim}, domain={self._domain!r})"
+            f"domain={self._domain!r})"
         )

@@ -7,13 +7,17 @@ discretization evaluates and enforces a condition is its own business.
 
 A condition acts on one row (equation) of a problem. With :math:`u^*` the
 exact solution of that row's field, :math:`q(u^*)` the flux of the row's
-divergence terms and :math:`n` the outward unit normal (symbols ``nx,
-ny, nz``):
+divergence terms and :math:`n` the outward unit normal (symbols ``n``
+followed by each coordinate, e.g. ``nx, ny``):
 
 - :class:`Dirichlet`: :math:`u = g`, :math:`g = u^*`;
 - :class:`Neumann`: :math:`q(u)\, n = g`, :math:`g = q(u^*)\, n`;
 - :class:`Robin`: :math:`q(u)\, n - \alpha u = g`, :math:`g = q(u^*)\, n
-  - \alpha u^*`.
+  - \alpha u^*`;
+- :class:`Periodic`: the solution on this part equals that on the
+  opposite part; no data. A problem must make both parts of a pair
+  periodic, and the exact solution periodic across them; neither is
+  checked here.
 
 Natural data are written with the outward flux :math:`q\, n`. In Robin
 the outward flux grows with :math:`u`, so a positive :math:`\alpha` is the
@@ -30,11 +34,11 @@ visitor's method for that kind. A new kind adds a visitor method, so mypy
 reports every stack that does not yet handle it.
 """
 
-from typing import Protocol, TypeVar, Union, runtime_checkable
+from typing import Optional, Protocol, Tuple, TypeVar, Union, runtime_checkable
 
 import sympy as sp
 
-from pyapprox.pde.expressions.symbols import coordinates, pde_names, time
+from pyapprox.util.expressions.names import Names
 from pyapprox.util.expressions.parsing import parse
 
 T = TypeVar("T")
@@ -57,6 +61,10 @@ class ConditionVisitorProtocol(Protocol[T_co]):
         """The stack's object for a Robin condition."""
         ...
 
+    def periodic(self, condition: "Periodic") -> T_co:
+        """The stack's object for a periodic condition."""
+        ...
+
 
 @runtime_checkable
 class BoundaryFieldsProtocol(Protocol):
@@ -72,13 +80,23 @@ class BoundaryFieldsProtocol(Protocol):
         normal symbols."""
         ...
 
+    def names(self) -> Names:
+        """What the problem's expressions may use."""
+        ...
+
 
 @runtime_checkable
 class ConditionProtocol(Protocol):
     """A kind of boundary equation, and its data."""
 
-    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
-        """The right-hand side :math:`g` on the row."""
+    def expressions(self, names: Names) -> Tuple[sp.Expr, ...]:
+        """The coefficients the condition is written with, parsed (none
+        for most kinds)."""
+        ...
+
+    def data(self, fields: BoundaryFieldsProtocol) -> Optional[sp.Expr]:
+        """The right-hand side :math:`g` on the row; ``None`` for a kind
+        without data."""
         ...
 
     def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
@@ -90,7 +108,11 @@ class ConditionProtocol(Protocol):
 class Dirichlet:
     r""":math:`u = u^*`."""
 
-    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
+    def expressions(self, names: Names) -> Tuple[sp.Expr, ...]:
+        """None."""
+        return ()
+
+    def data(self, fields: BoundaryFieldsProtocol) -> Optional[sp.Expr]:
         r""":math:`u^*`."""
         return fields.solution()
 
@@ -105,7 +127,11 @@ class Dirichlet:
 class Neumann:
     r""":math:`q(u)\, n = q(u^*)\, n`."""
 
-    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
+    def expressions(self, names: Names) -> Tuple[sp.Expr, ...]:
+        """None."""
+        return ()
+
+    def data(self, fields: BoundaryFieldsProtocol) -> Optional[sp.Expr]:
         r""":math:`q(u^*)\, n`."""
         return fields.normal_flux()
 
@@ -124,31 +150,25 @@ class Robin:
     Parameters
     ----------
     alpha : float or str
-        :math:`\alpha`: a constant, or an expression in ``x``, ``y``,
-        ``z``, ``t``.
-
-    Raises
-    ------
-    ValueError
-        If ``alpha`` has symbols other than the coordinates and time.
+        :math:`\alpha`: a number, or an expression in the problem's
+        coordinates, ``t`` and constants (checked by the problem).
     """
 
     def __init__(self, alpha: Union[float, str]) -> None:
-        expression = parse(alpha, pde_names(3))
-        allowed = set(coordinates(3)) | {time()}
-        if not expression.free_symbols <= allowed:
-            names = sorted(str(s) for s in expression.free_symbols - allowed)
-            raise ValueError(f"alpha may depend only on x, y, z, t; got {names}")
         self._alpha = alpha
-        self._expression: sp.Expr = expression
 
-    def alpha(self) -> sp.Expr:
-        r""":math:`\alpha`, in the coordinate and time symbols."""
-        return self._expression
+    def alpha(self, names: Names) -> sp.Expr:
+        r""":math:`\alpha`, parsed against ``names``."""
+        return parse(self._alpha, names)
 
-    def data(self, fields: BoundaryFieldsProtocol) -> sp.Expr:
+    def expressions(self, names: Names) -> Tuple[sp.Expr, ...]:
+        r""":math:`(\alpha,)`."""
+        return (self.alpha(names),)
+
+    def data(self, fields: BoundaryFieldsProtocol) -> Optional[sp.Expr]:
         r""":math:`q(u^*)\, n - \alpha u^*`."""
-        result: sp.Expr = fields.normal_flux() - self._expression * fields.solution()
+        alpha = self.alpha(fields.names())
+        result: sp.Expr = fields.normal_flux() - alpha * fields.solution()
         return result
 
     def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
@@ -157,3 +177,22 @@ class Robin:
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(alpha={self._alpha!r})"
+
+
+class Periodic:
+    r"""The solution here equals that on the opposite part; no data."""
+
+    def expressions(self, names: Names) -> Tuple[sp.Expr, ...]:
+        """None."""
+        return ()
+
+    def data(self, fields: BoundaryFieldsProtocol) -> Optional[sp.Expr]:
+        """None: periodicity has no data."""
+        return None
+
+    def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
+        """``visitor.periodic(self)``."""
+        return visitor.periodic(self)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"

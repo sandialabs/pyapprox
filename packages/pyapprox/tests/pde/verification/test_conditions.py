@@ -1,10 +1,12 @@
 """The condition visitor: each kind calls its own visitor method, and a
 visitor that lacks one does not satisfy the protocol."""
 
+from pyapprox.pde.expressions.symbols import pde_names, standard
 from pyapprox.pde.verification.conditions import (
     ConditionVisitorProtocol,
     Dirichlet,
     Neumann,
+    Periodic,
     Robin,
 )
 
@@ -17,7 +19,10 @@ class _Names:
         return "neumann"
 
     def robin(self, condition: Robin) -> str:
-        return f"robin {condition.alpha()}"
+        return f"robin {condition.alpha(pde_names(standard(1)))}"
+
+    def periodic(self, condition: Periodic) -> str:
+        return "periodic"
 
 
 class _NoRobin:
@@ -34,6 +39,7 @@ def test_each_kind_calls_its_method() -> None:
     assert Dirichlet().accept(visitor) == "dirichlet"
     assert Neumann().accept(visitor) == "neumann"
     assert Robin("1 + x").accept(visitor) == "robin x + 1"
+    assert Periodic().accept(visitor) == "periodic"
 
 
 def test_incomplete_visitor_is_not_one() -> None:

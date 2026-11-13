@@ -31,8 +31,8 @@ class PointExpressions(Generic[Array]):
     names : Names
         What they may use, from
         :func:`~pyapprox.pde.expressions.symbols.pde_names`.
-    ndim : int
-        The spatial dimension.
+    coords : Sequence[str]
+        The coordinate names, in the order of the points' rows.
     bkd : Backend
         The backend of the points and values.
 
@@ -41,25 +41,26 @@ class PointExpressions(Generic[Array]):
     ValueError
         If an expression fails to parse or uses a function the backend
         cannot evaluate, or ``names`` lacks the coordinates, time or
-        normals of ``ndim`` dimensions.
+        normals of ``coords``.
     """
 
     def __init__(
         self,
         expressions: Sequence[Value],
         names: Names,
-        ndim: int,
+        coords: Sequence[str],
         bkd: Backend[Array],
     ) -> None:
-        self._coordinates = coordinates(ndim)
-        self._normal = normal(ndim)
+        self._coordinates = coordinates(coords)
+        self._normal = normal(coords)
         declared = set(names.variables())
         geometry = set(self._coordinates) | set(self._normal) | {time()}
         if not geometry <= declared:
             raise ValueError(
-                f"names must declare the coordinates, t and normals of {ndim} "
-                "dimensions; build them with pde_names"
+                f"names must declare the coordinates, t and normals of "
+                f"{list(coords)}; build them with pde_names"
             )
+        ndim = len(coords)
         parsed = [parse(expression, names) for expression in expressions]
         used: "set[sp.Basic]" = set()
         for expression in parsed:

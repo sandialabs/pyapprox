@@ -41,7 +41,7 @@ from pyapprox.pde.constitutive.advection import (
 )
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
 from pyapprox.pde.expressions.evaluation import PointExpressions
-from pyapprox.pde.expressions.symbols import coordinates, derivative, gradient
+from pyapprox.pde.expressions.symbols import derivative, gradient, standard
 from pyapprox.pde.manufactured.advection_diffusion import (
     ManufacturedAdvectionDiffusionReaction,
 )
@@ -89,7 +89,7 @@ def _vector_solution(ndim: int, scale: str = "1") -> List[str]:
 
 
 def _gradient_matrix(fields: Sequence[str], ndim: int) -> sp.Matrix:
-    return sp.Matrix([list(gradient(name, ndim)) for name in fields])
+    return sp.Matrix([list(gradient(name, standard(ndim))) for name in fields])
 
 
 def _points(bkd: Backend[Array], ndim: int) -> Array:
@@ -107,7 +107,9 @@ def _assert_forcing_agrees(
     ndim, rows = problem.ndim(), problem.fields()
     ours = [problem.forcing(row) for row in rows]
     theirs = [sp.sympify(f).subs(_GENERATOR_TIME, sp.Symbol("t")) for f in generated]
-    evaluate = PointExpressions(ours + theirs, problem.names(), ndim, bkd)
+    evaluate = PointExpressions(
+        ours + theirs, problem.names(), problem.coordinates(), bkd
+    )
     values = evaluate(_points(bkd, ndim), t=0.3)
     nrows = len(rows)
     bkd.assert_allclose(values[:nrows], values[nrows:], rtol=1e-10, atol=1e-10)
@@ -127,7 +129,7 @@ class TestScalar:
         x, y, z = sp.symbols("x y z")
         diffusion = 1 + x**2
         velocity = [sp.Integer(1), y, x * z][:ndim]
-        u, grad = derivative("u"), gradient("u", ndim)
+        u, grad = derivative("u"), gradient("u", standard(ndim))
         terms: List[TermProtocol]
         form: AdvectionFormProtocol
         if conservative:
@@ -162,7 +164,7 @@ class TestScalar:
     def _helmholtz(self, ndim: int, sign: int) -> ManufacturedProblem:
         x = sp.Symbol("x")
         terms: List[TermProtocol] = [
-            Divergence("u", [-g for g in gradient("u", ndim)]),
+            Divergence("u", [-g for g in gradient("u", standard(ndim))]),
             Source("u", -sign * (1 + x) * derivative("u")),
         ]
         return ManufacturedProblem(
@@ -268,7 +270,7 @@ class TestVector:
                 advection = sum(velocity[j] * grad[i, j] for j in range(ndim))
                 terms.append(Source(name, advection))
         terms.append(Source("p", grad.trace()))
-        x = coordinates(ndim)[0]
+        x = sp.Symbol("x")
         solution = _vector_solution(ndim) + [str(x * (1 + x))]
         problem = ManufacturedProblem(
             dict(zip(list(fields) + ["p"], solution)),

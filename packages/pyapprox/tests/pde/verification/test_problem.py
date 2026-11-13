@@ -249,9 +249,11 @@ class TestTime:
         assert _same(problem.forcing("v"), sp.Integer(0))
         assert problem.time_order("v") == 0
 
-    def test_coordinate_names_are_reserved_without_space(self) -> None:
-        with pytest.raises(ValueError, match="field name"):
-            ManufacturedProblem({"y": "t"}, [Source("y", "y")])
+    def test_field_names_free_without_space(self) -> None:
+        problem = ManufacturedProblem({"y": "exp(t)"}, [Source("y", "y")])
+        assert _same(problem.forcing("y"), sp.exp(t))
+        with pytest.raises(ValueError, match="is a coordinate"):
+            ManufacturedProblem({"y": "x"}, [Source("y", "y")], _SQUARE)
 
 
 class TestRefusals:
@@ -318,8 +320,14 @@ class TestRefusals:
             ManufacturedProblem(
                 {"u": "x"}, [Divergence("u", ["-u_x"])], _SQUARE, _conditions()
             )
-        with pytest.raises(ValueError, match="alpha may depend only on"):
-            Robin("nx")
+        robin_in_normal = {**_conditions(), "top": Robin("nx")}
+        with pytest.raises(ValueError, match="may depend only on"):
+            ManufacturedProblem(
+                {"u": "x"},
+                [Divergence("u", ["-u_x", "-u_y"])],
+                _SQUARE,
+                robin_in_normal,
+            )
 
     def test_lookups(self) -> None:
         problem = ManufacturedProblem({"w": "t"}, [Source("w", "w")])
