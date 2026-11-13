@@ -22,13 +22,38 @@ well-posed sign (for diffusion, :math:`q = -D\nabla u` and Robin reads
 
 Time needs nothing here: the data depend on ``t`` exactly when the
 solution or :math:`\alpha` does.
+
+A stack enforces each kind its own way by implementing
+:class:`ConditionVisitorProtocol`; ``condition.accept(visitor)`` calls the
+visitor's method for that kind. A new kind adds a visitor method, so mypy
+reports every stack that does not yet handle it.
 """
 
-from typing import Protocol, Tuple, Union, runtime_checkable
+from typing import Protocol, Tuple, TypeVar, Union, runtime_checkable
 
 import sympy as sp
 
-from pyapprox.pde.verification.symbols import coordinates, time
+from pyapprox.pde.expressions.symbols import coordinates, time
+
+T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
+
+
+@runtime_checkable
+class ConditionVisitorProtocol(Protocol[T_co]):
+    """What a stack builds for each kind of condition."""
+
+    def dirichlet(self, condition: "Dirichlet") -> T_co:
+        """The stack's object for a Dirichlet condition."""
+        ...
+
+    def neumann(self, condition: "Neumann") -> T_co:
+        """The stack's object for a Neumann condition."""
+        ...
+
+    def robin(self, condition: "Robin") -> T_co:
+        """The stack's object for a Robin condition."""
+        ...
 
 
 @runtime_checkable
@@ -53,6 +78,11 @@ class ConditionProtocol(Protocol):
         """The right-hand side :math:`g`, one expression per component."""
         ...
 
+    def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
+        """The visitor's method for this kind, applied to this
+        condition."""
+        ...
+
 
 class Dirichlet:
     r""":math:`u = u^*`."""
@@ -60,6 +90,10 @@ class Dirichlet:
     def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
         r""":math:`u^*`."""
         return fields.solution()
+
+    def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
+        """``visitor.dirichlet(self)``."""
+        return visitor.dirichlet(self)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
@@ -71,6 +105,10 @@ class Neumann:
     def data(self, fields: BoundaryFieldsProtocol) -> Tuple[sp.Expr, ...]:
         r""":math:`q(u^*)\, n`."""
         return fields.normal_flux()
+
+    def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
+        """``visitor.neumann(self)``."""
+        return visitor.neumann(self)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
@@ -111,6 +149,10 @@ class Robin:
             flux - self._expression * u
             for u, flux in zip(fields.solution(), fields.normal_flux())
         )
+
+    def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
+        """``visitor.robin(self)``."""
+        return visitor.robin(self)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(alpha={self._alpha!r})"

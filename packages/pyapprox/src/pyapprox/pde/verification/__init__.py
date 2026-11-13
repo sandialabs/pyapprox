@@ -5,6 +5,7 @@ parts) and evaluate nothing; a stack supplies a discretizer whose
 approximations integrate their own errors; checks judge the resulting
 studies. Nothing here depends on a particular stack or array library.
 
-Import from the modules: ``domains``, ``symbols``, ``conditions``,
-``problem``, ``protocols``, ``study``.
+Import from the modules: ``domains``, ``conditions``, ``problem``,
+``protocols``, ``study``. Expressions are written in the symbols of
+:mod:`pyapprox.pde.expressions.symbols`.
 """

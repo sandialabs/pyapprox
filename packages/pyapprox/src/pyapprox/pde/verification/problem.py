@@ -5,7 +5,7 @@ coefficients, a domain and a condition on each named boundary part. It
 gives the solution, the forcing that makes :math:`u^*` exact, the flux
 :math:`q(u^*)` in the convention the problem states, and each boundary
 part's data, all as sympy expressions in the symbols of
-:mod:`pyapprox.pde.verification.symbols`. It evaluates nothing: a stack
+:mod:`pyapprox.pde.expressions.symbols`. It evaluates nothing: a stack
 binds the symbols to its own points, so the same problem verifies any
 discretization, serial or distributed.
 
@@ -22,12 +22,12 @@ from pyapprox.pde.constitutive.advection import (
     AdvectionFormProtocol,
     ConservativeAdvection,
 )
+from pyapprox.pde.expressions.symbols import coordinates, derivative, normal, time
 from pyapprox.pde.manufactured.advection_diffusion import (
     ManufacturedAdvectionDiffusionReaction,
 )
 from pyapprox.pde.verification.conditions import ConditionProtocol
 from pyapprox.pde.verification.domains import DomainProtocol
-from pyapprox.pde.verification.symbols import coordinates, normal, state, time
 from pyapprox.util.backends.numpy import NumpyBkd
 
 _Exprs = Tuple[sp.Expr, ...]
@@ -260,7 +260,7 @@ class AdvectionDiffusionReactionProblem(ManufacturedProblem):
         self._reaction: sp.Expr = sp.sympify(reaction)
         self._velocity = _exprs(velocity)
         _check_symbols("diffusion", self._diffusion, allowed)
-        _check_symbols("reaction", self._reaction, allowed | {state()})
+        _check_symbols("reaction", self._reaction, allowed | {derivative("u")})
         for v in self._velocity:
             _check_symbols("velocity", v, allowed)
         self._advection_form = advection_form
