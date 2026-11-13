@@ -91,7 +91,7 @@ class _Case(Generic[Array]):
 
     def solve(self, p: Array) -> SteadyPoint[Array, Array]:
         # Whoever sets the parameters drops the setups kept for the old ones.
-        self.f.set_param(p)
+        self.f.set_param(p[:, 0])
         self.setups.clear()
         point = self.system.solve(
             Newton(atol=1e-13, rtol=0.0, maxiters=30), self.bkd.zeros((3, 1))
@@ -304,7 +304,7 @@ class TestRefusals:
     def test_a_stale_adjoint(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd)
         adjoint = case.derivs.adjoint(case.solve(_param(bkd)))
-        case.f.set_param(case.f.p)
+        case.f.set_param(case.f.p[:, 0])
         with pytest.raises(ValueError, match="changed"):
             case.derivs.gradient(adjoint)
 

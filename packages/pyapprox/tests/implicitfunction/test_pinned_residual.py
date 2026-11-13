@@ -90,7 +90,7 @@ class TestTheValue:
         bkd.assert_allclose(value[2, 0], bkd.asarray(1.1 - p0 * p1))
         bkd.assert_allclose(value[1, 0], f(state)[1, 0])
         assert pinned.parameters_version() == 0
-        f.set_param(bkd.reshape(bkd.asarray(_PARAM), (2, 1)))
+        f.set_param(bkd.asarray(_PARAM))
         assert pinned.parameters_version() == 1
 
 

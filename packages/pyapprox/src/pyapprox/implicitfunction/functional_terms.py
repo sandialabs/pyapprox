@@ -380,6 +380,17 @@ def state_second_derivatives(
     return found
 
 
+def has_first_derivatives(
+    parameter_terms: Sequence[ParameterTermProtocol[V, A]],
+    state_terms: Sequence[StateTermProtocol[V, A]],
+) -> bool:
+    """Whether every term's bundle has its first derivatives: a consumer
+    whose derivatives are optional asks this before reading them."""
+    return all(
+        term.derivatives().wrt_param is not None for term in parameter_terms
+    ) and all(term.derivatives().wrt_state is not None for term in state_terms)
+
+
 def has_second_derivatives(
     parameter_terms: Sequence[ParameterTermProtocol[V, A]],
     state_terms: Sequence[StateTermProtocol[V, A]],

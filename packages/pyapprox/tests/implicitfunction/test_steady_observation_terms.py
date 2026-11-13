@@ -64,7 +64,7 @@ class _Case(Generic[Array]):
         self.tikhonov = TikhonovTerm(bkd, 0.3, bkd.asarray(_WEIGHT))
 
     def solve(self, p: Array) -> SteadyPoint[Array, Array]:
-        self.f.set_param(p)
+        self.f.set_param(p[:, 0])
         self.tikhonov.set_param(p)
         point = self.system.solve(
             Newton(atol=1e-13, rtol=0.0, maxiters=30), self.bkd.zeros((3, 1))

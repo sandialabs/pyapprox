@@ -95,7 +95,7 @@ class TestAnAffineSolve:
         point.jacobian_handle()
         system.solve(_newton(), bkd.ones((3, 1)))
         assert lu.setups == 1
-        f.set_param(bkd.reshape(bkd.asarray([0.0, 0.3]), (2, 1)))
+        f.set_param(bkd.asarray([0.0, 0.3]))
         setups.clear()
         moved = system.solve(_newton(), bkd.zeros((3, 1)))
         assert moved.parameters_version() == 1 and lu.setups == 2
@@ -136,7 +136,7 @@ class TestRefusals:
         f, pinned = pinned_quadratic(bkd)
         system = SteadySystem(pinned, f.states, RecomputeAlways(BackendDenseLU(bkd)))
         point = system.solve(_newton(), bkd.zeros((3, 1)))
-        f.set_param(f.p)
+        f.set_param(f.p[:, 0])
         with pytest.raises(ValueError, match="changed"):
             point.jacobian_handle()
 

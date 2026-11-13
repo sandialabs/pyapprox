@@ -88,8 +88,14 @@ class QuadraticResidual(Generic[Array]):
                 param_param=self._param_param,
             )
 
+    def nparams(self) -> int:
+        return 2
+
     def set_param(self, p: Array) -> None:
-        self.p = p
+        """Set :math:`p`, shape ``(2,)``; kept as the column ``self.p``."""
+        if tuple(p.shape) != (2,):
+            raise ValueError(f"p must have shape (2,), got {tuple(p.shape)}")
+        self.p = self.bkd.reshape(p, (2, 1))
         self._version += 1
 
     def parameters_version(self) -> int:
