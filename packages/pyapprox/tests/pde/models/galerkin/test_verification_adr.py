@@ -59,7 +59,6 @@ from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.verification import (
     GalerkinDiscretizer,
     Lagrange,
-    MeshFamilyProtocol,
     SkfemDisk,
     SkfemPoints,
     StructuredBox,
@@ -78,14 +77,6 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.study import (
-    Converges,
-    L2Error,
-    Recovers,
-    Stalls,
-    run_study,
-    verify,
-)
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
@@ -93,6 +84,7 @@ from pyapprox.pde.verification.terms import (
     TimeDerivative,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from tests._helpers.galerkin_verification import coded, converges, recovers, stalls
 
 _Np = NDArray[Any]
 
@@ -205,18 +197,6 @@ _MIXED_3D: Dict[str, ConditionProtocol] = {
 }
 
 
-def _converges(
-    problem: ManufacturedProblem,
-    meshes: MeshFamilyProtocol,
-    degree: int,
-    adr: _ADR,
-    rate: float,
-) -> None:
-    discretizer = GalerkinDiscretizer(meshes, Lagrange(degree), adr)
-    result = verify(problem, discretizer, L2Error(), Converges(rate, last=3))
-    assert result.passed, result.message
-
-
 @pytest.mark.parametrize("conservative", [False, True])
 class TestRates:
     def test_1d(self, conservative: bool) -> None:
@@ -225,8 +205,8 @@ class TestRates:
         adr = _ADR("1 + x/2", ["1 + x"], "-u**3", conservative)
         box = Box([(0.0, 1.0)])
         problem = _problem("sin(pi*x) + x", adr, box, _MIXED_1D)
-        _converges(problem, StructuredBox([8, 16, 32, 64]), 1, adr, 2.0)
-        _converges(problem, StructuredBox([4, 8, 16, 32]), 2, adr, 3.0)
+        converges(problem, StructuredBox([8, 16, 32, 64]), 1, adr, 2.0)
+        converges(problem, StructuredBox([4, 8, 16, 32]), 2, adr, 3.0)
 
     def test_2d(self, conservative: bool) -> None:
         """Unit square, quads, Dirichlet, Neumann and Robin sides,
@@ -235,15 +215,15 @@ class TestRates:
         adr = _ADR("1 + x*y/4", ["1 - y", "x/2"], "-u - u**3/4", conservative)
         box = Box([(0.0, 1.0), (0.0, 1.0)])
         problem = _problem("exp(x/2)*sin(pi*y) + x*y", adr, box, _MIXED_2D)
-        _converges(problem, StructuredBox([4, 8, 16, 32]), 1, adr, 2.0)
-        _converges(problem, StructuredBox([2, 4, 8, 16]), 2, adr, 3.0)
+        converges(problem, StructuredBox([4, 8, 16, 32]), 1, adr, 2.0)
+        converges(problem, StructuredBox([2, 4, 8, 16]), 2, adr, 3.0)
 
     def test_3d(self, conservative: bool) -> None:
         """Unit cube, hexes, all three condition kinds: P1 L2 rate 2."""
         adr = _ADR("1 + z/2", ["1", "0", "x/2"], "-u", conservative)
         box = Box([(0.0, 1.0)] * 3)
         problem = _problem("sin(x)*cos(y)*exp(z)", adr, box, _MIXED_3D)
-        _converges(problem, StructuredBox([2, 4, 8]), 1, adr, 2.0)
+        converges(problem, StructuredBox([2, 4, 8]), 1, adr, 2.0)
 
     def test_disk(self, conservative: bool) -> None:
         """Unit disk, Robin on the curved boundary with the mesh's own
@@ -251,7 +231,7 @@ class TestRates:
         spoil it."""
         adr = _ADR("1 + x**2/2", ["y", "-x"], "-u", conservative)
         problem = _problem("exp(x)*cos(y)", adr, Disk(), {"circle": Robin(2.0)})
-        _converges(problem, SkfemDisk([2, 3, 4, 5]), 1, adr, 2.0)
+        converges(problem, SkfemDisk([2, 3, 4, 5]), 1, adr, 2.0)
 
 
 def test_variable_robin() -> None:
@@ -264,7 +244,7 @@ def test_variable_robin() -> None:
         "top": Robin("1 + x"),
     }
     problem = _problem("cos(x)*exp(y)", adr, box, conditions)
-    _converges(problem, StructuredBox([4, 8, 16, 32]), 1, adr, 2.0)
+    converges(problem, StructuredBox([4, 8, 16, 32]), 1, adr, 2.0)
 
 
 @pytest.mark.parametrize(
@@ -282,29 +262,7 @@ def test_p2_recovers_quadratics(ndim: int, simplex: bool, solution: str) -> None
     adr = _ADR("2", ["1"] * ndim, "-u")
     box = Box([(0.0, 1.0)] * ndim)
     conditions = _MIXED_1D if ndim == 1 else _MIXED_2D
-    problem = _problem(solution, adr, box, conditions)
-    discretizer = GalerkinDiscretizer(StructuredBox([2, 3], simplex), Lagrange(2), adr)
-    result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
-    assert result.passed, result.message
-
-
-_KINDS: Dict[str, ConditionProtocol] = {
-    "D": Dirichlet(),
-    "N": Neumann(),
-    "R": Robin(1.0),
-}
-
-
-def _coded(codes: str, box: Box) -> Dict[str, ConditionProtocol]:
-    """Conditions by side, one letter each in side order: D, N, or R
-    (Robin with alpha 1)."""
-    return {side: _KINDS[code] for code, side in zip(codes, box.boundaries())}
-
-
-def _recovers(problem: ManufacturedProblem, adr: _ADR, n: int) -> None:
-    discretizer = GalerkinDiscretizer(StructuredBox([n]), Lagrange(2), adr)
-    result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
-    assert result.passed, result.message
+    recovers(_problem(solution, adr, box, conditions), adr, 3, simplex)
 
 
 @pytest.mark.parametrize("upper", [1.0, 1.1])
@@ -319,7 +277,7 @@ def test_p2_recovers_linear_1d(
     source: P2 on 10 cells reproduces it to 1e-10 (L2)."""
     adr = _ADR("4", None if velocity is None else [velocity], reaction)
     box = Box([(0.0, upper)])
-    _recovers(_problem("x", adr, box, _coded(codes, box)), adr, 10)
+    recovers(_problem("x", adr, box, coded(codes, box)), adr, 10)
 
 
 @pytest.mark.parametrize(
@@ -333,7 +291,7 @@ def test_p2_recovers_linear_1d_conservative(
     carry the advective flux: P2 reproduces u = x to 1e-10."""
     adr = _ADR("4", ["(1 + x)/10"], reaction, conservative=True)
     box = Box([(0.0, 1.0)])
-    _recovers(_problem("x", adr, box, _coded(codes, box)), adr, 10)
+    recovers(_problem("x", adr, box, coded(codes, box)), adr, 10)
 
 
 @pytest.mark.parametrize(
@@ -356,7 +314,7 @@ def test_q2_recovers_2d(solution: str, codes: str, diffusivity: str) -> None:
     (x^2 y^2 included) to 1e-10."""
     adr = _ADR(diffusivity)
     box = Box([(0.0, 1.0)] * 2)
-    _recovers(_problem(solution, adr, box, _coded(codes, box)), adr, 5)
+    recovers(_problem(solution, adr, box, coded(codes, box)), adr, 5)
 
 
 @pytest.mark.parametrize("conservative", [False, True])
@@ -372,7 +330,7 @@ def test_q2_recovers_2d_advected_reacting(
     Q2 still reproduces them to 1e-10, in both advection forms."""
     adr = _ADR("4", ["0.1", "0.1"], "2*u", conservative)
     box = Box([(0.0, 1.0)] * 2)
-    _recovers(_problem(solution, adr, box, _coded(codes, box)), adr, 5)
+    recovers(_problem(solution, adr, box, coded(codes, box)), adr, 5)
 
 
 def test_q2_recovers_with_varying_robin_alpha() -> None:
@@ -387,7 +345,7 @@ def test_q2_recovers_with_varying_robin_alpha() -> None:
         "bottom": Dirichlet(),
         "top": Dirichlet(),
     }
-    _recovers(_problem("x*y + x + 2*y", adr, box, conditions), adr, 5)
+    recovers(_problem("x*y + x + 2*y", adr, box, conditions), adr, 5)
 
 
 class _NoSpring(_ADR):
@@ -424,10 +382,8 @@ def test_robin_without_spring_stalls() -> None:
     Robin cases above can see the spring term."""
     adr = _NoSpring("1", ["1"], "-u")
     box = Box([(0.0, 1.0)])
-    problem = _problem("sin(pi*x) + x + 1", adr, box, _coded("RR", box))
-    discretizer = GalerkinDiscretizer(StructuredBox([8, 16, 32, 64]), Lagrange(1), adr)
-    result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
-    assert result.passed, result.message
+    problem = _problem("sin(pi*x) + x + 1", adr, box, coded("RR", box))
+    stalls(problem, StructuredBox([8, 16, 32, 64]), 1, adr)
 
 
 class _ReversedNormal(_ADR):
@@ -469,10 +425,7 @@ def test_reversed_normal_stalls() -> None:
     error in natural data."""
     adr = _ReversedNormal("1", ["1"], "-u")
     problem = _problem("sin(pi*x) + x", adr, Box([(0.0, 1.0)]), _MIXED_1D)
-    discretizer = GalerkinDiscretizer(StructuredBox([8, 16, 32, 64]), Lagrange(1), adr)
-    study = run_study(problem, discretizer, L2Error())
-    result = Stalls(below=0.5).verify(study)
-    assert result.passed, result.message
+    stalls(problem, StructuredBox([8, 16, 32, 64]), 1, adr)
 
 
 def test_time_dependence_is_declared_per_supplier() -> None:
@@ -504,8 +457,8 @@ def test_periodic_rates(conservative: bool) -> None:
     adr = _ADR("1 + sin(2*pi*x)/2", ["1 + cos(2*pi*x)/4"], "-u - u**3/4", conservative)
     problem = _periodic_problem("sin(2*pi*x) + cos(4*pi*x)/2 + 1", adr)
     wrapped = StructuredBox([8, 16, 32, 64], periodic=("x",))
-    _converges(problem, wrapped, 1, adr, 2.0)
-    _converges(problem, StructuredBox([4, 8, 16, 32], periodic=("x",)), 2, adr, 3.0)
+    converges(problem, wrapped, 1, adr, 2.0)
+    converges(problem, StructuredBox([4, 8, 16, 32], periodic=("x",)), 2, adr, 3.0)
 
 
 def test_non_periodic_solution_stalls() -> None:
@@ -514,11 +467,7 @@ def test_non_periodic_solution_stalls() -> None:
     error does not fall."""
     adr = _ADR("1", None, "-u")
     problem = _periodic_problem("x + sin(2*pi*x)", adr)
-    discretizer = GalerkinDiscretizer(
-        StructuredBox([8, 16, 32, 64], periodic=("x",)), Lagrange(1), adr
-    )
-    result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
-    assert result.passed, result.message
+    stalls(problem, StructuredBox([8, 16, 32, 64], periodic=("x",)), 1, adr)
 
 
 class TestRefusals:
