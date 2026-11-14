@@ -52,6 +52,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     RobinBC,
 )
 from pyapprox.pde.galerkin.mesh import (
+    PeriodicStructuredMesh1D,
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
@@ -62,6 +63,7 @@ from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
+    ConditionVisitorProtocol,
     Dirichlet,
     Neumann,
     Periodic,
@@ -358,23 +360,28 @@ class _GalerkinCondition:
             _BKD,
         )
 
-    def periodic(self, condition: Periodic) -> BoundaryConditionRole[_Np]:
-        raise ValueError(
-            f"the Galerkin stack has no periodic conditions; {self._part!r} is periodic"
-        )
+    def periodic(self, condition: Periodic) -> None:
+        # Periodicity lives in the mesh topology, which identifies the
+        # wrapped sides; there is no condition to build.
+        return None
 
 
 def boundary_conditions(
     problem: ManufacturedProblem, basis: LagrangeBasis[_Np], row: str
 ) -> List[BoundaryConditionRole[_Np]]:
-    """One Galerkin boundary condition per boundary part of ``problem``
-    for ``row``, with data from the problem's expressions.
+    """One Galerkin boundary condition per non-periodic boundary part of
+    ``problem`` for ``row``, with data from the problem's expressions.
+
+    Periodic parts get none: this stack makes a side periodic by
+    identifying it in the mesh (``StructuredBox(..., periodic=...)``), so
+    a periodic part must be one the mesh has wrapped away, and every
+    other part must be a boundary of the mesh.
 
     Raises
     ------
     ValueError
-        If ``row`` takes no boundary conditions, or a condition is
-        periodic.
+        If ``row`` takes no boundary conditions, a periodic part is a
+        boundary of the mesh, or another part is not.
     """
     if row not in problem.boundary_rows():
         raise ValueError(
@@ -383,12 +390,25 @@ def boundary_conditions(
         )
     domain = problem.domain()
     parts = () if domain is None else domain.boundaries()
+    mesh_parts = set(basis.skfem_basis().mesh.boundaries or {})
     conditions: List[BoundaryConditionRole[_Np]] = []
     for part in parts:
         condition: ConditionProtocol = problem.conditions(part)[row]
-        conditions.append(
-            condition.accept(_GalerkinCondition(problem, basis, part, row))
+        periodic = isinstance(condition, Periodic)
+        if periodic == (part in mesh_parts):
+            raise ValueError(
+                f"{part!r} is {'periodic' if periodic else 'not periodic'} but "
+                f"the mesh {'has' if periodic else 'does not have'} it as a "
+                "boundary; wrap periodic sides in the mesh family "
+                "(StructuredBox(..., periodic=...)) and only those"
+            )
+        # Every kind builds a condition except periodic, which builds none.
+        visitor: ConditionVisitorProtocol[Optional[BoundaryConditionRole[_Np]]] = (
+            _GalerkinCondition(problem, basis, part, row)
         )
+        built = condition.accept(visitor)
+        if built is not None:
+            conditions.append(built)
     return conditions
 
 
@@ -422,10 +442,21 @@ class StructuredBox:
     simplex : bool
         Triangles or tetrahedra instead of quadrilaterals or hexahedra (no
         effect in 1D).
+    periodic : Sequence[str]
+        Coordinates whose two sides are identified, so the mesh has no
+        boundary there; the problem must declare those sides
+        :class:`~pyapprox.pde.verification.conditions.Periodic`. This
+        stack has periodic meshes in 1D only.
     """
 
-    def __init__(self, sizes: Sequence[int], simplex: bool = False) -> None:
+    def __init__(
+        self,
+        sizes: Sequence[int],
+        simplex: bool = False,
+        periodic: Sequence[str] = (),
+    ) -> None:
         self._sizes, self._simplex = tuple(sizes), simplex
+        self._periodic = tuple(periodic)
 
     def meshes(self, domain: DomainProtocol) -> List[GalerkinMeshProtocol[_Np]]:
         """One structured mesh per size.
@@ -437,7 +468,8 @@ class StructuredBox:
         ValueError
             If its sides are not the standard ``left``, ``right``,
             ``bottom``, ``top``, ``back``, ``front``, which name this
-            stack's mesh boundaries.
+            stack's mesh boundaries; or a periodic coordinate is not one
+            of the box's, or the box is not 1D.
         """
         if not isinstance(domain, Box):
             raise TypeError(f"StructuredBox meshes a Box, got {type(domain).__name__}")
@@ -447,10 +479,22 @@ class StructuredBox:
                 f"StructuredBox names the sides {list(_SIDES[: 2 * ndim])}; the "
                 f"box has {list(domain.boundaries())}"
             )
+        unknown = set(self._periodic) - set(domain.coordinates())
+        if unknown:
+            raise ValueError(
+                f"periodic coordinates {sorted(unknown)} are not the box's "
+                f"{list(domain.coordinates())}"
+            )
+        if self._periodic and ndim != 1:
+            raise ValueError(
+                f"this stack has periodic meshes in 1D only; the box is {ndim}D"
+            )
         bounds = list(domain.bounds())
         meshes: List[GalerkinMeshProtocol[_Np]] = []
         for n in self._sizes:
-            if ndim == 1:
+            if self._periodic:
+                meshes.append(PeriodicStructuredMesh1D(n, bounds[0], _BKD))
+            elif ndim == 1:
                 meshes.append(StructuredMesh1D(nx=n, bounds=bounds[0], bkd=_BKD))
             elif ndim == 2:
                 element = "tri" if self._simplex else "quad"
@@ -465,7 +509,10 @@ class StructuredBox:
         return meshes
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({list(self._sizes)}, simplex={self._simplex})"
+        return (
+            f"{type(self).__name__}({list(self._sizes)}, simplex={self._simplex}, "
+            f"periodic={list(self._periodic)})"
+        )
 
 
 class _SkfemTriangles:
@@ -583,10 +630,16 @@ class Lagrange:
 
 
 def _mesh_size(basis: LagrangeBasis[_Np]) -> float:
-    """The largest element diameter."""
+    """The largest element diameter.
+
+    Vertices come from each element's own mapping of the reference
+    element, not from ``mesh.p[:, mesh.t]``: a periodic mesh stores
+    coordinates per element while its connectivity indexes the
+    identified nodes, so the wrapping element would span the domain."""
     mesh = basis.skfem_basis().mesh
-    vertices = np.asarray(mesh.p)[:, np.asarray(mesh.t)]
-    differences = vertices[:, :, None, :] - vertices[:, None, :, :]
+    # Shape (ndim, nelements, nvertices).
+    vertices = np.asarray(mesh.mapping().F(mesh.init_refdom().p))
+    differences = vertices[:, :, :, None] - vertices[:, :, None, :]
     return float(np.sqrt((differences**2).sum(axis=0)).max())
 
 

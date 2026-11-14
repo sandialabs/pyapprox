@@ -23,11 +23,15 @@ Cases (fitted rate over the last three levels, tolerance 0.1):
   (1D: 24 plus 4 conservative; 2D: 9, and a Robin alpha varying along
   the sides) and the 2D cases with advection and reaction switched on,
   in both forms;
+- periodic ends in 1D (the mesh identifies them), P1 and P2 rates in
+  both advection forms;
 - wrong-model controls, fitted rate below 0.5: natural data with the
-  normal reversed; Robin without its spring term.
+  normal reversed; Robin without its spring term; a non-periodic
+  solution on periodic ends.
 
-Refusals: periodic sides, transient and multi-field problems, a box
-with named coordinates.
+Refusals: periodic sides the mesh does not wrap and wrapped sides with
+ordinary conditions, periodic meshes beyond 1D, transient and
+multi-field problems, a box with named coordinates.
 """
 
 from typing import Any, Dict, List, Optional, Sequence
@@ -485,20 +489,64 @@ def test_time_dependence_is_declared_per_supplier() -> None:
     assert isinstance(field(problem, "2*pi"), float)
 
 
+_PERIODIC: Dict[str, ConditionProtocol] = {"left": Periodic(), "right": Periodic()}
+
+
+def _periodic_problem(solution: str, adr: _ADR) -> ManufacturedProblem:
+    return _problem(solution, adr, Box([(0.0, 1.0)]), _PERIODIC)
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+def test_periodic_rates(conservative: bool) -> None:
+    """Both ends periodic, the mesh wrapping x (endpoints identified),
+    periodic D and v, absorption -u so the problem has a unique
+    solution: L2 rate 2 for P1 (cells 8-64) and 3 for P2 (4-32)."""
+    adr = _ADR("1 + sin(2*pi*x)/2", ["1 + cos(2*pi*x)/4"], "-u - u**3/4", conservative)
+    problem = _periodic_problem("sin(2*pi*x) + cos(4*pi*x)/2 + 1", adr)
+    wrapped = StructuredBox([8, 16, 32, 64], periodic=("x",))
+    _converges(problem, wrapped, 1, adr, 2.0)
+    _converges(problem, StructuredBox([4, 8, 16, 32], periodic=("x",)), 2, adr, 3.0)
+
+
+def test_non_periodic_solution_stalls() -> None:
+    """Wrong-model control: the ends declared periodic and wrapped, but
+    u = x + sin(2 pi x) jumps by 1 across the identified point, so the
+    error does not fall."""
+    adr = _ADR("1", None, "-u")
+    problem = _periodic_problem("x + sin(2*pi*x)", adr)
+    discretizer = GalerkinDiscretizer(
+        StructuredBox([8, 16, 32, 64], periodic=("x",)), Lagrange(1), adr
+    )
+    result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
+    assert result.passed, result.message
+
+
 class TestRefusals:
-    def test_periodic(self) -> None:
-        """This stack has no periodic conditions, so a periodic side is
-        refused with a clear error rather than silently dropped."""
-        adr = _ADR("1")
-        problem = _problem(
-            "sin(2*pi*x)",
-            adr,
-            Box([(0.0, 1.0)]),
-            {"left": Periodic(), "right": Periodic()},
+    def test_periodic_mismatch(self) -> None:
+        """Periodicity lives in the mesh here, so the problem's periodic
+        sides must be exactly the ones the mesh wraps: periodic sides on
+        an unwrapped mesh, or ordinary conditions on a wrapped one, are
+        refused rather than silently dropped."""
+        adr = _ADR("1", None, "-u")
+        periodic = _periodic_problem("sin(2*pi*x)", adr)
+        plain = GalerkinDiscretizer(StructuredBox([4]), Lagrange(1), adr)
+        with pytest.raises(ValueError, match="'left' is periodic"):
+            plain.approximations(periodic)
+        dirichlet = _problem("sin(2*pi*x)", adr, Box([(0.0, 1.0)]), _MIXED_1D)
+        wrapped = GalerkinDiscretizer(
+            StructuredBox([4], periodic=("x",)), Lagrange(1), adr
         )
-        discretizer = GalerkinDiscretizer(StructuredBox([4]), Lagrange(1), adr)
-        with pytest.raises(ValueError, match="no periodic conditions"):
-            discretizer.approximations(problem)
+        with pytest.raises(ValueError, match="'left' is not periodic"):
+            wrapped.approximations(dirichlet)
+
+    def test_periodic_mesh_limits(self) -> None:
+        """Only 1D periodic meshes exist in this stack, and only a
+        coordinate of the box can wrap."""
+        square = Box([(0.0, 1.0)] * 2)
+        with pytest.raises(ValueError, match="1D only"):
+            StructuredBox([4], periodic=("x",)).meshes(square)
+        with pytest.raises(ValueError, match="not the box's"):
+            StructuredBox([4], periodic=("y",)).meshes(Box([(0.0, 1.0)]))
 
     def test_transient(self) -> None:
         """This discretizer solves only the steady equation F(u) = 0; on a
