@@ -18,9 +18,10 @@ Cases:
   test (linear :math:`u`, all Dirichlet, hexes and tetrahedra, P1 and
   P2, two cells per side), the 3D quadratic case (P2, :math:`\lambda =
   1.5`, :math:`\mu = 0.8`), the varying Lamé case (:math:`\lambda = 1 +
-  x/2`, :math:`\mu = 1 + y/4`, P1, three hexes per side), and the roller
+  x/2`, :math:`\mu = 1 + y/4`, P1, three hexes per side), the roller
   case, generalized from :math:`\nu = 0` to symmetry planes holding one
-  component each with the others traction free;
+  component each with the others traction free, and the 1D P2 bar with
+  nonzero clamped ends;
 - rates (fitted over the last three levels, within 0.1): 1D P1 2 and P2
   3; 2D on quads and triangles, P1 2 and P2 3, with Dirichlet, Neumann
   and Robin sides; the old suite's Robin case (P1 2); parts mixing a
@@ -245,6 +246,15 @@ class TestRecovery:
             conditions,
         )
         recovers_on(problem, VectorLagrange(1), elasticity, 2)
+
+    def test_1d_bar(self) -> None:
+        """The old suite's 1D case: u = x(1 - x)/10 + 1/5, nonzero at both
+        clamped ends, is reproduced by P2 on 10 cells. It guards the 1D
+        vector basis's boundary DOFs, once returned empty."""
+        elasticity = _Elasticity("0.6", "0.4")
+        box = Box([(0.0, 1.0)])
+        problem = _problem(("x*(1 - x)/10 + 1/5",), elasticity, box, _sides(box, "DD"))
+        recovers_on(problem, VectorLagrange(2), elasticity, 10)
 
 
 class TestRates:
