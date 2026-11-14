@@ -5,9 +5,11 @@ repository's skfem Galerkin stack. Bound to skfem and NumPy.
 
 - Mesh families (:class:`StructuredBox`, :class:`SkfemDisk`) refine a
   domain, naming mesh boundaries as the domain names its parts.
-- Basis factories (:class:`Lagrange`, :class:`VectorLagrange`) build a
-  basis on each mesh. A vector basis carries one field per component,
-  in the problem's field order.
+- Basis factories (:class:`Lagrange`, :class:`VectorLagrange`,
+  :class:`TaylorHood`) build a basis on each mesh. A vector basis
+  carries one field per component, in the problem's field order; a
+  mixed basis takes the fields in order, as many per basis field as it
+  has components (Taylor-Hood: the velocity components, then pressure).
 - A system factory, supplied by the case, builds the physics under test
   on a basis of the kind it names; pairing it with a factory of another
   kind is a type error. Nothing here knows any physics: a factory builds
@@ -62,8 +64,14 @@ from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.expressions.symbols import coordinates, time
-from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
+from pyapprox.pde.galerkin.basis import (
+    LagrangeBasis,
+    MixedBasis,
+    VectorLagrangeBasis,
+)
+from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
 from pyapprox.pde.galerkin.boundary.implementations import (
+    DirectDirichletBC,
     DirichletBC,
     NeumannBC,
     RobinBC,
@@ -75,8 +83,10 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh3D,
 )
 from pyapprox.pde.galerkin.protocols.basis import (
+    BoundaryDofsProtocol,
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
+    NaturalBoundaryBasisProtocol,
 )
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.pde.galerkin.system import GalerkinSystem
@@ -103,12 +113,12 @@ _Np = NDArray[Any]
 _BKD = NumpyBkd()
 _SIDES = ("left", "right", "bottom", "top", "back", "front")
 # The basis a physics is built on: a factory producing one kind and a
-# system needing another do not type-check together.
-_B = TypeVar("_B", bound=GalerkinBasisProtocol[_Np])
-_B_co = TypeVar("_B_co", bound=GalerkinBasisProtocol[_Np], covariant=True)
-_B_contra = TypeVar(
-    "_B_contra", bound=GalerkinBasisProtocol[_Np], contravariant=True
-)
+# system needing another do not type-check together. A mixed basis holds
+# several fields in one state.
+_AnyBasis = Union[GalerkinBasisProtocol[_Np], MixedBasis[_Np]]
+_B = TypeVar("_B", bound=_AnyBasis)
+_B_co = TypeVar("_B_co", bound=_AnyBasis, covariant=True)
+_B_contra = TypeVar("_B_contra", bound=_AnyBasis, contravariant=True)
 
 
 class ExpressionScopeProtocol(Protocol):
@@ -530,11 +540,14 @@ class _RowKind:
 
 def vector_boundary_conditions(
     problem: ManufacturedProblem,
-    basis: VectorLagrangeBasis[_Np],
+    basis: Union[VectorLagrangeBasis[_Np], MixedBasis[_Np]],
     rows: Sequence[str],
+    field_name: Optional[str] = None,
 ) -> List[BoundaryConditionRole[_Np]]:
     """The Galerkin boundary conditions of a vector field whose components
-    are ``rows``, in order, with data from the problem's expressions.
+    are ``rows``, in order, with data from the problem's expressions: the
+    field of a vector basis, or the vector field ``field_name`` of a mixed
+    basis.
 
     On each part the rows' conditions combine into at most two of this
     stack's: the Dirichlet rows into one ``DirichletBC`` on their
@@ -548,15 +561,35 @@ def vector_boundary_conditions(
     Raises
     ------
     ValueError
-        If ``rows`` are not one per component of ``basis``, a row takes no
-        boundary conditions, or a part is periodic for some rows only or
-        does not match the mesh's periodicity.
+        If ``field_name`` is not given exactly for a mixed basis or names no
+        vector field of it, ``rows`` are not one per component, a row
+        takes no boundary conditions, or a part is periodic for some rows
+        only or does not match the mesh's periodicity.
     """
     rows = tuple(rows)
-    if len(rows) != basis.ncomponents():
+    target: BoundaryDofsProtocol[_Np]
+    natural_basis: NaturalBoundaryBasisProtocol[_Np]
+    if isinstance(basis, MixedBasis):
+        if field_name is None:
+            raise ValueError("name the field of the mixed basis that rows make up")
+        view = basis.field(field_name)
+        if not isinstance(view, ComponentDofsBasisProtocol):
+            raise ValueError(
+                f"field {field_name!r} of the mixed basis is not a vector"
+            )
+        target, natural_basis = view, view
+        ncomponents = view.ncomponents()
+        field_basis = basis.field_basis(field_name)
+    else:
+        if field_name is not None:
+            raise ValueError(
+                f"field {field_name!r} given, but the basis is not mixed"
+            )
+        target, natural_basis, field_basis = basis, basis, basis
+        ncomponents = basis.ncomponents()
+    if len(rows) != ncomponents:
         raise ValueError(
-            f"one row per component of the basis ({basis.ncomponents()}), "
-            f"got {list(rows)}"
+            f"one row per component of the basis ({ncomponents}), got {list(rows)}"
         )
     missing = [row for row in rows if row not in problem.boundary_rows()]
     if missing:
@@ -575,7 +608,7 @@ def vector_boundary_conditions(
         periodic = [kind is None for kind in kinds]
         if any(periodic) and not all(periodic):
             raise ValueError(f"{part!r} is periodic for some rows only")
-        _check_periodic(part, all(periodic), basis)
+        _check_periodic(part, all(periodic), field_basis)
         if all(periodic):
             continue
         data = problem.boundary_data(part)
@@ -594,7 +627,7 @@ def vector_boundary_conditions(
             )
             components = None if len(essential) == len(rows) else essential
             conditions.append(
-                DirichletBC(basis, part, supplier, _BKD, components=components)
+                DirichletBC(target, part, supplier, _BKD, components=components)
             )
         natural = [kind for kind in kinds if isinstance(kind, _Natural)]
         if not natural:
@@ -605,7 +638,7 @@ def vector_boundary_conditions(
         )
         alphas = {kind.alpha for kind in natural}
         if alphas == {None}:
-            conditions.append(NeumannBC(basis, part, flux, _BKD))
+            conditions.append(NeumannBC(natural_basis, part, flux, _BKD))
             continue
         shared = next(iter(alphas))
         coefficient: Union[float, _Field, _VectorField]
@@ -623,8 +656,32 @@ def vector_boundary_conditions(
                 ],
                 problem,
             )
-        conditions.append(RobinBC(basis, part, coefficient, flux, _BKD))
+        conditions.append(RobinBC(natural_basis, part, coefficient, flux, _BKD))
     return conditions
+
+
+def pinned_value(
+    problem: ManufacturedProblem, basis: MixedBasis[_Np], field_name: str, row: str
+) -> DirectDirichletBC[_Np]:
+    """The first DOF of scalar field ``field_name`` of a mixed basis fixed at
+    the exact solution of ``row`` there.
+
+    Removes the constant a field is determined only up to, such as the
+    pressure when the velocity is prescribed on the whole boundary; any
+    one DOF does, and fixing it at the exact value leaves the discrete
+    solution's error unchanged in order.
+
+    Raises
+    ------
+    ValueError
+        If ``field_name`` is a vector field.
+    """
+    if isinstance(basis.field(field_name), ComponentDofsBasisProtocol):
+        raise ValueError(f"field {field_name!r} is a vector; pin a scalar field")
+    dof = basis.offset(field_name)
+    point = np.asarray(basis.dof_coordinates())[:, dof : dof + 1]
+    value = SkfemPoints([problem.solution(row)], problem)(point)[0]
+    return DirectDirichletBC(np.array([dof]), value, _BKD)
 
 
 class SystemFactoryProtocol(Protocol[_B_contra]):
@@ -869,6 +926,91 @@ class VectorLagrange:
         return f"{type(self).__name__}({self._degree})"
 
 
+class TaylorHood:
+    """Taylor-Hood elements: field ``velocity``, vector Lagrange of degree
+    k, then field ``pressure``, scalar Lagrange of degree k - 1.
+
+    Parameters
+    ----------
+    velocity_degree : int
+        The velocity degree k. Default 2.
+
+    Raises
+    ------
+    ValueError
+        If ``velocity_degree`` is below 2: P1-P0 is not a continuous
+        pressure space.
+    """
+
+    def __init__(self, velocity_degree: int = 2) -> None:
+        if velocity_degree < 2:
+            raise ValueError(
+                f"Taylor-Hood needs velocity degree 2 or more, got {velocity_degree}"
+            )
+        self._degree = velocity_degree
+
+    def build(self, mesh: GalerkinMeshProtocol[_Np]) -> MixedBasis[_Np]:
+        """The ``[velocity | pressure]`` mixed basis on ``mesh``."""
+        fields: List[Tuple[str, MixedFieldBasisProtocol[_Np]]] = [
+            ("velocity", VectorLagrangeBasis(mesh, degree=self._degree)),
+            ("pressure", LagrangeBasis(mesh, degree=self._degree - 1)),
+        ]
+        return MixedBasis(fields)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._degree})"
+
+
+@dataclass(frozen=True)
+class _Block:
+    """A field of the state: its rows, its basis, and its first DOF."""
+
+    rows: Tuple[str, ...]
+    basis: GalerkinBasisProtocol[_Np]
+    offset: int
+
+
+def _blocks(basis: _AnyBasis, rows: Sequence[str]) -> List[_Block]:
+    """The state's fields, taking ``rows`` in order: one block for a scalar
+    or vector basis, one per field of a mixed basis, each with as many
+    rows as its basis has components.
+
+    Raises
+    ------
+    ValueError
+        If ``rows`` are not one per component of the basis.
+    """
+    fields: List[Tuple[GalerkinBasisProtocol[_Np], int]] = (
+        [(basis.field_basis(name), basis.offset(name)) for name in basis.field_names()]
+        if isinstance(basis, MixedBasis)
+        else [(basis, 0)]
+    )
+    counts = [
+        field_basis.ncomponents()
+        if isinstance(field_basis, ComponentDofsBasisProtocol)
+        else 1
+        for field_basis, _ in fields
+    ]
+    if len(rows) != sum(counts):
+        raise ValueError(
+            f"one field per component of the basis ({sum(counts)}), got {list(rows)}"
+        )
+    blocks, start = [], 0
+    for (field_basis, offset), count in zip(fields, counts):
+        blocks.append(_Block(tuple(rows[start : start + count]), field_basis, offset))
+        start += count
+    return blocks
+
+
+def _degree(basis: _AnyBasis) -> int:
+    """The polynomial degree; of a mixed basis, its fields' highest."""
+    if isinstance(basis, MixedBasis):
+        return max(
+            basis.field_basis(name).degree() for name in basis.field_names()
+        )
+    return basis.degree()
+
+
 def _mesh_size(basis: GalerkinBasisProtocol[_Np]) -> float:
     """The largest element diameter.
 
@@ -884,8 +1026,14 @@ def _mesh_size(basis: GalerkinBasisProtocol[_Np]) -> float:
 
 
 class GalerkinApproximation:
-    """One level's Galerkin solution of a field, scalar or vector, with
-    errors against its exact solution.
+    """One level's Galerkin solution, with errors against the exact
+    solution: of a scalar or vector field, or of the fields of a mixed
+    basis, optionally only some of them.
+
+    Errors combine over the measured fields: the L2 error is the root of
+    the sum of their squared L2 errors, the nodal error their largest.
+    Fields converging at different rates (Taylor-Hood velocity and
+    pressure) are measured apart.
 
     Parameters
     ----------
@@ -893,27 +1041,59 @@ class GalerkinApproximation:
         The problem solved.
     rows : Sequence[str]
         The fields the solution approximates, one per component of
-        ``basis`` in order (one for a scalar basis).
-    basis : GalerkinBasisProtocol
+        ``basis`` in order (one for a scalar basis; for a mixed basis,
+        each basis field's components in field order).
+    basis : GalerkinBasisProtocol or MixedBasis
         The basis of the solution.
     state : NDArray
         The solution's DOFs. Shape: ``(ndofs,)``.
     intorder : int
         The quadrature order of the L2 error.
+    measured : Sequence[str], optional
+        The rows whose error is measured, whole basis fields only.
+        Default: all.
+
+    Raises
+    ------
+    ValueError
+        If ``rows`` are not one per component, or ``measured`` is empty,
+        names an unknown row, or splits a basis field.
     """
 
     def __init__(
         self,
         problem: ManufacturedProblem,
         rows: Sequence[str],
-        basis: GalerkinBasisProtocol[_Np],
+        basis: _AnyBasis,
         state: _Np,
         intorder: int,
+        measured: Optional[Sequence[str]] = None,
     ) -> None:
-        self._basis, self._state, self._intorder = basis, state, intorder
-        self._nrows = len(rows)
-        self._exact = SkfemPoints([problem.solution(row) for row in rows], problem)
-        self._h = _mesh_size(basis)
+        self._state, self._intorder = state, intorder
+        blocks = _blocks(basis, rows)
+        if measured is not None:
+            chosen = set(measured)
+            unknown = chosen - set(rows)
+            if not chosen or unknown:
+                raise ValueError(
+                    f"measure some of the rows {list(rows)}, got {list(measured)}"
+                )
+            split = [
+                block.rows
+                for block in blocks
+                if chosen & set(block.rows) and not set(block.rows) <= chosen
+            ]
+            if split:
+                raise ValueError(
+                    f"measure whole basis fields; {list(measured)} splits {split}"
+                )
+            blocks = [block for block in blocks if set(block.rows) <= chosen]
+        self._blocks = blocks
+        self._exact = [
+            SkfemPoints([problem.solution(row) for row in block.rows], problem)
+            for block in blocks
+        ]
+        self._h = _mesh_size(blocks[0].basis)
 
     def h(self) -> float:
         """The largest element diameter."""
@@ -926,10 +1106,24 @@ class GalerkinApproximation:
     def l2_error(self) -> float:
         r""":math:`\|u^* - u_h\|_{L^2}`, integrated by skfem quadrature of
         order ``intorder`` against :math:`u^*` itself; for a vector field,
-        of the Euclidean norm of the pointwise error."""
-        skfem_basis = self._basis.skfem_basis()
+        of the Euclidean norm of the pointwise error; over the measured
+        fields."""
+        return float(
+            np.sqrt(
+                sum(
+                    self._squared_l2_error(block, exact)
+                    for block, exact in zip(self._blocks, self._exact)
+                )
+            )
+        )
+
+    def _field_state(self, block: _Block) -> _Np:
+        return self._state[block.offset : block.offset + block.basis.ndofs()]
+
+    def _squared_l2_error(self, block: _Block, exact: SkfemPoints) -> float:
+        skfem_basis = block.basis.skfem_basis()
         fine = Basis(skfem_basis.mesh, skfem_basis.elem, intorder=self._intorder)
-        exact, nrows = self._exact, self._nrows
+        nrows = len(block.rows)
 
         def squared_error(w: Any) -> _Np:
             x = np.asarray(w.x)
@@ -937,28 +1131,35 @@ class GalerkinApproximation:
             return np.asarray(((uh - exact(x)) ** 2).sum(axis=0))
 
         value = Functional(squared_error).assemble(
-            fine, uh=fine.interpolate(self._state)
+            fine, uh=fine.interpolate(self._field_state(block))
         )
-        return float(np.sqrt(value))
+        return float(value)
 
     def nodal_error(self) -> float:
-        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the DOF locations,
-        each DOF against its own component."""
-        coords = np.asarray(self._basis.dof_coordinates())
-        dofs = np.arange(self._state.shape[0])
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the DOF locations of
+        the measured fields, each DOF against its own component."""
+        return max(
+            self._nodal_error(block, exact)
+            for block, exact in zip(self._blocks, self._exact)
+        )
+
+    def _nodal_error(self, block: _Block, exact: SkfemPoints) -> float:
+        coords = np.asarray(block.basis.dof_coordinates())
+        dofs = np.arange(block.basis.ndofs())
         components = (
-            np.asarray(self._basis.dof_components(dofs))
-            if isinstance(self._basis, ComponentDofsBasisProtocol)
+            np.asarray(block.basis.dof_components(dofs))
+            if isinstance(block.basis, ComponentDofsBasisProtocol)
             else np.zeros_like(dofs)
         )
-        exact = self._exact(coords)[components, dofs]
-        return float(np.abs(self._state - exact).max())
+        values = exact(coords)[components, dofs]
+        return float(np.abs(self._field_state(block) - values).max())
 
 
 class GalerkinDiscretizer(Generic[_B]):
     """Solves a steady problem with this stack on every mesh of a family:
-    one field on a scalar basis, or one field per component on a vector
-    basis, in the problem's field order.
+    one field on a scalar basis, one field per component on a vector
+    basis, or each basis field's components in turn on a mixed basis, in
+    the problem's field order.
 
     Each level: the factory's system on ``basis.build(mesh)``, the steady
     residual (``galerkin_steady_residual``), and ``SteadySystem`` with
@@ -977,7 +1178,10 @@ class GalerkinDiscretizer(Generic[_B]):
         steps (a linear system is solved in one step).
     intorder : int, optional
         The quadrature order of L2 errors. Default: three more than twice
-        the basis degree.
+        the basis degree (a mixed basis's highest).
+    measured : Sequence[str], optional
+        The fields whose errors the approximations report, whole basis
+        fields only (see :class:`GalerkinApproximation`). Default: all.
     """
 
     def __init__(
@@ -987,8 +1191,10 @@ class GalerkinDiscretizer(Generic[_B]):
         factory: SystemFactoryProtocol[_B],
         nonlinear: Optional[NonlinearSolverProtocol[_Np, _Np]] = None,
         intorder: Optional[int] = None,
+        measured: Optional[Sequence[str]] = None,
     ) -> None:
         self._meshes, self._basis, self._factory = meshes, basis, factory
+        self._measured = None if measured is None else tuple(measured)
         self._nonlinear: NonlinearSolverProtocol[_Np, _Np] = (
             Newton(atol=1e-12, rtol=1e-12, maxiters=30, line_search=True)
             if nonlinear is None
@@ -1022,16 +1228,10 @@ class GalerkinDiscretizer(Generic[_B]):
         approximations = []
         for mesh in self._meshes.meshes(domain):
             basis = self._basis.build(mesh)
-            ncomponents = (
-                basis.ncomponents()
-                if isinstance(basis, ComponentDofsBasisProtocol)
-                else 1
-            )
-            if len(rows) != ncomponents:
-                raise ValueError(
-                    f"GalerkinDiscretizer needs one field per component of the "
-                    f"basis ({ncomponents}), got {list(rows)}"
-                )
+            try:
+                _blocks(basis, rows)
+            except ValueError as error:
+                raise ValueError(f"GalerkinDiscretizer needs {error}") from None
             system = self._factory.system(problem, basis)
             discretization = skfem_discretization(system)
             space = discretization.space()
@@ -1051,11 +1251,16 @@ class GalerkinDiscretizer(Generic[_B]):
                     f"the solve on {mesh!r} did not converge: {point.info().message}"
                 )
             intorder = (
-                self._intorder if self._intorder is not None else 2 * basis.degree() + 3
+                self._intorder if self._intorder is not None else 2 * _degree(basis) + 3
             )
             approximations.append(
                 GalerkinApproximation(
-                    problem, rows, basis, point.state()[:, 0], intorder
+                    problem,
+                    rows,
+                    basis,
+                    point.state()[:, 0],
+                    intorder,
+                    measured=self._measured,
                 )
             )
         return approximations

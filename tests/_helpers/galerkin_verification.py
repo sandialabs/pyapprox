@@ -6,14 +6,15 @@ cases; these run a case through the verification harness and assert its
 verdict, so a failure reports the observed rate and errors.
 
 ``converges``, ``recovers`` and ``stalls`` use scalar Lagrange elements;
-the ``*_on`` forms take the basis factory, for vector and other bases.
+the ``*_on`` forms take the basis factory, for vector and mixed bases,
+and ``converges_on`` and ``stalls_on`` may measure some fields only.
 """
 
-from typing import Any, Dict, TypeVar
+from typing import Any, Dict, Optional, Sequence, TypeVar, Union
 
 from numpy.typing import NDArray
 
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, MixedBasis
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.models.galerkin.verification import (
     BasisFactoryProtocol,
@@ -41,7 +42,7 @@ from pyapprox.pde.verification.study import (
 )
 
 _Np = NDArray[Any]
-_B = TypeVar("_B", bound=GalerkinBasisProtocol[_Np])
+_B = TypeVar("_B", bound=Union[GalerkinBasisProtocol[_Np], MixedBasis[_Np]])
 _Scalar = SystemFactoryProtocol[LagrangeBasis[_Np]]
 
 _KINDS: Dict[str, ConditionProtocol] = {
@@ -66,10 +67,11 @@ def converges_on(
     basis: BasisFactoryProtocol[_B],
     factory: SystemFactoryProtocol[_B],
     rate: float,
+    measured: Optional[Sequence[str]] = None,
 ) -> None:
     """The fitted L2 rate over the last three levels reaches ``rate``
-    within 0.1."""
-    discretizer = GalerkinDiscretizer(meshes, basis, factory)
+    within 0.1, for the ``measured`` fields (default all)."""
+    discretizer = GalerkinDiscretizer(meshes, basis, factory, measured=measured)
     result = verify(problem, discretizer, L2Error(), Converges(rate, last=3))
     assert result.passed, result.message
 
@@ -93,9 +95,11 @@ def stalls_on(
     meshes: MeshFamilyProtocol,
     basis: BasisFactoryProtocol[_B],
     factory: SystemFactoryProtocol[_B],
+    measured: Optional[Sequence[str]] = None,
 ) -> None:
-    """Wrong-model control: the fitted L2 rate stays below 0.5."""
-    discretizer = GalerkinDiscretizer(meshes, basis, factory)
+    """Wrong-model control: the fitted L2 rate of the ``measured`` fields
+    (default all) stays below 0.5."""
+    discretizer = GalerkinDiscretizer(meshes, basis, factory, measured=measured)
     result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
     assert result.passed, result.message
 
