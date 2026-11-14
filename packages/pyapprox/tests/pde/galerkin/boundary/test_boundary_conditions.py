@@ -24,7 +24,12 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
+from pyapprox.pde.galerkin.basis import (
+    LagrangeBasis,
+    MixedBasis,
+    VectorLagrangeBasis,
+)
+from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
 from pyapprox.pde.galerkin.boundary import (
     BoundaryConditionSet,
     CallableDirichletBC,
@@ -280,6 +285,88 @@ class TestRobinBCBase:
         )
         with pytest.raises(ValueError, match="alpha must return shape"):
             bc.apply_to_stiffness(bkd.zeros((scalar.ndofs(), scalar.ndofs())), 0.0)
+
+
+class TestNaturalBCsOnMixedFields:
+    """Neumann and Robin conditions on one field of a mixed basis."""
+
+    def test_terms_are_the_plain_basis_terms_at_the_field_dofs(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        r"""On a Taylor-Hood ``[velocity | pressure]`` basis of the unit
+        square, a Neumann and a Robin condition on either field give the
+        load, stiffness, residual and Jacobian of the same condition on
+        the field's own basis, placed at the field's DOFs and zero
+        elsewhere. Velocity starts at offset zero, so only the padding to
+        the mixed size is tested there; pressure starts after it."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh2D(nx=3, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
+        velocity = VectorLagrangeBasis(mesh, degree=2)
+        pressure = LagrangeBasis(mesh, degree=1)
+        fields: list[tuple[str, MixedFieldBasisProtocol[NDArray[Any]]]] = [
+            ("velocity", velocity),
+            ("pressure", pressure),
+        ]
+        mixed = MixedBasis(fields)
+        nstates = mixed.ndofs()
+        rng = np.random.default_rng(1)
+        state = bkd.asarray(rng.normal(size=nstates))
+        cases: list[tuple[str, Any, Any, Any]] = [
+            ("velocity", velocity, _two_fluxes, _profile_alpha_on_x),
+            ("pressure", pressure, _profile_alpha, _profile_alpha),
+        ]
+        for name, plain, flux, alpha in cases:
+            offset, n = mixed.offset(name), plain.ndofs()
+            field = slice(offset, offset + n)
+
+            def placed_vector(local: Any) -> NDArray[np.floating[Any]]:
+                out = np.zeros(nstates)
+                out[field] = bkd.to_numpy(local)
+                return out
+
+            def placed_matrix(local: Any) -> NDArray[np.floating[Any]]:
+                out = np.zeros((nstates, nstates))
+                out[field, field] = bkd.to_numpy(local)
+                return out
+
+            plain_neumann = NeumannBC(plain, "right", flux, bkd)
+            neumann = NeumannBC(mixed.field(name), "right", flux, bkd)
+            plain_load = plain_neumann.apply_to_load(bkd.zeros((n,)), 0.0)
+            assert float(np.abs(bkd.to_numpy(plain_load)).max()) > 0.01
+            bkd.assert_allclose(
+                neumann.apply_to_load(bkd.zeros((nstates,)), 0.0),
+                bkd.asarray(placed_vector(plain_load)),
+            )
+
+            alpha_fn = TimeIndependent(alpha)
+            plain_robin = RobinBC(plain, "left", alpha_fn, flux, bkd)
+            robin = RobinBC(mixed.field(name), "left", alpha_fn, flux, bkd)
+            plain_stiff = plain_robin.apply_to_stiffness(bkd.zeros((n, n)), 0.0)
+            assert float(np.abs(bkd.to_numpy(plain_stiff)).max()) > 0.01
+            bkd.assert_allclose(
+                robin.apply_to_stiffness(bkd.zeros((nstates, nstates)), 0.0),
+                bkd.asarray(placed_matrix(plain_stiff)),
+            )
+            plain_jac = plain_robin.apply_to_jacobian(
+                bkd.zeros((n, n)), state[field], 0.0
+            )
+            bkd.assert_allclose(
+                robin.apply_to_jacobian(
+                    bkd.zeros((nstates, nstates)), state, 0.0
+                ),
+                bkd.asarray(placed_matrix(plain_jac)),
+            )
+            plain_res = plain_robin.apply_to_residual(
+                bkd.zeros((n,)), state[field], 0.0
+            )
+            bkd.assert_allclose(
+                robin.apply_to_residual(bkd.zeros((nstates,)), state, 0.0),
+                bkd.asarray(placed_vector(plain_res)),
+            )
+
+
+def _two_fluxes(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    return np.stack([1.0 + x[1], 2.0 - x[1]])
 
 
 def _profile_alpha(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:

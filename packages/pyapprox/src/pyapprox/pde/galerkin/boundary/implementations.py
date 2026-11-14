@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 import numpy.typing as npt
-from scipy.sparse import issparse, spmatrix
+from scipy.sparse import coo_matrix, issparse, spmatrix
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import BoundaryConditionRole
@@ -36,7 +36,8 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.protocols.basis import (
     BoundaryDofsProtocol,
     ComponentDofsBasisProtocol,
-    GalerkinBasisProtocol,
+    FieldOffsetProtocol,
+    NaturalBoundaryBasisProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -164,6 +165,25 @@ def _boundary_load(
 
     load: _FacetPts = asm(LinearForm(form), boundary_basis)
     return load
+
+
+def _field_offset(basis: NaturalBoundaryBasisProtocol[Any]) -> int:
+    """Where the basis's own DOFs sit in the state: a field of a mixed
+    basis says so, any other basis is the whole state."""
+    return basis.offset() if isinstance(basis, FieldOffsetProtocol) else 0
+
+
+def _placed_matrix(local: spmatrix, offset: int, nstates: int) -> spmatrix:
+    """A field's square block placed at ``offset`` in an
+    ``(nstates, nstates)`` matrix; returned as is when it is the state."""
+    if offset == 0 and local.shape[0] == nstates:
+        return local
+    entries = coo_matrix(local)
+    placed: spmatrix = coo_matrix(
+        (entries.data, (entries.row + offset, entries.col + offset)),
+        shape=(nstates, nstates),
+    ).tocsr()
+    return placed
 
 
 class DirichletBC(Generic[Array]):
@@ -371,8 +391,10 @@ class NeumannBC(Generic[Array]):
 
     Parameters
     ----------
-    basis : GalerkinBasisProtocol[Array]
-        Finite element basis.
+    basis : NaturalBoundaryBasisProtocol[Array]
+        Finite element basis, or a field of a ``MixedBasis``
+        (``mixed.field("velocity")``), whose term is then placed at the
+        field's DOFs in the mixed state.
     boundary_name : str
         Name of the boundary.
     flux_func : Callable, float or NormalDependentDataProtocol
@@ -389,12 +411,13 @@ class NeumannBC(Generic[Array]):
 
     def __init__(
         self,
-        basis: GalerkinBasisProtocol[Array],
+        basis: NaturalBoundaryBasisProtocol[Array],
         boundary_name: str,
         flux_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
         bkd: Backend[Array],
     ):
         self._basis = basis
+        self._offset = _field_offset(basis)
         self._boundary_name = boundary_name
         self._bkd = bkd
         self._flux_data = _as_facet_data(flux_func)
@@ -471,9 +494,8 @@ class NeumannBC(Generic[Array]):
             Modified load vector. Shape: (nstates,)
         """
         load_np = self._bkd.to_numpy(load).copy()
-        load_np += _boundary_load(
-            self._get_boundary_basis(), self._flux_data, time
-        )
+        local = _boundary_load(self._get_boundary_basis(), self._flux_data, time)
+        load_np[self._offset : self._offset + local.shape[0]] += local
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def apply_to_stiffness(
@@ -539,8 +561,10 @@ class RobinBC(Generic[Array]):
 
     Parameters
     ----------
-    basis : GalerkinBasisProtocol[Array]
-        Finite element basis.
+    basis : NaturalBoundaryBasisProtocol[Array]
+        Finite element basis, or a field of a ``MixedBasis``
+        (``mixed.field("velocity")``), whose terms are then placed at the
+        field's DOFs in the mixed state.
     boundary_name : str
         Name of the boundary.
     alpha : float or Callable
@@ -566,13 +590,14 @@ class RobinBC(Generic[Array]):
 
     def __init__(
         self,
-        basis: GalerkinBasisProtocol[Array],
+        basis: NaturalBoundaryBasisProtocol[Array],
         boundary_name: str,
         alpha: Union[float, Callable[..., Any]],
         value_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
         bkd: Backend[Array],
     ):
         self._basis = basis
+        self._offset = _field_offset(basis)
         self._boundary_name = boundary_name
         # A constant stays a float, which the forms broadcast.
         self._alpha: Union[float, TimeAwareCallableProtocol] = (
@@ -714,6 +739,12 @@ class RobinBC(Generic[Array]):
         contribution: spmatrix = asm(BilinearForm(robin_bilinear), bndry_basis)
         return contribution
 
+    def _placed_contribution(self, time: float, nstates: int) -> spmatrix:
+        """K_Gamma at the field's DOFs of a state of size ``nstates``."""
+        return _placed_matrix(
+            self._stiffness_contribution(time), self._offset, nstates
+        )
+
     def apply_to_stiffness(
         self,
         stiffness: Union[spmatrix, Array],
@@ -738,7 +769,7 @@ class RobinBC(Generic[Array]):
         sparse matrix or Array
             Modified stiffness matrix (same type as input).
         """
-        contribution_sparse = self._stiffness_contribution(time)
+        contribution_sparse = self._placed_contribution(time, stiffness.shape[0])
 
         if issparse(stiffness):
             return stiffness + contribution_sparse
@@ -769,9 +800,8 @@ class RobinBC(Generic[Array]):
             Modified load vector.
         """
         load_np = self._bkd.to_numpy(load).copy()
-        load_np += _boundary_load(
-            self._get_boundary_basis(), self._value_data, time
-        )
+        local = _boundary_load(self._get_boundary_basis(), self._value_data, time)
+        load_np[self._offset : self._offset + local.shape[0]] += local
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
@@ -797,7 +827,8 @@ class RobinBC(Generic[Array]):
         """
         load = self.apply_to_load(self._bkd.full_like(residual, 0.0), time)
         stiffness_times_state = self._bkd.asarray(
-            self._stiffness_contribution(time) @ self._bkd.to_numpy(state)
+            self._placed_contribution(time, state.shape[0])
+            @ self._bkd.to_numpy(state)
         )
         return residual + load - stiffness_times_state
 
@@ -808,7 +839,7 @@ class RobinBC(Generic[Array]):
         time: float,
     ) -> Union[spmatrix, Array]:
         """Add the Robin term's Jacobian, -K_Gamma (same type as input)."""
-        contribution = self._stiffness_contribution(time)
+        contribution = self._placed_contribution(time, jacobian.shape[0])
         if issparse(jacobian):
             return jacobian - contribution
         jac_np = self._bkd.to_numpy(jacobian) - contribution.toarray()

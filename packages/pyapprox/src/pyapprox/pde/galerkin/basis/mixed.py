@@ -34,6 +34,15 @@ from pyapprox.pde.galerkin.protocols.basis import (
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
+try:
+    from skfem import Basis
+except ImportError:
+    from pyapprox.util.optional_deps import import_optional_dependency
+
+    import_optional_dependency(
+        "skfem", feature_name="Galerkin module", extra_name="fem"
+    )
+
 
 @runtime_checkable
 class MixedFieldBasisProtocol(
@@ -61,6 +70,16 @@ class _ScalarFieldView(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._basis.bkd()
 
+    def offset(self) -> int:
+        """Return the index of the field's first DOF in the mixed state."""
+        return self._offset
+
+    def skfem_basis(self) -> Basis:
+        """Return the field's own skfem basis, which numbers its DOFs from
+        zero (natural conditions place them at ``offset()``)."""
+        skfem_basis: Basis = self._basis.skfem_basis()
+        return skfem_basis
+
     def get_dofs(self, boundary_name: str) -> Array:
         """Return the field's DOFs on a boundary, as global indices."""
         return self._basis.get_dofs(boundary_name) + self._offset
@@ -77,14 +96,25 @@ class _VectorFieldView(Generic[Array]):
         self,
         mixed: "MixedBasis[Array]",
         basis: ComponentDofsBasisProtocol[Array],
+        skfem_basis: Basis,
         offset: int,
     ) -> None:
         self._mixed = mixed
         self._basis = basis
+        self._skfem_basis = skfem_basis
         self._offset = offset
 
     def bkd(self) -> Backend[Array]:
         return self._basis.bkd()
+
+    def offset(self) -> int:
+        """Return the index of the field's first DOF in the mixed state."""
+        return self._offset
+
+    def skfem_basis(self) -> Basis:
+        """Return the field's own skfem basis, which numbers its DOFs from
+        zero (natural conditions place them at ``offset()``)."""
+        return self._skfem_basis
 
     def ncomponents(self) -> int:
         return self._basis.ncomponents()
@@ -189,7 +219,9 @@ class MixedBasis(Generic[Array]):
         index = self._index(name)
         basis = self._bases[index]
         if isinstance(basis, ComponentDofsBasisProtocol):
-            return _VectorFieldView(self, basis, self._offsets[index])
+            return _VectorFieldView(
+                self, basis, basis.skfem_basis(), self._offsets[index]
+            )
         return _ScalarFieldView(self, basis, self._offsets[index])
 
     def dof_coordinates(self) -> Array:

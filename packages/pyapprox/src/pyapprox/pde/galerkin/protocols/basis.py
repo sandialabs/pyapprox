@@ -202,6 +202,41 @@ class BoundaryDofsProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
+class NaturalBoundaryBasisProtocol(Protocol, Generic[Array]):
+    """What a natural (Neumann or Robin) boundary condition needs from a
+    basis: the DOFs on a named boundary and the skfem basis its boundary
+    integrals are assembled on.
+
+    Satisfied by every Galerkin basis and by the field views of a
+    ``MixedBasis``; a view also satisfies :class:`FieldOffsetProtocol`,
+    which says where its assembled DOFs sit in the mixed state.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def get_dofs(self, boundary_name: str) -> Array:
+        """Return DOF indices on a named boundary. Integer."""
+        ...
+
+    def skfem_basis(self) -> Any:
+        """Return the skfem Basis the boundary integrals use."""
+        ...
+
+
+@runtime_checkable
+class FieldOffsetProtocol(Protocol):
+    """A field placed inside a larger state: its skfem basis numbers its
+    own DOFs from zero, and they sit at ``offset()`` onward in the state.
+    A basis without it is the whole state (offset zero)."""
+
+    def offset(self) -> int:
+        """Return the index of the field's first DOF in the state."""
+        ...
+
+
+@runtime_checkable
 class VectorBasisProtocol(Protocol, Generic[Array]):
     """Protocol for vector-valued finite element basis.
 
