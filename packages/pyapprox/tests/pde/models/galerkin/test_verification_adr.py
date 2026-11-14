@@ -514,8 +514,8 @@ class TestRefusals:
             discretizer.approximations(transient)
 
     def test_multi_field(self) -> None:
-        """Errors are measured for one field, so a two-field problem is
-        refused until vector and mixed bases are supported."""
+        """A scalar basis carries one field, so a two-field problem on it
+        is refused: its second field would have no DOFs."""
         adr = _ADR("1")
         box = Box([(0.0, 1.0)])
         discretizer = GalerkinDiscretizer(StructuredBox([4]), Lagrange(1), adr)
@@ -525,7 +525,7 @@ class TestRefusals:
             box,
             {"left": Dirichlet(), "right": Dirichlet()},
         )
-        with pytest.raises(ValueError, match="single-field"):
+        with pytest.raises(ValueError, match="one field per component"):
             discretizer.approximations(two)
 
     def test_named_box(self) -> None:

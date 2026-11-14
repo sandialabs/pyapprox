@@ -5,12 +5,17 @@ repository's skfem Galerkin stack. Bound to skfem and NumPy.
 
 - Mesh families (:class:`StructuredBox`, :class:`SkfemDisk`) refine a
   domain, naming mesh boundaries as the domain names its parts.
-- Basis factories (:class:`Lagrange`) build a basis on each mesh.
+- Basis factories (:class:`Lagrange`, :class:`VectorLagrange`) build a
+  basis on each mesh. A vector basis carries one field per component,
+  in the problem's field order.
 - A system factory, supplied by the case, builds the physics under test
-  on a basis. Nothing here knows any physics: a factory builds its
-  physics class from the generic helpers :func:`field`,
-  :func:`vector_field`, :func:`state_law`, :func:`forcing` and
-  :func:`boundary_conditions`, so each test exercises the class it names.
+  on a basis of the kind it names; pairing it with a factory of another
+  kind is a type error. Nothing here knows any physics: a factory builds
+  its physics class from the generic helpers :func:`field`,
+  :func:`vector_field`, :func:`state_law`, :func:`quadrature_values`,
+  :func:`forcing`, :func:`vector_forcing`, :func:`boundary_conditions`
+  and :func:`vector_boundary_conditions`, so each test exercises the
+  class it names.
   The helpers declare each supplier's time dependence from its
   expression (it uses ``t`` or not), so they serve transient problems
   unchanged. :func:`field`, :func:`vector_field` and :func:`state_law`
@@ -32,7 +37,19 @@ forms pass quadrature points ``(ndim, nelem, nquad)`` and states
 ``(nelem, nquad)``; :class:`SkfemPoints` is the one place that fits them.
 """
 
-from typing import Any, List, Mapping, Optional, Protocol, Sequence, Tuple, Union
+from dataclasses import dataclass
+from typing import (
+    Any,
+    Generic,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
 import sympy as sp
@@ -45,7 +62,7 @@ from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.expressions.symbols import coordinates, time
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
     NeumannBC,
@@ -56,6 +73,10 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
+)
+from pyapprox.pde.galerkin.protocols.basis import (
+    ComponentDofsBasisProtocol,
+    GalerkinBasisProtocol,
 )
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.pde.galerkin.system import GalerkinSystem
@@ -81,6 +102,13 @@ from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 _Np = NDArray[Any]
 _BKD = NumpyBkd()
 _SIDES = ("left", "right", "bottom", "top", "back", "front")
+# The basis a physics is built on: a factory producing one kind and a
+# system needing another do not type-check together.
+_B = TypeVar("_B", bound=GalerkinBasisProtocol[_Np])
+_B_co = TypeVar("_B_co", bound=GalerkinBasisProtocol[_Np], covariant=True)
+_B_contra = TypeVar(
+    "_B_contra", bound=GalerkinBasisProtocol[_Np], contravariant=True
+)
 
 
 class ExpressionScopeProtocol(Protocol):
@@ -250,6 +278,23 @@ class _NaturalData:
         return self._timed
 
 
+class _NaturalVectorData:
+    """:class:`_NaturalData` with one expression per component, shape
+    ``(ncomponents, npts)``."""
+
+    def __init__(
+        self, data: Sequence[sp.Expr], scope: ExpressionScopeProtocol
+    ) -> None:
+        self._points = SkfemPoints(data, scope)
+        self._timed = any(time() in d.free_symbols for d in data)
+
+    def evaluate(self, coords: _Np, normal: _Np, time: float) -> _Np:
+        return -self._points(coords, normals=normal, t=time)
+
+    def is_time_dependent(self) -> bool:
+        return self._timed
+
+
 def field(scope: ExpressionScopeProtocol, expression: Value) -> Union[float, _Field]:
     """A scalar coefficient ``f(coords, time)`` from an expression in the
     coordinates, ``t`` and the scope's constants; a constant as a float.
@@ -319,6 +364,34 @@ def forcing(problem: ManufacturedProblem, row: str) -> _Field:
     return _Field(problem.forcing(row), problem)
 
 
+def vector_forcing(problem: ManufacturedProblem, rows: Sequence[str]) -> _VectorField:
+    """The forcings of ``rows`` as one vector ``f(coords, time)``, shape
+    ``(len(rows), ...)``: a vector physics' body force."""
+    return _VectorField([problem.forcing(row) for row in rows], problem)
+
+
+def quadrature_values(
+    scope: ExpressionScopeProtocol,
+    expression: Value,
+    basis: GalerkinBasisProtocol[_Np],
+) -> _Np:
+    """A steady coefficient at the quadrature points of ``basis``, for a
+    physics that takes coefficients as values there. Shape: ``(nelements,
+    nquad)``.
+
+    Raises
+    ------
+    ValueError
+        If the expression uses anything but the coordinates and constants.
+    """
+    parsed = _parsed(scope, expression, ())
+    points = np.asarray(basis.skfem_basis().global_coordinates().value)
+    if parsed.is_number:
+        return np.full(points.shape[1:], float(parsed))
+    values: _Np = SkfemPoints([parsed], scope)(points)[0]
+    return values
+
+
 class _GalerkinCondition:
     """Builds the Galerkin boundary condition of one row on one part."""
 
@@ -366,6 +439,26 @@ class _GalerkinCondition:
         return None
 
 
+def _boundary_parts(problem: ManufacturedProblem) -> Tuple[str, ...]:
+    """The boundary parts of the problem's domain."""
+    domain = problem.domain()
+    return () if domain is None else domain.boundaries()
+
+
+def _check_periodic(
+    part: str, periodic: bool, basis: GalerkinBasisProtocol[_Np]
+) -> None:
+    """Refuse a periodic part the mesh still has as a boundary, or a
+    non-periodic part it does not."""
+    if periodic == (part in set(basis.skfem_basis().mesh.boundaries or {})):
+        raise ValueError(
+            f"{part!r} is {'periodic' if periodic else 'not periodic'} but "
+            f"the mesh {'has' if periodic else 'does not have'} it as a "
+            "boundary; wrap periodic sides in the mesh family "
+            "(StructuredBox(..., periodic=...)) and only those"
+        )
+
+
 def boundary_conditions(
     problem: ManufacturedProblem, basis: LagrangeBasis[_Np], row: str
 ) -> List[BoundaryConditionRole[_Np]]:
@@ -388,20 +481,10 @@ def boundary_conditions(
             f"row {row!r} takes no boundary conditions; the boundary rows are "
             f"{list(problem.boundary_rows())}"
         )
-    domain = problem.domain()
-    parts = () if domain is None else domain.boundaries()
-    mesh_parts = set(basis.skfem_basis().mesh.boundaries or {})
     conditions: List[BoundaryConditionRole[_Np]] = []
-    for part in parts:
+    for part in _boundary_parts(problem):
         condition: ConditionProtocol = problem.conditions(part)[row]
-        periodic = isinstance(condition, Periodic)
-        if periodic == (part in mesh_parts):
-            raise ValueError(
-                f"{part!r} is {'periodic' if periodic else 'not periodic'} but "
-                f"the mesh {'has' if periodic else 'does not have'} it as a "
-                "boundary; wrap periodic sides in the mesh family "
-                "(StructuredBox(..., periodic=...)) and only those"
-            )
+        _check_periodic(part, isinstance(condition, Periodic), basis)
         # Every kind builds a condition except periodic, which builds none.
         visitor: ConditionVisitorProtocol[Optional[BoundaryConditionRole[_Np]]] = (
             _GalerkinCondition(problem, basis, part, row)
@@ -412,11 +495,143 @@ def boundary_conditions(
     return conditions
 
 
-class SystemFactoryProtocol(Protocol):
+@dataclass(frozen=True)
+class _Essential:
+    """A row whose values a part prescribes."""
+
+
+@dataclass(frozen=True)
+class _Natural:
+    """A row whose natural data a part prescribes: Robin with coefficient
+    ``alpha``, or Neumann when ``alpha`` is ``None``."""
+
+    alpha: Optional[sp.Expr]
+
+
+class _RowKind:
+    """What one row's condition on a part prescribes; ``None`` for a
+    periodic row, which prescribes nothing."""
+
+    def __init__(self, names: Names) -> None:
+        self._names = names
+
+    def dirichlet(self, condition: Dirichlet) -> Union[_Essential, _Natural]:
+        return _Essential()
+
+    def neumann(self, condition: Neumann) -> Union[_Essential, _Natural]:
+        return _Natural(None)
+
+    def robin(self, condition: Robin) -> Union[_Essential, _Natural]:
+        return _Natural(self._names.substitute_constants(condition.alpha(self._names)))
+
+    def periodic(self, condition: Periodic) -> None:
+        return None
+
+
+def vector_boundary_conditions(
+    problem: ManufacturedProblem,
+    basis: VectorLagrangeBasis[_Np],
+    rows: Sequence[str],
+) -> List[BoundaryConditionRole[_Np]]:
+    """The Galerkin boundary conditions of a vector field whose components
+    are ``rows``, in order, with data from the problem's expressions.
+
+    On each part the rows' conditions combine into at most two of this
+    stack's: the Dirichlet rows into one ``DirichletBC`` on their
+    components, and the others into one ``NeumannBC`` (all Neumann) or
+    ``RobinBC`` with vector data, zero in the Dirichlet components (whose
+    equations the constraint replaces). The Robin coefficient is shared
+    when every row is Robin with one coefficient, and otherwise one per
+    component, zero on Neumann rows, so a part may mix all three kinds.
+    Periodic parts are handled as in :func:`boundary_conditions`.
+
+    Raises
+    ------
+    ValueError
+        If ``rows`` are not one per component of ``basis``, a row takes no
+        boundary conditions, or a part is periodic for some rows only or
+        does not match the mesh's periodicity.
+    """
+    rows = tuple(rows)
+    if len(rows) != basis.ncomponents():
+        raise ValueError(
+            f"one row per component of the basis ({basis.ncomponents()}), "
+            f"got {list(rows)}"
+        )
+    missing = [row for row in rows if row not in problem.boundary_rows()]
+    if missing:
+        raise ValueError(
+            f"rows {missing} take no boundary conditions; the boundary rows "
+            f"are {list(problem.boundary_rows())}"
+        )
+    visitor: ConditionVisitorProtocol[Union[_Essential, _Natural, None]] = _RowKind(
+        problem.names()
+    )
+    zero = sp.Integer(0)
+    conditions: List[BoundaryConditionRole[_Np]] = []
+    for part in _boundary_parts(problem):
+        by_row = problem.conditions(part)
+        kinds = [by_row[row].accept(visitor) for row in rows]
+        periodic = [kind is None for kind in kinds]
+        if any(periodic) and not all(periodic):
+            raise ValueError(f"{part!r} is periodic for some rows only")
+        _check_periodic(part, all(periodic), basis)
+        if all(periodic):
+            continue
+        data = problem.boundary_data(part)
+        essential = tuple(
+            i for i, kind in enumerate(kinds) if isinstance(kind, _Essential)
+        )
+        if essential:
+            values = [
+                data[row] if i in essential else zero for i, row in enumerate(rows)
+            ]
+            # A one-component basis takes scalar values.
+            supplier: Union[_Field, _VectorField] = (
+                _Field(values[0], problem)
+                if len(rows) == 1
+                else _VectorField(values, problem)
+            )
+            components = None if len(essential) == len(rows) else essential
+            conditions.append(
+                DirichletBC(basis, part, supplier, _BKD, components=components)
+            )
+        natural = [kind for kind in kinds if isinstance(kind, _Natural)]
+        if not natural:
+            continue
+        flux = _NaturalVectorData(
+            [zero if i in essential else data[row] for i, row in enumerate(rows)],
+            problem,
+        )
+        alphas = {kind.alpha for kind in natural}
+        if alphas == {None}:
+            conditions.append(NeumannBC(basis, part, flux, _BKD))
+            continue
+        shared = next(iter(alphas))
+        coefficient: Union[float, _Field, _VectorField]
+        if len(alphas) == 1 and shared is not None and not essential:
+            coefficient = field(problem, shared)
+        else:
+            # One per component: zero on Neumann rows, and on Dirichlet
+            # rows, whose equations the constraint replaces.
+            coefficient = _VectorField(
+                [
+                    kind.alpha
+                    if isinstance(kind, _Natural) and kind.alpha is not None
+                    else zero
+                    for kind in kinds
+                ],
+                problem,
+            )
+        conditions.append(RobinBC(basis, part, coefficient, flux, _BKD))
+    return conditions
+
+
+class SystemFactoryProtocol(Protocol[_B_contra]):
     """Builds the physics under test, with its conditions, on a basis."""
 
     def system(
-        self, problem: ManufacturedProblem, basis: LagrangeBasis[_Np]
+        self, problem: ManufacturedProblem, basis: _B_contra
     ) -> GalerkinSystem[_Np]:
         """The system whose solution approximates ``problem``'s."""
         ...
@@ -597,10 +812,10 @@ class SkfemDisk:
         return f"{type(self).__name__}({list(self._refinements)})"
 
 
-class BasisFactoryProtocol(Protocol):
+class BasisFactoryProtocol(Protocol[_B_co]):
     """Builds a basis on a mesh."""
 
-    def build(self, mesh: GalerkinMeshProtocol[_Np]) -> LagrangeBasis[_Np]:
+    def build(self, mesh: GalerkinMeshProtocol[_Np]) -> _B_co:
         """The basis on ``mesh``."""
         ...
 
@@ -629,7 +844,32 @@ class Lagrange:
         return f"{type(self).__name__}({self._degree})"
 
 
-def _mesh_size(basis: LagrangeBasis[_Np]) -> float:
+class VectorLagrange:
+    """Continuous vector Lagrange elements of one degree, one component
+    per coordinate, DOFs interleaved per node.
+
+    Parameters
+    ----------
+    degree : int
+        The polynomial degree (1 or 2).
+    """
+
+    def __init__(self, degree: int) -> None:
+        self._degree = degree
+
+    def degree(self) -> int:
+        """The polynomial degree."""
+        return self._degree
+
+    def build(self, mesh: GalerkinMeshProtocol[_Np]) -> VectorLagrangeBasis[_Np]:
+        """The degree-``degree`` vector Lagrange basis on ``mesh``."""
+        return VectorLagrangeBasis(mesh, degree=self._degree)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._degree})"
+
+
+def _mesh_size(basis: GalerkinBasisProtocol[_Np]) -> float:
     """The largest element diameter.
 
     Vertices come from each element's own mapping of the reference
@@ -644,16 +884,17 @@ def _mesh_size(basis: LagrangeBasis[_Np]) -> float:
 
 
 class GalerkinApproximation:
-    """One level's Galerkin solution of a field, with errors against its
-    exact solution.
+    """One level's Galerkin solution of a field, scalar or vector, with
+    errors against its exact solution.
 
     Parameters
     ----------
     problem : ManufacturedProblem
         The problem solved.
-    row : str
-        The field the solution approximates.
-    basis : LagrangeBasis
+    rows : Sequence[str]
+        The fields the solution approximates, one per component of
+        ``basis`` in order (one for a scalar basis).
+    basis : GalerkinBasisProtocol
         The basis of the solution.
     state : NDArray
         The solution's DOFs. Shape: ``(ndofs,)``.
@@ -664,13 +905,14 @@ class GalerkinApproximation:
     def __init__(
         self,
         problem: ManufacturedProblem,
-        row: str,
-        basis: LagrangeBasis[_Np],
+        rows: Sequence[str],
+        basis: GalerkinBasisProtocol[_Np],
         state: _Np,
         intorder: int,
     ) -> None:
         self._basis, self._state, self._intorder = basis, state, intorder
-        self._exact = SkfemPoints([problem.solution(row)], problem)
+        self._nrows = len(rows)
+        self._exact = SkfemPoints([problem.solution(row) for row in rows], problem)
         self._h = _mesh_size(basis)
 
     def h(self) -> float:
@@ -683,13 +925,16 @@ class GalerkinApproximation:
 
     def l2_error(self) -> float:
         r""":math:`\|u^* - u_h\|_{L^2}`, integrated by skfem quadrature of
-        order ``intorder`` against :math:`u^*` itself."""
+        order ``intorder`` against :math:`u^*` itself; for a vector field,
+        of the Euclidean norm of the pointwise error."""
         skfem_basis = self._basis.skfem_basis()
         fine = Basis(skfem_basis.mesh, skfem_basis.elem, intorder=self._intorder)
-        exact = self._exact
+        exact, nrows = self._exact, self._nrows
 
         def squared_error(w: Any) -> _Np:
-            return np.asarray((w["uh"] - exact(np.asarray(w.x))[0]) ** 2)
+            x = np.asarray(w.x)
+            uh = np.asarray(w["uh"].value).reshape((nrows,) + x.shape[1:])
+            return np.asarray(((uh - exact(x)) ** 2).sum(axis=0))
 
         value = Functional(squared_error).assemble(
             fine, uh=fine.interpolate(self._state)
@@ -697,14 +942,23 @@ class GalerkinApproximation:
         return float(np.sqrt(value))
 
     def nodal_error(self) -> float:
-        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the DOF locations."""
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the DOF locations,
+        each DOF against its own component."""
         coords = np.asarray(self._basis.dof_coordinates())
-        return float(np.abs(self._state - self._exact(coords)[0]).max())
+        dofs = np.arange(self._state.shape[0])
+        components = (
+            np.asarray(self._basis.dof_components(dofs))
+            if isinstance(self._basis, ComponentDofsBasisProtocol)
+            else np.zeros_like(dofs)
+        )
+        exact = self._exact(coords)[components, dofs]
+        return float(np.abs(self._state - exact).max())
 
 
-class GalerkinDiscretizer:
-    """Solves a single-field steady problem with this stack on every mesh
-    of a family.
+class GalerkinDiscretizer(Generic[_B]):
+    """Solves a steady problem with this stack on every mesh of a family:
+    one field on a scalar basis, or one field per component on a vector
+    basis, in the problem's field order.
 
     Each level: the factory's system on ``basis.build(mesh)``, the steady
     residual (``galerkin_steady_residual``), and ``SteadySystem`` with
@@ -729,8 +983,8 @@ class GalerkinDiscretizer:
     def __init__(
         self,
         meshes: MeshFamilyProtocol,
-        basis: BasisFactoryProtocol,
-        factory: SystemFactoryProtocol,
+        basis: BasisFactoryProtocol[_B],
+        factory: SystemFactoryProtocol[_B],
         nonlinear: Optional[NonlinearSolverProtocol[_Np, _Np]] = None,
         intorder: Optional[int] = None,
     ) -> None:
@@ -750,8 +1004,8 @@ class GalerkinDiscretizer:
         Raises
         ------
         ValueError
-            If ``problem`` is transient, has no domain, or has more than
-            one field.
+            If ``problem`` is transient, has no domain, or does not have
+            one field per component of the basis.
         RuntimeError
             If a solve does not converge.
         """
@@ -764,15 +1018,20 @@ class GalerkinDiscretizer:
         domain = problem.domain()
         if domain is None:
             raise ValueError("GalerkinDiscretizer needs a domain; this is an ODE")
-        if len(problem.fields()) != 1:
-            raise ValueError(
-                f"GalerkinDiscretizer solves single-field problems, got "
-                f"{list(problem.fields())}"
-            )
-        (row,) = problem.fields()
+        rows = problem.fields()
         approximations = []
         for mesh in self._meshes.meshes(domain):
             basis = self._basis.build(mesh)
+            ncomponents = (
+                basis.ncomponents()
+                if isinstance(basis, ComponentDofsBasisProtocol)
+                else 1
+            )
+            if len(rows) != ncomponents:
+                raise ValueError(
+                    f"GalerkinDiscretizer needs one field per component of the "
+                    f"basis ({ncomponents}), got {list(rows)}"
+                )
             system = self._factory.system(problem, basis)
             discretization = skfem_discretization(system)
             space = discretization.space()
@@ -796,7 +1055,7 @@ class GalerkinDiscretizer:
             )
             approximations.append(
                 GalerkinApproximation(
-                    problem, row, basis, point.state()[:, 0], intorder
+                    problem, rows, basis, point.state()[:, 0], intorder
                 )
             )
         return approximations
