@@ -548,8 +548,11 @@ class RobinBC(Generic[Array]):
         (time-independent); or a declared ``TimeIndependent(alpha)`` /
         ``TimeDependent(alpha)`` for ``alpha(coords, time)``. Coordinates
         have shape ``(ndim, npts)`` and values ``(npts,)``, at boundary
-        quadrature points. A bare callable that could take a time is
-        rejected, as for ``value_func``.
+        quadrature points. On a vector basis a callable may instead
+        return one coefficient per component, ``(ncomponents, npts)``,
+        giving ``sum_i alpha_i u_i v_i``: a zero component is a Neumann
+        (traction) condition on that component alone. A bare callable
+        that could take a time is rejected, as for ``value_func``.
     value_func : Callable, float or NormalDependentDataProtocol
         Robin data g: a constant; a bare ``g(coords)`` (time-independent);
         a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
@@ -630,16 +633,40 @@ class RobinBC(Generic[Array]):
 
         Constants pass through (broadcasting handles them); callables
         are evaluated on the flattened coordinates and reshaped to the
-        skfem ``(nelem, nquad)`` layout.
+        skfem ``(nelem, nquad)`` layout, led by the component for
+        per-component values.
+
+        Raises
+        ------
+        ValueError
+            If the values are neither one per point nor, on a vector
+            basis, one per component and point.
         """
         if isinstance(self._alpha, float):
             return self._alpha
         x_np = np.asarray(w.x)
-        if x_np.ndim == 3:
-            ndim, nelem, nquad = x_np.shape
-            vals = np.asarray(self._alpha(x_np.reshape(ndim, -1), time))
-            return vals.reshape(nelem, nquad)
-        return np.asarray(self._alpha(x_np, time))
+        ndim, trailing = x_np.shape[0], x_np.shape[1:]
+        vals = np.asarray(self._alpha(x_np.reshape(ndim, -1), time))
+        npts = int(np.prod(trailing))
+        if vals.shape == (npts,):
+            return vals.reshape(trailing)
+        if vals.shape == (self._ncomponents(), npts) and self._ncomponents() > 1:
+            return vals.reshape((self._ncomponents(),) + trailing)
+        raise ValueError(
+            f"alpha must return shape ({npts},)"
+            + (
+                f" or ({self._ncomponents()}, {npts})"
+                if self._ncomponents() > 1
+                else ""
+            )
+            + f", got {vals.shape}"
+        )
+
+    def _ncomponents(self) -> int:
+        """The components of the basis; 1 for a scalar basis."""
+        if isinstance(self._basis, ComponentDofsBasisProtocol):
+            return self._basis.ncomponents()
+        return 1
 
     def _get_boundary_basis(self) -> Basis:
         """Get or create the boundary basis for assembly."""
@@ -652,15 +679,13 @@ class RobinBC(Generic[Array]):
         """Assemble K_Gamma = alpha * integral_{Gamma} u . phi ds (sparse)
         at ``time``.
 
-        For vector elements uses sum_i(u_i * v_i); for scalar uses u * v.
+        For vector elements uses sum_i(alpha_i * u_i * v_i), with one
+        alpha for every component unless alpha gives one per component;
+        for scalar uses u * v.
         """
         bndry_basis = self._get_boundary_basis()
         alpha_at_quadrature = partial(self._alpha_at_quadrature, time=time)
-        ncomps = (
-            self._basis.ncomponents()
-            if isinstance(self._basis, ComponentDofsBasisProtocol)
-            else 1
-        )
+        ncomps = self._ncomponents()
 
         if ncomps > 1:
 
@@ -669,10 +694,14 @@ class RobinBC(Generic[Array]):
                 v: "DiscreteField",
                 w: "FormExtraParams",
             ) -> np.ndarray:
-                return np.asarray(
-                    alpha_at_quadrature(w)
-                    * sum(u[i] * v[i] for i in range(ncomps))
-                )
+                alpha = alpha_at_quadrature(w)
+                x_ndim = np.asarray(w.x).ndim
+                if isinstance(alpha, np.ndarray) and alpha.ndim == x_ndim:
+                    # One coefficient per component, led by the component.
+                    return np.asarray(
+                        sum(alpha[i] * u[i] * v[i] for i in range(ncomps))
+                    )
+                return np.asarray(alpha * sum(u[i] * v[i] for i in range(ncomps)))
         else:
 
             def robin_bilinear(

@@ -24,7 +24,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary import (
     BoundaryConditionSet,
     CallableDirichletBC,
@@ -247,9 +247,57 @@ class TestRobinBCBase:
         with pytest.raises(TypeError, match="ambiguous"):
             RobinBC(basis, "left", _growing_alpha, value_func=0.0, bkd=bkd)
 
+    def test_per_component_alpha_springs_each_component_alone(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        r"""On a 2D vector basis, :math:`\alpha = (1 + y, 0)` per component
+        gives the shared coefficient's boundary stiffness on the
+        x-component DOFs and none on the y-component ones, so y is
+        traction free there; :math:`(1 + y, 1 + y)` gives the shared
+        stiffness itself. Values for the wrong number of components are
+        refused, and per-component values on a scalar basis too."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh2D(nx=3, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        zeros = bkd.zeros((basis.ndofs(), basis.ndofs()))
+
+        def stiffness(alpha: Any) -> NDArray[np.floating[Any]]:
+            bc = RobinBC(basis, "left", TimeIndependent(alpha), 0.0, bkd)
+            return np.asarray(bkd.to_numpy(bc.apply_to_stiffness(zeros, 0.0)))
+
+        shared = stiffness(_profile_alpha)
+        on_x = bkd.to_numpy(basis.dof_components(bkd.arange(basis.ndofs()))) == 0
+        assert float(np.abs(shared[np.ix_(on_x, on_x)]).max()) > 0.1
+        np.testing.assert_allclose(
+            stiffness(_profile_alpha_on_x), shared * np.outer(on_x, on_x), atol=1e-15
+        )
+        np.testing.assert_allclose(stiffness(_profile_alpha_on_both), shared)
+        with pytest.raises(ValueError, match="alpha must return shape"):
+            stiffness(_three_alphas)
+        scalar = LagrangeBasis(mesh, degree=1)
+        bc = RobinBC(
+            scalar, "left", TimeIndependent(_profile_alpha_on_both), 0.0, bkd
+        )
+        with pytest.raises(ValueError, match="alpha must return shape"):
+            bc.apply_to_stiffness(bkd.zeros((scalar.ndofs(), scalar.ndofs())), 0.0)
+
 
 def _profile_alpha(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
     return np.asarray(1.0 + x[1])
+
+
+def _profile_alpha_on_x(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    return np.stack([1.0 + x[1], np.zeros_like(x[1])])
+
+
+def _profile_alpha_on_both(
+    x: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
+    return np.stack([1.0 + x[1], 1.0 + x[1]])
+
+
+def _three_alphas(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    return np.stack([1.0 + x[1]] * 3)
 
 
 def _growing_alpha(
