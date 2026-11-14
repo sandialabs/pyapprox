@@ -434,19 +434,16 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
 
         skfem_basis = self._basis.skfem_basis()
         ndim = self.ndim()
-        body_force_func = self._body_force_eval
-        current_time = time
+        # Evaluated once at the quadrature points, (ndim, nelem, nquad):
+        # skfem calls the form once per element basis function.
+        x: NDArray[np.floating[Any]] = np.asarray(
+            skfem_basis.global_coordinates().value
+        )
+        force = np.asarray(
+            self._body_force_eval(x.reshape(ndim, -1), time)
+        ).reshape(x.shape)
 
         def load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            x = np.asarray(w.x)
-            x_shape = x.shape
-            if len(x_shape) == 3:
-                n, nelem, nquad = x_shape
-                x_flat = x.reshape(n, -1)
-                force_flat = np.asarray(body_force_func(x_flat, current_time))
-                force = force_flat.reshape(ndim, nelem, nquad)
-            else:
-                force = np.asarray(body_force_func(x, current_time))
             ret: NDArray[np.floating[Any]] = sum(force[i] * v[i] for i in range(ndim))
             return ret
 
@@ -459,182 +456,45 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         A_iJkL = dP_iJ/dF_kL with element-wise Lame parameters.
         """
         skfem_basis = self._basis.skfem_basis()
-        state_interp = self._interpolate_state(state)
         ndim = self.ndim()
-        lam_qp, mu_qp = self._lame_qp()
-
-        if ndim == 1:
-
-            def tangent_1d(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                F = 1.0 + w.u_prev.grad[0, 0]
-                J = F
-                ln_J = np.log(J)
-                dPdF = w.mu + (w.mu + w.lam * (1.0 - ln_J)) / (J**2)
-                ret: NDArray[np.floating[Any]] = dPdF * v.grad[0, 0] * u.grad[0, 0]
-                return ret
-
-            K_np: Array = asm(
-                BilinearForm(tangent_1d),
-                skfem_basis,
-                u_prev=state_interp,
-                lam=lam_qp,
-                mu=mu_qp,
-            )
-
-        elif ndim == 2:
-
-            def tangent_2d(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                F11 = 1.0 + w.u_prev.grad[0, 0]
-                F12 = w.u_prev.grad[0, 1]
-                F21 = w.u_prev.grad[1, 0]
-                F22 = 1.0 + w.u_prev.grad[1, 1]
-
-                J = F11 * F22 - F12 * F21
-                ln_J = np.log(J)
-
-                beta = (w.lam * ln_J - w.mu) / J
-                gamma = (w.mu + w.lam * (1.0 - ln_J)) / (J**2)
-
-                # Precompute test/trial gradient components
-                v00 = v.grad[0, 0]
-                v01 = v.grad[0, 1]
-                v10 = v.grad[1, 0]
-                v11 = v.grad[1, 1]
-                u00 = u.grad[0, 0]
-                u01 = u.grad[0, 1]
-                u10 = u.grad[1, 0]
-                u11 = u.grad[1, 1]
-
-                # Unrolled contraction: A_iJkL * v.grad[i,J] * u.grad[k,L]
-                gF11F22 = gamma * F11 * F22
-                gF12F21 = gamma * F12 * F21
-                gF11F21 = gamma * F11 * F21
-                gF12F22 = gamma * F12 * F22
-                gF11F12 = gamma * F11 * F12
-                gF21F22 = gamma * F21 * F22
-
-                result: np.ndarray = np.zeros_like(u.grad[0, 0])
-                result = result + v00 * (
-                    (w.mu + gamma * F22**2) * u00
-                    - gF21F22 * u01
-                    - gF12F22 * u10
-                    + (beta + gF11F22) * u11
-                )
-                result = result + v01 * (
-                    -gF21F22 * u00
-                    + (w.mu + gamma * F21**2) * u01
-                    + (-beta + gF12F21) * u10
-                    - gF11F21 * u11
-                )
-                result = result + v10 * (
-                    -gF12F22 * u00
-                    + (-beta + gF12F21) * u01
-                    + (w.mu + gamma * F12**2) * u10
-                    - gF11F12 * u11
-                )
-                result = result + v11 * (
-                    (beta + gF11F22) * u00
-                    - gF11F21 * u01
-                    - gF11F12 * u10
-                    + (w.mu + gamma * F11**2) * u11
-                )
-                return result
-
-            K_np = asm(
-                BilinearForm(tangent_2d),
-                skfem_basis,
-                u_prev=state_interp,
-                lam=lam_qp,
-                mu=mu_qp,
-            )
-
-        elif ndim == 3:
-
-            def tangent_3d(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                F11 = 1.0 + w.u_prev.grad[0, 0]
-                F12 = w.u_prev.grad[0, 1]
-                F13 = w.u_prev.grad[0, 2]
-                F21 = w.u_prev.grad[1, 0]
-                F22 = 1.0 + w.u_prev.grad[1, 1]
-                F23 = w.u_prev.grad[1, 2]
-                F31 = w.u_prev.grad[2, 0]
-                F32 = w.u_prev.grad[2, 1]
-                F33 = 1.0 + w.u_prev.grad[2, 2]
-
-                J = (
-                    F11 * (F22 * F33 - F23 * F32)
-                    - F12 * (F21 * F33 - F23 * F31)
-                    + F13 * (F21 * F32 - F22 * F31)
-                )
-                ln_J = np.log(J)
-
-                # F^{-1}_{ab} = cof_{ba} / J
-                finv = (
-                    np.stack(
-                        [
-                            np.stack(
-                                [
-                                    F22 * F33 - F23 * F32,
-                                    -(F12 * F33 - F13 * F32),
-                                    F12 * F23 - F13 * F22,
-                                ]
-                            ),
-                            np.stack(
-                                [
-                                    -(F21 * F33 - F23 * F31),
-                                    F11 * F33 - F13 * F31,
-                                    -(F11 * F23 - F13 * F21),
-                                ]
-                            ),
-                            np.stack(
-                                [
-                                    F21 * F32 - F22 * F31,
-                                    -(F11 * F32 - F12 * F31),
-                                    F11 * F22 - F12 * F21,
-                                ]
-                            ),
-                        ]
-                    )
-                    / J
-                )
-
-                # A_iJkL = mu*d_ik*d_JL + (mu - lam*lnJ)*Finv_Jk*Finv_Li
-                #          + lam*Finv_Ji*Finv_Lk, contracted with
-                # v.grad[i,J]*u.grad[k,L] term by term without forming A
-                vu = np.einsum("ij...,ij...->...", v.grad, u.grad)
-                cross = np.einsum(
-                    "jk...,li...,ij...,kl...->...", finv, finv, v.grad, u.grad
-                )
-                tr_v = np.einsum("ij...,ji...->...", v.grad, finv)
-                tr_u = np.einsum("ij...,ji...->...", u.grad, finv)
-                ret: NDArray[np.floating[Any]] = (
-                    w.mu * vu + (w.mu - w.lam * ln_J) * cross + w.lam * tr_v * tr_u
-                )
-                return ret
-
-            K_np = asm(
-                BilinearForm(tangent_3d),
-                skfem_basis,
-                u_prev=state_interp,
-                lam=lam_qp,
-                mu=mu_qp,
-            )
-
-        else:
+        if ndim not in (1, 2, 3):
             raise NotImplementedError(f"Tangent stiffness not available for {ndim}D.")
+        lam_qp, mu_qp = self._lame_qp()
+        # The modulus depends on the state alone, so it is evaluated once
+        # here, shape (ndim, ndim, ndim, ndim, nelem, nquad), in any
+        # dimension:
+        #   A_iJkL = mu*d_ik*d_JL + (mu - lam*lnJ)*Finv_Jk*Finv_Li
+        #            + lam*Finv_Ji*Finv_Lk.
+        # skfem calls the form once per pair of element basis functions;
+        # evaluating F, J and F^{-1} inside it repeated that work for every
+        # pair.
+        displacement = skfem_basis.interpolate(self._bkd.to_numpy(state))
+        deformation: NDArray[np.floating[Any]] = np.asarray(
+            displacement.grad
+        ) + np.eye(ndim).reshape(ndim, ndim, 1, 1)
+        # Matrix axes last for det and inv, then back to leading.
+        matrices = np.moveaxis(deformation, (0, 1), (-2, -1))
+        ln_j = np.log(np.linalg.det(matrices))
+        finv = np.moveaxis(np.linalg.inv(matrices), (-2, -1), (0, 1))
+        identity = np.eye(ndim)
+        modulus = (
+            mu_qp * np.einsum("ik,JL->iJkL", identity, identity)[..., None, None]
+            + (mu_qp - lam_qp * ln_j) * np.einsum("Jk...,Li...->iJkL...", finv, finv)
+            + lam_qp * np.einsum("Ji...,Lk...->iJkL...", finv, finv)
+        )
 
+        def tangent(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
+            # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
+            ret: NDArray[np.floating[Any]] = np.einsum(
+                "ij...,ijkl...,kl...->...", v.grad, modulus, u.grad
+            )
+            return ret
+
+        K_np: Array = asm(BilinearForm(tangent), skfem_basis)
         return K_np
 
     def interior_residual(self, state: Array, time: float) -> Array:

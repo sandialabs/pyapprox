@@ -310,19 +310,16 @@ class HyperelasticityPhysics(Generic[Array]):
 
         skfem_basis = self._basis.skfem_basis()
         ndim = self.ndim()
-        body_force_func = self._body_force_eval
-        current_time = time
+        # Evaluated once at the quadrature points, (ndim, nelem, nquad):
+        # skfem calls the form once per element basis function.
+        x: NDArray[np.floating[Any]] = np.asarray(
+            skfem_basis.global_coordinates().value
+        )
+        force = np.asarray(
+            self._body_force_eval(x.reshape(ndim, -1), time)
+        ).reshape(x.shape)
 
         def load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            x = np.asarray(w.x)
-            x_shape = x.shape
-            if len(x_shape) == 3:
-                n, nelem, nquad = x_shape
-                x_flat = x.reshape(n, -1)
-                force_flat = np.asarray(body_force_func(x_flat, current_time))
-                force = force_flat.reshape(ndim, nelem, nquad)
-            else:
-                force = np.asarray(body_force_func(x, current_time))
             ret: NDArray[np.floating[Any]] = sum(force[i] * v[i] for i in range(ndim))
             return ret
 
@@ -368,88 +365,58 @@ class HyperelasticityPhysics(Generic[Array]):
             )
 
         skfem_basis = self._basis.skfem_basis()
-        state_interp = self._interpolate_state(state)
         ndim = self.ndim()
+        if ndim not in (1, 2, 3):
+            raise NotImplementedError(f"Tangent stiffness not available for {ndim}D.")
         stress_model = self._stress_model
         numpy_bkd = self._numpy_bkd
-
+        # The modulus A_{iJkL} depends on the state alone, so it is
+        # evaluated once here, shape (ndim, ndim, ndim, ndim, nelem, nquad).
+        # skfem calls the form once per pair of element basis functions;
+        # evaluating the stress model inside it repeated that work for
+        # every pair.
+        displacement = skfem_basis.interpolate(self._bkd.to_numpy(state))
+        # F = I + Grad(u) at the quadrature points: (ndim, ndim, nelem, nquad).
+        deformation: NDArray[np.floating[Any]] = np.asarray(
+            displacement.grad
+        ) + np.eye(ndim).reshape(ndim, ndim, 1, 1)
+        layout = deformation.shape[2:]
         if ndim == 1:
-
-            def tangent_1d(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                F = 1.0 + w.u_prev.grad[0, 0]
-                dPdF = stress_model.compute_tangent_1d(F, numpy_bkd)
-                ret: NDArray[np.floating[Any]] = dPdF * v.grad[0, 0] * u.grad[0, 0]
-                return ret
-
-            K_np = asm(
-                BilinearForm(tangent_1d),
-                skfem_basis,
-                u_prev=state_interp,
-            )
-
+            slope = stress_model.compute_tangent_1d(deformation[0, 0], numpy_bkd)
+            modulus = np.broadcast_to(slope, layout).reshape((1, 1, 1, 1) + layout)
         elif ndim == 2:
-
-            def tangent_2d(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                F11 = 1.0 + w.u_prev.grad[0, 0]
-                F12 = w.u_prev.grad[0, 1]
-                F21 = w.u_prev.grad[1, 0]
-                F22 = 1.0 + w.u_prev.grad[1, 1]
-                A = stress_model.compute_tangent_2d(F11, F12, F21, F22, numpy_bkd)
-                # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
-                # Seeded from an array-valued zero rather than the scalar
-                # 0.0, so the accumulator's type matches what every term
-                # contributes.
-                result: NDArray[np.floating[Any]] = np.zeros_like(v.grad[0, 0])
-                for i in range(2):
-                    for J in range(2):
-                        for k in range(2):
-                            for L in range(2):
-                                key = f"A_{i + 1}{J + 1}{k + 1}{L + 1}"
-                                result = result + A[key] * v.grad[i, J] * u.grad[k, L]
-                return result
-
-            K_np = asm(
-                BilinearForm(tangent_2d),
-                skfem_basis,
-                u_prev=state_interp,
+            entries = stress_model.compute_tangent_2d(
+                deformation[0, 0],
+                deformation[0, 1],
+                deformation[1, 0],
+                deformation[1, 1],
+                numpy_bkd,
             )
-
-        elif ndim == 3:
-
-            def tangent_3d(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                F = tuple(
-                    tuple(
-                        (1.0 if i == j else 0.0) + w.u_prev.grad[i, j] for j in range(3)
-                    )
-                    for i in range(3)
-                )
-                A = stress_model.compute_tangent_3d(F, numpy_bkd)
-                # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
-                ret: NDArray[np.floating[Any]] = np.einsum(
-                    "ij...,ijkl...,kl...->...", v.grad, np.asarray(A), u.grad
-                )
-                return ret
-
-            K_np = asm(
-                BilinearForm(tangent_3d),
-                skfem_basis,
-                u_prev=state_interp,
-            )
-
+            modulus = np.empty((2, 2, 2, 2) + layout)
+            for i, J, k, L in np.ndindex(2, 2, 2, 2):
+                key = f"A_{i + 1}{J + 1}{k + 1}{L + 1}"
+                modulus[i, J, k, L] = np.broadcast_to(entries[key], layout)
         else:
-            raise NotImplementedError(f"Tangent stiffness not available for {ndim}D.")
+            gradient = tuple(
+                tuple(deformation[i, j] for j in range(3)) for i in range(3)
+            )
+            modulus = np.broadcast_to(
+                np.asarray(stress_model.compute_tangent_3d(gradient, numpy_bkd)),
+                (3, 3, 3, 3) + layout,
+            )
+
+        def tangent(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
+            # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
+            ret: NDArray[np.floating[Any]] = np.einsum(
+                "ij...,ijkl...,kl...->...", v.grad, modulus, u.grad
+            )
+            return ret
+
+        K_np = asm(BilinearForm(tangent), skfem_basis)
 
         # skfem's asm() is untyped, so pin the result here rather than
         # letting Any leak out through the declared Array return.
