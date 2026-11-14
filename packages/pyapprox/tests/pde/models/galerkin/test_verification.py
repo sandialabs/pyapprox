@@ -17,10 +17,14 @@ Cases (fitted rate over the last three levels, tolerance 0.1):
 - the unit disk, P1 triangles (refinements 2-5), Robin everywhere: rate
   2 despite the :math:`O(h^2)` polygonal boundary;
 - a variable Robin coefficient :math:`1 + x` on a square side;
-- P2 exact recovery (error below 1e-10) of quadratics in 1D and 2D,
-  quads and triangles, with natural conditions;
-- wrong-model control: natural data with the normal reversed stalls
-  (fitted rate below 0.5).
+- P2 exact recovery (L2 error below 1e-10, stricter than the old
+  suite's relative 1e-8 at the DOFs) of quadratics in 1D and 2D, quads
+  and triangles, with natural conditions; the old suite's cases
+  (1D: 24 plus 4 conservative; 2D: 9, and a Robin alpha varying along
+  the sides) and the 2D cases with advection and reaction switched on,
+  in both forms;
+- wrong-model controls, fitted rate below 0.5: natural data with the
+  normal reversed; Robin without its spring term.
 
 Refusals: periodic sides, transient and multi-field problems, a box
 with named coordinates.
@@ -40,7 +44,11 @@ from pyapprox.pde.constitutive.advection import (
     NonConservativeAdvection,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.boundary.implementations import DirichletBC, NeumannBC
+from pyapprox.pde.galerkin.boundary.implementations import (
+    DirichletBC,
+    NeumannBC,
+    RobinBC,
+)
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
@@ -273,6 +281,148 @@ def test_p2_recovers_quadratics(ndim: int, simplex: bool, solution: str) -> None
     problem = _problem(solution, adr, box, conditions)
     discretizer = GalerkinDiscretizer(StructuredBox([2, 3], simplex), Lagrange(2), adr)
     result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
+    assert result.passed, result.message
+
+
+_KINDS: Dict[str, ConditionProtocol] = {
+    "D": Dirichlet(),
+    "N": Neumann(),
+    "R": Robin(1.0),
+}
+
+
+def _coded(codes: str, box: Box) -> Dict[str, ConditionProtocol]:
+    """Conditions by side, one letter each in side order: D, N, or R
+    (Robin with alpha 1)."""
+    return {side: _KINDS[code] for code, side in zip(codes, box.boundaries())}
+
+
+def _recovers(problem: ManufacturedProblem, adr: _ADR, n: int) -> None:
+    discretizer = GalerkinDiscretizer(StructuredBox([n]), Lagrange(2), adr)
+    result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
+    assert result.passed, result.message
+
+
+@pytest.mark.parametrize("upper", [1.0, 1.1])
+@pytest.mark.parametrize("codes", ["DN", "RD", "RR"])
+@pytest.mark.parametrize("velocity", [None, "(1 + x)/10"])
+@pytest.mark.parametrize("reaction", [None, "2*u"])
+def test_p2_recovers_linear_1d(
+    upper: float, codes: str, velocity: Optional[str], reaction: Optional[str]
+) -> None:
+    """u = x on [0, 1] or [0, 1.1], D = 4, every pairing of Dirichlet,
+    Neumann and Robin ends, with and without advection and a linear
+    source: P2 on 10 cells reproduces it to 1e-10 (L2)."""
+    adr = _ADR("4", None if velocity is None else [velocity], reaction)
+    box = Box([(0.0, upper)])
+    _recovers(_problem("x", adr, box, _coded(codes, box)), adr, 10)
+
+
+@pytest.mark.parametrize(
+    "codes, reaction",
+    [("DN", None), ("RD", "2*u"), ("RR", None), ("RR", "2*u")],
+)
+def test_p2_recovers_linear_1d_conservative(
+    codes: str, reaction: Optional[str]
+) -> None:
+    """Conservative advection v = (1 + x)/10, where the natural data
+    carry the advective flux: P2 reproduces u = x to 1e-10."""
+    adr = _ADR("4", ["(1 + x)/10"], reaction, conservative=True)
+    box = Box([(0.0, 1.0)])
+    _recovers(_problem("x", adr, box, _coded(codes, box)), adr, 10)
+
+
+@pytest.mark.parametrize(
+    "solution, codes, diffusivity",
+    [
+        ("x + 2*y", "DDDD", "4"),
+        ("x + 2*y", "DRDN", "4"),
+        ("x + 2*y", "NRDR", "4"),
+        ("x*y", "DDDD", "4"),
+        ("x*y", "DRDD", "4"),
+        ("x**2 + y**2", "DDDD", "4"),
+        ("x**2 + y**2", "DRDN", "4"),
+        ("x**2*y**2", "DDDD", "1"),
+        ("x**2*y**2", "DRDD", "1"),
+    ],
+)
+def test_q2_recovers_2d(solution: str, codes: str, diffusivity: str) -> None:
+    """Pure diffusion on the unit square, sides in the order left, right,
+    bottom, top: Q2 on 5x5 quads reproduces solutions in its space
+    (x^2 y^2 included) to 1e-10."""
+    adr = _ADR(diffusivity)
+    box = Box([(0.0, 1.0)] * 2)
+    _recovers(_problem(solution, adr, box, _coded(codes, box)), adr, 5)
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+@pytest.mark.parametrize(
+    "solution, codes",
+    [("x + 2*y", "DRDN"), ("x**2 + y**2", "DRDN"), ("x*y", "NRDR")],
+)
+def test_q2_recovers_2d_advected_reacting(
+    solution: str, codes: str, conservative: bool
+) -> None:
+    """The 2D exact cases with advection v = (0.1, 0.1) and a linear
+    source 2u switched on (the old suite's advection branch never ran):
+    Q2 still reproduces them to 1e-10, in both advection forms."""
+    adr = _ADR("4", ["0.1", "0.1"], "2*u", conservative)
+    box = Box([(0.0, 1.0)] * 2)
+    _recovers(_problem(solution, adr, box, _coded(codes, box)), adr, 5)
+
+
+def test_q2_recovers_with_varying_robin_alpha() -> None:
+    """Robin with alpha = 1 + x + y, which varies along the left and
+    right sides (the layout a Danckwerts inflow needs), Dirichlet top
+    and bottom: Q2 reproduces x y + x + 2 y to 1e-10."""
+    adr = _ADR("4")
+    box = Box([(0.0, 1.0)] * 2)
+    conditions: Dict[str, ConditionProtocol] = {
+        "left": Robin("1 + x + y"),
+        "right": Robin("1 + x + y"),
+        "bottom": Dirichlet(),
+        "top": Dirichlet(),
+    }
+    _recovers(_problem("x*y + x + 2*y", adr, box, conditions), adr, 5)
+
+
+class _NoSpring(_ADR):
+    """Robin conditions built with the spring term alpha u dropped (alpha
+    = 0) but the problem's data kept."""
+
+    def system(
+        self, problem: ManufacturedProblem, basis: LagrangeBasis[_Np]
+    ) -> GalerkinSystem[_Np]:
+        bkd = NumpyBkd()
+        conditions: List[BoundaryConditionRole[_Np]] = []
+        for part in ("left", "right"):
+            data = problem.boundary_data(part)["u"]
+            conditions.append(RobinBC(basis, part, 0.0, _Negated(data, problem), bkd))
+        return compose_galerkin_system(self.physics(problem, basis), conditions)
+
+
+class _Negated:
+    """This stack's natural data from the core's, as the adapter does."""
+
+    def __init__(self, data: sp.Expr, problem: ManufacturedProblem) -> None:
+        self._points = SkfemPoints([data], problem)
+
+    def evaluate(self, coords: _Np, normal: _Np, time: float) -> _Np:
+        values: _Np = -self._points(coords, normals=normal)[0]
+        return values
+
+    def is_time_dependent(self) -> bool:
+        return False
+
+
+def test_robin_without_spring_stalls() -> None:
+    """Wrong-model control: Robin ends with alpha u dropped stall, so the
+    Robin cases above can see the spring term."""
+    adr = _NoSpring("1", ["1"], "-u")
+    box = Box([(0.0, 1.0)])
+    problem = _problem("sin(pi*x) + x + 1", adr, box, _coded("RR", box))
+    discretizer = GalerkinDiscretizer(StructuredBox([8, 16, 32, 64]), Lagrange(1), adr)
+    result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
     assert result.passed, result.message
 
 
