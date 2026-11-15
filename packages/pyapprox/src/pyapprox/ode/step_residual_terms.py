@@ -46,7 +46,11 @@ from pyapprox.ode.trajectory_terms import (
     StepTermDerivatives,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol
-from pyapprox.util.linalg.operators import BlockInnerProductSpace, BlockVector
+from pyapprox.util.linalg.operators import (
+    BlockInnerProductSpace,
+    BlockVector,
+    SpaceDescriptor,
+)
 
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
@@ -85,6 +89,10 @@ class LastBlock(Generic[V, A]):
 
     def nobs(self) -> int:
         return self._observation.nobs()
+
+    def domain(self) -> SpaceDescriptor:
+        """The step residual's space."""
+        return self._space.descriptor()
 
     def apply(self, state: BlockVector[V]) -> A:
         return self._observation.apply(state.blocks[-1])

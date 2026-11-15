@@ -44,6 +44,7 @@ from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.protocols import InnerProductSpaceProtocol
 from tests._helpers.linalg.mock_stack import MockVector
 from tests._helpers.ode.runge_kutta_cases import (
@@ -182,6 +183,9 @@ class _MockEntry:
 
     def nobs(self) -> int:
         return 1
+
+    def domain(self) -> SpaceDescriptor:
+        return self._space.descriptor()
 
     def apply(self, state: MockVector) -> NDArray[Any]:
         return self._space.dot(self._direction, state)

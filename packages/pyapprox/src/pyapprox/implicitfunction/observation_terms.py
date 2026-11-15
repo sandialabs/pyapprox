@@ -17,6 +17,8 @@ from pyapprox.implicitfunction.functional_terms import (
     StateTermDerivatives,
 )
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
+from pyapprox.util.linalg.backend_dense import backend_dtype_name
+from pyapprox.util.linalg.operators import RowSetProtocol, SpaceDescriptor
 
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
@@ -30,6 +32,11 @@ class StateObservationProtocol(Protocol[V, A]):
 
     def nobs(self) -> int:
         """The number of observed values."""
+        ...
+
+    def domain(self) -> SpaceDescriptor:
+        """The space of the vectors observed, so a consumer can check it
+        against the space it applies the observation in."""
         ...
 
     def apply(self, state: V) -> A:
@@ -67,6 +74,7 @@ class StateEntries(Generic[Array]):
         if any(row < 0 or row >= nstates for row in rows):
             raise ValueError(f"observed entries {rows} are not all in [0, {nstates})")
         self._bkd = bkd
+        self._domain = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
         # The selection matrix, built from plain integers (constant data).
         self._matrix = bkd.asarray(
             [
@@ -78,11 +86,77 @@ class StateEntries(Generic[Array]):
     def nobs(self) -> int:
         return int(self._matrix.shape[0])
 
+    def domain(self) -> SpaceDescriptor:
+        """The backend state space of ``nstates`` entries."""
+        return self._domain
+
     def apply(self, state: Array) -> Array:
         return self._bkd.dot(self._matrix, state)
 
     def apply_transpose(self, values: Array) -> Array:
         return self._bkd.dot(self._matrix.T, values)
+
+
+class RowWeights(Generic[Array]):
+    r"""The observation :math:`H = W^\top` of a backend state column by
+    weight columns :math:`W` that vanish off a row set's rows: entry
+    :math:`k` is :math:`w_k^\top y`, read on those rows alone.
+
+    Weights off the rows are refused rather than dropped, so a row the
+    caller meant to read but that is not in the set (a natural boundary's
+    row, say, where a residual vanishes) is an error, not a silent zero.
+
+    Parameters
+    ----------
+    bkd : Backend
+        The backend.
+    rows : RowSetProtocol
+        The rows read.
+    weights : Array
+        :math:`W`, shape ``(rows' size, nobs)``.
+
+    Raises
+    ------
+    TypeError
+        If ``rows`` does not satisfy ``RowSetProtocol``.
+    ValueError
+        If ``weights`` is not 2-D with a row per entry of the rows' space
+        and at least one column, or has a nonzero weight off the rows.
+    """
+
+    def __init__(
+        self, bkd: Backend[Array], rows: RowSetProtocol[Array], weights: Array
+    ) -> None:
+        if not isinstance(rows, RowSetProtocol):
+            raise TypeError(
+                f"rows must satisfy RowSetProtocol, got {type(rows).__name__}"
+            )
+        size = rows.descriptor().size
+        if weights.ndim != 2 or weights.shape[0] != size or weights.shape[1] < 1:
+            raise ValueError(
+                f"weights must have shape ({size}, nobs) with nobs >= 1, got "
+                f"{tuple(weights.shape)}"
+            )
+        # Zeroing the set's rows leaves only the weights off them.
+        off_rows = rows.zero_rows(weights)
+        if bkd.to_float(bkd.max(bkd.abs(off_rows))) != 0.0:
+            raise ValueError(
+                "weights must vanish off the rows read; a weight is nonzero "
+                "on a row outside the set"
+            )
+        self._bkd, self._rows, self._weights = bkd, rows, weights
+
+    def nobs(self) -> int:
+        return int(self._weights.shape[1])
+
+    def domain(self) -> SpaceDescriptor:
+        return self._rows.descriptor()
+
+    def apply(self, state: Array) -> Array:
+        return self._bkd.dot(self._weights.T, state)
+
+    def apply_transpose(self, values: Array) -> Array:
+        return self._bkd.dot(self._weights, values)
 
 
 class _MisfitLinearization(Generic[V, A]):

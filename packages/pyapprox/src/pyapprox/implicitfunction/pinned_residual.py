@@ -251,5 +251,19 @@ class PinnedResidual(Generic[V, F]):
         """:math:`F`'s version: the data read the same parameters."""
         return self._residual.parameters_version()
 
+    def unpinned(self) -> ResidualProtocol[V, F]:
+        """:math:`F` itself, before its rows are pinned: on the pinned
+        rows it does not vanish at a solution, and is what the pinning
+        left out (an essential boundary's flux, say)."""
+        return self._residual
+
+    def pin(self) -> RowPin[V]:
+        """The pinned rows and their data."""
+        return self._pin
+
+    def space(self) -> VectorSpaceProtocol[V]:
+        """The state space."""
+        return self._space
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._residual!r}, {self._pin!r})"
