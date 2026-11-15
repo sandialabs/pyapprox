@@ -17,7 +17,9 @@ A quantity study records a quantity of interest's value at each level
 errors: :class:`ExactValue` (from the exact solution, e.g. by
 :func:`pyapprox.pde.verification.exact.exact_value`) or
 :class:`ReferenceValue` (a much finer solve or published data, with its
-own uncertainty).
+own uncertainty). Without either, :func:`extrapolate` estimates the
+order and the limit from the values alone (Richardson), and
+:class:`ObservedOrder` judges that order.
 """
 
 import math
@@ -429,3 +431,168 @@ def run_quantity_study(
         hs.append(approximation.h())
         values.append(approximation.quantity(quantity))
     return QuantityStudy(tuple(hs), tuple(values))
+
+
+_RATIO_RTOL = 1e-6
+
+
+@dataclass(frozen=True)
+class Extrapolation:
+    """Richardson's estimate from the three finest levels.
+
+    Attributes
+    ----------
+    order : float
+        The observed order :math:`p`.
+    limit : float
+        The extrapolated value :math:`Q^*`.
+    gci : float
+        Roache's grid convergence index on the finest value, as an
+        absolute band: :math:`F_s |Q_3 - Q_2| / (r^p - 1)`.
+    """
+
+    order: float
+    limit: float
+    gci: float
+
+
+def _asymptotic_failure(values: Tuple[float, ...]) -> Optional[str]:
+    """Why the successive differences of ``values`` are not in the
+    asymptotic range (one sign, shrinking), or ``None`` if they are."""
+    diffs = [b - a for a, b in zip(values, values[1:])]
+    if any(d == 0.0 for d in diffs):
+        return f"values stop changing (roundoff?): {values}"
+    if any((a > 0.0) != (b > 0.0) for a, b in zip(diffs, diffs[1:])):
+        return f"oscillatory: successive differences change sign; values {values}"
+    if any(abs(b) >= abs(a) for a, b in zip(diffs, diffs[1:])):
+        return f"not converging: successive differences do not shrink; values {values}"
+    return None
+
+
+def extrapolate(study: QuantityStudy, safety: float = 1.25) -> Extrapolation:
+    r"""Richardson extrapolation from the three finest levels.
+
+    With a constant refinement ratio :math:`r = h_1/h_2 = h_2/h_3` and
+    values :math:`Q_1, Q_2, Q_3` (finest last), :math:`p = \log((Q_2 -
+    Q_1)/(Q_3 - Q_2))/\log r` and :math:`Q^* = Q_3 + (Q_3 - Q_2)/(r^p -
+    1)`.
+
+    Parameters
+    ----------
+    study : QuantityStudy
+        At least three levels.
+    safety : float
+        Roache's factor of safety :math:`F_s`; 1.25 for three levels.
+
+    Raises
+    ------
+    ValueError
+        If there are fewer than three levels, the ratio of the finest
+        three is not constant or not above one, or their differences are
+        not in the asymptotic range (zero, oscillatory or not shrinking).
+    """
+    if len(study.h) < 3:
+        raise ValueError(f"extrapolation needs three levels, got {len(study.h)}")
+    h1, h2, h3 = study.h[-3:]
+    r = h1 / h2
+    if not r > 1.0 or abs(h2 / h3 - r) > _RATIO_RTOL * r:
+        raise ValueError(
+            f"extrapolation needs a constant refinement ratio above one; the "
+            f"finest mesh sizes {(h1, h2, h3)} give {h1 / h2} and {h2 / h3}"
+        )
+    finest = study.values[-3:]
+    failure = _asymptotic_failure(finest)
+    if failure is not None:
+        raise ValueError(f"cannot extrapolate: {failure}")
+    q1, q2, q3 = finest
+    growth = (q2 - q1) / (q3 - q2)
+    order = math.log(growth) / math.log(r)
+    limit = q3 + (q3 - q2) / (growth - 1.0)
+    return Extrapolation(order, limit, safety * abs(q3 - q2) / (growth - 1.0))
+
+
+@runtime_checkable
+class QuantityCheckProtocol(Protocol):
+    """Judges a quantity study."""
+
+    def verify(self, study: QuantityStudy) -> CheckResult:
+        """The verdict on ``study``."""
+        ...
+
+
+class ObservedOrder:
+    """Richardson's observed order is at least ``order - atol``.
+
+    First confirms the asymptotic range: over the levels used, successive
+    differences keep one sign and shrink. An oscillatory or diverging
+    sequence fails with that reason instead of an order.
+
+    Parameters
+    ----------
+    order : float
+        The expected order.
+    atol : float
+        How far below ``order`` the observed order may fall.
+    last : int, optional
+        Use only the finest ``last`` levels (at least three), past a
+        pre-asymptotic start.
+    """
+
+    def __init__(
+        self, order: float, atol: float = 0.1, last: Optional[int] = None
+    ) -> None:
+        if last is not None and last < 3:
+            raise ValueError(f"an observed order needs three levels, got last={last}")
+        self._order, self._atol, self._last = order, atol, last
+
+    def verify(self, study: QuantityStudy) -> CheckResult:
+        """Pass if the sequence is asymptotic and its order reaches
+        ``order - atol``; the message gives the limit and the GCI band.
+
+        Raises
+        ------
+        ValueError
+            As :func:`extrapolate`, for too few levels or a ratio that is
+            not constant.
+        """
+        if self._last is not None:
+            study = QuantityStudy(study.h[-self._last :], study.values[-self._last :])
+        failure = _asymptotic_failure(study.values)
+        if failure is not None and len(study.values) >= 3:
+            return CheckResult(False, math.nan, failure)
+        estimate = extrapolate(study)
+        passed = estimate.order >= self._order - self._atol
+        return CheckResult(
+            passed,
+            estimate.order,
+            f"observed order {estimate.order:.3f}, expected at least "
+            f"{self._order - self._atol:.3f}; limit {estimate.limit:.12g} "
+            f"(GCI band {estimate.gci:.3e}); values {study.values}",
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(order={self._order}, atol={self._atol}, "
+            f"last={self._last})"
+        )
+
+
+def verify_quantity(
+    problem: P,
+    discretizer: QuantityDiscretizerProtocol[P],
+    quantity: QuantityProtocol,
+    check: QuantityCheckProtocol,
+) -> CheckResult:
+    """Run the quantity study and judge it with ``check``.
+
+    Raises
+    ------
+    TypeError
+        If ``check`` is of the wrong type (and as
+        :func:`run_quantity_study`).
+    """
+    if not isinstance(check, QuantityCheckProtocol):
+        raise TypeError(
+            f"check must satisfy QuantityCheckProtocol, got {type(check).__name__}"
+        )
+    return check.verify(run_quantity_study(problem, discretizer, quantity))

@@ -18,9 +18,17 @@ Without a closed form: :math:`\int_0^1\int_0^2 \sin(\sin x)\, y \,dy\,dx
 Truths and studies against a fake stack with :math:`Q_h = Q + 3h^2`:
 the exact truth gives a fitted rate of 2; a reference refuses levels its
 uncertainty does not resolve.
+
+Richardson on known sequences: :math:`Q + 3h^2` gives order 2 and limit
+:math:`Q` to roundoff at ratios 2 and 3; with a :math:`5h^3` term added
+the extrapolated limit is closer to :math:`Q` than the finest value and
+the GCI band covers the finest value's true error. Oscillatory,
+diverging and stopped sequences fail with their reason; a pre-asymptotic
+first level passes once dropped.
 """
 
-from typing import Dict, List, Sequence
+import math
+from typing import Callable, Dict, List, Sequence
 
 import pytest
 
@@ -38,10 +46,13 @@ from pyapprox.pde.verification.quantities import (
 from pyapprox.pde.verification.study import (
     Converges,
     ExactValue,
+    ObservedOrder,
     QuantityStudy,
     ReferenceValue,
+    extrapolate,
     fitted_rate,
     run_quantity_study,
+    verify_quantity,
 )
 from pyapprox.pde.verification.terms import Divergence, TimeDerivative
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -269,3 +280,83 @@ class TestQuantityStudies:
         assert repr(BoundaryFlux("u", "left")) == "BoundaryFlux('u', 'left')"
         assert repr(ExactValue(0.5)) == "ExactValue(0.5)"
         assert repr(ReferenceValue(0.5, 0.1)) == "ReferenceValue(0.5, uncertainty=0.1)"
+
+
+def _sequence(hs: Sequence[float], law: Callable[[float], float]) -> QuantityStudy:
+    return QuantityStudy(tuple(hs), tuple(law(h) for h in hs))
+
+
+class TestRichardson:
+    @pytest.mark.parametrize("ratio", [2.0, 3.0])
+    def test_exact_order_and_limit(self, numpy_bkd: NumpyBkd, ratio: float) -> None:
+        """Q + 3h^2 gives order 2 and limit Q to roundoff, at a refinement
+        ratio of 2 and of 3."""
+        hs = [0.5 / ratio**k for k in range(4)]
+        estimate = extrapolate(_sequence(hs, lambda h: 0.7 + 3.0 * h**2))
+        _close(numpy_bkd, estimate.order, 2.0, 1e-8)
+        _close(numpy_bkd, estimate.limit, 0.7, 1e-13)
+
+    def test_limit_improves_and_band_covers(self, numpy_bkd: NumpyBkd) -> None:
+        """With a higher-order term the limit beats the finest value and
+        the GCI band covers the finest value's true error."""
+        study = _sequence(_HALVING, lambda h: 0.7 + 3.0 * h**2 + 5.0 * h**3)
+        estimate = extrapolate(study)
+        finest_error = abs(study.values[-1] - 0.7)
+        # 1.4e-3 against 1.3e-2 at h = 1/16, where 5h^3 is still a tenth
+        # of 3h^2.
+        assert abs(estimate.limit - 0.7) < 0.2 * finest_error
+        assert estimate.gci >= finest_error
+        # 2.26: the cubic term lifts the observed order above 2.
+        _close(numpy_bkd, estimate.order, 2.0, 0.3)
+
+    def test_observed_order_check(self, numpy_bkd: NumpyBkd) -> None:
+        """ObservedOrder passes order 2 and fails an expected order of 3,
+        reporting the observed order and the limit."""
+        fake = _Fake(_HALVING, 0.7)
+        result = verify_quantity(None, fake, Integral("u"), ObservedOrder(2.0))
+        assert result.passed and "limit 0.7" in result.message
+        _close(numpy_bkd, result.observed, 2.0, 1e-8)
+        assert not verify_quantity(None, fake, Integral("u"), ObservedOrder(3.0)).passed
+
+    @pytest.mark.parametrize(
+        "values, reason",
+        [
+            ((1.1, 0.95, 1.025, 0.9875), "oscillatory"),
+            ((1.0, 1.1, 1.3, 1.7), "not converging"),
+            ((1.0, 0.9, 0.9, 0.9), "stop changing"),
+        ],
+    )
+    def test_not_asymptotic_fails_with_its_reason(
+        self, values: tuple[float, ...], reason: str
+    ) -> None:
+        """Oscillatory, diverging and stopped sequences fail with their
+        reason, not an order; extrapolate refuses them."""
+        study = QuantityStudy(_HALVING, values)
+        result = ObservedOrder(2.0).verify(study)
+        assert not result.passed and reason in result.message
+        assert math.isnan(result.observed)
+        with pytest.raises(ValueError, match=reason):
+            extrapolate(study)
+
+    def test_pre_asymptotic_start(self) -> None:
+        """A first level off the asymptotic range fails over all levels
+        and passes once dropped with last=3."""
+        values = (0.6, 0.7 + 3 * 0.25**2, 0.7 + 3 * 0.125**2, 0.7 + 3 * 0.0625**2)
+        study = QuantityStudy(_HALVING, values)
+        assert not ObservedOrder(2.0).verify(study).passed
+        assert ObservedOrder(2.0, last=3).verify(study).passed
+
+    def test_refusals(self) -> None:
+        """Too few levels, a ratio that is not constant, last below 3, and
+        a check of the wrong type are refused."""
+        with pytest.raises(ValueError, match="three levels"):
+            extrapolate(QuantityStudy((0.5, 0.25), (1.0, 0.9)))
+        with pytest.raises(ValueError, match="constant refinement ratio"):
+            extrapolate(QuantityStudy((0.5, 0.25, 0.1), (1.0, 0.8, 0.75)))
+        with pytest.raises(ValueError, match="three levels"):
+            ObservedOrder(2.0, last=2)
+        with pytest.raises(TypeError, match="QuantityCheckProtocol"):
+            verify_quantity(None, _Fake(_HALVING, 0.7), Integral("u"), 3.0)  # type: ignore[arg-type]
+        assert (
+            repr(ObservedOrder(2.0)) == "ObservedOrder(order=2.0, atol=0.1, last=None)"
+        )
