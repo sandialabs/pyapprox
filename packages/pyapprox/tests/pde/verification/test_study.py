@@ -189,6 +189,7 @@ def test_seam_and_checks_import_no_sympy_or_backend() -> None:
         "import pyapprox.pde.verification\n"
         "import pyapprox.pde.verification.domains\n"
         "import pyapprox.pde.verification.protocols\n"
+        "import pyapprox.pde.verification.quantities\n"
         "import pyapprox.pde.verification.study\n"
         "heavy = [m for m in ('sympy', 'pyapprox.util.backends.numpy', 'torch')\n"
         "         if m in sys.modules]\n"

@@ -130,6 +130,21 @@ class Box:
             return tuple(f"{name}{end}" for name in self._names for end in ends)
         return tuple(name for pair in _SIDES[: self.ndim()] for name in pair)
 
+    def side(self, part: str) -> Tuple[str, float]:
+        """The coordinate normal to side ``part``, and the sign of its
+        outward normal there (-1 on the lower side, +1 on the upper).
+
+        Raises
+        ------
+        ValueError
+            If the box has no such side.
+        """
+        sides = self.boundaries()
+        if part not in sides:
+            raise ValueError(f"no side {part!r}; the box has {list(sides)}")
+        index = sides.index(part)
+        return self._names[index // 2], -1.0 if index % 2 == 0 else 1.0
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self._bounds)}, {list(self._names)})"
 

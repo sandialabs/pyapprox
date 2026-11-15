@@ -8,9 +8,17 @@ solution, with its own quadrature, elements and geometry (as deal.II's
 ``GridFunction::ComputeL2Error`` do), so the study never touches the
 stack's meshes or vectors. A distributed stack reduces across processes
 before returning.
+
+A stack that computes quantities of interest supplies a
+:class:`QuantityDiscretizerProtocol`, whose approximations report each
+quantity's value from their own solution. It is a separate protocol, so a
+study that needs quantities is typed to need them, and a stack without
+them is a type error rather than a failure at run time.
 """
 
 from typing import Protocol, Sequence, TypeVar, runtime_checkable
+
+from pyapprox.pde.verification.quantities import QuantityProtocol
 
 P_contra = TypeVar("P_contra", contravariant=True)
 
@@ -41,5 +49,31 @@ class DiscretizerProtocol(Protocol[P_contra]):
     one physics takes that physics' problem class."""
 
     def approximations(self, problem: P_contra) -> Sequence[ApproximationProtocol]:
+        """One approximation per refinement level, coarsest first."""
+        ...
+
+
+@runtime_checkable
+class QuantityApproximationProtocol(Protocol):
+    """One refinement level's solution, measured by quantities of
+    interest."""
+
+    def h(self) -> float:
+        """The mesh size."""
+        ...
+
+    def quantity(self, quantity: QuantityProtocol) -> float:
+        """The value of ``quantity`` at this level's solution."""
+        ...
+
+
+@runtime_checkable
+class QuantityDiscretizerProtocol(Protocol[P_contra]):
+    """Solves a problem on successively refined discretizations, whose
+    solutions report quantities of interest."""
+
+    def approximations(
+        self, problem: P_contra
+    ) -> Sequence[QuantityApproximationProtocol]:
         """One approximation per refinement level, coarsest first."""
         ...

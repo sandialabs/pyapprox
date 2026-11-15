@@ -11,6 +11,13 @@ for one problem and one error measure. A check judges it:
 - :class:`Stalls`: the slope stays below a bound, the wrong-model control.
 
 Errors are plain floats: the stack integrated them.
+
+A quantity study records a quantity of interest's value at each level
+(:class:`QuantityStudy`). A truth turns those values into a study of
+errors: :class:`ExactValue` (from the exact solution, e.g. by
+:func:`pyapprox.pde.verification.exact.exact_value`) or
+:class:`ReferenceValue` (a much finer solve or published data, with its
+own uncertainty).
 """
 
 import math
@@ -20,7 +27,10 @@ from typing import Optional, Protocol, Tuple, TypeVar, runtime_checkable
 from pyapprox.pde.verification.protocols import (
     ApproximationProtocol,
     DiscretizerProtocol,
+    QuantityApproximationProtocol,
+    QuantityDiscretizerProtocol,
 )
+from pyapprox.pde.verification.quantities import QuantityProtocol
 
 P = TypeVar("P")
 
@@ -80,6 +90,121 @@ class Study:
             raise ValueError(f"mesh sizes must be positive, got {self.h}")
         if any(not (math.isfinite(e) and e >= 0.0) for e in self.errors):
             raise ValueError(f"errors must be finite and non-negative: {self.errors}")
+
+
+@dataclass(frozen=True)
+class QuantityStudy:
+    """Mesh sizes and a quantity's values, coarsest first.
+
+    Raises
+    ------
+    ValueError
+        If there are no levels, the lengths differ, a mesh size is not
+        positive, or a value is not finite.
+    """
+
+    h: Tuple[float, ...]
+    values: Tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        if not self.h or len(self.h) != len(self.values):
+            raise ValueError(
+                f"a study needs one value per mesh size, at least one; got "
+                f"{len(self.h)} sizes and {len(self.values)} values"
+            )
+        if any(not h > 0.0 for h in self.h):
+            raise ValueError(f"mesh sizes must be positive, got {self.h}")
+        if any(not math.isfinite(v) for v in self.values):
+            raise ValueError(f"values must be finite: {self.values}")
+
+
+@runtime_checkable
+class TruthProtocol(Protocol):
+    """What a quantity's values are compared with."""
+
+    def errors(self, study: QuantityStudy) -> Study:
+        """The error of each level's value."""
+        ...
+
+
+class ExactValue:
+    """The quantity's exact value; errors are distances to it.
+
+    Parameters
+    ----------
+    value : float
+        The exact value.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not finite.
+    """
+
+    def __init__(self, value: float) -> None:
+        if not math.isfinite(value):
+            raise ValueError(f"an exact value must be finite, got {value}")
+        self._value = value
+
+    def errors(self, study: QuantityStudy) -> Study:
+        """:math:`|Q_h - Q|` at each level."""
+        return Study(study.h, tuple(abs(v - self._value) for v in study.values))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._value!r})"
+
+
+class ReferenceValue:
+    """A reference value known to within ``uncertainty`` (a much finer
+    solve, or published data). An error at or below the uncertainty is not
+    resolved by the reference, so it is refused rather than reported.
+
+    Parameters
+    ----------
+    value : float
+        The reference value.
+    uncertainty : float
+        How far the reference may be from the true value.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not finite or ``uncertainty`` is not positive and
+        finite.
+    """
+
+    def __init__(self, value: float, uncertainty: float) -> None:
+        if not math.isfinite(value):
+            raise ValueError(f"a reference value must be finite, got {value}")
+        if not (math.isfinite(uncertainty) and uncertainty > 0.0):
+            raise ValueError(
+                f"the uncertainty must be positive and finite, got {uncertainty}"
+            )
+        self._value, self._uncertainty = value, uncertainty
+
+    def errors(self, study: QuantityStudy) -> Study:
+        r""":math:`|Q_h - Q_{\mathrm{ref}}|` at each level.
+
+        Raises
+        ------
+        ValueError
+            If an error is not above the reference's uncertainty.
+        """
+        errors = tuple(abs(v - self._value) for v in study.values)
+        unresolved = [e for e in errors if e <= self._uncertainty]
+        if unresolved:
+            raise ValueError(
+                f"errors {unresolved} are within the reference's uncertainty "
+                f"{self._uncertainty:.3e}; drop those levels or use a finer "
+                "reference"
+            )
+        return Study(study.h, errors)
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}({self._value!r}, "
+            f"uncertainty={self._uncertainty!r})"
+        )
 
 
 @dataclass(frozen=True)
@@ -269,3 +394,38 @@ def verify(
     if not isinstance(check, CheckProtocol):
         raise TypeError(f"check must satisfy CheckProtocol, got {type(check).__name__}")
     return check.verify(run_study(problem, discretizer, measure))
+
+
+def run_quantity_study(
+    problem: P,
+    discretizer: QuantityDiscretizerProtocol[P],
+    quantity: QuantityProtocol,
+) -> QuantityStudy:
+    """Solve ``problem`` at every level of ``discretizer`` and record
+    ``quantity``'s value.
+
+    Raises
+    ------
+    TypeError
+        If ``discretizer``, ``quantity`` or an approximation is of the
+        wrong type.
+    """
+    if not isinstance(discretizer, QuantityDiscretizerProtocol):
+        raise TypeError(
+            "discretizer must satisfy QuantityDiscretizerProtocol, got "
+            f"{type(discretizer).__name__}"
+        )
+    if not isinstance(quantity, QuantityProtocol):
+        raise TypeError(
+            f"quantity must satisfy QuantityProtocol, got {type(quantity).__name__}"
+        )
+    hs, values = [], []
+    for approximation in discretizer.approximations(problem):
+        if not isinstance(approximation, QuantityApproximationProtocol):
+            raise TypeError(
+                "each approximation must satisfy QuantityApproximationProtocol, "
+                f"got {type(approximation).__name__}"
+            )
+        hs.append(approximation.h())
+        values.append(approximation.quantity(quantity))
+    return QuantityStudy(tuple(hs), tuple(values))
