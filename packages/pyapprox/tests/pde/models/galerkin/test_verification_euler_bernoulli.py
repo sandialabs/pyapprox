@@ -21,8 +21,9 @@ A zero-moment end needs no data, so solutions are chosen with
 :math:`w^{*\prime\prime} = 0` there. Applied end moments are not tested:
 this stack has no condition loading the slope test function. The
 harness's discretizer reads a basis's DOF components as fields, which
-does not fit a Hermite basis, so these tests solve and integrate errors
-themselves and judge them with the harness's checks.
+does not fit a Hermite basis, so these tests solve as it does
+(``galerkin_steady_residual`` + ``SteadySystem``, sparse LU, Newton),
+integrate errors themselves and judge them with the harness's checks.
 
 Cases:
 
@@ -46,15 +47,16 @@ import sympy as sp
 from numpy.typing import NDArray
 from skfem import Basis, Functional
 
+from pyapprox.implicitfunction.setups import KeepAll
+from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.galerkin.basis import CubicHermiteBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC, NeumannBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.euler_bernoulli import EulerBernoulliBeamFEM
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinSteadyModel,
-)
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.pde.models.galerkin.verification import SkfemPoints
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
@@ -72,6 +74,9 @@ from pyapprox.pde.verification.study import (
 )
 from pyapprox.pde.verification.terms import Divergence
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 _Np = NDArray[Any]
 _BKD = NumpyBkd()
@@ -170,8 +175,19 @@ def _solve(
                 DirichletBC(basis, side, _EndValues(problem), _BKD, components=(1,))
             )
     system = compose_galerkin_system(beam, conditions)
-    state = GalerkinSteadyModel(system).solve_steady(_BKD.zeros((system.nstates(),)))
-    return basis, np.asarray(state)
+    # The steady path every verification suite solves through.
+    discretization = skfem_discretization(system)
+    space = discretization.space()
+    assert isinstance(space, InnerProductSpaceProtocol)
+    steady = SteadySystem(
+        galerkin_steady_residual(discretization), space, KeepAll(ScipySparseLU())
+    )
+    point = steady.solve(
+        Newton(atol=1e-12, rtol=1e-12, maxiters=30, line_search=True),
+        np.zeros((system.nstates(), 1)),
+    )
+    assert point.converged(), point.info().message
+    return basis, np.asarray(point.state()[:, 0])
 
 
 def _l2_error(
