@@ -2,9 +2,10 @@
 
 The engine (_FieldParameterizationTerm with FromLinearity slots) wired
 to each galerkin ADR field assembly (diffusivity, forcing, reaction,
-velocity) must pass the component-wise 14-check FD suite through the
-steady HVP adapter, and the mixed assembly must satisfy the linearity
-identity A(\\delta) w == S(w) \\delta.
+velocity) must pass the residual bundle checker and give solved
+gradients and HVPs that pass finite differences on the steady system
+path, and the mixed assembly must satisfy the linearity identity
+A(\\delta) w == S(w) \\delta.
 """
 
 import pytest
@@ -18,15 +19,6 @@ from typing import Tuple
 
 import numpy as np
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -52,9 +44,6 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
 from pyapprox.pde.parameterizations.field_term import (
     FromLinearity,
     MixedHVPAdapter,
@@ -63,8 +52,14 @@ from pyapprox.pde.parameterizations.field_term import (
     Zero,
     _FieldParameterizationTerm,
 )
+from pyapprox.pde.parameterizations.protocol import ParameterizationProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_steady_checks import (
+    first_free_row,
+    observed_steady_function,
+    residual_bundle_report,
+)
 
 _NPARAMS = 3
 
@@ -208,6 +203,35 @@ def _build_engine_term(
     )
 
 
+def _passes_steady_checks(
+    bkd: NumpyBkd,
+    system: GalerkinSystem[NumpyArray],
+    parameterization: ParameterizationProtocol[NumpyArray],
+) -> None:
+    """The residual's derivatives pass the bundle checker (state
+    linspace(0.1, 0.9), random adjoint, seed 5), and the solved state at
+    the first free node has a gradient and HVP passing central finite
+    differences below 1e-6, at p = (0.4, -0.3, 0.2)."""
+    nstates = system.nstates()
+    param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
+    report = residual_bundle_report(
+        system,
+        parameterization,
+        bkd.asarray(np.linspace(0.1, 0.9, nstates)),
+        bkd.asarray(np.random.default_rng(5).normal(size=nstates)),
+        param[:, 0],
+    )
+    assert report.failures() == []
+    function = observed_steady_function(
+        system, parameterization, [first_free_row(system, bkd)], bkd
+    )
+    errors = DerivativeChecker(function).check_derivatives(
+        param, relative=True, central=True
+    )
+    assert len(errors) == 2
+    assert max(bkd.to_float(bkd.min(e)) for e in errors) < 1e-6
+
+
 class TestFieldParameterizationTerm:
     def test_mixed_assembly_linearity_identity(
         self, numpy_bkd: NumpyBkd
@@ -232,53 +256,26 @@ class TestFieldParameterizationTerm:
         )
 
     @pytest.mark.parametrize("nonlinear_reaction", [False, True])
-    def test_engine_term_passes_component_checker(
+    def test_engine_term_passes_the_steady_checks(
         self, numpy_bkd: NumpyBkd, nonlinear_reaction: bool
     ) -> None:
-        """The engine-wired term passes the same 14-check suite the
-        oracle passes (steady ADR log-KLE)."""
+        """The engine-wired diffusivity term (steady ADR log-KLE, with
+        and without u^2) passes the residual bundle checker and gives a
+        solved gradient and HVP that pass finite differences."""
         bkd = numpy_bkd
         physics, system, field_map = _build_physics_and_map(
             bkd, nonlinear_reaction
         )
         term = _build_engine_term(bkd, physics, field_map)
-        param_obj = term
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
-        )
+        _passes_steady_checks(bkd, system, term)
 
-        nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
-        )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
-
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
-        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
-        tols[4] = 5e-6
-        tols[5] = 5e-6
-        tols[8] = 5e-6
-        # Component 13 floors just above 1e-6 on CI's Linux BLAS, at
-        # 1.66e-6, while this machine stays under.
-        tols[13] = 2e-6
-        checker.check_derivatives(init_state, param, tols)
-
-    def test_forcing_term_passes_component_checker(
+    def test_forcing_term_passes_the_steady_checks(
         self, numpy_bkd: NumpyBkd
     ) -> None:
         """A state-independent (forcing) term through the engine passes
-        the 14-check suite — validating the Zero() slot paths (the
-        mixed and field-curvature contractions are certified zero and
-        the checker FDs confirm it)."""
+        the steady checks — validating the Zero() slot paths (the mixed
+        and field-curvature contractions are certified zero and the
+        bundle checker's finite differences confirm it)."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -325,39 +322,15 @@ class TestFieldParameterizationTerm:
             nfield_dofs=physics.nstates(),
             owned_coefficients=("field",),
         )
-        param_obj = term
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
-        )
-        nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
-        )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
+        _passes_steady_checks(bkd, system, term)
 
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
-        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
-        tols[4] = 5e-6
-        tols[5] = 5e-6
-        tols[8] = 5e-6
-        checker.check_derivatives(init_state, param, tols)
-
-    def test_reaction_term_passes_component_checker(
+    def test_reaction_term_passes_the_steady_checks(
         self, numpy_bkd: NumpyBkd
     ) -> None:
         """A linear_field_state reaction term (r(x)*u through an exp
-        map) through the engine passes the 14-check suite — the second
-        FromLinearity instance, with a non-self-adjoint... rather, a
-        mass-structured mixed tensor distinct from diffusivity's."""
+        map) through the engine passes the steady checks — the second
+        FromLinearity instance, with a mass-structured mixed tensor
+        distinct from diffusivity's."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -409,40 +382,13 @@ class TestFieldParameterizationTerm:
             nfield_dofs=physics.nstates(),
             owned_coefficients=("field",),
         )
-        param_obj = term
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
-        )
-        nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
-        )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
+        _passes_steady_checks(bkd, system, term)
 
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
-        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
-        # Noise-limited assembled/mixed checks (established calibration;
-        # a genuine bug plateaus orders of magnitude higher).
-        tols[4] = 5e-6
-        tols[5] = 5e-6
-        tols[8] = 5e-6
-        tols[13] = 5e-6
-        checker.check_derivatives(init_state, param, tols)
-
-    def test_velocity_term_passes_component_checker(
+    def test_velocity_term_passes_the_steady_checks(
         self, numpy_bkd: NumpyBkd
     ) -> None:
         """A linear_field_state velocity term through the engine passes
-        the 14-check suite — the rectangular-S instance with the
+        the steady checks — the rectangular-S instance with the
         NON-symmetric advection mixed tensor (the case FromLinearity's
         required A assembly exists for)."""
         bkd = numpy_bkd
@@ -497,33 +443,7 @@ class TestFieldParameterizationTerm:
             nfield_dofs=nvel,
             owned_coefficients=("field",),
         )
-        param_obj = term
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
-        )
-        nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
-        )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
-
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
-        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
-        # Noise-limited assembled/mixed checks (established calibration).
-        tols[4] = 5e-6
-        tols[5] = 5e-6
-        tols[8] = 5e-6
-        tols[13] = 5e-6
-        checker.check_derivatives(init_state, param, tols)
+        _passes_steady_checks(bkd, system, term)
 
     def test_field_field_hvp_slot_matches_fd(
         self, numpy_bkd: NumpyBkd

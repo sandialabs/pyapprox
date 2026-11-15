@@ -10,15 +10,6 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -33,10 +24,6 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
@@ -45,6 +32,11 @@ from pyapprox.pde.parameterizations.protocol import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
+from tests._helpers.galerkin_steady_checks import (
+    first_free_row,
+    observed_steady_function,
+    residual_bundle_report,
+)
 
 
 def _to_dense(mat):
@@ -303,132 +295,53 @@ class TestGalerkinLameParameterizationFactory:
             orig_jac(u, 0.0, p0), clone_jac(u, 0.0, p0), rtol=1e-14
         )
 
-    def test_all_derivative_components_match_fd(
+    def test_residual_derivatives_pass_the_bundle_checker(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """Steady 14-check component suite through the HVP adapter.
-
-        The (E, nu) -> Lame map curvature makes ``param_param_hvp``
-        genuinely nonzero; the mixed HVP blocks come from the engine's
-        FromLinearity slots over the typed Lame assemblies.
-        """
+        """Two materials at (E, nu) = (1, 0.3), (5, 0.2): the (E, nu) ->
+        Lame map's curvature makes the parameter-parameter term nonzero,
+        and the mixed terms come from the engine's FromLinearity slots
+        over the typed Lame assemblies; every declared derivative passes
+        finite differences and dot tests (state linspace(0.1, 0.9),
+        random adjoint, seed 5)."""
         bkd = numpy_bkd
         physics = _make_multi_material_physics(bkd)
         system = _make_system(physics, bkd)
         param_obj = create_galerkin_lame_parameterization(physics, bkd)
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
-        )
         nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
+        report = residual_bundle_report(
+            system,
+            param_obj,
+            bkd.asarray(np.linspace(0.1, 0.9, nstates)),
+            bkd.asarray(np.random.default_rng(5).normal(size=nstates)),
+            bkd.asarray(np.array([1.0, 0.3, 5.0, 0.2])),
         )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, 4, bkd)
+        assert report.failures() == []
 
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
+    def test_solved_gradient_and_hvp_match_fd(self, numpy_bkd: NumpyBkd) -> None:
+        """The solved displacement at the first free DOF, on the steady
+        system path, has an adjoint gradient and HVP passing central
+        finite differences below 1e-6, and an HVP satisfying
+        <Hv, u> = <Hu, v> to 1e-12, which breaks for contraction or
+        orientation bugs."""
+        bkd = numpy_bkd
+        physics = _make_multi_material_physics(bkd)
+        system = _make_system(physics, bkd)
+        param_obj = create_galerkin_lame_parameterization(physics, bkd)
+        function = observed_steady_function(
+            system, param_obj, [first_free_row(system, bkd)], bkd
+        )
         param = bkd.asarray(np.array([[1.0], [0.3], [5.0], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        # 2.3e-6 base is 2x the worst ratio observed across the CI
-        # matrix (1.13e-6, consistent on ubuntu and macos —
-        # dependency-version numerics, not hardware noise)
-        tols = bkd.copy(checker.get_derivative_tolerances(2.3e-6))
-        checker.check_derivatives(init_state, param, tols)
-
-        # FD-noise-immune symmetry identity <Hu, v> = <Hv, u>:
-        # breaks for contraction/orientation bugs.
+        errors = DerivativeChecker(function).check_derivatives(
+            param, relative=True, central=True
+        )
+        assert len(errors) == 2
+        assert max(bkd.to_float(bkd.min(e)) for e in errors) < 1e-6
+        hvp = function.derivatives().hvp
+        assert hvp is not None
         vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6], [0.2]]))
         uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3], [-0.4]]))
-        hvp = adjoint_op.derivatives().hvp
-        assert hvp is not None
-        h_v = hvp(init_state, param, vvec)
-        h_u = hvp(init_state, param, uvec)
+        h_v, h_u = hvp(param, vvec), hvp(param, uvec)
         bkd.assert_allclose(
-            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
+            bkd.sum(h_v * uvec)[None], bkd.sum(h_u * vvec)[None], rtol=1e-12
         )
-
-    def test_adjoint_gradient_steady_integration(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
-        """Full steady-state solve + adjoint gradient through parameterization.
-
-        QoI: Q(u(p)) = c^T u(p) where u(p) solves K(p)*u = b.
-        Adjoint gradient: dQ/dp = (dF/dp)^T lambda, with J^T lambda = -c.
-        """
-        bkd = numpy_bkd
-        E0, nu0 = 1.0, 0.3
-        physics = _make_physics(bkd, E=E0, nu=nu0)
-        system = _make_system(physics, bkd)
-        param = create_galerkin_lame_parameterization(physics, bkd)
-        param_jac = param.param_derivatives().param_jacobian
-        assert param_jac is not None
-
-        np.random.seed(42)
-        n = physics.nstates()
-        c_np = np.random.randn(n)
-
-        def qoi_of_params(params: Array) -> Array:
-            nsamples = params.shape[1]
-            results = []
-            for ii in range(nsamples):
-                p = params[:, ii]
-                param.apply(p)
-                r = SteadyStateSolver(
-                    system.steady(),
-                    tol=1e-12,
-                    max_iter=5,
-                    line_search=False,
-                ).solve()
-                u_np = bkd.to_numpy(r.solution)
-                Q = c_np @ u_np
-                results.append(Q)
-            param.apply(bkd.asarray(np.array([E0, nu0])))
-            return bkd.reshape(bkd.asarray(np.array(results)), (1, nsamples))
-
-        def adjoint_gradient(params: Array) -> Array:
-            p = params[:, 0]
-            param.apply(p)
-            r = SteadyStateSolver(
-                system.steady(),
-                tol=1e-12,
-                max_iter=5,
-                line_search=False,
-            ).solve()
-            u_sol = r.solution
-
-            # Solve adjoint: J^T lambda = -c
-            J_np = _to_dense(
-                system.steady_snapshot(0.0).steady_jacobian(u_sol)
-            )
-            lam_np = np.linalg.solve(J_np.T, -c_np)
-
-            # Use parameterization param_jacobian (raw, no BC enforcement)
-            dF_dp_raw = bkd.to_numpy(param_jac(u_sol, 0.0, p))
-
-            # Apply BC enforcement for steady-state
-            dF_dp = bkd.to_numpy(
-                system.constraint_set().zero_rows(bkd.asarray(dF_dp_raw))
-            )
-
-            grad = dF_dp.T @ lam_np
-            param.apply(bkd.asarray(np.array([E0, nu0])))
-            return bkd.reshape(bkd.asarray(grad), (1, 2))
-
-        wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1,
-            nvars=2,
-            fun=qoi_of_params,
-            jacobian=adjoint_gradient,
-            bkd=bkd,
-        )
-        checker = DerivativeChecker(wrapper)
-        sample = bkd.asarray(np.array([[E0], [nu0]]))
-        errors = checker.check_derivatives(sample, relative=True)[0]
-        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        assert ratio <= 1e-6
