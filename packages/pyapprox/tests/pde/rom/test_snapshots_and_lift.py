@@ -28,6 +28,7 @@ if not package_available("skfem"):
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -51,9 +52,6 @@ from pyapprox.pde.models.galerkin import (
     GalerkinParameterizedResidual,
     GalerkinTransientForwardModel,
 )
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -67,7 +65,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.rom_problem import SolvedFromZero, steady_snapshots
+from tests._helpers.rom_problem import SteadyStateAt, steady_snapshots
 
 _Points = NDArray[np.floating[Any]]
 
@@ -188,10 +186,14 @@ def _steady_snapshots(
     LagrangeBasis[NumpyArray],
 ]:
     system, param_obj, basis = _steady_problem(bkd)
-    state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
-    snapshots = steady_snapshots(
-        SolvedFromZero(state_eq, bkd), bkd.asarray(_SAMPLES), bkd
+    steady_state = SteadyStateAt(
+        skfem_discretization(system),
+        param_obj,
+        RecomputeAlways(ScipySparseLU()),
+        bkd,
+        atol=1e-12,
     )
+    snapshots = steady_snapshots(steady_state, bkd.asarray(_SAMPLES), bkd)
     return snapshots, system, param_obj, basis
 
 

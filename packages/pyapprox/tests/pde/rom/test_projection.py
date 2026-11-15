@@ -31,6 +31,7 @@ if not package_available("skfem"):
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -52,10 +53,8 @@ from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -74,8 +73,9 @@ from pyapprox.pde.rom import (
 from pyapprox.surrogates.kle import as_basis_operator
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.inner_product import MassInnerProduct
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.rom_problem import SolvedFromZero, steady_snapshots
+from tests._helpers.rom_problem import SteadyStateAt, steady_snapshots
 
 _NSAMPLES = 12
 
@@ -135,11 +135,15 @@ class _Problem:
             ),
             bkd=bkd,
         )
-        state_eq = GalerkinParameterizedStateEquation(system.steady(), param_obj, bkd)
-        samples = np.random.default_rng(5).uniform(-0.5, 0.5, size=(3, _NSAMPLES))
-        snapshots = steady_snapshots(
-            SolvedFromZero(state_eq, bkd), bkd.asarray(samples), bkd
+        steady_state = SteadyStateAt(
+            skfem_discretization(system),
+            param_obj,
+            RecomputeAlways(ScipySparseLU()),
+            bkd,
+            atol=1e-12,
         )
+        samples = np.random.default_rng(5).uniform(-0.5, 0.5, size=(3, _NSAMPLES))
+        snapshots = steady_snapshots(steady_state, bkd.asarray(samples), bkd)
         constraint_set = system.constraint_set()
         self.lift = AlgebraicLift(constraint_set, system.nstates())
         self.homogenized = homogenize(snapshots, self.lift, constraint_set)

@@ -10,9 +10,6 @@ from dataclasses import dataclass
 from typing import Callable, Generic, Optional, TypeVar
 
 from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
-from pyapprox.implicitfunction.state_equations.protocols import (
-    SteadyStateEquationProtocol,
-)
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.elementwise import ElementwiseOperatorProtocol
@@ -47,22 +44,6 @@ def steady_snapshots(
     nsamples), as snapshots."""
     states = [steady_state(samples[:, ii : ii + 1]) for ii in range(samples.shape[1])]
     return SnapshotSet(bkd.hstack(states), bkd.copy(samples))
-
-
-class SolvedFromZero:
-    """The steady state at a parameter column, by a state equation's solve
-    from zero, so it does not depend on the order of the samples."""
-
-    def __init__(
-        self,
-        state_equation: SteadyStateEquationProtocol[NumpyArray],
-        bkd: NumpyBkd,
-    ) -> None:
-        self._state_equation = state_equation
-        self._zeros = bkd.zeros((state_equation.nstates(), 1))
-
-    def __call__(self, param: NumpyArray) -> NumpyArray:
-        return self._state_equation.solve(self._zeros, param)
 
 
 @dataclass(frozen=True)
