@@ -1,12 +1,23 @@
-"""Steady adjoint gradient + HVP for galerkin ADR with log-KLE diffusivity.
+r"""Steady adjoint gradient and HVP for Galerkin ADR with a log-KLE
+diffusivity, on the steady system path.
 
-Component-wise validation (ImplicitFunctionDerivativeChecker: state and
-parameter Jacobians, all four state-equation HVP blocks, functional
-derivatives, and the assembled adjoint gradient and HVP) of
-GalerkinParameterizedStateEquation with parameters the coefficients of a
-lognormal KLE of the diffusivity field. The exp map makes every
-parameter-facing HVP nonzero; the cubic-reaction variant additionally
-makes state_state_hvp nonzero.
+Setup (``tests/_helpers/galerkin_steady.steady_adr``): :math:`-(\kappa
+u')' (+ u^2) = 1` on [0, 1], u = 0 at both ends, P1 on 10 cells,
+:math:`\kappa = \exp(W p)` with three modes, at p = (0.4, -0.3, 0.2). The
+exp map makes every parameter-facing second derivative nonzero; the
+:math:`u^2` reaction also makes the state-state one nonzero.
+
+- The residual's state and parameter Jacobians and its four
+  adjoint-weighted second derivatives pass the bundle checker (finite
+  differences and dot tests) at state linspace(0.1, 0.9) with a random
+  adjoint (seed 5).
+- The solved state at the first free node has a gradient and HVP that
+  pass central finite differences below 1e-6, and an HVP satisfying
+  :math:`\langle Hv, u\rangle = \langle Hu, v\rangle` to 1e-12, which
+  breaks for contraction or orientation bugs no finite difference can
+  resolve.
+- A diffusivity map with curvature but no declared HVP gives a residual
+  bundle without second derivatives (absent, not a stated zero).
 """
 
 import pytest
@@ -16,165 +27,95 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Tuple
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
-    CallableReaction,
     NodalFieldDiffusion,
     TimeIndependent,
-)
-from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
-from pyapprox.pde.field_maps.transformed import (
-    TransformedFieldMap,
-    _ExpTransform,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.numpy import NumpyBkd
-from tests._helpers.adjoint_checks import (
-    NoHVPQuadraticFieldMap,
-    NumpyArray,
+from tests._helpers.adjoint_checks import NoHVPQuadraticFieldMap
+from tests._helpers.galerkin_steady import ADR_NPARAMS, ADR_PARAM, steady_adr
+from tests._helpers.galerkin_steady_checks import (
+    first_free_row,
+    observed_steady_function,
+    residual_bundle_report,
 )
 
-_NPARAMS = 3
+_Np = NDArray[Any]
 
 
-def _lognormal_kle_map(
-    bkd: NumpyBkd, basis: LagrangeBasis[NumpyArray]
-) -> TransformedFieldMap[NumpyArray]:
-    """kappa = exp(W theta): hand-built smooth modes on the DOF nodes."""
-    coords = bkd.to_numpy(basis.dof_coordinates())[0]
-    modes = np.stack(
-        [
-            0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
-            for k in range(_NPARAMS)
-        ],
-        axis=1,
-    )
-    kle = MeshKLEFieldMap(
-        bkd, bkd.asarray(np.zeros(coords.shape[0])), bkd.asarray(modes)
-    )
-    exp = _ExpTransform(bkd)
-    return TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
-
-
-def _build_state_equation(
-    bkd: NumpyBkd, nonlinear_reaction: bool
-) -> Tuple[
-    GalerkinParameterizedStateEquation[NumpyArray],
-    GalerkinSystem[NumpyArray],
-]:
-    mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-    basis = LagrangeBasis(mesh, degree=1)
-    reaction = (
-        CallableReaction(
-            lambda x, u: u**2,
-            lambda x, u: 2.0 * u,
-            lambda x, u: np.full_like(u, 2.0),
-        )
-        if nonlinear_reaction
-        else None
-    )
-    physics = AdvectionDiffusionReaction(
-        basis=basis,
-        diffusivity=NodalFieldDiffusion(basis),
-        bkd=bkd,
-        reaction=reaction,
-        forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
-    )
-    system = compose_galerkin_system(
-        physics,
-        [
-            DirichletBC(basis, "left", 0.0, bkd),
-            DirichletBC(basis, "right", 0.0, bkd),
-        ],
-    )
-    param_obj = AdvectionDiffusionParameterization(
-        physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
-    )
-    state_eq = GalerkinParameterizedStateEquation(
-        system.steady(), param_obj, bkd
-    )
-    return state_eq, system
+def _unit_forcing(coords: _Np) -> _Np:
+    return np.ones(coords.shape[1])
 
 
 class TestSteadyADRLogKLEAdjointHVP:
     @pytest.mark.parametrize("nonlinear_reaction", [False, True])
-    def test_all_derivative_components_match_fd(
+    def test_residual_derivatives_pass_the_bundle_checker(
         self, numpy_bkd: NumpyBkd, nonlinear_reaction: bool
     ) -> None:
+        """Every derivative the residual declares, the second-order
+        blocks included, passes finite differences and dot tests."""
         bkd = numpy_bkd
-        state_eq, system = _build_state_equation(bkd, nonlinear_reaction)
+        system, parameterization, _ = steady_adr(bkd, nonlinear_reaction)
         nstates = system.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
+        report = residual_bundle_report(
+            system,
+            parameterization,
+            bkd.asarray(np.linspace(0.1, 0.9, nstates)),
+            bkd.asarray(np.random.default_rng(5).normal(size=nstates)),
+            bkd.asarray(ADR_PARAM[:, 0]),
         )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
+        assert report.failures() == []
+
+    @pytest.mark.parametrize("nonlinear_reaction", [False, True])
+    def test_solved_gradient_and_hvp_match_fd(
+        self, numpy_bkd: NumpyBkd, nonlinear_reaction: bool
+    ) -> None:
+        """The solved state's gradient and HVP pass central finite
+        differences, and the HVP is symmetric."""
+        bkd = numpy_bkd
+        system, parameterization, _ = steady_adr(bkd, nonlinear_reaction)
+        function = observed_steady_function(
+            system, parameterization, [first_free_row(system, bkd)], bkd
         )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
-
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
-
-        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
-        # Noise-limited checks (one-sided FD of PDE-scale quantities
-        # floors near 1e-6): assembled gradient (4), state-equation
-        # param_param (5) and state_param (8). A genuine convention bug
-        # plateaus at ~1, five orders above these bounds.
-        tols[4] = 5e-6
-        tols[5] = 5e-6
-        tols[8] = 5e-6
-        # Component 13 floors just above 1e-6 on CI's Linux BLAS, at
-        # 1.66e-6, while this machine stays under. Raised to the next
-        # round number above that measurement rather than to the 5e-6
-        # used above, so the bound still tracks the floor.
-        tols[13] = 2e-6
-        checker.check_derivatives(init_state, param, tols)
-
-        # FD-noise-immune symmetry identity <Hu, v> = <Hv, u>:
-        # breaks for contraction/orientation bugs.
+        param = bkd.asarray(ADR_PARAM)
+        errors = DerivativeChecker(function).check_derivatives(
+            param, relative=True, central=True
+        )
+        assert len(errors) == 2
+        assert max(bkd.to_float(bkd.min(e)) for e in errors) < 1e-6
+        hvp = function.derivatives().hvp
+        assert hvp is not None
         vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6]]))
         uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3]]))
-        hvp = adjoint_op.derivatives().hvp
-        assert hvp is not None
-        h_v = hvp(init_state, param, vvec)
-        h_u = hvp(init_state, param, uvec)
+        h_v, h_u = hvp(param, vvec), hvp(param, uvec)
         bkd.assert_allclose(
-            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
+            bkd.sum(h_v * uvec)[None], bkd.sum(h_u * vvec)[None], rtol=1e-12
         )
 
-    def test_first_order_bundle_withholds_hvps(
+    def test_first_order_bundle_withholds_second_derivatives(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """A parameterization without HVPs gives an adapter without
-        HVPs."""
+        """A diffusivity map with curvature but no declared HVP gives a
+        residual with parameter Jacobians and no second derivatives."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -182,7 +123,7 @@ class TestSteadyADRLogKLEAdjointHVP:
             basis=basis,
             diffusivity=NodalFieldDiffusion(basis),
             bkd=bkd,
-            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+            forcing=TimeIndependent(_unit_forcing),
         )
         system = compose_galerkin_system(
             physics,
@@ -193,7 +134,7 @@ class TestSteadyADRLogKLEAdjointHVP:
         )
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         modes = np.stack(
-            [np.sin((k + 1) * np.pi * coords) for k in range(_NPARAMS)],
+            [np.sin((k + 1) * np.pi * coords) for k in range(ADR_NPARAMS)],
             axis=1,
         )
         # Curvature without a declared hvp: the honest first-order case
@@ -203,10 +144,12 @@ class TestSteadyADRLogKLEAdjointHVP:
             bkd.asarray(np.ones(coords.shape[0])),
             bkd.asarray(modes),
         )
-        param_obj = AdvectionDiffusionParameterization(
+        parameterization = AdvectionDiffusionParameterization(
             physics, diffusivity_map=no_hvp_map, bkd=bkd
         )
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
+        residual = galerkin_steady_residual(
+            skfem_discretization(system), ParameterState(parameterization)
         )
-        assert state_eq.derivatives().state_state_hvp is None
+        bundle = residual.derivatives()
+        assert bundle.param is not None
+        assert bundle.state_state is None and bundle.param_param is None

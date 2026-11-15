@@ -1,7 +1,8 @@
 """Facade validation for AdvectionDiffusionParameterization.
 
-The all-four-field composite through the full 14-check suite and the
-eager construction-time raises. Single-term behavior is covered by the
+The all-four-field composite through the residual bundle checker and
+the solved derivatives on the steady system path, and the eager
+construction-time raises. Single-term behavior is covered by the
 engine-wired term tests in test_field_term.py and the steady/transient
 adjoint suites, which construct single-map facades.
 """
@@ -13,18 +14,13 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -44,14 +40,20 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_steady_checks import (
+    first_free_row,
+    observed_steady_function,
+    residual_bundle_report,
+)
+
+
+def _unit_forcing(coords: NDArray[Any]) -> NDArray[Any]:
+    return np.ones(coords.shape[1])
 
 
 def _exp_kle_map(
@@ -106,9 +108,12 @@ class TestAdvectionDiffusionParameterization:
     def test_all_fields_pass_component_checker(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """diffusivity+forcing+reaction+velocity facade (contiguous
-        parameter slices, composite block assembly) passes the full
-        14-check suite."""
+        """The diffusivity+forcing+reaction+velocity facade (contiguous
+        parameter slices, composite block assembly) passes the bundle
+        checker on the residual (at state linspace(0.1, 0.9), random
+        adjoint and parameters, seed 19), and the solved state at the
+        first free node has a gradient and HVP passing central finite
+        differences below 1e-6."""
         bkd = numpy_bkd
         physics, system, basis, vel_basis = _build_full_physics(bkd)
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
@@ -124,38 +129,25 @@ class TestAdvectionDiffusionParameterization:
         nparams = facade.nparams()
         assert nparams == 9
 
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), facade, bkd
-        )
         nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
-        )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, nparams, bkd)
-
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         rng = np.random.default_rng(19)
         param = bkd.asarray(rng.normal(0.0, 0.3, (nparams, 1)))
-        init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
-        # Noise-limited checks (established calibration; the
-        # multi-field residual's block dynamic range nudges the
-        # param-jacobian FD floor just past 1e-6 as well). 1.1e-5 is
-        # 2x the worst ratio observed across the CI matrix (5.2e-6 on
-        # macos against the previous 5e-6).
-        tols[1] = 1.1e-5
-        tols[4] = 1.1e-5
-        tols[5] = 1.1e-5
-        tols[8] = 1.1e-5
-        tols[13] = 1.1e-5
-        checker.check_derivatives(init_state, param, tols)
+        report = residual_bundle_report(
+            system,
+            facade,
+            bkd.asarray(np.linspace(0.1, 0.9, nstates)),
+            bkd.asarray(rng.normal(size=nstates)),
+            param[:, 0],
+        )
+        assert report.failures() == []
+        function = observed_steady_function(
+            system, facade, [first_free_row(system, bkd)], bkd
+        )
+        errors = DerivativeChecker(function).check_derivatives(
+            param, relative=True, central=True
+        )
+        assert len(errors) == 2
+        assert max(bkd.to_float(bkd.min(e)) for e in errors) < 1e-6
 
     def test_map_for_non_nodal_coefficient_raises(
         self, numpy_bkd: NumpyBkd
@@ -169,7 +161,7 @@ class TestAdvectionDiffusionParameterization:
             basis=basis,
             diffusivity=1.0,
             bkd=bkd,
-            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+            forcing=TimeIndependent(_unit_forcing),
         )
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         field_map = _exp_kle_map(bkd, coords, 2, 0.4)

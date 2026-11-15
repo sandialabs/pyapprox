@@ -3,11 +3,19 @@
 The exemplar for the engine's CALLABLE mixed second-derivative slots:
 the field-carrying term a(x)*kappa(u)*grad(u) is nonlinear in the
 state, so state_param_hvp/param_state_hvp route through the physics's
-mixed assemblies rather than the linearity identities. The steady
-14-check component suite exercises every block against FD.
+mixed assemblies rather than the linearity identities.
+
+Setup: -(a(x) kappa(u) u')' = 1 on [0, 1], kappa(u) = 1 + u^2, u = 0 at
+both ends, P1 on 10 cells, a = exp(W p) with three modes
+0.4 sin((k+1) pi x)/(k+1), at p = (0.4, -0.3, 0.2). The residual's
+derivatives pass the bundle checker at state linspace(0.1, 0.9) with a
+random adjoint (seed 5); the solved state at the first free node, on the
+steady system path, has a gradient and HVP passing central finite
+differences below 1e-6 and an HVP symmetric to 1e-12.
 """
 
 import pickle
+from typing import Any, Tuple
 
 import pytest
 
@@ -17,15 +25,10 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
-from pyapprox.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -44,34 +47,42 @@ from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
     QuasilinearDiffusion,
 )
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from tests._helpers.galerkin_steady_checks import (
+    first_free_row,
+    observed_steady_function,
+    residual_bundle_report,
+)
 
 _NPARAMS = 3
+_Np = NDArray[Any]
 
 
-def _kappa(u):
+def _kappa(u: _Np) -> _Np:
     return 1.0 + u**2
 
 
-def _kappa_deriv(u):
+def _kappa_deriv(u: _Np) -> _Np:
     return 2.0 * u
 
 
-def _kappa_second_deriv(u):
+def _kappa_second_deriv(u: _Np) -> _Np:
     return np.full_like(u, 2.0)
 
 
-def _forcing(x):
+def _forcing(x: _Np) -> _Np:
     return np.ones(x.shape[1])
 
 
-def _build_physics_and_map(bkd):
+def _build_physics_and_map(
+    bkd: NumpyBkd,
+) -> Tuple[
+    QuasilinearDiffusion[_Np], GalerkinSystem[_Np], TransformedFieldMap[_Np]
+]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     physics = QuasilinearDiffusion(
@@ -107,58 +118,54 @@ def _build_physics_and_map(bkd):
 
 
 class TestQuasilinearDiffusivityParameterization:
-    def test_all_derivative_components_match_fd(
+    def test_residual_derivatives_pass_the_bundle_checker(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """Steady 14-check component suite: the callable mixed slots
-        (nonzero because kappa depends on u) and the kappa''-driven
-        state_state_hvp are all FD-validated."""
+        """The residual's Jacobians and four adjoint-weighted second
+        derivatives, including the callable mixed slots (nonzero because
+        kappa depends on u) and the kappa''-driven state-state term, pass
+        finite differences and dot tests."""
         bkd = numpy_bkd
         physics, system, field_map = _build_physics_and_map(bkd)
         param_obj = create_quasilinear_diffusivity_parameterization(
             physics, field_map, bkd
         )
-        state_eq = GalerkinParameterizedStateEquation(
-            system.steady(), param_obj, bkd
-        )
         nstates = physics.nstates()
-        constrained = set(
-            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
+        report = residual_bundle_report(
+            system,
+            param_obj,
+            bkd.asarray(np.linspace(0.1, 0.9, nstates)),
+            bkd.asarray(np.random.default_rng(5).normal(size=nstates)),
+            bkd.asarray(np.array([0.4, -0.3, 0.2])),
         )
-        state_idx = next(
-            ii for ii in range(nstates) if ii not in constrained
-        )
-        weights = bkd.zeros((nstates, 1))
-        weights = bkd.copy(weights)
-        weights[state_idx] = 1.0
-        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
+        assert report.failures() == []
 
-        adjoint_op = AdjointOperator(state_eq, functional)
-        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
+    def test_solved_gradient_and_hvp_match_fd(self, numpy_bkd: NumpyBkd) -> None:
+        """The solved state at the first free node, on the steady system
+        path, has a gradient and HVP that pass central finite
+        differences, and an HVP satisfying <Hv, u> = <Hu, v>, which no
+        finite-difference noise reaches."""
+        bkd = numpy_bkd
+        physics, system, field_map = _build_physics_and_map(bkd)
+        param_obj = create_quasilinear_diffusivity_parameterization(
+            physics, field_map, bkd
+        )
+        function = observed_steady_function(
+            system, param_obj, [first_free_row(system, bkd)], bkd
+        )
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
-        init_state = bkd.zeros((nstates, 1))
-        # 2.1e-6 base is 2x the worst base-component ratio observed
-        # across the CI matrix (1.03e-6 on ubuntu 3.13)
-        tols = bkd.copy(checker.get_derivative_tolerances(2.1e-6))
-        # The four state-equation HVP blocks (5-8) are noise-limited
-        # here (measured ratios 1.0e-6..1.8e-6, V-shaped sweeps); each
-        # is tightly FD-validated at the physics tier and cross-checked
-        # by the shared-tensor and symmetry identities.
-        tols[5] = 5e-6
-        tols[6] = 5e-6
-        tols[7] = 5e-6
-        tols[8] = 5e-6
-        checker.check_derivatives(init_state, param, tols)
-
-        # FD-noise-immune symmetry identity <Hu, v> = <Hv, u>.
+        errors = DerivativeChecker(function).check_derivatives(
+            param, relative=True, central=True
+        )
+        assert len(errors) == 2
+        assert max(bkd.to_float(bkd.min(e)) for e in errors) < 1e-6
+        hvp = function.derivatives().hvp
+        assert hvp is not None
         vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6]]))
         uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3]]))
-        hvp = adjoint_op.derivatives().hvp
-        assert hvp is not None
-        h_v = hvp(init_state, param, vvec)
-        h_u = hvp(init_state, param, uvec)
+        h_v, h_u = hvp(param, vvec), hvp(param, uvec)
         bkd.assert_allclose(
-            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
+            bkd.sum(h_v * uvec)[None], bkd.sum(h_u * vvec)[None], rtol=1e-12
         )
 
     def test_wrong_physics_raises(self, numpy_bkd: NumpyBkd) -> None:
