@@ -115,6 +115,9 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
     ``_build_pde_substrate``) and never re-call ``__init__``.
     """
 
+    # Bound to NumPy: the skfem flow and transport solves.
+    _bkd: NumpyBkd
+
     def __init__(
         self,
         bkd: NumpyBkd,

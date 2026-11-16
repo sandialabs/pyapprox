@@ -22,7 +22,7 @@ Provides:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
     from pyapprox.pde.boundary import BoundaryConditionRole
@@ -35,9 +35,14 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+
+# The flow solve is bound to NumPy: skfem assembles SciPy matrices.
+_Np = NDArray[Any]
 
 
 def _insert_grid_line(vals: np.ndarray, new_val: float) -> np.ndarray:
@@ -193,22 +198,25 @@ class ZeroVelocity:
 
 
 def solve_obstructed_stokes(
-    mesh: "ObstructedMesh2D[Array]",
-    bkd: Backend[Array],
+    mesh: "ObstructedMesh2D[_Np]",
+    bkd: NumpyBkd,
     reynolds_num: float,
     vel_shape_params: List[float],
     navier_stokes: bool = True,
 ) -> Tuple[
-    Array,
-    "StokesPhysics[Array]",
-    "VectorLagrangeBasis[Array]",
-    "LagrangeBasis[Array]",
+    _Np,
+    "StokesPhysics[_Np]",
+    "VectorLagrangeBasis[_Np]",
+    "LagrangeBasis[_Np]",
 ]:
     """Solve the steady flow on the obstructed mesh.
 
     Parabolic inlet on the left wall (shape parameters ``(a, b)``),
     no-slip on bottom/top and all obstruction boundaries, natural
-    outflow on the right; viscosity is ``1 / reynolds_num``.
+    outflow on the right; viscosity is ``1 / reynolds_num``. Newton
+    (absolute tolerance 1e-10, at most 50 steps, line search, sparse LU)
+    from the linear Stokes flow with the same boundary data. Bound to
+    NumPy: skfem assembles SciPy matrices.
 
     Parameters
     ----------
@@ -224,7 +232,13 @@ def solve_obstructed_stokes(
         ``(sol, stokes, vel_basis, pres_basis)``: the solution vector,
         the physics object, and the degree-2 velocity / degree-1
         pressure bases.
+
+    Raises
+    ------
+    RuntimeError
+        If either solve does not converge.
     """
+    from pyapprox.implicitfunction.setups import RecomputeAlways
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.basis.mixed import MixedBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
@@ -233,13 +247,35 @@ def solve_obstructed_stokes(
     from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-    from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-        GalerkinSteadyModel,
+    from pyapprox.pde.galerkin.system import GalerkinSystem
+    from pyapprox.pde.galerkin.time_integration import skfem_discretization
+    from pyapprox.pde.models.galerkin.steady_residual import (
+        solve_galerkin_steady,
     )
+    from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+    from pyapprox.util.rootfinding.nonlinear import Newton
+
+    def solve(system: GalerkinSystem[_Np], initial_guess: Optional[_Np]) -> _Np:
+        newton: Newton[_Np, _Np] = Newton(
+            atol=1e-10, rtol=0.0, maxiters=50, line_search=True,
+            linesearch_maxiters=10,
+        )
+        _, point = solve_galerkin_steady(
+            skfem_discretization(system),
+            RecomputeAlways(ScipySparseLU()),
+            newton,
+            initial_guess=initial_guess,
+        )
+        if not point.converged():
+            raise RuntimeError(
+                f"the flow solve did not converge: {point.info().message}"
+            )
+        solution: _Np = point.solution()
+        return solution
 
     vel_basis = VectorLagrangeBasis(mesh, degree=2)
     pres_basis = LagrangeBasis(mesh, degree=1)
-    fields: List[Tuple[str, MixedFieldBasisProtocol[Array]]] = [
+    fields: List[Tuple[str, MixedFieldBasisProtocol[_Np]]] = [
         ("velocity", vel_basis),
         ("pressure", pres_basis),
     ]
@@ -249,7 +285,7 @@ def solve_obstructed_stokes(
     a, b = vel_shape_params
     zero_vel = ZeroVelocity()
     # No-slip on obs, bottom, top; parabolic inlet on left.
-    bcs: Sequence[BoundaryConditionRole[Array]] = [
+    bcs: Sequence[BoundaryConditionRole[_Np]] = [
         DirichletBC(velocity, "left", ParabolicInlet(a, b), bkd)
     ] + [
         DirichletBC(velocity, name, zero_vel, bkd)
@@ -262,14 +298,11 @@ def solve_obstructed_stokes(
     )
 
     # Start from the linear Stokes flow with the same boundary data.
-    zero_guess = bkd.zeros((basis.ndofs(),))
-    init_guess = GalerkinSteadyModel(
-        compose_galerkin_system(
-            StokesPhysics(basis, bkd, viscosity=viscosity), bcs
-        )
-    ).solve_steady(zero_guess)
-    model = GalerkinSteadyModel(compose_galerkin_system(stokes, bcs))
-    sol = model.solve_steady(init_guess, tol=1e-10, maxiter=50)
+    init_guess = solve(
+        compose_galerkin_system(StokesPhysics(basis, bkd, viscosity=viscosity), bcs),
+        None,
+    )
+    sol = solve(compose_galerkin_system(stokes, bcs), init_guess)[:, 0]
 
     return sol, stokes, vel_basis, pres_basis
 
