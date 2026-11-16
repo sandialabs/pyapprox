@@ -1,23 +1,24 @@
-r"""The steady residual of a Galerkin system equals the steady view's.
+r"""The steady residual of a Galerkin system: the spatial residual F at
+t*, its essential rows pinned to their data at t*.
 
-``galerkin_steady_residual`` (the unconstrained right-hand side at t*,
-its essential rows pinned to their data at t*) is compared with the
-steady view and ``steady_constrained_derivatives`` on four problems:
+``galerkin_steady_residual`` is checked on four problems:
 
 - the 1D diffusion problem of ``tests._helpers.galerkin_steady``,
   linear and with the reaction :math:`u^2`, at p = (0.4, -0.3, 0.2);
 - the elastic plate of the same helper (Robin support, traction, body
   force) at (E, nu) = (1, 0.3);
 - the heat problem of ``tests._helpers.galerkin_heat`` (time-dependent
-  forcing, moving right end 0.5 sin 4t) frozen at t* = 0.03, the
-  residual given the time and the view a snapshot.
+  forcing, moving right end 0.5 sin 4t) frozen at t* = 0.03.
 
 At u = linspace(0.1, 0.9), adjoint linspace(-1, 1) and seeded random
-directions, the value, the state Jacobian (dense), the parameter
-Jacobian and the four adjoint-weighted second-derivative products agree
-to 1e-12, relative. Solved by ``SteadySystem`` (stack ``Newton``, atol
-1e-13, SuperLU, ``KeepAll``) from zero, the steady state equals
-``SteadyStateSolver`` on the view to 1e-10 relative, with one
+directions: F's bundle passes ``residual_bundle_report`` (finite
+differences and dot tests); the free rows of the value equal the
+spatial residual, and of the state and parameter Jacobians F's; the
+pinned rows are identity and zero; the four adjoint-weighted
+second-derivative products equal F's weighted by the adjoint with its
+pinned rows zeroed (all to 1e-12, relative). Solved by ``SteadySystem``
+(stack ``Newton``, atol 1e-13, SuperLU, ``KeepAll``) from zero, the
+residual and the spatial residual's free rows vanish to 1e-10, with one
 factorization per Newton step plus one for the handle at the solution.
 
 Parameter-dependent essential data: the nonlinear diffusion problem with
@@ -41,7 +42,6 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix, issparse
 
 from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
@@ -63,12 +63,8 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
 from pyapprox.ode.residual_derivatives import STATED_ZERO, dense_operator
 from pyapprox.ode.residual_form import BackendColumnForm
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import skfem_discretization
-from pyapprox.pde.models.galerkin.constrained_derivatives import (
-    steady_constrained_derivatives,
-)
 from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.pde.models.galerkin.unconstrained_system import (
     GalerkinUnconstrainedRightHandSide,
@@ -91,6 +87,7 @@ from tests._helpers.galerkin_steady import (
     elastic_plate,
     steady_adr,
 )
+from tests._helpers.galerkin_steady_checks import residual_bundle_report
 from tests._helpers.linalg.counting_solver import CountingSolver
 
 _Np = NDArray[Any]
@@ -101,7 +98,8 @@ _CASES = ["linear", "nonlinear", "elastic plate", "heat snapshot"]
 
 
 class _Case:
-    """A problem's new residual and old view, at its parameters."""
+    """A problem's steady residual at its parameters, its pinned and free
+    rows, and a state, adjoint and directions to evaluate at."""
 
     def __init__(self, bkd: NumpyBkd, name: str) -> None:
         self.bkd = bkd
@@ -128,14 +126,15 @@ class _Case:
         self.residual = galerkin_steady_residual(
             self.discretization, self.parameters, self.time
         )
-        self.view = (
-            system.steady() if self.time is None else system.steady_snapshot(self.time)
-        )
-        self.old = steady_constrained_derivatives(
-            self.view, parameterization.param_derivatives()
-        )
+        self.parameterization = parameterization
+        # The data are time-invariant when no time is given: read them at 0.
+        self.t = 0.0 if self.time is None else self.time
         n = system.nstates()
         self.n = n
+        self.pinned = np.asarray(
+            bkd.to_numpy(system.constraint_set().dofs()), dtype=int
+        )
+        self.free = np.setdiff1d(np.arange(n), self.pinned)
         self.state = np.linspace(0.1, 0.9, n)
         self.adj = np.linspace(-1.0, 1.0, n)
         rng = np.random.default_rng(11)
@@ -151,12 +150,32 @@ def _close(actual: _Np, expected: _Np, rtol: float = _RTOL) -> None:
     np.testing.assert_allclose(actual, expected, rtol=0.0, atol=rtol * scale)
 
 
-class TestAgainstTheSteadyView:
+class TestTheResidual:
     @pytest.mark.parametrize("name", _CASES)
-    def test_the_value(self, numpy_bkd: NumpyBkd, name: str) -> None:
+    def test_the_unpinned_bundle_passes_the_checker(
+        self, numpy_bkd: NumpyBkd, name: str
+    ) -> None:
+        """F's own derivatives: Jacobians, the four second-derivative
+        products and their dot tests, by the bundle checker at t*."""
+        case = _Case(numpy_bkd, name)
+        report = residual_bundle_report(
+            case.system,
+            case.parameterization,
+            case.state,
+            case.adj,
+            case.param,
+            case.t,
+        )
+        assert report.failures() == []
+
+    @pytest.mark.parametrize("name", _CASES)
+    def test_free_rows_are_the_spatial_residual(
+        self, numpy_bkd: NumpyBkd, name: str
+    ) -> None:
         case = _Case(numpy_bkd, name)
         value = case.residual(case.state[:, None])[:, 0]
-        _close(value, case.view.steady_residual(case.state))
+        raw = case.system.spatial_operator().spatial_residual(case.state, case.t)
+        _close(value[case.free], raw[case.free])
 
     def test_the_pinned_rows_read_the_data_at_the_time(
         self, numpy_bkd: NumpyBkd
@@ -170,49 +189,58 @@ class TestAgainstTheSteadyView:
         )
 
     @pytest.mark.parametrize("name", _CASES)
-    def test_the_jacobians(self, numpy_bkd: NumpyBkd, name: str) -> None:
+    def test_the_jacobians_pin_their_rows(self, numpy_bkd: NumpyBkd, name: str) -> None:
+        r""":math:`R_u = P F_u + (I - P)` and :math:`R_p = P F_p` (the data
+        do not depend on p here): free rows are F's, pinned rows identity
+        and zero."""
         case = _Case(numpy_bkd, name)
         bundle = case.residual.derivatives()
+        unpinned = case.residual.unpinned().derivatives()
         assert bundle.jacobian is not None and bundle.param is not None
-        old_jacobian = case.view.steady_jacobian(case.state)
-        assert issparse(old_jacobian)
+        assert unpinned.jacobian is not None and unpinned.param is not None
         state = case.state[:, None]
-        _close(
-            case.dense(bundle.jacobian(state, _POINT), case.n),
-            csr_matrix(old_jacobian).toarray(),
-        )
-        assert case.old.param_jacobian is not None
-        _close(
-            case.dense(bundle.param(state), case.nparams),
-            case.old.param_jacobian(case.state, case.param),
-        )
+        jacobian = case.dense(bundle.jacobian(state, _POINT), case.n)
+        jacobian_f = case.dense(unpinned.jacobian(state, _POINT), case.n)
+        _close(jacobian[case.free], jacobian_f[case.free])
+        _close(jacobian[case.pinned], np.eye(case.n)[case.pinned])
+        param = case.dense(bundle.param(state), case.nparams)
+        param_f = case.dense(unpinned.param(state), case.nparams)
+        _close(param[case.free], param_f[case.free])
+        _close(param[case.pinned], np.zeros((case.pinned.shape[0], case.nparams)))
 
     @pytest.mark.parametrize("name", _CASES)
-    def test_the_second_derivatives(self, numpy_bkd: NumpyBkd, name: str) -> None:
+    def test_the_second_derivatives_drop_the_pinned_adjoint(
+        self, numpy_bkd: NumpyBkd, name: str
+    ) -> None:
+        r"""Weighted by :math:`\lambda`, R's second derivatives are F's
+        weighted by :math:`P\lambda`: the pinned rows are affine in u and
+        independent of p."""
         case = _Case(numpy_bkd, name)
         bundle = case.residual.derivatives()
-        old = case.old
+        unpinned = case.residual.unpinned().derivatives()
         assert bundle.state_state is not None and bundle.state_param is not None
         assert bundle.param_param is not None
-        assert old.state_state_hvp is not None and old.state_param_hvp is not None
-        assert old.param_state_hvp is not None and old.param_param_hvp is not None
+        assert unpinned.state_state is not None and unpinned.state_param is not None
+        assert unpinned.param_param is not None
         state, adj = case.state[:, None], case.adj[:, None]
+        adj_free = adj.copy()
+        adj_free[case.pinned] = 0.0
         wvec, vec = case.wvec[:, None], case.vec[:, None]
         _close(
-            bundle.state_state(state, adj).apply(wvec)[:, 0],
-            old.state_state_hvp(case.state, case.adj, case.wvec),
+            bundle.state_state(state, adj).apply(wvec),
+            unpinned.state_state(state, adj_free).apply(wvec),
         )
         _close(
-            bundle.state_param(state, adj).apply(vec)[:, 0],
-            old.state_param_hvp(case.state, case.param, case.adj, case.vec),
+            bundle.state_param(state, adj).apply(vec),
+            unpinned.state_param(state, adj_free).apply(vec),
         )
         _close(
-            bundle.state_param(state, adj).apply_transpose(wvec)[:, 0],
-            old.param_state_hvp(case.state, case.param, case.adj, case.wvec),
+            bundle.state_param(state, adj).apply_transpose(wvec),
+            unpinned.state_param(state, adj_free).apply_transpose(wvec),
         )
         _close(
-            bundle.param_param(state, adj).apply(vec)[:, 0],
-            old.param_param_hvp(case.state, case.param, case.adj, case.vec),
+            bundle.param_param(state, adj).apply(vec),
+            unpinned.param_param(state, adj_free).apply(vec),
         )
 
     def test_the_version_is_the_shared_parameters(self, numpy_bkd: NumpyBkd) -> None:
@@ -224,7 +252,7 @@ class TestAgainstTheSteadyView:
 
 class TestTheSteadySolve:
     @pytest.mark.parametrize("name", _CASES)
-    def test_it_equals_the_steady_state_solver(
+    def test_it_solves_with_one_setup_per_step(
         self, numpy_bkd: NumpyBkd, name: str
     ) -> None:
         case = _Case(numpy_bkd, name)
@@ -238,8 +266,13 @@ class TestTheSteadySolve:
         assert point.converged()
         iterations = point.info().iterations
         assert (iterations == 1) == (name != "nonlinear")
-        old = SteadyStateSolver(case.view, tol=1e-13).solve()
-        _close(point.state()[:, 0], old.solution, 1e-10)
+        # The residual vanishes at the solution: free rows solve F = 0 and
+        # pinned rows hold the data.
+        _close(case.residual(point.state())[:, 0], np.zeros(case.n), 1e-10)
+        raw = case.system.spatial_operator().spatial_residual(
+            point.state()[:, 0], case.t
+        )
+        _close(raw[case.free], np.zeros(case.free.shape[0]), 1e-10)
         point.jacobian_handle()
         assert lu.setups == (1 if iterations == 1 else iterations + 1)
 
@@ -276,7 +309,12 @@ class TestWithoutParameters:
         bundle = residual.derivatives()
         assert bundle.jacobian is not None and bundle.param is None
         state = np.linspace(0.1, 0.9, system.nstates())
-        _close(residual(state[:, None])[:, 0], system.steady().steady_residual(state))
+        pinned = np.asarray(
+            numpy_bkd.to_numpy(system.constraint_set().dofs()), dtype=int
+        )
+        free = np.setdiff1d(np.arange(system.nstates()), pinned)
+        raw = system.spatial_operator().spatial_residual(state, 0.0)
+        _close(residual(state[:, None])[free, 0], raw[free])
         assert residual.parameters_version() == 0
 
 
