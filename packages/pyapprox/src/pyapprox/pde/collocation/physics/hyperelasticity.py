@@ -8,7 +8,15 @@ stress model. Supports 1D, 2D, and 3D with any constitutive law that
 satisfies StressModelWithSensitivityProtocol.
 """
 
-from typing import Generic, List, Optional, Tuple, Union
+from typing import (
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
@@ -30,6 +38,49 @@ from pyapprox.pde.constitutive.registry import (
 )
 from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class HyperelasticLawProtocol(Protocol, Generic[Array]):
+    """The constitutive law this physics needs: the first Piola-Kirchhoff
+    stress and its tangent, from the deformation gradient and the Lame
+    parameters at the same points.
+
+    ``F`` is nested ``F[i][J]``, ``ndim`` by ``ndim``; ``mu``, ``lamda``
+    and every entry of ``F`` share one shape, (npts,) at the nodes.
+    """
+
+    def stress(
+        self, F: List[List[Array]], mu: Array, lamda: Array
+    ) -> List[List[Array]]:
+        """``P[i][J]``, nested as ``F``."""
+        ...
+
+    def tangent(
+        self, F: List[List[Array]], mu: Array, lamda: Array
+    ) -> List[List[List[List[Array]]]]:
+        """:math:`A_{iJkL} = \\partial P_{iJ}/\\partial F_{kL}`, nested
+        ``A[i][J][k][L]``."""
+        ...
+
+
+@runtime_checkable
+class LameSensitiveLawProtocol(Protocol, Generic[Array]):
+    """What the residual's Lame-parameter sensitivities need: the
+    pointwise derivatives of the stress with respect to mu and lamda.
+    Arguments as for :class:`HyperelasticLawProtocol`."""
+
+    def stress_mu_sensitivity(
+        self, F: List[List[Array]], mu: Array, lamda: Array
+    ) -> List[List[Array]]:
+        """:math:`\\partial P_{iJ}/\\partial \\mu`, nested as ``F``."""
+        ...
+
+    def stress_lamda_sensitivity(
+        self, F: List[List[Array]], mu: Array, lamda: Array
+    ) -> List[List[Array]]:
+        """:math:`\\partial P_{iJ}/\\partial \\lambda`, nested as ``F``."""
+        ...
 
 
 class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
