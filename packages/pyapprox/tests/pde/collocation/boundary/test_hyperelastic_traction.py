@@ -30,6 +30,9 @@ from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
+)
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
@@ -187,11 +190,10 @@ class TestHyperelasticTraction:
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
         physics = HyperelasticityPhysics(
             basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
         )
+        linear_physics = LinearElasticityPhysics(basis, bkd, lamda=lamda, mu=mu)
 
         left_idx = mesh.boundary_indices(0)
         normals = mesh.boundary_normals(0)
@@ -205,14 +207,7 @@ class TestHyperelasticTraction:
                 bkd, left_idx, normals, physics, comp
             )
             linear_op = TractionNormalOperator(
-                bkd,
-                left_idx,
-                normals,
-                [Dx, Dy],
-                lamda,
-                mu,
-                comp,
-                npts,
+                bkd, left_idx, normals, linear_physics, comp
             )
 
             t_hyper = hyper_op(state, 0.0)

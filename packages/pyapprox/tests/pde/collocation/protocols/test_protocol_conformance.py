@@ -10,7 +10,7 @@ import dataclasses
 
 import pytest
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
     gradient_robin_bc,
@@ -23,9 +23,12 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     GradientNormalOperator,
     TractionNormalOperator,
 )
-from pyapprox.pde.collocation.mesh import TransformedMesh1D
+from pyapprox.pde.collocation.mesh import TransformedMesh1D, TransformedMesh2D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
 )
 from pyapprox.pde.collocation.protocols import (
     BCPhysicalSensitivities,
@@ -86,20 +89,14 @@ class TestNormalOperatorConformance:
         bkd.assert_allclose(normal_op.normals(), bkd.array([[-1.0]]))
 
     def test_traction_operator_normals(self, bkd):
-        basis = _make_1d_basis(4, bkd)
-        D = basis.derivative_matrix()
+        basis = ChebyshevBasis2D(TransformedMesh2D(4, 4, bkd), bkd)
+        physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
         normals = bkd.array([[0.0, 1.0]])
         normal_op = TractionNormalOperator(
-            bkd,
-            bkd.array([0], dtype=int),
-            normals,
-            [D, D],
-            1.0,
-            1.0,
-            0,
-            4,
+            bkd, bkd.array([0], dtype=int), normals, physics, 0
         )
         assert isinstance(normal_op, NormalOperatorProtocol)
+        assert normal_op.has_coefficient_dependence()
         bkd.assert_allclose(normal_op.normals(), normals)
 
 

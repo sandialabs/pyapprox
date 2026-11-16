@@ -3,10 +3,10 @@
 Provides operators that compute normal-direction terms at boundary points:
 - GradientNormalOperator: grad(u) . n using derivative matrices
 - FluxNormalOperator: flux(u) . n using a FluxProviderProtocol
-- TractionNormalOperator: one component of σ·n for 2D linear elasticity
+- TractionNormalOperator: one component of σ·n for linear elasticity
 """
 
-from typing import Generic, List
+from typing import Generic, List, Protocol, runtime_checkable
 
 from pyapprox.pde.collocation.protocols.boundary import (
     FluxProviderProtocol,
@@ -200,17 +200,29 @@ class FluxNormalOperator(Generic[Array]):
         return result
 
 
+@runtime_checkable
+class CauchyStressSourceProtocol(Protocol, Generic[Array]):
+    """What the traction operator needs: the Cauchy stress at every node
+    and its state Jacobian, at a time. A linear elasticity physics
+    satisfies it, so the traction reads the material the physics holds
+    when it is evaluated."""
+
+    def stress(self, state: Array, time: float) -> List[List[Array]]:
+        """``sigma[i][j]`` at every node, each shape (npts,)."""
+        ...
+
+    def stress_jacobian(self, state: Array, time: float) -> List[List[Array]]:
+        """``dsigma[i][j]/du``, each shape (npts, nstates)."""
+        ...
+
+
 class TractionNormalOperator(Generic[Array]):
     """Computes one component of traction t = σ·n at boundary points.
 
-    For 2D linear elasticity with component-stacked state [u_x, u_y]:
-        σ = λ*tr(ε)*I + 2μ*ε
-        t = σ·n
-
-    This operator returns t_x (component=0) or t_y (component=1).
-
-    Note: 2D only. 3D would require a separate operator with 3 components
-    and 6 independent stress components.
+    The traction component i is :math:`t_i = \\sum_j \\sigma_{ij} n_j`,
+    with :math:`\\sigma` taken from the stress source at evaluation time,
+    so a material the parameterization changes reaches the boundary rows
+    as it reaches the interior.
 
     Parameters
     ----------
@@ -218,21 +230,20 @@ class TractionNormalOperator(Generic[Array]):
         Computational backend.
     mesh_boundary_indices : Array
         **Mesh point indices** (0..npts-1) on boundary. Shape: (nboundary,)
-        These index into derivative matrices, NOT into the component-stacked
+        These index into the stress fields, NOT into the component-stacked
         state vector. The factory function handles the state-index offset.
     normals : Array
         Outward unit normal vectors at boundary points.
-        Shape: (nboundary, 2)
-    derivative_matrices : List[Array]
-        [Dx, Dy], each shape (npts, npts). Physical derivative matrices.
-    lamda : float
-        Lamé's first parameter λ.
-    mu : float
-        Shear modulus μ.
+        Shape: (nboundary, ndim)
+    stress_source : CauchyStressSourceProtocol
+        The Cauchy stress and its Jacobian, usually the physics.
     component : int
-        0 for t_x, 1 for t_y.
-    npts : int
-        Number of mesh points (state length = 2*npts).
+        The traction component i returned.
+
+    Raises
+    ------
+    TypeError
+        If ``stress_source`` does not satisfy ``CauchyStressSourceProtocol``.
     """
 
     def __init__(
@@ -240,55 +251,27 @@ class TractionNormalOperator(Generic[Array]):
         bkd: Backend[Array],
         mesh_boundary_indices: Array,
         normals: Array,
-        derivative_matrices: List[Array],
-        lamda: float,
-        mu: float,
+        stress_source: CauchyStressSourceProtocol[Array],
         component: int,
-        npts: int,
-    ):
+    ) -> None:
+        if not isinstance(stress_source, CauchyStressSourceProtocol):
+            raise TypeError(
+                "stress_source must satisfy CauchyStressSourceProtocol, got "
+                f"{type(stress_source).__name__}"
+            )
         self._bkd = bkd
         self._mesh_boundary_indices = mesh_boundary_indices
         self._normals = normals
-        self._npts = npts
+        self._stress_source = stress_source
         self._component = component
 
-        Dx = derivative_matrices[0]
-        Dy = derivative_matrices[1]
-        lam = lamda
-        lam_2mu = lamda + 2.0 * mu
-
-        # Precompute traction Jacobian: (nboundary, 2*npts)
-        # Traction is linear in state, so Jacobian is constant.
-        #
-        # For component 0 (t_x):
-        #   d(t_x)/d(u) = nx*(λ+2μ)*Dx[idx,:] + ny*μ*Dy[idx,:]
-        #   d(t_x)/d(v) = nx*λ*Dy[idx,:] + ny*μ*Dx[idx,:]
-        #
-        # For component 1 (t_y):
-        #   d(t_y)/d(u) = nx*μ*Dy[idx,:] + ny*λ*Dx[idx,:]
-        #   d(t_y)/d(v) = nx*μ*Dx[idx,:] + ny*(λ+2μ)*Dy[idx,:]
-        nx = normals[:, 0:1]
-        ny = normals[:, 1:2]
-        dx_rows = Dx[mesh_boundary_indices, :]
-        dy_rows = Dy[mesh_boundary_indices, :]
-        if component == 0:
-            # d(t_x)/d(u), d(t_x)/d(v)
-            jac_u = nx * lam_2mu * dx_rows + ny * mu * dy_rows
-            jac_v = nx * lam * dy_rows + ny * mu * dx_rows
-        else:
-            # d(t_y)/d(u), d(t_y)/d(v)
-            jac_u = nx * mu * dy_rows + ny * lam * dx_rows
-            jac_v = nx * mu * dx_rows + ny * lam_2mu * dy_rows
-
-        self._jacobian = bkd.concatenate([jac_u, jac_v], axis=1)
-
     def normals(self) -> Array:
-        """Return outward unit normals. Shape: (nboundary, 2)."""
+        """Return outward unit normals. Shape: (nboundary, ndim)."""
         return self._normals
 
     def has_coefficient_dependence(self) -> bool:
-        """Return False: traction uses fixed material constants."""
-        return False
+        """Return True: the traction depends on the Lame parameters."""
+        return True
 
     def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of traction t = σ·n at boundary points.
@@ -296,34 +279,44 @@ class TractionNormalOperator(Generic[Array]):
         Parameters
         ----------
         state : Array
-            Full component-stacked solution [u_x, u_y]. Shape: (2*npts,)
+            Full component-stacked solution. Shape: (nstates,)
         time : float
-            Unused: the material constants are fixed.
+            The time at which the stress source reads its material.
 
         Returns
         -------
         Array
             Traction component at boundary points. Shape: (nboundary,)
         """
-        return self._jacobian @ state
+        idx = self._mesh_boundary_indices
+        stress_row = self._stress_source.stress(state, time)[self._component]
+        traction = stress_row[0][idx] * self._normals[:, 0]
+        for j in range(1, len(stress_row)):
+            traction = traction + stress_row[j][idx] * self._normals[:, j]
+        return traction
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Return Jacobian of traction component w.r.t. state.
-
-        State-independent (traction is linear in displacement).
+        """Return Jacobian of traction component w.r.t. state:
+        :math:`\\sum_j n_j \\, \\partial \\sigma_{ij}/\\partial u` at the
+        boundary rows.
 
         Parameters
         ----------
         state : Array
-            Full solution vector. Shape: (2*npts,) (unused)
+            Full solution vector. Shape: (nstates,)
         time : float
-            Unused: the material constants are fixed.
+            The time at which the stress source reads its material.
 
         Returns
         -------
         Array
-            Jacobian. Shape: (nboundary, 2*npts)
+            Jacobian. Shape: (nboundary, nstates)
         """
-        return self._jacobian
+        idx = self._mesh_boundary_indices
+        row = self._stress_source.stress_jacobian(state, time)[self._component]
+        jac = self._normals[:, 0:1] * row[0][idx]
+        for j in range(1, len(row)):
+            jac = jac + self._normals[:, j : j + 1] * row[j][idx]
+        return jac
 
 

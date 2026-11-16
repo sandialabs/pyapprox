@@ -117,15 +117,11 @@ def _make_kle_field_map_2d(bkd, mesh, num_kle_terms=2):
     )
 
 
-def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
+def _apply_cylinder_bcs(bkd, physics, mesh, basis, inner_pressure):
     """Apply the full cylinder BC set (traction + symmetry Dirichlet).
 
     Same BC structure as create_linear_pressurized_cylinder_2d.
     """
-    D_matrices = [
-        basis.derivative_matrix(1, 0),
-        basis.derivative_matrix(1, 1),
-    ]
     npts = basis.npts()
     bcs = []
 
@@ -138,9 +134,7 @@ def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
                 bkd,
                 outer_idx,
                 outer_normals,
-                D_matrices,
-                lamda,
-                mu,
+                physics,
                 npts,
                 comp,
                 values=0.0,
@@ -155,9 +149,7 @@ def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
             bkd,
             bottom_idx,
             bottom_normals,
-            D_matrices,
-            lamda,
-            mu,
+            physics,
             npts,
             component=0,
             values=0.0,
@@ -172,9 +164,7 @@ def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
             bkd,
             top_idx,
             top_normals,
-            D_matrices,
-            lamda,
-            mu,
+            physics,
             npts,
             component=1,
             values=0.0,
@@ -191,9 +181,7 @@ def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
                 bkd,
                 inner_idx,
                 inner_normals,
-                D_matrices,
-                lamda,
-                mu,
+                physics,
                 npts,
                 comp,
                 values=pressure_vals,
@@ -249,8 +237,6 @@ class TestPressurizedCylinder2D:
             physics,
             mesh,
             basis,
-            lamda,
-            mu,
             pressure,
         )
 
@@ -317,10 +303,6 @@ class TestPressurizedCylinder2D:
             forcing=lambda t: forcing_flat,
         )
 
-        D_matrices = [
-            basis.derivative_matrix(1, 0),
-            basis.derivative_matrix(1, 1),
-        ]
         bcs = []
 
         # Inner boundary (bnd 0): traction with exact manufactured values
@@ -337,9 +319,7 @@ class TestPressurizedCylinder2D:
                     bkd,
                     inner_idx,
                     inner_normals,
-                    D_matrices,
-                    lamda_val,
-                    mu_val,
+                    physics,
                     npts,
                     comp,
                     values=inner_traction[:, comp],
@@ -360,9 +340,7 @@ class TestPressurizedCylinder2D:
                     bkd,
                     outer_idx,
                     outer_normals,
-                    D_matrices,
-                    lamda_val,
-                    mu_val,
+                    physics,
                     npts,
                     comp,
                     values=outer_traction[:, comp],
@@ -382,9 +360,7 @@ class TestPressurizedCylinder2D:
                 bkd,
                 bottom_idx,
                 bottom_normals,
-                D_matrices,
-                lamda_val,
-                mu_val,
+                physics,
                 npts,
                 component=0,
                 values=bottom_traction[:, 0],
@@ -411,9 +387,7 @@ class TestPressurizedCylinder2D:
                 bkd,
                 top_idx,
                 top_normals,
-                D_matrices,
-                lamda_val,
-                mu_val,
+                physics,
                 npts,
                 component=1,
                 values=top_traction[:, 1],

@@ -93,18 +93,13 @@ def _build_pressurized_cylinder(bkd, npts_1d=6):
         basis, bkd, lamda=lamda_init, mu=mu_init
     )
 
-    d_matrices = [
-        basis.derivative_matrix(1, 0),
-        basis.derivative_matrix(1, 1),
-    ]
     bcs = []
     outer_idx = mesh.boundary_indices(1)
     outer_normals = mesh.boundary_normals(1)
     for comp in (0, 1):
         bcs.append(
             traction_neumann_bc(
-                bkd, outer_idx, outer_normals, d_matrices,
-                lamda_init, mu_init, npts, comp, values=0.0,
+                bkd, outer_idx, outer_normals, physics, npts, comp, values=0.0,
             )
         )
     inner_idx = mesh.boundary_indices(0)
@@ -113,8 +108,13 @@ def _build_pressurized_cylinder(bkd, npts_1d=6):
         pressure_vals = -0.5 * inner_normals[:, comp]
         bcs.append(
             traction_neumann_bc(
-                bkd, inner_idx, inner_normals, d_matrices,
-                lamda_init, mu_init, npts, comp, values=pressure_vals,
+                bkd,
+                inner_idx,
+                inner_normals,
+                physics,
+                npts,
+                comp,
+                values=pressure_vals,
             )
         )
     bottom_idx = mesh.boundary_indices(2)

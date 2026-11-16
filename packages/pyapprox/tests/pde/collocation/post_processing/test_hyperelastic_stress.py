@@ -57,7 +57,7 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
     proc = HyperelasticStressPostProcessor2D(
         Dx,
         Dy,
-        stress_model,
+        NeoHookeanLaw(bkd),
         bkd,
         curvilinear_basis=curv_basis,
     )
@@ -66,8 +66,6 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
     linear_proc = StressPostProcessor2D(
         Dx,
         Dy,
-        get_lamda=lambda: bkd.asarray([lamda] * npts),
-        get_mu=lambda: bkd.asarray([mu] * npts),
         bkd=bkd,
         curvilinear_basis=curv_basis,
     )
@@ -76,6 +74,8 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
         "proc": proc,
         "linear_proc": linear_proc,
         "stress_model": stress_model,
+        # (mu, lamda) at the nodes
+        "material": (bkd.full((npts,), mu), bkd.full((npts,), lamda)),
         "mesh": mesh,
         "basis": basis,
         "transform": transform,
@@ -96,6 +96,7 @@ class TestHyperelasticStressPostProcessor2D:
     def test_cauchy_from_pk1(self, bkd):
         """Cauchy stress sigma = (1/J)*P*F^T matches direct computation."""
         setup = _setup_hyperelastic_processor(bkd)
+        mat = setup["material"]
         proc = setup["proc"]
         npts = setup["npts"]
 
@@ -103,10 +104,10 @@ class TestHyperelasticStressPostProcessor2D:
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * npts) * 0.01)
 
-        sxx, sxy, syy = proc.cartesian_stress(state)
+        sxx, sxy, syy = proc.cartesian_stress(state, *mat)
 
         # Direct computation
-        F11, F12, F21, F22 = proc._compute_F(state)
+        (F11, F12), (F21, F22) = proc._compute_F(state)
         P11, P12, P21, P22 = setup["stress_model"].compute_stress_2d(
             F11,
             F12,
@@ -127,6 +128,7 @@ class TestHyperelasticStressPostProcessor2D:
     def test_strain_energy_density_direct(self, bkd):
         """Strain energy matches Neo-Hookean formula directly."""
         setup = _setup_hyperelastic_processor(bkd)
+        mat = setup["material"]
         proc = setup["proc"]
         npts = setup["npts"]
         mu = setup["mu"]
@@ -135,10 +137,10 @@ class TestHyperelasticStressPostProcessor2D:
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * npts) * 0.01)
 
-        W = proc.strain_energy_density(state)
+        W = proc.strain_energy_density(state, *mat)
 
         # Direct: W = mu/2*(I1-3) - mu*ln(J) + lam/2*(ln(J))^2
-        F11, F12, F21, F22 = proc._compute_F(state)
+        (F11, F12), (F21, F22) = proc._compute_F(state)
         J = F11 * F22 - F12 * F21
         ln_J = bkd.log(J)
         # Plane strain: F33=1, so I1 includes +1.0
@@ -150,27 +152,29 @@ class TestHyperelasticStressPostProcessor2D:
     def test_hoop_stress_small_disp(self, bkd):
         """Small displacement: hyperelastic hoop stress ≈ linear hoop stress."""
         setup = _setup_hyperelastic_processor(bkd)
+        mat = setup["material"]
         npts = setup["npts"]
 
         # Very small displacement to stay in linear regime
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * npts) * 1e-5)
 
-        hoop_hyper = setup["proc"].hoop_stress(state)
-        hoop_linear = setup["linear_proc"].hoop_stress(state)
+        hoop_hyper = setup["proc"].hoop_stress(state, *mat)
+        hoop_linear = setup["linear_proc"].hoop_stress(state, *mat)
 
         bkd.assert_allclose(hoop_hyper, hoop_linear, atol=1e-6)
 
     def test_cauchy_stress_jacobian_fd(self, bkd):
         """Cauchy stress Jacobian matches finite differences."""
         setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
+        mat = setup["material"]
         proc = setup["proc"]
         npts = setup["npts"]
 
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * npts) * 0.005)
 
-        dsxx, dsxy, dsyy = proc.cartesian_stress_state_jacobian(state)
+        dsxx, dsxy, dsyy = proc.cartesian_stress_state_jacobian(state, *mat)
         assert dsxx.shape == (npts, 2 * npts)
 
         eps = 1e-7
@@ -181,8 +185,8 @@ class TestHyperelasticStressPostProcessor2D:
             state_p[dof] = state_p[dof] + eps
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
-            sxx_p, sxy_p, syy_p = proc.cartesian_stress(state_p)
-            sxx_m, sxy_m, syy_m = proc.cartesian_stress(state_m)
+            sxx_p, sxy_p, syy_p = proc.cartesian_stress(state_p, *mat)
+            sxx_m, sxy_m, syy_m = proc.cartesian_stress(state_m, *mat)
             bkd.assert_allclose(
                 dsxx[:, dof],
                 (sxx_p - sxx_m) / (2.0 * eps),
@@ -205,36 +209,14 @@ class TestHyperelasticStressPostProcessor2D:
     def test_hoop_stress_jacobian_fd(self, bkd):
         """Hoop stress Jacobian matches finite differences."""
         setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
+        mat = setup["material"]
         proc = setup["proc"]
         npts = setup["npts"]
 
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * npts) * 0.005)
 
-        jac = proc.hoop_stress_state_jacobian(state)
-        assert jac.shape == (npts, 2 * npts)
-
-        eps = 1e-7
-        for dof in [0, npts // 2, npts, npts + npts // 3]:
-            if dof >= 2 * npts:
-                continue
-            state_p = bkd.copy(state)
-            state_p[dof] = state_p[dof] + eps
-            state_m = bkd.copy(state)
-            state_m[dof] = state_m[dof] - eps
-            fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (2.0 * eps)
-            bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
-
-    def test_strain_energy_density_jacobian_fd(self, bkd):
-        """Strain energy density Jacobian matches finite differences."""
-        setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
-        proc = setup["proc"]
-        npts = setup["npts"]
-
-        np.random.seed(42)
-        state = bkd.array(np.random.randn(2 * npts) * 0.005)
-
-        jac = proc.strain_energy_density_state_jacobian(state)
+        jac = proc.hoop_stress_state_jacobian(state, *mat)
         assert jac.shape == (npts, 2 * npts)
 
         eps = 1e-7
@@ -246,14 +228,41 @@ class TestHyperelasticStressPostProcessor2D:
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
             fd = (
-                proc.strain_energy_density(state_p)
-                - proc.strain_energy_density(state_m)
+                proc.hoop_stress(state_p, *mat) - proc.hoop_stress(state_m, *mat)
+            ) / (2.0 * eps)
+            bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
+
+    def test_strain_energy_density_jacobian_fd(self, bkd):
+        """Strain energy density Jacobian matches finite differences."""
+        setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
+        mat = setup["material"]
+        proc = setup["proc"]
+        npts = setup["npts"]
+
+        np.random.seed(42)
+        state = bkd.array(np.random.randn(2 * npts) * 0.005)
+
+        jac = proc.strain_energy_density_state_jacobian(state, *mat)
+        assert jac.shape == (npts, 2 * npts)
+
+        eps = 1e-7
+        for dof in [0, npts // 2, npts, npts + npts // 3]:
+            if dof >= 2 * npts:
+                continue
+            state_p = bkd.copy(state)
+            state_p[dof] = state_p[dof] + eps
+            state_m = bkd.copy(state)
+            state_m[dof] = state_m[dof] - eps
+            fd = (
+                proc.strain_energy_density(state_p, *mat)
+                - proc.strain_energy_density(state_m, *mat)
             ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
     def test_strain_energy_density_positive(self, bkd):
         """Strain energy density is positive at an equilibrium state."""
         setup = _setup_hyperelastic_processor(bkd)
+        mat = setup["material"]
         npts = setup["npts"]
         mesh = setup["mesh"]
         basis = setup["basis"]
@@ -313,19 +322,49 @@ class TestHyperelasticStressPostProcessor2D:
         init_state = bkd.zeros((2 * npts,))
         state = model.solve_steady(init_state, tol=1e-10, maxiter=50)
 
-        W = setup["proc"].strain_energy_density(state)
+        W = setup["proc"].strain_energy_density(state, *mat)
         assert float(bkd.min(W)) > 0.0
 
     def test_no_curvilinear_basis_raises(self, bkd):
         """hoop_stress raises when curvilinear_basis not provided."""
         setup = _setup_hyperelastic_processor(bkd)
+        mat = setup["material"]
         proc_no_curv = HyperelasticStressPostProcessor2D(
             setup["Dx"],
             setup["Dy"],
-            setup["stress_model"],
+            NeoHookeanLaw(bkd),
             bkd,
         )
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * setup["npts"]) * 0.005)
         with pytest.raises(ValueError):
-            proc_no_curv.hoop_stress(state)
+            proc_no_curv.hoop_stress(state, *mat)
+
+    def test_non_law_refused(self, numpy_bkd):
+        setup = _setup_hyperelastic_processor(numpy_bkd)
+        with pytest.raises(TypeError, match="PostProcessingLawProtocol"):
+            HyperelasticStressPostProcessor2D(
+                setup["Dx"], setup["Dy"], setup["stress_model"], numpy_bkd
+            )
+
+    def test_lame_jacobians_fd(self, bkd):
+        """The pointwise Lame derivatives of the hoop stress and the strain
+        energy density equal central differences in uniform mu and
+        lamda shifts (each quantity is pointwise in the material)."""
+        setup = _setup_hyperelastic_processor(bkd)
+        proc = setup["proc"]
+        mu, lamda = setup["material"]
+        np.random.seed(42)
+        state = bkd.array(np.random.randn(2 * setup["npts"]) * 0.01)
+        eps = 1e-6
+        for name in ("hoop_stress", "strain_energy_density"):
+            value = getattr(proc, name)
+            dmu, dlamda = getattr(proc, name + "_lame_jacobian")(state, mu, lamda)
+            fd_mu = (value(state, mu + eps, lamda) - value(state, mu - eps, lamda)) / (
+                2.0 * eps
+            )
+            fd_lamda = (
+                value(state, mu, lamda + eps) - value(state, mu, lamda - eps)
+            ) / (2.0 * eps)
+            bkd.assert_allclose(dmu, fd_mu, rtol=1e-6, atol=1e-10)
+            bkd.assert_allclose(dlamda, fd_lamda, rtol=1e-6, atol=1e-10)

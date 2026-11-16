@@ -17,6 +17,7 @@ Factory functions:
 from typing import Callable, Generic, List, Optional, Union
 
 from pyapprox.pde.collocation.boundary.normal_operators import (
+    CauchyStressSourceProtocol,
     FluxNormalOperator,
     GradientNormalOperator,
     TractionNormalOperator,
@@ -396,16 +397,14 @@ def traction_robin_bc(
     bkd: Backend[Array],
     mesh_boundary_indices: Array,
     normals: Array,
-    derivative_matrices: List[Array],
-    lamda: float,
-    mu: float,
+    stress_source: CauchyStressSourceProtocol[Array],
     npts: int,
     component: int,
     alpha: Union[float, Array],
     beta: Union[float, Array],
     values: Union[float, Array, Callable[[float], Array]],
 ) -> RobinBC[Array]:
-    """Create Robin BC for one component of 2D elasticity traction.
+    """Create Robin BC for one component of linear elasticity traction.
 
     Enforces alpha * u_comp + beta * t_comp = g_comp at boundary,
     where t = σ·n is the traction vector.
@@ -417,18 +416,15 @@ def traction_robin_bc(
     mesh_boundary_indices : Array
         Mesh point indices (0..npts-1) on this boundary. Shape: (nboundary,)
     normals : Array
-        Outward unit normals at boundary points. Shape: (nboundary, 2)
-    derivative_matrices : List[Array]
-        [Dx, Dy], each shape (npts, npts). Physical derivative matrices.
-    lamda : float
-        Lamé's first parameter λ.
-    mu : float
-        Shear modulus μ.
+        Outward unit normals at boundary points. Shape: (nboundary, ndim)
+    stress_source : CauchyStressSourceProtocol
+        The Cauchy stress and its Jacobian, usually the physics, so the
+        traction reads the material the physics holds.
     npts : int
-        Number of mesh points (state length = 2*npts).
+        Number of mesh points (state length = ndim*npts).
     component : int
-        0 for u_x (state indices = mesh_boundary_indices),
-        1 for u_y (state indices = mesh_boundary_indices + npts).
+        The displacement component; its state indices are
+        ``mesh_boundary_indices + component * npts``.
     alpha : float or Array
         Coefficient for u_comp term.
     beta : float or Array
@@ -442,14 +438,7 @@ def traction_robin_bc(
         Robin BC for one displacement component with traction normal operator.
     """
     normal_op = TractionNormalOperator(
-        bkd,
-        mesh_boundary_indices,
-        normals,
-        derivative_matrices,
-        lamda,
-        mu,
-        component,
-        npts,
+        bkd, mesh_boundary_indices, normals, stress_source, component
     )
     # State indices for this component: offset by component * npts
     state_indices = mesh_boundary_indices + component * npts
@@ -460,14 +449,12 @@ def traction_neumann_bc(
     bkd: Backend[Array],
     mesh_boundary_indices: Array,
     normals: Array,
-    derivative_matrices: List[Array],
-    lamda: float,
-    mu: float,
+    stress_source: CauchyStressSourceProtocol[Array],
     npts: int,
     component: int,
     values: Union[float, Array, Callable[[float], Array]] = 0.0,
 ) -> RobinBC[Array]:
-    """Create Neumann BC for one component of 2D elasticity traction.
+    """Create Neumann BC for one component of linear elasticity traction.
 
     Enforces t_comp = g_comp at boundary, where t = σ·n.
 
@@ -478,17 +465,13 @@ def traction_neumann_bc(
     mesh_boundary_indices : Array
         Mesh point indices (0..npts-1). Shape: (nboundary,)
     normals : Array
-        Outward unit normals. Shape: (nboundary, 2)
-    derivative_matrices : List[Array]
-        [Dx, Dy], each shape (npts, npts).
-    lamda : float
-        Lamé's first parameter λ.
-    mu : float
-        Shear modulus μ.
+        Outward unit normals. Shape: (nboundary, ndim)
+    stress_source : CauchyStressSourceProtocol
+        The Cauchy stress and its Jacobian, usually the physics.
     npts : int
         Number of mesh points.
     component : int
-        0 for t_x, 1 for t_y.
+        The traction component.
     values : float, Array, or Callable
         Traction values g_comp. Default: 0.0 (homogeneous).
 
@@ -501,9 +484,7 @@ def traction_neumann_bc(
         bkd,
         mesh_boundary_indices,
         normals,
-        derivative_matrices,
-        lamda,
-        mu,
+        stress_source,
         npts,
         component,
         0.0,

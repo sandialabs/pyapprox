@@ -2,6 +2,7 @@
 
 
 import numpy as np
+import pytest
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -19,6 +20,10 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
 )
 
 
@@ -216,14 +221,9 @@ class TestTractionNormalOperator:
     def test_traction_at_boundary(self, bkd):
         """Test traction at left boundary for known polynomial displacement."""
         npts_x, npts_y = 8, 8
-        npts = npts_x * npts_y
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
-
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
-
-        lamda, mu = 1.0, 1.0
+        physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
 
         # Left boundary (x = -1), normal = [-1, 0]
         left_idx = mesh.boundary_indices(0)
@@ -233,12 +233,8 @@ class TestTractionNormalOperator:
         for i in range(nboundary):
             normals[i, 0] = -1.0
 
-        traction_op_x = TractionNormalOperator(
-            bkd, left_idx, normals, [Dx, Dy], lamda, mu, 0, npts
-        )
-        traction_op_y = TractionNormalOperator(
-            bkd, left_idx, normals, [Dx, Dy], lamda, mu, 1, npts
-        )
+        traction_op_x = TractionNormalOperator(bkd, left_idx, normals, physics, 0)
+        traction_op_y = TractionNormalOperator(bkd, left_idx, normals, physics, 1)
 
         # u_x = x^2, u_y = x*y
         pts = mesh.points()
@@ -268,9 +264,7 @@ class TestTractionNormalOperator:
         npts = npts_x * npts_y
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
-
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
+        physics = LinearElasticityPhysics(basis, bkd, lamda=2.0, mu=0.5)
 
         left_idx = mesh.boundary_indices(0)
         nboundary = left_idx.shape[0]
@@ -281,7 +275,7 @@ class TestTractionNormalOperator:
 
         for component in [0, 1]:
             traction_op = TractionNormalOperator(
-                bkd, left_idx, normals, [Dx, Dy], 2.0, 0.5, component, npts
+                bkd, left_idx, normals, physics, component
             )
 
             np.random.seed(42)
@@ -306,9 +300,7 @@ class TestTractionNormalOperator:
         npts = npts_x * npts_y
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
-
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
+        physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
 
         left_idx = mesh.boundary_indices(0)
         nboundary = left_idx.shape[0]
@@ -317,15 +309,51 @@ class TestTractionNormalOperator:
         for i in range(nboundary):
             normals[i, 0] = -1.0
 
-        traction_op = TractionNormalOperator(
-            bkd, left_idx, normals, [Dx, Dy], 1.0, 1.0, 0, npts
-        )
+        traction_op = TractionNormalOperator(bkd, left_idx, normals, physics, 0)
 
         state1 = bkd.ones((2 * npts,))
         state2 = bkd.ones((2 * npts,)) * 5.0
         jac1 = traction_op.jacobian(state1, 0.0)
         jac2 = traction_op.jacobian(state2, 0.0)
         bkd.assert_allclose(jac1, jac2, atol=1e-14)
+
+    def test_traction_follows_material_update(self, bkd):
+        """The traction reads the physics' current material: after the
+        Lame fields are set to c times their values, traction and
+        Jacobian are c times their former values (linear in the
+        material at fixed strain). A traction holding the material it
+        was built with stays unchanged."""
+        mesh = TransformedMesh2D(6, 6, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+        mu = NodalField(bkd.full((npts,), 0.5))
+        lamda = NodalField(bkd.full((npts,), 2.0))
+        physics = LinearElasticityPhysics(basis, bkd, lamda=lamda, mu=mu)
+        left_idx = mesh.boundary_indices(0)
+        normals = mesh.boundary_normals(0)
+        np.random.seed(3)
+        state = bkd.asarray(np.random.randn(2 * npts))
+        for component in (0, 1):
+            op = TractionNormalOperator(bkd, left_idx, normals, physics, component)
+            assert op.has_coefficient_dependence()
+            t0, j0 = op(state, 0.0), op.jacobian(state, 0.0)
+            mu.set_values(bkd.full((npts,), 1.5))
+            lamda.set_values(bkd.full((npts,), 6.0))
+            bkd.assert_allclose(op(state, 0.0), 3.0 * t0, rtol=1e-12)
+            bkd.assert_allclose(op.jacobian(state, 0.0), 3.0 * j0, rtol=1e-12)
+            mu.set_values(bkd.full((npts,), 0.5))
+            lamda.set_values(bkd.full((npts,), 2.0))
+
+    def test_non_stress_source_refused(self, numpy_bkd):
+        bkd = numpy_bkd
+        with pytest.raises(TypeError, match="CauchyStressSourceProtocol"):
+            TractionNormalOperator(
+                bkd,
+                bkd.array([0], dtype=int),
+                bkd.ones((1, 2)),
+                object(),  # type: ignore[arg-type]
+                0,
+            )
 
 
 # NumPy backend

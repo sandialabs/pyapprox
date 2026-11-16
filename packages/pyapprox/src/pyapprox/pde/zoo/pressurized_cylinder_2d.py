@@ -9,8 +9,11 @@ converted to Lame parameters with fixed Poisson ratio.
 """
 
 import math
-from typing import Any, Callable, Optional
+from typing import List, Optional
 
+from pyapprox.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
     traction_neumann_bc,
@@ -19,6 +22,10 @@ from pyapprox.pde.collocation.boundary import (
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.coefficients import CoefficientInput
+from pyapprox.pde.collocation.protocols.boundary import (
+    BoundaryConditionProtocol,
+)
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
@@ -41,8 +48,8 @@ def create_linear_pressurized_cylinder_2d(
     poisson_ratio: float,
     inner_pressure: float,
     field_map: FieldMapProtocol[Array],
-    forcing: Optional[Callable[..., Any]] = None,
-    functional: object = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
+    functional: Optional[SteadyFunctionalProtocol[Array]] = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 2D linear elastic pressurized cylinder forward model.
 
@@ -111,18 +118,15 @@ def create_linear_pressurized_cylinder_2d(
         forcing=forcing,
     )
 
-    # Derivative matrices and mesh size for traction BCs
-    D_matrices = [
-        basis.derivative_matrix(1, 0),
-        basis.derivative_matrix(1, 1),
-    ]
+    # Mesh size for traction BCs; the traction reads its stress, and so
+    # its material, from the physics
     npts = basis.npts()
 
     # ------------------------------------------------------------------
     # Boundary conditions (order: traction first, Dirichlet last for
     # correct corner priority via last-applied-wins)
     # ------------------------------------------------------------------
-    bcs = []
+    bcs: List[BoundaryConditionProtocol[Array]] = []
 
     # (a) Outer boundary (bnd 1, r=R_o): stress-free traction t=0
     outer_idx = mesh.boundary_indices(1)
@@ -133,9 +137,7 @@ def create_linear_pressurized_cylinder_2d(
                 bkd,
                 outer_idx,
                 outer_normals,
-                D_matrices,
-                lamda_init,
-                mu_init,
+                physics,
                 npts,
                 comp,
                 values=0.0,
@@ -150,9 +152,7 @@ def create_linear_pressurized_cylinder_2d(
             bkd,
             bottom_idx,
             bottom_normals,
-            D_matrices,
-            lamda_init,
-            mu_init,
+            physics,
             npts,
             component=0,
             values=0.0,
@@ -167,9 +167,7 @@ def create_linear_pressurized_cylinder_2d(
             bkd,
             top_idx,
             top_normals,
-            D_matrices,
-            lamda_init,
-            mu_init,
+            physics,
             npts,
             component=1,
             values=0.0,
@@ -188,9 +186,7 @@ def create_linear_pressurized_cylinder_2d(
                 bkd,
                 inner_idx,
                 inner_normals,
-                D_matrices,
-                lamda_init,
-                mu_init,
+                physics,
                 npts,
                 comp,
                 values=pressure_vals,

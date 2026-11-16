@@ -2,7 +2,6 @@
 
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     AverageHoopStressFunctional,
-    HyperelasticAverageHoopStressFunctional,
     OuterWallRadialDisplacementFunctional,
     StrainEnergyFunctional2D,
 )
@@ -26,6 +25,5 @@ __all__ = [
     "create_neo_hookean_strain_energy_1d",
     "OuterWallRadialDisplacementFunctional",
     "AverageHoopStressFunctional",
-    "HyperelasticAverageHoopStressFunctional",
     "StrainEnergyFunctional2D",
 ]

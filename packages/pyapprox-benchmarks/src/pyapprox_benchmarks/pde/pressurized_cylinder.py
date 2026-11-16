@@ -15,13 +15,12 @@ from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     AverageHoopStressFunctional,
-    HyperelasticAverageHoopStressFunctional,
     OuterWallRadialDisplacementFunctional,
     StrainEnergyFunctional2D,
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
@@ -29,12 +28,10 @@ from pyapprox.pde.collocation.post_processing.stress import (
 from pyapprox.pde.collocation.quadrature import (
     CollocationQuadrature2D,
 )
-from pyapprox.pde.constitutive import (
-    NeoHookeanStress,
-)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
+from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
@@ -81,7 +78,7 @@ def _make_kle_field_map_2d(
 def _make_functional(
     bkd: Backend[Array],
     qoi: str,
-    physics: LinearElasticityPhysics[Array],
+    lame_map: FixedPoissonRatioLameMap[Array],
     basis: ChebyshevBasis2D[Array],
     mesh: TransformedMesh2D[Array],
     transform: PolarTransform[Array],
@@ -92,20 +89,17 @@ def _make_functional(
     AverageHoopStressFunctional[Array],
     StrainEnergyFunctional2D[Array],
 ]:
-    """Create QoI functional from string identifier."""
+    """Create QoI functional from string identifier.
+
+    The stress QoIs read the Lame parameters ``lame_map`` gives at the
+    forward model's parameters, the material the state was solved with.
+    """
     npts = basis.npts()
     Dx = basis.derivative_matrix(1, 0)
     Dy = basis.derivative_matrix(1, 1)
     curv_basis = transform.unit_curvilinear_basis(mesh.reference_points())
 
-    proc = StressPostProcessor2D(
-        Dx,
-        Dy,
-        get_lamda=lambda: physics.lame_values(0.0)[0],
-        get_mu=lambda: physics.lame_values(0.0)[1],
-        bkd=bkd,
-        curvilinear_basis=curv_basis,
-    )
+    proc = StressPostProcessor2D(Dx, Dy, bkd=bkd, curvilinear_basis=curv_basis)
 
     if qoi == "outer_radial_displacement":
         outer_idx = mesh.boundary_indices(1)
@@ -131,18 +125,12 @@ def _make_functional(
         xi_b = -1.0 + 2.0 * weld_r_fraction
         w_sub = quad.weights(x_bounds=(-1.0, xi_b))
         area = bkd.to_float(bkd.sum(w_sub))
-        return AverageHoopStressFunctional(
-            proc,
-            w_sub,
-            area,
-            nparams,
-            bkd,
-        )
+        return AverageHoopStressFunctional(proc, lame_map, w_sub, area, bkd)
 
     if qoi == "strain_energy":
         quad = CollocationQuadrature2D(basis, bkd)
         w_full = quad.full_domain_weights()
-        return StrainEnergyFunctional2D(proc, w_full, nparams, bkd)
+        return StrainEnergyFunctional2D(proc, lame_map, w_full, bkd)
 
     raise ValueError(
         f"Unknown qoi: {qoi!r}. Must be one of: "
@@ -154,7 +142,7 @@ def _make_functional(
 def _make_hyperelastic_functional(
     bkd: Backend[Array],
     qoi: str,
-    stress_model: NeoHookeanStress[Array],
+    lame_map: FixedPoissonRatioLameMap[Array],
     basis: ChebyshevBasis2D[Array],
     mesh: TransformedMesh2D[Array],
     transform: PolarTransform[Array],
@@ -162,21 +150,18 @@ def _make_hyperelastic_functional(
     weld_r_fraction: float,
 ) -> Union[
     OuterWallRadialDisplacementFunctional[Array],
-    HyperelasticAverageHoopStressFunctional[Array],
+    AverageHoopStressFunctional[Array],
     StrainEnergyFunctional2D[Array],
 ]:
-    """Create QoI functional for hyperelastic problems."""
+    """Create QoI functional for hyperelastic problems, reading the Lame
+    parameters as :func:`_make_functional` does."""
     npts = basis.npts()
     Dx = basis.derivative_matrix(1, 0)
     Dy = basis.derivative_matrix(1, 1)
     curv_basis = transform.unit_curvilinear_basis(mesh.reference_points())
 
     proc = HyperelasticStressPostProcessor2D(
-        Dx,
-        Dy,
-        stress_model=stress_model,
-        bkd=bkd,
-        curvilinear_basis=curv_basis,
+        Dx, Dy, NeoHookeanLaw(bkd), bkd=bkd, curvilinear_basis=curv_basis
     )
 
     if qoi == "outer_radial_displacement":
@@ -201,18 +186,12 @@ def _make_hyperelastic_functional(
         xi_b = -1.0 + 2.0 * weld_r_fraction
         w_sub = quad.weights(x_bounds=(-1.0, xi_b))
         area = bkd.to_float(bkd.sum(w_sub))
-        return HyperelasticAverageHoopStressFunctional(
-            proc,
-            w_sub,
-            area,
-            nparams,
-            bkd,
-        )
+        return AverageHoopStressFunctional(proc, lame_map, w_sub, area, bkd)
 
     if qoi == "strain_energy":
         quad = CollocationQuadrature2D(basis, bkd)
         w_full = quad.full_domain_weights()
-        return StrainEnergyFunctional2D(proc, w_full, nparams, bkd)
+        return StrainEnergyFunctional2D(proc, lame_map, w_full, bkd)
 
     raise ValueError(
         f"Unknown qoi: {qoi!r}. Must be one of: "
@@ -288,27 +267,15 @@ def build_pressurized_cylinder_2d(
     # KLE field map
     field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms, sigma)
 
-    # We need physics to create the functional (for derivative matrices
-    # and Lame params). The zoo factory creates its own physics internally,
-    # so we create a temporary physics just to pass to _make_functional.
-    # The real physics is created inside the zoo factory with the same
-    # initial Lame parameters.
-    dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
-    mu_init = E_mean * dmu_dE
-    lamda_init = E_mean * dlam_dE
-    physics = LinearElasticityPhysics(
-        basis,
-        bkd,
-        lamda=lamda_init,
-        mu=mu_init,
-    )
+    # The stress QoIs evaluate the material from the parameters with the
+    # map the zoo's parameterization builds from the same field map.
+    lame_map = FixedPoissonRatioLameMap(field_map, poisson_ratio, basis.npts(), bkd)
 
     # QoI functional
     functional = _make_functional(
         bkd,
         qoi,
-        physics,
+        lame_map,
         basis,
         mesh,
         transform,
@@ -418,20 +385,15 @@ def build_hyperelastic_pressurized_cylinder_2d(
     # KLE field map
     field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms, sigma)
 
-    # Create stress model for functionals (same Lame params as zoo factory)
-    dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
-    mu_init = E_mean * dmu_dE
-    lamda_init = E_mean * dlam_dE
-    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
-        lamda=lamda_init, mu=mu_init
-    )
+    # The stress QoIs evaluate the material from the parameters with the
+    # map the zoo's parameterization builds from the same field map.
+    lame_map = FixedPoissonRatioLameMap(field_map, poisson_ratio, basis.npts(), bkd)
 
     # QoI functional
     functional = _make_hyperelastic_functional(
         bkd,
         qoi,
-        stress_model,
+        lame_map,
         basis,
         mesh,
         transform,

@@ -1,5 +1,7 @@
 """Integration tests for the 2D pressurized cylinder forward UQ problems."""
 
+import math
+
 import numpy as np
 import pytest
 
@@ -12,8 +14,20 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
+from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
+    create_hyperelastic_pressurized_cylinder_2d,
+)
+from pyapprox.pde.zoo.pressurized_cylinder_2d import (
+    create_linear_pressurized_cylinder_2d,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.pde.pressurized_cylinder import (
+    _make_functional,
+    _make_hyperelastic_functional,
     build_hyperelastic_pressurized_cylinder_2d,
     build_pressurized_cylinder_2d,
 )
@@ -359,3 +373,96 @@ class TestHyperelasticPressurizedCylinder2D:
         val_coarse = prob_coarse.function()(sample)
         val_fine = prob_fine.function()(sample)
         bkd.assert_allclose(val_coarse, val_fine, rtol=1e-2)
+
+
+# ======================================================================
+# Stress QoIs read the material the state was solved with
+# ======================================================================
+
+
+class _UniformLogModulus:
+    """A one-parameter field map: E = exp(p_0) at every node."""
+
+    def __init__(self, bkd, npts):
+        self._bkd = bkd
+        self._npts = npts
+
+    def nvars(self):
+        return 1
+
+    def __call__(self, params_1d):
+        return self._bkd.exp(params_1d[0]) * self._bkd.ones((self._npts,))
+
+    def jacobian(self, params_1d):
+        return self(params_1d)[:, None]
+
+
+def _uniform_modulus_model(bkd, qoi, hyperelastic, pressure, npts=8):
+    """The benchmark's model and QoI, with a uniform modulus exp(p_0)."""
+    transform = PolarTransform((1.0, 2.0), (0.0, math.pi / 2.0), bkd)
+    mesh = TransformedMesh2D(npts, npts, bkd, transform)
+    basis = ChebyshevBasis2D(mesh, bkd)
+    field_map = _UniformLogModulus(bkd, basis.npts())
+    lame_map = FixedPoissonRatioLameMap(field_map, 0.3, basis.npts(), bkd)
+    make_functional = (
+        _make_hyperelastic_functional if hyperelastic else _make_functional
+    )
+    functional = make_functional(bkd, qoi, lame_map, basis, mesh, transform, 1, 0.25)
+    factory = (
+        create_hyperelastic_pressurized_cylinder_2d
+        if hyperelastic
+        else create_linear_pressurized_cylinder_2d
+    )
+    return factory(
+        bkd=bkd,
+        npts_r=npts,
+        npts_theta=npts,
+        r_inner=1.0,
+        r_outer=2.0,
+        E_mean=1.0,
+        poisson_ratio=0.3,
+        inner_pressure=pressure,
+        field_map=field_map,
+        functional=functional,
+    )
+
+
+class TestStressQoIMaterial:
+    """Scaling laws that hold only if a stress QoI reads the modulus the
+    state was solved with. A QoI reading a fixed material breaks each:
+    its stress then scales as 1/E."""
+
+    def test_linear_hoop_stress_independent_of_modulus(self):
+        """Traction loading fixes the linear stress whatever the uniform
+        modulus: Q(E=3) = Q(E=1), and dQ/dp_0 = 0."""
+        bkd = NumpyBkd()
+        fwd = _uniform_modulus_model(bkd, "average_hoop_stress", False, 1.0)
+        q1 = fwd(bkd.zeros((1, 1)))
+        q3 = fwd(bkd.full((1, 1), math.log(3.0)))
+        bkd.assert_allclose(q3, q1, rtol=1e-8)
+        grad = fwd.derivatives().jacobian(bkd.full((1, 1), math.log(3.0)))
+        assert abs(float(grad[0, 0])) <= 1e-8 * abs(float(q1[0, 0]))
+
+    def test_linear_strain_energy_inverse_in_modulus(self):
+        """Displacement scales as 1/E at fixed traction, so the strain
+        energy does too: Q(E=3) = Q(E=1)/3, and dQ/dp_0 = -Q."""
+        bkd = NumpyBkd()
+        fwd = _uniform_modulus_model(bkd, "strain_energy", False, 1.0)
+        p3 = bkd.full((1, 1), math.log(3.0))
+        q1 = fwd(bkd.zeros((1, 1)))
+        q3 = fwd(p3)
+        bkd.assert_allclose(q3, q1 / 3.0, rtol=1e-8)
+        bkd.assert_allclose(fwd.derivatives().jacobian(p3), -q3, rtol=1e-6)
+
+    @pytest.mark.parametrize("qoi", ["average_hoop_stress", "strain_energy"])
+    def test_neo_hookean_scaling(self, qoi):
+        """Neo-Hookean stress and energy are linear in (mu, lamda) at
+        fixed F, so scaling the modulus and the pressure by c leaves the
+        displacement unchanged and scales the QoI by c."""
+        bkd = NumpyBkd()
+        c = 3.0
+        q_base = _uniform_modulus_model(bkd, qoi, True, 0.2)(bkd.zeros((1, 1)))
+        q_scaled = _uniform_modulus_model(bkd, qoi, True, c * 0.2)(
+            bkd.full((1, 1), math.log(c))
+        )
+        bkd.assert_allclose(q_scaled, c * q_base, rtol=1e-8)

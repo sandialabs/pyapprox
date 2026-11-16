@@ -230,6 +230,69 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             for i in range(ndim)
         ]
 
+    def stress(self, state: Array, time: float) -> List[List[Array]]:
+        r"""Cauchy stress :math:`\sigma_{ij} = \lambda
+        \operatorname{tr}(\varepsilon) \delta_{ij} + 2\mu
+        \varepsilon_{ij}` at the nodes, for the Lame parameters held at
+        ``time``.
+
+        Returns
+        -------
+        List[List[Array]]
+            ``sigma[i][j]``, each shape (npts,).
+        """
+        ndim = self._ndim
+        lam, mu = self.lame_values(time)
+        eps = self._strain_tensor(state)
+        trace_e = eps[0][0]
+        for k in range(1, ndim):
+            trace_e = trace_e + eps[k][k]
+        sigma: List[List[Array]] = []
+        for i in range(ndim):
+            row: List[Array] = []
+            for j in range(ndim):
+                sigma_ij = 2.0 * mu * eps[i][j]
+                if i == j:
+                    sigma_ij = sigma_ij + lam * trace_e
+                row.append(sigma_ij)
+            sigma.append(row)
+        return sigma
+
+    def stress_jacobian(self, state: Array, time: float) -> List[List[Array]]:
+        r""":math:`\partial \sigma_{ij}/\partial u`, independent of the
+        state: the block for displacement component :math:`k` is
+        :math:`\mu (\delta_{ik} D_j + \delta_{jk} D_i) + \delta_{ij}
+        \lambda D_k`, with the material scaling rows.
+
+        Returns
+        -------
+        List[List[Array]]
+            ``dsigma[i][j]``, each shape (npts, ndim*npts).
+        """
+        bkd = self._bkd
+        ndim = self._ndim
+        D = self._D
+        npts = self.npts()
+        lam, mu = self.lame_values(time)
+        zero = bkd.zeros((npts, npts))
+        result: List[List[Array]] = []
+        for i in range(ndim):
+            row: List[Array] = []
+            for j in range(ndim):
+                blocks = []
+                for k in range(ndim):
+                    block = zero
+                    if i == k:
+                        block = block + mu[:, None] * D[j]
+                    if j == k:
+                        block = block + mu[:, None] * D[i]
+                    if i == j:
+                        block = block + lam[:, None] * D[k]
+                    blocks.append(block)
+                row.append(bkd.concatenate(blocks, axis=1))
+            result.append(row)
+        return result
+
     def jacobian(self, state: Array, time: float) -> Array:
         r"""Compute the state Jacobian, independent of the state.
 

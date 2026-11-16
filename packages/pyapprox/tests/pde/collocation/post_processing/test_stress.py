@@ -65,9 +65,7 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
                 bkd,
                 outer_idx,
                 outer_normals,
-                D_matrices,
-                lamda,
-                mu,
+                physics,
                 npts,
                 comp,
                 values=0.0,
@@ -81,9 +79,7 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
             bkd,
             bottom_idx,
             bottom_normals,
-            D_matrices,
-            lamda,
-            mu,
+            physics,
             npts,
             component=0,
             values=0.0,
@@ -97,9 +93,7 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
             bkd,
             top_idx,
             top_normals,
-            D_matrices,
-            lamda,
-            mu,
+            physics,
             npts,
             component=1,
             values=0.0,
@@ -115,9 +109,7 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
                 bkd,
                 inner_idx,
                 inner_normals,
-                D_matrices,
-                lamda,
-                mu,
+                physics,
                 npts,
                 comp,
                 values=pressure_vals,
@@ -141,8 +133,6 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
     proc = StressPostProcessor2D(
         D_matrices[0],
         D_matrices[1],
-        get_lamda=lambda: bkd.asarray([lamda] * npts),
-        get_mu=lambda: bkd.asarray([mu] * npts),
         bkd=bkd,
         curvilinear_basis=curv_basis,
     )
@@ -150,6 +140,8 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
     return {
         "state": state,
         "proc": proc,
+        # (mu, lamda) at the nodes, the material the state was solved with
+        "material": (bkd.full((npts,), mu), bkd.full((npts,), lamda)),
         "mesh": mesh,
         "basis": basis,
         "transform": transform,
@@ -189,7 +181,7 @@ class TestStressPostProcessor2D:
     def test_hoop_stress_lame(self, bkd):
         """Hoop stress matches analytical Lame solution."""
         setup = _setup_lame_problem(bkd, npts_r=14, npts_theta=14)
-        sigma_tt = setup["proc"].hoop_stress(setup["state"])
+        sigma_tt = setup["proc"].hoop_stress(setup["state"], *setup["material"])
         pts = setup["mesh"].points()
         _, sigma_tt_exact = _lame_stresses(
             bkd,
@@ -206,7 +198,7 @@ class TestStressPostProcessor2D:
     def test_radial_stress_lame(self, bkd):
         """Radial stress matches analytical Lame solution."""
         setup = _setup_lame_problem(bkd, npts_r=16, npts_theta=16)
-        sigma_rr = setup["proc"].radial_stress(setup["state"])
+        sigma_rr = setup["proc"].radial_stress(setup["state"], *setup["material"])
         pts = setup["mesh"].points()
         sigma_rr_exact, _ = _lame_stresses(
             bkd,
@@ -220,7 +212,7 @@ class TestStressPostProcessor2D:
     def test_strain_energy_density_positive(self, bkd):
         """Strain energy density is positive for the Lame solution."""
         setup = _setup_lame_problem(bkd)
-        psi = setup["proc"].strain_energy_density(setup["state"])
+        psi = setup["proc"].strain_energy_density(setup["state"], *setup["material"])
         assert float(bkd.min(psi)) > 0.0
 
     def test_hoop_stress_jacobian_fd(self, bkd):
@@ -230,7 +222,8 @@ class TestStressPostProcessor2D:
         state = setup["state"]
         npts = setup["npts"]
 
-        jac = proc.hoop_stress_state_jacobian()  # (npts, 2*npts)
+        mat = setup["material"]
+        jac = proc.hoop_stress_state_jacobian(state, *mat)  # (npts, 2*npts)
         assert jac.shape == (npts, 2 * npts)
 
         # Finite difference check at a few DOFs
@@ -242,7 +235,9 @@ class TestStressPostProcessor2D:
             state_p[dof] = state_p[dof] + eps
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
-            fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (2.0 * eps)
+            fd = (
+                proc.hoop_stress(state_p, *mat) - proc.hoop_stress(state_m, *mat)
+            ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
     def test_strain_energy_density_jacobian_fd(self, bkd):
@@ -252,7 +247,8 @@ class TestStressPostProcessor2D:
         state = setup["state"]
         npts = setup["npts"]
 
-        jac = proc.strain_energy_density_state_jacobian(state)
+        mat = setup["material"]
+        jac = proc.strain_energy_density_state_jacobian(state, *mat)
         assert jac.shape == (npts, 2 * npts)
 
         eps = 1e-7
@@ -264,15 +260,17 @@ class TestStressPostProcessor2D:
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
             fd = (
-                proc.strain_energy_density(state_p)
-                - proc.strain_energy_density(state_m)
+                proc.strain_energy_density(state_p, *mat)
+                - proc.strain_energy_density(state_m, *mat)
             ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-4, atol=1e-8)
 
     def test_cartesian_stress_shapes(self, bkd):
         """Cartesian stresses have correct shapes."""
         setup = _setup_lame_problem(bkd)
-        sxx, sxy, syy = setup["proc"].cartesian_stress(setup["state"])
+        sxx, sxy, syy = setup["proc"].cartesian_stress(
+            setup["state"], *setup["material"]
+        )
         npts = setup["npts"]
         assert sxx.shape == (npts,)
         assert sxy.shape == (npts,)
@@ -282,7 +280,9 @@ class TestStressPostProcessor2D:
         """Cartesian stress Jacobians have correct shapes."""
         setup = _setup_lame_problem(bkd)
         npts = setup["npts"]
-        dsxx, dsxy, dsyy = setup["proc"].cartesian_stress_state_jacobian()
+        dsxx, dsxy, dsyy = setup["proc"].cartesian_stress_state_jacobian(
+            *setup["material"]
+        )
         assert dsxx.shape == (npts, 2 * npts)
         assert dsxy.shape == (npts, 2 * npts)
         assert dsyy.shape == (npts, 2 * npts)
@@ -293,9 +293,43 @@ class TestStressPostProcessor2D:
         proc_no_curv = StressPostProcessor2D(
             setup["D_matrices"][0],
             setup["D_matrices"][1],
-            get_lamda=lambda: bkd.asarray([setup["lamda"]] * setup["npts"]),
-            get_mu=lambda: bkd.asarray([setup["mu"]] * setup["npts"]),
             bkd=bkd,
         )
         with pytest.raises(ValueError):
-            proc_no_curv.hoop_stress(setup["state"])
+            proc_no_curv.hoop_stress(setup["state"], *setup["material"])
+
+    def test_lame_jacobians_fd(self, bkd):
+        """The pointwise Lame derivatives of the hoop stress and the strain
+        energy density equal central differences in uniform mu and
+        lamda shifts (each quantity is pointwise in the material)."""
+        setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
+        proc = setup["proc"]
+        state = setup["state"]
+        mu, lamda = setup["material"]
+        eps = 1e-6
+        for name in ("hoop_stress", "strain_energy_density"):
+            value = getattr(proc, name)
+            dmu, dlamda = getattr(proc, name + "_lame_jacobian")(state, mu, lamda)
+            fd_mu = (value(state, mu + eps, lamda) - value(state, mu - eps, lamda)) / (
+                2.0 * eps
+            )
+            fd_lamda = (
+                value(state, mu, lamda + eps) - value(state, mu, lamda - eps)
+            ) / (2.0 * eps)
+            bkd.assert_allclose(dmu, fd_mu, rtol=1e-6, atol=1e-10)
+            bkd.assert_allclose(dlamda, fd_lamda, rtol=1e-6, atol=1e-10)
+
+    def test_stress_scales_with_material(self, bkd):
+        """Linear stress is homogeneous of degree one in (mu, lamda) at
+        fixed strain, and the strain energy density likewise."""
+        setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
+        proc = setup["proc"]
+        state = setup["state"]
+        mu, lamda = setup["material"]
+        for name in ("hoop_stress", "strain_energy_density"):
+            value = getattr(proc, name)
+            bkd.assert_allclose(
+                value(state, 3.0 * mu, 3.0 * lamda),
+                3.0 * value(state, mu, lamda),
+                rtol=1e-12,
+            )
