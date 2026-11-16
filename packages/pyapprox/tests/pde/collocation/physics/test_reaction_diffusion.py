@@ -1,9 +1,12 @@
 """Tests for reaction-diffusion physics implementations."""
 
 import math
+from typing import Optional
 
 import numpy as np
+import pytest
 
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
@@ -12,6 +15,11 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalField,
+    NodalSupplier,
+)
 from pyapprox.pde.collocation.physics.fitzhugh_nagumo import (
     FitzHughNagumoPhysics,
     create_fitzhugh_nagumo,
@@ -19,16 +27,26 @@ from pyapprox.pde.collocation.physics.fitzhugh_nagumo import (
 from pyapprox.pde.collocation.physics.reaction_diffusion import (
     FitzHughNagumoReaction,
     LinearReaction,
+    ReactionProtocol,
+    SymbolicReactionProtocol,
     TwoSpeciesReactionDiffusionPhysics,
     create_two_species_reaction_diffusion,
+)
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.manufactured import (
     ManufacturedTwoSpeciesReactionDiffusion,
 )
+from pyapprox.pde.models.collocation.right_hand_side import (
+    CollocationRightHandSide,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.physics_test_utils import (
     PhysicsNewtonResidual,
@@ -457,9 +475,10 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
 
         physics = FitzHughNagumoPhysics(basis, bkd, diffusion_v=1e-3)
 
-        d0, d1 = physics.diffusion()
-        assert abs(d0 - 1e-3) < 1e-7
-        assert abs(d1 - 0.0) < 1e-7
+        d0, d1 = physics.diffusion_functions()
+        assert d0 is not None
+        bkd.assert_allclose(d0.values(0.0), bkd.full((npts,), 1e-3))
+        assert d1 is None
 
     def test_transient_evolution(self, bkd):
         """Test FitzHugh-Nagumo transient behavior.
@@ -554,3 +573,88 @@ class TestFitzHughNagumoReaction:
         _, R1_plus = reaction(u0 + eps, u1)
         fd_dR1_du0 = (R1_plus - R1_base) / eps
         bkd.assert_allclose(dR1_du0, fd_dR1_du0, atol=1e-5)
+
+
+_NPTS_RD = 12
+
+
+def _rd_basis(bkd: Backend[Array]) -> ChebyshevBasis1D[Array]:
+    return ChebyshevBasis1D(TransformedMesh1D(_NPTS_RD, bkd), bkd)
+
+
+def _pulsing(coords: Array, time: float) -> Array:
+    return (1.0 + time) * coords[0]
+
+
+def _rd_physics(
+    bkd: Backend[Array],
+    diffusion0: CoefficientInput[Array],
+    forcing0: Optional[CoefficientInput[Array]] = None,
+) -> TwoSpeciesReactionDiffusionPhysics[Array]:
+    return TwoSpeciesReactionDiffusionPhysics(
+        _rd_basis(bkd),
+        bkd,
+        diffusion0=diffusion0,
+        diffusion1=0.0,
+        reaction=FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd),
+        forcing0=forcing0,
+    )
+
+
+def _time_dependent(bkd: Backend[Array]) -> NodalSupplier[Array]:
+    supplier: TimeDependent[Array] = TimeDependent(_pulsing)
+    nodes = bkd.reshape(_rd_basis(bkd).nodes(), (1, _NPTS_RD))
+    return NodalSupplier(supplier, nodes)
+
+
+def _rd_state(bkd: Backend[Array], seed: int = 3) -> Array:
+    return bkd.asarray(np.random.default_rng(seed).uniform(0.0, 1.0, 2 * _NPTS_RD))
+
+
+class TestReactionProtocols:
+    def test_reactions_satisfy_the_protocols(self, bkd: Backend[Array]) -> None:
+        linear = LinearReaction(1.0, -0.5, 0.2, -1.0, bkd)
+        kinetics = FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd)
+        for reaction in (linear, kinetics):
+            assert isinstance(reaction, ReactionProtocol)
+            assert isinstance(reaction, SymbolicReactionProtocol)
+
+    def test_non_reaction_refused(self, numpy_bkd: Backend[Array]) -> None:
+        with pytest.raises(TypeError, match="ReactionProtocol"):
+            TwoSpeciesReactionDiffusionPhysics(
+                _rd_basis(numpy_bkd),
+                numpy_bkd,
+                diffusion0=1.0,
+                diffusion1=0.0,
+                reaction=object(),  # type: ignore[arg-type]
+            )
+
+
+class TestReactionDiffusionInterior:
+    def test_variable_diffusion_and_time_dependent_forcing(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """A time-dependent forcing leaves the Jacobian time-invariant but
+        not the operator; the bundle passes the checker."""
+        x = _rd_basis(bkd).nodes()
+        physics = _rd_physics(
+            bkd, NodalField(0.1 + 0.05 * x * x), forcing0=_time_dependent(bkd)
+        )
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        assert physics.interior_jacobian_is_time_invariant()
+        assert not physics.interior_is_time_invariant()
+        rhs = CollocationRightHandSide(physics)
+        jacobian = rhs.derivatives().jacobian
+        assert jacobian is not None and not jacobian.affine()
+        report = ODEResidualBundleChecker(rhs).check(_rd_state(bkd), 0.3)
+        assert report.failures() == []
+
+    def test_time_dependent_diffusion(self, bkd: Backend[Array]) -> None:
+        """The diffusivity carries the Jacobian's time dependence, and the
+        interface flux, which takes no time, refuses it."""
+        physics = _rd_physics(bkd, _time_dependent(bkd))
+        assert not physics.interior_jacobian_is_time_invariant()
+        with pytest.raises(ValueError, match="takes no time"):
+            physics.compute_interface_flux(
+                _rd_state(bkd), bkd.array([0], dtype=int), bkd.array([1.0])
+            )

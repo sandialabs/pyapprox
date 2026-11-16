@@ -11,18 +11,26 @@ where:
     f0, f1 = forcing/source terms
 """
 
-from typing import Callable, Generic, Optional, Tuple, Union
+from typing import Generic, List, Optional, Protocol, Tuple, Union, runtime_checkable
 
 import sympy as sp
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalCoefficientProtocol,
+    declared_time_invariant,
+    optional_nodal_coefficient,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class ReactionProtocol(Generic[Array]):
+@runtime_checkable
+class ReactionProtocol(Protocol, Generic[Array]):
     """Protocol for reaction terms R(u0, u1).
 
     Reaction terms must return both the reaction values and
@@ -64,7 +72,8 @@ class ReactionProtocol(Generic[Array]):
         ...
 
 
-class SymbolicReactionProtocol(ReactionProtocol[Array], Generic[Array]):
+@runtime_checkable
+class SymbolicReactionProtocol(ReactionProtocol[Array], Protocol, Generic[Array]):
     """Protocol for reactions with symbolic support.
 
     Reactions implementing this protocol can be used with manufactured
@@ -95,7 +104,7 @@ class SymbolicReactionProtocol(ReactionProtocol[Array], Generic[Array]):
             (R0_expr, R1_expr) symbolic reaction expressions with
             u0_expr and u1_expr substituted.
         """
-        raise NotImplementedError
+        ...
 
 
 class LinearReaction(Generic[Array]):
@@ -280,16 +289,19 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         Collocation basis (provides nodes, derivative matrices).
     bkd : Backend
         Computational backend.
-    diffusion0 : float or Array
-        Diffusion coefficient for species 0.
-    diffusion1 : float or Array
-        Diffusion coefficient for species 1.
+    diffusion0, diffusion1 : float, NodalCoefficientProtocol or callable
+        Diffusion coefficient of each species, in the forms
+        ``as_nodal_coefficient`` takes; the constant 0 means the species
+        does not diffuse.
     reaction : ReactionProtocol
         Reaction term object providing R(u0, u1) and its Jacobian.
-    forcing0 : Callable[[float], Array], optional
-        Forcing term for species 0.
-    forcing1 : Callable[[float], Array], optional
-        Forcing term for species 1.
+    forcing0, forcing1 : float, NodalCoefficientProtocol or callable, optional
+        Forcing of each species, in the same forms. Absent means none.
+
+    Raises
+    ------
+    TypeError
+        If ``reaction`` does not satisfy ``ReactionProtocol``.
 
     Examples
     --------
@@ -306,96 +318,98 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        diffusion0: Union[float, Array],
-        diffusion1: Union[float, Array],
+        diffusion0: CoefficientInput[Array],
+        diffusion1: CoefficientInput[Array],
         reaction: ReactionProtocol[Array],
-        forcing0: Optional[Callable[[float], Array]] = None,
-        forcing1: Optional[Callable[[float], Array]] = None,
+        forcing0: Optional[CoefficientInput[Array]] = None,
+        forcing1: Optional[CoefficientInput[Array]] = None,
     ):
         super().__init__(basis, bkd, ncomponents=2)
+        if not isinstance(reaction, ReactionProtocol):
+            raise TypeError(
+                "reaction must satisfy ReactionProtocol, got "
+                f"{type(reaction).__name__}"
+            )
 
         npts = basis.npts()
         ndim = basis.ndim()
-
-        # Store diffusion coefficients
-        if isinstance(diffusion0, (int, float)):
-            self._diffusion0_value = float(diffusion0)
-            self._diffusion0_array = bkd.full((npts,), float(diffusion0))
-            self._is_variable_diffusion0 = False
-        else:
-            self._diffusion0_value = None
-            self._diffusion0_array = diffusion0
-            self._is_variable_diffusion0 = True
-
-        if isinstance(diffusion1, (int, float)):
-            self._diffusion1_value = float(diffusion1)
-            self._diffusion1_array = bkd.full((npts,), float(diffusion1))
-            self._is_variable_diffusion1 = False
-        else:
-            self._diffusion1_value = None
-            self._diffusion1_array = diffusion1
-            self._is_variable_diffusion1 = True
-
+        self._diffusions = (
+            optional_nodal_coefficient(diffusion0, npts, bkd),
+            optional_nodal_coefficient(diffusion1, npts, bkd),
+        )
+        self._forcings = (
+            optional_nodal_coefficient(forcing0, npts, bkd),
+            optional_nodal_coefficient(forcing1, npts, bkd),
+        )
         self._reaction = reaction
-        self._forcing0_func = forcing0
-        self._forcing1_func = forcing1
 
         # Precompute derivative matrices
         self._D1_matrices = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
-        self._D2_matrices = [basis.derivative_matrix(2, dim) for dim in range(ndim)]
+        self._laplacian = basis.derivative_matrix(2, 0)
+        for dim in range(1, ndim):
+            self._laplacian = self._laplacian + basis.derivative_matrix(2, dim)
 
-    def diffusion(self) -> Tuple[Union[float, Array], Union[float, Array]]:
-        """Return diffusion coefficients."""
-        d0 = (
-            self._diffusion0_value
-            if not self._is_variable_diffusion0
-            else self._diffusion0_array
-        )
-        d1 = (
-            self._diffusion1_value
-            if not self._is_variable_diffusion1
-            else self._diffusion1_array
-        )
-        return d0, d1
+    def diffusion_functions(
+        self,
+    ) -> Tuple[
+        Optional[NodalCoefficientProtocol[Array]],
+        Optional[NodalCoefficientProtocol[Array]],
+    ]:
+        """The diffusion coefficient of each species; None where the
+        species does not diffuse."""
+        return self._diffusions
 
-    def _get_forcing(self, time: float) -> Tuple[Array, Array]:
-        """Get forcing arrays at given time."""
-        npts = self.npts()
-        bkd = self._bkd
+    def forcing_functions(
+        self,
+    ) -> Tuple[
+        Optional[NodalCoefficientProtocol[Array]],
+        Optional[NodalCoefficientProtocol[Array]],
+    ]:
+        """The forcing of each species; None where it has none."""
+        return self._forcings
 
-        if self._forcing0_func is None:
-            f0 = bkd.zeros((npts,))
-        elif callable(self._forcing0_func):
-            f0 = self._forcing0_func(time)
-        else:
-            f0 = self._forcing0_func
+    def reaction(self) -> ReactionProtocol[Array]:
+        """The reaction term."""
+        return self._reaction
 
-        if self._forcing1_func is None:
-            f1 = bkd.zeros((npts,))
-        elif callable(self._forcing1_func):
-            f1 = self._forcing1_func(time)
-        else:
-            f1 = self._forcing1_func
-
-        return f0, f1
+    def _values(
+        self, coefficient: Optional[NodalCoefficientProtocol[Array]], time: float
+    ) -> Array:
+        """A coefficient's values; zeros for an absent term."""
+        if coefficient is None:
+            return self._bkd.zeros((self.npts(),))
+        return coefficient.values(time)
 
     def _split_state(self, state: Array) -> Tuple[Array, Array]:
         """Split combined state into species components."""
         npts = self.npts()
-        u0 = state[:npts]
-        u1 = state[npts:]
-        return u0, u1
+        return state[:npts], state[npts:]
 
-    def _combine_state(self, u0: Array, u1: Array) -> Array:
-        """Combine species components into single state vector."""
-        return self._bkd.hstack([u0, u1])
+    def _diffusion_term(
+        self, coefficient: Optional[NodalCoefficientProtocol[Array]], u: Array,
+        time: float,
+    ) -> Array:
+        """div(D grad u) = D lap(u) + grad(D) . grad(u); zero without D."""
+        if coefficient is None:
+            return self._bkd.zeros((self.npts(),))
+        diffusion = coefficient.values(time)
+        term = diffusion * (self._laplacian @ u)
+        for D1 in self._D1_matrices:
+            term = term + (D1 @ diffusion) * (D1 @ u)
+        return term
 
-    def _compute_laplacian(self, u: Array) -> Array:
-        """Compute Laplacian of a scalar field."""
-        laplacian = self._bkd.zeros_like(u)
-        for D2 in self._D2_matrices:
-            laplacian = laplacian + D2 @ u
-        return laplacian
+    def _diffusion_jacobian(
+        self, coefficient: Optional[NodalCoefficientProtocol[Array]], time: float
+    ) -> Array:
+        """diag(D) lap + sum_i diag(D_i D) D_i, by row scaling."""
+        npts = self.npts()
+        if coefficient is None:
+            return self._bkd.zeros((npts, npts))
+        diffusion = coefficient.values(time)
+        jacobian = diffusion[:, None] * self._laplacian
+        for D1 in self._D1_matrices:
+            jacobian = jacobian + (D1 @ diffusion)[:, None] * D1
+        return jacobian
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
@@ -415,42 +429,15 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
             Residual [res0, res1]. Shape: (2*npts,)
         """
         u0, u1 = self._split_state(state)
-
-        # Compute Laplacians
-        lap_u0 = self._compute_laplacian(u0)
-        lap_u1 = self._compute_laplacian(u1)
-
-        # Diffusion terms
-        if not self._is_variable_diffusion0:
-            diff_term0 = self._diffusion0_value * lap_u0
-        else:
-            # Variable diffusion: div(D*grad(u)) = D*lap(u) + grad(D)·grad(u)
-            diff_term0 = self._diffusion0_array * lap_u0
-            for dim, D1 in enumerate(self._D1_matrices):
-                grad_D0 = D1 @ self._diffusion0_array
-                grad_u0 = D1 @ u0
-                diff_term0 = diff_term0 + grad_D0 * grad_u0
-
-        if not self._is_variable_diffusion1:
-            diff_term1 = self._diffusion1_value * lap_u1
-        else:
-            diff_term1 = self._diffusion1_array * lap_u1
-            for dim, D1 in enumerate(self._D1_matrices):
-                grad_D1 = D1 @ self._diffusion1_array
-                grad_u1 = D1 @ u1
-                diff_term1 = diff_term1 + grad_D1 * grad_u1
-
-        # Reaction terms
-        R0, R1 = self._reaction(u0, u1)
-
-        # Forcing terms
-        f0, f1 = self._get_forcing(time)
-
-        # Combine residuals
-        res0 = diff_term0 + R0 + f0
-        res1 = diff_term1 + R1 + f1
-
-        return self._combine_state(res0, res1)
+        reactions = self._reaction(u0, u1)
+        species: List[Array] = []
+        for k, u in enumerate((u0, u1)):
+            species.append(
+                self._diffusion_term(self._diffusions[k], u, time)
+                + reactions[k]
+                + self._values(self._forcings[k], time)
+            )
+        return self._bkd.hstack(species)
 
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian df/du.
@@ -465,54 +452,46 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         Returns
         -------
         Array
-            Jacobian matrix. Shape: (2*npts, 2*npts)
+            Jacobian matrix [[J00, J01], [J10, J11]], Jij = d(res_i)/d(u_j).
+            Shape: (2*npts, 2*npts)
         """
         bkd = self._bkd
-        npts = self.npts()
         u0, u1 = self._split_state(state)
-
-        # Initialize Jacobian blocks
-        # Jacobian is [[J00, J01], [J10, J11]] where Jij = d(res_i)/d(u_j)
-        jacobian = bkd.zeros((2 * npts, 2 * npts))
-
-        # Diffusion contribution to diagonal blocks
-        # d(D*lap(u))/du = D*lap operator
-        lap_matrix = sum(D2 for D2 in self._D2_matrices)
-
-        if not self._is_variable_diffusion0:
-            J00_diff = self._diffusion0_value * lap_matrix
-        else:
-            # Variable diffusion: more complex Jacobian
-            J00_diff = bkd.diag(self._diffusion0_array) @ lap_matrix
-            for D1 in self._D1_matrices:
-                grad_D0 = D1 @ self._diffusion0_array
-                J00_diff = J00_diff + bkd.diag(grad_D0) @ D1
-
-        if not self._is_variable_diffusion1:
-            J11_diff = self._diffusion1_value * lap_matrix
-        else:
-            J11_diff = bkd.diag(self._diffusion1_array) @ lap_matrix
-            for D1 in self._D1_matrices:
-                grad_D1 = D1 @ self._diffusion1_array
-                J11_diff = J11_diff + bkd.diag(grad_D1) @ D1
-
-        # Reaction contribution
         dR0_du0, dR0_du1, dR1_du0, dR1_du1 = self._reaction.jacobian(u0, u1)
+        J00 = self._diffusion_jacobian(self._diffusions[0], time) + bkd.diag(dR0_du0)
+        J11 = self._diffusion_jacobian(self._diffusions[1], time) + bkd.diag(dR1_du1)
+        return bkd.vstack(
+            [
+                bkd.hstack([J00, bkd.diag(dR0_du1)]),
+                bkd.hstack([bkd.diag(dR1_du0), J11]),
+            ]
+        )
 
-        # Assemble Jacobian blocks
-        # J00 = diffusion + dR0/du0
-        jacobian[:npts, :npts] = J00_diff + bkd.diag(dR0_du0)
+    # -- the interior operator (CollocationInteriorOperatorProtocol)
 
-        # J01 = dR0/du1
-        jacobian[:npts, npts:] = bkd.diag(dR0_du1)
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """:math:`f(u, t)`, no boundary condition applied.
+        Shape: (2*npts,)"""
+        return self.residual(state, time)
 
-        # J10 = dR1/du0
-        jacobian[npts:, :npts] = bkd.diag(dR1_du0)
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r""":math:`\partial f/\partial u`. Shape: (2*npts, 2*npts)"""
+        return self.jacobian(state, time)
 
-        # J11 = diffusion + dR1/du1
-        jacobian[npts:, npts:] = J11_diff + bkd.diag(dR1_du1)
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """No second derivatives: ``ReactionProtocol`` supplies none, and
+        the reaction may be nonlinear."""
+        return StateDerivatives.none()
 
-        return jacobian
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether both diffusivities are declared time-invariant (the
+        reaction does not depend on time)."""
+        return declared_time_invariant(*self._diffusions)
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether, besides the diffusivities, both forcings are declared
+        time-invariant."""
+        return declared_time_invariant(*self._diffusions, *self._forcings)
 
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array
@@ -536,49 +515,42 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         Array
             Flux [flux0, flux1] at boundary points.
             Shape: (2*nboundary,) with component-stacked ordering.
+
+        Raises
+        ------
+        ValueError
+            If a diffusivity is declared time-dependent: this flux takes no
+            time at which to evaluate it.
         """
         bkd = self._bkd
         nboundary = boundary_indices.shape[0]
-        len(self._D1_matrices)
-
-        u0, u1 = self._split_state(state)
-
-        # Compute flux for species 0: D0 * grad(u0) · n
-        flux0 = bkd.zeros((nboundary,))
-        for dim, D1 in enumerate(self._D1_matrices):
-            grad_u0_dim = D1 @ u0
-            flux0 = flux0 + grad_u0_dim[boundary_indices] * bkd.to_float(normal[dim])
-
-        # Scale by diffusion coefficient
-        if self._is_variable_diffusion0:
-            flux0 = self._diffusion0_array[boundary_indices] * flux0
-        else:
-            flux0 = self._diffusion0_value * flux0
-
-        # Compute flux for species 1: D1 * grad(u1) · n
-        flux1 = bkd.zeros((nboundary,))
-        for dim, D1 in enumerate(self._D1_matrices):
-            grad_u1_dim = D1 @ u1
-            flux1 = flux1 + grad_u1_dim[boundary_indices] * bkd.to_float(normal[dim])
-
-        # Scale by diffusion coefficient
-        if self._is_variable_diffusion1:
-            flux1 = self._diffusion1_array[boundary_indices] * flux1
-        else:
-            flux1 = self._diffusion1_value * flux1
-
-        # Component-stacked ordering: [flux0_0, ..., flux0_n, flux1_0, ..., flux1_n]
-        return bkd.concatenate([flux0, flux1])
+        fluxes: List[Array] = []
+        for coefficient, u in zip(self._diffusions, self._split_state(state)):
+            if coefficient is None:
+                fluxes.append(bkd.zeros((nboundary,)))
+                continue
+            if coefficient.is_time_dependent():
+                raise ValueError(
+                    "compute_interface_flux takes no time, so it supports "
+                    "only diffusivities declared time-independent"
+                )
+            flux = bkd.zeros((nboundary,))
+            for dim, D1 in enumerate(self._D1_matrices):
+                flux = flux + (D1 @ u)[boundary_indices] * bkd.to_float(normal[dim])
+            # time-independent, so any time reads it
+            fluxes.append(coefficient.values(0.0)[boundary_indices] * flux)
+        # Component-stacked ordering: [flux0_0, ..., flux0_n, flux1_0, ...]
+        return bkd.concatenate(fluxes)
 
 
 def create_two_species_reaction_diffusion(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
-    diffusion0: Union[float, Array],
-    diffusion1: Union[float, Array],
+    diffusion0: CoefficientInput[Array],
+    diffusion1: CoefficientInput[Array],
     reaction: ReactionProtocol[Array],
-    forcing0: Optional[Callable[[float], Array]] = None,
-    forcing1: Optional[Callable[[float], Array]] = None,
+    forcing0: Optional[CoefficientInput[Array]] = None,
+    forcing1: Optional[CoefficientInput[Array]] = None,
 ) -> TwoSpeciesReactionDiffusionPhysics[Array]:
     """Create two-species reaction-diffusion physics.
 
@@ -588,16 +560,12 @@ def create_two_species_reaction_diffusion(
         Collocation basis.
     bkd : Backend
         Computational backend.
-    diffusion0 : float or Array
-        Diffusion coefficient for species 0.
-    diffusion1 : float or Array
-        Diffusion coefficient for species 1.
+    diffusion0, diffusion1 : float, NodalCoefficientProtocol or callable
+        Diffusion coefficient of each species.
     reaction : ReactionProtocol
         Reaction term object.
-    forcing0 : Callable or Array, optional
-        Forcing for species 0.
-    forcing1 : Callable or Array, optional
-        Forcing for species 1.
+    forcing0, forcing1 : float, NodalCoefficientProtocol or callable, optional
+        Forcing of each species.
 
     Returns
     -------

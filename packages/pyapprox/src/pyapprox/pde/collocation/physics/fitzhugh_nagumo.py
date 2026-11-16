@@ -14,8 +14,9 @@ where:
     gamma = recovery rate (typically 1.0)
 """
 
-from typing import Callable, Optional
+from typing import Optional
 
+from pyapprox.pde.collocation.physics.coefficients import CoefficientInput
 from pyapprox.pde.collocation.physics.reaction_diffusion import (
     FitzHughNagumoReaction,
     TwoSpeciesReactionDiffusionPhysics,
@@ -49,10 +50,9 @@ class FitzHughNagumoPhysics(TwoSpeciesReactionDiffusionPhysics[Array]):
         Coupling coefficient (default: 0.5).
     gamma : float
         Recovery rate (default: 1.0).
-    forcing_v : Callable[[float], Array], optional
-        Forcing term for voltage.
-    forcing_w : Callable[[float], Array], optional
-        Forcing term for recovery.
+    forcing_v, forcing_w : float, NodalCoefficientProtocol or callable, optional
+        Forcing terms for voltage and recovery, in the forms
+        ``as_nodal_coefficient`` takes.
 
     Examples
     --------
@@ -71,8 +71,8 @@ class FitzHughNagumoPhysics(TwoSpeciesReactionDiffusionPhysics[Array]):
         eps: float = 0.01,
         beta: float = 0.5,
         gamma: float = 1.0,
-        forcing_v: Optional[Callable[[float], Array]] = None,
-        forcing_w: Optional[Callable[[float], Array]] = None,
+        forcing_v: Optional[CoefficientInput[Array]] = None,
+        forcing_w: Optional[CoefficientInput[Array]] = None,
     ):
         self._alpha = alpha
         self._eps = eps
@@ -150,8 +150,8 @@ def create_fitzhugh_nagumo(
     eps: float = 0.01,
     beta: float = 0.5,
     gamma: float = 1.0,
-    forcing_v: Optional[Callable[[float], Array]] = None,
-    forcing_w: Optional[Callable[[float], Array]] = None,
+    forcing_v: Optional[CoefficientInput[Array]] = None,
+    forcing_w: Optional[CoefficientInput[Array]] = None,
 ) -> FitzHughNagumoPhysics[Array]:
     """Create FitzHugh-Nagumo physics.
 
@@ -171,10 +171,8 @@ def create_fitzhugh_nagumo(
         Coupling coefficient (default: 0.5).
     gamma : float
         Recovery rate (default: 1.0).
-    forcing_v : Callable, optional
-        Forcing for voltage.
-    forcing_w : Callable, optional
-        Forcing for recovery.
+    forcing_v, forcing_w : float, NodalCoefficientProtocol or callable, optional
+        Forcing for voltage and recovery.
 
     Returns
     -------
