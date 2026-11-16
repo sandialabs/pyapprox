@@ -6,6 +6,7 @@ A face of a :math:`d`-dimensional partition has dimension
 so a space scales them by each face's measure.
 """
 
+import itertools
 from typing import Generic
 
 from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
@@ -44,6 +45,7 @@ class TensorLagrangeBasis(Generic[Array]):
                 f"ndim must be >= 0 and npoints >= 1, got {ndim} and {npoints}"
             )
         self._ndim = ndim
+        self._npoints = npoints
         self._bkd = bkd
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(max(npoints, 3))
@@ -85,6 +87,25 @@ class TensorLagrangeBasis(Generic[Array]):
     def nodes(self) -> Array:
         """The nodes on the reference face. Shape: (ndim, nterms)."""
         return self._nodes
+
+    def node_signs(self) -> tuple[tuple[int, ...], ...]:
+        """The reference sub-entity each node lies on, in node order.
+
+        Per direction: -1 or +1 at the lower or upper end of [-1, 1],
+        0 strictly inside. Read from integer node indices, not
+        coordinates.
+        """
+        n = self._npoints
+
+        def sign(index: int) -> int:
+            if n == 1:
+                return 0
+            return -1 if index == 0 else 1 if index == n - 1 else 0
+
+        return tuple(
+            tuple(sign(i) for i in multi)
+            for multi in itertools.product(range(n), repeat=self._ndim)
+        )
 
     def evaluate(self, points: Array) -> Array:
         if points.ndim != 2 or points.shape[0] != self._ndim:

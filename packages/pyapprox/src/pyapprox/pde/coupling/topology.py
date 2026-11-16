@@ -108,6 +108,7 @@ class TensorBoxPartition:
                 f"bounds must give lower < upper for each of {len(ncells)} "
                 f"directions, got {bounds}"
             )
+        self._lower = tuple(lo for lo, _ in bounds)
         self._widths = tuple(
             (up - lo) / n for (lo, up), n in zip(bounds, self._ncells)
         )
@@ -216,6 +217,17 @@ class TensorBoxPartition:
             if sign != 0:
                 pattern[j] = (True, pattern[j][1] + (sign + 1) // 2)
         return self._ids[tuple(pattern)]
+
+    def entity_bounds(self, entity: int) -> tuple[tuple[float, float], ...]:
+        """The ``(lower, upper)`` extent of ``entity`` along each direction;
+        equal along the directions it is fixed in."""
+        _check_index(entity, len(self._dims), "entity")
+        return tuple(
+            (lo + i * w, lo + (i + (not fixed)) * w)
+            for (fixed, i), lo, w in zip(
+                self._entities[entity], self._lower, self._widths
+            )
+        )
 
     def entity_measure(self, entity: int) -> float:
         """The ``entity_dim(entity)``-dimensional measure of ``entity``: the

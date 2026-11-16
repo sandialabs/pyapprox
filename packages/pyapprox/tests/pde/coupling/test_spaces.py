@@ -5,11 +5,14 @@ of unity, the known mass of linear hat functions, and the total
 skeleton measure recovered as 1^T M 1.
 """
 
+from typing import Generic
+
 import numpy as np
 import pytest
 
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.spaces import (
+    ContinuousSkeletonSpace,
     FacetSkeletonSpace,
     SkeletonBasisProtocol,
 )
@@ -84,6 +87,138 @@ def test_facet_space_dofs_and_mass(
     bkd.assert_allclose(
         bkd.reshape(total, (1,)), bkd.asarray([expected]), rtol=1e-12
     )
+
+
+def _node_coordinates(
+    topo: TensorBoxPartition, face: int, nodes: list[list[float]]
+) -> list[tuple[float, ...]]:
+    """Physical coordinates of reference nodes (one list per node) on
+    ``face``, rounded so coincident points compare equal."""
+    coords = []
+    for ref in nodes:
+        it = iter(ref)
+        point = []
+        for lo, up in topo.entity_bounds(face):
+            r = next(it) if up > lo else -1.0
+            point.append(round(lo + (r + 1.0) * (up - lo) / 2.0, 10))
+        coords.append(tuple(point))
+    return coords
+
+
+_CONTINUOUS_CASES = [
+    ((3,), 3),
+    ((2, 2), 2),
+    ((3, 2), 3),
+    ((2, 2, 2), 3),
+    ((2, 3, 2), 2),
+]
+
+
+@pytest.mark.parametrize("ncells,npoints", _CONTINUOUS_CASES)
+def test_continuous_space_is_single_valued(
+    bkd: Backend[Array], ncells: tuple[int, ...], npoints: int
+) -> None:
+    topo = TensorBoxPartition(ncells, bounds=[(0.0, 2.0)] * len(ncells))
+    d = topo.ndim()
+    basis = TensorLagrangeBasis(d - 1, npoints, bkd)
+    space = ContinuousSkeletonSpace(topo, basis)
+    # Lobatto nodes: (npoints - 2)^m strictly inside an m-dimensional entity.
+    expected = sum((npoints - 2) ** topo.entity_dim(e) for e in range(topo.nentities()))
+    assert space.descriptor().size == expected
+    nodes = [
+        [bkd.to_float(basis.nodes()[i, j]) for i in range(d - 1)]
+        for j in range(basis.nterms())
+    ]
+    point_of: dict[int, tuple[float, ...]] = {}
+    for face in range(topo.nentities()):
+        if topo.entity_dim(face) != d - 1 or topo.on_boundary(face):
+            continue
+        for dof, point in zip(
+            space.face_dofs(face), _node_coordinates(topo, face, nodes)
+        ):
+            # A DOF is one point, and distinct DOFs are distinct points.
+            assert point_of.setdefault(dof, point) == point
+    assert len(set(point_of.values())) == len(point_of) == expected
+
+
+@pytest.mark.parametrize("ncells,npoints", _CONTINUOUS_CASES)
+def test_continuous_mass_integrates_linears(
+    bkd: Backend[Array], ncells: tuple[int, ...], npoints: int
+) -> None:
+    topo = TensorBoxPartition(ncells)
+    d = topo.ndim()
+    basis = TensorLagrangeBasis(d - 1, npoints, bkd)
+    space = ContinuousSkeletonSpace(topo, basis)
+    mass = space.mass()
+    matrix = mass.format().matrix()
+    bkd.assert_allclose(matrix, matrix.T, rtol=1e-12)
+    eigenvalues, _ = bkd.eigh(matrix)
+    assert bkd.to_float(bkd.min(eigenvalues)) > 0.0
+    # f(x) = 1 + sum_j (j + 1) x_j at each DOF; the integral of a linear
+    # function over a face is its measure times f at the centroid.
+    nodes = [
+        [bkd.to_float(basis.nodes()[i, j]) for i in range(d - 1)]
+        for j in range(basis.nterms())
+    ]
+    values = [0.0] * space.descriptor().size
+    integral = 0.0
+    for face in range(topo.nentities()):
+        if topo.entity_dim(face) != d - 1 or topo.on_boundary(face):
+            continue
+        for dof, point in zip(
+            space.face_dofs(face), _node_coordinates(topo, face, nodes)
+        ):
+            values[dof] = 1.0 + sum((j + 1) * x for j, x in enumerate(point))
+        centroid = [(lo + up) / 2 for lo, up in topo.entity_bounds(face)]
+        f_centroid = 1.0 + sum((j + 1) * x for j, x in enumerate(centroid))
+        integral += topo.entity_measure(face) * f_centroid
+    f = bkd.reshape(bkd.asarray(values), (len(values), 1))
+    ones = space.vector_space().zeros() + 1.0
+    total = bkd.sum(ones * mass.apply(f))
+    bkd.assert_allclose(
+        bkd.reshape(total, (1,)), bkd.asarray([integral]), rtol=1e-12
+    )
+
+
+class _AnisotropicSigns(Generic[Array]):
+    """A 2-by-3 tensor basis's node signs on a basis that claims 6 terms:
+    edges along its two reference directions carry 0 and 1 nodes, so
+    faces oriented differently disagree on a shared edge."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._inner = TensorLagrangeBasis(2, 2, bkd)
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def ndim(self) -> int:
+        return 2
+
+    def nterms(self) -> int:
+        return 6
+
+    def evaluate(self, points: Array) -> Array:
+        return self._inner.evaluate(points)
+
+    def quadrature(self) -> tuple[Array, Array]:
+        return self._inner.quadrature()
+
+    def node_signs(self) -> tuple[tuple[int, ...], ...]:
+        return tuple((a, b) for a in (-1, 1) for b in (-1, 0, 1))
+
+
+def test_continuous_space_rejects_nonconforming(bkd: Backend[Array]) -> None:
+    topo = TensorBoxPartition((2, 2, 2))
+    with pytest.raises(ValueError, match="disagree"):
+        ContinuousSkeletonSpace(topo, _AnisotropicSigns(bkd))
+    space = ContinuousSkeletonSpace(
+        TensorBoxPartition((2, 2)), TensorLagrangeBasis(1, 2, bkd)
+    )
+    with pytest.raises(KeyError):
+        space.face_dofs(space.descriptor().size + 100)
+    with pytest.raises(IndexError):
+        space.entity_dofs(-1)
 
 
 def test_facet_space_rejects_mismatch(bkd: Backend[Array]) -> None:
