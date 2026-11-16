@@ -74,14 +74,30 @@ class TensorBoxPartition:
         The number of subdomains along each direction, each at least 1.
     owners
         The owning rank of each subdomain. Default: all on rank 0.
+    bounds
+        The box's ``(lower, upper)`` extent along each direction, cut into
+        equal cells. Default: the unit box.
     """
 
     def __init__(
-        self, ncells: Sequence[int], owners: Optional[Sequence[int]] = None
+        self,
+        ncells: Sequence[int],
+        owners: Optional[Sequence[int]] = None,
+        bounds: Optional[Sequence[tuple[float, float]]] = None,
     ) -> None:
         if len(ncells) == 0 or any(n < 1 for n in ncells):
             raise ValueError(f"ncells must be nonempty and positive, got {ncells}")
         self._ncells = tuple(ncells)
+        if bounds is None:
+            bounds = [(0.0, 1.0)] * len(ncells)
+        if len(bounds) != len(ncells) or any(lo >= up for lo, up in bounds):
+            raise ValueError(
+                f"bounds must give lower < upper for each of {len(ncells)} "
+                f"directions, got {bounds}"
+            )
+        self._widths = tuple(
+            (up - lo) / n for (lo, up), n in zip(bounds, self._ncells)
+        )
         nsub = 1
         for n in self._ncells:
             nsub *= n
@@ -107,6 +123,7 @@ class TensorBoxPartition:
             e for e in itertools.product(*choices) if any(f for f, _ in e)
         ]
         entities.sort(key=lambda e: sum(f for f, _ in e))
+        self._entities = tuple(entities)
         self._dims = tuple(sum(not f for f, _ in e) for e in entities)
         self._incident = tuple(self._cells_around(e) for e in entities)
         on_subdomain: list[list[int]] = [[] for _ in range(self._nsub)]
@@ -141,6 +158,17 @@ class TensorBoxPartition:
     def entity_dim(self, entity: int) -> int:
         _check_index(entity, len(self._dims), "entity")
         return self._dims[entity]
+
+    def entity_measure(self, entity: int) -> float:
+        """The ``entity_dim(entity)``-dimensional measure of ``entity``: the
+        product of its cell widths along the directions it spans (1 for a
+        vertex)."""
+        _check_index(entity, len(self._dims), "entity")
+        measure = 1.0
+        for (fixed, _), width in zip(self._entities[entity], self._widths):
+            if not fixed:
+                measure *= width
+        return measure
 
     def incident_subdomains(self, entity: int) -> tuple[int, ...]:
         _check_index(entity, len(self._dims), "entity")
