@@ -114,10 +114,21 @@ small_system = compose_galerkin_system(
     ],
 )
 
-jac = small_system.steady().steady_jacobian(
-    bkd.zeros((small_system.nstates(),))
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import (
+    galerkin_steady_residual,
 )
-dense = np.asarray(bkd.to_numpy(jac).todense())
+from pyapprox.util.linalg.operators import LinearizationPoint
+
+# The discrete steady residual, with the constrained rows replaced. Its
+# Jacobian is an operator; this stack stores it as a SciPy CSR matrix.
+# LinearizationPoint(0, None): no parameters have changed, and the
+# equation is linear, so the Jacobian is the same at every state.
+small_residual = galerkin_steady_residual(skfem_discretization(small_system))
+jac = small_residual.derivatives().jacobian(
+    bkd.zeros((small_system.nstates(), 1)), LinearizationPoint(0, None)
+).format().matrix()
+dense = jac.toarray()
 constrained = bkd.to_numpy(small_system.constraint_set().dofs())
 
 print("constrained dofs:", constrained)
@@ -203,7 +214,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -289,12 +299,25 @@ print(f"sensor at ({sensor_xy[0]:.3f}, {sensor_xy[1]:.3f})")
 ## Solving Forward, Then Backward
 
 ```{python}
-import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
+
+parameters = ParameterState(parameterization)
+discretization = skfem_discretization(system)
+newton = Newton(atol=1e-12, rtol=0.0, maxiters=50, line_search=True)
+
 # Step 1: forward solve.
-parameterization.apply(param)
-state = SteadyStateSolver(system.steady(), tol=1e-12).solve().solution
+parameters.set_param(param)
+residual, point = solve_galerkin_steady(
+    discretization, RecomputeAlways(ScipySparseLU()), newton,
+    parameters=parameters,
+)
+state = point.solution()[:, 0]
 print(f"Q = {bkd.to_numpy(state)[sensor]:.6e}")
 
 # Step 2: adjoint solve. dQ/du for a point sensor is a unit vector;
@@ -303,7 +326,12 @@ dQ_du = np.zeros(physics.nstates())
 dQ_du[sensor] = 1.0
 dQ_du[bkd.to_numpy(system.constraint_set().dofs()).astype(int)] = 0.0
 
-jacobian = sp.csr_matrix(bkd.to_numpy(system.steady().steady_jacobian(state)))
+# The equation is linear in u, so its Jacobian does not depend on where it
+# is taken (point None); it does depend on the parameters, hence their
+# version.
+jacobian = residual.derivatives().jacobian(
+    point.solution(), LinearizationPoint(residual.parameters_version(), None)
+).format().matrix()
 adjoint = spsolve(jacobian.T.tocsr(), -dQ_du)
 print(f"one extra solve; |lambda| max = {np.abs(adjoint).max():.2f}")
 ```
@@ -372,40 +400,36 @@ The check is finite differences --- and rather than a single step size,
 which can agree by luck, PyApprox sweeps a range of them with
 `DerivativeChecker`.
 
-The adjoint machinery is assembled the same way the forward tutorial
-assembles it. `ImplicitFunctionOfParameters` then presents the whole
-PDE-constrained map $\vc{p} \mapsto Q$ as an ordinary function with a
-derivative, which is the interface `DerivativeChecker` consumes: the
-checker never learns that a PDE solve is happening inside.
+The library does the three steps itself. The quantity of interest is a
+`StateFunctional`, here the observed value at the sensor; the residual and
+its parameters are the ones solved above. `SteadyImplicitFunction` then
+presents the whole PDE-constrained map $\vc{p} \mapsto Q$ as an ordinary
+function with a derivative, which is the interface `DerivativeChecker`
+consumes: the checker never learns that a PDE solve is happening inside.
+Each evaluation sets the parameters, solves forward, and for a derivative
+solves the adjoint with the constrained entries handled as above.
 
 ```{python}
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
+from pyapprox.implicitfunction.observation_terms import (
+    ObservedValue,
+    StateEntries,
 )
-from pyapprox.implicitfunction.operator.as_function import (
-    ImplicitFunctionOfParameters,
-)
-from pyapprox.implicitfunction.operator.adjoint_operator import (
-    AdjointOperator,
-)
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-)
+from pyapprox.implicitfunction.state_functional import StateFunctional
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 
-state_equation = GalerkinParameterizedStateEquation(
-    system.steady(), parameterization, bkd,
+sensor_value = StateFunctional.from_terms(
+    bkd, 1,
+    state_terms=(
+        ObservedValue(StateEntries(bkd, physics.nstates(), [sensor])),
+    ),
 )
-weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
-weights[sensor] = 1.0
-operator = AdjointOperator(
-    state_equation, WeightedSumFunctional(weights, NUM_KLE_TERMS, bkd),
-)
-
-qoi_of_params = ImplicitFunctionOfParameters(
-    operator, bkd.zeros((physics.nstates(), 1))
+qoi_of_params = SteadyImplicitFunction(
+    residual, discretization.space(), parameters,
+    RecomputeAlways(ScipySparseLU()), newton, sensor_value,
+    bkd.zeros((physics.nstates(), 1)), bkd,
 )
 
 param_col = bkd.reshape(param, (NUM_KLE_TERMS, 1))
@@ -418,7 +442,7 @@ for name, curve in zip(("gradient", "Hessian-vector product"), errors):
           f"{bkd.to_float(bkd.min(curve)):.2e}")
 ```
 
-Two curves, because the operator supplies second derivatives as well: the
+Two curves, because the function supplies second derivatives as well: the
 gradient is checked against a difference of the quantity of interest, and
 the Hessian-vector product against a difference of the gradient.
 
