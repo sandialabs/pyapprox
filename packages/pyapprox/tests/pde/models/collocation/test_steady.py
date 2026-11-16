@@ -49,7 +49,6 @@ from pyapprox.pde.parameterizations.derivatives import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -429,7 +428,7 @@ class TestSteadyForwardModel:
                 field = (
                     bkd.full((npts,), 1.0) + params_1d[0] * phi0 + params_1d[1] * nodes
                 )
-                self._physics.set_diffusion(ConstantInTimeField(field))
+                self._physics.diffusion_function().set_values(field)
 
             def owned_coefficients(self):
                 return ("mock_coef",)
@@ -521,7 +520,7 @@ class TestSteadyForwardModel:
 
             def apply(self, params_1d):
                 field = bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))
-                self._physics.set_diffusion(ConstantInTimeField(field))
+                self._physics.diffusion_function().set_values(field)
 
             def owned_coefficients(self):
                 return ("mock_coef",)

@@ -10,14 +10,20 @@ where:
 - f: forcing/source term (field)
 """
 
-from typing import Callable, List, Optional
+from typing import List, Optional
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.operators.differential import (
     Divergence,
     Gradient,
     Laplacian,
 )
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalCoefficientProtocol,
+    as_nodal_coefficient,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
@@ -40,25 +46,29 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         Collocation basis (provides nodes, derivative matrices).
     bkd : Backend
         Computational backend.
-    diffusion : float or Array, optional
-        Diffusion coefficient. If Array, shape: (npts,). Default: 0.0
+    diffusion : float, NodalCoefficientProtocol or callable, optional
+        Diffusion coefficient (see ``as_nodal_coefficient``): a constant,
+        a ``NodalField`` (required to parameterize it), a ``NodalSupplier``
+        or a bare ``f(time)`` (warned, taken as time-dependent). Absent,
+        or the constant 0, means no diffusion term.
     velocity : List[Array], optional
-        Velocity field components. Each has shape: (npts,). Default: None (no advection)
-    reaction : float or Array, optional
-        Reaction coefficient. If Array, shape: (npts,). Default: 0.0
-    forcing : Callable[[float], Array] or Array, optional
-        Forcing term. If callable, takes time and returns (npts,) array.
-        If Array, shape: (npts,). Default: None (no forcing)
+        Velocity field components, fixed in time. Each has shape: (npts,).
+        Default: None (no advection)
+    reaction : float, NodalCoefficientProtocol or callable, optional
+        Reaction coefficient, in the forms ``diffusion`` takes. Absent, or
+        the constant 0, means no reaction term.
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Forcing term, in the forms ``diffusion`` takes. Absent means none.
     """
 
     def __init__(
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        diffusion: Optional[float] = None,
+        diffusion: Optional[CoefficientInput[Array]] = None,
         velocity: Optional[List[Array]] = None,
-        reaction: Optional[float] = None,
-        forcing: Optional[Callable[[float], Array]] = None,
+        reaction: Optional[CoefficientInput[Array]] = None,
+        forcing: Optional[CoefficientInput[Array]] = None,
     ):
         super().__init__(basis, bkd)
         self._laplacian = Laplacian(basis, bkd)
@@ -68,18 +78,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         npts = basis.npts()
         ndim = basis.ndim()
 
-        # Store diffusion coefficient
-        self._diffusion_value = diffusion if diffusion is not None else 0.0
-        self._is_variable_diffusion = not isinstance(
-            self._diffusion_value, (int, float)
-        )
-        if isinstance(self._diffusion_value, (int, float)):
-            self._diffusion_array = bkd.full((npts,), float(self._diffusion_value))
-            self._has_diffusion = self._diffusion_value != 0.0
-        else:
-            self._diffusion_array = self._diffusion_value
-            self._has_diffusion = True  # Assume variable diffusion is non-zero
-        self._diffusion_func: Optional[Callable[[float], Array]] = None
+        self._diffusion = self._coefficient(diffusion, npts, bkd)
 
         # Store velocity field
         self._velocity: Optional[List[Array]]
@@ -92,19 +91,8 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         else:
             self._velocity = None
 
-        # Store reaction coefficient
-        self._reaction_value = reaction if reaction is not None else 0.0
-        if isinstance(self._reaction_value, (int, float)):
-            self._reaction_array = bkd.full((npts,), float(self._reaction_value))
-        else:
-            self._reaction_array = self._reaction_value
-        self._has_reaction = reaction is not None and not (
-            isinstance(reaction, (int, float)) and reaction == 0.0
-        )
-        self._reaction_func: Optional[Callable[[float], Array]] = None
-
-        # Store forcing function
-        self._forcing_func = forcing
+        self._reaction = self._coefficient(reaction, npts, bkd)
+        self._forcing = self._coefficient(forcing, npts, bkd)
 
         # Precompute derivative matrices for efficiency
         self._D_matrices = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
@@ -121,29 +109,33 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             D2 = D2 + D2_dim
         return D2
 
+    @staticmethod
+    def _coefficient(
+        value: Optional[CoefficientInput[Array]], npts: int, bkd: Backend[Array]
+    ) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The nodal coefficient for ``value``; None for an absent term
+        (no value, or the constant 0)."""
+        if value is None or (isinstance(value, (int, float)) and value == 0.0):
+            return None
+        return as_nodal_coefficient(value, npts, bkd)
+
+    def diffusion_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The diffusion coefficient; None without a diffusion term."""
+        return self._diffusion
+
+    def reaction_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The reaction coefficient; None without a reaction term."""
+        return self._reaction
+
+    def forcing_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The forcing; None without a forcing term."""
+        return self._forcing
+
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""
-        npts = self.npts()
-        if self._forcing_func is None:
-            return self._bkd.zeros((npts,))
-        if callable(self._forcing_func):
-            return self._forcing_func(time)
-        return self._forcing_func
-
-    def set_diffusion(self, func: Callable[[float], Array]) -> None:
-        """Set diffusion coefficient as time-dependent callable."""
-        self._diffusion_func = func
-        self._is_variable_diffusion = True
-        self._has_diffusion = True
-
-    def set_forcing(self, func: Callable[[float], Array]) -> None:
-        """Set forcing term as time-dependent callable."""
-        self._forcing_func = func
-
-    def set_reaction(self, func: Callable[[float], Array]) -> None:
-        """Set reaction coefficient as time-dependent callable."""
-        self._reaction_func = func
-        self._has_reaction = True
+        if self._forcing is None:
+            return self._bkd.zeros((self.npts(),))
+        return self._forcing.values(time)
 
     def _get_diffusion(self, time: float) -> Array:
         """Get diffusion array at given time.
@@ -159,12 +151,16 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         Evaluated on every call and never cached, so every consumer
         (residual, Jacobian, flux) reads the coefficient at its own time
         and the current parameters, whatever was evaluated before.
+
+        Raises
+        ------
+        ValueError
+            If the physics has no diffusion term, or the diffusivity is
+            not positive everywhere.
         """
-        diffusion = (
-            self._diffusion_func(time)
-            if self._diffusion_func is not None
-            else self._diffusion_array
-        )
+        if self._diffusion is None:
+            raise ValueError("this physics has no diffusion term")
+        diffusion = self._diffusion.values(time)
         smallest = self._bkd.to_float(self._bkd.min(diffusion))
         if smallest <= 0.0:
             raise ValueError(
@@ -177,25 +173,59 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         return diffusion
 
     def _get_reaction(self, time: float) -> Array:
-        """Get reaction array at given time, evaluated, never cached."""
-        if self._reaction_func is not None:
-            return self._reaction_func(time)
-        return self._reaction_array
+        """Get reaction array at given time, evaluated, never cached.
+
+        Raises
+        ------
+        ValueError
+            If the physics has no reaction term.
+        """
+        if self._reaction is None:
+            raise ValueError("this physics has no reaction term")
+        return self._reaction.values(time)
 
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array, time: float
     ) -> Array:
         """Compute lambda^T (d^2R/du^2) w = 0 (residual linear in state).
 
-        THIS class's coefficients are state-independent fields
-        (``set_diffusion``/``set_reaction`` take ``Callable[[float],
-        Array]``), so its residual is linear in the state and the
+        THIS class's coefficients are state-independent nodal
+        coefficients, so its residual is linear in the state and the
         contraction is exactly zero. State-dependent coefficients live
         in separate collocation physics (e.g. shallow_ice,
         shallow_shelf, burgers), which must implement their own
         nonzero contraction.
         """
         return self._bkd.zeros((self.npts(),))
+
+    # -- the interior operator (CollocationInteriorOperatorProtocol)
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """:math:`f(u, t)`, no boundary condition applied. Shape: (npts,)"""
+        return self.residual(state, time)
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r""":math:`\partial f/\partial u`. Shape: (npts, npts)"""
+        return self.jacobian(state, time)
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Linear in the state: zero curvature."""
+        return StateDerivatives.linear(self._bkd)
+
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether the diffusion and reaction are declared time-invariant
+        (the velocity is fixed in time)."""
+        return not any(
+            coefficient is not None and coefficient.is_time_dependent()
+            for coefficient in (self._diffusion, self._reaction)
+        )
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether, besides the Jacobian, the forcing is declared
+        time-invariant."""
+        return self.interior_jacobian_is_time_invariant() and not (
+            self._forcing is not None and self._forcing.is_time_dependent()
+        )
 
     # -- full-matrix field-derivative assemblies (engine slots)
 
@@ -381,25 +411,15 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         # Initialize residual
         residual = bkd.zeros((npts,))
 
-        # Diffusion term: div(D * grad(u)) = D * laplacian(u) for constant D
-        # For variable D: div(D * grad(u))
-        if self._has_diffusion:
+        # Diffusion term: div(D * grad(u)) = D * laplacian(u) + grad(D) . grad(u),
+        # in this general form for every D: a coefficient a parameterization
+        # rewrites cannot be assumed constant.
+        if self._diffusion is not None:
             diff_array = self._get_diffusion(time)
-            if not self._is_variable_diffusion:
-                # Constant diffusion: D * laplacian(u)
-                D2_u = self._D2_matrix @ state
-                residual = residual + diff_array * D2_u
-            else:
-                # Variable diffusion: div(D * grad(u))
-                # = D * laplacian(u) + grad(D) . grad(u)
-                D2_u = self._D2_matrix @ state
-                residual = residual + diff_array * D2_u
-                # Add grad(D) . grad(u) term
-                for dim in range(self._basis.ndim()):
-                    D_dim = self._D_matrices[dim]
-                    grad_D_dim = D_dim @ diff_array
-                    grad_u_dim = D_dim @ state
-                    residual = residual + grad_D_dim * grad_u_dim
+            residual = residual + diff_array * (self._D2_matrix @ state)
+            for dim in range(self._basis.ndim()):
+                D_dim = self._D_matrices[dim]
+                residual = residual + (D_dim @ diff_array) * (D_dim @ state)
 
         # Advection term: -v . grad(u)
         if self._velocity is not None:
@@ -409,7 +429,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 residual = residual - self._velocity[dim] * grad_u_dim
 
         # Reaction term: r * u
-        if self._has_reaction:
+        if self._reaction is not None:
             react_array = self._get_reaction(time)
             residual = residual + react_array * state
 
@@ -439,30 +459,23 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         # Initialize Jacobian
         jacobian = bkd.zeros((npts, npts))
 
-        # Diffusion term Jacobian: d/du[D * laplacian(u)] = D * laplacian
-        if self._has_diffusion:
+        # Diffusion term Jacobian: diag(D) @ laplacian + sum_i diag(grad_D_i) @ D_i,
+        # formed by row scaling rather than products with diagonal matrices
+        if self._diffusion is not None:
             diff_array = self._get_diffusion(time)
-            if not self._is_variable_diffusion:
-                jacobian = jacobian + diff_array[:, None] * self._D2_matrix
-            else:
-                # Variable diffusion: diag(D) @ laplacian + grad(D) terms
-                D_diag = bkd.diag(diff_array)
-                jacobian = jacobian + D_diag @ self._D2_matrix
-                # Add grad(D) . grad term: sum_i diag(grad_D_i) @ D_i
-                for dim in range(self._basis.ndim()):
-                    D_dim = self._D_matrices[dim]
-                    grad_D_dim = D_dim @ diff_array
-                    jacobian = jacobian + bkd.diag(grad_D_dim) @ D_dim
+            jacobian = jacobian + diff_array[:, None] * self._D2_matrix
+            for dim in range(self._basis.ndim()):
+                D_dim = self._D_matrices[dim]
+                jacobian = jacobian + (D_dim @ diff_array)[:, None] * D_dim
 
         # Advection term Jacobian: d/du[-v . grad(u)] = -sum_i diag(v_i) @ D_i
         if self._velocity is not None:
             for dim in range(self._basis.ndim()):
                 D_dim = self._D_matrices[dim]
-                v_diag = bkd.diag(self._velocity[dim])
-                jacobian = jacobian - v_diag @ D_dim
+                jacobian = jacobian - self._velocity[dim][:, None] * D_dim
 
         # Reaction term Jacobian: d/du[r * u] = diag(r)
-        if self._has_reaction:
+        if self._reaction is not None:
             react_array = self._get_reaction(time)
             jacobian = jacobian + bkd.diag(react_array)
 
@@ -494,7 +507,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         bkd = self._bkd
         diffusion = (
             self._get_diffusion(time)
-            if self._has_diffusion
+            if self._diffusion is not None
             else bkd.zeros((self.npts(),))
         )
         flux = []
@@ -528,7 +541,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         bkd = self._bkd
         diffusion = (
             self._get_diffusion(time)
-            if self._has_diffusion
+            if self._diffusion is not None
             else bkd.zeros((self.npts(),))
         )
         flux_jacs = []
@@ -563,14 +576,15 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         Raises
         ------
         ValueError
-            If the diffusivity was set as a function (``set_diffusion``):
-            this flux takes no time at which to evaluate it.
+            If the diffusivity is declared time-dependent: this flux takes
+            no time at which to evaluate it.
         """
-        if self._diffusion_func is not None:
+        if self._diffusion is None:
+            return self._bkd.zeros((boundary_indices.shape[0],))
+        if self._diffusion.is_time_dependent():
             raise ValueError(
-                "compute_interface_flux takes no time, so it supports only "
-                "the diffusivity given at construction, not one set by "
-                "set_diffusion"
+                "compute_interface_flux takes no time, so it supports only a "
+                "diffusivity declared time-independent"
             )
         ndim = self._basis.ndim()
         nboundary = boundary_indices.shape[0]
@@ -582,15 +596,16 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             grad_u_dim = D_dim @ state
             flux = flux + grad_u_dim[boundary_indices] * self._bkd.to_float(normal[dim])
 
-        # Scale by the diffusion coefficient at the boundary points
-        return self._diffusion_array[boundary_indices] * flux
+        # Scale by the diffusion coefficient at the boundary points; it is
+        # time-independent, so any time reads it
+        return self._get_diffusion(0.0)[boundary_indices] * flux
 
 
 def create_steady_diffusion(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
     diffusion: float,
-    forcing: Optional[Callable[[float], Array]] = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
 ) -> AdvectionDiffusionReaction[Array]:
     """Create steady diffusion physics (Poisson equation).
 
@@ -604,8 +619,8 @@ def create_steady_diffusion(
         Computational backend.
     diffusion : float
         Diffusion coefficient (positive).
-    forcing : Callable or Array, optional
-        Source term.
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Source term, in the forms ``AdvectionDiffusionReaction`` takes.
 
     Returns
     -------
@@ -620,7 +635,7 @@ def create_advection_diffusion(
     bkd: Backend[Array],
     diffusion: float,
     velocity: List[Array],
-    forcing: Optional[Callable[[float], Array]] = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
 ) -> AdvectionDiffusionReaction[Array]:
     """Create advection-diffusion physics.
 
@@ -636,8 +651,8 @@ def create_advection_diffusion(
         Diffusion coefficient.
     velocity : List[Array]
         Velocity field components.
-    forcing : Callable or Array, optional
-        Source term.
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Source term, in the forms ``AdvectionDiffusionReaction`` takes.
 
     Returns
     -------

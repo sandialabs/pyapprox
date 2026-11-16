@@ -23,6 +23,7 @@ from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
@@ -30,7 +31,8 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
-    _ConstantInTimeFieldSetter,
+    _NodalFieldSetter,
+    _require_field,
 )
 from pyapprox.pde.parameterizations.field_term import (
     FieldStateJacobianAdapter,
@@ -67,7 +69,14 @@ def _exp_kle_map(bkd, coords_np, nmodes, amplitude):
 def _build_1d(bkd, npts=12):
     mesh = TransformedMesh1D(npts, bkd)
     basis = ChebyshevBasis1D(mesh, bkd)
-    physics = AdvectionDiffusionReaction(basis, bkd)
+    # A nodal field for every coefficient a test parameterizes
+    physics = AdvectionDiffusionReaction(
+        basis,
+        bkd,
+        diffusion=NodalField(bkd.ones((npts,))),
+        reaction=NodalField(bkd.zeros((npts,))),
+        forcing=NodalField(bkd.zeros((npts,))),
+    )
     coords = bkd.to_numpy(basis.nodes())
     return basis, physics, coords
 
@@ -176,7 +185,9 @@ class TestFacadeConstruction:
         field_map = _exp_kle_map(bkd, coords, 2, 0.4)
         with pytest.raises(TypeError, match="bc_flux_field_jacobian"):
             _FieldParameterizationTerm.linear_field_state(
-                setter=_ConstantInTimeFieldSetter(physics.set_diffusion),
+                setter=_NodalFieldSetter(
+                    _require_field(physics.diffusion_function(), "diffusion_map")
+                ),
                 physics=physics,
                 field_jacobian=StateJacobianAdapter(
                     physics.residual_diffusion_jacobian
@@ -260,7 +271,9 @@ class TestTransformedDomainDerivatives:
         )
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd, transform)
         basis = ChebyshevBasis2D(mesh, bkd)
-        physics = AdvectionDiffusionReaction(basis, bkd)
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=NodalField(bkd.ones((basis.npts(),)))
+        )
         pts = bkd.to_numpy(mesh.points())
         # Smooth 1D coordinate for the KLE modes: use x + y (bounded,
         # smooth on the annulus patch).

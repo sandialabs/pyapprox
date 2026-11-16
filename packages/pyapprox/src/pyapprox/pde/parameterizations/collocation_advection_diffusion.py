@@ -7,20 +7,24 @@ field-derivative assemblies with the correct derivative slots. All
 derivative arithmetic lives in the engine — this module is
 construction wiring only.
 
-Divergence from galerkin (deliberate): collocation coefficient fields
-are raw nodal arrays set through ``set_<coef>`` callables (the field
-array IS the DOF vector; the physics caches nothing), so setters wrap
-the mapped array in a picklable ``ConstantInTimeField`` instead of
-writing into a nodal-field object. The diffusion term additionally
+As on the galerkin side, the physics is built with the coefficient
+objects and the parameterization writes into them: each parameterized
+coefficient must be a ``NodalField`` (its values are the DOF vector),
+and the mapped values go to its ``set_values``. The physics knows
+nothing of the parameterization. The diffusion term additionally
 carries the boundary normal-flux assembly so coefficient-dependent
 flux BCs (flux Neumann/Robin with parameterized :math:`D`) get their
 parameter-Jacobian rows corrected.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple, Union
+from typing import Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.physics.coefficients import (
+    NodalCoefficientProtocol,
+    NodalField,
 )
 from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.parameterizations.composite import (
@@ -33,7 +37,6 @@ from pyapprox.pde.parameterizations.field_term import (
     StateJacobianAdapter,
     _FieldParameterizationTerm,
 )
-from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.util.backends.protocols import Array, Backend
 
 _ADRTerm = _FieldParameterizationTerm[
@@ -41,24 +44,35 @@ _ADRTerm = _FieldParameterizationTerm[
 ]
 
 
-class _ConstantInTimeFieldSetter(Generic[Array]):
-    """Picklable setter adapter for collocation coefficient fields.
+class _NodalFieldSetter(Generic[Array]):
+    """Picklable setter writing mapped values into a ``NodalField``."""
 
-    Wraps the mapped field array in a ``ConstantInTimeField`` and hands
-    it to the physics's bound ``set_<coef>`` method (bound methods
-    pickle by object reference + name; a lambda would not).
-    """
-
-    def __init__(
-        self, set_fn: Callable[[Callable[[float], Array]], None]
-    ) -> None:
-        self._set_fn = set_fn
+    def __init__(self, field: NodalField[Array]) -> None:
+        self._field = field
 
     def writes_params(self) -> bool:
         return False
 
     def __call__(self, values: Array) -> None:
-        self._set_fn(ConstantInTimeField(values))
+        self._field.set_values(values)
+
+
+def _require_field(
+    coefficient: Optional[NodalCoefficientProtocol[Array]], map_name: str
+) -> NodalField[Array]:
+    """The physics' coefficient a map writes, which must be a NodalField.
+
+    Raises
+    ------
+    TypeError
+        If the coefficient is absent or not a ``NodalField``.
+    """
+    if not isinstance(coefficient, NodalField):
+        raise TypeError(
+            f"{map_name} needs the physics built with a NodalField for that "
+            f"coefficient, got {type(coefficient).__name__}"
+        )
+    return coefficient
 
 
 class CollocationAdvectionDiffusionParameterization(Generic[Array]):
@@ -127,7 +141,9 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
     ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         return _FieldParameterizationTerm.linear_field_state(
-            setter=_ConstantInTimeFieldSetter(physics.set_diffusion),
+            setter=_NodalFieldSetter(
+                _require_field(physics.diffusion_function(), "diffusion_map")
+            ),
             physics=physics,
             field_jacobian=StateJacobianAdapter(
                 physics.residual_diffusion_jacobian
@@ -148,7 +164,9 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
     ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         return _FieldParameterizationTerm.linear_field_state(
-            setter=_ConstantInTimeFieldSetter(physics.set_reaction),
+            setter=_NodalFieldSetter(
+                _require_field(physics.reaction_function(), "reaction_map")
+            ),
             physics=physics,
             field_jacobian=StateJacobianAdapter(
                 physics.residual_reaction_jacobian
@@ -168,7 +186,9 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
     ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         return _FieldParameterizationTerm.state_independent(
-            setter=_ConstantInTimeFieldSetter(physics.set_forcing),
+            setter=_NodalFieldSetter(
+                _require_field(physics.forcing_function(), "forcing_map")
+            ),
             physics=physics,
             field_jacobian=ConstantJacobianAdapter[Array](
                 physics.residual_forcing_jacobian

@@ -28,6 +28,7 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
@@ -589,8 +590,8 @@ class TestMixedBCSolve:
         physics = AdvectionDiffusionReaction(
             basis,
             bkd,
-            diffusion=1.0 + basis.nodes() ** 2,
-            forcing=lambda t: forcing,
+            diffusion=NodalField(1.0 + basis.nodes() ** 2),
+            forcing=NodalField(forcing),
         )
 
         left_idx = umesh.boundary_indices(0)

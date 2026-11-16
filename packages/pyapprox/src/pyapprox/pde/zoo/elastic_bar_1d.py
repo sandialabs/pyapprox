@@ -7,6 +7,9 @@ diffusion = E(x), providing a mechanics-oriented interface.
 
 from typing import Any, Callable, Optional, Union
 
+from pyapprox.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
@@ -20,6 +23,7 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
@@ -41,7 +45,7 @@ def create_linear_elastic_bar_1d(
     field_map: FieldMapProtocol[Array],
     traction: Optional[float] = None,
     dirichlet_left: float = 0.0,
-    functional: object = None,
+    functional: Optional[SteadyFunctionalProtocol[Array]] = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 1D linear elastic bar forward model.
 
@@ -84,7 +88,11 @@ def create_linear_elastic_bar_1d(
     mesh = TransformedMesh1D(npts, bkd, transform)
     basis = ChebyshevBasis1D(mesh, bkd)
 
-    init_E = E_mean_field if not isinstance(E_mean_field, float) else E_mean_field
+    init_E: Union[float, NodalField[Array]] = (
+        E_mean_field
+        if isinstance(E_mean_field, float)
+        else NodalField(E_mean_field)
+    )
     physics = AdvectionDiffusionReaction(
         basis,
         bkd,

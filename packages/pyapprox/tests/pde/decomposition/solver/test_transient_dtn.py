@@ -38,6 +38,7 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
@@ -1117,10 +1118,10 @@ class TestDtN2DVariableDiffusion:
         f1 = self._build_forcing_sub1(bkd, nodes_x0, npts, npts)
 
         physics0 = AdvectionDiffusionReaction(
-            basis0, bkd, diffusion=D0_arr, forcing=lambda t: f0
+            basis0, bkd, diffusion=NodalField(D0_arr), forcing=lambda t: f0
         )
         physics1 = AdvectionDiffusionReaction(
-            basis1, bkd, diffusion=D1_arr, forcing=lambda t: f1
+            basis1, bkd, diffusion=NodalField(D1_arr), forcing=lambda t: f1
         )
 
         # External BC: u(-1) = 0 on sub 0
@@ -1214,10 +1215,10 @@ class TestDtN2DVariableDiffusion:
         f1 = self._build_forcing_sub1(bkd, nodes_x0, npts, npts)
 
         physics0 = AdvectionDiffusionReaction(
-            basis0, bkd, diffusion=D0_arr, forcing=lambda t: f0
+            basis0, bkd, diffusion=NodalField(D0_arr), forcing=lambda t: f0
         )
         physics1 = AdvectionDiffusionReaction(
-            basis1, bkd, diffusion=D1_arr, forcing=lambda t: f1
+            basis1, bkd, diffusion=NodalField(D1_arr), forcing=lambda t: f1
         )
 
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])

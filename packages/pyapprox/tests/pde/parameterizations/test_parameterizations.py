@@ -32,6 +32,7 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
@@ -70,14 +71,14 @@ def _create_diffusion_physics_and_basis(bkd, npts=20):
     mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
     nodes = basis.nodes()
 
-    def forcing(t):
-        return (math.pi**2) * bkd.sin(math.pi * nodes)
-
+    # Nodal fields for every coefficient a test parameterizes; the zero
+    # reaction leaves the residual unchanged.
     physics = AdvectionDiffusionReaction(
         basis,
         bkd,
         diffusion=1.0,
-        forcing=forcing,
+        reaction=NodalField(bkd.zeros((npts,))),
+        forcing=NodalField((math.pi**2) * bkd.sin(math.pi * nodes)),
     )
 
     left_idx = mesh_obj.boundary_indices(0)
@@ -390,14 +391,11 @@ class TestParameterizations:
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
-        def forcing(t):
-            return (math.pi**2) * bkd.sin(math.pi * nodes)
-
         physics = AdvectionDiffusionReaction(
             basis,
             bkd,
             diffusion=1.0,
-            forcing=forcing,
+            forcing=NodalField((math.pi**2) * bkd.sin(math.pi * nodes)),
         )
 
         phi0 = bkd.ones((npts,))

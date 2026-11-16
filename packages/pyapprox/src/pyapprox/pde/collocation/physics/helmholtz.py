@@ -12,6 +12,7 @@ from typing import Callable, Optional, Union
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
@@ -68,10 +69,11 @@ class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):
         # Rewrite as: Laplacian(u) - k^2 * u + f = 0
         # ADR residual: D * Laplacian(u) + r * u + f
         # So: D = 1, r = -k^2
-        if isinstance(wave_number_sq, (int, float)):
-            reaction = -wave_number_sq
-        else:
-            reaction = -wave_number_sq
+        reaction: Union[float, NodalField[Array]] = (
+            -wave_number_sq
+            if isinstance(wave_number_sq, (int, float))
+            else NodalField(-wave_number_sq)
+        )
         super().__init__(
             basis=basis,
             bkd=bkd,

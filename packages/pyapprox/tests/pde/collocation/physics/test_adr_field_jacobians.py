@@ -19,8 +19,8 @@ from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
-from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.util.backends.protocols import Array, Backend
 
 _NPTS_1D = 5
@@ -78,8 +78,9 @@ class TestDiffusionAssemblies:
         basis = _make_basis(bkd)
         npts = basis.npts()
         diffusion = _random(bkd, (npts,), 1.5, 2.5)
-        physics = AdvectionDiffusionReaction(basis, bkd)
-        physics.set_diffusion(ConstantInTimeField(diffusion))
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=NodalField(diffusion)
+        )
         state = _random(bkd, (npts,))
         return basis, physics, diffusion, state
 
@@ -98,11 +99,11 @@ class TestDiffusionAssemblies:
         npts = basis.npts()
 
         def fun(dfield):
-            physics.set_diffusion(ConstantInTimeField(dfield))
+            physics.diffusion_function().set_values(dfield)
             return physics.residual(state, 0.0)
 
         def jac(dfield):
-            physics.set_diffusion(ConstantInTimeField(dfield))
+            physics.diffusion_function().set_values(dfield)
             return physics.residual_diffusion_jacobian(state)
 
         checker = DerivativeChecker(
@@ -133,9 +134,13 @@ class TestReactionForcingAssemblies:
     def _setup(self, bkd):
         basis = _make_basis(bkd)
         npts = basis.npts()
-        physics = AdvectionDiffusionReaction(basis, bkd)
         reaction = _random(bkd, (npts,), 0.5, 1.5)
-        physics.set_reaction(ConstantInTimeField(reaction))
+        physics = AdvectionDiffusionReaction(
+            basis,
+            bkd,
+            reaction=NodalField(reaction),
+            forcing=NodalField(bkd.zeros((npts,))),
+        )
         state = _random(bkd, (npts,))
         return basis, physics, reaction, state
 
@@ -159,11 +164,11 @@ class TestReactionForcingAssemblies:
         npts = basis.npts()
 
         def fun(rfield):
-            physics.set_reaction(ConstantInTimeField(rfield))
+            physics.reaction_function().set_values(rfield)
             return physics.residual(state, 0.0)
 
         def jac(rfield):
-            physics.set_reaction(ConstantInTimeField(rfield))
+            physics.reaction_function().set_values(rfield)
             return physics.residual_reaction_jacobian(state)
 
         checker = DerivativeChecker(
@@ -180,11 +185,11 @@ class TestReactionForcingAssemblies:
         forcing = _random(bkd, (npts,))
 
         def fun(ffield):
-            physics.set_forcing(ConstantInTimeField(ffield))
+            physics.forcing_function().set_values(ffield)
             return physics.residual(state, 0.0)
 
         def jac(ffield):
-            physics.set_forcing(ConstantInTimeField(ffield))
+            physics.forcing_function().set_values(ffield)
             return physics.residual_forcing_jacobian()
 
         checker = DerivativeChecker(
@@ -199,8 +204,9 @@ class TestBoundaryFluxAssembly:
         basis = _make_basis(bkd)
         npts = basis.npts()
         diffusion = _random(bkd, (npts,), 1.5, 2.5)
-        physics = AdvectionDiffusionReaction(basis, bkd)
-        physics.set_diffusion(ConstantInTimeField(diffusion))
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=NodalField(diffusion)
+        )
         state = _random(bkd, (npts,))
         bc_indices = bkd.array([0, 3, 7], dtype=int)
         raw = np.random.uniform(-1.0, 1.0, (3, basis.ndim()))

@@ -33,6 +33,7 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.scalar import ScalarAmplitude
@@ -75,11 +76,14 @@ def _build_problem(
     mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
     nodes = basis.nodes()
 
-    def forcing(t: float) -> NumpyArray:
-        return (np.pi**2) * bkd.sin(np.pi * nodes)
-
+    # Nodal fields for every coefficient a test parameterizes; the zero
+    # reaction leaves the residual unchanged.
     physics = AdvectionDiffusionReaction(
-        basis, bkd, diffusion=1.0, forcing=forcing
+        basis,
+        bkd,
+        diffusion=1.0,
+        reaction=NodalField(bkd.zeros((npts,))),
+        forcing=NodalField((np.pi**2) * bkd.sin(np.pi * nodes)),
     )
     physics.set_boundary_conditions(
         [
