@@ -18,6 +18,7 @@ Model hierarchy:
 import os
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Dict,
     Generic,
@@ -38,9 +39,14 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
         CompositeLinearElasticity,
     )
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+    from pyapprox.pde.galerkin.system import GalerkinSystem
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
 import numpy as np
+from numpy.typing import NDArray
+
+# The skfem models are bound to NumPy: skfem assembles SciPy matrices.
+_Np = NDArray[Any]
 
 # Default mesh path relative to this package
 _DATA_DIR = os.path.join(
@@ -79,6 +85,7 @@ from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
@@ -414,7 +421,7 @@ def _kle_to_lame_arrays(
 # =========================================================================
 
 
-class CantileverBeam2DForwardModel(Generic[Array]):
+class CantileverBeam2DForwardModel:
     """Forward model: KLE coefficients -> [tip displacement, total VM stress].
 
     Wraps CompositeLinearElasticity or CompositeHyperelasticityPhysics
@@ -422,16 +429,24 @@ class CantileverBeam2DForwardModel(Generic[Array]):
 
     QoI 0: vertical tip displacement u_y(L, H/2)
     QoI 1: total (area-integrated) von Mises stress over the domain
+
+    The Lame fields of each sample are applied through a
+    ``ParameterState`` over ``LameFieldApplyOnlyParameterization``, and
+    the steady system of ``system`` (built once) is solved by ``newton``
+    with sparse LU from zero. Kept setups are valid for one parameter
+    value, so the setup strategy is cleared after each change. The model
+    is bound to NumPy: skfem assembles SciPy matrices.
     """
 
     def __init__(
         self,
         physics: Union[
-            "CompositeLinearElasticity[Array]",
-            "CompositeHyperelasticityPhysics[Array]",
+            "CompositeLinearElasticity[_Np]",
+            "CompositeHyperelasticityPhysics[_Np]",
         ],
-        solver: "SteadyStateSolver[Array]",
-        field_maps: List[TransformedFieldMap[Array]],
+        system: "GalerkinSystem[_Np]",
+        newton: "Newton[_Np, _Np]",
+        field_maps: List[TransformedFieldMap[_Np]],
         subdomain_node_indices: List[np.ndarray],
         subdomain_elements: Dict[str, np.ndarray],
         subdomain_names: List[str],
@@ -439,11 +454,44 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         num_kle_terms: int,
         scalar_skfem_basis: "skfem.CellBasis",
         tip_dof_index: int,
-        bkd: Backend[Array],
-        vector_basis: "VectorLagrangeBasis[Array]",
+        bkd: NumpyBkd,
+        vector_basis: "VectorLagrangeBasis[_Np]",
     ) -> None:
+        from pyapprox.implicitfunction.setups import RecomputeAlways
+        from pyapprox.implicitfunction.steady_system import SteadySystem
+        from pyapprox.pde.galerkin.time_integration import skfem_discretization
+        from pyapprox.pde.models.galerkin.steady_residual import (
+            galerkin_steady_residual,
+        )
+        from pyapprox.pde.parameterizations.galerkin_lame import (
+            LameFieldApplyOnlyParameterization,
+        )
+        from pyapprox.pde.parameterizations.parameter_state import ParameterState
+        from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
+        from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+
         self._physics = physics
-        self._solver = solver
+        field_shape = (
+            int(scalar_skfem_basis.mesh.nelements),
+            int(scalar_skfem_basis.dx.shape[1]),
+        )
+        self._parameters = ParameterState(
+            LameFieldApplyOnlyParameterization(physics, field_shape, bkd)
+        )
+        discretization = skfem_discretization(system)
+        space = discretization.space()
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError("the beam's state space has no inner product")
+        self._space = space
+        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(
+            ScipySparseLU()
+        )
+        self._steady = SteadySystem(
+            galerkin_steady_residual(discretization, self._parameters),
+            space,
+            self._setups,
+        )
+        self._newton = newton
         self._field_maps = field_maps
         self._subdomain_node_indices = subdomain_node_indices
         self._subdomain_elements = subdomain_elements
@@ -458,7 +506,7 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         # Vector basis for von Mises post-processing
         self._vector_basis = vector_basis
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         return self._bkd
 
     def nvars(self) -> int:
@@ -467,10 +515,10 @@ class CantileverBeam2DForwardModel(Generic[Array]):
     def nqoi(self) -> int:
         return 2
 
-    def derivatives(self) -> Derivatives[Array]:
+    def derivatives(self) -> Derivatives[_Np]:
         return Derivatives.none()
 
-    def __call__(self, samples: Array) -> Array:
+    def __call__(self, samples: _Np) -> _Np:
         """Evaluate: KLE coefficients -> [tip displacement, total VM stress].
 
         Parameters
@@ -508,10 +556,16 @@ class CantileverBeam2DForwardModel(Generic[Array]):
                 self._num_kle_terms,
                 bkd,
             )
-            self._physics.set_lame_parameters(lam_arr, mu_arr)
-            init = bkd.asarray(np.zeros(self._physics.nstates()))
-            result = self._solver.solve(init)
-            sol_np = bkd.to_numpy(result.solution)
+            self._parameters.set_param(
+                np.concatenate([lam_arr.ravel(), mu_arr.ravel()])
+            )
+            self._setups.clear()
+            point = self._steady.solve(self._newton, self._space.zeros())
+            if not point.converged():
+                raise RuntimeError(
+                    f"the beam solve did not converge: {point.info().message}"
+                )
+            sol_np = np.array(point.solution()[:, 0])
 
             # QoI 0: tip displacement
             results[0, ii] = sol_np[self._tip_dof_index]
@@ -521,7 +575,7 @@ class CantileverBeam2DForwardModel(Generic[Array]):
             # assembles (sigma = lam*tr(eps)*I + 2*mu*eps).
             vm = von_mises_stress(
                 self._vector_basis,
-                result.solution,
+                sol_np,
                 lam_arr,
                 mu_arr,
                 assumption="plane_strain",
@@ -545,6 +599,13 @@ class _ClampedBeam:
     refuses it rather than detach the graph), so the beam is built and
     solved on NumPy whatever the forward model's backend. The models
     supply no derivatives, so no graph is lost.
+
+    The stiffness is applied through a ``ParameterState`` over
+    ``BendingStiffnessApplyOnlyParameterization``, and the steady system,
+    built once, is solved by Newton (atol 1e-10, 50 iterations, line
+    search of at most 10 halvings) with sparse LU. Kept setups are valid
+    for one parameter value, so the setup strategy is cleared after each
+    change.
     """
 
     def __init__(
@@ -554,6 +615,8 @@ class _ClampedBeam:
         EI: Union[float, np.ndarray],
         load_func: Callable[[np.ndarray], np.ndarray],
     ) -> None:
+        from pyapprox.implicitfunction.setups import RecomputeAlways
+        from pyapprox.implicitfunction.steady_system import SteadySystem
         from pyapprox.pde.galerkin.basis import CubicHermiteBasis
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
@@ -563,10 +626,18 @@ class _ClampedBeam:
         from pyapprox.pde.galerkin.physics.euler_bernoulli import (
             EulerBernoulliBeamFEM,
         )
-        from pyapprox.pde.galerkin.solvers.steady_state import (
-            SteadyStateSolver,
+        from pyapprox.pde.galerkin.time_integration import skfem_discretization
+        from pyapprox.pde.models.galerkin.steady_residual import (
+            galerkin_steady_residual,
         )
+        from pyapprox.pde.parameterizations.euler_bernoulli import (
+            BendingStiffnessApplyOnlyParameterization,
+        )
+        from pyapprox.pde.parameterizations.parameter_state import ParameterState
         from pyapprox.util.backends.numpy import NumpyBkd
+        from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
+        from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+        from pyapprox.util.rootfinding.nonlinear import Newton
 
         bkd = NumpyBkd()
         self._bkd = bkd
@@ -577,7 +648,26 @@ class _ClampedBeam:
         system = compose_galerkin_system(
             self._beam, [DirichletBC(self._basis, "left", 0.0, bkd)]
         )
-        self._solver = SteadyStateSolver(system.steady())
+        self._parameters = ParameterState(
+            BendingStiffnessApplyOnlyParameterization(self._beam, bkd)
+        )
+        discretization = skfem_discretization(system)
+        space = discretization.space()
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError("the beam's state space has no inner product")
+        self._space = space
+        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(
+            ScipySparseLU()
+        )
+        self._steady = SteadySystem(
+            galerkin_steady_residual(discretization, self._parameters),
+            space,
+            self._setups,
+        )
+        self._newton: Newton[_Np, _Np] = Newton(
+            atol=1e-10, rtol=0.0, maxiters=50, line_search=True,
+            linesearch_maxiters=10,
+        )
 
     def nelements(self) -> int:
         return self._nelements
@@ -595,8 +685,16 @@ class _ClampedBeam:
         )
 
         bkd = self._bkd
-        self._beam.set_EI(EI)
-        coeffs = self._solver.solve(bkd.zeros((self._beam.nstates(),))).solution
+        # NumPy throughout: the beam is bound to skfem's SciPy matrices.
+        EI_elem = np.full(self._nelements, EI) if np.isscalar(EI) else np.asarray(EI)
+        self._parameters.set_param(EI_elem)
+        self._setups.clear()
+        point = self._steady.solve(self._newton, self._space.zeros())
+        if not point.converged():
+            raise RuntimeError(
+                f"the beam solve did not converge: {point.info().message}"
+            )
+        coeffs = point.solution()[:, 0]
         tip = bkd.to_numpy(
             self._basis.evaluate(coeffs, bkd.asarray([[self._length]]))
         )
@@ -937,7 +1035,7 @@ def _find_tip_dof(
 
 
 def build_cantilever_beam_2d_linear(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
     height: float = 30.0,
@@ -947,13 +1045,13 @@ def build_cantilever_beam_2d_linear(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
+) -> ForwardUQProblem[FunctionProtocol[_Np], _Np]:
     """Create a 2D linear elastic cantilever beam forward UQ problem.
 
     Parameters
     ----------
-    bkd : Backend
-        Computational backend.
+    bkd : NumpyBkd
+        NumPy backend: the model is bound to skfem's SciPy matrices.
     mesh_path : str
         Path to JSON mesh file with boundaries and subdomains.
     length : float
@@ -975,6 +1073,9 @@ def build_cantilever_beam_2d_linear(
     """
     from skfem import Basis as SkfemBasis
 
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -983,9 +1084,7 @@ def build_cantilever_beam_2d_linear(
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.solvers.steady_state import (
-        SteadyStateSolver,
-    )
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1025,7 +1124,7 @@ def build_cantilever_beam_2d_linear(
         traction[1, :] = -q0 * x / length  # downward, linearly increasing
         return traction
 
-    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+    bc_top = NeumannBC(basis, "top_edge", TimeIndependent(top_traction), bkd)
 
     # Initial material: uniform E_mean
     material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
@@ -1038,13 +1137,16 @@ def build_cantilever_beam_2d_linear(
     )
 
     system = compose_galerkin_system(physics, [bc_left, bc_top])
-    solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
+    newton: Newton[_Np, _Np] = Newton(
+        atol=1e-10, rtol=0.0, maxiters=1, line_search=True, linesearch_maxiters=10
+    )
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
     fwd = CantileverBeam2DForwardModel(
         physics=physics,
-        solver=solver,
+        system=system,
+        newton=newton,
         field_maps=field_maps,
         subdomain_node_indices=subdomain_node_indices,
         subdomain_elements=subdomain_elements,
@@ -1075,7 +1177,7 @@ def build_cantilever_beam_2d_linear(
 
 
 def build_cantilever_beam_2d_neohookean(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
     height: float = 30.0,
@@ -1085,7 +1187,7 @@ def build_cantilever_beam_2d_neohookean(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
+) -> ForwardUQProblem[FunctionProtocol[_Np], _Np]:
     """Create a 2D Neo-Hookean cantilever beam forward UQ problem.
 
     Same setup as the linear problem but with nonlinear hyperelastic
@@ -1093,8 +1195,8 @@ def build_cantilever_beam_2d_neohookean(
 
     Parameters
     ----------
-    bkd : Backend
-        Computational backend.
+    bkd : NumpyBkd
+        NumPy backend: the model is bound to skfem's SciPy matrices.
     mesh_path : str
         Path to JSON mesh file with boundaries and subdomains.
     length : float
@@ -1116,6 +1218,9 @@ def build_cantilever_beam_2d_neohookean(
     """
     from skfem import Basis as SkfemBasis
 
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -1126,9 +1231,7 @@ def build_cantilever_beam_2d_neohookean(
     from pyapprox.pde.galerkin.physics import (
         CompositeHyperelasticityPhysics,
     )
-    from pyapprox.pde.galerkin.solvers.steady_state import (
-        SteadyStateSolver,
-    )
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1165,7 +1268,7 @@ def build_cantilever_beam_2d_neohookean(
         traction[1, :] = -q0 * x / length
         return traction
 
-    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+    bc_top = NeumannBC(basis, "top_edge", TimeIndependent(top_traction), bkd)
 
     material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
 
@@ -1176,18 +1279,17 @@ def build_cantilever_beam_2d_neohookean(
         bkd=bkd,
     )
 
-    solver = SteadyStateSolver(
-        compose_galerkin_system(physics, [bc_left, bc_top]).steady(),
-        tol=1e-10,
-        max_iter=50,
-        line_search=True,
+    system = compose_galerkin_system(physics, [bc_left, bc_top])
+    newton: Newton[_Np, _Np] = Newton(
+        atol=1e-10, rtol=0.0, maxiters=50, line_search=True, linesearch_maxiters=10
     )
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
     fwd = CantileverBeam2DForwardModel(
         physics=physics,
-        solver=solver,
+        system=system,
+        newton=newton,
         field_maps=field_maps,
         subdomain_node_indices=subdomain_node_indices,
         subdomain_elements=subdomain_elements,
@@ -1311,7 +1413,7 @@ def build_cantilever_beam_1d_spde(
 
 
 def build_cantilever_beam_2d_linear_spde(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
     height: float = 30.0,
@@ -1321,7 +1423,7 @@ def build_cantilever_beam_2d_linear_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
+) -> ForwardUQProblem[FunctionProtocol[_Np], _Np]:
     """Create a 2D linear elastic cantilever beam forward UQ problem (SPDE KLE).
 
     Same as :func:`build_cantilever_beam_2d_linear` but uses the sparse
@@ -1331,8 +1433,8 @@ def build_cantilever_beam_2d_linear_spde(
 
     Parameters
     ----------
-    bkd : Backend
-        Computational backend.
+    bkd : NumpyBkd
+        NumPy backend: the model is bound to skfem's SciPy matrices.
     mesh_path : str
         Path to JSON mesh file with boundaries and subdomains.
     length : float
@@ -1354,6 +1456,9 @@ def build_cantilever_beam_2d_linear_spde(
     """
     from skfem import Basis as SkfemBasis
 
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -1362,9 +1467,7 @@ def build_cantilever_beam_2d_linear_spde(
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.solvers.steady_state import (
-        SteadyStateSolver,
-    )
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1400,7 +1503,7 @@ def build_cantilever_beam_2d_linear_spde(
         traction[1, :] = -q0 * x / length
         return traction
 
-    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+    bc_top = NeumannBC(basis, "top_edge", TimeIndependent(top_traction), bkd)
 
     material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
 
@@ -1412,13 +1515,16 @@ def build_cantilever_beam_2d_linear_spde(
     )
 
     system = compose_galerkin_system(physics, [bc_left, bc_top])
-    solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
+    newton: Newton[_Np, _Np] = Newton(
+        atol=1e-10, rtol=0.0, maxiters=1, line_search=True, linesearch_maxiters=10
+    )
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
     fwd = CantileverBeam2DForwardModel(
         physics=physics,
-        solver=solver,
+        system=system,
+        newton=newton,
         field_maps=field_maps,
         subdomain_node_indices=subdomain_node_indices,
         subdomain_elements=subdomain_elements,
@@ -1449,7 +1555,7 @@ def build_cantilever_beam_2d_linear_spde(
 
 
 def build_cantilever_beam_2d_neohookean_spde(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
     height: float = 30.0,
@@ -1459,7 +1565,7 @@ def build_cantilever_beam_2d_neohookean_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
+) -> ForwardUQProblem[FunctionProtocol[_Np], _Np]:
     """Create a 2D Neo-Hookean cantilever beam forward UQ problem (SPDE KLE).
 
     Same as :func:`build_cantilever_beam_2d_neohookean` but uses the sparse
@@ -1468,8 +1574,8 @@ def build_cantilever_beam_2d_neohookean_spde(
 
     Parameters
     ----------
-    bkd : Backend
-        Computational backend.
+    bkd : NumpyBkd
+        NumPy backend: the model is bound to skfem's SciPy matrices.
     mesh_path : str
         Path to JSON mesh file with boundaries and subdomains.
     length : float
@@ -1491,6 +1597,9 @@ def build_cantilever_beam_2d_neohookean_spde(
     """
     from skfem import Basis as SkfemBasis
 
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -1501,9 +1610,7 @@ def build_cantilever_beam_2d_neohookean_spde(
     from pyapprox.pde.galerkin.physics import (
         CompositeHyperelasticityPhysics,
     )
-    from pyapprox.pde.galerkin.solvers.steady_state import (
-        SteadyStateSolver,
-    )
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1539,7 +1646,7 @@ def build_cantilever_beam_2d_neohookean_spde(
         traction[1, :] = -q0 * x / length
         return traction
 
-    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+    bc_top = NeumannBC(basis, "top_edge", TimeIndependent(top_traction), bkd)
 
     material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
 
@@ -1550,18 +1657,17 @@ def build_cantilever_beam_2d_neohookean_spde(
         bkd=bkd,
     )
 
-    solver = SteadyStateSolver(
-        compose_galerkin_system(physics, [bc_left, bc_top]).steady(),
-        tol=1e-10,
-        max_iter=50,
-        line_search=True,
+    system = compose_galerkin_system(physics, [bc_left, bc_top])
+    newton: Newton[_Np, _Np] = Newton(
+        atol=1e-10, rtol=0.0, maxiters=50, line_search=True, linesearch_maxiters=10
     )
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
     fwd = CantileverBeam2DForwardModel(
         physics=physics,
-        solver=solver,
+        system=system,
+        newton=newton,
         field_maps=field_maps,
         subdomain_node_indices=subdomain_node_indices,
         subdomain_elements=subdomain_elements,

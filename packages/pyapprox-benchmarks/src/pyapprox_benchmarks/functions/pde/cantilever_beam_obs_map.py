@@ -5,9 +5,10 @@ Builds the design matrix A by solving two unit-load FEM problems
 at sensor locations. Wraps A as a FunctionFromCallable.
 """
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
@@ -33,6 +34,10 @@ def build_cantilever_beam_design_matrix(
 
     Solves two FEM problems (constant and slope traction) and extracts
     y-displacements at sensor locations to form the design matrix.
+
+    The FEM is skfem, so it is built and solved on NumPy whatever ``bkd``
+    is: ``sensor_xs`` is converted in and the design matrix out. Not
+    differentiable through.
 
     Parameters
     ----------
@@ -61,6 +66,10 @@ def build_cantilever_beam_design_matrix(
     """
     from typing import Callable
 
+    from pyapprox.implicitfunction.setups import RecomputeAlways
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -69,10 +78,17 @@ def build_cantilever_beam_design_matrix(
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+    from pyapprox.pde.galerkin.time_integration import skfem_discretization
+    from pyapprox.pde.models.galerkin.steady_residual import (
+        solve_galerkin_steady,
+    )
+    from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
-    # ---- Build FEM ----
-    mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
+    # ---- Build FEM (skfem: NumPy whatever bkd is) ----
+    np_bkd = NumpyBkd()
+    mesh = UnstructuredMesh2D(mesh_path, np_bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
     mesh.skfem_mesh()
     subdomain_names = mesh.subdomain_names()
@@ -80,7 +96,7 @@ def build_cantilever_beam_design_matrix(
         name: mesh.subdomain_elements(name) for name in subdomain_names
     }
 
-    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, np_bkd)
     material_map = {
         name: (E_mean, poisson_ratio) for name in subdomain_names
     }
@@ -89,18 +105,30 @@ def build_cantilever_beam_design_matrix(
     def _solve_unit_load(
         traction_func: Callable[[np.ndarray], np.ndarray],
     ) -> np.ndarray:
-        bc_top = NeumannBC(basis, "top_edge", traction_func, bkd)
+        bc_top = NeumannBC(
+            basis, "top_edge", TimeIndependent(traction_func), np_bkd
+        )
         physics = CompositeLinearElasticity(
             basis=basis,
             material_map=material_map,
             element_materials=subdomain_elements,
-            bkd=bkd,
+            bkd=np_bkd,
         )
         system = compose_galerkin_system(physics, [bc_left, bc_top])
-        solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
-        init = bkd.asarray(np.zeros(physics.nstates()))
-        result = solver.solve(init)
-        return bkd.to_numpy(result.solution)
+        # Linear: one Newton step is the solve.
+        newton: Newton[NDArray[Any], NDArray[Any]] = Newton(
+            atol=1e-10, rtol=0.0, maxiters=1, line_search=True, linesearch_maxiters=10
+        )
+        _, point = solve_galerkin_steady(
+            skfem_discretization(system),
+            RecomputeAlways(ScipySparseLU()),
+            newton,
+        )
+        if not point.converged():
+            raise RuntimeError(
+                f"the unit-load solve did not converge: {point.info().message}"
+            )
+        return np.array(point.solution()[:, 0])
 
     def const_traction(coords: np.ndarray) -> np.ndarray:
         npts = coords.shape[1]
@@ -127,7 +155,7 @@ def build_cantilever_beam_design_matrix(
     # ---- Build design matrix A (nobs, 2) ----
     A_np = np.zeros((nobs, 2))
     for i, sx in enumerate(sensor_xs_np):
-        dof_idx = _find_dof(basis, float(sx), height / 2.0, 1, bkd)
+        dof_idx = _find_dof(basis, float(sx), height / 2.0, 1, np_bkd)
         A_np[i, 0] = sol_const[dof_idx]
         A_np[i, 1] = sol_slope[dof_idx]
 

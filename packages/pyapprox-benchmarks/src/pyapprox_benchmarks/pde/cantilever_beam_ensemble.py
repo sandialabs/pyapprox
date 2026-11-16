@@ -21,9 +21,9 @@ KLE, BCs, and QoI extraction into a single callable.
 import os
 from typing import (
     TYPE_CHECKING,
-    Generic,
+    Any,
     Literal,
-    Protocol,
+    Union,
 )
 
 if TYPE_CHECKING:
@@ -33,16 +33,28 @@ if TYPE_CHECKING:
         VectorLagrangeBasis,
     )
     from pyapprox.pde.galerkin.boundary.implementations import NeumannBC
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+    from pyapprox.pde.galerkin.physics.composite_hyperelasticity import (
+        CompositeHyperelasticityPhysics,
+    )
+    from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+        CompositeLinearElasticity,
+    )
+    from pyapprox.pde.galerkin.system import GalerkinSystem
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+
+# The skfem models are bound to NumPy: skfem assembles SciPy matrices.
+_Np = NDArray[Any]
 
 _DATA_DIR = os.path.join(
     os.path.dirname(__file__),
@@ -67,11 +79,9 @@ MESH_PATHS = {
 
 
 class _TopTraction:
-    """Top-edge traction (0, -q0 x / L), time-independent.
-
-    A one-argument callable, so the BC accepts it as time-independent
-    data without a wrapper.
-    """
+    """Top-edge traction (0, -q0 x / L), time-independent; a class, not
+    a closure, so the model pickles. Declared time-independent where it is
+    handed to the boundary condition."""
 
     def __init__(self, q0: float, length: float) -> None:
         self._q0 = q0
@@ -81,16 +91,6 @@ class _TopTraction:
         return np.stack(
             [np.zeros(coords.shape[1]), -self._q0 * coords[0] / self._length]
         )
-
-
-class _LameElasticityPhysics(Protocol):
-    """What the beam model needs from its (linear or hyperelastic) physics."""
-
-    def set_lame_parameters(
-        self, lam_per_elem: np.ndarray, mu_per_elem: np.ndarray
-    ) -> None: ...
-
-    def nstates(self) -> int: ...
 
 
 def _lumped_mass_weights(
@@ -178,7 +178,7 @@ def _find_tip_dof(
     return best_dof
 
 
-class SharedFieldBeamModel(Generic[Array]):
+class SharedFieldBeamModel:
     """Forward model: (xi, v) -> (tip_deflection, integrated_VM_stress).
 
     Consumes ``(num_kle_terms + 1)`` input variables: ``xi`` for the
@@ -186,24 +186,68 @@ class SharedFieldBeamModel(Generic[Array]):
     is ``q0 = v^2`` (dynamic pressure).  Each evaluation sets the E
     field from the KLE, computes the load from the wind speed, and
     solves the FEM problem.
+
+    The Lame fields are applied through a ``ParameterState`` over
+    ``LameFieldApplyOnlyParameterization`` and the load by replacing the
+    top traction; the steady system of ``system`` (built once) is solved
+    by ``newton`` with sparse LU from zero. Kept setups are valid for one
+    parameter value, so the setup strategy is cleared after each change.
+    The model is bound to NumPy: skfem assembles SciPy matrices.
     """
 
     def __init__(
         self,
-        physics: _LameElasticityPhysics,
-        solver: "SteadyStateSolver[Array]",
-        neumann_bc: "NeumannBC[Array]",
+        physics: Union[
+            "CompositeLinearElasticity[_Np]",
+            "CompositeHyperelasticityPhysics[_Np]",
+        ],
+        system: "GalerkinSystem[_Np]",
+        newton: "Newton[_Np, _Np]",
+        neumann_bc: "NeumannBC[_Np]",
         scalar_skfem_basis: "skfem.CellBasis",
-        kle_field_map: TransformedFieldMap[Array],
+        kle_field_map: TransformedFieldMap[_Np],
         poisson_ratio: float,
         tip_dof_index: int,
         length: float,
-        bkd: Backend[Array],
+        bkd: NumpyBkd,
         num_kle_terms: int,
-        vector_basis: "VectorLagrangeBasis[Array]",
+        vector_basis: "VectorLagrangeBasis[_Np]",
     ) -> None:
+        from pyapprox.implicitfunction.setups import RecomputeAlways
+        from pyapprox.implicitfunction.steady_system import SteadySystem
+        from pyapprox.pde.galerkin.time_integration import skfem_discretization
+        from pyapprox.pde.models.galerkin.steady_residual import (
+            galerkin_steady_residual,
+        )
+        from pyapprox.pde.parameterizations.galerkin_lame import (
+            LameFieldApplyOnlyParameterization,
+        )
+        from pyapprox.pde.parameterizations.parameter_state import ParameterState
+        from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
+        from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+
         self._physics = physics
-        self._solver = solver
+        field_shape = (
+            int(scalar_skfem_basis.mesh.nelements),
+            int(scalar_skfem_basis.dx.shape[1]),
+        )
+        self._parameters = ParameterState(
+            LameFieldApplyOnlyParameterization(physics, field_shape, bkd)
+        )
+        discretization = skfem_discretization(system)
+        space = discretization.space()
+        if not isinstance(space, InnerProductSpaceProtocol):
+            raise TypeError("the beam's state space has no inner product")
+        self._space = space
+        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(
+            ScipySparseLU()
+        )
+        self._steady = SteadySystem(
+            galerkin_steady_residual(discretization, self._parameters),
+            space,
+            self._setups,
+        )
+        self._newton = newton
         self._neumann_bc = neumann_bc
         self._scalar_skfem_basis = scalar_skfem_basis
         self._kle_field_map = kle_field_map
@@ -216,7 +260,7 @@ class SharedFieldBeamModel(Generic[Array]):
         # Vector basis for von Mises post-processing
         self._vector_basis = vector_basis
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self) -> NumpyBkd:
         return self._bkd
 
     def nvars(self) -> int:
@@ -225,10 +269,13 @@ class SharedFieldBeamModel(Generic[Array]):
     def nqoi(self) -> int:
         return 2
 
-    def derivatives(self) -> Derivatives[Array]:
+    def derivatives(self) -> Derivatives[_Np]:
         return Derivatives.none()
 
-    def __call__(self, samples: Array) -> Array:
+    def __call__(self, samples: _Np) -> _Np:
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeIndependent,
+        )
         from pyapprox.pde.galerkin.postprocessing import (
             integrate,
             von_mises_stress,
@@ -256,13 +303,18 @@ class SharedFieldBeamModel(Generic[Array]):
             ).value
             mu_arr = E_at_quads / (2.0 * (1.0 + nu))
             lam_arr = E_at_quads * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
-            self._physics.set_lame_parameters(lam_arr, mu_arr)
+            self._parameters.set_param(
+                np.concatenate([lam_arr.ravel(), mu_arr.ravel()])
+            )
+            self._neumann_bc.set_flux_func(TimeIndependent(_TopTraction(q0, L)))
+            self._setups.clear()
 
-            self._neumann_bc.set_flux_func(_TopTraction(q0, L))
-
-            init = bkd.asarray(np.zeros(self._physics.nstates()))
-            result = self._solver.solve(init)
-            sol_np = bkd.to_numpy(result.solution)
+            point = self._steady.solve(self._newton, self._space.zeros())
+            if not point.converged():
+                raise RuntimeError(
+                    f"the beam solve did not converge: {point.info().message}"
+                )
+            sol_np = np.array(point.solution()[:, 0])
 
             results[0, ii] = sol_np[self._tip_dof_index]
 
@@ -270,7 +322,7 @@ class SharedFieldBeamModel(Generic[Array]):
             # assembles (sigma = lam*tr(eps)*I + 2*mu*eps)
             vm = von_mises_stress(
                 self._vector_basis,
-                result.solution,
+                sol_np,
                 lam_arr,
                 mu_arr,
                 assumption="plane_strain",
@@ -281,7 +333,7 @@ class SharedFieldBeamModel(Generic[Array]):
 
 
 def build_shared_field_beam(
-    bkd: Backend[Array],
+    bkd: NumpyBkd,
     mesh_path: str,
     physics_type: Literal["linear", "neohookean"],
     num_kle_terms: int = 5,
@@ -291,7 +343,7 @@ def build_shared_field_beam(
     poisson_ratio: float = 0.3,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> SharedFieldBeamModel[Array]:
+) -> SharedFieldBeamModel:
     """Build a shared-field beam model for use in an ensemble.
 
     Unlike ``build_cantilever_beam_2d_linear``/``neohookean``, this
@@ -300,8 +352,8 @@ def build_shared_field_beam(
 
     Parameters
     ----------
-    bkd : Backend
-        Computational backend.
+    bkd : NumpyBkd
+        NumPy backend: the model is bound to skfem's SciPy matrices.
     mesh_path : str
         Path to JSON mesh file.
     physics_type : {"linear", "neohookean"}
@@ -326,6 +378,9 @@ def build_shared_field_beam(
     """
     from skfem import Basis as SkfemBasis
 
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -333,7 +388,8 @@ def build_shared_field_beam(
     )
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+    from pyapprox.pde.galerkin.system import GalerkinSystem
+    from pyapprox.util.rootfinding.nonlinear import Newton
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -355,7 +411,7 @@ def build_shared_field_beam(
         traction[1, :] = -1.0 * x / length
         return traction
 
-    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+    bc_top = NeumannBC(basis, "top_edge", TimeIndependent(top_traction), bkd)
 
     subdomain_names = mesh.subdomain_names()
     subdomain_elements = {
@@ -365,8 +421,11 @@ def build_shared_field_beam(
         name: (E_mean, poisson_ratio) for name in subdomain_names
     }
 
-    physics: _LameElasticityPhysics
-    solver: SteadyStateSolver[Array]
+    physics: Union[
+        "CompositeLinearElasticity[_Np]", "CompositeHyperelasticityPhysics[_Np]"
+    ]
+    system: GalerkinSystem[_Np]
+    newton: Newton[_Np, _Np]
     if physics_type == "linear":
         from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
 
@@ -378,7 +437,9 @@ def build_shared_field_beam(
         )
         physics = linear
         system = compose_galerkin_system(linear, [bc_left, bc_top])
-        solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
+        newton = Newton(
+            atol=1e-10, rtol=0.0, maxiters=1, line_search=True, linesearch_maxiters=10
+        )
     elif physics_type == "neohookean":
         from pyapprox.pde.galerkin.physics import (
             CompositeHyperelasticityPhysics,
@@ -392,8 +453,8 @@ def build_shared_field_beam(
         )
         physics = neohookean
         system = compose_galerkin_system(neohookean, [bc_left, bc_top])
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=50, line_search=True,
+        newton = Newton(
+            atol=1e-10, rtol=0.0, maxiters=50, line_search=True, linesearch_maxiters=10
         )
     else:
         raise ValueError(
@@ -405,7 +466,8 @@ def build_shared_field_beam(
 
     return SharedFieldBeamModel(
         physics=physics,
-        solver=solver,
+        system=system,
+        newton=newton,
         neumann_bc=bc_top,
         scalar_skfem_basis=scalar_skfem_basis,
         kle_field_map=kle_field_map,
