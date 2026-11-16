@@ -45,7 +45,10 @@ from pyapprox.pde.models.galerkin.unconstrained_system import (
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.pde.parameterizations.protocol import ParameterizationProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
+from pyapprox.util.linalg.operators import (
+    InnerProductSpaceProtocol,
+    LinearizationPoint,
+)
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.adjoint_checks import NumpyArray
@@ -185,6 +188,42 @@ def solved_steady(
     if not point.converged():
         raise RuntimeError("the steady solve did not converge")
     return residual, np.array(point.solution())
+
+
+class DenseSteadyResidual:
+    """The steady residual of a parameter-free system, read row by row.
+
+    ``galerkin_steady_residual`` at ``time``: the spatial residual with
+    its essential rows replaced by :math:`u_d - g`. Values are 1-D and the
+    Jacobian dense, assembled by applying the residual's Jacobian to the
+    identity, for tests on small meshes that read single rows (pinned
+    rows, finite differences).
+    """
+
+    def __init__(
+        self, system: GalerkinSystem[NumpyArray], time: Optional[float] = None
+    ) -> None:
+        self._residual = galerkin_steady_residual(
+            skfem_discretization(system), time=time
+        )
+        self._nstates = system.nstates()
+
+    def nstates(self) -> int:
+        return self._nstates
+
+    def value(self, state: NumpyArray) -> NumpyArray:
+        """The residual at ``state``, both shape ``(nstates,)``."""
+        column: NumpyArray = self._residual(np.reshape(state, (-1, 1)))
+        return np.array(column[:, 0])
+
+    def jacobian(self, state: NumpyArray) -> NumpyArray:
+        """The Jacobian at ``state`` (shape ``(nstates,)``), dense."""
+        jacobian = self._residual.derivatives().jacobian
+        if jacobian is None:
+            raise TypeError("the steady residual has no Jacobian")
+        point = LinearizationPoint(self._residual.parameters_version(), object())
+        linearization = jacobian(np.reshape(state, (-1, 1)), point)
+        return np.array(linearization.apply(np.eye(self._nstates)))
 
 
 def first_free_row(system: GalerkinSystem[NumpyArray], bkd: NumpyBkd) -> int:

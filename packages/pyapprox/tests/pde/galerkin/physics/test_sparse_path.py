@@ -85,7 +85,7 @@ class TestSparsePathHelmholtz:
         physics = Helmholtz(basis=basis, wavenumber=1.0, bkd=bkd)
         system = compose_galerkin_system(physics)
         u = bkd.asarray(np.zeros(physics.nstates()))
-        assert issparse(system.steady_snapshot(0.0).steady_jacobian(u))
+        assert issparse(system.spatial_operator().spatial_jacobian(u, 0.0))
 
 
 class TestSparsePathElasticity:
@@ -119,8 +119,8 @@ class TestSparsePathElasticity:
     def test_jacobian_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
-        view = self._system.steady_snapshot(0.0)
-        assert issparse(view.steady_jacobian(u))
+        operator = self._system.spatial_operator()
+        assert issparse(operator.spatial_jacobian(u, 0.0))
 
 
 class TestSparsePathStokes:

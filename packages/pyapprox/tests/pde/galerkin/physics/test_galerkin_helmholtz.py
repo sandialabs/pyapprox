@@ -157,7 +157,7 @@ class TestHelmholtzBase:
         system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
+        jac = system.spatial_operator().spatial_jacobian(u0, 0.0)
         jac_np = jac.toarray() if issparse(jac) else bkd.to_numpy(jac)
 
         # For Helmholtz, -jacobian = K = K_laplacian + k^2*M, should be symmetric

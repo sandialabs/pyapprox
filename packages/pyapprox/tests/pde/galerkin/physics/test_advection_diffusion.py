@@ -84,7 +84,7 @@ class TestLinearADRBase:
         system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
+        jac = system.spatial_operator().spatial_jacobian(u0, 0.0)
         jac_np = self._to_dense(bkd, jac)
 
         # For pure diffusion (no reaction), -jacobian should be the
@@ -235,7 +235,7 @@ class TestLinearADRBase:
         system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
+        jac = system.spatial_operator().spatial_jacobian(u0, 0.0)
         jac_np = self._to_dense(bkd, jac)
 
         # For pure diffusion, -jacobian = stiffness matrix should be symmetric

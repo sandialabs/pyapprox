@@ -138,19 +138,21 @@ class TestHyperelasticity1DBase:
         bkd = numpy_bkd
         self._setup(bkd)
         system, functions, basis = self._setup_1d_problem(bkd, nx=10, degree=1)
-        view = system.steady_snapshot(0.0)
+        operator = system.spatial_operator()
         n = system.nstates()
         np.random.seed(42)
         state = bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(view.steady_jacobian(state), bkd)
-        res0 = bkd.to_numpy(view.steady_residual(state))
+        jac = _to_dense(operator.spatial_jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
         state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(view.steady_residual(bkd.asarray(state_pert)))
+            res_pert = bkd.to_numpy(
+                operator.spatial_residual(bkd.asarray(state_pert), 0.0)
+            )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -246,19 +248,21 @@ class TestHyperelasticity2DBase:
         bkd = numpy_bkd
         self._setup(bkd)
         system, functions, basis = self._setup_2d_problem(bkd, nx=3, ny=3, degree=1)
-        view = system.steady_snapshot(0.0)
+        operator = system.spatial_operator()
         n = system.nstates()
         np.random.seed(42)
         state = bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(view.steady_jacobian(state), bkd)
-        res0 = bkd.to_numpy(view.steady_residual(state))
+        jac = _to_dense(operator.spatial_jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
         state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(view.steady_residual(bkd.asarray(state_pert)))
+            res_pert = bkd.to_numpy(
+                operator.spatial_residual(bkd.asarray(state_pert), 0.0)
+            )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -351,19 +355,21 @@ class TestHyperelasticity3DBase:
         bkd = numpy_bkd
         self._setup(bkd)
         system, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=1)
-        view = system.steady_snapshot(0.0)
+        operator = system.spatial_operator()
         n = system.nstates()
         np.random.seed(42)
         state = bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(view.steady_jacobian(state), bkd)
-        res0 = bkd.to_numpy(view.steady_residual(state))
+        jac = _to_dense(operator.spatial_jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
         state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(view.steady_residual(bkd.asarray(state_pert)))
+            res_pert = bkd.to_numpy(
+                operator.spatial_residual(bkd.asarray(state_pert), 0.0)
+            )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -499,7 +505,7 @@ class TestHyperelasticityShapes:
         physics = HyperelasticityPhysics(basis, stress, bkd)
         system = compose_galerkin_system(physics)
         state = bkd.asarray(np.zeros(physics.nstates()))
-        res = bkd.to_numpy(system.steady_snapshot(0.0).steady_residual(state))
+        res = bkd.to_numpy(system.spatial_operator().spatial_residual(state, 0.0))
         bkd.assert_allclose(res, np.zeros_like(res), rtol=0.0, atol=1.5e-6)
 
     def test_3d_shapes(self, numpy_bkd: NumpyBkd) -> None:

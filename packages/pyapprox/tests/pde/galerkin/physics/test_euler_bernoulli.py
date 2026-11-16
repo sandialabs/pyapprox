@@ -39,6 +39,7 @@ from pyapprox.pde.galerkin.time_integration.galerkin_model import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from tests._helpers.galerkin_steady_checks import DenseSteadyResidual
 
 
 def _to_dense(mat):
@@ -279,7 +280,7 @@ class TestEulerBernoulliFEM:
             beam, [DirectDirichletBC(bkd.arange(beam.nstates()), state, bkd)]
         )
         bkd.assert_allclose(
-            system.steady().steady_residual(state),
+            DenseSteadyResidual(system).value(state),
             bkd.zeros((beam.nstates(),)),
             atol=1e-12,
         )
@@ -287,17 +288,19 @@ class TestEulerBernoulliFEM:
     def test_jacobian_fd_consistency(self, numpy_bkd: NumpyBkd) -> None:
         """Jacobian matches finite differences of the residual."""
         bkd = numpy_bkd
-        steady = _cantilever(_beam(bkd, 4, 1.0, 2.0, _uniform(1.0))).steady()
+        steady = DenseSteadyResidual(
+            _cantilever(_beam(bkd, 4, 1.0, 2.0, _uniform(1.0)))
+        )
         ndofs = steady.nstates()
         state_np = np.random.default_rng(42).normal(size=ndofs) * 0.01
-        jac_np = _to_dense(steady.steady_jacobian(bkd.asarray(state_np)))
+        jac_np = steady.jacobian(state_np)
         eps = 1e-7
         jac_fd = np.zeros((ndofs, ndofs))
         for j in range(ndofs):
             step = np.zeros(ndofs)
             step[j] = eps
-            res_p = bkd.to_numpy(steady.steady_residual(bkd.asarray(state_np + step)))
-            res_m = bkd.to_numpy(steady.steady_residual(bkd.asarray(state_np - step)))
+            res_p = steady.value(state_np + step)
+            res_m = steady.value(state_np - step)
             jac_fd[:, j] = (res_p - res_m) / (2.0 * eps)
         bkd.assert_allclose(bkd.asarray(jac_np), bkd.asarray(jac_fd), atol=1e-6)
 
@@ -310,9 +313,7 @@ class TestEulerBernoulliFEM:
         system = _cantilever(_beam(bkd, 4, 1.0, 1.0, _uniform(1.0)))
         dofs = bkd.to_numpy(system.constraint_set().dofs())
         assert sorted(dofs.tolist()) == [0, 1]
-        jac_np = _to_dense(
-            system.steady().steady_jacobian(bkd.zeros((system.nstates(),)))
-        )
+        jac_np = DenseSteadyResidual(system).jacobian(np.zeros(system.nstates()))
         for dof in dofs:
             expected_row = np.zeros(system.nstates())
             expected_row[dof] = 1.0
@@ -422,14 +423,16 @@ class TestEulerBernoulliVaryingEI:
             FunctionWithJacobianFromCallable,
         )
 
-        steady = _cantilever(self._make_beam(bkd, nx=6, EI_mean=2.0)).steady()
+        steady = DenseSteadyResidual(
+            _cantilever(self._make_beam(bkd, nx=6, EI_mean=2.0))
+        )
         ndofs = steady.nstates()
 
         def residual_func(samples: Array) -> Array:
-            return bkd.reshape(steady.steady_residual(samples[:, 0]), (ndofs, 1))
+            return bkd.reshape(bkd.asarray(steady.value(samples[:, 0])), (ndofs, 1))
 
         def jacobian_func(sample: Array) -> Array:
-            return bkd.asarray(_to_dense(steady.steady_jacobian(sample[:, 0])))
+            return bkd.asarray(steady.jacobian(sample[:, 0]))
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=ndofs, nvars=ndofs,

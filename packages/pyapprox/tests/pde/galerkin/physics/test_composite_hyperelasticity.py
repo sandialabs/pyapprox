@@ -110,14 +110,12 @@ class TestCompositeMatchesUniform:
         n = uniform_physics.nstates()
         state = bkd.asarray(0.01 * np.random.randn(n))
 
-        uniform_view = compose_galerkin_system(uniform_physics).steady_snapshot(
-            0.0
-        )
-        composite_view = compose_galerkin_system(
+        uniform_op = compose_galerkin_system(uniform_physics).spatial_operator()
+        composite_op = compose_galerkin_system(
             composite_physics
-        ).steady_snapshot(0.0)
-        res_u = bkd.to_numpy(uniform_view.steady_residual(state))
-        res_c = bkd.to_numpy(composite_view.steady_residual(state))
+        ).spatial_operator()
+        res_u = bkd.to_numpy(uniform_op.spatial_residual(state, 0.0))
+        res_c = bkd.to_numpy(composite_op.spatial_residual(state, 0.0))
         bkd.assert_allclose(
             bkd.asarray(res_c),
             bkd.asarray(res_u),
@@ -154,14 +152,12 @@ class TestCompositeMatchesUniform:
         n = uniform_physics.nstates()
         state = bkd.asarray(0.01 * np.random.randn(n))
 
-        uniform_view = compose_galerkin_system(uniform_physics).steady_snapshot(
-            0.0
-        )
-        composite_view = compose_galerkin_system(
+        uniform_op = compose_galerkin_system(uniform_physics).spatial_operator()
+        composite_op = compose_galerkin_system(
             composite_physics
-        ).steady_snapshot(0.0)
-        res_u = bkd.to_numpy(uniform_view.steady_residual(state))
-        res_c = bkd.to_numpy(composite_view.steady_residual(state))
+        ).spatial_operator()
+        res_u = bkd.to_numpy(uniform_op.spatial_residual(state, 0.0))
+        res_c = bkd.to_numpy(composite_op.spatial_residual(state, 0.0))
         bkd.assert_allclose(
             bkd.asarray(res_c),
             bkd.asarray(res_u),
@@ -198,14 +194,12 @@ class TestCompositeMatchesUniform:
         n = uniform_physics.nstates()
         state = bkd.asarray(0.01 * np.random.randn(n))
 
-        uniform_view = compose_galerkin_system(uniform_physics).steady_snapshot(
-            0.0
-        )
-        composite_view = compose_galerkin_system(
+        uniform_op = compose_galerkin_system(uniform_physics).spatial_operator()
+        composite_op = compose_galerkin_system(
             composite_physics
-        ).steady_snapshot(0.0)
-        jac_u = _to_dense(uniform_view.steady_jacobian(state), bkd)
-        jac_c = _to_dense(composite_view.steady_jacobian(state), bkd)
+        ).spatial_operator()
+        jac_u = _to_dense(uniform_op.spatial_jacobian(state, 0.0), bkd)
+        jac_c = _to_dense(composite_op.spatial_jacobian(state, 0.0), bkd)
         bkd.assert_allclose(
             bkd.asarray(jac_c),
             bkd.asarray(jac_u),
@@ -263,19 +257,21 @@ class TestCompositeHyperelasticity1D:
     def test_jacobian_fd_check_1d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         system, functions, basis = self._setup_1d_problem(bkd, nx=10, degree=1)
-        view = system.steady_snapshot(0.0)
+        operator = system.spatial_operator()
         n = system.nstates()
         np.random.seed(42)
         state = bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(view.steady_jacobian(state), bkd)
-        res0 = bkd.to_numpy(view.steady_residual(state))
+        jac = _to_dense(operator.spatial_jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
         state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(view.steady_residual(bkd.asarray(state_pert)))
+            res_pert = bkd.to_numpy(
+                operator.spatial_residual(bkd.asarray(state_pert), 0.0)
+            )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -357,19 +353,21 @@ class TestCompositeHyperelasticity2D:
     def test_jacobian_fd_check_2d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         system, functions, basis = self._setup_2d_problem(bkd, nx=3, ny=3, degree=1)
-        view = system.steady_snapshot(0.0)
+        operator = system.spatial_operator()
         n = system.nstates()
         np.random.seed(42)
         state = bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(view.steady_jacobian(state), bkd)
-        res0 = bkd.to_numpy(view.steady_residual(state))
+        jac = _to_dense(operator.spatial_jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
         state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(view.steady_residual(bkd.asarray(state_pert)))
+            res_pert = bkd.to_numpy(
+                operator.spatial_residual(bkd.asarray(state_pert), 0.0)
+            )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -442,13 +440,13 @@ class TestCompositeMultiMaterial:
 
         res_uniform = bkd.to_numpy(
             compose_galerkin_system(uniform)
-            .steady_snapshot(0.0)
-            .steady_residual(state)
+            .spatial_operator()
+            .spatial_residual(state, 0.0)
         )
         res_composite = bkd.to_numpy(
             compose_galerkin_system(composite)
-            .steady_snapshot(0.0)
-            .steady_residual(state)
+            .spatial_operator()
+            .spatial_residual(state, 0.0)
         )
 
         assert not np.allclose(res_uniform, res_composite), (
@@ -483,8 +481,8 @@ class TestCompositeMultiMaterial:
         state = bkd.asarray(np.zeros(physics.nstates()))
         res = bkd.to_numpy(
             compose_galerkin_system(physics)
-            .steady_snapshot(0.0)
-            .steady_residual(state)
+            .spatial_operator()
+            .spatial_residual(state, 0.0)
         )
         bkd.assert_allclose(res, np.zeros_like(res), rtol=0.0, atol=1.5e-6)
 
@@ -522,13 +520,13 @@ class TestCompositeMultiMaterial:
 
         res_hyper = bkd.to_numpy(
             compose_galerkin_system(hyperelastic)
-            .steady_snapshot(0.0)
-            .steady_residual(state)
+            .spatial_operator()
+            .spatial_residual(state, 0.0)
         )
         res_linear = bkd.to_numpy(
             compose_galerkin_system(linear)
-            .steady_snapshot(0.0)
-            .steady_residual(state)
+            .spatial_operator()
+            .spatial_residual(state, 0.0)
         )
 
         # Should agree to several digits for small strain
@@ -574,12 +572,12 @@ class TestCompositeMultiMaterial:
         n = physics.nstates()
         state = bkd.asarray(0.01 * np.random.randn(n))
         res1 = bkd.to_numpy(
-            system.steady_snapshot(0.0).steady_residual(state)
+            system.spatial_operator().spatial_residual(state, 0.0)
         ).copy()
 
         # Change parameters via parameterization
         param.apply(bkd.asarray(np.array([5.0, 0.2])))
-        res2 = bkd.to_numpy(system.steady_snapshot(0.0).steady_residual(state))
+        res2 = bkd.to_numpy(system.spatial_operator().spatial_residual(state, 0.0))
 
         assert not np.allclose(res1, res2)
 
@@ -675,19 +673,21 @@ class TestCompositeHyperelasticity3D:
     def test_jacobian_fd_check_3d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         system, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=1)
-        view = system.steady_snapshot(0.0)
+        operator = system.spatial_operator()
         n = system.nstates()
         np.random.seed(42)
         state = bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(view.steady_jacobian(state), bkd)
-        res0 = bkd.to_numpy(view.steady_residual(state))
+        jac = _to_dense(operator.spatial_jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
         state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(view.steady_residual(bkd.asarray(state_pert)))
+            res_pert = bkd.to_numpy(
+                operator.spatial_residual(bkd.asarray(state_pert), 0.0)
+            )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
