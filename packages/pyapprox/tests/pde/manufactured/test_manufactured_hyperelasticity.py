@@ -34,9 +34,11 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
     create_uniform_mesh_3d,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.constitutive import (
     NeoHookeanStress,
@@ -166,7 +168,8 @@ class TestHyperelasticity1D:
         """
         npts = 16
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
+        stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_1d(npts, bkd)
 
         man_sol = ManufacturedHyperelasticityEquations(
@@ -185,7 +188,12 @@ class TestHyperelasticity1D:
         forcing_flat = forcing[:, 0]
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, 1, bkd)
 
@@ -204,10 +212,12 @@ class TestHyperelasticity1D:
         """Jacobian correctness via DerivativeChecker."""
         npts = 8
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
         basis, _, _ = _setup_1d(npts, bkd)
 
-        physics = HyperelasticityPhysics(basis, bkd, stress)
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+        )
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
         sample = bkd.asarray([[0.01 * float(i) for i in range(nstates)]]).T
@@ -223,7 +233,8 @@ class TestHyperelasticity1D:
         """Numerical solve recovers manufactured solution."""
         npts = 16
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
+        stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_1d(npts, bkd)
 
         man_sol = ManufacturedHyperelasticityEquations(
@@ -241,7 +252,12 @@ class TestHyperelasticity1D:
         forcing_flat = forcing[:, 0]
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, 1, bkd)
 
@@ -264,7 +280,8 @@ class TestHyperelasticity2D:
         """Residual = 0 at exact polynomial solution."""
         npts_x, npts_y = 10, 10
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
+        stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_2d(npts_x, npts_y, bkd)
 
         man_sol = ManufacturedHyperelasticityEquations(
@@ -286,7 +303,12 @@ class TestHyperelasticity2D:
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, 2, bkd)
 
@@ -305,10 +327,12 @@ class TestHyperelasticity2D:
         """Jacobian correctness via DerivativeChecker."""
         npts_x, npts_y = 6, 6
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
         basis, _, _ = _setup_2d(npts_x, npts_y, bkd)
 
-        physics = HyperelasticityPhysics(basis, bkd, stress)
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+        )
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
         sample = bkd.asarray([[0.01 * float(i) for i in range(nstates)]]).T
@@ -324,7 +348,8 @@ class TestHyperelasticity2D:
         """Numerical solve recovers manufactured solution."""
         npts_x, npts_y = 10, 10
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
+        stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_2d(npts_x, npts_y, bkd)
 
         man_sol = ManufacturedHyperelasticityEquations(
@@ -346,7 +371,12 @@ class TestHyperelasticity2D:
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, 2, bkd)
 
@@ -370,7 +400,8 @@ class TestHyperelasticity3D:
         """Residual = 0 at exact polynomial solution."""
         npts_x, npts_y, npts_z = 6, 6, 6
 
-        stress = NeoHookeanStress(lamda=1.0, mu=1.0)
+        lamda, mu = 1.0, 1.0
+        stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_3d(npts_x, npts_y, npts_z, bkd)
 
         man_sol = ManufacturedHyperelasticityEquations(
@@ -393,7 +424,12 @@ class TestHyperelasticity3D:
         forcing_flat = bkd.concatenate([forcing[:, i] for i in range(3)])
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, 3, bkd)
 
@@ -445,7 +481,12 @@ class TestHyperelasticityParameterized:
         forcing_flat = forcing[:, 0]
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, basis.npts(), 1, bkd)
 
@@ -502,7 +543,12 @@ class TestHyperelasticityParameterized:
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress, forcing=lambda t: forcing_flat
+            basis,
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=mu,
+            lamda=lamda,
+            forcing=NodalField(forcing_flat),
         )
         _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, 2, bkd)
 
@@ -528,14 +574,15 @@ class TestHyperelasticityParameterized:
     )
     def test_jacobian(self, bkd, name, lamda, mu, npts_1d):
         """Parameterized Jacobian test via DerivativeChecker."""
-        stress = NeoHookeanStress(lamda=lamda, mu=mu)
 
         if name.startswith("1d"):
             basis, _, _ = _setup_1d(npts_1d, bkd)
         else:
             basis, _, _ = _setup_2d(npts_1d, npts_1d, bkd)
 
-        physics = HyperelasticityPhysics(basis, bkd, stress)
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+        )
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
         sample = bkd.asarray([[0.01 * float(i) for i in range(nstates)]]).T

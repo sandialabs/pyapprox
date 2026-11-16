@@ -17,18 +17,18 @@ from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics import HyperelasticityPhysics
-from pyapprox.pde.constitutive.neo_hookean import (
-    NeoHookeanStress,
-)
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.util.backends.protocols import Array
 
 
 def _setup_2d_hyperelastic(bkd, npts_1d=6, lamda=1.0, mu=1.0):
-    """Create 2D hyperelastic physics on [0,1]^2."""
+    """Create 2D hyperelastic physics on [0,1]^2 with uniform Lame
+    parameters held as rewritable fields."""
     mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
     basis = ChebyshevBasis2D(mesh, bkd)
-    stress_model = NeoHookeanStress(lamda, mu)
-    physics = HyperelasticityPhysics(basis, bkd, stress_model)
+    physics = HyperelasticityPhysics(
+        basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+    )
     return physics, basis
 
 
@@ -71,17 +71,20 @@ class _ResidualOfState(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class _ResidualOfMu(Generic[Array]):
-    """Wraps residual(state; mu) as function of mu for DerivativeChecker.
+class _ResidualOfField(Generic[Array]):
+    """Wraps residual(state; c) as a function of one Lame field c, set
+    through the physics' NodalField, for DerivativeChecker.
 
-    Input: mu (npts,1). Output: residual (nstates,1).
-    Jacobian: the residual_mu_jacobian assembly.
+    Input: c (npts,1). Output: residual (nstates,1).
+    Jacobian: the given assembly, e.g. residual_mu_jacobian.
     """
 
-    def __init__(self, physics, state, mu_base, bkd, time=0.0):
+    def __init__(self, physics, field, assembly, state, base, bkd, time=0.0):
         self._physics = physics
+        self._field = field
+        self._assembly = assembly
         self._state = state
-        self._mu_base = mu_base
+        self._base = base
         self._bkd = bkd
         self._time = time
 
@@ -89,79 +92,30 @@ class _ResidualOfMu(Generic[Array]):
         return self._bkd
 
     def nvars(self):
-        return self._mu_base.shape[0]
+        return self._base.shape[0]
 
     def nqoi(self):
         return self._physics.nstates()
 
-    def __call__(self, samples):
-        bkd = self._bkd
-        if samples.ndim == 2:
-            cols = []
-            for i in range(samples.shape[1]):
-                self._physics.set_mu(samples[:, i])
-                cols.append(self._physics.residual(self._state, self._time))
-            self._physics.set_mu(self._mu_base)
-            return bkd.stack(cols, axis=1)
-        self._physics.set_mu(samples)
-        res = self._physics.residual(self._state, self._time).reshape(-1, 1)
-        self._physics.set_mu(self._mu_base)
+    def _residual_at(self, values):
+        self._field.set_values(values)
+        res = self._physics.residual(self._state, self._time)
+        self._field.set_values(self._base)
         return res
+
+    def __call__(self, samples):
+        return self._bkd.stack(
+            [self._residual_at(samples[:, i]) for i in range(samples.shape[1])],
+            axis=1,
+        )
 
     def derivatives(self):
         return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample):
-        if sample.ndim == 2:
-            sample = sample[:, 0]
-        self._physics.set_mu(sample)
-        jac = self._physics.residual_mu_jacobian(self._state)
-        self._physics.set_mu(self._mu_base)
-        return jac
-
-
-class _ResidualOfLamda(Generic[Array]):
-    """Wraps residual(state; lam) as function of lambda for DerivativeChecker."""
-
-    def __init__(self, physics, state, lam_base, bkd, time=0.0):
-        self._physics = physics
-        self._state = state
-        self._lam_base = lam_base
-        self._bkd = bkd
-        self._time = time
-
-    def bkd(self):
-        return self._bkd
-
-    def nvars(self):
-        return self._lam_base.shape[0]
-
-    def nqoi(self):
-        return self._physics.nstates()
-
-    def __call__(self, samples):
-        bkd = self._bkd
-        if samples.ndim == 2:
-            cols = []
-            for i in range(samples.shape[1]):
-                self._physics.set_lamda(samples[:, i])
-                cols.append(self._physics.residual(self._state, self._time))
-            self._physics.set_lamda(self._lam_base)
-            return bkd.stack(cols, axis=1)
-        self._physics.set_lamda(samples)
-        res = self._physics.residual(self._state, self._time).reshape(-1, 1)
-        self._physics.set_lamda(self._lam_base)
-        return res
-
-    def derivatives(self):
-        return Derivatives.first_order(jacobian=self.jacobian)
-
-    def jacobian(self, sample):
-        if sample.ndim == 2:
-            sample = sample[:, 0]
-        self._physics.set_lamda(sample)
-        jac = self._physics.residual_lamda_jacobian(self._state)
-        self._physics.set_lamda(self._lam_base)
+        self._field.set_values(sample[:, 0])
+        jac = self._assembly(self._state)
+        self._field.set_values(self._base)
         return jac
 
 
@@ -225,13 +179,20 @@ class TestHyperelasticSensitivity2D:
         # Variable mu (positive)
         np.random.seed(42)
         mu0 = bkd.asarray(mu + 0.2 * np.abs(np.random.randn(npts)))
-        physics.set_mu(mu0)
+        physics.mu_function().set_values(mu0)
 
         # Fixed state (small deformation, J > 0)
         np.random.seed(43)
         state = bkd.asarray(np.random.randn(nstates) * 0.01)
 
-        wrapper = _ResidualOfMu(physics, state, mu0, bkd)
+        wrapper = _ResidualOfField(
+            physics,
+            physics.mu_function(),
+            physics.residual_mu_jacobian,
+            state,
+            mu0,
+            bkd,
+        )
         checker = DerivativeChecker(wrapper)
         sample = mu0[:, None]
         errors = checker.check_derivatives(sample, verbosity=0)
@@ -252,13 +213,20 @@ class TestHyperelasticSensitivity2D:
         # Variable lambda (positive)
         np.random.seed(42)
         lam0 = bkd.asarray(lamda + 0.2 * np.abs(np.random.randn(npts)))
-        physics.set_lamda(lam0)
+        physics.lamda_function().set_values(lam0)
 
         # Fixed state
         np.random.seed(43)
         state = bkd.asarray(np.random.randn(nstates) * 0.01)
 
-        wrapper = _ResidualOfLamda(physics, state, lam0, bkd)
+        wrapper = _ResidualOfField(
+            physics,
+            physics.lamda_function(),
+            physics.residual_lamda_jacobian,
+            state,
+            lam0,
+            bkd,
+        )
         checker = DerivativeChecker(wrapper)
         sample = lam0[:, None]
         errors = checker.check_derivatives(sample, verbosity=0)

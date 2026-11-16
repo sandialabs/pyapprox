@@ -15,6 +15,7 @@ from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
@@ -261,7 +262,9 @@ class TestHyperelasticStressPostProcessor2D:
         physics = HyperelasticityPhysics(
             basis,
             bkd,
-            setup["stress_model"],
+            NeoHookeanLaw(bkd),
+            mu=setup["mu"],
+            lamda=setup["lamda"],
         )
 
         bcs = []

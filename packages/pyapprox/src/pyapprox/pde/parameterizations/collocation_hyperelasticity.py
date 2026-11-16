@@ -16,7 +16,7 @@ raising slots are removed and the engine's second-order tier applies
 unchanged.
 """
 
-from typing import Callable, Generic, Tuple, Union
+from typing import Generic, Tuple
 
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
@@ -24,7 +24,9 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
 from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
 from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.parameterizations.collocation_elasticity import (
+    _require_field,
     _StackedLameJacobianAdapter,
+    _StackedLameSetter,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.field_term import (
@@ -64,29 +66,6 @@ class _WithoutHVP(Generic[Array]):
         return self._inner.jacobian(params_1d)
 
 
-class _BoundLameSetter(Generic[Array]):
-    """Picklable setter splitting a stacked [mu; lambda] field across
-    the physics' Lamé setters, which validate positivity of mu and
-    non-negativity of lambda."""
-
-    def __init__(
-        self,
-        set_mu_fn: Callable[[Union[float, Array]], None],
-        set_lamda_fn: Callable[[Union[float, Array]], None],
-        npts: int,
-    ) -> None:
-        self._set_mu_fn = set_mu_fn
-        self._set_lamda_fn = set_lamda_fn
-        self._npts = npts
-
-    def writes_params(self) -> bool:
-        return False
-
-    def __call__(self, values: Array) -> None:
-        self._set_mu_fn(values[: self._npts])
-        self._set_lamda_fn(values[self._npts :])
-
-
 class _SecondOrderUnavailable(Generic[Array]):
     """Raising slot: the mixed contractions need stress-model tangent
     assemblies that do not exist yet; failing loudly here prevents a
@@ -109,10 +88,12 @@ class CollocationHyperelasticityParameterization(Generic[Array]):
     Parameters
     ----------
     physics : HyperelasticityPhysics
-        The bound collocation physics (1D or 2D).
+        The bound collocation physics (1D or 2D), built with ``NodalField``
+        Lame parameters.
     youngs_modulus_map : FieldMapProtocol
-        Map onto the Young's modulus field E(x) (positivity enforced
-        through the physics's Lame setters on apply).
+        Map onto the Young's modulus field E(x). The physics checks the
+        Lame values it is given when it reads them, which for a fixed
+        Poisson ratio is positivity of E.
     poisson_ratio : float
         Fixed Poisson ratio, -1 < nu < 0.5.
     bkd : Backend
@@ -141,8 +122,10 @@ class CollocationHyperelasticityParameterization(Generic[Array]):
             )
         )
         self._inner: _HyperelasticTerm[Array] = _FieldParameterizationTerm(
-            setter=_BoundLameSetter[Array](
-                physics.set_mu, physics.set_lamda, npts
+            setter=_StackedLameSetter[Array](
+                _require_field(physics.mu_function(), "mu"),
+                _require_field(physics.lamda_function(), "lamda"),
+                npts,
             ),
             physics=physics,
             field_jacobian=_StackedLameJacobianAdapter(

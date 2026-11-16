@@ -5,8 +5,11 @@ first Piola-Kirchhoff stress. Young's modulus E(x) is parameterized via
 a field map (e.g., KLE), converted to Lame parameters with fixed Poisson ratio.
 """
 
-from typing import Any, Callable, Optional
+from typing import Optional
 
+from pyapprox.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
@@ -17,12 +20,11 @@ from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
+from pyapprox.pde.collocation.physics.coefficients import CoefficientInput
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
-from pyapprox.pde.constitutive import (
-    NeoHookeanStress,
-)
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
@@ -41,11 +43,11 @@ def create_hyperelastic_bar_1d(
     length: float,
     E_mean: float,
     poisson_ratio: float,
-    forcing: Callable[..., Any],
+    forcing: CoefficientInput[Array],
     field_map: FieldMapProtocol[Array],
     traction: Optional[float] = None,
     dirichlet_left: float = 0.0,
-    functional: object = None,
+    functional: Optional[SteadyFunctionalProtocol[Array]] = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 1D hyperelastic bar forward model.
 
@@ -68,15 +70,15 @@ def create_hyperelastic_bar_1d(
         Mean Young's modulus for initial Lame parameter computation.
     poisson_ratio : float
         Fixed Poisson ratio nu.
-    forcing : callable
-        Body force f(x). Accepts time, returns Array of shape (npts,).
+    forcing : float, NodalCoefficientProtocol or callable
+        Body force f, nodal values of shape (npts,).
     field_map : FieldMapProtocol
         Field map for E(x) parameterization (e.g. KLE).
     traction : float, optional
         Applied traction P*n at x=L. If None, uses zero Neumann.
     dirichlet_left : float
         Prescribed displacement at x=0. Default 0.0 (fixed end).
-    functional : optional
+    functional : SteadyFunctionalProtocol, optional
         QoI functional. If None, returns full displacement field.
 
     Returns
@@ -95,11 +97,14 @@ def create_hyperelastic_bar_1d(
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
 
-    # Stress model and physics
-    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
-        lamda=lamda_init, mu=mu_init
+    physics = HyperelasticityPhysics(
+        basis,
+        bkd,
+        NeoHookeanLaw(bkd),
+        mu=mu_init,
+        lamda=lamda_init,
+        forcing=forcing,
     )
-    physics = HyperelasticityPhysics(basis, bkd, stress_model, forcing)
 
     # Left BC: prescribed displacement at x=0
     left_idx = mesh.boundary_indices(0)

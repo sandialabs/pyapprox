@@ -29,9 +29,11 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics as CollocationHyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.time_integration import CollocationModel
 
 # -- Shared --
@@ -65,6 +67,10 @@ from tests._helpers.markers import slow_test
 # Helpers
 # =========================================================================
 
+# The Lame parameters of every comparison, for the collocation physics
+# and the shared stress model alike.
+_LAMDA, _MU = 1.0, 1.0
+
 
 def _solve_collocation_1d(sol_strs, stress, npts, bkd):
     """Solve 1D hyperelasticity with collocation and return (u_exact, u_num)."""
@@ -88,8 +94,10 @@ def _solve_collocation_1d(sol_strs, stress, npts, bkd):
     physics = CollocationHyperelasticityPhysics(
         basis,
         bkd,
-        stress,
-        forcing=lambda t: forcing,
+        NeoHookeanLaw(bkd),
+        mu=_MU,
+        lamda=_LAMDA,
+        forcing=NodalField(forcing),
     )
 
     bcs = []
@@ -135,8 +143,10 @@ def _solve_collocation_2d(sol_strs, stress, npts_x, npts_y, bkd):
     physics = CollocationHyperelasticityPhysics(
         basis,
         bkd,
-        stress,
-        forcing=lambda t: forcing_flat,
+        NeoHookeanLaw(bkd),
+        mu=_MU,
+        lamda=_LAMDA,
+        forcing=NodalField(forcing_flat),
     )
 
     bcs = []
@@ -277,7 +287,7 @@ class TestHyperelasticityComparison1D:
     def test_both_recover_exact_1d(self, numpy_bkd) -> None:
         """Both methods recover the exact 1D MMS solution."""
         bkd = numpy_bkd
-        stress = NeoHookeanStress(1.0, 1.0)
+        stress = NeoHookeanStress(_LAMDA, _MU)
         sol_strs = ["0.1*x**2*(1-x)**2"]
 
         # Collocation: npts=20 Chebyshev points
@@ -320,7 +330,7 @@ class TestHyperelasticityComparison2D:
     def test_both_recover_exact_2d(self, numpy_bkd) -> None:
         """Both methods recover the exact 2D MMS solution."""
         bkd = numpy_bkd
-        stress = NeoHookeanStress(1.0, 1.0)
+        stress = NeoHookeanStress(_LAMDA, _MU)
         sol_strs = [
             "0.1*x**2*(1-x)**2*y**2*(1-y)**2",
             "0.05*x**2*(1-x)**2*y**2*(1-y)**2",

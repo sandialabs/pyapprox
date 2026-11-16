@@ -30,6 +30,7 @@ from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
@@ -87,7 +88,9 @@ class TestHyperelasticTraction:
         basis = ChebyshevBasis2D(mesh, bkd)
 
         stress_model = NeoHookeanStress(lamda, mu)
-        physics = HyperelasticityPhysics(basis, bkd, stress_model)
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+        )
 
         # Left boundary (boundary_id=0)
         left_idx = mesh.boundary_indices(0)
@@ -158,7 +161,9 @@ class TestHyperelasticTraction:
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
-        physics = HyperelasticityPhysics(basis, bkd, NeoHookeanStress(lamda, mu))
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+        )
 
         left_idx = mesh.boundary_indices(0)
         normals = mesh.boundary_normals(0)
@@ -184,7 +189,9 @@ class TestHyperelasticTraction:
         npts = basis.npts()
         Dx = basis.derivative_matrix(1, 0)
         Dy = basis.derivative_matrix(1, 1)
-        physics = HyperelasticityPhysics(basis, bkd, NeoHookeanStress(lamda, mu))
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
+        )
 
         left_idx = mesh.boundary_indices(0)
         normals = mesh.boundary_normals(0)

@@ -19,8 +19,9 @@ from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh1D, TransformedMesh2D
 from pyapprox.pde.collocation.physics.hyperelasticity import (
-    create_hyperelasticity,
+    HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
@@ -73,7 +74,9 @@ def _build(bkd, ndim):
                 ]
             )
         )
-    physics = create_hyperelasticity(basis, bkd, mu=1.0, lamda=1.5)
+    physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=1.0, lamda=1.5
+        )
     facade = CollocationHyperelasticityParameterization(
         physics,
         youngs_modulus_map=_exp_kle_map(bkd, coords, _NMODES),

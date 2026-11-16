@@ -4,8 +4,9 @@ Implements the equilibrium equation for hyperelastic materials:
     div(P) + f = 0
 
 where P is the first Piola-Kirchhoff stress computed by a pluggable
-stress model. Supports 1D, 2D, and 3D with any constitutive law that
-satisfies StressModelWithSensitivityProtocol.
+constitutive law from the deformation gradient and the Lame parameters
+the physics holds. Supports 1D, 2D, and 3D with any law that satisfies
+HyperelasticLawProtocol.
 """
 
 from typing import (
@@ -14,27 +15,21 @@ from typing import (
     Optional,
     Protocol,
     Tuple,
-    Union,
     runtime_checkable,
 )
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.physics.coefficients import (
+    CheckedValues,
     CoefficientInput,
     NodalCoefficientProtocol,
+    as_nodal_coefficient,
     declared_time_invariant,
     optional_nodal_coefficient,
 )
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
-)
-from pyapprox.pde.constitutive.protocols import (
-    StressModelWithSensitivityProtocol,
-    StressModelWithTangentProtocol,
-)
-from pyapprox.pde.constitutive.registry import (
-    create_stress_model,
 )
 from pyapprox.pde.time_order import second_order_in_time_refusal
 from pyapprox.util.backends.protocols import Array, Backend
@@ -84,16 +79,16 @@ class LameSensitiveLawProtocol(Protocol, Generic[Array]):
 
 
 class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
-    """Hyperelastic physics with pluggable stress model.
+    """Hyperelastic physics with a pluggable constitutive law.
 
     Implements the equilibrium equation:
         div(P) + f = 0
 
-    where P is the first Piola-Kirchhoff stress tensor computed by the
-    provided stress model from the deformation gradient F = I + grad(u).
+    where P is the first Piola-Kirchhoff stress the law computes from
+    the deformation gradient F = I + grad(u) and the Lame parameters,
+    which the physics holds as nodal coefficients.
 
-    Supports 1D, 2D, and 3D. The analytical Jacobian requires the stress
-    model to provide a tangent modulus (compute_tangent methods).
+    Supports 1D, 2D, and 3D.
 
     Parameters
     ----------
@@ -101,50 +96,74 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Collocation basis (1D, 2D, or 3D).
     bkd : Backend
         Computational backend.
-    stress_model : StressModelWithSensitivityProtocol
-        Constitutive model for PK1 stress with Lame-parameter setters
-        and stress sensitivities.
+    law : HyperelasticLawProtocol
+        The constitutive law, e.g. ``NeoHookeanLaw``. The Lame
+        sensitivities a parameterization needs are available when it
+        also satisfies ``LameSensitiveLawProtocol``.
+    mu, lamda : float or NodalCoefficientProtocol
+        The Lame parameters, in the forms ``as_nodal_coefficient``
+        takes; a parameterized one must be a ``NodalField``. mu must be
+        positive and lamda non-negative, checked whenever they change.
     forcing : float, NodalCoefficientProtocol or callable, optional
         Body force with the components stacked, in the forms
         ``as_nodal_coefficient`` takes but of length nstates. Absent
         means none.
+
+    Raises
+    ------
+    TypeError
+        If ``law`` does not satisfy ``HyperelasticLawProtocol``.
+    ValueError
+        If mu or lamda is declared time-dependent: the physics is
+        steady and its stress takes no time.
     """
 
     def __init__(
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        stress_model: StressModelWithSensitivityProtocol[Array],
+        law: HyperelasticLawProtocol[Array],
+        mu: CoefficientInput[Array],
+        lamda: CoefficientInput[Array],
         forcing: Optional[CoefficientInput[Array]] = None,
     ):
         ndim = basis.ndim()
         if ndim not in (1, 2, 3):
             raise ValueError(f"Unsupported dimension: {ndim}")
-        if not isinstance(stress_model, StressModelWithSensitivityProtocol):
+        if not isinstance(law, HyperelasticLawProtocol):
             raise TypeError(
-                f"stress_model must satisfy "
-                f"StressModelWithSensitivityProtocol, "
-                f"got {type(stress_model).__name__}"
+                "law must satisfy HyperelasticLawProtocol, got "
+                f"{type(law).__name__}"
             )
 
         super().__init__(basis, bkd, ncomponents=ndim)
 
-        self._stress_model = stress_model
-        # The tangent is a capability of the model, decided once here.
-        self._tangent_model: Optional[StressModelWithTangentProtocol[Array]] = (
-            stress_model
-            if isinstance(stress_model, StressModelWithTangentProtocol)
-            else None
+        self._law = law
+        # The Lame sensitivities are a capability of the law, decided
+        # once here.
+        self._sensitive_law: Optional[LameSensitiveLawProtocol[Array]] = (
+            law if isinstance(law, LameSensitiveLawProtocol) else None
         )
-        self._forcing = optional_nodal_coefficient(forcing, ndim * basis.npts(), bkd)
+        npts = basis.npts()
+        self._mu = as_nodal_coefficient(mu, npts, bkd)
+        self._lamda = as_nodal_coefficient(lamda, npts, bkd)
+        for name, coefficient in (("mu", self._mu), ("lamda", self._lamda)):
+            if coefficient.is_time_dependent():
+                raise ValueError(
+                    f"{name} must be time-invariant: hyperelasticity is "
+                    "steady and its stress takes no time"
+                )
+        self._checked_mu = CheckedValues(self._mu, self._check_mu)
+        self._checked_lamda = CheckedValues(self._lamda, self._check_lamda)
+        self._forcing = optional_nodal_coefficient(forcing, ndim * npts, bkd)
         self._ndim = ndim
 
         # Precompute first-order derivative matrices
         self._D: List[Array] = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
 
-    def stress_model(self) -> StressModelWithSensitivityProtocol[Array]:
-        """Return the stress model."""
-        return self._stress_model
+    def law(self) -> HyperelasticLawProtocol[Array]:
+        """Return the constitutive law."""
+        return self._law
 
     def first_order_transient_refusal(self) -> str:
         """Return why a first-order transient path refuses this physics.
@@ -155,36 +174,48 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         return second_order_in_time_refusal(type(self).__name__)
 
     # ------------------------------------------------------------------
-    # Material property setters
+    # Material
     # ------------------------------------------------------------------
 
-    def set_mu(self, mu_values: Union[float, Array]) -> None:
-        """Set shear modulus (scalar or per-point array).
+    def mu_function(self) -> NodalCoefficientProtocol[Array]:
+        """The shear modulus coefficient."""
+        return self._mu
 
-        Parameters
-        ----------
-        mu_values : float or Array
-            Shear modulus values. Must be positive.
-        """
-        mu_arr = self._bkd.ravel(self._bkd.asarray(mu_values))
-        min_val = self._bkd.to_float(self._bkd.min(mu_arr))
+    def lamda_function(self) -> NodalCoefficientProtocol[Array]:
+        """Lame's first parameter coefficient."""
+        return self._lamda
+
+    def lame_values(self, time: float) -> Tuple[Array, Array]:
+        """``(lamda, mu)`` at the nodes, each checked when it changes.
+        The time is accepted for uniformity; the material is
+        time-invariant. Shapes: (npts,)"""
+        mu = self._checked_mu.values(time)
+        return self._checked_lamda.values(time), mu
+
+    def _check_mu(self, mu: Array, time: float) -> None:
+        min_val = self._bkd.to_float(self._bkd.min(mu))
         if min_val <= 0.0:
             raise ValueError(f"mu must be positive; found min {min_val:.2e}")
-        self._stress_model.set_mu(mu_values)
 
-    def set_lamda(self, lamda_values: Union[float, Array]) -> None:
-        """Set Lame's first parameter (scalar or per-point array).
-
-        Parameters
-        ----------
-        lamda_values : float or Array
-            Lame's first parameter values. Must be non-negative.
-        """
-        lam_arr = self._bkd.ravel(self._bkd.asarray(lamda_values))
-        min_val = self._bkd.to_float(self._bkd.min(lam_arr))
+    def _check_lamda(self, lamda: Array, time: float) -> None:
+        min_val = self._bkd.to_float(self._bkd.min(lamda))
         if min_val < 0.0:
             raise ValueError(f"lamda must be non-negative; found min {min_val:.2e}")
-        self._stress_model.set_lamda(lamda_values)
+
+    def _sensitivity_law(self) -> LameSensitiveLawProtocol[Array]:
+        """The law's Lame sensitivities.
+
+        Raises
+        ------
+        NotImplementedError
+            If the law does not satisfy ``LameSensitiveLawProtocol``.
+        """
+        if self._sensitive_law is None:
+            raise NotImplementedError(
+                f"{type(self._law).__name__} provides no Lame-parameter "
+                "sensitivities"
+            )
+        return self._sensitive_law
 
     def forcing_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
         """The stacked body force; None without one."""
@@ -210,44 +241,9 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
     def _tangent(self, F: List[List[Array]]) -> List[List[List[List[Array]]]]:
         """The tangent :math:`A_{iJkL} = \\partial P_{iJ}/\\partial F_{kL}`
-        nested as ``A[i][J][k][L]``, each entry shape (npts,).
-
-        Raises
-        ------
-        NotImplementedError
-            If the stress model provides no tangent modulus.
-        """
-        model = self._tangent_model
-        if model is None:
-            raise NotImplementedError(
-                f"{type(self._stress_model).__name__} provides no tangent "
-                "modulus, so the analytical Jacobian is unavailable"
-            )
-        bkd = self._bkd
-        ndim = self._ndim
-        if ndim == 1:
-            return [[[[model.compute_tangent_1d(F[0][0], bkd)]]]]
-        if ndim == 2:
-            A2 = model.compute_tangent_2d(F[0][0], F[0][1], F[1][0], F[1][1], bkd)
-            return [
-                [
-                    [
-                        [A2[f"A_{i + 1}{J + 1}{k + 1}{L + 1}"] for L in range(2)]
-                        for k in range(2)
-                    ]
-                    for J in range(2)
-                ]
-                for i in range(2)
-            ]
-        F3 = tuple(tuple(row) for row in F)
-        A3 = model.compute_tangent_3d(F3, bkd)
-        return [
-            [
-                [[A3[i, J, k, L] for L in range(3)] for k in range(3)]
-                for J in range(3)
-            ]
-            for i in range(3)
-        ]
+        nested as ``A[i][J][k][L]``, each entry shape (npts,)."""
+        lamda, mu = self.lame_values(0.0)
+        return self._law.tangent(F, mu, lamda)
 
     def _stress_entry_jacobian(
         self, A_iJ: List[List[Array]]
@@ -301,7 +297,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         state : Array
             Displacement field. Shape: (npts,).
         time : float
-            Unused: the stress model is fixed.
+            Unused: the material is time-invariant.
 
         Returns
         -------
@@ -324,7 +320,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         state : Array
             Displacement field. Shape: (npts,).
         time : float
-            Unused: the stress model is fixed.
+            Unused: the material is time-invariant.
 
         Returns
         -------
@@ -354,19 +350,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             shape (npts,): ``[[P]]`` in 1D, ``[[P11, P12], [P21, P22]]``
             in 2D.
         """
-        bkd = self._bkd
-        F = self._deformation_gradient(state)
-        if self._ndim == 1:
-            return [[self._stress_model.compute_stress_1d(F[0][0], bkd)]]
-        if self._ndim == 2:
-            P11, P12, P21, P22 = self._stress_model.compute_stress_2d(
-                F[0][0], F[0][1], F[1][0], F[1][1], bkd
-            )
-            return [[P11, P12], [P21, P22]]
-        P3 = self._stress_model.compute_stress_3d(
-            tuple(tuple(row) for row in F), bkd
-        )
-        return [list(row) for row in P3]
+        lamda, mu = self.lame_values(0.0)
+        return self._law.stress(self._deformation_gradient(state), mu, lamda)
 
     def pk1_stress_jacobian(self, state: Array) -> List[List[Array]]:
         """Compute the Jacobian of each PK1 stress entry w.r.t. the state.
@@ -382,10 +367,6 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             ``dP[i][J]``, nested as in :meth:`pk1_stress`, each entry of
             shape (npts, nstates).
 
-        Raises
-        ------
-        NotImplementedError
-            If the stress model provides no tangent modulus.
         """
         A = self._tangent(self._deformation_gradient(state))
         return [
@@ -399,14 +380,38 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
     # -- full-matrix field-derivative assemblies (engine slots)
 
+    def _stress_lame_sensitivity(
+        self, state: Array, which: str
+    ) -> List[List[Array]]:
+        """:math:`\\partial P_{iJ}/\\partial \\mu` (``which="mu"``) or
+        :math:`\\partial P_{iJ}/\\partial \\lambda` at every node."""
+        law = self._sensitivity_law()
+        F = self._deformation_gradient(state)
+        lamda, mu = self.lame_values(0.0)
+        if which == "mu":
+            return law.stress_mu_sensitivity(F, mu, lamda)
+        return law.stress_lamda_sensitivity(F, mu, lamda)
+
+    def _residual_field_jacobian(self, dP: List[List[Array]]) -> Array:
+        """:math:`\\partial R_i/\\partial c = \\sum_J D_J
+        \\operatorname{diag}(\\partial P_{iJ}/\\partial c)`, formed by
+        column scaling and stacked over i. Shape: (nstates, npts)"""
+        rows = []
+        for i in range(self._ndim):
+            row = self._D[0] * dP[i][0][None, :]
+            for J in range(1, self._ndim):
+                row = row + self._D[J] * dP[i][J][None, :]
+            rows.append(row)
+        return self._bkd.concatenate(rows, axis=0)
+
     def residual_mu_jacobian(self, state: Array) -> Array:
         """Assemble :math:`S_\\mu(u) = \\partial R/\\partial
-        \\mu_{\\text{field}}` from the stress model's mu sensitivity.
+        \\mu_{\\text{field}}` from the law's mu sensitivity.
 
         State-nonlinear (the PK1 sensitivity depends on the
         deformation gradient), so no linearity identities apply — the
-        parameterization tier stays first order until stress-model
-        tangent assemblies (:math:`\\partial^2 P/\\partial F
+        parameterization tier stays first order until law tangent
+        assemblies (:math:`\\partial^2 P/\\partial F
         \\partial \\mu`) provide the mixed contractions.
 
         Parameters
@@ -418,32 +423,20 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         -------
         Array
             Assembly. Shape: (nstates, npts)
+
+        Raises
+        ------
+        NotImplementedError
+            If the law provides no Lame sensitivities (or none in this
+            dimension).
         """
-        bkd = self._bkd
-        if self._ndim == 1:
-            Dx = self._D[0]
-            F = 1.0 + Dx @ state
-            dP_dmu = self._stress_model.stress_sensitivity_mu_1d(F, bkd)
-            return Dx * dP_dmu[None, :]
-        if self._ndim == 2:
-            Dx, Dy = self._D
-            u, v = self._extract_components(state)
-            F11 = 1.0 + Dx @ u
-            F12 = Dy @ u
-            F21 = Dx @ v
-            F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_mu_2d(
-                F11, F12, F21, F22, bkd
-            )
-            top = Dx * dP11[None, :] + Dy * dP12[None, :]
-            bottom = Dx * dP21[None, :] + Dy * dP22[None, :]
-            return bkd.concatenate([top, bottom], axis=0)
-        raise NotImplementedError("residual_mu_jacobian only implemented for 1D and 2D")
+        return self._residual_field_jacobian(
+            self._stress_lame_sensitivity(state, "mu")
+        )
 
     def residual_lamda_jacobian(self, state: Array) -> Array:
         """Assemble :math:`S_\\lambda(u) = \\partial R/\\partial
-        \\lambda_{\\text{field}}` from the stress model's lambda
-        sensitivity.
+        \\lambda_{\\text{field}}` from the law's lambda sensitivity.
 
         Parameters
         ----------
@@ -454,28 +447,15 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         -------
         Array
             Assembly. Shape: (nstates, npts)
+
+        Raises
+        ------
+        NotImplementedError
+            If the law provides no Lame sensitivities (or none in this
+            dimension).
         """
-        bkd = self._bkd
-        if self._ndim == 1:
-            Dx = self._D[0]
-            F = 1.0 + Dx @ state
-            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(F, bkd)
-            return Dx * dP_dlam[None, :]
-        if self._ndim == 2:
-            Dx, Dy = self._D
-            u, v = self._extract_components(state)
-            F11 = 1.0 + Dx @ u
-            F12 = Dy @ u
-            F21 = Dx @ v
-            F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_lamda_2d(
-                F11, F12, F21, F22, bkd
-            )
-            top = Dx * dP11[None, :] + Dy * dP12[None, :]
-            bottom = Dx * dP21[None, :] + Dy * dP22[None, :]
-            return bkd.concatenate([top, bottom], axis=0)
-        raise NotImplementedError(
-            "residual_lamda_jacobian only implemented for 1D and 2D"
+        return self._residual_field_jacobian(
+            self._stress_lame_sensitivity(state, "lamda")
         )
 
     def boundary_traction_lame_jacobian(
@@ -490,9 +470,9 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         Consumer convention (the BC supplies its own row indices and
         normals): ``bc_indices`` are the BC's replaced STATE rows —
-        one traction component per BC in 2D (``mesh_idx + comp *
-        npts``) — and each returned row pairs one nonzero in the mu
-        block with one in the lambda block at that row's mesh column.
+        one traction component per BC (``mesh_idx + comp * npts``) — and
+        each returned row pairs one nonzero in the mu block with one in
+        the lambda block at that row's mesh column.
 
         Parameters
         ----------
@@ -510,46 +490,27 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Array
             Assembly over the stacked [mu; lambda] field.
             Shape: (n_bc, 2*npts)
+
+        Raises
+        ------
+        NotImplementedError
+            If the law provides no Lame sensitivities (or none in this
+            dimension).
         """
         bkd = self._bkd
         npts = self.npts()
-        nbnd = bc_indices.shape[0]
-        result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
-        if self._ndim == 1:
-            Dx = self._D[0]
-            F = 1.0 + Dx @ state
-            dP_dmu = self._stress_model.stress_sensitivity_mu_1d(F, bkd)
-            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(F, bkd)
-            for i in range(nbnd):
-                idx = bkd.to_int(bc_indices[i])
-                result[i, idx] = normals[i, 0] * dP_dmu[idx]
-                result[i, npts + idx] = normals[i, 0] * dP_dlam[idx]
-            return result
-        if self._ndim == 2:
-            comp = bkd.to_int(bc_indices[0]) // npts
-            mesh_idx = bc_indices - comp * npts
-            Dx, Dy = self._D
-            u, v = self._extract_components(state)
-            F11 = (1.0 + Dx @ u)[mesh_idx]
-            F12 = (Dy @ u)[mesh_idx]
-            F21 = (Dx @ v)[mesh_idx]
-            F22 = (1.0 + Dy @ v)[mesh_idx]
-            dP_mu = self._stress_model.stress_sensitivity_mu_2d(F11, F12, F21, F22, bkd)
-            dP_lam = self._stress_model.stress_sensitivity_lamda_2d(
-                F11, F12, F21, F22, bkd
-            )
-            i1 = 2 * comp
-            i2 = 2 * comp + 1
-            dt_dmu = dP_mu[i1] * normals[:, 0] + dP_mu[i2] * normals[:, 1]
-            dt_dlam = dP_lam[i1] * normals[:, 0] + dP_lam[i2] * normals[:, 1]
-            for i in range(nbnd):
-                idx = bkd.to_int(mesh_idx[i])
-                result[i, idx] = dt_dmu[i]
-                result[i, npts + idx] = dt_dlam[i]
-            return result
-        raise NotImplementedError(
-            "boundary_traction_lame_jacobian only implemented for 1D and 2D"
-        )
+        comp = bkd.to_int(bc_indices[0]) // npts
+        mesh_idx = bc_indices - comp * npts
+        # Row r selects mesh node mesh_idx[r].
+        select = bkd.eye(npts)[mesh_idx]
+        blocks = []
+        for which in ("mu", "lamda"):
+            dP = self._stress_lame_sensitivity(state, which)[comp]
+            dt = dP[0][mesh_idx] * normals[:, 0]
+            for J in range(1, self._ndim):
+                dt = dt + dP[J][mesh_idx] * normals[:, J]
+            blocks.append(dt[:, None] * select)
+        return bkd.concatenate(blocks, axis=1)
 
     # ------------------------------------------------------------------
     # Residual computation
@@ -591,8 +552,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         Block :math:`(a, b)` is :math:`\\sum_{J, L} D_J
         \\operatorname{diag}(A_{aJbL}) D_L`, with the tangent
-        :math:`A_{iJkL} = \\partial P_{iJ}/\\partial F_{kL}` of the stress
-        model; the same assembly serves 1D, 2D and 3D.
+        :math:`A_{iJkL} = \\partial P_{iJ}/\\partial F_{kL}` of the law;
+        the same assembly serves 1D, 2D and 3D.
 
         Parameters
         ----------
@@ -605,11 +566,6 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         -------
         Array
             Jacobian matrix. Shape: (nstates, nstates)
-
-        Raises
-        ------
-        NotImplementedError
-            If the stress model provides no tangent modulus.
         """
         A = self._tangent(self._deformation_gradient(state))
         rows = []
@@ -632,44 +588,15 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         return self.jacobian(state, time)
 
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
-        """No second derivatives: the stress models supply none."""
+        """No second derivatives: the law supplies none."""
         return StateDerivatives.none()
 
     def interior_jacobian_is_time_invariant(self) -> bool:
-        """True: the stress model does not depend on time."""
+        """True: the law takes no time and the material is
+        time-invariant."""
         return True
 
     def interior_is_time_invariant(self) -> bool:
         """Whether the body force is declared time-invariant."""
         return declared_time_invariant(self._forcing)
 
-
-def create_hyperelasticity(
-    basis: TensorProductBasisProtocol[Array],
-    bkd: Backend[Array],
-    stress_model_name: str = "neo_hookean",
-    forcing: Optional[CoefficientInput[Array]] = None,
-    **stress_kwargs: float,
-) -> HyperelasticityPhysics[Array]:
-    """Create hyperelasticity physics with a named stress model.
-
-    Parameters
-    ----------
-    basis : TensorProductBasisProtocol
-        Collocation basis (1D, 2D, or 3D).
-    bkd : Backend
-        Computational backend.
-    stress_model_name : str
-        Name of registered stress model. Default: "neo_hookean".
-    forcing : float, NodalCoefficientProtocol or callable, optional
-        Body force, components stacked.
-    **stress_kwargs
-        Material parameters passed to the stress model factory.
-
-    Returns
-    -------
-    HyperelasticityPhysics
-        Hyperelasticity physics instance.
-    """
-    stress_model = create_stress_model(stress_model_name, **stress_kwargs)
-    return HyperelasticityPhysics(basis, bkd, stress_model, forcing)

@@ -24,7 +24,6 @@ from pyapprox.pde.collocation.physics.helmholtz import (
 )
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
-    create_hyperelasticity,
 )
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
@@ -103,7 +102,6 @@ __all__ = [
     "create_shallow_shelf_depth",
     # Hyperelasticity
     "HyperelasticityPhysics",
-    "create_hyperelasticity",
     # Stress models
     "StressModelProtocol",
     "StressModelWithTangentProtocol",

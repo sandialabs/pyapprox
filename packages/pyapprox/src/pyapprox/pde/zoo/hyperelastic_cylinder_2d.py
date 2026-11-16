@@ -26,11 +26,9 @@ from pyapprox.pde.collocation.physics.coefficients import CoefficientInput
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
-)
-from pyapprox.pde.constitutive import (
-    NeoHookeanStress,
 )
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
@@ -115,16 +113,12 @@ def create_hyperelastic_pressurized_cylinder_2d(
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
 
-    # Stress model shared between physics and traction BCs
-    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
-        lamda=lamda_init, mu=mu_init
-    )
-
-    # Physics
     physics = HyperelasticityPhysics(
         basis,
         bkd,
-        stress_model,
+        NeoHookeanLaw(bkd),
+        mu=mu_init,
+        lamda=lamda_init,
         forcing=forcing,
     )
 

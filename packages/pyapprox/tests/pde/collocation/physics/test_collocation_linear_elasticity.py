@@ -28,9 +28,7 @@ from pyapprox.pde.collocation.physics.coefficients import (
     NodalField,
     NodalSupplier,
 )
-from pyapprox.pde.collocation.physics.hyperelasticity import (
-    create_hyperelasticity,
-)
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
 )
@@ -129,7 +127,9 @@ def _physics(bkd: Backend[Array], physics_name: str) -> _Physics:
             basis, bkd, lamda=1.0, mu=1.0, forcing=forcing
         )
     else:
-        physics = create_hyperelasticity(basis, bkd, mu=1.0, lamda=1.5)
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=1.0, lamda=1.5
+        )
     _set_zero_dirichlet(physics, bkd)
     return physics
 

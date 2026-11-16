@@ -29,9 +29,11 @@ from pyapprox.pde.collocation.functionals.elasticity_2d import (
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.constitutive import (
     NeoHookeanStress,
@@ -159,8 +161,10 @@ class TestHyperelasticCylinder2D:
         physics = HyperelasticityPhysics(
             basis,
             bkd,
-            stress_model,
-            forcing=lambda t: forcing_flat,
+            NeoHookeanLaw(bkd),
+            mu=mu_val,
+            lamda=lamda_val,
+            forcing=NodalField(forcing_flat),
         )
 
         # All-Dirichlet BCs on all 4 sides, both components
@@ -225,8 +229,10 @@ class TestHyperelasticCylinder2D:
         physics = HyperelasticityPhysics(
             basis,
             bkd,
-            stress_model,
-            forcing=lambda t: forcing_flat,
+            NeoHookeanLaw(bkd),
+            mu=mu_val,
+            lamda=lamda_val,
+            forcing=NodalField(forcing_flat),
         )
 
         bcs = []

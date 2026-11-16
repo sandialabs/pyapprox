@@ -2,7 +2,6 @@
 
 
 import numpy as np
-import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -56,8 +55,12 @@ class TestHyperelasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
+        from pyapprox.pde.collocation.physics.coefficients import NodalField
         from pyapprox.pde.collocation.physics.hyperelasticity import (
             HyperelasticityPhysics,
+        )
+        from pyapprox.pde.collocation.physics.neo_hookean_law import (
+            NeoHookeanLaw,
         )
         from pyapprox.pde.collocation.time_integration import (
             CollocationModel,
@@ -91,8 +94,10 @@ class TestHyperelasticBar1D:
         physics = HyperelasticityPhysics(
             basis,
             bkd,
-            stress_model,
-            forcing=lambda t: forcing,
+            NeoHookeanLaw(bkd),
+            mu=mu_val,
+            lamda=lamda_val,
+            forcing=NodalField(forcing),
         )
 
         # Left: Dirichlet u(0) = 0
@@ -140,8 +145,12 @@ class TestHyperelasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
+        from pyapprox.pde.collocation.physics.coefficients import NodalField
         from pyapprox.pde.collocation.physics.hyperelasticity import (
             HyperelasticityPhysics,
+        )
+        from pyapprox.pde.collocation.physics.neo_hookean_law import (
+            NeoHookeanLaw,
         )
         from pyapprox.pde.constitutive import (
             NeoHookeanStress,
@@ -170,8 +179,10 @@ class TestHyperelasticBar1D:
         physics = HyperelasticityPhysics(
             basis,
             bkd,
-            stress_model,
-            forcing=lambda t: forcing,
+            NeoHookeanLaw(bkd),
+            mu=mu_val,
+            lamda=lamda_val,
+            forcing=NodalField(forcing),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -367,32 +378,6 @@ class TestHyperelasticBar1D:
             T_val * bkd.ones((1,)),
             rtol=1e-8,
         )
-
-    def test_set_mu_nonpositive_raises(self, bkd):
-        """Setting non-positive mu raises ValueError."""
-        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-        from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D,
-            TransformedMesh1D,
-        )
-        from pyapprox.pde.collocation.physics.hyperelasticity import (
-            HyperelasticityPhysics,
-        )
-        from pyapprox.pde.constitutive import (
-            NeoHookeanStress,
-        )
-
-        transform = AffineTransform1D((0.0, 1.0), bkd)
-        mesh = TransformedMesh1D(10, bkd, transform)
-        basis = ChebyshevBasis1D(mesh, bkd)
-        stress_model = NeoHookeanStress(lamda=1.0, mu=1.0)
-        physics = HyperelasticityPhysics(basis, bkd, stress_model)
-
-        with pytest.raises(ValueError):
-            physics.set_mu(bkd.array([-0.1]))
-
-        with pytest.raises(ValueError):
-            physics.set_lamda(bkd.array([-0.1]))
 
     def test_factory_produces_valid_model(self, bkd):
         """Zoo factory produces a working forward model."""
