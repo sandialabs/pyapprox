@@ -343,7 +343,7 @@ class TestRefusals:
         self, numpy_bkd: Backend[Array]
     ) -> None:
         with pytest.raises(TypeError, match="CollocationInteriorOperatorProtocol"):
-            CollocationRightHandSide(_burgers(numpy_bkd))  # type: ignore[arg-type]
+            CollocationRightHandSide(object())  # type: ignore[arg-type]
 
     def test_parameterization_of_another_physics(
         self, numpy_bkd: Backend[Array]

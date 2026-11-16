@@ -1,18 +1,28 @@
-"""Burgers equation physics for spectral collocation.
+r"""Burgers equation physics for spectral collocation.
 
-Implements the 1D viscous Burgers equation:
-    du/dt + u * du/dx = nu * d^2u/dx^2 + f
+Implements the 1D viscous Burgers equation
 
-In conservative form:
-    du/dt = -d/dx(u^2/2 - nu * du/dx) + f
+.. math:: \partial_t u + u\, u_x = (\nu u_x)_x + f
 
-In non-conservative form:
-    du/dt = nu * d^2u/dx^2 - u * du/dx + f
+in one of two discrete forms, which agree for the continuous equation
+but not at the nodes:
+
+- conservative, :math:`-D_1 (u^2/2 - \nu\, D_1 u) + f`: the flux is
+  formed at the nodes and differentiated, so the nodal residual
+  integrates exactly to the boundary flux difference;
+- non-conservative (advective),
+  :math:`-u \circ D_1 u + \nu\, D_2 u + (D_1 \nu) \circ D_1 u + f`.
 """
 
-from typing import Callable, Optional, Union
+from typing import Optional
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalCoefficientProtocol,
+    as_nodal_coefficient,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
@@ -20,12 +30,10 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BurgersPhysics1D(AbstractScalarPhysics[Array]):
-    """1D viscous Burgers equation physics.
+    r"""1D viscous Burgers equation physics.
 
-    Implements the viscous Burgers equation:
-        du/dt + u * du/dx = nu * d^2u/dx^2 + f
-
-    where nu is the kinematic viscosity.
+    Implements :math:`\partial_t u + u\, u_x = (\nu u_x)_x + f`; see the
+    module docstring for the two discrete forms.
 
     Parameters
     ----------
@@ -33,12 +41,19 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
         1D collocation basis (provides nodes, derivative matrices).
     bkd : Backend
         Computational backend.
-    viscosity : float or Array
-        Kinematic viscosity nu. If Array, shape: (npts,).
-    forcing : Callable[[float], Array] or Array, optional
-        Forcing term f(x). If callable, takes time and returns (npts,) array.
+    viscosity : float, NodalCoefficientProtocol or callable
+        Kinematic viscosity :math:`\nu`, in the forms
+        ``as_nodal_coefficient`` takes (an array arrives as
+        ``NodalField``).
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Forcing term f, in the same forms. Absent means none.
     conservative : bool, optional
-        If True, use conservative flux form. Default: True.
+        Use the conservative (flux) form. Default: True.
+
+    Raises
+    ------
+    ValueError
+        If the basis is not 1D.
 
     Examples
     --------
@@ -53,8 +68,8 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        viscosity: Union[float, Array],
-        forcing: Optional[Callable[[float], Array]] = None,
+        viscosity: CoefficientInput[Array],
+        forcing: Optional[CoefficientInput[Array]] = None,
         conservative: bool = True,
     ):
         super().__init__(basis, bkd)
@@ -63,38 +78,33 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
             raise ValueError("BurgersPhysics1D requires a 1D basis")
 
         npts = basis.npts()
-
-        # Store viscosity
-        if isinstance(viscosity, (int, float)):
-            self._viscosity_value = float(viscosity)
-            self._viscosity_array = bkd.full((npts,), float(viscosity))
-            self._is_variable_viscosity = False
-        else:
-            self._viscosity_value = None
-            self._viscosity_array = viscosity
-            self._is_variable_viscosity = True
-
-        self._forcing_func = forcing
+        self._viscosity = as_nodal_coefficient(viscosity, npts, bkd)
+        self._forcing: Optional[NodalCoefficientProtocol[Array]] = (
+            None if forcing is None else as_nodal_coefficient(forcing, npts, bkd)
+        )
         self._conservative = conservative
 
         # Precompute derivative matrices
         self._D1 = basis.derivative_matrix(1, 0)  # First derivative
         self._D2 = basis.derivative_matrix(2, 0)  # Second derivative
 
-    def viscosity(self) -> Union[float, Array]:
-        """Return viscosity coefficient."""
-        if self._viscosity_value is not None:
-            return self._viscosity_value
-        return self._viscosity_array
+    def viscosity_function(self) -> NodalCoefficientProtocol[Array]:
+        """The viscosity coefficient."""
+        return self._viscosity
+
+    def forcing_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The forcing; None without a forcing term."""
+        return self._forcing
+
+    def is_conservative(self) -> bool:
+        """Whether the conservative (flux) form is used."""
+        return self._conservative
 
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""
-        npts = self.npts()
-        if self._forcing_func is None:
-            return self._bkd.zeros((npts,))
-        if callable(self._forcing_func):
-            return self._forcing_func(time)
-        return self._forcing_func
+        if self._forcing is None:
+            return self._bkd.zeros((self.npts(),))
+        return self._forcing.values(time)
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
@@ -113,45 +123,18 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
         Array
             Residual. Shape: (npts,)
         """
-        self.npts()
-
-        # First and second derivatives
+        nu = self._viscosity.values(time)
         du_dx = self._D1 @ state
-        d2u_dx2 = self._D2 @ state
-
         if self._conservative:
-            # Conservative form: -d/dx(u^2/2 - nu * du/dx)
-            # = -d/dx(u^2/2) + nu * d^2u/dx^2
-            # = -u * du/dx + nu * d^2u/dx^2
-            # Note: d/dx(u^2/2) = u * du/dx
-
-            # Flux = u^2/2 - nu * du/dx
-            # -div(flux) = -d/dx(u^2/2) + d/dx(nu * du/dx)
-
-            # For constant viscosity:
-            # residual = -u * du/dx + nu * d^2u/dx^2
-            if not self._is_variable_viscosity:
-                residual = -state * du_dx + self._viscosity_value * d2u_dx2
-            else:
-                # Variable viscosity: d/dx(nu * du/dx) = nu * d^2u/dx^2 + dnu/dx * du/dx
-                dnu_dx = self._D1 @ self._viscosity_array
-                residual = (
-                    -state * du_dx + self._viscosity_array * d2u_dx2 + dnu_dx * du_dx
-                )
+            flux = 0.5 * state * state - nu * du_dx
+            residual = -(self._D1 @ flux)
         else:
-            # Non-conservative form: nu * d^2u/dx^2 - u * du/dx
-            if not self._is_variable_viscosity:
-                residual = self._viscosity_value * d2u_dx2 - state * du_dx
-            else:
-                dnu_dx = self._D1 @ self._viscosity_array
-                residual = (
-                    self._viscosity_array * d2u_dx2 + dnu_dx * du_dx - state * du_dx
-                )
-
-        # Add forcing
-        residual = residual + self._get_forcing(time)
-
-        return residual
+            residual = (
+                nu * (self._D2 @ state)
+                + (self._D1 @ nu) * du_dx
+                - state * du_dx
+            )
+        return residual + self._get_forcing(time)
 
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian df/du.
@@ -168,52 +151,65 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
         Array
             Jacobian matrix. Shape: (npts, npts)
         """
-        bkd = self._bkd
-        npts = self.npts()
+        nu = self._viscosity.values(time)
+        D1 = self._D1
+        if self._conservative:
+            # -D1 (diag(u) - diag(nu) D1), formed by column / row scaling
+            return -(D1 * state[None, :]) + D1 @ (nu[:, None] * D1)
+        du_dx = D1 @ state
+        jacobian = nu[:, None] * self._D2 + (D1 @ nu)[:, None] * D1
+        return jacobian - self._bkd.diag(du_dx) - state[:, None] * D1
 
-        # Compute du/dx for the nonlinear term
-        du_dx = self._D1 @ state
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
+    ) -> Array:
+        r""":math:`\lambda^\top (\partial^2 f/\partial u^2) w`, exact: the
+        residual is quadratic in the state. Shape: (npts,)
 
-        # Jacobian of -u * du/dx w.r.t. u:
-        # d/du_j[-u_i * (du/dx)_i]
-        # = -delta_{ij} * (du/dx)_i - u_i * D1[i,j]
-        # = -diag(du/dx) - diag(u) @ D1
+        Conservative: :math:`-w \circ D_1^\top \lambda`. Non-conservative:
+        :math:`-\lambda \circ D_1 w - D_1^\top (\lambda \circ w)`.
+        """
+        D1 = self._D1
+        if self._conservative:
+            return -wvec * (D1.T @ adj_state)
+        return -adj_state * (D1 @ wvec) - D1.T @ (adj_state * wvec)
 
-        # Jacobian of viscous term:
-        # d/du_j[nu * d^2u/dx^2] = nu * D2 (for constant nu)
+    # -- the interior operator (CollocationInteriorOperatorProtocol)
 
-        jacobian = bkd.zeros((npts, npts))
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """:math:`f(u, t)`, no boundary condition applied. Shape: (npts,)"""
+        return self.residual(state, time)
 
-        # Viscous term contribution
-        if not self._is_variable_viscosity:
-            jacobian = jacobian + self._viscosity_value * self._D2
-        else:
-            # Variable viscosity: d/du[nu * d^2u/dx^2 + dnu/dx * du/dx]
-            # = diag(nu) @ D2 + diag(dnu/dx) @ D1
-            dnu_dx = self._D1 @ self._viscosity_array
-            jacobian = (
-                jacobian
-                + bkd.diag(self._viscosity_array) @ self._D2
-                + bkd.diag(dnu_dx) @ self._D1
-            )
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r""":math:`\partial f/\partial u`. Shape: (npts, npts)"""
+        return self.jacobian(state, time)
 
-        # Nonlinear term: -u * du/dx
-        # Jacobian = -diag(du/dx) - diag(u) @ D1
-        jacobian = jacobian - bkd.diag(du_dx) - bkd.diag(state) @ self._D1
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Quadratic in the state: exact second derivatives."""
+        return StateDerivatives.second_order(self.state_state_hvp)
 
-        return jacobian
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether the viscosity is declared time-invariant."""
+        return not self._viscosity.is_time_dependent()
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether, besides the viscosity, the forcing is declared
+        time-invariant."""
+        return self.interior_jacobian_is_time_invariant() and not (
+            self._forcing is not None and self._forcing.is_time_dependent()
+        )
 
 
 def create_burgers_1d(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
-    viscosity: Union[float, Array],
-    forcing: Optional[Callable[[float], Array]] = None,
+    viscosity: CoefficientInput[Array],
+    forcing: Optional[CoefficientInput[Array]] = None,
     conservative: bool = True,
 ) -> BurgersPhysics1D[Array]:
-    """Create 1D Burgers equation physics.
+    r"""Create 1D Burgers equation physics.
 
-    Solves: du/dt + u * du/dx = nu * d^2u/dx^2 + f
+    Solves :math:`\partial_t u + u\, u_x = (\nu u_x)_x + f`.
 
     Parameters
     ----------
@@ -221,10 +217,10 @@ def create_burgers_1d(
         1D collocation basis.
     bkd : Backend
         Computational backend.
-    viscosity : float or Array
+    viscosity : float, NodalCoefficientProtocol or callable
         Kinematic viscosity.
-    forcing : Callable or Array, optional
-        Source term f(x).
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Source term f.
     conservative : bool
         Use conservative form (default: True).
 
