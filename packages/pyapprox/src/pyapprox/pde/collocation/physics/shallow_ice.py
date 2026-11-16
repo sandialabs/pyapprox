@@ -18,9 +18,17 @@ where:
     C = friction coefficient
 """
 
-from typing import Callable, Optional, Union
+from typing import Optional
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalCoefficientProtocol,
+    as_nodal_coefficient,
+    declared_time_invariant,
+    optional_nodal_coefficient,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
@@ -42,16 +50,18 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         Collocation basis (provides nodes, derivative matrices).
     bkd : Backend
         Computational backend.
-    bed : Array
-        Bed elevation b. Shape: (npts,)
-    friction : float or Array
-        Friction coefficient C. If Array, shape: (npts,)
+    bed : float, NodalCoefficientProtocol or callable
+        Bed elevation b, in the forms ``as_nodal_coefficient`` takes (nodal
+        values arrive as ``NodalField``).
+    friction : float, NodalCoefficientProtocol or callable
+        Friction coefficient C, in the same forms.
     A : float
         Rate factor in Glen's flow law (typical: 1e-16 to 1e-17 Pa^-3 s^-1)
     rho : float
         Ice density (kg/m^3). Typical: 917.0
-    forcing : Callable[[float], Array] or Array, optional
-        Forcing/source term f (e.g., accumulation - ablation).
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Forcing/source term f (e.g., accumulation - ablation), in the same
+        forms. Absent means none.
     eps : float
         Small regularization parameter to avoid division by zero
         in gradient norm. Default: 1e-12
@@ -63,7 +73,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
     >>> bkd = NumpyBkd()
     >>> mesh = TransformedMesh1D(30, bkd)
     >>> basis = ChebyshevBasis1D(mesh, bkd)
-    >>> bed = 0.1 * basis.nodes()  # Sloped bed
+    >>> bed = NodalField(0.1 * basis.nodes())  # Sloped bed
     >>> physics = ShallowIcePhysics(
     ...     basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0
     ... )
@@ -73,25 +83,26 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        bed: Array,
-        friction: Union[float, Array],
+        bed: CoefficientInput[Array],
+        friction: CoefficientInput[Array],
         A: float,
         rho: float,
-        forcing: Optional[Callable[[float], Array]] = None,
+        forcing: Optional[CoefficientInput[Array]] = None,
         eps: float = 1e-12,
         glen_exponent: float = 3.0,
     ):
         super().__init__(basis, bkd)
 
-        self._bed = bed
+        npts = basis.npts()
+        ndim = basis.ndim()
+        self._bed = as_nodal_coefficient(bed, npts, bkd)
+        self._friction = as_nodal_coefficient(friction, npts, bkd)
+        self._forcing = optional_nodal_coefficient(forcing, npts, bkd)
         self._A = A
         self._rho = rho
         self._g = 9.81  # Gravitational acceleration
         self._n = float(glen_exponent)  # Glen's flow law exponent
         self._eps = eps
-
-        npts = basis.npts()
-        ndim = basis.ndim()
 
         # Compute gamma = 2*A*(rho*g)^n / (n+2). The annotation is
         # required: float ** float is typed Any in typeshed.
@@ -99,31 +110,33 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
         )
 
-        # Store friction coefficient
-        if isinstance(friction, (int, float)):
-            self._friction_array = bkd.full((npts,), float(friction))
-        else:
-            self._friction_array = friction
-
-        # Friction fraction: rho*g/C
-        self._friction_frac = self._rho * self._g / self._friction_array
-
-        self._forcing_func = forcing
-
         # Precompute derivative matrices
         self._D_matrices = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
 
+    def bed_function(self) -> NodalCoefficientProtocol[Array]:
+        """The bed elevation."""
+        return self._bed
+
+    def friction_function(self) -> NodalCoefficientProtocol[Array]:
+        """The friction coefficient."""
+        return self._friction
+
+    def forcing_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The forcing; None without a forcing term."""
+        return self._forcing
+
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""
-        npts = self.npts()
-        if self._forcing_func is None:
-            return self._bkd.zeros((npts,))
-        if callable(self._forcing_func):
-            return self._forcing_func(time)
-        return self._forcing_func
+        if self._forcing is None:
+            return self._bkd.zeros((self.npts(),))
+        return self._forcing.values(time)
+
+    def _friction_fraction(self, time: float) -> Array:
+        """rho g / C at ``time``, evaluated, never cached."""
+        return self._rho * self._g / self._friction.values(time)
 
     def _compute_surface_gradient(
-        self, state: Array
+        self, state: Array, time: float
     ) -> tuple[list[Array], Array]:
         """Compute surface gradient components.
 
@@ -131,6 +144,8 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         ----------
         state : Array
             Ice thickness H. Shape: (npts,)
+        time : float
+            Time at which the bed is read.
 
         Returns
         -------
@@ -141,7 +156,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         ndim = self._basis.ndim()
 
         # Surface elevation s = H + bed
-        surface = state + self._bed
+        surface = state + self._bed.values(time)
 
         # Surface gradient components
         grad_s = [self._D_matrices[dim] @ surface for dim in range(ndim)]
@@ -153,7 +168,9 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
 
         return grad_s, grad_s_sq
 
-    def _compute_diffusion(self, state: Array, grad_s_sq: Array) -> Array:
+    def _compute_diffusion(
+        self, state: Array, grad_s_sq: Array, friction_frac: Array
+    ) -> Array:
         """Compute nonlinear diffusion coefficient.
 
         D = gamma * H^(n+2) * |grad(s)|^(n-1) + friction_frac * H^2
@@ -164,6 +181,8 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             Ice thickness H. Shape: (npts,)
         grad_s_sq : Array
             Squared magnitude of surface gradient. Shape: (npts,)
+        friction_frac : Array
+            rho g / C. Shape: (npts,)
 
         Returns
         -------
@@ -181,12 +200,12 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         deformation = self._gamma * H_power * grad_power
 
         # Sliding component: friction_frac * H^2
-        sliding = self._friction_frac * state**2
+        sliding = friction_frac * state**2
 
         return deformation + sliding
 
     def _compute_diffusion_derivatives(
-        self, state: Array, grad_s_sq: Array
+        self, state: Array, grad_s_sq: Array, friction_frac: Array
     ) -> tuple[Array, Array]:
         """Compute partial derivatives of the diffusion coefficient.
 
@@ -215,6 +234,8 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             Ice thickness H. Shape: (npts,)
         grad_s_sq : Array
             Squared magnitude of surface gradient. Shape: (npts,)
+        friction_frac : Array
+            rho g / C. Shape: (npts,)
 
         Returns
         -------
@@ -225,7 +246,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         reg = grad_s_sq + self._eps
         kappa_h = (
             self._gamma * (n + 2) * state ** (n + 1) * reg ** ((n - 1) / 2)
-            + 2.0 * self._friction_frac * state
+            + 2.0 * friction_frac * state
         )
         kappa_g = (
             self._gamma * ((n - 1) / 2) * state ** (n + 2) * reg ** ((n - 3) / 2)
@@ -252,10 +273,10 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         ndim = self._basis.ndim()
 
         # Compute surface gradient and its squared magnitude
-        grad_s, grad_s_sq = self._compute_surface_gradient(state)
+        grad_s, grad_s_sq = self._compute_surface_gradient(state, time)
 
         # Compute nonlinear diffusion
-        D = self._compute_diffusion(state, grad_s_sq)
+        D = self._compute_diffusion(state, grad_s_sq, self._friction_fraction(time))
 
         # Flux = D * grad(s)
         flux = [D * gs for gs in grad_s]
@@ -302,37 +323,62 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         npts = self.npts()
         ndim = self._basis.ndim()
 
-        grad_s, grad_s_sq = self._compute_surface_gradient(state)
-        kappa = self._compute_diffusion(state, grad_s_sq)
-        kappa_h, kappa_g = self._compute_diffusion_derivatives(state, grad_s_sq)
+        grad_s, grad_s_sq = self._compute_surface_gradient(state, time)
+        friction_frac = self._friction_fraction(time)
+        kappa = self._compute_diffusion(state, grad_s_sq, friction_frac)
+        kappa_h, kappa_g = self._compute_diffusion_derivatives(
+            state, grad_s_sq, friction_frac
+        )
 
-        # grad_dot_mat @ delta = grad(s) . grad(delta); shared across d
+        # grad_dot_mat @ delta = grad(s) . grad(delta); shared across d.
+        # Products with diagonal matrices are formed by row scaling.
         grad_dot_mat = bkd.zeros((npts, npts))
         for dim in range(ndim):
-            grad_dot_mat = (
-                grad_dot_mat + bkd.diag(grad_s[dim]) @ self._D_matrices[dim]
-            )
+            grad_dot_mat = grad_dot_mat + grad_s[dim][:, None] * self._D_matrices[dim]
 
         jacobian = bkd.zeros((npts, npts))
         for dim in range(ndim):
             inner = (
                 bkd.diag(kappa_h * grad_s[dim])
-                + bkd.diag(kappa) @ self._D_matrices[dim]
-                + bkd.diag(2.0 * kappa_g * grad_s[dim]) @ grad_dot_mat
+                + kappa[:, None] * self._D_matrices[dim]
+                + (2.0 * kappa_g * grad_s[dim])[:, None] * grad_dot_mat
             )
             jacobian = jacobian + self._D_matrices[dim] @ inner
 
         return jacobian
 
+    # -- the interior operator (CollocationInteriorOperatorProtocol)
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """:math:`f(H, t)`, no boundary condition applied. Shape: (npts,)"""
+        return self.residual(state, time)
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r""":math:`\partial f/\partial H`. Shape: (npts, npts)"""
+        return self.jacobian(state, time)
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """No second derivatives are supplied."""
+        return StateDerivatives.none()
+
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether the bed and friction are declared time-invariant."""
+        return declared_time_invariant(self._bed, self._friction)
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether, besides the bed and friction, the forcing is declared
+        time-invariant."""
+        return declared_time_invariant(self._bed, self._friction, self._forcing)
+
 
 def create_shallow_ice(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
-    bed: Array,
-    friction: Union[float, Array],
+    bed: CoefficientInput[Array],
+    friction: CoefficientInput[Array],
     A: float = 1e-16,
     rho: float = 917.0,
-    forcing: Optional[Callable[[float], Array]] = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
     eps: float = 1e-12,
     glen_exponent: float = 3.0,
 ) -> ShallowIcePhysics[Array]:
@@ -344,15 +390,15 @@ def create_shallow_ice(
         Collocation basis.
     bkd : Backend
         Computational backend.
-    bed : Array
+    bed : float, NodalCoefficientProtocol or callable
         Bed elevation.
-    friction : float or Array
+    friction : float, NodalCoefficientProtocol or callable
         Friction coefficient C.
     A : float
         Rate factor (default: 1e-16).
     rho : float
         Ice density (default: 917.0).
-    forcing : Callable or Array, optional
+    forcing : float, NodalCoefficientProtocol or callable, optional
         Source term.
     eps : float
         Regularization parameter.

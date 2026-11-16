@@ -36,6 +36,7 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import ShallowIcePhysics
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.manufactured import (
     ManufacturedShallowIce,
 )
@@ -124,7 +125,9 @@ class TestManufacturedShallowIce1D:
 
         # Create physics with manufactured forcing
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
         )
 
         # Set Dirichlet BCs at boundaries
@@ -177,7 +180,9 @@ class TestManufacturedShallowIce1D:
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
         )
 
         wrapper = PhysicsDerivativeWrapper(physics)
@@ -215,7 +220,9 @@ class TestManufacturedShallowIce1D:
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -285,11 +292,11 @@ class TestShallowIce1DParameterized:
         physics = ShallowIcePhysics(
             basis,
             bkd,
-            bed=bed,
+            bed=NodalField(bed),
             friction=friction,
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -349,7 +356,9 @@ class TestShallowIce1DParameterized:
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
         )
 
         wrapper = PhysicsDerivativeWrapper(physics)

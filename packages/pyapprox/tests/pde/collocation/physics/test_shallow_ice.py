@@ -1,5 +1,6 @@
 """Tests for Shallow Ice physics implementation."""
 
+from typing import Optional
 
 import numpy as np
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
@@ -16,17 +18,33 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     create_uniform_mesh_1d,
 )
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalField,
+    NodalSupplier,
+)
 from pyapprox.pde.collocation.physics.shallow_ice import (
     ShallowIcePhysics,
     create_shallow_ice,
+)
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.manufactured.shallow_ice import (
     ManufacturedShallowIce,
 )
+from pyapprox.pde.models.collocation.right_hand_side import (
+    CollocationRightHandSide,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.physics_test_utils import (
     PhysicsDerivativeWrapper,
@@ -50,7 +68,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0
+            basis, bkd, bed=NodalField(bed), friction=1e6, A=1e-16, rho=917.0
         )
 
         # Positive ice thickness (physically meaningful)
@@ -72,7 +90,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         bed = 100.0 * nodes
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0
+            basis, bkd, bed=NodalField(bed), friction=1e6, A=1e-16, rho=917.0
         )
 
         # Positive ice thickness
@@ -127,7 +145,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bed = bed[:, 0]
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
         )
 
         # Get exact solution
@@ -178,7 +198,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bed = bed[:, 0]
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
         )
 
         # Set boundary conditions
@@ -223,7 +245,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = create_shallow_ice(
-            basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0
+            basis, bkd, bed=NodalField(bed), friction=1e6, A=1e-16, rho=917.0
         )
 
         assert physics.ncomponents() == 1
@@ -264,7 +286,13 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bed = bed[:, 0]
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=forcing_fn
+            basis,
+            bkd,
+            bed=NodalField(bed),
+            friction=1.0,
+            A=A,
+            rho=rho,
+            forcing=forcing_fn,
         )
 
         exact_at_0 = man_sol.functions["solution"](nodes[None, :], 0.0)
@@ -307,7 +335,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
 
     @staticmethod
-    def _make_shallow_ice(bkd, ndim, bed_type, friction, glen_exponent):
+    def _make_shallow_ice(
+        bkd, ndim, bed_type, friction, glen_exponent, forcing=None
+    ):
         """Build normalized (A=1, rho=1) shallow-ice physics on a
         1D or 2D Chebyshev basis with flat or varying bed."""
         if ndim == 1:
@@ -331,10 +361,11 @@ class TestShallowIcePhysics(PhysicsTestBase):
         physics = ShallowIcePhysics(
             basis,
             bkd,
-            bed=bed,
+            bed=NodalField(bed),
             friction=friction,
             A=1.0,
             rho=1.0,
+            forcing=forcing,
             glen_exponent=glen_exponent,
         )
         return physics, npts
@@ -376,12 +407,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bkd, 2, "varying", 1.0, 3.0
         )
         forcing_vals = bkd.asarray(np.random.uniform(-1.0, 1.0, (npts,)))
-
-        def forcing_fn(t):
-            return forcing_vals
-
-        physics_forced, _ = self._make_shallow_ice(bkd, 2, "varying", 1.0, 3.0)
-        physics_forced._forcing_func = forcing_fn
+        physics_forced, _ = self._make_shallow_ice(
+            bkd, 2, "varying", 1.0, 3.0, forcing=NodalField(forcing_vals)
+        )
         state = bkd.asarray(2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,)))
         jac_plain = physics_plain.jacobian(state, 0.0)
         jac_forced = physics_forced.jacobian(state, 0.0)
@@ -402,14 +430,13 @@ class TestShallowIcePhysics(PhysicsTestBase):
         friction = 2.0
         physics, npts = self._make_shallow_ice(bkd, 1, "varying", friction, 3.0)
         state = bkd.asarray(2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,)))
-        _, grad_s_sq = physics._compute_surface_gradient(state)
-        kappa_h, kappa_g = physics._compute_diffusion_derivatives(
-            state, grad_s_sq
-        )
-
         gravity = 9.81
         gamma = 2.0 * 1.0 * (1.0 * gravity) ** 3 / 5.0
         friction_frac = 1.0 * gravity / friction
+        _, grad_s_sq = physics._compute_surface_gradient(state, 0.0)
+        kappa_h, kappa_g = physics._compute_diffusion_derivatives(
+            state, grad_s_sq, bkd.full((npts,), friction_frac)
+        )
         eps = 1e-12
         bkd.assert_allclose(kappa_g, gamma * state**5, rtol=1e-12)
         bkd.assert_allclose(
@@ -444,3 +471,97 @@ class TestShallowIcePhysics(PhysicsTestBase):
         (measured final error ~1.3e-13).
         """
         self._run_transient_shallow_ice(bkd, "crank_nicolson", atol=1e-11)
+
+
+_NPTS_SIA = 10
+
+
+def _sia_nodes(bkd: Backend[Array]) -> Array:
+    return ChebyshevBasis1D(TransformedMesh1D(_NPTS_SIA, bkd), bkd).nodes()
+
+
+def _growing(coords: Array, time: float) -> Array:
+    return (1.0 + time) * (1.5 + 0.5 * coords[0])
+
+
+def _fixed(coords: Array) -> Array:
+    return 1.5 + 0.5 * coords[0]
+
+
+def _sia(
+    bkd: Backend[Array],
+    bed: CoefficientInput[Array],
+    friction: CoefficientInput[Array] = 1.0,
+    forcing: Optional[CoefficientInput[Array]] = None,
+) -> ShallowIcePhysics[Array]:
+    basis = ChebyshevBasis1D(TransformedMesh1D(_NPTS_SIA, bkd), bkd)
+    return ShallowIcePhysics(
+        basis, bkd, bed=bed, friction=friction, A=1.0, rho=1.0, forcing=forcing
+    )
+
+
+def _declared(bkd: Backend[Array], dependent: bool) -> NodalSupplier[Array]:
+    nodes = bkd.reshape(_sia_nodes(bkd), (1, _NPTS_SIA))
+    if dependent:
+        growing: TimeDependent[Array] = TimeDependent(_growing)
+        return NodalSupplier(growing, nodes)
+    fixed: TimeIndependent[Array] = TimeIndependent(_fixed)
+    return NodalSupplier(fixed, nodes)
+
+
+def _sia_state(bkd: Backend[Array]) -> Array:
+    rng = np.random.default_rng(5)
+    return bkd.asarray(2.0 + 0.5 * rng.uniform(-1.0, 1.0, _NPTS_SIA))
+
+
+class TestShallowIceInterior:
+    def test_time_dependent_forcing(self, bkd: Backend[Array]) -> None:
+        """A time-dependent forcing leaves the Jacobian time-invariant but
+        not the operator; the bundle passes the checker."""
+        physics = _sia(
+            bkd, NodalField(0.1 * _sia_nodes(bkd)), forcing=_declared(bkd, True)
+        )
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        assert physics.interior_jacobian_is_time_invariant()
+        assert not physics.interior_is_time_invariant()
+        rhs = CollocationRightHandSide(physics)
+        report = ODEResidualBundleChecker(rhs).check(_sia_state(bkd), 0.3)
+        assert report.failures() == []
+
+    def test_declared_coefficients(self, bkd: Backend[Array]) -> None:
+        """Bed and friction carry the Jacobian's time dependence; declared
+        time-independent suppliers keep it invariant."""
+        flat = NodalField(bkd.zeros((_NPTS_SIA,)))
+        moving_bed = _sia(bkd, _declared(bkd, True))
+        assert not moving_bed.interior_jacobian_is_time_invariant()
+        moving_friction = _sia(bkd, flat, friction=_declared(bkd, True))
+        assert not moving_friction.interior_jacobian_is_time_invariant()
+        fixed = _sia(bkd, _declared(bkd, False), friction=_declared(bkd, False))
+        assert fixed.interior_is_time_invariant()
+
+    @pytest.mark.parametrize("coefficient", ["bed", "friction"])
+    def test_coefficient_read_at_evaluation_time(
+        self, bkd: Backend[Array], coefficient: str
+    ) -> None:
+        """A time-dependent bed or friction gives, at time t, the residual
+        and Jacobian of the physics built from its values at t."""
+        time = 0.7
+        frozen = NodalField(_declared(bkd, True).values(time))
+        flat = NodalField(bkd.zeros((_NPTS_SIA,)))
+        if coefficient == "bed":
+            moving = _sia(bkd, _declared(bkd, True))
+            reference = _sia(bkd, frozen)
+        else:
+            moving = _sia(bkd, flat, friction=_declared(bkd, True))
+            reference = _sia(bkd, flat, friction=frozen)
+        state = _sia_state(bkd)
+        residual = moving.residual(state, time)
+        bkd.assert_allclose(residual, reference.residual(state, 0.0), rtol=1e-12)
+        bkd.assert_allclose(
+            moving.jacobian(state, time),
+            reference.jacobian(state, 0.0),
+            rtol=1e-12,
+        )
+        # and it changes with time, so the comparison is not vacuous
+        change = bkd.max(bkd.abs(moving.residual(state, 0.0) - residual))
+        assert float(change) > 1e-3
