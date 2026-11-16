@@ -1,6 +1,8 @@
 """Physics protocols for spectral collocation methods.
 
 Defines the protocols for PDE physics:
+- CollocationInteriorOperatorProtocol - the interior operator, with no
+  boundary condition in it, and what it is declared to depend on
 - PhysicsProtocol - basic residual and Jacobian
 - PhysicsWithStateStateHVPProtocol - adds the state-state HVP contraction
 
@@ -11,12 +13,66 @@ not embedded in physics.
 
 from typing import Generic, List, Protocol, Tuple, runtime_checkable
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import BCDofClassification
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
 from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class CollocationInteriorOperatorProtocol(Protocol, Generic[Array]):
+    r"""The interior operator :math:`f(u, t)` of a collocation physics.
+
+    The PDE's spatial operator collocated at every node, boundary nodes
+    included, with no boundary condition in it: the boundary rows are
+    treated by the system that holds the physics, never by the physics
+    itself. A transient problem reads :math:`M \dot u = f(u, t)`.
+
+    The members are those of the Galerkin interior operator, so one
+    consumer can read either. What the operator depends on is declared,
+    not inferred: the declarations decide whether its Jacobian is
+    reassembled at each state, at each time or never.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def nstates(self) -> int:
+        """Return the number of states."""
+        ...
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute :math:`f(u, t)`. Shape: (nstates,)."""
+        ...
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r"""Compute :math:`\partial f/\partial u`. Shape: (nstates, nstates)."""
+        ...
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the optional second state derivatives of :math:`f`.
+
+        ``StateDerivatives.linear`` for an operator affine in the state;
+        ``StateDerivatives.none()`` when the curvature is not supplied.
+        """
+        ...
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether :math:`f(u, t)` is DECLARED independent of :math:`t`:
+        every coefficient and forcing it holds is declared
+        time-independent."""
+        ...
+
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        r"""Whether :math:`\partial f/\partial u` at a fixed state is
+        DECLARED independent of :math:`t`. Weaker than
+        ``interior_is_time_invariant``: a forcing does not enter the
+        Jacobian."""
+        ...
 
 
 @runtime_checkable

@@ -39,6 +39,7 @@ from pyapprox.pde.collocation.protocols.operators import (
     FieldWithJacobianProtocol,
 )
 from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
     PhysicsProtocol,
     PhysicsWithStateStateHVPProtocol,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "FieldWithJacobianProtocol",
     "DifferentialOperatorProtocol",
     # Physics
+    "CollocationInteriorOperatorProtocol",
     "PhysicsProtocol",
     "PhysicsWithStateStateHVPProtocol",
     # Parameterization
