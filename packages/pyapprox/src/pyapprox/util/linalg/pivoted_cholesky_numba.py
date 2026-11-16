@@ -82,9 +82,12 @@ def pivoted_cholesky_econ_numba(
     n = K.shape[0]
     diag = np.empty(n, dtype=np.float64)
     init_error = 0.0
+    max_diag = 0.0
     for i in range(n):
         diag[i] = K[i, i]
         init_error += abs(diag[i])
+        max_diag = max(max_diag, abs(diag[i]))
+    diag_floor = 1e-14 * max_diag  # relative: see pivoted_cholesky._DIAG_FLOOR
 
     L = np.zeros((n, npivots), dtype=np.float64)
     perm = np.arange(n, dtype=np.int64)
@@ -113,7 +116,7 @@ def pivoted_cholesky_econ_numba(
         perm[ii], perm[best] = perm[best], perm[ii]
         p_ii = perm[ii]
 
-        if diag[p_ii] <= 1e-14:
+        if diag[p_ii] <= diag_floor:
             break
 
         sqrt_d = np.sqrt(diag[p_ii])
@@ -208,9 +211,12 @@ def pivoted_cholesky_fused_numba(
     n = X.shape[1]
     diag = np.empty(n, dtype=np.float64)
     init_error = 0.0
+    max_diag = 0.0
     for i in range(n):
         diag[i] = kernel_func(X[:, i], X[:, i], kernel_params)
         init_error += abs(diag[i])
+        max_diag = max(max_diag, abs(diag[i]))
+    diag_floor = 1e-14 * max_diag  # relative: see pivoted_cholesky._DIAG_FLOOR
 
     L = np.zeros((n, npivots), dtype=np.float64)
     perm = np.arange(n, dtype=np.int64)
@@ -239,7 +245,7 @@ def pivoted_cholesky_fused_numba(
         perm[ii], perm[best] = perm[best], perm[ii]
         p_ii = perm[ii]
 
-        if diag[p_ii] <= 1e-14:
+        if diag[p_ii] <= diag_floor:
             break
 
         sqrt_d = np.sqrt(diag[p_ii])

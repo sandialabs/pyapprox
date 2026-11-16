@@ -23,6 +23,11 @@ from pyapprox.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
 
+#: A pivot whose residual diagonal is at most this fraction of the largest
+#: diagonal entry ends the factorization (numerical rank exhausted). Shared
+#: with the numba kernels.
+_DIAG_FLOOR = 1e-14
+
 
 # -------------------------------------------------------------------
 # Column operator protocol and implementations
@@ -305,7 +310,9 @@ class PivotedCholeskyFactorizer(Generic[Array]):
 
     def _factorize_generic(self, npivots: int) -> None:
         bkd = self._bkd
-        self._L = bkd.zeros((self._nrows, self._nrows))
+        # npivots columns, not nrows: a low-rank factor of a large operator
+        # (e.g. a Nystrom KLE on 2e5 points) must not allocate nrows**2.
+        self._L = bkd.zeros((self._nrows, npivots))
         self._pivots_arr = bkd.arange(self._nrows)
         self._diag = self._op.diagonal()
         self._init_error = bkd.sum(bkd.abs(self._diag))
@@ -324,9 +331,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         init_error: float | None = None,
     ) -> None:
         bkd = self._bkd
-        L_full = np.zeros((self._nrows, self._nrows), dtype=np.float64)
-        L_full[:, :npivots] = L
-        self._L = bkd.asarray(L_full)
+        self._L = bkd.asarray(L)
         self._pivots_arr = bkd.asarray(perm)
         self._diag = bkd.asarray(diag)
         if init_error is not None:
@@ -359,6 +364,15 @@ class PivotedCholeskyFactorizer(Generic[Array]):
             raise RuntimeError("Must call factorize() before update()")
         if self._ncompleted_pivots >= npivots:
             raise ValueError("Already have enough pivots")
+        if npivots > self._nrows:
+            raise ValueError(
+                "Number of pivots requested exceeds number of matrix rows"
+            )
+        ncols = int(self._L.shape[1])
+        if ncols < npivots:
+            self._L = self._bkd.hstack(
+                [self._L, self._bkd.zeros((self._nrows, npivots - ncols))]
+            )
         self._update_loop(npivots)
 
     def _update_loop(self, npivots: int) -> None:
@@ -371,13 +385,20 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         if not self._econ and self._pivot_weights is not None:
             raise ValueError("pivot weights not used when econ is False")
 
+        # Relative to the largest diagonal entry, so the test does not depend
+        # on the operator's scale (a quadrature-weighted kernel has diagonal
+        # entries equal to the weights, ~1e-9 on a 2e5-point mesh).
+        diag_floor = _DIAG_FLOOR * bkd.max(bkd.abs(self._op.diagonal()))
+
         for ii in range(self._ncompleted_pivots, npivots):
             pivot = self._compute_pivot(ii)
             _swap_rows(self._pivots_arr, ii, pivot, bkd)
 
-            if self._diag[self._pivots_arr[ii]] <= 1e-14:
-                self._termination_flag = 3
-                raise ValueError("Matrix is not positive semi-definite")
+            if self._diag[self._pivots_arr[ii]] <= diag_floor:
+                # Numerical rank exhausted: stop, as the numba kernels do.
+                self._termination_flag = 1
+                self._termination_msg = "Tolerance reached"
+                return
 
             self._L[self._pivots_arr[ii], ii] = bkd.sqrt(
                 self._diag[self._pivots_arr[ii]]

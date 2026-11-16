@@ -4,13 +4,18 @@ Tests replicate legacy tests from pyapprox/util/tests/test_linalg.py
 using the new typing module implementation.
 """
 
+from typing import Any
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     SquaredExponentialKernel,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.pivoted_cholesky import (
     _HAS_NUMBA,
     KernelColumnOperator,
@@ -26,10 +31,10 @@ class TestPivotedCholesky:
     """
 
     @pytest.fixture(autouse=True)
-    def _seed(self):
+    def _seed(self) -> None:
         np.random.seed(1)
 
-    def test_full_factorization(self, bkd) -> None:
+    def test_full_factorization(self, bkd: Backend[Array]) -> None:
         """Full pivoted Cholesky recovers A = L @ L.T."""
         nrows = 4
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, nrows)))
@@ -40,7 +45,7 @@ class TestPivotedCholesky:
         L = fact.factor()
         bkd.assert_allclose(L @ L.T, A, rtol=1e-10)
 
-    def test_low_rank_factorization(self, bkd) -> None:
+    def test_low_rank_factorization(self, bkd: Backend[Array]) -> None:
         """Partial factorization of rank-deficient matrix."""
         nrows, npivots = 4, 2
         A = bkd.asarray(np.random.normal(0.0, 1.0, (npivots, nrows)))
@@ -53,7 +58,7 @@ class TestPivotedCholesky:
         assert fact.npivots() == npivots
         bkd.assert_allclose(L @ L.T, A, rtol=1e-10)
 
-    def test_init_pivots_enforced(self, bkd) -> None:
+    def test_init_pivots_enforced(self, bkd: Backend[Array]) -> None:
         """init_pivots forces specific pivot ordering."""
         nrows, npivots = 4, 3
         A = bkd.asarray(np.random.normal(0.0, 1.0, (npivots, nrows)))
@@ -74,7 +79,7 @@ class TestPivotedCholesky:
             bkd.asarray(pivots1_np[[1, 0, 2]], dtype=bkd.int64_dtype()),
         )
 
-    def test_known_matrix(self, bkd) -> None:
+    def test_known_matrix(self, bkd: Backend[Array]) -> None:
         """Factorize a known 3x3 matrix and compare with numpy cholesky."""
         A = bkd.asarray([[4.0, 12.0, -16.0], [12.0, 37.0, -43.0], [-16.0, -43.0, 98.0]])
         fact = PivotedCholeskyFactorizer(A, bkd)
@@ -87,7 +92,7 @@ class TestPivotedCholesky:
         L_np = bkd.cholesky(A_no_pivots)
         bkd.assert_allclose(L[fact.pivots(), :], L_np, rtol=1e-10)
 
-    def test_known_matrix_permuted(self, bkd) -> None:
+    def test_known_matrix_permuted(self, bkd: Backend[Array]) -> None:
         """Factorize permuted known matrix."""
         A_orig = bkd.asarray(
             [[4.0, 12.0, -16.0], [12.0, 37.0, -43.0], [-16.0, -43.0, 98.0]]
@@ -104,7 +109,7 @@ class TestPivotedCholesky:
         L_np = bkd.cholesky(A_no_pivots)
         bkd.assert_allclose(L[fact.pivots(), :], L_np, rtol=1e-10)
 
-    def test_econ_false(self, bkd) -> None:
+    def test_econ_false(self, bkd: Backend[Array]) -> None:
         """Full Schur complement pivot selection mode."""
         nrows = 4
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, nrows)))
@@ -115,7 +120,7 @@ class TestPivotedCholesky:
         L = fact.factor()
         bkd.assert_allclose(L @ L.T, A, rtol=1e-10)
 
-    def test_econ_false_rank_deficient(self, bkd) -> None:
+    def test_econ_false_rank_deficient(self, bkd: Backend[Array]) -> None:
         """econ=False on rank-deficient matrix raises ValueError."""
         nrows, rank = 4, 2
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, rank)))
@@ -124,7 +129,7 @@ class TestPivotedCholesky:
         with pytest.raises(ValueError):
             fact.factorize(nrows)
 
-    def test_econ_true_rank_deficient(self, bkd) -> None:
+    def test_econ_true_rank_deficient(self, bkd: Backend[Array]) -> None:
         """econ=True on rank-deficient matrix recovers A."""
         nrows, rank = 4, 2
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, rank)))
@@ -134,7 +139,7 @@ class TestPivotedCholesky:
         L = fact.factor()
         bkd.assert_allclose(L @ L.T, A, rtol=1e-10)
 
-    def test_econ_false_rank_deficient_wide(self, bkd) -> None:
+    def test_econ_false_rank_deficient_wide(self, bkd: Backend[Array]) -> None:
         """econ=False on rank-deficient wide matrix recovers A."""
         nrows, rank = 4, 2
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, rank)))
@@ -144,7 +149,7 @@ class TestPivotedCholesky:
         L = fact.factor()
         bkd.assert_allclose(L @ L.T, A, rtol=1e-10)
 
-    def test_update_continues_factorization(self, bkd) -> None:
+    def test_update_continues_factorization(self, bkd: Backend[Array]) -> None:
         """update() continues from partial factorization and matches full.
 
         Replicates legacy test_update_pivoted_cholesky.
@@ -170,7 +175,7 @@ class TestPivotedCholesky:
         bkd.assert_allclose(L2, L1, rtol=1e-10)
         bkd.assert_allclose(fact2.pivots(), fact1.pivots())
 
-    def test_pivot_weights(self, bkd) -> None:
+    def test_pivot_weights(self, bkd: Backend[Array]) -> None:
         """Pivot weights influence selection order."""
         nrows = 5
         A = bkd.asarray(np.random.normal(0, 1, (nrows, nrows)))
@@ -190,19 +195,77 @@ class TestPivotedCholesky:
         # First pivot should be 0 with heavy weight
         assert int(bkd.to_numpy(pivots2[0:1])[0]) == 0
 
-    def test_too_many_pivots_raises(self, bkd) -> None:
+    def test_too_many_pivots_raises(self, bkd: Backend[Array]) -> None:
         """Requesting more pivots than rows raises ValueError."""
         A = bkd.eye(3)
         fact = PivotedCholeskyFactorizer(A, bkd)
         with pytest.raises(ValueError):
             fact.factorize(4)
 
-    def test_factorize_before_update_raises(self, bkd) -> None:
+    def test_factorize_before_update_raises(self, bkd: Backend[Array]) -> None:
         """Calling update() before factorize() raises."""
         A = bkd.eye(3)
         fact = PivotedCholeskyFactorizer(A, bkd)
         with pytest.raises(RuntimeError):
             fact.update(3)
+
+    def test_factorization_is_scale_invariant(self, bkd: Backend[Array]) -> None:
+        """s*A factors with the same pivots and sqrt(s) times the factor.
+
+        s = 1e-16 puts every diagonal entry below an absolute 1e-14, the
+        old rank-exhaustion test (e.g. a quadrature-weighted kernel).
+        """
+        nrows, scale = 6, 1e-16
+        A = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, nrows)))
+        A = A.T @ A
+        fact = PivotedCholeskyFactorizer(A, bkd)
+        fact.factorize(nrows)
+        fact_s = PivotedCholeskyFactorizer(scale * A, bkd)
+        fact_s.factorize(nrows)
+        assert fact_s.npivots() == nrows
+        bkd.assert_allclose(fact_s.pivots(), fact.pivots())
+        bkd.assert_allclose(
+            fact_s.factor(), np.sqrt(scale) * fact.factor(), rtol=1e-12
+        )
+
+    def test_rank_exhaustion_stops_without_error(self, bkd: Backend[Array]) -> None:
+        """Requesting more pivots than the rank stops at the rank."""
+        nrows, rank = 6, 2
+        B = bkd.asarray(np.random.normal(0.0, 1.0, (nrows, rank)))
+        A = B @ B.T
+        fact = PivotedCholeskyFactorizer(A, bkd, tol=0.0)
+        fact.factorize(nrows)
+        assert fact.success()
+        assert fact.npivots() == rank
+        L = fact.factor()
+        bkd.assert_allclose(L @ L.T, A, rtol=1e-10, atol=1e-12)
+
+    def test_update_beyond_nrows_raises(self, bkd: Backend[Array]) -> None:
+        """update() to more pivots than rows raises ValueError."""
+        A = bkd.eye(3)
+        fact = PivotedCholeskyFactorizer(A, bkd)
+        fact.factorize(2)
+        with pytest.raises(ValueError):
+            fact.update(4)
+
+    def test_low_rank_factor_of_large_operator(self, bkd: Backend[Array]) -> None:
+        """Storage is nrows x npivots: 2e5 points, 2 pivots fits in memory.
+
+        A square nrows x nrows factor would need 320 GB here.
+        """
+        n, npivots = 200_000, 2
+        kernel = SquaredExponentialKernel(
+            bkd.asarray([0.5]), (1e-6, 1e6), nvars=1, bkd=bkd, fixed=True,
+        )
+        X = bkd.asarray(np.linspace(0.0, 1.0, n).reshape(1, -1))
+        fact = PivotedCholeskyFactorizer(KernelColumnOperator(kernel, X, bkd), bkd)
+        fact.factorize(npivots)
+        L = fact.factor()
+        assert L.shape == (n, npivots)
+        # Each pivot's own row of L L^T reproduces the kernel's unit diagonal.
+        piv = fact.pivots()
+        diag_at_pivots = bkd.sum(L[piv, :] ** 2, axis=1)
+        bkd.assert_allclose(diag_at_pivots, bkd.ones((npivots,)), rtol=1e-12)
 
 
 @pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
@@ -210,10 +273,12 @@ class TestKernelColumnOperatorFused:
     """Verify fused kernel pchol matches dense kernel pchol."""
 
     @pytest.fixture(autouse=True)
-    def _seed(self):
+    def _seed(self) -> None:
         np.random.seed(7)
 
-    def _make_kernel_and_points(self, numpy_bkd, n, lenscale=0.3):
+    def _make_kernel_and_points(
+        self, numpy_bkd: NumpyBkd, n: int, lenscale: float = 0.3
+    ) -> tuple[Matern32Kernel[NDArray[Any]], NDArray[Any]]:
         bkd = numpy_bkd
         kernel = Matern32Kernel(
             bkd.asarray([lenscale]), (1e-6, 1e6),
@@ -224,7 +289,7 @@ class TestKernelColumnOperatorFused:
         )
         return kernel, x
 
-    def test_fused_matches_dense(self, numpy_bkd) -> None:
+    def test_fused_matches_dense(self, numpy_bkd: NumpyBkd) -> None:
         """Fused kernel pchol produces same pivots and factor as dense."""
         bkd = numpy_bkd
         n, npivots = 200, 30
@@ -244,7 +309,7 @@ class TestKernelColumnOperatorFused:
             atol=1e-14,
         )
 
-    def test_fused_with_weights(self, numpy_bkd) -> None:
+    def test_fused_with_weights(self, numpy_bkd: NumpyBkd) -> None:
         """Fused kernel pchol with pivot weights matches dense."""
         bkd = numpy_bkd
         n, npivots = 100, 20
@@ -264,7 +329,7 @@ class TestKernelColumnOperatorFused:
             fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
         )
 
-    def test_fused_with_init_pivots(self, numpy_bkd) -> None:
+    def test_fused_with_init_pivots(self, numpy_bkd: NumpyBkd) -> None:
         """Fused kernel pchol with init pivots matches dense."""
         bkd = numpy_bkd
         n, npivots = 100, 20
@@ -284,7 +349,7 @@ class TestKernelColumnOperatorFused:
             fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
         )
 
-    def test_fused_recovers_kernel_matrix(self, numpy_bkd) -> None:
+    def test_fused_recovers_kernel_matrix(self, numpy_bkd: NumpyBkd) -> None:
         """L @ L.T from fused path approximates kernel matrix."""
         bkd = numpy_bkd
         n, npivots = 50, 50
@@ -297,7 +362,7 @@ class TestKernelColumnOperatorFused:
         L = fact.factor()
         bkd.assert_allclose(L @ L.T, K, rtol=1e-10)
 
-    def test_generic_fallback_for_kernel_op(self, numpy_bkd) -> None:
+    def test_generic_fallback_for_kernel_op(self, numpy_bkd: NumpyBkd) -> None:
         """KernelColumnOperator with numba disabled uses generic path."""
         bkd = numpy_bkd
         n, npivots = 50, 15
@@ -317,18 +382,22 @@ class TestKernelColumnOperatorFused:
             fact_gen.factor(), fact_dense.factor(), rtol=1e-10,
         )
 
-    def test_unrecognized_kernel_falls_back(self, numpy_bkd) -> None:
+    def test_unrecognized_kernel_falls_back(self, numpy_bkd: NumpyBkd) -> None:
         """KernelColumnOperator with kernel lacking numba protocol uses generic."""
         bkd = numpy_bkd
         n, npivots = 80, 20
 
         class _OpaqueKernel:
             """Kernel wrapper that hides numba protocol methods."""
-            def __init__(self, inner):
+            def __init__(self, inner: Matern32Kernel[NDArray[Any]]) -> None:
                 self._inner = inner
-            def __call__(self, X1, X2=None):
+
+            def __call__(
+                self, X1: NDArray[Any], X2: NDArray[Any] | None = None
+            ) -> NDArray[Any]:
                 return self._inner(X1, X2)
-            def diag(self, X1):
+
+            def diag(self, X1: NDArray[Any]) -> NDArray[Any]:
                 return self._inner.diag(X1)
 
         inner = Matern32Kernel(
@@ -353,7 +422,7 @@ class TestKernelColumnOperatorFused:
             fact_op.factor(), fact_dense.factor(), rtol=1e-10,
         )
 
-    def test_fused_sqexp_matches_dense(self, numpy_bkd) -> None:
+    def test_fused_sqexp_matches_dense(self, numpy_bkd: NumpyBkd) -> None:
         """Fused path works for SquaredExponentialKernel via protocol."""
         bkd = numpy_bkd
         n, npivots = 100, 20
@@ -380,7 +449,7 @@ class TestKernelColumnOperatorFused:
             atol=1e-14,
         )
 
-    def test_fused_multidimensional(self, numpy_bkd) -> None:
+    def test_fused_multidimensional(self, numpy_bkd: NumpyBkd) -> None:
         """Fused path works for multi-dimensional kernel inputs."""
         bkd = numpy_bkd
         nvars, n, npivots = 3, 100, 20
@@ -411,11 +480,20 @@ class TestNumbaGenericAgreement:
     """Verify numba and generic paths produce identical pivots and factors."""
 
     @pytest.fixture(autouse=True)
-    def _seed(self):
+    def _seed(self) -> None:
         np.random.seed(42)
 
-    def _run_both(self, numpy_bkd, A_np, npivots,
-                  init_pivots=None, pivot_weights=None):
+    def _run_both(
+        self,
+        numpy_bkd: NumpyBkd,
+        A_np: NDArray[Any],
+        npivots: int,
+        init_pivots: NDArray[Any] | None = None,
+        pivot_weights: NDArray[Any] | None = None,
+    ) -> tuple[
+        PivotedCholeskyFactorizer[NDArray[Any]],
+        PivotedCholeskyFactorizer[NDArray[Any]],
+    ]:
         bkd = numpy_bkd
         A = bkd.asarray(A_np)
 
@@ -433,33 +511,33 @@ class TestNumbaGenericAgreement:
         bkd.assert_allclose(fact_nb.factor(), fact_gen.factor(), rtol=1e-12)
         return fact_nb, fact_gen
 
-    def test_no_weights(self, numpy_bkd) -> None:
+    def test_no_weights(self, numpy_bkd: NumpyBkd) -> None:
         n = 20
         A = np.random.randn(n, n)
         A = A.T @ A
         self._run_both(numpy_bkd, A, n)
 
-    def test_low_rank(self, numpy_bkd) -> None:
+    def test_low_rank(self, numpy_bkd: NumpyBkd) -> None:
         n, rank = 50, 10
         B = np.random.randn(n, rank)
         A = B @ B.T + 1e-10 * np.eye(n)
         self._run_both(numpy_bkd, A, rank)
 
-    def test_with_weights(self, numpy_bkd) -> None:
+    def test_with_weights(self, numpy_bkd: NumpyBkd) -> None:
         n = 20
         A = np.random.randn(n, n)
         A = A.T @ A
         weights = numpy_bkd.asarray(np.random.uniform(0.5, 5.0, n))
         self._run_both(numpy_bkd, A, n, pivot_weights=weights)
 
-    def test_with_init_pivots(self, numpy_bkd) -> None:
+    def test_with_init_pivots(self, numpy_bkd: NumpyBkd) -> None:
         n = 15
         A = np.random.randn(n, n)
         A = A.T @ A
         init_pivots = numpy_bkd.asarray(np.array([3, 7], dtype=np.int64))
         self._run_both(numpy_bkd, A, n, init_pivots=init_pivots)
 
-    def test_with_weights_and_init_pivots(self, numpy_bkd) -> None:
+    def test_with_weights_and_init_pivots(self, numpy_bkd: NumpyBkd) -> None:
         n = 15
         A = np.random.randn(n, n)
         A = A.T @ A
