@@ -42,11 +42,15 @@ def _compute_roots_of_characteristic_equation(
         Roots of the characteristic equation.
     """
 
-    def func(w: float) -> np.floating[Any]:
-        result: np.floating[Any] = (corr_len**2 * w**2 - 1.0) * np.sin(
+    def func(w: NDArrayFloat) -> NDArrayFloat:
+        result: NDArrayFloat = (corr_len**2 * w**2 - 1.0) * np.sin(
             w * dom_len
         ) - 2 * corr_len * w * np.cos(w * dom_len)
         return result
+
+    def scalar_func(w: float) -> float:
+        """``func`` at one frequency, for the scalar root finder."""
+        return float(func(np.asarray([w]))[0])
 
     omega = np.empty(nvars, float)
     dw = 1e-2
@@ -64,7 +68,7 @@ def _compute_roots_of_characteristic_equation(
 
     prev_root = 0
     for ii in range(nvars):
-        root = brenth(func, wI[ii], wI[ii + 1], maxiter=1000, xtol=tol)
+        root = brenth(scalar_func, wI[ii], wI[ii + 1], maxiter=1000, xtol=tol)
         assert root > 0 and abs(root - prev_root) > tol * 100
         omega[ii] = root
         prev_root = root

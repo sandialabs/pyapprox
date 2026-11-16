@@ -78,18 +78,19 @@ class MpireBackend:
         import_optional_dependency(
             "mpire", feature_name="MpireBackend", extra_name="parallel"
         )
-        from mpire import WorkerPool
+        from mpire.pool import WorkerPool
 
         n = self._get_n_jobs(n_jobs)
         # mpire's map unpacks tuples, so wrap single items in tuples
         wrapped_items = [(item,) for item in items]
         with WorkerPool(n_jobs=n) as pool:
-            return pool.map(
+            result: List[T] = pool.map(
                 func,
                 wrapped_items,
                 progress_bar=self._progress_bar,
                 concatenate_numpy_output=False,
             )
+        return result
 
     def starmap(
         self,
@@ -119,17 +120,18 @@ class MpireBackend:
         import_optional_dependency(
             "mpire", feature_name="MpireBackend", extra_name="parallel"
         )
-        from mpire import WorkerPool
+        from mpire.pool import WorkerPool
 
         n = self._get_n_jobs(n_jobs)
         # mpire's map already unpacks tuples like starmap
         with WorkerPool(n_jobs=n) as pool:
-            return pool.map(
+            result: List[T] = pool.map(
                 func,
                 list(items),
                 progress_bar=self._progress_bar,
                 concatenate_numpy_output=False,
             )
+        return result
 
     def backend_name(self) -> str:
         """Return backend identifier string.
