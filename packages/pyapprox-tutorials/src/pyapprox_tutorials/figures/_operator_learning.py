@@ -20,18 +20,22 @@ from typing import Optional
 import matplotlib.patches as patches
 import numpy as np
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin import (
     AdvectionDiffusionReaction,
     LagrangeBasis,
-    SteadyStateSolver,
     StructuredMesh1D,
 )
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
 from pyapprox.surrogates.kernels import SquaredExponentialKernel
 from pyapprox.surrogates.kle import MeshKLE
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 # ---------------------------------------------------------------------------
 # Shared utilities (1D elliptic operator and Gaussian random fields)
@@ -105,9 +109,19 @@ def solve_elliptic_1d(u: np.ndarray, grid: np.ndarray) -> np.ndarray:
         )
 
         system = compose_galerkin_system(physics, [bc_left, bc_right])
-        solver = SteadyStateSolver(system.steady(), tol=1e-12)
-        result = solver.solve(bkd.zeros(physics.nstates()))
-        v[:, k] = bkd.to_numpy(result.solution)
+        _, point = solve_galerkin_steady(
+            skfem_discretization(system),
+            RecomputeAlways(ScipySparseLU()),
+            Newton(
+                atol=1e-12, rtol=0.0, maxiters=50, line_search=True,
+                linesearch_maxiters=10,
+            ),
+        )
+        if not point.converged():
+            raise RuntimeError(
+                f"the elliptic solve did not converge: {point.info().message}"
+            )
+        v[:, k] = point.solution()[:, 0]
     return v
 
 
