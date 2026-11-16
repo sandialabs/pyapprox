@@ -203,10 +203,6 @@ class TestHyperelasticCylinder2D:
         )
         npts = basis.npts()
         pts = mesh.points()
-        D_matrices = [
-            basis.derivative_matrix(1, 0),
-            basis.derivative_matrix(1, 1),
-        ]
 
         stress_model = NeoHookeanStress(lamda=lamda_val, mu=mu_val)
 
@@ -250,8 +246,7 @@ class TestHyperelasticCylinder2D:
                     bkd,
                     inner_idx,
                     inner_normals,
-                    D_matrices,
-                    stress_model,
+                    physics,
                     npts,
                     comp,
                     values=traction_vals,
@@ -272,8 +267,7 @@ class TestHyperelasticCylinder2D:
                     bkd,
                     outer_idx,
                     outer_normals,
-                    D_matrices,
-                    stress_model,
+                    physics,
                     npts,
                     comp,
                     values=traction_vals,
@@ -293,8 +287,7 @@ class TestHyperelasticCylinder2D:
                 bkd,
                 bottom_idx,
                 bottom_normals,
-                D_matrices,
-                stress_model,
+                physics,
                 npts,
                 component=0,
                 values=traction_bottom_x,
@@ -319,8 +312,7 @@ class TestHyperelasticCylinder2D:
                 bkd,
                 top_idx,
                 top_normals,
-                D_matrices,
-                stress_model,
+                physics,
                 npts,
                 component=1,
                 values=traction_top_y,

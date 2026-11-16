@@ -263,7 +263,6 @@ class TestHyperelasticStressPostProcessor2D:
             bkd,
             setup["stress_model"],
         )
-        D_matrices = [setup["Dx"], setup["Dy"]]
 
         bcs = []
         # Outer wall: traction-free (both components)
@@ -275,8 +274,7 @@ class TestHyperelasticStressPostProcessor2D:
                     bkd,
                     outer_idx,
                     outer_normals,
-                    D_matrices,
-                    setup["stress_model"],
+                    physics,
                     npts,
                     comp,
                     values=0.0,
@@ -293,8 +291,7 @@ class TestHyperelasticStressPostProcessor2D:
                     bkd,
                     inner_idx,
                     inner_normals,
-                    D_matrices,
-                    setup["stress_model"],
+                    physics,
                     npts,
                     comp,
                     values=pn,

@@ -10,8 +10,11 @@ converted to Lame parameters with fixed Poisson ratio.
 """
 
 import math
-from typing import Any, Callable, Optional
+from typing import List, Optional
 
+from pyapprox.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
@@ -19,8 +22,12 @@ from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics.coefficients import CoefficientInput
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
+)
+from pyapprox.pde.collocation.protocols.boundary import (
+    BoundaryConditionProtocol,
 )
 from pyapprox.pde.constitutive import (
     NeoHookeanStress,
@@ -47,8 +54,8 @@ def create_hyperelastic_pressurized_cylinder_2d(
     poisson_ratio: float,
     inner_pressure: float,
     field_map: FieldMapProtocol[Array],
-    forcing: Optional[Callable[..., Any]] = None,
-    functional: object = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
+    functional: Optional[SteadyFunctionalProtocol[Array]] = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 2D hyperelastic pressurized cylinder forward model.
 
@@ -83,9 +90,9 @@ def create_hyperelastic_pressurized_cylinder_2d(
     field_map : FieldMapProtocol
         Field map for E(x) parameterization (e.g. from
         create_lognormal_kle_field_map).
-    forcing : callable, optional
-        Body force f. Accepts time, returns Array of shape (2*npts,).
-    functional : optional
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Body force f, components stacked (length 2*npts).
+    functional : SteadyFunctionalProtocol, optional
         QoI functional. If None, returns full displacement field.
 
     Returns
@@ -121,18 +128,13 @@ def create_hyperelastic_pressurized_cylinder_2d(
         forcing=forcing,
     )
 
-    # Derivative matrices for traction BCs
-    D_matrices = [
-        basis.derivative_matrix(1, 0),
-        basis.derivative_matrix(1, 1),
-    ]
     npts = basis.npts()
 
     # ------------------------------------------------------------------
     # Boundary conditions (order: traction first, Dirichlet last for
     # correct corner priority via last-applied-wins)
     # ------------------------------------------------------------------
-    bcs = []
+    bcs: List[BoundaryConditionProtocol[Array]] = []
 
     # (a) Outer boundary (bnd 1, r=R_o): stress-free traction t=0
     outer_idx = mesh.boundary_indices(1)
@@ -143,8 +145,7 @@ def create_hyperelastic_pressurized_cylinder_2d(
                 bkd,
                 outer_idx,
                 outer_normals,
-                D_matrices,
-                stress_model,
+                physics,
                 npts,
                 comp,
                 values=0.0,
@@ -159,8 +160,7 @@ def create_hyperelastic_pressurized_cylinder_2d(
             bkd,
             bottom_idx,
             bottom_normals,
-            D_matrices,
-            stress_model,
+            physics,
             npts,
             component=0,
             values=0.0,
@@ -175,8 +175,7 @@ def create_hyperelastic_pressurized_cylinder_2d(
             bkd,
             top_idx,
             top_normals,
-            D_matrices,
-            stress_model,
+            physics,
             npts,
             component=1,
             values=0.0,
@@ -194,8 +193,7 @@ def create_hyperelastic_pressurized_cylinder_2d(
                 bkd,
                 inner_idx,
                 inner_normals,
-                D_matrices,
-                stress_model,
+                physics,
                 npts,
                 comp,
                 values=pressure_vals,
