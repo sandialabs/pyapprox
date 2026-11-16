@@ -23,7 +23,7 @@ hyperelasticity its apply-only Lame parameterization; balance checks
 need values only.
 """
 
-from typing import Any
+from typing import Any, List, Tuple
 
 import pytest
 
@@ -34,6 +34,8 @@ if not package_available("skfem"):
 
 import numpy as np
 
+from pyapprox.implicitfunction.pinned_residual import PinnedResidual
+from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import (
     LagrangeBasis,
@@ -55,19 +57,16 @@ from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamFEM,
 )
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    EssentialBoundaryFluxFunctional,
-)
-from pyapprox.pde.models.galerkin.parameterized_residual import (
-    GalerkinParameterizedResidual,
+    essential_boundary_flux,
 )
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_steady_checks import solved_steady
 from tests._helpers.parameterization_stubs import ApplyOnlyParameterization
 
 _BEAM_LENGTH = 2.0
@@ -120,32 +119,26 @@ def _solve(
     system: GalerkinSystem[NumpyArray],
     param_obj: Any,
     params: NumpyArray,
-) -> NumpyArray:
-    param_obj.apply(params)
-    result = SteadyStateSolver(system.steady(), tol=1e-12).solve(
-        bkd.zeros((system.nstates(),))
-    )
-    assert result.converged
-    return result.solution[:, None]
+) -> Tuple[PinnedResidual[NumpyArray, Any], NumpyArray]:
+    """The steady residual and its solution."""
+    return solved_steady(system, param_obj, params, bkd)
 
 
 def _flux(
     bkd: NumpyBkd,
-    system: GalerkinSystem[NumpyArray],
-    param_obj: Any,
-    params: NumpyArray,
+    residual: PinnedResidual[NumpyArray, Any],
     state: NumpyArray,
     dofs: NumpyArray,
     weights: NumpyArray,
 ) -> NumpyArray:
-    """The flux functional's value, shape (nqoi,)."""
-    functional = EssentialBoundaryFluxFunctional(
-        GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
-        system.steady(),
+    """The flux of the solved residual's solution, shape (nqoi,)."""
+    functional = essential_boundary_flux(
+        bkd,
+        residual,
         bkd.asarray(np.asarray(dofs), dtype=bkd.int64_dtype()),
         bkd.asarray(np.asarray(weights)),
     )
-    return functional(state, params[:, None])[:, 0]
+    return functional.value(state)[:, 0]
 
 
 def _index(bkd: NumpyBkd, dofs: NumpyArray) -> int:
@@ -171,14 +164,12 @@ class TestBeamBalance:
         system = compose_galerkin_system(beam, [DirichletBC(basis, "left", 0.0, bkd)])
         param_obj = ApplyOnlyParameterization(beam)
         params = bkd.zeros((1,))
-        state = _solve(bkd, system, param_obj, params)
+        residual, state = _solve(bkd, system, param_obj, params)
         value = _index(bkd, basis.get_dofs("left", components=(0,)))
         slope = _index(bkd, basis.get_dofs("left", components=(1,)))
         flux = _flux(
             bkd,
-            system,
-            param_obj,
-            params,
+            residual,
             state,
             np.array([value, slope]),
             np.eye(2),
@@ -201,14 +192,12 @@ class TestBeamBalance:
         )
         param_obj = ApplyOnlyParameterization(beam)
         params = bkd.zeros((1,))
-        state = _solve(bkd, system, param_obj, params)
+        residual, state = _solve(bkd, system, param_obj, params)
         left = _index(bkd, basis.get_dofs("left", components=(0,)))
         right = _index(bkd, basis.get_dofs("right", components=(0,)))
         flux = _flux(
             bkd,
-            system,
-            param_obj,
-            params,
+            residual,
             state,
             np.array([left, right]),
             np.eye(2),
@@ -217,7 +206,7 @@ class TestBeamBalance:
 
 
 def _stokes_basis(bkd: NumpyBkd) -> MixedBasis[NumpyArray]:
-    mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+    mesh = StructuredMesh2D(nx=4, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
     return MixedBasis(
         [
             ("velocity", VectorLagrangeBasis(mesh, degree=2)),
@@ -233,7 +222,8 @@ def _velocity_component_dofs(bkd: NumpyBkd, bcs: Any, component: int) -> NumpyAr
     dofs = np.unique(
         np.concatenate([bkd.to_numpy(bc.constrained_dofs()) for bc in bcs])
     )
-    return dofs[dofs % 2 == component]
+    component_dofs: NumpyArray = dofs[dofs % 2 == component]
+    return component_dofs
 
 
 class TestStokesBalance:
@@ -264,13 +254,11 @@ class TestStokesBalance:
         system = compose_galerkin_system(physics, bcs)
         param_obj = ApplyOnlyParameterization(physics)
         params = bkd.zeros((1,))
-        state = _solve(bkd, system, param_obj, params)
+        residual, state = _solve(bkd, system, param_obj, params)
         dofs = _velocity_component_dofs(bkd, bcs, component)
         flux = _flux(
             bkd,
-            system,
-            param_obj,
-            params,
+            residual,
             state,
             dofs,
             np.ones((1, dofs.shape[0])),
@@ -299,11 +287,14 @@ class TestStokesBalance:
             for name in ("left", "right", "bottom", "top")
         ]
         pin = physics.vel_ndofs()
-        bcs = [*walls, DirectDirichletBC([pin], [0.0], bkd)]
+        bcs: List[BoundaryConditionRole[NumpyArray]] = [
+            *walls,
+            DirectDirichletBC([pin], [0.0], bkd),
+        ]
         system = compose_galerkin_system(physics, bcs)
         param_obj = ApplyOnlyParameterization(physics)
         params = bkd.zeros((1,))
-        state = _solve(bkd, system, param_obj, params)
+        residual, state = _solve(bkd, system, param_obj, params)
         x_dofs = _velocity_component_dofs(bkd, walls, 0)
         y_dofs = _velocity_component_dofs(bkd, walls, 1)
         dofs = np.concatenate([x_dofs, y_dofs, [pin]])
@@ -312,7 +303,7 @@ class TestStokesBalance:
         weights[0, :nx] = 1.0
         weights[1, nx : nx + ny] = 1.0
         weights[2, -1] = 1.0
-        flux = _flux(bkd, system, param_obj, params, state, dofs, weights)
+        flux = _flux(bkd, residual, state, dofs, weights)
         bkd.assert_allclose(flux, bkd.asarray([-0.8, 0.2, 0.5]), rtol=1e-10, atol=1e-12)
 
 
@@ -328,7 +319,7 @@ class TestHyperelasticBalance:
         body force f = (0.2, -0.1). In the reference configuration the
         support force cancels the applied loads: Q_c = -(f_c + t_c)."""
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(nx=6, ny=6, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=6, ny=6, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = CompositeHyperelasticityPhysics.from_uniform(
             basis=basis,
@@ -351,13 +342,11 @@ class TestHyperelasticBalance:
         )
         param_obj = create_galerkin_lame_parameterization(physics, bkd)
         params = bkd.asarray([1.0, 0.3])
-        state = _solve(bkd, system, param_obj, params)
+        residual, state = _solve(bkd, system, param_obj, params)
         dofs = bkd.to_numpy(basis.get_dofs("left", components=(component,)))
         flux = _flux(
             bkd,
-            system,
-            param_obj,
-            params,
+            residual,
             state,
             dofs,
             np.ones((1, dofs.shape[0])),

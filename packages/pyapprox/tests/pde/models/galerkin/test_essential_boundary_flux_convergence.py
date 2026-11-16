@@ -33,6 +33,8 @@ if not package_available("skfem"):
 import numpy as np
 from skfem import Functional, asm
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -42,16 +44,16 @@ from pyapprox.pde.galerkin.manufactured import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    EssentialBoundaryFluxFunctional,
+    essential_boundary_flux,
 )
-from pyapprox.pde.models.galerkin.parameterized_residual import (
-    GalerkinParameterizedResidual,
-)
+from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.adjoint_checks import NumpyArray
-from tests._helpers.parameterization_stubs import ApplyOnlyParameterization
 
 _SOL = "sin(1.3*x)*cos(0.7*y) + 0.5*x*y"
 _DIFF = 0.7
@@ -112,7 +114,7 @@ def _discrete_trace(x: Any, w: Any) -> Tuple[Any, Any]:
 
 def _fluxes(bkd: NumpyBkd, nx: int, degree: int) -> Tuple[float, float, float]:
     """(Q from the functional, the flux recovered from grad u_h, Q*)."""
-    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd)
+    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[(-1.0, 1.0), (-1.0, 1.0)], bkd=bkd)
     basis = LagrangeBasis(mesh, degree=degree)
     functions = _functions(bkd)
     ms = GalerkinManufacturedSolution(basis, functions, bkd)
@@ -134,23 +136,26 @@ def _fluxes(bkd: NumpyBkd, nx: int, degree: int) -> Tuple[float, float, float]:
             ms.neumann("top", law),
         ],
     )
-    result = SteadyStateSolver(system.steady(), tol=1e-12).solve(
-        bkd.zeros((system.nstates(),))
+    discretization = skfem_discretization(system)
+    space = discretization.space()
+    assert isinstance(space, InnerProductSpaceProtocol)
+    residual = galerkin_steady_residual(discretization)
+    steady: SteadySystem[NumpyArray, NumpyArray, Any] = SteadySystem(
+        residual, space, RecomputeAlways(ScipySparseLU())
     )
-    assert result.converged
+    point = steady.solve(
+        Newton(atol=1e-12, rtol=0.0, maxiters=30), bkd.zeros((system.nstates(), 1))
+    )
+    assert point.converged()
+    solution = space.copy(point.solution())
     dofs = basis.get_dofs("left")
-    functional = EssentialBoundaryFluxFunctional(
-        GalerkinParameterizedResidual(
-            system.spatial_operator(), ApplyOnlyParameterization(physics)
-        ),
-        system.steady(),
-        dofs,
-        bkd.ones((1, dofs.shape[0])),
+    functional = essential_boundary_flux(
+        bkd, residual, dofs, bkd.ones((1, dofs.shape[0]))
     )
-    flux = bkd.to_float(functional(result.solution[:, None], bkd.zeros((1, 1)))[0, 0])
+    flux = bkd.to_float(functional.value(solution)[0, 0])
 
     facet_basis = basis.skfem_basis().boundary("left", intorder=10)
-    u_h = facet_basis.interpolate(bkd.to_numpy(result.solution))
+    u_h = facet_basis.interpolate(bkd.to_numpy(solution[:, 0]))
     recovered = float(
         asm(
             Functional(_EdgeFluxIntegrand(law, _discrete_trace)),
@@ -169,7 +174,8 @@ def _fluxes(bkd: NumpyBkd, nx: int, degree: int) -> Tuple[float, float, float]:
 
 def _rates(errors: List[float]) -> NumpyArray:
     errs = np.asarray(errors)
-    return np.log2(errs[:-1] / errs[1:])
+    rates: NumpyArray = np.log2(errs[:-1] / errs[1:])
+    return rates
 
 
 class TestFluxConvergence:

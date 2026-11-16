@@ -1,8 +1,8 @@
 """Parameterized models for the Galerkin solver."""
 
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    EssentialBoundaryFluxFunctional,
     TimeIntegratedEssentialBoundaryFluxFunctional,
+    essential_boundary_flux,
 )
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
@@ -31,7 +31,7 @@ __all__ = [
     "GalerkinSteadyForwardModel",
     "GalerkinParameterizedResidual",
     "ParameterizedResidualDerivatives",
-    "EssentialBoundaryFluxFunctional",
     "TimeIntegratedEssentialBoundaryFluxFunctional",
+    "essential_boundary_flux",
     "GalerkinTransientForwardModel",
 ]

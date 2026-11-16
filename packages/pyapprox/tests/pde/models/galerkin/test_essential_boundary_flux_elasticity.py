@@ -34,6 +34,10 @@ if not package_available("skfem"):
 
 import numpy as np
 
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
@@ -47,20 +51,14 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    EssentialBoundaryFluxFunctional,
-)
-from pyapprox.pde.models.galerkin.parameterized_residual import (
-    GalerkinParameterizedResidual,
-)
-from pyapprox.pde.models.galerkin.steady import GalerkinSteadyForwardModel
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from tests._helpers.adjoint_checks import (
-    NumpyArray,
-    solve_based_derivatives_pass_fd,
+from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_steady_checks import (
+    flux_steady_function,
+    observed_steady_function,
 )
 
 _BODY_FORCE = np.array([0.3, -0.1])
@@ -84,7 +82,7 @@ def _plate(bkd: NumpyBkd) -> Tuple[
     GalerkinSystem[NumpyArray], Any, VectorLagrangeBasis[NumpyArray]
 ]:
     mesh = StructuredMesh2D(
-        nx=6, ny=6, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
+        nx=6, ny=6, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
     )
     basis = VectorLagrangeBasis(mesh, degree=1)
     physics = CompositeLinearElasticity.from_uniform(
@@ -119,14 +117,23 @@ def _support_force(
     param_obj: Any,
     basis: VectorLagrangeBasis[NumpyArray],
     component: int,
-) -> EssentialBoundaryFluxFunctional[NumpyArray]:
-    dofs = basis.get_dofs("left", components=(component,))
-    return EssentialBoundaryFluxFunctional(
-        GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
-        system.steady(),
-        dofs,
-        bkd.ones((1, dofs.shape[0])),
+) -> SteadyImplicitFunction[NumpyArray, Any]:
+    """The support force on the clamped edge in direction ``component``,
+    as a function of (E, nu) through the solve."""
+    dofs = bkd.to_numpy(basis.get_dofs("left", components=(component,)))
+    return flux_steady_function(
+        system, param_obj, [int(d) for d in dofs], bkd.ones((1, dofs.shape[0])), bkd
     )
+
+
+def _solved_state(
+    bkd: NumpyBkd, system: GalerkinSystem[NumpyArray], param_obj: Any
+) -> NumpyArray:
+    """The solved displacement at (E, nu), every row observed."""
+    observe_all = observed_steady_function(
+        system, param_obj, list(range(system.nstates())), bkd
+    )
+    return observe_all(bkd.asarray(_PARAM))
 
 
 def _robin_edge_integral(
@@ -149,24 +156,14 @@ class TestSupportReaction:
     def test_force_balance(self, numpy_bkd: NumpyBkd, component: int) -> None:
         bkd = numpy_bkd
         system, param_obj, basis = _plate(bkd)
-        functional = _support_force(bkd, system, param_obj, basis, component)
-        model = GalerkinSteadyForwardModel(
-            system.steady(),
-            param_obj,
-            bkd.zeros((system.nstates(),)),
-            bkd,
-            functional=functional,
-        )
-        param = bkd.asarray(_PARAM)
-        state = model.state_equation().solve(
-            bkd.zeros((system.nstates(), 1)), param
-        )
+        support = _support_force(bkd, system, param_obj, basis, component)
+        state = _solved_state(bkd, system, param_obj)
         robin_force = _ROBIN_DATA[component] - _ROBIN_ALPHA * (
             _robin_edge_integral(bkd, basis, state, component)
         )
         applied = _BODY_FORCE[component] + _TRACTION[component] + robin_force
         bkd.assert_allclose(
-            model(param), bkd.asarray([[-applied]]), rtol=1e-10
+            support(bkd.asarray(_PARAM)), bkd.asarray([[-applied]]), rtol=1e-10
         )
 
     def test_robin_spring_carries_load(self, numpy_bkd: NumpyBkd) -> None:
@@ -175,12 +172,7 @@ class TestSupportReaction:
         Robin term would fail the balance."""
         bkd = numpy_bkd
         system, param_obj, basis = _plate(bkd)
-        model = GalerkinSteadyForwardModel(
-            system.steady(), param_obj, bkd.zeros((system.nstates(),)), bkd
-        )
-        state = model.state_equation().solve(
-            bkd.zeros((system.nstates(), 1)), bkd.asarray(_PARAM)
-        )
+        state = _solved_state(bkd, system, param_obj)
         spring = _ROBIN_ALPHA * _robin_edge_integral(bkd, basis, state, 0)
         assert abs(spring) > 1e-3
 
@@ -189,16 +181,12 @@ class TestSupportReaction:
     ) -> None:
         bkd = numpy_bkd
         system, param_obj, basis = _plate(bkd)
-        model = GalerkinSteadyForwardModel(
-            system.steady(),
-            param_obj,
-            bkd.zeros((system.nstates(),)),
-            bkd,
-            functional=_support_force(bkd, system, param_obj, basis, 0),
-        )
-        derivs = model.derivatives()
+        support = _support_force(bkd, system, param_obj, basis, 0)
+        derivs = support.derivatives()
         assert derivs.jacobian is not None
         assert derivs.hvp is not None
-        assert all(
-            solve_based_derivatives_pass_fd(model, bkd.asarray(_PARAM))
+        errors = DerivativeChecker(support).check_derivatives(
+            bkd.asarray(_PARAM), relative=True, central=True
         )
+        assert len(errors) == 2
+        assert max(bkd.to_float(bkd.min(e)) for e in errors) < 1e-6

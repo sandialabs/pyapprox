@@ -45,13 +45,9 @@ from pyapprox.pde.galerkin.physics.helmholtz import Helmholtz
 from pyapprox.pde.galerkin.physics.quasilinear_diffusion import (
     QuasilinearDiffusion,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    EssentialBoundaryFluxFunctional,
-)
-from pyapprox.pde.models.galerkin.parameterized_residual import (
-    GalerkinParameterizedResidual,
+    essential_boundary_flux,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -61,6 +57,7 @@ from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_steady_checks import solved_steady
 from tests._helpers.parameterization_stubs import ApplyOnlyParameterization
 
 _NX = 20
@@ -122,12 +119,7 @@ def _total_flux_and_solution(
     params: NumpyArray,
 ) -> Tuple[float, NumpyArray]:
     """Solve, then evaluate the flux with unit weights on both ends."""
-    param_obj.apply(params)
-    result = SteadyStateSolver(system.steady(), tol=1e-12).solve(
-        bkd.zeros((system.nstates(),))
-    )
-    assert result.converged
-    state = result.solution[:, None]
+    residual, state = solved_steady(system, param_obj, params, bkd)
     ends = bkd.asarray(
         np.array(
             [
@@ -137,13 +129,8 @@ def _total_flux_and_solution(
         ),
         dtype=bkd.int64_dtype(),
     )
-    flux = EssentialBoundaryFluxFunctional(
-        GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
-        system.steady(),
-        ends,
-        bkd.ones((1, 2)),
-    )
-    return bkd.to_float(flux(state, params[:, None])[0, 0]), state
+    flux = essential_boundary_flux(bkd, residual, ends, bkd.ones((1, 2)))
+    return bkd.to_float(flux.value(state)[0, 0]), state
 
 
 def _integral(

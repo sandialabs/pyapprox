@@ -17,11 +17,13 @@ exactly (summed over all essential rows with unit weights, it equals the
 negative of the total applied load).
 """
 
-from typing import Generic, List, Literal, Optional, Tuple
+from typing import Generic, List, Literal, Optional, Tuple, TypeVar
 
-from pyapprox.implicitfunction.functionals.derivatives import (
-    SteadyFunctionalDerivatives,
+from pyapprox.implicitfunction.observed_residual import (
+    ObservedResidual,
+    pinned_rows_residual,
 )
+from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.ode.functionals.protocols import TransientFunctionalDerivatives
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.time_quadrature import (
@@ -41,8 +43,10 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamHVPFn,
     ParamJacobianFn,
 )
-from pyapprox.pde.steady_view import SteadyViewProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import FormatProtocol
+
+F = TypeVar("F", bound=FormatProtocol)
 
 
 class _EssentialRowWeights(Generic[Array]):
@@ -105,27 +109,34 @@ class _EssentialRowWeights(Generic[Array]):
         return out
 
 
-class EssentialBoundaryFluxFunctional(Generic[Array]):
-    """``Q = -W F(u, p, t)`` restricted to selected essential rows.
+def essential_boundary_flux(
+    bkd: Backend[Array],
+    residual: PinnedResidual[Array, F],
+    dofs: Array,
+    weights: Array,
+) -> ObservedResidual[Array, Array]:
+    """``Q = -W F(u)`` on selected essential rows, a state term of a steady
+    functional.
 
-    A steady functional: the time is the view's, bound at construction.
-    Row ``i`` of ``weights`` defines QoI ``i``; for example unit weights
-    on the x-components of a clamped edge give the total x-reaction, and
-    weights equal to the node coordinate give a moment.
+    Row ``i`` of ``weights`` defines QoI ``i``: unit weights on the
+    x-components of a clamped edge give the total x-reaction, weights
+    equal to the node coordinate a moment.
 
-    Its derivatives come from the raw residual's: ``dQ/du = -W dF/du``
-    always, with ``dQ/dp = -W dF/dp`` when the residual provides it, so
-    the bundle is first order exactly when the residual has a parameter
-    Jacobian. For a scalar QoI the four HVPs are the residual's
-    contractions with adjoint ``-w``, so the bundle is second order
-    exactly when the residual's is.
+    Built from the solved residual itself (the one
+    :func:`~pyapprox.pde.models.galerkin.steady_residual.galerkin_steady_residual`
+    returns), so ``F``, the parameters it reads,
+    the time it is frozen at and the state space are the solve's by
+    construction. Its derivatives are the residual's: first order when
+    ``F`` has a parameter Jacobian, second order (for any number of QoIs)
+    when ``F``'s bundle has its second derivatives; none without a
+    parameter Jacobian.
 
     Parameters
     ----------
-    residual : GalerkinParameterizedResidual
-        The raw residual, built on ``view``'s spatial operator.
-    view : SteadyViewProtocol
-        Supplies the essential DOFs (its constraint set) and the time.
+    bkd : Backend
+        The backend.
+    residual : PinnedResidual
+        The solved steady residual, its pinned rows the essential ones.
     dofs : Array
         Essential DOFs whose rows are read, unique. Shape: (ndofs,).
     weights : Array
@@ -134,180 +145,56 @@ class EssentialBoundaryFluxFunctional(Generic[Array]):
     Raises
     ------
     TypeError
-        If ``residual`` or ``view`` has the wrong type.
+        If ``residual`` is not a ``PinnedResidual``.
     ValueError
-        If ``residual`` and ``view`` do not share a spatial operator, a
-        DOF is repeated or not essential, or ``weights`` has the wrong
+        If ``dofs`` is empty, a DOF is repeated, out of range or not
+        essential (a natural boundary's DOF, whose row the solve does not
+        replace and where ``F`` vanishes), or ``weights`` has the wrong
         shape.
     """
-
-    def __init__(
-        self,
-        residual: GalerkinParameterizedResidual[Array],
-        view: SteadyViewProtocol[Array],
-        dofs: Array,
-        weights: Array,
-    ) -> None:
-        if not isinstance(residual, GalerkinParameterizedResidual):
-            raise TypeError(
-                "residual must be a GalerkinParameterizedResidual, got "
-                f"{type(residual).__name__}"
-            )
-        if not isinstance(view, SteadyViewProtocol):
-            raise TypeError(
-                f"view must satisfy SteadyViewProtocol, got {type(view).__name__}"
-            )
-        if residual.spatial_operator() is not view.spatial_operator():
-            raise ValueError("residual and view must share one spatial operator")
-        bkd = residual.bkd()
-        self._residual = residual
-        self._bkd = bkd
-        self._time = view.time()
-        self._nqoi = weights.shape[0]
-        self._row_weights = _EssentialRowWeights(
-            bkd,
-            residual.nstates(),
-            view.constraint_set().dofs(),
-            dofs,
-            weights,
+    if not isinstance(residual, PinnedResidual):
+        raise TypeError(
+            f"residual must be a PinnedResidual, got {type(residual).__name__}"
         )
-
-        derivs = residual.derivatives()
-        self._param_jacobian_fn: Optional[ParamJacobianFn[Array]] = (
-            derivs.param_jacobian
+    dof_list = [bkd.to_int(dofs[ii]) for ii in range(dofs.shape[0])]
+    if not dof_list:
+        raise ValueError("dofs must name at least one essential DOF")
+    if len(set(dof_list)) != len(dof_list):
+        raise ValueError("dofs must be unique")
+    rows = residual.pin().rows()
+    nstates = rows.descriptor().size
+    outside = [dof for dof in dof_list if not 0 <= dof < nstates]
+    if outside:
+        raise ValueError(f"dofs {outside} are not in [0, {nstates})")
+    if weights.ndim != 2 or weights.shape[1] != len(dof_list):
+        raise ValueError(
+            f"weights must have shape (nqoi, {len(dof_list)}), got "
+            f"{tuple(weights.shape)}"
         )
-        self._state_state_fn: Optional[ParamHVPFn[Array]] = None
-        self._state_param_fn: Optional[ParamHVPFn[Array]] = None
-        self._param_state_fn: Optional[ParamHVPFn[Array]] = None
-        self._param_param_fn: Optional[ParamHVPFn[Array]] = None
-        self._derivs: SteadyFunctionalDerivatives[Array]
-        if derivs.param_jacobian is None:
-            self._derivs = SteadyFunctionalDerivatives.none()
-            return
-        state_state = derivs.state_state_hvp
-        state_param = derivs.state_param_hvp
-        param_state = derivs.param_state_hvp
-        param_param = derivs.param_param_hvp
-        if (
-            self._nqoi != 1
-            or state_state is None
-            or state_param is None
-            or param_state is None
-            or param_param is None
-        ):
-            self._derivs = SteadyFunctionalDerivatives.first_order(
-                self._state_jacobian, self._param_jacobian
-            )
-            return
-        self._state_state_fn = state_state
-        self._state_param_fn = state_param
-        self._param_state_fn = param_state
-        self._param_param_fn = param_param
-        self._derivs = SteadyFunctionalDerivatives.second_order(
-            self._state_jacobian,
-            self._param_jacobian,
-            self._state_state_hvp,
-            self._state_param_hvp,
-            self._param_state_hvp,
-            self._param_param_hvp,
+    # The 0/1 selection S of the DOFs, from plain integers (constant data).
+    selection = bkd.copy(bkd.zeros((nstates, len(dof_list))))
+    selection[dof_list, list(range(len(dof_list)))] = 1.0
+    # Zeroing the pinned rows leaves a DOF's column nonzero exactly when
+    # that DOF is not pinned.
+    unpinned = rows.zero_rows(selection)
+    free = [
+        dof
+        for column, dof in enumerate(dof_list)
+        if bkd.to_float(bkd.max(bkd.abs(unpinned[:, column]))) != 0.0
+    ]
+    if free:
+        raise ValueError(
+            f"dofs {free} are not essential; the flux is read from rows "
+            "the constraints replace"
         )
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
-    def nqoi(self) -> int:
-        """Return the number of QoIs (rows of the weights)."""
-        return self._nqoi
-
-    def nstates(self) -> int:
-        """Return the number of states."""
-        return self._residual.nstates()
-
-    def nparams(self) -> int:
-        """Return the number of parameters."""
-        return self._residual.nparams()
-
-    def nunique_params(self) -> int:
-        """Return the number of parameters unique to the functional."""
-        return 0
-
-    def time_dependence(self) -> Literal["steady"]:
-        """Return the kind of state this functional reads.
-
-        One steady state, shape ``(nstates, 1)``.
-        """
-        return "steady"
-
-    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
-        """Return the optional derivatives this functional provides."""
-        return self._derivs
-
-    def __call__(self, state: Array, param: Array) -> Array:
-        """Evaluate ``Q = -W F``. Shape: (nqoi, 1)."""
-        residual = self._residual.residual(state[:, 0], self._time, param[:, 0])
-        return -self._row_weights.apply(residual)[:, None]
-
-    def _adjoint(self) -> Array:
-        """``-w`` for the scalar QoI, the adjoint of the contractions."""
-        return -self._row_weights.adjoint(0)
-
-    def _state_jacobian(self, state: Array, param: Array) -> Array:
-        """``-W dF/du``. Shape: (nqoi, nstates)."""
-        jacobian = self._residual.state_jacobian(state[:, 0], self._time, param[:, 0])
-        return -self._row_weights.apply(jacobian)
-
-    def _param_jacobian(self, state: Array, param: Array) -> Array:
-        """``-W dF/dp``. Shape: (nqoi, nparams)."""
-        fn = self._param_jacobian_fn
-        if fn is None:
-            raise RuntimeError(
-                "param_jacobian is unavailable; check derivatives() before calling"
-            )
-        return -self._row_weights.apply(fn(state[:, 0], self._time, param[:, 0]))
-
-    def _contraction(
-        self,
-        fn: Optional[ParamHVPFn[Array]],
-        state: Array,
-        param: Array,
-        vec: Array,
-    ) -> Array:
-        if fn is None:
-            raise RuntimeError(
-                "the HVPs are unavailable; check derivatives() before calling"
-            )
-        return fn(state[:, 0], self._time, param[:, 0], self._adjoint(), vec[:, 0])[
-            :, None
-        ]
-
-    def _state_state_hvp(self, state: Array, param: Array, wvec: Array) -> Array:
-        """``(d^2Q/du^2) w``. Shape: (nstates, 1)."""
-        return self._contraction(self._state_state_fn, state, param, wvec)
-
-    def _state_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
-        """``(d^2Q/du dp) v``. Shape: (nstates, 1)."""
-        return self._contraction(self._state_param_fn, state, param, vvec)
-
-    def _param_state_hvp(self, state: Array, param: Array, wvec: Array) -> Array:
-        """``(d^2Q/dp du) w``. Shape: (nparams, 1)."""
-        return self._contraction(self._param_state_fn, state, param, wvec)
-
-    def _param_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
-        """``(d^2Q/dp^2) v``. Shape: (nparams, 1)."""
-        return self._contraction(self._param_param_fn, state, param, vvec)
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}(nqoi={self._nqoi}, "
-            f"nstates={self.nstates()}, time={self._time})"
-        )
+    # W = -S w^T: the sign makes Q the reaction -F on the selected rows.
+    return pinned_rows_residual(bkd, residual, -bkd.dot(selection, weights.T))
 
 
 class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
     """The flux through essential boundaries integrated over the solve.
 
-    The time-integrated analog of :class:`EssentialBoundaryFluxFunctional`:
+    The time-integrated analog of :func:`essential_boundary_flux`:
     total heat lost through a fixed-temperature wall over ``[0, T]``, or
     the impulse a clamped support delivers. It is the raw step residual
     summed over all steps and read on the selected essential rows,

@@ -2,8 +2,8 @@
 
 Setup: -(kappa u')' (+ optional u^2 reaction) = 1 on [0, 1],
 u(0) = u(1) = 0, P1 on 10 cells, kappa = exp(W p) with three smooth
-modes. The scalar QoI is the flux out of x = 0
-(EssentialBoundaryFluxFunctional); the default QoI is every state.
+modes. The scalar QoI is the state at the mid DOF
+(WeightedSumFunctional); the default QoI is every state.
 """
 
 from typing import Any, List, Literal, Tuple
@@ -41,12 +41,6 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    EssentialBoundaryFluxFunctional,
-)
-from pyapprox.pde.models.galerkin.parameterized_residual import (
-    GalerkinParameterizedResidual,
-)
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinParameterizedStateEquation,
     GalerkinSteadyForwardModel,
@@ -131,19 +125,13 @@ def _problem(
     return system, param_obj, basis
 
 
-def _left_flux(
-    bkd: NumpyBkd,
-    system: GalerkinSystem[NumpyArray],
-    param_obj: AdvectionDiffusionParameterization[NumpyArray],
-    basis: LagrangeBasis[NumpyArray],
-) -> EssentialBoundaryFluxFunctional[NumpyArray]:
-    left = int(bkd.to_numpy(basis.get_dofs("left"))[0])
-    return EssentialBoundaryFluxFunctional(
-        GalerkinParameterizedResidual(system.spatial_operator(), param_obj),
-        system.steady(),
-        bkd.asarray(np.array([left]), dtype=bkd.int64_dtype()),
-        bkd.ones((1, 1)),
-    )
+def _mid_state(
+    bkd: NumpyBkd, system: GalerkinSystem[NumpyArray]
+) -> WeightedSumFunctional[NumpyArray]:
+    """The state at the mid DOF, a second-order scalar functional."""
+    weights = bkd.copy(bkd.zeros((system.nstates(), 1)))
+    weights[system.nstates() // 2] = 1.0
+    return WeightedSumFunctional(weights, _NPARAMS, bkd)
 
 
 class _ValueOnlyFunctional:
@@ -181,10 +169,8 @@ class _ValueOnlyFunctional:
 def _derivatives_pass_fd(
     bkd: NumpyBkd, model: GalerkinSteadyForwardModel[NumpyArray]
 ) -> List[bool]:
-    """FD checks at ``_PARAM`` (worst plain ratio over ten seeds was
-    3.9e-6, and a tighter Newton tolerance changes nothing, hence the
-    solve-based criterion). The components are checked without repeated
-    solves in test_essential_boundary_flux."""
+    """FD checks at ``_PARAM`` by the solve-based criterion, which
+    tolerates the Newton tolerance's noise in repeated solves."""
     return solve_based_derivatives_pass_fd(model, bkd.asarray(_PARAM))
 
 
@@ -199,8 +185,8 @@ class TestValues:
 
     def test_values_match_a_manual_solve(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        system, param_obj, basis = _problem(bkd, "full")
-        functional = _left_flux(bkd, system, param_obj, basis)
+        system, param_obj, _ = _problem(bkd, "full")
+        functional = _mid_state(bkd, system)
         model = GalerkinSteadyForwardModel(
             system.steady(),
             param_obj,
@@ -241,13 +227,13 @@ class TestCapability:
         self, numpy_bkd: NumpyBkd
     ) -> None:
         bkd = numpy_bkd
-        system, param_obj, basis = _problem(bkd, "full")
+        system, param_obj, _ = _problem(bkd, "full")
         model = GalerkinSteadyForwardModel(
             system.steady(),
             param_obj,
             bkd.zeros((system.nstates(),)),
             bkd,
-            functional=_left_flux(bkd, system, param_obj, basis),
+            functional=_mid_state(bkd, system),
         )
         derivs = model.derivatives()
         assert derivs.jacobian is not None and derivs.hvp is not None
