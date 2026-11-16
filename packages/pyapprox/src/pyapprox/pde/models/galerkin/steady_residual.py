@@ -13,14 +13,17 @@ of :math:`F` has always had.
 
 The residual holds no solver: a caller solves it with
 :class:`~pyapprox.implicitfunction.steady_system.SteadySystem`, which takes
-the setup strategy, and differentiates it with
+the setup strategy (:func:`solve_galerkin_steady` does both steps), and
+differentiates it with
 :class:`~pyapprox.implicitfunction.steady_derivatives.SteadyDerivatives`.
 """
 
-from typing import Optional, TypeVar
+from typing import Optional, Tuple, TypeVar
 
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
+from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
+from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.ode.pinned_rows import values_at_time
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
 from pyapprox.ode.residual_derivatives import STATED_ZERO
@@ -36,7 +39,8 @@ from pyapprox.pde.models.galerkin.unconstrained_system import (
 )
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.operators import FormatProtocol
+from pyapprox.util.linalg.operators import FormatProtocol, InnerProductSpaceProtocol
+from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 
 F = TypeVar("F", bound=FormatProtocol)
 
@@ -103,3 +107,70 @@ def galerkin_steady_residual(
         RowPin(values_at_time(EssentialPinnedRows(discretization), time)),
         discretization.space(),
     )
+
+
+def solve_galerkin_steady(
+    discretization: SteadyDiscretizationProtocol[Array, Array, F],
+    setups: SetupStrategyProtocol[SteadyRequest[Array, F], Array, F],
+    nonlinear: NonlinearSolverProtocol[Array, Array],
+    parameters: Optional[ParameterState[Array]] = None,
+    time: Optional[float] = None,
+    initial_guess: Optional[Array] = None,
+) -> Tuple[PinnedResidual[Array, F], SteadyPoint[Array, Array]]:
+    r"""Solve the steady residual of ``discretization``.
+
+    :func:`galerkin_steady_residual` solved by
+    :class:`~pyapprox.implicitfunction.steady_system.SteadySystem`: the
+    residual at the parameters' current values and ``time``, from
+    ``initial_guess``.
+
+    Parameters
+    ----------
+    discretization : SteadyDiscretizationProtocol
+        The system on a stack; its state space must have an inner product.
+    setups : SetupStrategyProtocol
+        Sets up the Jacobian solves; its linear solver pairs with the
+        discretization's Jacobian format.
+    nonlinear : NonlinearSolverProtocol
+        The nonlinear solver, with its tolerances.
+    parameters : ParameterState, optional
+        The parameters; none for a system without them.
+    time : float, optional
+        As for :func:`galerkin_steady_residual`.
+    initial_guess : Array, optional
+        Shape ``(nstates, 1)``; zero when omitted.
+
+    Returns
+    -------
+    tuple
+        The residual solved, so that a functional of the solution (an
+        essential-boundary flux) reads the same parameters and time, and
+        the :class:`~pyapprox.implicitfunction.steady_system.SteadyPoint`.
+        A failed solve does not raise: check ``converged()``.
+
+    Raises
+    ------
+    TypeError
+        If the state space has no inner product, and as for
+        :func:`galerkin_steady_residual` and ``SteadySystem``.
+    ValueError
+        If ``initial_guess`` is not of shape ``(nstates, 1)``, and as for
+        :func:`galerkin_steady_residual`.
+    """
+    residual = galerkin_steady_residual(discretization, parameters, time)
+    space = discretization.space()
+    if not isinstance(space, InnerProductSpaceProtocol):
+        raise TypeError(
+            "the discretization's state space must satisfy "
+            f"InnerProductSpaceProtocol, got {type(space).__name__}"
+        )
+    nstates = space.descriptor().size
+    if initial_guess is None:
+        initial_guess = space.zeros()
+    elif tuple(initial_guess.shape) != (nstates, 1):
+        raise ValueError(
+            f"initial_guess must have shape ({nstates}, 1), got "
+            f"{tuple(initial_guess.shape)}"
+        )
+    steady: SteadySystem[Array, Array, F] = SteadySystem(residual, space, setups)
+    return residual, steady.solve(nonlinear, initial_guess)

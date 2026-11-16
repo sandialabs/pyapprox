@@ -25,7 +25,6 @@ from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.setups import KeepAll, RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
-from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.interface.functions.derivative_checks.bundle_checks import (
     BundleCheckReport,
 )
@@ -36,7 +35,10 @@ from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     essential_boundary_flux,
 )
-from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
+from pyapprox.pde.models.galerkin.steady_residual import (
+    galerkin_steady_residual,
+    solve_galerkin_steady,
+)
 from pyapprox.pde.models.galerkin.unconstrained_system import (
     GalerkinUnconstrainedRightHandSide,
 )
@@ -172,22 +174,17 @@ def solved_steady(
     ``(nstates, 1)``: Newton (atol 1e-12) from zero, sparse LU each
     iteration. A flux of the solution is built from the residual
     returned, so it reads the same parameters and time."""
-    discretization = skfem_discretization(system)
-    space = discretization.space()
-    if not isinstance(space, InnerProductSpaceProtocol):
-        raise TypeError("the discretization's space has no inner product")
     parameters = ParameterState(parameterization)
     parameters.set_param(param)
-    residual = galerkin_steady_residual(discretization, parameters)
-    steady: SteadySystem[NumpyArray, NumpyArray, Any] = SteadySystem(
-        residual, space, RecomputeAlways(ScipySparseLU())
-    )
-    point = steady.solve(
-        Newton(atol=1e-12, rtol=0.0, maxiters=50), np.zeros((system.nstates(), 1))
+    residual, point = solve_galerkin_steady(
+        skfem_discretization(system),
+        RecomputeAlways(ScipySparseLU()),
+        Newton(atol=1e-12, rtol=0.0, maxiters=50),
+        parameters,
     )
     if not point.converged():
         raise RuntimeError("the steady solve did not converge")
-    return residual, space.copy(point.solution())
+    return residual, np.array(point.solution())
 
 
 def first_free_row(system: GalerkinSystem[NumpyArray], bkd: NumpyBkd) -> int:
