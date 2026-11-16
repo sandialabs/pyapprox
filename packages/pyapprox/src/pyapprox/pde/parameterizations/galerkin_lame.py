@@ -7,9 +7,14 @@ typed Lame assemblies (``residual_lame_jacobian`` /
 yielding the full second-order derivative bundle.
 ``CompositeHyperelasticityPhysics`` has no typed Lame assemblies yet, so
 it gets an apply-only parameterization with an empty bundle.
+``LameFieldApplyOnlyParameterization`` takes the Lame fields themselves
+as parameters (per element or per quadrature point), for callers whose
+own map produces them; it too is apply-only.
 """
 
 from typing import Generic, Tuple, Union
+
+import numpy as np
 
 from pyapprox.pde.field_maps.lame import ENuToLameFieldMap
 from pyapprox.pde.galerkin.physics.composite_hyperelasticity import (
@@ -84,6 +89,95 @@ class LameApplyOnlyParameterization(Generic[Array]):
         """Map (E, nu) parameters onto the per-material Lame values."""
         self._physics.set_lame_material_values(
             self._bkd.to_numpy(self._field_map(params_1d))
+        )
+
+    def param_derivatives(self) -> ParamDerivatives[Array]:
+        """Return the empty derivative capability bundle."""
+        return self._derivs
+
+
+class LameFieldApplyOnlyParameterization(Generic[Array]):
+    r"""Apply-only parameterization by the Lame fields themselves.
+
+    The parameters are the values of :math:`\lambda` then :math:`\mu` on
+    a fixed grid of shape ``field_shape`` (``(nelems,)`` per element, or
+    ``(nelems, nquad)`` per quadrature point), flattened in C order and
+    concatenated: ``[lam.ravel(), mu.ravel()]``. ``apply`` hands them to
+    the physics' ``set_lame_parameters``. A caller mapping its own inputs
+    (a random field, a mixture rule) to Lame values applies them through
+    a :class:`~pyapprox.pde.parameterizations.parameter_state.ParameterState`
+    over this parameterization, so solves that key on the parameters'
+    version see the change. No derivatives: ``param_derivatives()`` is
+    the empty bundle.
+
+    Parameters
+    ----------
+    physics : CompositeLinearElasticity | CompositeHyperelasticityPhysics
+        The bound physics.
+    field_shape : tuple of int
+        The shape of each Lame field.
+    bkd : Backend
+        Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If ``field_shape`` is empty or has a non-positive entry.
+    """
+
+    def __init__(
+        self,
+        physics: Union[
+            CompositeLinearElasticity[Array],
+            CompositeHyperelasticityPhysics[Array],
+        ],
+        field_shape: Tuple[int, ...],
+        bkd: Backend[Array],
+    ) -> None:
+        if len(field_shape) == 0 or any(n <= 0 for n in field_shape):
+            raise ValueError(
+                f"field_shape must be non-empty and positive, got {field_shape}"
+            )
+        self._physics = physics
+        self._field_shape = tuple(field_shape)
+        self._nfield = int(np.prod(field_shape))
+        self._bkd = bkd
+        self._derivs: ParamDerivatives[Array] = ParamDerivatives.none()
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def targets(self) -> Tuple[object, ...]:
+        """Return the objects whose coefficients ``apply`` writes."""
+        return (self._physics,)
+
+    def nparams(self) -> int:
+        """Return the number of parameters, two fields' worth."""
+        return 2 * self._nfield
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the parameterized coefficient fields."""
+        return ("mu", "lamda")
+
+    def apply(self, params_1d: Array) -> None:
+        """Set the physics' Lame fields to ``params_1d``, shape
+        ``(nparams,)``.
+
+        Raises
+        ------
+        ValueError
+            If ``params_1d`` is not of shape ``(nparams,)``.
+        """
+        if tuple(params_1d.shape) != (self.nparams(),):
+            raise ValueError(
+                f"params_1d must have shape ({self.nparams()},), got "
+                f"{tuple(params_1d.shape)}"
+            )
+        values = self._bkd.to_numpy(params_1d)
+        self._physics.set_lame_parameters(
+            np.reshape(values[: self._nfield], self._field_shape),
+            np.reshape(values[self._nfield :], self._field_shape),
         )
 
     def param_derivatives(self) -> ParamDerivatives[Array]:
