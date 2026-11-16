@@ -7,28 +7,32 @@ u(0) = 1, u(1) = 2, its modal parameterization at p = (0.3, -0.2, 0.1,
 
 - ``DenseSteadyDiscretization`` gives the system's spaces, its two
   essential rows, and the operator's own Jacobian, on both backends.
-- ``galerkin_steady_residual`` over it equals the steady view's value,
-  state Jacobian and parameter Jacobian (``steady_constrained_derivatives``)
-  to 1e-12.
+- ``galerkin_steady_residual`` over it: free rows equal the operator's
+  residual to 1e-12 and the pinned rows hold :math:`u - g`, at
+  u = linspace(0.5, 1.5); the state and parameter Jacobians pass central
+  finite differences (smallest relative error below 1e-6).
 - Solved by ``SteadySystem`` (Newton, atol 1e-12, dense LU, from zero) the
   steady state holds the boundary data, makes the unconstrained rows of
   :math:`F` vanish to 1e-10, and agrees across NumPy and Torch to 1e-12.
 """
 
-from typing import Generic
+from typing import Callable, Generic
 
 import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.galerkin.system import GalerkinSteadySystem
 from pyapprox.pde.galerkin.time_integration.dense_discretization import (
     DenseSteadyDiscretization,
-)
-from pyapprox.pde.models.galerkin.constrained_derivatives import (
-    steady_constrained_derivatives,
 )
 from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
@@ -108,34 +112,61 @@ class TestTheDiscretization:
             DenseSteadyDiscretization(object())  # type: ignore[arg-type]
 
 
+def _checker_error(
+    bkd: NumpyBkd,
+    fun: Callable[[NumpyArray], NumpyArray],
+    jacobian: Callable[[NumpyArray], NumpyArray],
+    sample: NumpyArray,
+) -> float:
+    """The smallest relative central-difference error of ``jacobian``."""
+    nqoi = int(fun(sample).shape[0])
+    wrapper = FunctionWithJacobianFromCallable(
+        nqoi=nqoi, nvars=int(sample.shape[0]), fun=fun, jacobian=jacobian, bkd=bkd
+    )
+    errors = DerivativeChecker(wrapper).check_derivatives(
+        sample, relative=True, central=True
+    )
+    return bkd.to_float(bkd.min(errors[0]))
+
+
 class TestTheSteadyResidual:
     @pytest.mark.parametrize("reaction", [False, True])
-    def test_equals_the_steady_view(self, numpy_bkd: NumpyBkd, reaction: bool) -> None:
+    def test_rows_and_jacobians(self, numpy_bkd: NumpyBkd, reaction: bool) -> None:
+        r"""Free rows are the operator's residual and pinned rows
+        :math:`u - g`; the state and parameter Jacobians pass central
+        finite differences."""
         bkd = numpy_bkd
         case: _Case[NumpyArray] = _Case(bkd, reaction)
         residual = galerkin_steady_residual(case.discretization, case.parameters)
-        view = case.system.steady()
-        old = steady_constrained_derivatives(
-            view, case.parameterization.param_derivatives()
-        )
         state = bkd.linspace(0.5, 1.5, case.n)
+        value = residual(state[:, None])[:, 0]
+        raw = case.operator.spatial_residual(state, 0.0)
+        bkd.assert_allclose(value[1:-1], raw[1:-1], atol=1e-12)
         bkd.assert_allclose(
-            residual(state[:, None])[:, 0], view.steady_residual(state), atol=1e-12
+            value[[0, -1]], state[[0, -1]] - bkd.asarray([1.0, 2.0]), atol=1e-14
         )
         bundle = residual.derivatives()
         assert bundle.jacobian is not None and bundle.param is not None
-        jacobian = bundle.jacobian(state[:, None], _POINT)
-        eye = bkd.eye(case.n)
-        dense = bkd.hstack([jacobian.apply(eye[:, j : j + 1]) for j in range(case.n)])
-        bkd.assert_allclose(dense, view.steady_jacobian(state), atol=1e-12)
-        assert old.param_jacobian is not None
-        param_jacobian = bundle.param(state[:, None])
-        eye6 = bkd.eye(6)
-        dense_param = bkd.hstack(
-            [param_jacobian.apply(eye6[:, j : j + 1]) for j in range(6)]
-        )
-        bkd.assert_allclose(
-            dense_param, old.param_jacobian(state, case.param), atol=1e-12
+        state_jacobian, param_jacobian = bundle.jacobian, bundle.param
+
+        def state_value(sample: NumpyArray) -> NumpyArray:
+            return residual(sample)
+
+        def state_dense(sample: NumpyArray) -> NumpyArray:
+            return state_jacobian(sample, _POINT).apply(bkd.eye(case.n))
+
+        assert _checker_error(bkd, state_value, state_dense, state[:, None]) < 1e-6
+
+        def param_value(sample: NumpyArray) -> NumpyArray:
+            case.parameters.set_param(sample[:, 0])
+            return residual(state[:, None])
+
+        def param_dense(sample: NumpyArray) -> NumpyArray:
+            case.parameters.set_param(sample[:, 0])
+            return param_jacobian(state[:, None]).apply(bkd.eye(len(_PARAM)))
+
+        assert (
+            _checker_error(bkd, param_value, param_dense, case.param[:, None]) < 1e-6
         )
 
 
