@@ -57,10 +57,10 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import (
     HyperelasticityPhysics as GalerkinHyperelasticityPhysics,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
+from tests._helpers.galerkin_steady_solve import steady_solve
 from tests._helpers.markers import slow_test
 
 # =========================================================================
@@ -223,10 +223,9 @@ def _solve_galerkin_1d(sol_strs, stress, nx, degree, bkd):
     system = compose_galerkin_system(physics, bc_list)
 
     exact = _get_exact_displacement_galerkin(functions, basis, bkd)
-    solver = SteadyStateSolver(
-        system.steady(), tol=1e-10, max_iter=20, line_search=True
+    result = steady_solve(
+        system, tol=1e-10, max_iter=20, initial_guess=bkd.asarray(exact + 0.01)
     )
-    result = solver.solve(bkd.asarray(exact + 0.01))
 
     return exact, bkd.to_numpy(result.solution), result.converged
 
@@ -267,10 +266,9 @@ def _solve_galerkin_2d(sol_strs, stress, nx, ny, degree, bkd):
     system = compose_galerkin_system(physics, bc_list)
 
     exact = _get_exact_displacement_galerkin(functions, basis, bkd)
-    solver = SteadyStateSolver(
-        system.steady(), tol=1e-10, max_iter=20, line_search=True
+    result = steady_solve(
+        system, tol=1e-10, max_iter=20, initial_guess=bkd.asarray(exact + 0.005)
     )
-    result = solver.solve(bkd.asarray(exact + 0.005))
 
     return exact, bkd.to_numpy(result.solution), result.converged
 
