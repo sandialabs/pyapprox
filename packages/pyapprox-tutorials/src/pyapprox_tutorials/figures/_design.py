@@ -23,41 +23,84 @@ def _get_exterior_edges(connectivity):
 
 def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
                 nonlinear=False, max_iter=1):
-    """Solve beam with given material map and return solution array."""
+    """Solve beam with given material map and return solution array.
+
+    The neo-Hookean solve starts from the linear-elastic solution and
+    stops when the residual falls by 1e-12 relative to its value there:
+    an absolute 1e-10 lies below the rounding floor of a residual of
+    order 1e3."""
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
     )
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
     bc_left = DirichletBC(
         basis, "left_edge", 0.0, bkd,
     )
     bc_top = NeumannBC(
         basis, "top_edge",
-        lambda c: np.vstack([np.zeros(c.shape[1]), -q0 * c[0] / L]),
+        TimeIndependent(
+            lambda c: np.vstack([np.zeros(c.shape[1]), -q0 * c[0] / L])
+        ),
         bkd,
     )
-    if nonlinear:
-        from pyapprox.pde.galerkin.physics import (
-            CompositeHyperelasticityPhysics,
-        )
-        phys = CompositeHyperelasticityPhysics(
-            basis=basis, material_map=material_map,
-            element_materials=sub_elems, bkd=bkd,
-        )
-    else:
-        phys = CompositeLinearElasticity(
-            basis=basis, material_map=material_map,
-            element_materials=sub_elems, bkd=bkd,
-        )
+    linear = CompositeLinearElasticity(
+        basis=basis, material_map=material_map,
+        element_materials=sub_elems, bkd=bkd,
+    )
+    sol_linear = _steady_solution(
+        compose_galerkin_system(linear, [bc_left, bc_top]),
+        1 if nonlinear else max_iter,
+    )
+    if not nonlinear:
+        return sol_linear
+    from pyapprox.pde.galerkin.physics import (
+        CompositeHyperelasticityPhysics,
+    )
+    phys = CompositeHyperelasticityPhysics(
+        basis=basis, material_map=material_map,
+        element_materials=sub_elems, bkd=bkd,
+    )
     system = compose_galerkin_system(phys, [bc_left, bc_top])
-    slvr = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=max_iter,
-                             **({"line_search": True} if nonlinear else {}))
-    res = slvr.solve(bkd.asarray(np.zeros(phys.nstates())))
-    return bkd.to_numpy(res.solution)
+    return _steady_solution(
+        system, max_iter, initial_guess=sol_linear, atol=0.0, rtol=1e-12
+    )
+
+
+def _steady_solution(system, max_iter, initial_guess=None, atol=1e-10,
+                     rtol=0.0):
+    """Solve ``system``'s steady residual by Newton (from zero unless
+    ``initial_guess``, a 1-D solution, is given; line search of at most 10
+    halvings; sparse LU); the solution, 1-D."""
+    from pyapprox.implicitfunction.setups import RecomputeAlways
+    from pyapprox.pde.galerkin.time_integration import skfem_discretization
+    from pyapprox.pde.models.galerkin.steady_residual import (
+        solve_galerkin_steady,
+    )
+    from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+    from pyapprox.util.rootfinding.nonlinear import Newton
+
+    _, point = solve_galerkin_steady(
+        skfem_discretization(system),
+        RecomputeAlways(ScipySparseLU()),
+        Newton(
+            atol=atol, rtol=rtol, maxiters=max_iter, line_search=True,
+            linesearch_maxiters=10,
+        ),
+        initial_guess=(
+            None if initial_guess is None else initial_guess[:, None]
+        ),
+    )
+    if not point.converged():
+        raise RuntimeError(
+            f"the beam solve did not converge: {point.info().message}"
+        )
+    return np.array(point.solution()[:, 0])
 
 
 def _plot_deformed(ax, basis, coordx, coordy, conn, ext_edges, sol,
@@ -667,6 +710,9 @@ def plot_reference_solution(fig, ax):
     from matplotlib.colors import Normalize
     from skfem.models.elasticity import lame_parameters
 
+    from pyapprox.pde.constitutive.coefficient_functions import (
+        TimeIndependent,
+    )
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
@@ -674,7 +720,6 @@ def plot_reference_solution(fig, ax):
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.postprocessing import von_mises_stress
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
     from pyapprox_benchmarks.pde.cantilever_beam import MESH_PATHS
 
     info = _setup_beam_mesh(MESH_PATHS[2])
@@ -697,7 +742,9 @@ def plot_reference_solution(fig, ax):
     )
     bc_top = NeumannBC(
         basis, "top_edge",
-        lambda c: np.vstack([np.zeros(c.shape[1]), -q0 * c[0] / L]),
+        TimeIndependent(
+            lambda c: np.vstack([np.zeros(c.shape[1]), -q0 * c[0] / L])
+        ),
         bkd,
     )
 
@@ -706,9 +753,7 @@ def plot_reference_solution(fig, ax):
         bkd=bkd,
     )
     system = compose_galerkin_system(physics, [bc_left, bc_top])
-    solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
-    result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
-    sol = bkd.to_numpy(result.solution)
+    sol = _steady_solution(system, 1)
 
     ux, uy = sol[0::2], sol[1::2]
     tip_2d = sol[tip_dof]

@@ -68,8 +68,57 @@ def plot_forward_uq_schematic(ax_in, ax_mid, ax_out):
     ax_out.set_xlim(-1, 5)
 
 
+class _BeamSolve:
+    """The steady deflection of a clamped beam for given element stiffnesses.
+
+    Applies ``EI`` (a scalar, or one value per element) through a
+    ``ParameterState``, clears the setups (kept setups are valid for one
+    parameter value), and solves the steady system, built once, by
+    Newton with sparse LU. Returns the solution coefficients, 1-D.
+    """
+
+    def __init__(self, beam, system, bkd):
+        from pyapprox.implicitfunction.setups import RecomputeAlways
+        from pyapprox.implicitfunction.steady_system import SteadySystem
+        from pyapprox.pde.galerkin.time_integration import skfem_discretization
+        from pyapprox.pde.models.galerkin.steady_residual import (
+            galerkin_steady_residual,
+        )
+        from pyapprox.pde.parameterizations.euler_bernoulli import (
+            BendingStiffnessApplyOnlyParameterization,
+        )
+        from pyapprox.pde.parameterizations.parameter_state import ParameterState
+        from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+        from pyapprox.util.rootfinding.nonlinear import Newton
+
+        self._nelements = beam.basis().mesh().nelements()
+        self._parameters = ParameterState(
+            BendingStiffnessApplyOnlyParameterization(beam, bkd)
+        )
+        discretization = skfem_discretization(system)
+        self._space = discretization.space()
+        self._setups = RecomputeAlways(ScipySparseLU())
+        self._steady = SteadySystem(
+            galerkin_steady_residual(discretization, self._parameters),
+            self._space,
+            self._setups,
+        )
+        self._newton = Newton(atol=1e-10, rtol=0.0, maxiters=50)
+
+    def __call__(self, EI):
+        EI_elem = np.full(self._nelements, EI) if np.isscalar(EI) else np.asarray(EI)
+        self._parameters.set_param(EI_elem)
+        self._setups.clear()
+        point = self._steady.solve(self._newton, self._space.zeros())
+        if not point.converged():
+            raise RuntimeError(
+                f"the beam solve did not converge: {point.info().message}"
+            )
+        return point.solution()[:, 0]
+
+
 def _clamped_beam(nx, length, EI, load_func, bkd):
-    """Cantilever clamped at x = 0: its basis, beam and steady solver."""
+    """Cantilever clamped at x = 0: its basis and its steady solve."""
     from pyapprox.pde.galerkin.basis import CubicHermiteBasis
     from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -77,14 +126,13 @@ def _clamped_beam(nx, length, EI, load_func, bkd):
     from pyapprox.pde.galerkin.physics.euler_bernoulli import (
         EulerBernoulliBeamFEM,
     )
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
     basis = CubicHermiteBasis(StructuredMesh1D(nx, (0.0, length), bkd))
     beam = EulerBernoulliBeamFEM(basis, EI, load_func, bkd)
     system = compose_galerkin_system(
         beam, [DirichletBC(basis, "left", 0.0, bkd)]
     )
-    return basis, beam, SteadyStateSolver(system.steady())
+    return basis, _BeamSolve(beam, system, bkd)
 
 
 def plot_linear_propagation(ax_in, ax_mid, ax_out):
@@ -105,10 +153,10 @@ def plot_linear_propagation(ax_in, ax_mid, ax_out):
     E_eff = (A_skin * 2e4 + A_core * 5e3) / (A_skin + A_core)
     I_rect = H**3 / 12.0
 
-    basis, _, solver = _clamped_beam(
+    basis, solve = _clamped_beam(
         40, L, E_eff * I_rect, lambda x: 1.0 * x / L, bkd
     )
-    coeffs = solver.solve(bkd.zeros((basis.ndofs(),))).solution
+    coeffs = solve(E_eff * I_rect)
     c_linear = bkd.to_float(basis.evaluate(coeffs, bkd.asarray([[L]]))[0])
 
     rng = np.random.default_rng(42)
@@ -565,7 +613,7 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
         quad_weights=elem_lengths,
     )
 
-    basis, beam, solver = _clamped_beam(
+    basis, solve = _clamped_beam(
         nx, length, EI_mean, lambda x: q0 * x / length, bkd
     )
     x_nodes = bkd.to_numpy(basis.mesh().nodes())[0]
@@ -579,9 +627,8 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
     EI_fields, deflections = [], []
     for xi in xi_vals:
         EI_field = bkd.to_numpy(field_map(bkd.asarray(xi)))
-        beam.set_EI(EI_field)
         EI_fields.append(EI_field)
-        coeffs = solver.solve(bkd.zeros((basis.ndofs(),))).solution
+        coeffs = solve(EI_field)
         deflections.append(bkd.to_numpy(basis.values(coeffs)))
 
     all_EI = np.concatenate(EI_fields)
