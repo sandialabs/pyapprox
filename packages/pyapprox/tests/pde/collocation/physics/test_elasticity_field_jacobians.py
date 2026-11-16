@@ -29,8 +29,8 @@ def _make_physics(bkd, mu_field, lam_field):
     mesh = TransformedMesh2D(_NPTS_1D, _NPTS_1D, bkd)
     basis = ChebyshevBasis2D(mesh, bkd)
     physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
-    physics.set_mu(mu_field)
-    physics.set_lamda(lam_field)
+    physics.mu_function().set_values(mu_field)
+    physics.lamda_function().set_values(lam_field)
     return basis, physics
 
 
@@ -106,11 +106,11 @@ class TestAssemblies:
         _, physics, state, npts, mu_field, _ = self._setup(bkd)
 
         def fun(mfield):
-            physics.set_mu(mfield)
+            physics.mu_function().set_values(mfield)
             return physics.residual(state, 0.0)
 
         def jac(mfield):
-            physics.set_mu(mfield)
+            physics.mu_function().set_values(mfield)
             return physics.residual_mu_jacobian(state)
 
         checker = DerivativeChecker(
@@ -124,11 +124,11 @@ class TestAssemblies:
         _, physics, state, npts, _, lam_field = self._setup(bkd)
 
         def fun(lfield):
-            physics.set_lamda(lfield)
+            physics.lamda_function().set_values(lfield)
             return physics.residual(state, 0.0)
 
         def jac(lfield):
-            physics.set_lamda(lfield)
+            physics.lamda_function().set_values(lfield)
             return physics.residual_lamda_jacobian(state)
 
         checker = DerivativeChecker(

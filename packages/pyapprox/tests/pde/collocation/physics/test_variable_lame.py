@@ -1,7 +1,7 @@
 """Tests for variable Lame parameter support in LinearElasticityPhysics.
 
 Verifies:
-1. set_mu/set_lamda setters with validation
+1. Lame parameters held as NodalFields, validated when read
 2. Variable-Lame Jacobian correctness via DerivativeChecker
 3. Manufactured solution with spatially varying lambda(x), mu(x)
 4. Residual sensitivity methods via finite differences
@@ -25,6 +25,7 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.manufactured import (
     ManufacturedLinearElasticityEquations,
 )
@@ -112,58 +113,39 @@ class TestVariableLame:
     """Test variable Lame parameter support in LinearElasticityPhysics."""
 
     # ------------------------------------------------------------------
-    # Setter tests
+    # Lame coefficients and their validation
     # ------------------------------------------------------------------
 
-    def test_set_mu_positive_scalar(self, bkd):
-        """set_mu with positive scalar updates array and preserves value."""
-        physics, basis, _ = _setup_2d_physics(bkd)
-        physics.set_mu(2.5)
-        bkd.assert_allclose(
-            physics._mu_array,
-            bkd.full((basis.npts(),), 2.5),
-        )
-        assert physics._mu_value == 2.5
+    def test_constants_become_fields(self, bkd):
+        """Constant Lame parameters are held as rewritable NodalFields."""
+        physics, basis, _ = _setup_2d_physics(bkd, lamda=1.5, mu=2.5)
+        npts = basis.npts()
+        assert isinstance(physics.mu_function(), NodalField)
+        assert isinstance(physics.lamda_function(), NodalField)
+        lam, mu = physics.lame_values(0.0)
+        bkd.assert_allclose(mu, bkd.full((npts,), 2.5))
+        bkd.assert_allclose(lam, bkd.full((npts,), 1.5))
+        physics.mu_function().set_values(bkd.full((npts,), 3.0))
+        bkd.assert_allclose(physics.lame_values(0.0)[1], bkd.full((npts,), 3.0))
 
-    def test_set_mu_positive_array(self, bkd):
-        """set_mu with positive array updates array and clears value."""
+    def test_nonpositive_mu_raises_on_read(self, bkd):
+        """A non-positive mu is refused when the physics reads it."""
+        for value in (0.0, -1.0):
+            physics, basis, _ = _setup_2d_physics(bkd)
+            physics.mu_function().set_values(bkd.full((basis.npts(),), value))
+            state = bkd.zeros((physics.nstates(),))
+            with pytest.raises(ValueError, match="mu must be positive"):
+                physics.residual(state, 0.0)
+
+    def test_lamda_nonnegative(self, bkd):
+        """A zero lambda is accepted; a negative one is refused on read."""
         physics, basis, _ = _setup_2d_physics(bkd)
         npts = basis.npts()
-        mu_arr = bkd.full((npts,), 3.0)
-        physics.set_mu(mu_arr)
-        bkd.assert_allclose(physics._mu_array, mu_arr)
-        assert physics._mu_value is None
-
-    def test_set_mu_nonpositive_raises(self, bkd):
-        """set_mu raises ValueError for non-positive mu."""
-        physics, _, _ = _setup_2d_physics(bkd)
-        with pytest.raises(ValueError):
-            physics.set_mu(0.0)
-        with pytest.raises(ValueError):
-            physics.set_mu(-1.0)
-
-    def test_set_lamda_nonnegative(self, bkd):
-        """set_lamda accepts zero and positive values."""
-        physics, basis, _ = _setup_2d_physics(bkd)
-        npts = basis.npts()
-        physics.set_lamda(0.0)
-        bkd.assert_allclose(physics._lambda_array, bkd.zeros((npts,)))
-        physics.set_lamda(1.5)
-        bkd.assert_allclose(physics._lambda_array, bkd.full((npts,), 1.5))
-
-    def test_set_lamda_negative_raises(self, bkd):
-        """set_lamda raises ValueError for negative lambda."""
-        physics, _, _ = _setup_2d_physics(bkd)
-        with pytest.raises(ValueError):
-            physics.set_lamda(-0.1)
-
-    def test_set_scalar_preserves_constant_path(self, bkd):
-        """set_mu/set_lamda with scalars keep _*_value non-None."""
-        physics, _, _ = _setup_2d_physics(bkd)
-        physics.set_mu(2.0)
-        physics.set_lamda(3.0)
-        assert physics._mu_value == 2.0
-        assert physics._lambda_value == 3.0
+        physics.lamda_function().set_values(bkd.zeros((npts,)))
+        bkd.assert_allclose(physics.lame_values(0.0)[0], bkd.zeros((npts,)))
+        physics.lamda_function().set_values(bkd.full((npts,), -0.1))
+        with pytest.raises(ValueError, match="lamda must be non-negative"):
+            physics.jacobian(bkd.zeros((physics.nstates(),)), 0.0)
 
     # ------------------------------------------------------------------
     # Variable Lame Jacobian
@@ -180,8 +162,8 @@ class TestVariableLame:
         y = nodes[1, :]
         mu_field = 1.0 + 0.5 * bkd.sin(math.pi * x) * bkd.cos(math.pi * y)
         lam_field = 2.0 + 0.3 * bkd.cos(math.pi * x) * bkd.sin(math.pi * y)
-        physics.set_mu(mu_field)
-        physics.set_lamda(lam_field)
+        physics.mu_function().set_values(mu_field)
+        physics.lamda_function().set_values(lam_field)
 
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
@@ -201,11 +183,11 @@ class TestVariableLame:
         physics_c, basis_c, _ = _setup_2d_physics(
             bkd, npts_1d=6, lamda=lam_val, mu=mu_val
         )
-        # Constant via setters with arrays
+        # Constant via the fields' set_values with arrays
         physics_v, basis_v, _ = _setup_2d_physics(bkd, npts_1d=6)
         npts = basis_v.npts()
-        physics_v.set_mu(bkd.full((npts,), mu_val))
-        physics_v.set_lamda(bkd.full((npts,), lam_val))
+        physics_v.mu_function().set_values(bkd.full((npts,), mu_val))
+        physics_v.lamda_function().set_values(bkd.full((npts,), lam_val))
 
         nstates = physics_c.nstates()
         np.random.seed(123)
@@ -249,8 +231,8 @@ class TestVariableLame:
         # Set variable Lame on physics
         lam_vals = man_sol.functions["lambda"](nodes)
         mu_vals = man_sol.functions["mu"](nodes)
-        physics.set_lamda(lam_vals)
-        physics.set_mu(mu_vals)
+        physics.lamda_function().set_values(lam_vals)
+        physics.mu_function().set_values(mu_vals)
 
         # Get exact solution and forcing
         u_exact = man_sol.functions["solution"](nodes)
@@ -262,8 +244,8 @@ class TestVariableLame:
         physics_f = LinearElasticityPhysics(
             basis, bkd, lamda=1.0, mu=1.0, forcing=lambda t: forcing_flat
         )
-        physics_f.set_lamda(lam_vals)
-        physics_f.set_mu(mu_vals)
+        physics_f.lamda_function().set_values(lam_vals)
+        physics_f.mu_function().set_values(mu_vals)
 
         _set_dirichlet_all_sides(physics_f, mesh_obj, bkd, npts)
 
@@ -296,7 +278,7 @@ class TestVariableLame:
         x = nodes[0, :]
         nodes[1, :]
         mu0 = 1.0 + 0.5 * bkd.sin(math.pi * x)
-        physics.set_mu(mu0)
+        physics.mu_function().set_values(mu0)
 
         # Random state
         np.random.seed(42)
@@ -311,14 +293,14 @@ class TestVariableLame:
 
         # Finite difference
         eps = 1e-7
-        physics.set_mu(mu0 + eps * delta_mu)
+        physics.mu_function().set_values(mu0 + eps * delta_mu)
         res_plus = physics.residual(state, 0.0)
-        physics.set_mu(mu0 - eps * delta_mu)
+        physics.mu_function().set_values(mu0 - eps * delta_mu)
         res_minus = physics.residual(state, 0.0)
         sens_fd = (res_plus - res_minus) / (2.0 * eps)
 
         # Restore
-        physics.set_mu(mu0)
+        physics.mu_function().set_values(mu0)
 
         bkd.assert_allclose(sens_analytical, sens_fd, atol=1e-5)
 
@@ -333,7 +315,7 @@ class TestVariableLame:
         nodes[0, :]
         y = nodes[1, :]
         lam0 = 2.0 + 0.3 * bkd.cos(math.pi * y)
-        physics.set_lamda(lam0)
+        physics.lamda_function().set_values(lam0)
 
         # Random state
         np.random.seed(42)
@@ -348,13 +330,13 @@ class TestVariableLame:
 
         # Finite difference
         eps = 1e-7
-        physics.set_lamda(lam0 + eps * delta_lam)
+        physics.lamda_function().set_values(lam0 + eps * delta_lam)
         res_plus = physics.residual(state, 0.0)
-        physics.set_lamda(lam0 - eps * delta_lam)
+        physics.lamda_function().set_values(lam0 - eps * delta_lam)
         res_minus = physics.residual(state, 0.0)
         sens_fd = (res_plus - res_minus) / (2.0 * eps)
 
         # Restore
-        physics.set_lamda(lam0)
+        physics.lamda_function().set_values(lam0)
 
         bkd.assert_allclose(sens_analytical, sens_fd, atol=1e-5)

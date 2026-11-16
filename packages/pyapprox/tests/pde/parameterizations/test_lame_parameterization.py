@@ -107,14 +107,9 @@ class TestLameParameterization:
         expected_mu = E_val / (2.0 * (1.0 + nu))
         expected_lam = E_val * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
 
-        bkd.assert_allclose(
-            physics._mu_array, bkd.full((npts,), expected_mu), rtol=1e-12
-        )
-        bkd.assert_allclose(
-            physics._lambda_array,
-            bkd.full((npts,), expected_lam),
-            rtol=1e-12,
-        )
+        lam, mu = physics.lame_values(0.0)
+        bkd.assert_allclose(mu, bkd.full((npts,), expected_mu), rtol=1e-12)
+        bkd.assert_allclose(lam, bkd.full((npts,), expected_lam), rtol=1e-12)
 
     def test_nparams(self, bkd):
         """nparams matches field_map.nvars()."""
@@ -171,10 +166,11 @@ class TestLameParameterization:
             )
 
     def test_nonpositive_E_raises(self, bkd):
-        """apply() raises ValueError when E field is non-positive.
+        """A non-positive E field is refused when the physics reads it.
 
-        The physics's Lame setters validate positivity, which for the
-        fixed-nu map is equivalent to positivity of E.
+        The physics validates the positivity of mu when it reads the Lame
+        fields, which for the fixed-nu map is equivalent to positivity of
+        E.
         """
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
@@ -183,8 +179,9 @@ class TestLameParameterization:
         param = create_youngs_modulus_parameterization(physics, bkd, fm, 0.3)
         # E = 0.5 + (-1.0)*ones = -0.5, non-positive
         params = bkd.array([-1.0])
-        with pytest.raises(ValueError):
-            param.apply(params)
+        param.apply(params)
+        with pytest.raises(ValueError, match="mu must be positive"):
+            physics.residual(bkd.zeros((physics.nstates(),)), 0.0)
 
     def test_param_jacobian_fd(self, bkd):
         """param_jacobian matches FD via DerivativeChecker."""

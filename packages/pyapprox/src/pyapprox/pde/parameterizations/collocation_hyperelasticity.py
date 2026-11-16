@@ -16,7 +16,7 @@ raising slots are removed and the engine's second-order tier applies
 unchanged.
 """
 
-from typing import Generic, Tuple
+from typing import Callable, Generic, Tuple, Union
 
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
@@ -25,7 +25,6 @@ from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
 from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.parameterizations.collocation_elasticity import (
     _StackedLameJacobianAdapter,
-    _StackedLameSetter,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.field_term import (
@@ -63,6 +62,29 @@ class _WithoutHVP(Generic[Array]):
 
     def jacobian(self, params_1d: Array) -> Array:
         return self._inner.jacobian(params_1d)
+
+
+class _BoundLameSetter(Generic[Array]):
+    """Picklable setter splitting a stacked [mu; lambda] field across
+    the physics' Lamé setters, which validate positivity of mu and
+    non-negativity of lambda."""
+
+    def __init__(
+        self,
+        set_mu_fn: Callable[[Union[float, Array]], None],
+        set_lamda_fn: Callable[[Union[float, Array]], None],
+        npts: int,
+    ) -> None:
+        self._set_mu_fn = set_mu_fn
+        self._set_lamda_fn = set_lamda_fn
+        self._npts = npts
+
+    def writes_params(self) -> bool:
+        return False
+
+    def __call__(self, values: Array) -> None:
+        self._set_mu_fn(values[: self._npts])
+        self._set_lamda_fn(values[self._npts :])
 
 
 class _SecondOrderUnavailable(Generic[Array]):
@@ -119,7 +141,7 @@ class CollocationHyperelasticityParameterization(Generic[Array]):
             )
         )
         self._inner: _HyperelasticTerm[Array] = _FieldParameterizationTerm(
-            setter=_StackedLameSetter[Array](
+            setter=_BoundLameSetter[Array](
                 physics.set_mu, physics.set_lamda, npts
             ),
             physics=physics,

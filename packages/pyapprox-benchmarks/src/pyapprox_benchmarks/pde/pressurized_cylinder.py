@@ -101,8 +101,8 @@ def _make_functional(
     proc = StressPostProcessor2D(
         Dx,
         Dy,
-        get_lamda=lambda: physics._lambda_array,
-        get_mu=lambda: physics._mu_array,
+        get_lamda=lambda: physics.lame_values(0.0)[0],
+        get_mu=lambda: physics.lame_values(0.0)[1],
         bkd=bkd,
         curvilinear_basis=curv_basis,
     )

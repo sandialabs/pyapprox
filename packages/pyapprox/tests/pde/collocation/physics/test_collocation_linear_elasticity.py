@@ -8,11 +8,12 @@ both ``LinearElasticityPhysics`` and ``HyperelasticityPhysics``. Steady
 solves and the physics' mass matrix stay available.
 """
 
-from typing import Any, List, Union
+from typing import Any, Callable, Generic, List, Union
 
 import numpy as np
 import pytest
 
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
@@ -23,19 +24,30 @@ from pyapprox.pde.collocation.physics import (
     HyperelasticityPhysics,
     LinearElasticityPhysics,
 )
+from pyapprox.pde.collocation.physics.coefficients import (
+    NodalField,
+    NodalSupplier,
+)
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     create_hyperelasticity,
 )
 from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
 )
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.manufactured import (
     ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.models.collocation.right_hand_side import (
+    CollocationRightHandSide,
 )
 from pyapprox.pde.models.collocation.transient import TransientForwardModel
 from pyapprox.pde.parameterizations.collocation_elasticity import (
@@ -203,3 +215,97 @@ class TestCollocationElasticityTimeOrder:
         physics = _physics(bkd, physics_name)
         nstates = physics.nstates()
         bkd.assert_allclose(physics.mass_matrix(), bkd.eye(nstates))
+
+
+def _growing_modulus(coords: Array, time: float) -> Array:
+    return (1.0 + time) * (1.5 + 0.5 * coords[0] * coords[1])
+
+
+class _GrowingLoad(Generic[Array]):
+    """A stacked two-component load growing in time. Shape: (2*npts,)"""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, coords: Array, time: float) -> Array:
+        return (1.0 + time) * self._bkd.concatenate([coords[0], coords[1]])
+
+
+def _growing(
+    bkd: Backend[Array], func: Callable[[Array, float], Array]
+) -> NodalSupplier[Array]:
+    supplier: TimeDependent[Array] = TimeDependent(func)
+    return NodalSupplier(supplier, _nodes(bkd))
+
+
+def _elasticity_state(bkd: Backend[Array]) -> Array:
+    rng = np.random.default_rng(7)
+    return bkd.asarray(0.1 * rng.standard_normal(2 * _NPTS_1D * _NPTS_1D))
+
+
+class TestLinearElasticityInterior:
+    def test_time_dependent_forcing(self, bkd: Backend[Array]) -> None:
+        """A time-dependent load leaves the Jacobian time-invariant but not
+        the operator; the linear bundle passes the checker."""
+        physics = LinearElasticityPhysics(
+            _basis(bkd),
+            bkd,
+            lamda=1.5,
+            mu=NodalField(1.0 + 0.2 * _nodes(bkd)[0] ** 2),
+            forcing=_growing(bkd, _GrowingLoad(bkd)),
+        )
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        assert physics.interior_jacobian_is_time_invariant()
+        assert not physics.interior_is_time_invariant()
+        rhs = CollocationRightHandSide(physics)
+        jacobian = rhs.derivatives().jacobian
+        assert jacobian is not None and jacobian.affine()
+        report = ODEResidualBundleChecker(rhs).check(_elasticity_state(bkd), 0.3)
+        assert report.failures() == []
+
+    @pytest.mark.parametrize("constant", [True, False])
+    def test_jacobian_is_the_residuals(
+        self, bkd: Backend[Array], constant: bool
+    ) -> None:
+        """The residual is affine in the displacement, so J u = R(u) - R(0)
+        exactly, for constant and variable Lame parameters alike."""
+        if constant:
+            physics = LinearElasticityPhysics(_basis(bkd), bkd, lamda=1.5, mu=0.8)
+        else:
+            x, y = _nodes(bkd)[0], _nodes(bkd)[1]
+            physics = LinearElasticityPhysics(
+                _basis(bkd),
+                bkd,
+                lamda=NodalField(1.5 + 0.3 * x * y),
+                mu=NodalField(0.8 + 0.2 * x * x),
+            )
+        state = _elasticity_state(bkd)
+        zero = bkd.zeros((physics.nstates(),))
+        difference = physics.residual(state, 0.0) - physics.residual(zero, 0.0)
+        applied = physics.jacobian(state, 0.0) @ state
+        scale = float(bkd.max(bkd.abs(difference)))
+        bkd.assert_allclose(applied, difference, rtol=0.0, atol=1e-12 * scale)
+
+    def test_time_dependent_modulus(self, bkd: Backend[Array]) -> None:
+        """A time-dependent shear modulus makes the Jacobian time-dependent,
+        is read at the evaluation time, and is refused by the interface
+        traction, which takes no time."""
+        time = 0.7
+        moving = LinearElasticityPhysics(
+            _basis(bkd), bkd, lamda=1.5, mu=_growing(bkd, _growing_modulus)
+        )
+        frozen = LinearElasticityPhysics(
+            _basis(bkd),
+            bkd,
+            lamda=1.5,
+            mu=NodalField(_growing(bkd, _growing_modulus).values(time)),
+        )
+        assert not moving.interior_jacobian_is_time_invariant()
+        state = _elasticity_state(bkd)
+        bkd.assert_allclose(
+            moving.jacobian(state, time), frozen.jacobian(state, 0.0), rtol=1e-12
+        )
+        with pytest.raises(ValueError, match="takes no time"):
+            moving.compute_interface_flux(
+                state, bkd.array([0], dtype=int), bkd.array([1.0, 0.0])
+            )

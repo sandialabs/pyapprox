@@ -523,8 +523,8 @@ class TestPressurizedCylinder2D:
             lamda=1.0,
             mu=1.0,
         )
-        physics.set_mu(mu_field)
-        physics.set_lamda(lam_field)
+        physics.mu_function().set_values(mu_field)
+        physics.lamda_function().set_values(lam_field)
 
         # All-Dirichlet for clean Jacobian test
         bcs = []

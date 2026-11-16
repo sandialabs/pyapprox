@@ -16,8 +16,12 @@ whenever the field map has a usable HVP, which the stacked map
 delegates to the E-map.
 """
 
-from typing import Callable, Generic, Tuple, Union
+from typing import Callable, Generic, Tuple
 
+from pyapprox.pde.collocation.physics.coefficients import (
+    NodalCoefficientProtocol,
+    NodalField,
+)
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
@@ -35,29 +39,45 @@ _ElasticityTerm = _FieldParameterizationTerm[
 
 
 class _StackedLameSetter(Generic[Array]):
-    """Picklable setter splitting a stacked [mu; lambda] field.
+    """Picklable setter splitting a stacked [mu; lambda] field into the
+    physics' two Lamé ``NodalField``s.
 
-    The physics setters validate positivity of mu and non-negativity
-    of lambda, which for the fixed-nu map is equivalent to positivity
-    of the underlying Young's modulus field.
+    The physics validates positivity of mu and non-negativity of lambda
+    when it reads them, which for the fixed-nu map is equivalent to
+    positivity of the underlying Young's modulus field.
     """
 
     def __init__(
-        self,
-        set_mu_fn: Callable[[Union[float, Array]], None],
-        set_lamda_fn: Callable[[Union[float, Array]], None],
-        npts: int,
+        self, mu: NodalField[Array], lamda: NodalField[Array], npts: int
     ) -> None:
-        self._set_mu_fn = set_mu_fn
-        self._set_lamda_fn = set_lamda_fn
+        self._mu = mu
+        self._lamda = lamda
         self._npts = npts
 
     def writes_params(self) -> bool:
         return False
 
     def __call__(self, values: Array) -> None:
-        self._set_mu_fn(values[: self._npts])
-        self._set_lamda_fn(values[self._npts :])
+        self._mu.set_values(values[: self._npts])
+        self._lamda.set_values(values[self._npts :])
+
+
+def _require_field(
+    coefficient: NodalCoefficientProtocol[Array], name: str
+) -> NodalField[Array]:
+    """The coefficient as the ``NodalField`` a parameterization rewrites.
+
+    Raises
+    ------
+    TypeError
+        If the physics was not built with a ``NodalField`` for it.
+    """
+    if not isinstance(coefficient, NodalField):
+        raise TypeError(
+            f"parameterizing {name} requires the physics to hold it as a "
+            f"NodalField, got {type(coefficient).__name__}"
+        )
+    return coefficient
 
 
 class _StackedLameJacobianAdapter(Generic[Array]):
@@ -108,7 +128,15 @@ class CollocationElasticityParameterization(Generic[Array]):
         The bound collocation physics.
     youngs_modulus_map : FieldMapProtocol
         Map onto the Young's modulus field E(x) (positivity enforced
-        through the physics's Lame setters on apply).
+        when the physics reads its Lamé fields). The physics must hold
+        both Lamé parameters as ``NodalField``s; a constant passed to it
+        is one.
+
+    Raises
+    ------
+    TypeError
+        If ``physics`` is not a collocation ``LinearElasticityPhysics``,
+        or holds a Lamé parameter that is not a ``NodalField``.
     poisson_ratio : float
         Fixed Poisson ratio, -1 < nu < 0.5.
     bkd : Backend
@@ -137,7 +165,9 @@ class CollocationElasticityParameterization(Generic[Array]):
         self._inner: _ElasticityTerm[Array] = (
             _FieldParameterizationTerm.linear_field_state(
                 setter=_StackedLameSetter[Array](
-                    physics.set_mu, physics.set_lamda, npts
+                    _require_field(physics.mu_function(), "mu"),
+                    _require_field(physics.lamda_function(), "lamda"),
+                    npts,
                 ),
                 physics=physics,
                 field_jacobian=_StackedLameJacobianAdapter(

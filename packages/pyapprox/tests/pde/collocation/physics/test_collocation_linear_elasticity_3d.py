@@ -180,8 +180,8 @@ class TestJacobian:
         npts = _NPTS_1D**3
         physics = LinearElasticityPhysics(basis, bkd, 1.5, 1.0)
         if field_lame:
-            physics.set_mu(_random(bkd, (npts,), 1.0, 2.0))
-            physics.set_lamda(_random(bkd, (npts,), 1.5, 2.5))
+            physics.mu_function().set_values(_random(bkd, (npts,), 1.0, 2.0))
+            physics.lamda_function().set_values(_random(bkd, (npts,), 1.5, 2.5))
         state = _random(bkd, (3 * npts,))
         return physics, state, npts
 
@@ -228,8 +228,8 @@ class TestAssemblies:
         lam_field = _random(bkd, (npts,), 1.5, 2.5)
         _, basis = _make_basis(bkd)
         physics = LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
-        physics.set_mu(mu_field)
-        physics.set_lamda(lam_field)
+        physics.mu_function().set_values(mu_field)
+        physics.lamda_function().set_values(lam_field)
         state = _random(bkd, (3 * npts,))
         return basis, physics, state, npts, mu_field, lam_field
 
@@ -256,11 +256,11 @@ class TestAssemblies:
         _, physics, state, npts, mu_field, _ = self._setup(bkd)
 
         def fun(mfield):
-            physics.set_mu(mfield)
+            physics.mu_function().set_values(mfield)
             return physics.residual(state, 0.0)
 
         def jac(mfield):
-            physics.set_mu(mfield)
+            physics.mu_function().set_values(mfield)
             return physics.residual_mu_jacobian(state)
 
         checker = DerivativeChecker(
@@ -274,11 +274,11 @@ class TestAssemblies:
         _, physics, state, npts, _, lam_field = self._setup(bkd)
 
         def fun(lfield):
-            physics.set_lamda(lfield)
+            physics.lamda_function().set_values(lfield)
             return physics.residual(state, 0.0)
 
         def jac(lfield):
-            physics.set_lamda(lfield)
+            physics.lamda_function().set_values(lfield)
             return physics.residual_lamda_jacobian(state)
 
         checker = DerivativeChecker(
