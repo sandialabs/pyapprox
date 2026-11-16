@@ -20,6 +20,7 @@ from pyapprox.pde.collocation.operators.differential import (
 )
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.physics.coefficients import (
+    CheckedValues,
     CoefficientInput,
     NodalCoefficientProtocol,
     declared_time_invariant,
@@ -80,6 +81,11 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         ndim = basis.ndim()
 
         self._diffusion = optional_nodal_coefficient(diffusion, npts, bkd)
+        self._checked_diffusion: Optional[CheckedValues[Array]] = (
+            None
+            if self._diffusion is None
+            else CheckedValues(self._diffusion, self._check_diffusion)
+        )
 
         # Store velocity field
         self._velocity: Optional[List[Array]]
@@ -137,7 +143,8 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         field rather than failing. Checked here, where the operator
         consumes the values, so it holds for a physics built directly,
         a field mutated after construction, and a parameterized one
-        alike.
+        alike; ``CheckedValues`` repeats the check only when the values
+        may have changed.
 
         Evaluated on every call and never cached, so every consumer
         (residual, Jacobian, flux) reads the coefficient at its own time
@@ -149,9 +156,12 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             If the physics has no diffusion term, or the diffusivity is
             not positive everywhere.
         """
-        if self._diffusion is None:
+        if self._checked_diffusion is None:
             raise ValueError("this physics has no diffusion term")
-        diffusion = self._diffusion.values(time)
+        return self._checked_diffusion.values(time)
+
+    def _check_diffusion(self, diffusion: Array, time: float) -> None:
+        """Raise unless the diffusivity is positive everywhere."""
         smallest = self._bkd.to_float(self._bkd.min(diffusion))
         if smallest <= 0.0:
             raise ValueError(
@@ -161,7 +171,6 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 "which yields a plausible-looking solution rather than "
                 "a solver failure"
             )
-        return diffusion
 
     def _get_reaction(self, time: float) -> Array:
         """Get reaction array at given time, evaluated, never cached.

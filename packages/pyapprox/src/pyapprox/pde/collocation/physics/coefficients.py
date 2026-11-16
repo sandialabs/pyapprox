@@ -255,6 +255,49 @@ def optional_nodal_coefficient(
     return as_nodal_coefficient(value, npts, bkd)
 
 
+class CheckedValues(Generic[Array]):
+    """A coefficient's values, checked only when they may have changed.
+
+    A physics that requires something of a coefficient's values (a
+    positive diffusivity, say) states it as ``check``. Reading the values
+    runs the check when the coefficient's ``version`` has moved since the
+    last passing check, and on every read of a coefficient declared
+    time-dependent, whose values change without a version change. A
+    parameterized ``NodalField`` is thus checked once per change, not
+    once per evaluation: a check reduces the values to a float, which on
+    a GPU waits for every queued kernel.
+
+    Parameters
+    ----------
+    coefficient : NodalCoefficientProtocol
+        The coefficient read.
+    check : callable
+        ``check(values, time)``; raises if the values are unacceptable.
+    """
+
+    def __init__(
+        self,
+        coefficient: NodalCoefficientProtocol[Array],
+        check: Callable[[Array, float], None],
+    ) -> None:
+        self._coefficient = coefficient
+        self._check = check
+        self._checked_version: Optional[int] = None
+
+    def values(self, time: float) -> Array:
+        """The coefficient's values at ``time``, checked if they may have
+        changed. Shape: (npts,)"""
+        values = self._coefficient.values(time)
+        if self._coefficient.is_time_dependent():
+            self._check(values, time)
+            return values
+        version = self._coefficient.version()
+        if version != self._checked_version:
+            self._check(values, time)
+            self._checked_version = version
+        return values
+
+
 def declared_time_invariant(
     *coefficients: Optional[NodalCoefficientProtocol[Array]],
 ) -> bool:

@@ -21,6 +21,7 @@ from typing import Generic, List, Optional, Tuple
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.physics.coefficients import (
+    CheckedValues,
     CoefficientInput,
     NodalCoefficientProtocol,
     as_nodal_coefficient,
@@ -97,6 +98,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         npts = basis.npts()
         self._lamda = as_nodal_coefficient(lamda, npts, bkd)
         self._mu = as_nodal_coefficient(mu, npts, bkd)
+        self._checked_lamda = CheckedValues(self._lamda, self._check_lamda)
+        self._checked_mu = CheckedValues(self._mu, self._check_mu)
         self._forcing = optional_nodal_coefficient(forcing, ndim * npts, bkd)
 
         # Precompute first-derivative matrices per dimension
@@ -130,16 +133,20 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             If :math:`\\mu` is not positive or :math:`\\lambda` is
             negative somewhere.
         """
-        bkd = self._bkd
-        lam = self._lamda.values(time)
-        mu = self._mu.values(time)
-        mu_min = bkd.to_float(bkd.min(mu))
+        mu = self._checked_mu.values(time)
+        return self._checked_lamda.values(time), mu
+
+    def _check_mu(self, mu: Array, time: float) -> None:
+        """Raise unless the shear modulus is positive everywhere."""
+        mu_min = self._bkd.to_float(self._bkd.min(mu))
         if mu_min <= 0.0:
             raise ValueError(f"mu must be positive; found min {mu_min:.2e}")
-        lam_min = bkd.to_float(bkd.min(lam))
+
+    def _check_lamda(self, lam: Array, time: float) -> None:
+        """Raise unless Lamé's first parameter is non-negative everywhere."""
+        lam_min = self._bkd.to_float(self._bkd.min(lam))
         if lam_min < 0.0:
             raise ValueError(f"lamda must be non-negative; found min {lam_min:.2e}")
-        return lam, mu
 
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""

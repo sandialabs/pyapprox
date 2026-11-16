@@ -1,11 +1,13 @@
 """Collocation nodal coefficients: values, declarations and refusals."""
 
 import pickle
+from typing import Generic
 
 import numpy as np
 import pytest
 
 from pyapprox.pde.collocation.physics.coefficients import (
+    CheckedValues,
     NodalCoefficientProtocol,
     NodalField,
     NodalSupplier,
@@ -120,3 +122,60 @@ class TestAsNodalCoefficient:
                 _NPTS,
                 numpy_bkd,
             )
+
+
+class _CountingCheck(Generic[Array]):
+    """A check that counts its calls and refuses values below a bound."""
+
+    def __init__(self, bkd: Backend[Array], lower: float = 0.0) -> None:
+        self._bkd = bkd
+        self._lower = lower
+        self.ncalls = 0
+
+    def __call__(self, values: Array, time: float) -> None:
+        self.ncalls += 1
+        if self._bkd.to_float(self._bkd.min(values)) < self._lower:
+            raise ValueError("below the bound")
+
+
+class TestCheckedValues:
+    def test_field_checked_once_per_change(self, bkd: Backend[Array]) -> None:
+        """A NodalField is checked on the first read and after each
+        set_values, not on every read."""
+        field = NodalField(bkd.ones((_NPTS,)))
+        check = _CountingCheck(bkd)
+        checked = CheckedValues(field, check)
+        for time in (0.0, 0.5, 1.0):
+            bkd.assert_allclose(checked.values(time), bkd.ones((_NPTS,)))
+        assert check.ncalls == 1
+        field.set_values(bkd.full((_NPTS,), 2.0))
+        checked.values(0.0)
+        checked.values(0.0)
+        assert check.ncalls == 2
+
+    def test_failed_check_is_repeated(self, bkd: Backend[Array]) -> None:
+        """Values that fail are not recorded as checked: every read of
+        them raises."""
+        field = NodalField(bkd.full((_NPTS,), -1.0))
+        checked = CheckedValues(field, _CountingCheck(bkd))
+        for _ in range(2):
+            with pytest.raises(ValueError, match="below the bound"):
+                checked.values(0.0)
+
+    def test_declared_suppliers(self, bkd: Backend[Array]) -> None:
+        """A time-independent supplier is checked once; a time-dependent
+        one on every read, since its values change without a version
+        change."""
+        fixed: TimeIndependent[Array] = TimeIndependent(_sum_of_coords)
+        fixed_check = _CountingCheck(bkd, lower=-10.0)
+        fixed_values = CheckedValues(NodalSupplier(fixed, _nodes(bkd)), fixed_check)
+        growing: TimeDependent[Array] = TimeDependent(_growing)
+        growing_check = _CountingCheck(bkd, lower=-10.0)
+        growing_values = CheckedValues(
+            NodalSupplier(growing, _nodes(bkd)), growing_check
+        )
+        for time in (0.0, 0.5, 1.0):
+            fixed_values.values(time)
+            growing_values.values(time)
+        assert fixed_check.ncalls == 1
+        assert growing_check.ncalls == 3
