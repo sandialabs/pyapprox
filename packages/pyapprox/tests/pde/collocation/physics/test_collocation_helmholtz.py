@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
@@ -12,10 +13,18 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.helmholtz import (
     HelmholtzPhysics,
     create_helmholtz,
 )
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
+)
+from pyapprox.pde.models.collocation.right_hand_side import (
+    CollocationRightHandSide,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.physics_test_utils import (
     PhysicsNewtonResidual,
@@ -139,3 +148,72 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         assert physics.ncomponents() == 1
         assert physics.nstates() == npts
         assert abs(physics.wave_number_sq() - 2.0) < 1e-7
+
+
+def _helmholtz_1d(
+    bkd: Backend[Array], wave_number_sq: float, npts: int = 21
+) -> HelmholtzPhysics[Array]:
+    basis = ChebyshevBasis1D(TransformedMesh1D(npts, bkd), bkd)
+    return HelmholtzPhysics(
+        basis, bkd, wave_number_sq=wave_number_sq, forcing=NodalField(bkd.ones((npts,)))
+    )
+
+
+def _solve_unit_forcing(bkd: Backend[Array], wave_number_sq: float) -> Array:
+    """-u'' + k^2 u = 1 on (-1, 1) with u(+-1) = 0."""
+    physics = _helmholtz_1d(bkd, wave_number_sq)
+    npts = physics.npts()
+    mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+    physics.set_boundary_conditions(
+        [
+            zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
+            zero_dirichlet_bc(bkd, mesh.boundary_indices(1)),
+        ]
+    )
+    solver = NewtonSolver(PhysicsNewtonResidual(physics, time=0.0))
+    solver.set_options(maxiters=20, atol=1e-12, rtol=1e-12)
+    solution: Array = solver.solve(bkd.zeros((npts,)))
+    return solution
+
+
+class TestHelmholtzSignConvention:
+    """The screened sign, -lap(u) + k^2 u = f, pinned without a derived
+    manufactured solution."""
+
+    def test_wave_number_enters_the_residual_as_minus_k2_u(
+        self, bkd: Backend[Array]
+    ) -> None:
+        k2 = 2.5
+        screened = _helmholtz_1d(bkd, k2)
+        poisson = _helmholtz_1d(bkd, 0.0)
+        state = bkd.asarray(np.random.default_rng(1).normal(0.0, 1.0, screened.npts()))
+        residual = screened.residual(state, 0.0)
+        difference = residual - poisson.residual(state, 0.0)
+        # Both residuals hold the Laplacian of a random state, large on
+        # Chebyshev nodes; their difference keeps its rounding error.
+        scale = bkd.to_float(bkd.max(bkd.abs(residual)))
+        bkd.assert_allclose(difference, -k2 * state, rtol=1e-12, atol=1e-13 * scale)
+
+    def test_comparison_principle(self, bkd: Backend[Array]) -> None:
+        """Unit forcing, zero Dirichlet ends: a positive k^2 lowers the
+        positive Poisson solution; a negative wave_number_sq (the
+        unscreened form, below the first eigenvalue pi^2/4) raises it."""
+        screened = _solve_unit_forcing(bkd, 1.0)
+        poisson = _solve_unit_forcing(bkd, 0.0)
+        unscreened = _solve_unit_forcing(bkd, -1.0)
+        interior = slice(1, -1)
+        assert bkd.all_bool(screened[interior] > 0.0)
+        assert bkd.all_bool(screened[interior] < poisson[interior])
+        assert bkd.all_bool(unscreened[interior] > poisson[interior])
+
+    def test_interior_operator(self, bkd: Backend[Array]) -> None:
+        """Helmholtz inherits ADR's interior declarations: constant
+        coefficients give a constant Jacobian the checker accepts."""
+        physics = _helmholtz_1d(bkd, 2.0)
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        rhs = CollocationRightHandSide(physics)
+        jacobian = rhs.derivatives().jacobian
+        assert jacobian is not None
+        assert jacobian.affine() and jacobian.time_invariant()
+        state = bkd.asarray(np.random.default_rng(2).normal(0.0, 1.0, physics.npts()))
+        assert ODEResidualBundleChecker(rhs).check(state, 0.3).failures() == []

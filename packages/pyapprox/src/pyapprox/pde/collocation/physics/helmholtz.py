@@ -1,18 +1,23 @@
-"""Helmholtz equation physics for spectral collocation.
+r"""Helmholtz equation physics for spectral collocation.
 
-Implements the Helmholtz equation:
-    -Laplacian(u) + k^2 * u = f
+Implements, in the screened sign convention,
 
-where k is the wave number. This is the standard form of the Helmholtz
-equation that arises from separating the wave equation or quantum mechanics.
+.. math:: -\Delta u + k^2 u = f,
+
+which the Galerkin Helmholtz physics shares. Separating the wave equation
+gives the opposite sign, :math:`-\Delta u - k^2 u = f`; that form is
+reached here with a negative ``wave_number_sq``.
 """
 
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalField,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
@@ -20,23 +25,11 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):
-    """Helmholtz equation physics.
+    r"""Helmholtz equation physics, screened sign convention.
 
-    Implements the Helmholtz equation:
-        -Laplacian(u) + k^2 * u = f
-
-    This is equivalent to:
-        Laplacian(u) - k^2 * u + f = 0
-
-    Which corresponds to ADR with:
-        diffusion = 1 (so Laplacian term appears)
-        reaction = -k^2 (negative, because ADR adds +r*u but we want -k^2*u)
-        forcing = f
-
-    Note: For the residual = 0 formulation:
-        residual = Laplacian(u) - k^2*u + f = 0
-    corresponds to:
-        -Laplacian(u) + k^2*u = f (standard Helmholtz form)
+    Solves :math:`-\Delta u + k^2 u = f` (see the module docstring for
+    the sign). The residual is :math:`\Delta u - k^2 u + f`: ADR with
+    diffusion 1, reaction :math:`-k^2` and forcing :math:`f`.
 
     Parameters
     ----------
@@ -45,9 +38,10 @@ class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):
     bkd : Backend
         Computational backend.
     wave_number_sq : float or Array
-        Squared wave number k^2. If Array, shape: (npts,).
-    forcing : Callable[[float], Array] or Array, optional
-        Forcing term f(x). If callable, takes time and returns (npts,) array.
+        Squared wave number k^2. If Array, shape: (npts,); it becomes the
+        reaction ``NodalField`` :math:`-k^2`.
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Forcing term f, in the forms ``AdvectionDiffusionReaction`` takes.
 
     Examples
     --------
@@ -63,12 +57,9 @@ class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
         wave_number_sq: Union[float, Array],
-        forcing: Optional[Callable[[float], Array]] = None,
+        forcing: Optional[CoefficientInput[Array]] = None,
     ):
-        # Helmholtz: -Laplacian(u) + k^2 * u = f
-        # Rewrite as: Laplacian(u) - k^2 * u + f = 0
-        # ADR residual: D * Laplacian(u) + r * u + f
-        # So: D = 1, r = -k^2
+        # ADR residual D lap(u) + r u + f with D = 1, r = -k^2
         reaction: Union[float, NodalField[Array]] = (
             -wave_number_sq
             if isinstance(wave_number_sq, (int, float))
@@ -85,7 +76,10 @@ class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):
         self._wave_number_sq = wave_number_sq
 
     def wave_number_sq(self) -> Union[float, Array]:
-        """Return the squared wave number."""
+        """The squared wave number given at construction.
+
+        A parameterization writes the reaction field, not this value.
+        """
         return self._wave_number_sq
 
 
@@ -93,11 +87,11 @@ def create_helmholtz(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
     wave_number_sq: Union[float, Array],
-    forcing: Optional[Callable[[float], Array]] = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
 ) -> HelmholtzPhysics[Array]:
-    """Create Helmholtz equation physics.
+    r"""Create Helmholtz equation physics.
 
-    Solves: -Laplacian(u) - k^2 * u = f
+    Solves :math:`-\Delta u + k^2 u = f`, the screened sign convention.
 
     Parameters
     ----------
@@ -107,8 +101,8 @@ def create_helmholtz(
         Computational backend.
     wave_number_sq : float or Array
         Squared wave number k^2.
-    forcing : Callable or Array, optional
-        Source term f(x).
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Source term f.
 
     Returns
     -------
