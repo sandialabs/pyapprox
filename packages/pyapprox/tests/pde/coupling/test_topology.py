@@ -28,9 +28,11 @@ def _expected_counts(ncells: tuple[int, ...]) -> dict[int, int]:
 
 
 def _actual_counts(topo: TensorBoxPartition) -> dict[int, int]:
+    """Skeleton (off-boundary) entities per dimension."""
     counts = {m: 0 for m in range(topo.ndim())}
     for e in range(topo.nentities()):
-        counts[topo.entity_dim(e)] += 1
+        if not topo.on_boundary(e):
+            counts[topo.entity_dim(e)] += 1
     return counts
 
 
@@ -58,8 +60,45 @@ def test_multiplicity_is_two_to_the_codimension(ncells: tuple[int, ...]) -> None
     for e in range(topo.nentities()):
         incident = topo.incident_subdomains(e)
         assert len(set(incident)) == len(incident)
-        assert len(incident) == 2 ** (topo.ndim() - topo.entity_dim(e))
         assert list(incident) == sorted(incident)
+        full = 2 ** (topo.ndim() - topo.entity_dim(e))
+        if topo.on_boundary(e):
+            # Some cut is on the boundary, so fewer cells surround it.
+            assert len(incident) < full
+            assert len(incident) & (len(incident) - 1) == 0
+        else:
+            assert len(incident) == full
+
+
+@pytest.mark.parametrize("ncells", [(1,), (3,), (2, 2), (3, 1), (2, 3, 2)])
+def test_total_count_with_boundary_pieces(ncells: tuple[int, ...]) -> None:
+    # Per direction: span a cell (n), an interior cut (n - 1) or a
+    # boundary cut (2); at least one cut must be interior.
+    topo = TensorBoxPartition(ncells)
+    expected = prod(2 * n + 1 for n in ncells) - prod(n + 2 for n in ncells)
+    assert topo.nentities() == expected
+    first_boundary = sum(not topo.on_boundary(e) for e in range(expected))
+    assert all(topo.on_boundary(e) for e in range(first_boundary, expected))
+
+
+@pytest.mark.parametrize("ncells", [(3,), (2, 2), (3, 2), (2, 2, 2)])
+def test_closure_entities(ncells: tuple[int, ...]) -> None:
+    topo = TensorBoxPartition(ncells)
+    d = topo.ndim()
+    reached = set()
+    for face in range(topo.nentities()):
+        if topo.entity_dim(face) != d - 1 or topo.on_boundary(face):
+            continue
+        assert topo.closure_entity(face, (0,) * (d - 1)) == face
+        for signs in itertools.product((-1, 0, 1), repeat=d - 1):
+            piece = topo.closure_entity(face, signs)
+            assert topo.entity_dim(piece) == signs.count(0)
+            assert set(topo.incident_subdomains(face)) <= set(
+                topo.incident_subdomains(piece)
+            )
+            reached.add(piece)
+    # Every entity lies in the closure of some skeleton face.
+    assert reached == set(range(topo.nentities()))
 
 
 @pytest.mark.parametrize("ncells", [(3,), (3, 2), (2, 3, 2)])
@@ -78,23 +117,33 @@ def test_subdomain_entities_invert_incidence(ncells: tuple[int, ...]) -> None:
 
 def test_two_by_two_explicit() -> None:
     topo = TensorBoxPartition((2, 2))
-    assert topo.nentities() == 5
+    assert topo.nentities() == 9
+    assert [topo.on_boundary(e) for e in range(9)] == [False] * 5 + [True] * 4
     vertex = [e for e in range(5) if topo.entity_dim(e) == 0]
     assert len(vertex) == 1
     assert topo.incident_subdomains(vertex[0]) == (0, 1, 2, 3)
     edges = sorted(topo.incident_subdomains(e) for e in range(5) if e != vertex[0])
     assert edges == [(0, 1), (0, 2), (1, 3), (2, 3)]
+    # The ends of the two interface lines, on the four sides of the box.
+    ends = sorted(topo.incident_subdomains(e) for e in range(5, 9))
+    assert ends == [(0, 1), (0, 2), (1, 3), (2, 3)]
+    assert all(topo.entity_dim(e) == 0 for e in range(5, 9))
 
 
 def test_six_dimensional_smoke() -> None:
     topo = TensorBoxPartition((2,) * 6)
     assert topo.nsubdomains() == 64
-    assert topo.nentities() == 3**6 - 2**6
-    vertices = [e for e in range(topo.nentities()) if topo.entity_dim(e) == 0]
+    assert topo.nentities() == 5**6 - 4**6
+    skeleton = [e for e in range(topo.nentities()) if not topo.on_boundary(e)]
+    assert len(skeleton) == 3**6 - 2**6
+    vertices = [e for e in skeleton if topo.entity_dim(e) == 0]
     assert len(vertices) == 1
     assert topo.incident_subdomains(vertices[0]) == tuple(range(64))
     for s in range(64):
-        assert len(topo.subdomain_entities(s)) == 2**6 - 1
+        on_s = topo.subdomain_entities(s)
+        # Per direction: span, the interior cut, or this cell's outer cut.
+        assert len(on_s) == 3**6 - 2**6
+        assert sum(not topo.on_boundary(e) for e in on_s) == 2**6 - 1
 
 
 def test_ownership() -> None:
@@ -122,3 +171,10 @@ def test_invalid_input() -> None:
         topo.subdomain_entities(2)
     with pytest.raises(IndexError):
         topo.owner(2)
+    with pytest.raises(IndexError):
+        topo.on_boundary(topo.nentities())
+    square = TensorBoxPartition((2, 2))
+    with pytest.raises(ValueError):
+        square.closure_entity(0, (0, 0))
+    with pytest.raises(ValueError):
+        square.closure_entity(0, (2,))

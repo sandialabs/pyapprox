@@ -5,12 +5,18 @@ A partition of a :math:`d`-dimensional domain into subdomains has a
 the domain. Its entities are faces (dimension :math:`d-1`), edges,
 vertices and so on down to dimension 0. An entity of codimension
 :math:`k` is shared by its *incident* subdomains, whose number is its
-multiplicity. Pieces of a subdomain boundary on the physical boundary
-are not skeleton entities: they carry the problem's own boundary
-conditions, not coupling data.
+multiplicity.
 
-Entities and subdomains are numbered from zero. Each subdomain has an
-owner, the rank that evaluates its local response.
+Where the skeleton meets the physical boundary, its faces' closures
+contain pieces of the boundary: the ends of an interface line in 2D,
+say. These are entities too, flagged :meth:`on_boundary`, since nodes
+on them are shared by the faces that meet there; the problem's own
+boundary conditions decide what is imposed on them. Pieces of the
+physical boundary outside the skeleton's closure are not entities.
+
+Entities and subdomains are numbered from zero, skeleton entities
+before boundary ones. Each subdomain has an owner, the rank that
+evaluates its local response.
 """
 
 import itertools
@@ -37,10 +43,15 @@ class SkeletonTopologyProtocol(Protocol):
         """The dimension of ``entity``, from 0 to ``ndim() - 1``."""
         ...
 
-    def incident_subdomains(self, entity: int) -> tuple[int, ...]:
-        """The subdomains sharing ``entity``, in increasing order.
+    def on_boundary(self, entity: int) -> bool:
+        """Whether ``entity`` lies on the physical boundary."""
+        ...
 
-        The length is the entity's multiplicity, at least 2.
+    def incident_subdomains(self, entity: int) -> tuple[int, ...]:
+        """The subdomains whose closure contains ``entity``, increasing.
+
+        The length is the entity's multiplicity, at least 2 off the
+        physical boundary.
         """
         ...
 
@@ -63,10 +74,12 @@ class TensorBoxPartition:
 
     Subdomains are numbered by their cell multi-index in row-major order
     (the last direction varies fastest). An entity spans some directions,
-    over one cell each, and is fixed at an interior cut in the others.
-    With :math:`k` fixed directions it has codimension :math:`k` and is
-    shared by the :math:`2^k` cells on either side of each cut. Entities
-    are numbered by codimension, then by their multi-index.
+    over one cell each, and is fixed at a cut in the others, at least one
+    of them interior. With :math:`k` fixed directions it has codimension
+    :math:`k`; with :math:`k_i` of them interior it is shared by
+    :math:`2^{k_i}` cells, :math:`2^k` off the physical boundary.
+    Skeleton entities come first, then boundary ones; each group is
+    numbered by codimension, then by multi-index.
 
     Parameters
     ----------
@@ -114,17 +127,24 @@ class TensorBoxPartition:
 
     def _build_entities(self) -> None:
         # Per direction: (False, cell) spans that cell; (True, cut) is
-        # fixed at an interior cut between cells cut - 1 and cut.
+        # fixed at cut between cells cut - 1 and cut, 0 and n being the
+        # physical boundary.
         choices = [
-            [(False, c) for c in range(n)] + [(True, i) for i in range(1, n)]
+            [(False, c) for c in range(n)] + [(True, i) for i in range(n + 1)]
             for n in self._ncells
         ]
         entities = [
-            e for e in itertools.product(*choices) if any(f for f, _ in e)
+            e
+            for e in itertools.product(*choices)
+            if any(self._interior_cut(j, e[j]) for j in range(len(e)))
         ]
-        entities.sort(key=lambda e: sum(f for f, _ in e))
+        entities.sort(
+            key=lambda e: (self._touches_boundary(e), sum(f for f, _ in e))
+        )
         self._entities = tuple(entities)
+        self._ids = {e: k for k, e in enumerate(entities)}
         self._dims = tuple(sum(not f for f, _ in e) for e in entities)
+        self._boundary = tuple(self._touches_boundary(e) for e in entities)
         self._incident = tuple(self._cells_around(e) for e in entities)
         on_subdomain: list[list[int]] = [[] for _ in range(self._nsub)]
         for entity, cells in enumerate(self._incident):
@@ -132,8 +152,21 @@ class TensorBoxPartition:
                 on_subdomain[cell].append(entity)
         self._subdomain_entities = tuple(tuple(es) for es in on_subdomain)
 
+    def _interior_cut(self, direction: int, choice: tuple[bool, int]) -> bool:
+        fixed, i = choice
+        return fixed and 0 < i < self._ncells[direction]
+
+    def _touches_boundary(self, entity: Sequence[tuple[bool, int]]) -> bool:
+        return any(
+            fixed and not self._interior_cut(j, (fixed, i))
+            for j, (fixed, i) in enumerate(entity)
+        )
+
     def _cells_around(self, entity: Sequence[tuple[bool, int]]) -> tuple[int, ...]:
-        per_dir = [(i - 1, i) if fixed else (i,) for fixed, i in entity]
+        per_dir = [
+            tuple(c for c in (i - 1, i) if 0 <= c < n) if fixed else (i,)
+            for (fixed, i), n in zip(entity, self._ncells)
+        ]
         return tuple(sorted(self._flat(m) for m in itertools.product(*per_dir)))
 
     def _flat(self, multi_index: Sequence[int]) -> int:
@@ -158,6 +191,31 @@ class TensorBoxPartition:
     def entity_dim(self, entity: int) -> int:
         _check_index(entity, len(self._dims), "entity")
         return self._dims[entity]
+
+    def on_boundary(self, entity: int) -> bool:
+        _check_index(entity, len(self._dims), "entity")
+        return self._boundary[entity]
+
+    def closure_entity(self, entity: int, signs: Sequence[int]) -> int:
+        r"""The entity a piece of ``entity``'s closure is, given the piece
+        as a sub-entity of the reference box :math:`[-1, 1]^m`.
+
+        ``signs`` has one entry per direction ``entity`` spans, in
+        increasing axis order: 0 keeps spanning it, -1 and +1 fix it at
+        the cell's lower and upper cut. All zeros is ``entity`` itself.
+        """
+        _check_index(entity, len(self._dims), "entity")
+        pattern = list(self._entities[entity])
+        spanned = [j for j, (fixed, _) in enumerate(pattern) if not fixed]
+        if len(signs) != len(spanned) or any(s not in (-1, 0, 1) for s in signs):
+            raise ValueError(
+                f"signs must give -1, 0 or 1 for each of {len(spanned)} spanned "
+                f"directions, got {tuple(signs)}"
+            )
+        for j, sign in zip(spanned, signs):
+            if sign != 0:
+                pattern[j] = (True, pattern[j][1] + (sign + 1) // 2)
+        return self._ids[tuple(pattern)]
 
     def entity_measure(self, entity: int) -> float:
         """The ``entity_dim(entity)``-dimensional measure of ``entity``: the
