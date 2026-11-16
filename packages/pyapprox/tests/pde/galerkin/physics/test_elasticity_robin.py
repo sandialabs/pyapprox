@@ -55,9 +55,9 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
+from tests._helpers.galerkin_steady_solve import steady_solve
 
 _Arr = NDArray[np.floating[Any]]
 
@@ -86,13 +86,9 @@ def _set_exact_lame(physics: CompositeLinearElasticity[_Arr]) -> None:
 
 
 def _solve(system: GalerkinSystem[_Arr]) -> _Arr:
-    bkd = system.bkd()
-    solver = SteadyStateSolver(
-        system.steady(), tol=1e-10, max_iter=5, line_search=False
-    )
-    result = solver.solve(bkd.asarray(np.zeros(system.nstates())))
+    result = steady_solve(system, tol=1e-10, max_iter=5, line_search=False)
     assert result.converged
-    return np.asarray(bkd.to_numpy(result.solution))
+    return np.asarray(result.solution)
 
 
 # ---------------------------------------------------------------------------

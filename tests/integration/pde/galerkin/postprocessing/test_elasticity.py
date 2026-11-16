@@ -30,6 +30,9 @@ class TestVonMisesWithFEMSolve:
         bkd = numpy_bkd
         from skfem.models.elasticity import lame_parameters
 
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeIndependent,
+        )
         from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
@@ -40,10 +43,10 @@ class TestVonMisesWithFEMSolve:
         from pyapprox.pde.galerkin.physics import (
             CompositeLinearElasticity,
         )
-        from pyapprox.pde.galerkin.solvers import SteadyStateSolver
         from pyapprox_benchmarks.pde.cantilever_beam import (
             _DEFAULT_MESH_PATH,
         )
+        from tests._helpers.galerkin_steady_solve import steady_solve
 
         L, _H, q0 = 100.0, 30.0, 10.0
 
@@ -72,11 +75,13 @@ class TestVonMisesWithFEMSolve:
         bc_top = NeumannBC(
             basis,
             "top_edge",
-            lambda c: np.vstack(
-                [
-                    np.zeros(c.shape[1]),
-                    -q0 * c[0] / L,
-                ]
+            TimeIndependent(
+                lambda c: np.vstack(
+                    [
+                        np.zeros(c.shape[1]),
+                        -q0 * c[0] / L,
+                    ]
+                )
             ),
             bkd,
         )
@@ -88,8 +93,8 @@ class TestVonMisesWithFEMSolve:
             bkd=bkd,
         )
         system = compose_galerkin_system(physics, [bc_left, bc_top])
-        solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
-        result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
+        result = steady_solve(system, tol=1e-10, max_iter=1)
+        assert result.converged
 
         conn = skm.t.T
 

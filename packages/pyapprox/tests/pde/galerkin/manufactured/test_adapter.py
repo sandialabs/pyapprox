@@ -20,7 +20,6 @@ if not package_available("skfem"):
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import issparse
 from skfem import MeshTri
 
 from pyapprox.pde.boundary import BoundaryConditionRole
@@ -53,10 +52,11 @@ from pyapprox.pde.galerkin.protocols.basis import (
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Backend
+from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_steady_solve import steady_solve
 
 _Arr = NDArray[np.floating[Any]]
 
@@ -67,7 +67,7 @@ _ADR_REACT = 1.0
 
 
 def _adr_functions(
-    bkd: Backend[Array], advection_form: AdvectionFormProtocol
+    bkd: Backend[NumpyArray], advection_form: AdvectionFormProtocol
 ) -> Dict[str, Callable[..., Any]]:
     functions, _ = create_adr_manufactured_test(
         bounds=[-1.0, 1.0, -1.0, 1.0],
@@ -82,9 +82,9 @@ def _adr_functions(
 
 
 def _adr_physics(
-    ms: GalerkinManufacturedSolution[Array],
+    ms: GalerkinManufacturedSolution[NumpyArray],
     advection_form: AdvectionFormProtocol,
-) -> AdvectionDiffusionReaction[Array]:
+) -> AdvectionDiffusionReaction[NumpyArray]:
     return AdvectionDiffusionReaction(
         basis=ms.basis(),
         diffusivity=_ADR_DIFF,
@@ -96,7 +96,7 @@ def _adr_physics(
     )
 
 
-def _exact_at_dofs(ms: GalerkinManufacturedSolution[Array]) -> _Arr:
+def _exact_at_dofs(ms: GalerkinManufacturedSolution[NumpyArray]) -> _Arr:
     """The exact solution at the DOFs, each DOF taking its own component."""
     bkd = ms.bkd()
     basis = ms.basis()
@@ -107,35 +107,36 @@ def _exact_at_dofs(ms: GalerkinManufacturedSolution[Array]) -> _Arr:
     components = np.asarray(
         bkd.to_numpy(basis.dof_components(bkd.arange(basis.ndofs())))
     )
-    return values[np.arange(basis.ndofs()), components]
+    at_dofs: _Arr = values[np.arange(basis.ndofs()), components]
+    return at_dofs
 
 
 def _mass_norm_error(
-    system: GalerkinSystem[Array],
-    ms: GalerkinManufacturedSolution[Array],
-    mass: Array,
+    system: GalerkinSystem[NumpyArray],
+    ms: GalerkinManufacturedSolution[NumpyArray],
+    mass: NumpyArray,
 ) -> float:
     """L2 norm of the error against the exact solution's interpolant.
 
-    ``mass`` is the physics' own mass matrix: the system's is the mass
-    of a first-order transient problem, refused for elasticity.
+    ``mass`` is the physics' own mass matrix, dense or sparse: the
+    system's is the mass of a first-order transient problem, refused for
+    elasticity.
     """
-    bkd = system.bkd()
-    result = SteadyStateSolver(system.steady(), tol=1e-11).solve()
+    result = steady_solve(system, tol=1e-11)
     assert result.converged
-    err = np.asarray(bkd.to_numpy(result.solution)) - _exact_at_dofs(ms)
-    mass_np = mass.toarray() if issparse(mass) else bkd.to_numpy(mass)
-    return float(np.sqrt(err @ mass_np @ err))
+    err = np.asarray(result.solution) - _exact_at_dofs(ms)
+    return float(np.sqrt(err @ (mass @ err)))
 
 
 def _rates(errors: List[float]) -> _Arr:
     errs = np.asarray(errors)
-    return np.log2(errs[:-1] / errs[1:])
+    rates: _Arr = np.log2(errs[:-1] / errs[1:])
+    return rates
 
 
 def _disk_mesh(
-    nrefs: int, tmp_path: Path, bkd: Backend[Array]
-) -> UnstructuredMesh2D[Array]:
+    nrefs: int, tmp_path: Path, bkd: Backend[NumpyArray]
+) -> UnstructuredMesh2D[NumpyArray]:
     """A polygonal unit disk with one boundary, ``"circle"``."""
     mesh = MeshTri.init_circle(nrefs)
     path = tmp_path / f"disk_{nrefs}.json"
@@ -193,7 +194,7 @@ class TestCreateHelpers:
 class TestValuesAndSuppliers:
     def test_dirichlet_values_are_exact(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[(-1.0, 1.0), (-1.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
         ms = GalerkinManufacturedSolution(
             basis, _adr_functions(bkd, NonConservativeAdvection()), bkd
@@ -218,7 +219,7 @@ class TestValuesAndSuppliers:
             mu_str="1.0",
             bkd=bkd,
         )
-        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         ms = GalerkinManufacturedSolution(basis, functions, bkd)
         bc = ms.dirichlet("left")
@@ -256,7 +257,7 @@ class TestValuesAndSuppliers:
 
     def test_forcing_layout_follows_basis(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=2, ny=2, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         coords = np.random.rand(2, 5)
         scalar = GalerkinManufacturedSolution(
             LagrangeBasis(mesh, degree=1),
@@ -283,7 +284,7 @@ class TestValuesAndSuppliers:
 
     def test_velocity_matches_coordinate_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+        mesh = StructuredMesh2D(nx=2, ny=2, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         ms = GalerkinManufacturedSolution(
             LagrangeBasis(mesh, degree=1),
             _adr_functions(bkd, NonConservativeAdvection()),
@@ -324,14 +325,14 @@ def _square_adr_error(
     nx: int,
     degree: int,
     advection_form: AdvectionFormProtocol,
-    bkd: Backend[Array],
+    bkd: Backend[NumpyArray],
 ) -> float:
-    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd)
-    basis: GalerkinBasisProtocol[Array] = LagrangeBasis(mesh, degree=degree)
+    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[(-1.0, 1.0), (-1.0, 1.0)], bkd=bkd)
+    basis: GalerkinBasisProtocol[NumpyArray] = LagrangeBasis(mesh, degree=degree)
     ms = GalerkinManufacturedSolution(basis, _adr_functions(bkd, advection_form), bkd)
     physics = _adr_physics(ms, advection_form)
     law = physics.flux_law()
-    bcs: List[BoundaryConditionRole[Array]] = [
+    bcs: List[BoundaryConditionRole[NumpyArray]] = [
         ms.dirichlet("left"),
         ms.neumann("right", law),
         ms.robin("bottom", 2.0, law),
@@ -346,11 +347,11 @@ def _disk_adr_error(
     nrefs: int,
     degree: int,
     tmp_path: Path,
-    bkd: Backend[Array],
+    bkd: Backend[NumpyArray],
     robin: bool,
     reverse_normal: bool = False,
 ) -> float:
-    basis: GalerkinBasisProtocol[Array] = LagrangeBasis(
+    basis: GalerkinBasisProtocol[NumpyArray] = LagrangeBasis(
         _disk_mesh(nrefs, tmp_path, bkd), degree=degree
     )
     form = NonConservativeAdvection()
@@ -359,7 +360,7 @@ def _disk_adr_error(
     law: NormalFluxLawProtocol = physics.flux_law()
     if reverse_normal:
         law = _ReversedNormal(law)
-    bc: BoundaryConditionRole[Array] = (
+    bc: BoundaryConditionRole[NumpyArray] = (
         ms.robin("circle", 1.5, law) if robin else ms.neumann("circle", law)
     )
     return _mass_norm_error(
@@ -429,7 +430,7 @@ class TestNaturalDataConverges:
         errors = []
         for nx in (4, 8, 16):
             mesh = StructuredMesh2D(
-                nx=nx, ny=nx, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
+                nx=nx, ny=nx, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
             )
             basis = VectorLagrangeBasis(mesh, degree=1)
             ms = GalerkinManufacturedSolution(basis, functions, bkd)
@@ -439,7 +440,7 @@ class TestNaturalDataConverges:
             nelems = mesh.nelements()
             physics.set_lame_parameters(np.full(nelems, lam), np.full(nelems, mu))
             law = physics.flux_law()
-            bcs: List[BoundaryConditionRole[Array]] = [
+            bcs: List[BoundaryConditionRole[NumpyArray]] = [
                 ms.dirichlet("left"),
                 ms.neumann("right", law),
                 ms.neumann("bottom", law),
