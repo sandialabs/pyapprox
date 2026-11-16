@@ -189,19 +189,38 @@ uncertain is a choice made at this layer, not in the physics.
 
 ## Sampling and Solving
 
-The workflow is three lines: draw $\vc{p}$, apply it, solve. `apply` writes
-the coefficient values into the physics, and the system composed from it holds
-that same physics, so the solve that follows sees the new field.
+The workflow is three lines: draw $\vc{p}$, set it, solve. A
+`ParameterState` holds the parameters: `set_param` calls the
+parameterization's `apply`, which writes the coefficient values into the
+physics, and the system composed from it holds that same physics, so the
+solve that follows sees the new field. The solve is a Newton iteration on the
+discrete steady residual, at the parameters' current values, with each linear
+step solved by sparse LU.
 
 ```{python}
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
+
+parameters = ParameterState(parameterization)
+discretization = skfem_discretization(system)
 
 
 def solve_for(params):
-    """Write params into the physics, then solve."""
-    parameterization.apply(params)
-    result = SteadyStateSolver(system.steady(), tol=1e-10).solve()
-    return result.solution
+    """Set params, then solve."""
+    parameters.set_param(params)
+    _, point = solve_galerkin_steady(
+        discretization,
+        RecomputeAlways(ScipySparseLU()),
+        Newton(atol=1e-10, rtol=0.0, maxiters=50, line_search=True),
+        parameters=parameters,
+    )
+    if not point.converged():
+        raise RuntimeError(point.info().message)
+    return point.solution()[:, 0]
 
 
 rng = np.random.default_rng(0)
@@ -371,7 +390,7 @@ the next tutorials.
   degrees of freedom, not a bare number.
 - A Karhunen-Loeve expansion represents an uncertain field with finitely many
   parameters, and the lognormal form keeps a diffusivity positive.
-- Sampling is draw, `apply`, solve. The forward-UQ workflow is the same one
+- Sampling is draw, `set_param`, solve. The forward-UQ workflow is the same one
   used for any model; only the cost per sample changes.
 - That cost is the binding constraint. Each solve grows with mesh resolution
   and time dependence, and the number of solves grows with how much you ask

@@ -143,8 +143,25 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from pyapprox_tutorials.figures._galerkin import l2_error
+
+
+def solve_steady(system, atol, maxiters=50, initial_guess=None):
+    """Newton on the system's steady residual by sparse LU; the point."""
+    _, point = solve_galerkin_steady(
+        skfem_discretization(system),
+        RecomputeAlways(ScipySparseLU()),
+        Newton(atol=atol, rtol=0.0, maxiters=maxiters, line_search=True),
+        initial_guess=initial_guess,
+    )
+    if not point.converged():
+        raise RuntimeError(point.info().message)
+    return point
 
 
 def solve_adr(nx, degree, sol_str):
@@ -168,9 +185,8 @@ def solve_adr(nx, degree, sol_str):
     )
     bcs = [ms.dirichlet(name) for name in ("left", "right", "bottom", "top")]
     system = compose_galerkin_system(physics, bcs)
-    result = SteadyStateSolver(system.steady(), tol=1e-13).solve()
-    return l2_error(basis, bkd.to_numpy(result.solution),
-                    man.functions["solution"])
+    solution = solve_steady(system, atol=1e-13).solution()[:, 0]
+    return l2_error(basis, bkd.to_numpy(solution), man.functions["solution"])
 ```
 
 
@@ -357,12 +373,13 @@ def solve_burgers(nx, degree, sol_str):
     guess = np.asarray(
         exact(bkd.to_numpy(basis.dof_coordinates()))
     ).flatten() + 1.0
-    result = SteadyStateSolver(
-        system.steady(), tol=1e-12, max_iter=20, line_search=True
-    ).solve(bkd.asarray(guess))
+    point = solve_steady(
+        system, atol=1e-12, maxiters=20,
+        initial_guess=bkd.asarray(guess[:, None]),
+    )
 
-    return (l2_error(basis, bkd.to_numpy(result.solution), exact),
-            result.iterations)
+    return (l2_error(basis, bkd.to_numpy(point.solution()[:, 0]), exact),
+            point.info().iterations)
 ```
 
 Tier 1 first. A quadratic is representable by degree-2 elements, so the
@@ -390,7 +407,7 @@ for degree in (1, 2):
 
 Both tiers pass for a nonlinear equation with no change to the protocol. The
 only thing that differed was constructing a different physics object and
-passing `solve` an initial guess: for the linear equation one exact Newton
+passing `solve_steady` an initial guess: for the linear equation one exact Newton
 step from zero suffices, while the nonlinear one iterates.
 
 

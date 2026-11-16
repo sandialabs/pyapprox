@@ -181,9 +181,25 @@ from pyapprox.pde.galerkin.boundary.implementations import (
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 WALLS = ["bottom", "top", "obs0", "obs1", "obs2"]
+
+
+def solve_steady(system):
+    """Newton on the system's steady residual, from zero, by sparse LU."""
+    _, point = solve_galerkin_steady(
+        skfem_discretization(system),
+        RecomputeAlways(ScipySparseLU()),
+        Newton(atol=1e-12, rtol=0.0, maxiters=50, line_search=True),
+    )
+    if not point.converged():
+        raise RuntimeError(point.info().message)
+    return point
 
 
 def wall_condition(kind, name):
@@ -210,22 +226,23 @@ def solve_plume(kind):
         bkd=bkd,
     )
     system = compose_galerkin_system(physics, bcs)
-    return system, SteadyStateSolver(system.steady(), tol=1e-12).solve()
+    return system, solve_steady(system).solution()[:, 0]
 
 
-system, result = solve_plume("Dirichlet")
+system, plume = solve_plume("Dirichlet")
 natural_terms = system.spatial_operator().natural_bcs().terms()
 print(f"essential (rows replaced): {system.constraint_set().ndofs()} dofs")
 print(f"natural   (added to form): {len(natural_terms)} terms")
-print(f"converged={result.converged}")
+print(f"Newton steps: {solve_steady(system).info().iterations}")
 ```
 
 With every boundary Dirichlet, all seven conditions are essential and none is
 natural --- every boundary degree of freedom lands in the constraint set, and
-no term is added to the form. The equation is linear in $u$, and the physics
-declares so, so `solve` takes a single exact Newton step: it assembles the
-system once and solves it. A nonlinear equation appears later, when the flow is
-computed.
+no term is added to the form. `solve_steady` is a Newton iteration on the
+discrete residual, with each linear step solved by sparse LU. The equation is
+linear in $u$, so one exact Newton step solves it: the iteration assembles the
+system once, solves it, and the residual it then checks is at round-off. A
+nonlinear equation appears later, when the flow is computed.
 
 ```{python}
 #| echo: false
@@ -236,7 +253,7 @@ import matplotlib.pyplot as plt
 from pyapprox_tutorials.figures._galerkin import plot_mesh_and_field
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
-plot_mesh_and_field(basis, result.solution, bkd, axes)
+plot_mesh_and_field(basis, plume, bkd, axes)
 fig.tight_layout()
 ```
 
@@ -248,7 +265,7 @@ do to the material that reaches them.
 
 ```{python}
 KINDS = ["Dirichlet", "Neumann", "Robin"]
-plume_solutions = [solve_plume(kind)[1].solution for kind in KINDS]
+plume_solutions = [solve_plume(kind)[1] for kind in KINDS]
 
 for kind, sol in zip(KINDS, plume_solutions):
     print(f"{kind:10s} peak concentration {bkd.to_numpy(sol).max():.3f}")
@@ -379,7 +396,7 @@ def solve_transport(kind, flow=None):
         reaction=DECAY, forcing=TimeIndependent(forcing), bkd=bkd,
     )
     system = compose_galerkin_system(physics, bcs)
-    return SteadyStateSolver(system.steady(), tol=1e-12).solve().solution
+    return solve_steady(system).solution()[:, 0]
 
 
 still = solve_transport("Neumann")
