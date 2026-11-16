@@ -42,7 +42,9 @@ from pyapprox.pde.galerkin.system import GalerkinSteadySystem
 from pyapprox.pde.galerkin.time_integration.dense_discretization import (
     DenseSteadyDiscretization,
 )
-from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
+from pyapprox.pde.models.galerkin.parameterized_residual import (
+    GalerkinParameterizedResidual,
+)
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.rom import AlgebraicLift
 from pyapprox.util.backends.numpy import NumpyBkd

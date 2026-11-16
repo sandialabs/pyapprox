@@ -53,12 +53,9 @@ class SteadyOperatorProtocol(Protocol, Generic[Array]):
 
 @runtime_checkable
 class SteadyViewProtocol(SteadyOperatorProtocol[Array], Protocol):
-    """A steady operator that also exposes its parts.
-
-    For the one place that binds the view's time into derivatives
-    (``steady_constrained_derivatives``): the operator, its constraint
-    set, and the bound time. Steady consumers themselves never read the
-    time.
+    """A steady operator that also exposes its parts: the operator, its
+    constraint set, and the bound time. Steady consumers themselves never
+    read the time.
     """
 
     def spatial_operator(self) -> SpatialOperatorProtocol[Array]:

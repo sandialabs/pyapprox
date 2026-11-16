@@ -19,7 +19,7 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
     skfem_discretization,
 )
-from pyapprox.pde.models.galerkin import (
+from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
     GalerkinPhysicsToODEResidualWithSetParamAdapter,
     create_galerkin_physics_ode_residual,

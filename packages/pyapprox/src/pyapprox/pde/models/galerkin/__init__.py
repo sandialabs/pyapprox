@@ -1,37 +1,7 @@
-"""Parameterized models for the Galerkin solver."""
+"""Parameterized models for the Galerkin solver.
 
-from pyapprox.pde.models.galerkin.essential_boundary_flux import (
-    TimeIntegratedEssentialBoundaryFluxFunctional,
-    essential_boundary_flux,
-)
-from pyapprox.pde.models.galerkin.parameterized_residual import (
-    GalerkinParameterizedResidual,
-    ParameterizedResidualDerivatives,
-)
-from pyapprox.pde.models.galerkin.physics_adapter import (
-    GalerkinPhysicsToODEResidualWithHVPAdapter,
-    GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
-    GalerkinPhysicsToODEResidualWithSetParamAdapter,
-    create_galerkin_physics_ode_residual,
-)
-from pyapprox.pde.models.galerkin.steady import (
-    GalerkinParameterizedStateEquation,
-    GalerkinSteadyForwardModel,
-)
-from pyapprox.pde.models.galerkin.transient import (
-    GalerkinTransientForwardModel,
-)
-
-__all__ = [
-    "GalerkinPhysicsToODEResidualWithSetParamAdapter",
-    "GalerkinPhysicsToODEResidualWithParamJacobianAdapter",
-    "GalerkinPhysicsToODEResidualWithHVPAdapter",
-    "create_galerkin_physics_ode_residual",
-    "GalerkinParameterizedStateEquation",
-    "GalerkinSteadyForwardModel",
-    "GalerkinParameterizedResidual",
-    "ParameterizedResidualDerivatives",
-    "TimeIntegratedEssentialBoundaryFluxFunctional",
-    "essential_boundary_flux",
-    "GalerkinTransientForwardModel",
-]
+The modules here load the Galerkin discretization (and skfem through it),
+so this package re-exports nothing: import from the leaf modules
+(``essential_boundary_flux``, ``parameterized_residual``,
+``physics_adapter``, ``steady_residual``, ``transient``).
+"""

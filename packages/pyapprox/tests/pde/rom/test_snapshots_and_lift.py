@@ -48,10 +48,10 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import skfem_discretization
-from pyapprox.pde.models.galerkin import (
+from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
-    GalerkinTransientForwardModel,
 )
+from pyapprox.pde.models.galerkin.transient import GalerkinTransientForwardModel
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -63,7 +63,7 @@ from pyapprox.pde.rom import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
 from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.rom_problem import SteadyStateAt, steady_snapshots
 
@@ -186,10 +186,13 @@ def _steady_snapshots(
     LagrangeBasis[NumpyArray],
 ]:
     system, param_obj, basis = _steady_problem(bkd)
+    setups: RecomputeAlways[NumpyArray, CSRFormat] = RecomputeAlways(
+        ScipySparseLU()
+    )
     steady_state = SteadyStateAt(
         skfem_discretization(system),
         param_obj,
-        RecomputeAlways(ScipySparseLU()),
+        setups,
         bkd,
         atol=1e-12,
     )

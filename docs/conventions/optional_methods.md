@@ -20,7 +20,6 @@ invariants.
 | `Derivatives` | `interface.functions.derivatives` | `derivatives()` | functions, objectives, constraints, surrogates; kernels via `param_derivatives()` / `input_derivatives(X2)` |
 | `ParamDerivatives` | `pde.parameterizations.derivatives` | `param_derivatives()` | PDE parameterizations |
 | `StateDerivatives` | `ode.state_derivatives` | `state_derivatives()` | spatial operators, boundary terms |
-| `SteadyConstrainedDerivatives` | `pde.models.galerkin.constrained_derivatives` | built by `steady_constrained_derivatives` | Galerkin steady adapter |
 | `SteadyFunctionalDerivatives` | `implicitfunction.functionals.derivatives` | `derivatives()` | steady functionals |
 | `TransientFunctionalDerivatives` | `ode.functionals.protocols` | `derivatives()` | transient functionals |
 | `ParameterTermDerivatives` | `implicitfunction.functional_terms` | `derivatives()` | parameter terms of any functional, steady or of a trajectory (second order weighted by the value weights) |

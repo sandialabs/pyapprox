@@ -47,9 +47,11 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinTransientModel,
     skfem_ode_residual,
 )
-from pyapprox.pde.models.galerkin import (
-    GalerkinParameterizedResidual,
+from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     TimeIntegratedEssentialBoundaryFluxFunctional,
+)
+from pyapprox.pde.models.galerkin.parameterized_residual import (
+    GalerkinParameterizedResidual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray

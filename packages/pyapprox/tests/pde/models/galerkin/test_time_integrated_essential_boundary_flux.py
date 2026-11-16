@@ -64,12 +64,13 @@ from pyapprox.pde.galerkin.time_integration import (
     skfem_discretization,
     skfem_ode_residual,
 )
-from pyapprox.pde.models.galerkin import (
-    GalerkinParameterizedResidual,
-    GalerkinSteadyForwardModel,
-    GalerkinTransientForwardModel,
+from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     TimeIntegratedEssentialBoundaryFluxFunctional,
 )
+from pyapprox.pde.models.galerkin.parameterized_residual import (
+    GalerkinParameterizedResidual,
+)
+from pyapprox.pde.models.galerkin.transient import GalerkinTransientForwardModel
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -300,18 +301,6 @@ class TestSchemeRequirements:
         problem = _Problem(numpy_bkd)
         with pytest.raises(ValueError, match="no step-residual rule"):
             problem.model("heun", problem.functional())
-
-    def test_steady_model_rejects_it(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        problem = _Problem(bkd)
-        with pytest.raises(TypeError, match="transient"):
-            GalerkinSteadyForwardModel(
-                problem.system.steady_snapshot(0.0),
-                problem.param_obj,
-                problem.init_state,
-                bkd,
-                functional=problem.functional(),  # type: ignore[arg-type]
-            )
 
     def test_value_needs_an_injected_rule(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd

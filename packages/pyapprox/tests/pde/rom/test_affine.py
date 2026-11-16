@@ -43,7 +43,9 @@ from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
+from pyapprox.pde.models.galerkin.parameterized_residual import (
+    GalerkinParameterizedResidual,
+)
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -237,11 +239,13 @@ class TestRefusals:
         problem = galerkin_adr_linear(numpy_bkd)
         curved = _CurvedTrialSpace(problem.nstates(), numpy_bkd)
         # Passes a curved trial space on purpose to exercise the runtime
-        # guard for callers that are not type-checked. mypy rejects this
-        # call (arg-type), which is the point: left unsuppressed.
+        # guard for callers that are not type-checked.
         with pytest.raises(TypeError, match="LinearTrialSpaceProtocol"):
             fit_affine_projection(
-                problem.residual, curved, problem.lift, problem.reference_params
+                problem.residual,
+                curved,  # type: ignore[arg-type]
+                problem.lift,
+                problem.reference_params,
             )
 
 

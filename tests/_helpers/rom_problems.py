@@ -43,7 +43,9 @@ from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.galerkin.time_integration.dense_discretization import (
     DenseSteadyDiscretization,
 )
-from pyapprox.pde.models.galerkin import GalerkinParameterizedResidual
+from pyapprox.pde.models.galerkin.parameterized_residual import (
+    GalerkinParameterizedResidual,
+)
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,

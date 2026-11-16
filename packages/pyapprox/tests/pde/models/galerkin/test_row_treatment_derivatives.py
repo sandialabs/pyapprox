@@ -65,11 +65,11 @@ from pyapprox.pde.galerkin.time_integration import (
 from pyapprox.pde.galerkin.time_integration.state_constraints import (
     MassConsistentProjection,
 )
-from pyapprox.pde.models.galerkin import GalerkinTransientForwardModel
 from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithSetParamAdapter,
     create_galerkin_physics_ode_residual,
 )
+from pyapprox.pde.models.galerkin.transient import GalerkinTransientForwardModel
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
