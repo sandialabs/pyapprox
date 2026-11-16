@@ -22,7 +22,7 @@ declared supplier reaches it already wrapped with the node coordinates.
 """
 
 import warnings
-from typing import Callable, Generic, Protocol, Union, runtime_checkable
+from typing import Callable, Generic, Optional, Protocol, Union, runtime_checkable
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeAwareCallableProtocol,
@@ -239,3 +239,27 @@ def as_nodal_coefficient(
             "coordinates"
         )
     return NodalTimeFunction(value)
+
+
+def optional_nodal_coefficient(
+    value: Optional[CoefficientInput[Array]], npts: int, bkd: Backend[Array]
+) -> Optional[NodalCoefficientProtocol[Array]]:
+    """The nodal coefficient of an optional term; None when the term is
+    absent (no value, or the constant 0).
+
+    A coefficient that will be parameterized must therefore arrive as a
+    ``NodalField``, even with zero values.
+    """
+    if value is None or (isinstance(value, (int, float)) and value == 0.0):
+        return None
+    return as_nodal_coefficient(value, npts, bkd)
+
+
+def declared_time_invariant(
+    *coefficients: Optional[NodalCoefficientProtocol[Array]],
+) -> bool:
+    """Whether every present coefficient is declared time-invariant."""
+    return not any(
+        coefficient is not None and coefficient.is_time_dependent()
+        for coefficient in coefficients
+    )

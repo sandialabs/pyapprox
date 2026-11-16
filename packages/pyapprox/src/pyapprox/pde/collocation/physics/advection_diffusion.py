@@ -22,7 +22,8 @@ from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.physics.coefficients import (
     CoefficientInput,
     NodalCoefficientProtocol,
-    as_nodal_coefficient,
+    declared_time_invariant,
+    optional_nodal_coefficient,
 )
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
@@ -78,7 +79,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         npts = basis.npts()
         ndim = basis.ndim()
 
-        self._diffusion = self._coefficient(diffusion, npts, bkd)
+        self._diffusion = optional_nodal_coefficient(diffusion, npts, bkd)
 
         # Store velocity field
         self._velocity: Optional[List[Array]]
@@ -91,8 +92,8 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         else:
             self._velocity = None
 
-        self._reaction = self._coefficient(reaction, npts, bkd)
-        self._forcing = self._coefficient(forcing, npts, bkd)
+        self._reaction = optional_nodal_coefficient(reaction, npts, bkd)
+        self._forcing = optional_nodal_coefficient(forcing, npts, bkd)
 
         # Precompute derivative matrices for efficiency
         self._D_matrices = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
@@ -108,16 +109,6 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             D2_dim = self._basis.derivative_matrix(2, dim)
             D2 = D2 + D2_dim
         return D2
-
-    @staticmethod
-    def _coefficient(
-        value: Optional[CoefficientInput[Array]], npts: int, bkd: Backend[Array]
-    ) -> Optional[NodalCoefficientProtocol[Array]]:
-        """The nodal coefficient for ``value``; None for an absent term
-        (no value, or the constant 0)."""
-        if value is None or (isinstance(value, (int, float)) and value == 0.0):
-            return None
-        return as_nodal_coefficient(value, npts, bkd)
 
     def diffusion_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
         """The diffusion coefficient; None without a diffusion term."""
@@ -215,16 +206,13 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
     def interior_jacobian_is_time_invariant(self) -> bool:
         """Whether the diffusion and reaction are declared time-invariant
         (the velocity is fixed in time)."""
-        return not any(
-            coefficient is not None and coefficient.is_time_dependent()
-            for coefficient in (self._diffusion, self._reaction)
-        )
+        return declared_time_invariant(self._diffusion, self._reaction)
 
     def interior_is_time_invariant(self) -> bool:
         """Whether, besides the Jacobian, the forcing is declared
         time-invariant."""
-        return self.interior_jacobian_is_time_invariant() and not (
-            self._forcing is not None and self._forcing.is_time_dependent()
+        return declared_time_invariant(
+            self._diffusion, self._reaction, self._forcing
         )
 
     # -- full-matrix field-derivative assemblies (engine slots)

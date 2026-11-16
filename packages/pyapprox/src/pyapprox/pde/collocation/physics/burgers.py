@@ -22,6 +22,8 @@ from pyapprox.pde.collocation.physics.coefficients import (
     CoefficientInput,
     NodalCoefficientProtocol,
     as_nodal_coefficient,
+    declared_time_invariant,
+    optional_nodal_coefficient,
 )
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
@@ -79,9 +81,7 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
 
         npts = basis.npts()
         self._viscosity = as_nodal_coefficient(viscosity, npts, bkd)
-        self._forcing: Optional[NodalCoefficientProtocol[Array]] = (
-            None if forcing is None else as_nodal_coefficient(forcing, npts, bkd)
-        )
+        self._forcing = optional_nodal_coefficient(forcing, npts, bkd)
         self._conservative = conservative
 
         # Precompute derivative matrices
@@ -190,14 +190,12 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
 
     def interior_jacobian_is_time_invariant(self) -> bool:
         """Whether the viscosity is declared time-invariant."""
-        return not self._viscosity.is_time_dependent()
+        return declared_time_invariant(self._viscosity)
 
     def interior_is_time_invariant(self) -> bool:
         """Whether, besides the viscosity, the forcing is declared
         time-invariant."""
-        return self.interior_jacobian_is_time_invariant() and not (
-            self._forcing is not None and self._forcing.is_time_dependent()
-        )
+        return declared_time_invariant(self._viscosity, self._forcing)
 
 
 def create_burgers_1d(
