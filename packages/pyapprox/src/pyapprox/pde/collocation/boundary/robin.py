@@ -161,7 +161,7 @@ class RobinBC(Generic[Array]):
         residual = self._bkd.copy(residual)
 
         # Compute normal term: N(u) at boundary points
-        normal_term = self._normal_operator(state)
+        normal_term = self._normal_operator(state, time)
 
         residual[idx] = (
             self._alpha * state[idx] + self._beta * normal_term - g
@@ -192,7 +192,7 @@ class RobinBC(Generic[Array]):
         jacobian = self._bkd.copy(jacobian)
 
         # Get Jacobian of the normal operator
-        normal_jac = self._normal_operator.jacobian(state)
+        normal_jac = self._normal_operator.jacobian(state, time)
 
         # Vectorized row replacement (per-element writes are slow on
         # torch): rows are beta*N_jacobian plus alpha on the diagonal

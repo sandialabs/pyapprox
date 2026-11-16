@@ -362,10 +362,9 @@ class TestTransformedDomainDerivatives:
 
         def fun(p):
             facade.apply(p)
-            # residual() refreshes the physics's cached diffusion
-            # array, which compute_flux reads directly.
-            physics.residual(state, 0.0)
-            flux = physics.compute_flux(state)
+            # compute_flux evaluates the diffusivity at the current
+            # parameters itself; no residual evaluation precedes it.
+            flux = physics.compute_flux(state, 0.0)
             result = bkd.zeros((bc_indices.shape[0],))
             for dim in range(2):
                 result = (

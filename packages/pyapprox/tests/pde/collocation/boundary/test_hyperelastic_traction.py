@@ -36,7 +36,7 @@ class _TractionOfState(Generic[Array]):
     """Wraps traction operator as function of state for DerivativeChecker.
 
     Input: state (2*npts, 1). Output: traction (nboundary, 1).
-    Jacobian: operator.jacobian(state).
+    Jacobian: operator.jacobian(state, 0.0).
     """
 
     def __init__(self, operator, bkd):
@@ -58,10 +58,13 @@ class _TractionOfState(Generic[Array]):
         bkd = self._bkd
         if samples.ndim == 2:
             return bkd.stack(
-                [self._operator(samples[:, i]) for i in range(samples.shape[1])],
+                [
+                    self._operator(samples[:, i], 0.0)
+                    for i in range(samples.shape[1])
+                ],
                 axis=1,
             )
-        return self._operator(samples).reshape(-1, 1)
+        return self._operator(samples, 0.0).reshape(-1, 1)
 
     def derivatives(self):
         return Derivatives.first_order(jacobian=self.jacobian)
@@ -69,7 +72,7 @@ class _TractionOfState(Generic[Array]):
     def jacobian(self, sample):
         if sample.ndim == 2:
             sample = sample[:, 0]
-        return self._operator.jacobian(sample)
+        return self._operator.jacobian(sample, 0.0)
 
 
 class TestHyperelasticTraction:
@@ -138,8 +141,8 @@ class TestHyperelasticTraction:
         np.random.seed(99)
         state2 = bkd.asarray(np.random.randn(2 * npts) * 0.02)
 
-        jac1 = op.jacobian(state1)
-        jac2 = op.jacobian(state2)
+        jac1 = op.jacobian(state1, 0.0)
+        jac2 = op.jacobian(state2, 0.0)
 
         diff = bkd.norm(jac1 - jac2)
         assert float(diff) > 1e-10
@@ -150,7 +153,7 @@ class TestHyperelasticTraction:
             op, mesh, basis, _ = self._setup_operator(bkd, component=comp)
             npts = basis.npts()
             state = bkd.zeros((2 * npts,))
-            traction = op(state)
+            traction = op(state, 0.0)
             bkd.assert_allclose(traction, bkd.zeros(traction.shape), atol=1e-14)
 
     def test_factory_creates_robin_bc(self, bkd):
@@ -224,8 +227,8 @@ class TestHyperelasticTraction:
                 npts,
             )
 
-            t_hyper = hyper_op(state)
-            t_linear = linear_op(state)
+            t_hyper = hyper_op(state, 0.0)
+            t_linear = linear_op(state, 0.0)
             bkd.assert_allclose(t_hyper, t_linear, atol=1e-4)
 
     def test_has_coefficient_dependence(self, bkd):

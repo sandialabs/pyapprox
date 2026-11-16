@@ -10,7 +10,7 @@ where:
 - f: forcing/source term (field)
 """
 
-from typing import Any, Callable, List, Optional
+from typing import Callable, List, Optional
 
 from pyapprox.pde.collocation.operators.differential import (
     Divergence,
@@ -155,10 +155,17 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         consumes the values, so it holds for a physics built directly,
         a field mutated after construction, and a parameterized one
         alike.
+
+        Evaluated on every call and never cached, so every consumer
+        (residual, Jacobian, flux) reads the coefficient at its own time
+        and the current parameters, whatever was evaluated before.
         """
-        if self._diffusion_func is not None:
-            self._diffusion_array = self._diffusion_func(time)
-        smallest = self._bkd.to_float(self._bkd.min(self._diffusion_array))
+        diffusion = (
+            self._diffusion_func(time)
+            if self._diffusion_func is not None
+            else self._diffusion_array
+        )
+        smallest = self._bkd.to_float(self._bkd.min(diffusion))
         if smallest <= 0.0:
             raise ValueError(
                 "diffusivity must be positive everywhere; found "
@@ -167,12 +174,12 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 "which yields a plausible-looking solution rather than "
                 "a solver failure"
             )
-        return self._diffusion_array
+        return diffusion
 
     def _get_reaction(self, time: float) -> Array:
-        """Get reaction array at given time."""
+        """Get reaction array at given time, evaluated, never cached."""
         if self._reaction_func is not None:
-            self._reaction_array = self._reaction_func(time)
+            return self._reaction_func(time)
         return self._reaction_array
 
     def state_state_hvp(
@@ -381,7 +388,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             if not self._is_variable_diffusion:
                 # Constant diffusion: D * laplacian(u)
                 D2_u = self._D2_matrix @ state
-                residual = residual + float(self._diffusion_value) * D2_u
+                residual = residual + diff_array * D2_u
             else:
                 # Variable diffusion: div(D * grad(u))
                 # = D * laplacian(u) + grad(D) . grad(u)
@@ -436,7 +443,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         if self._has_diffusion:
             diff_array = self._get_diffusion(time)
             if not self._is_variable_diffusion:
-                jacobian = jacobian + float(self._diffusion_value) * self._D2_matrix
+                jacobian = jacobian + diff_array[:, None] * self._D2_matrix
             else:
                 # Variable diffusion: diag(D) @ laplacian + grad(D) terms
                 D_diag = bkd.diag(diff_array)
@@ -461,7 +468,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         return jacobian
 
-    def compute_flux(self, state: Array) -> list[Any]:
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
         """Compute total conservative flux at all mesh points.
 
         Returns the sum of diffusive and advective flux:
@@ -469,42 +476,49 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         For pure diffusion (no velocity): flux_d = -D * du/dx_d
 
+        The diffusivity is evaluated at ``time`` and the current
+        parameters, independently of any earlier residual evaluation.
+
         Parameters
         ----------
         state : Array
             Solution state. Shape: (npts,)
+        time : float
+            Time at which the coefficients are evaluated.
 
         Returns
         -------
         List[Array]
             Flux components, one per dimension. Each shape: (npts,)
         """
-        ndim = self._basis.ndim()
+        bkd = self._bkd
+        diffusion = (
+            self._get_diffusion(time)
+            if self._has_diffusion
+            else bkd.zeros((self.npts(),))
+        )
         flux = []
-        for dim in range(ndim):
-            D_dim = self._D_matrices[dim]
-            grad_u_dim = D_dim @ state
+        for dim in range(self._basis.ndim()):
             # Diffusive flux: -D * du/dx_d
-            if self._is_variable_diffusion:
-                flux_dim = -self._diffusion_array * grad_u_dim
-            else:
-                flux_dim = -float(self._diffusion_value) * grad_u_dim
+            flux_dim = -diffusion * (self._D_matrices[dim] @ state)
             # Advective flux: v_d * u
             if self._velocity is not None:
                 flux_dim = flux_dim + self._velocity[dim] * state
             flux.append(flux_dim)
         return flux
 
-    def compute_flux_jacobian(self, state: Array) -> list[Any]:
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
         """Compute Jacobian of total conservative flux w.r.t. state.
 
-        d(flux_d)/du = -D * D_d + diag(v_d)
-        For variable D: -diag(D) @ D_d + diag(v_d)
+        d(flux_d)/du = -diag(D) @ D_d + diag(v_d), with D evaluated at
+        ``time`` and the current parameters.
 
         Parameters
         ----------
         state : Array
             Solution state. Shape: (npts,)
+        time : float
+            Time at which the coefficients are evaluated.
 
         Returns
         -------
@@ -512,14 +526,14 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             Jacobian of each flux component. Each shape: (npts, npts)
         """
         bkd = self._bkd
-        ndim = self._basis.ndim()
+        diffusion = (
+            self._get_diffusion(time)
+            if self._has_diffusion
+            else bkd.zeros((self.npts(),))
+        )
         flux_jacs = []
-        for dim in range(ndim):
-            D_dim = self._D_matrices[dim]
-            if self._is_variable_diffusion:
-                jac_dim = -bkd.diag(self._diffusion_array) @ D_dim
-            else:
-                jac_dim = -float(self._diffusion_value) * D_dim
+        for dim in range(self._basis.ndim()):
+            jac_dim = -diffusion[:, None] * self._D_matrices[dim]
             if self._velocity is not None:
                 jac_dim = jac_dim + bkd.diag(self._velocity[dim])
             flux_jacs.append(jac_dim)
@@ -545,7 +559,19 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         -------
         Array
             Flux at boundary points. Shape: (nboundary,)
+
+        Raises
+        ------
+        ValueError
+            If the diffusivity was set as a function (``set_diffusion``):
+            this flux takes no time at which to evaluate it.
         """
+        if self._diffusion_func is not None:
+            raise ValueError(
+                "compute_interface_flux takes no time, so it supports only "
+                "the diffusivity given at construction, not one set by "
+                "set_diffusion"
+            )
         ndim = self._basis.ndim()
         nboundary = boundary_indices.shape[0]
 
@@ -556,15 +582,8 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             grad_u_dim = D_dim @ state
             flux = flux + grad_u_dim[boundary_indices] * self._bkd.to_float(normal[dim])
 
-        # Scale by diffusion coefficient
-        if self._is_variable_diffusion:
-            # Variable diffusion: multiply by D(x) at boundary
-            flux = self._diffusion_array[boundary_indices] * flux
-        else:
-            # Constant diffusion: multiply by scalar D
-            flux = float(self._diffusion_value) * flux
-
-        return flux
+        # Scale by the diffusion coefficient at the boundary points
+        return self._diffusion_array[boundary_indices] * flux
 
 
 def create_steady_diffusion(

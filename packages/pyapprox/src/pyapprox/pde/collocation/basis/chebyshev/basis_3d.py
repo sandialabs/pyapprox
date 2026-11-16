@@ -88,6 +88,16 @@ class ChebyshevBasis3D(Generic[Array]):
         """Return 1D reference collocation nodes in z direction."""
         return self._tensor_basis.nodes_1d(2)
 
+    def nodes_1d(self, dim: int) -> Array:
+        """Return the 1D reference nodes of dimension ``dim`` (0, 1 or 2).
+        Shape: (npts_dim,)"""
+        return self._tensor_basis.nodes_1d(dim)
+
+    def derivative_matrix_1d(self, dim: int) -> Array:
+        """Return the 1D reference derivative matrix of dimension ``dim``
+        (0, 1 or 2). Shape: (npts_dim, npts_dim)"""
+        return self._tensor_basis.derivative_matrix_1d(dim)
+
     def mesh(self) -> MeshWithTransformProtocol[Array]:
         """Return the underlying mesh."""
         return self._mesh

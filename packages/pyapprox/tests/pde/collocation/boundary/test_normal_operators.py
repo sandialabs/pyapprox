@@ -42,7 +42,7 @@ class TestGradientNormalOperator:
         # u = x^2, du/dx = 2x, at x=-1: du/dx = -2, grad(u).n = (-2)*(-1) = 2
         nodes = basis.nodes()
         state = nodes * nodes
-        result = normal_op(state)
+        result = normal_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
     def test_1d_right_boundary(self, bkd):
@@ -62,7 +62,7 @@ class TestGradientNormalOperator:
         # u = x^2, du/dx = 2x, at x=+1: du/dx = 2, grad(u).n = 2*1 = 2
         nodes = basis.nodes()
         state = nodes * nodes
-        result = normal_op(state)
+        result = normal_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
     def test_jacobian_is_constant(self, bkd):
@@ -79,8 +79,8 @@ class TestGradientNormalOperator:
 
         state1 = bkd.ones((npts,))
         state2 = bkd.ones((npts,)) * 5.0
-        jac1 = normal_op.jacobian(state1)
-        jac2 = normal_op.jacobian(state2)
+        jac1 = normal_op.jacobian(state1, 0.0)
+        jac2 = normal_op.jacobian(state2, 0.0)
         bkd.assert_allclose(jac1, jac2, atol=1e-14)
 
     def test_jacobian_consistency(self, bkd):
@@ -97,8 +97,8 @@ class TestGradientNormalOperator:
 
         np.random.seed(42)
         state = bkd.asarray(np.random.randn(npts))
-        result = normal_op(state)
-        jac = normal_op.jacobian(state)
+        result = normal_op(state, 0.0)
+        jac = normal_op.jacobian(state, 0.0)
         result_from_jac = jac @ state
         bkd.assert_allclose(result, result_from_jac, atol=1e-12)
 
@@ -126,7 +126,7 @@ class TestGradientNormalOperator:
         y_phys = physical_pts[1, :]
         state = x_phys * y_phys
 
-        result = normal_op(state)
+        result = normal_op(state, 0.0)
         # Expected: -y at left boundary points
         expected = -y_phys[left_idx]
         bkd.assert_allclose(result, expected, atol=1e-10)
@@ -154,7 +154,7 @@ class TestFluxNormalOperator:
         # At x=-1: flux = 4, flux.n = 4*(-1) = -4
         nodes = basis.nodes()
         state = nodes * nodes
-        result = flux_op(state)
+        result = flux_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([-4.0]), atol=1e-10)
 
     def test_flux_with_velocity(self, bkd):
@@ -180,7 +180,7 @@ class TestFluxNormalOperator:
         # At x=1: flux = -1 + 3 = 2, flux.n = 2*(+1) = 2
         nodes = basis.nodes()
         state = bkd.copy(nodes)
-        result = flux_op(state)
+        result = flux_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
     def test_flux_jacobian_consistency(self, bkd):
@@ -197,15 +197,15 @@ class TestFluxNormalOperator:
 
         np.random.seed(42)
         state = bkd.asarray(np.random.randn(npts))
-        jac = flux_op.jacobian(state)
+        jac = flux_op.jacobian(state, 0.0)
 
         # Finite difference check
         eps = 1e-7
-        f0 = flux_op(state)
+        f0 = flux_op(state, 0.0)
         for j in range(npts):
             state_pert = bkd.copy(state)
             state_pert[j] = state_pert[j] + eps
-            f1 = flux_op(state_pert)
+            f1 = flux_op(state_pert, 0.0)
             fd_col = (f1 - f0) / eps
             bkd.assert_allclose(bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5)
 
@@ -254,8 +254,8 @@ class TestTractionNormalOperator:
         # σ_xy = 2μ*exy = 2*0.5*y = y
         # t_x = σ_xx*nx + σ_xy*ny = (-7)*(-1) + y*0 = 7
         # t_y = σ_xy*nx + σ_yy*ny = y*(-1) + 0 = -y
-        result_x = traction_op_x(state)
-        result_y = traction_op_y(state)
+        result_x = traction_op_x(state, 0.0)
+        result_y = traction_op_y(state, 0.0)
 
         expected_x = bkd.full((nboundary,), 7.0)
         expected_y = -y_phys[left_idx]
@@ -286,15 +286,15 @@ class TestTractionNormalOperator:
 
             np.random.seed(42)
             state = bkd.asarray(np.random.randn(2 * npts))
-            jac = traction_op.jacobian(state)
+            jac = traction_op.jacobian(state, 0.0)
 
             # Finite difference check
             eps = 1e-7
-            f0 = traction_op(state)
+            f0 = traction_op(state, 0.0)
             for j in range(2 * npts):
                 state_pert = bkd.copy(state)
                 state_pert[j] = state_pert[j] + eps
-                f1 = traction_op(state_pert)
+                f1 = traction_op(state_pert, 0.0)
                 fd_col = (f1 - f0) / eps
                 bkd.assert_allclose(
                     bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5
@@ -323,8 +323,8 @@ class TestTractionNormalOperator:
 
         state1 = bkd.ones((2 * npts,))
         state2 = bkd.ones((2 * npts,)) * 5.0
-        jac1 = traction_op.jacobian(state1)
-        jac2 = traction_op.jacobian(state2)
+        jac1 = traction_op.jacobian(state1, 0.0)
+        jac2 = traction_op.jacobian(state2, 0.0)
         bkd.assert_allclose(jac1, jac2, atol=1e-14)
 
 

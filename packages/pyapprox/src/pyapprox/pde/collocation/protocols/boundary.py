@@ -264,13 +264,15 @@ class NormalOperatorProtocol(Protocol, Generic[Array]):
     - Flux: flux(u) . n  (uses physics flux provider + normals)
     """
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Compute the normal operation on the given state.
 
         Parameters
         ----------
         state : Array
             Full solution vector. Shape: (npts,)
+        time : float
+            Time at which any coefficient of the operation is evaluated.
 
         Returns
         -------
@@ -279,13 +281,15 @@ class NormalOperatorProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Return the Jacobian of the normal operation w.r.t. state.
 
         Parameters
         ----------
         state : Array
             Full solution vector. Shape: (npts,)
+        time : float
+            Time at which any coefficient of the operation is evaluated.
 
         Returns
         -------
@@ -344,19 +348,20 @@ class FluxProviderProtocol(Protocol, Generic[Array]):
     For pure diffusion: flux_d = -D * du/dx_d
     For ADR: flux_d = -D * du/dx_d + v_d * u
 
-    Note: No time parameter. Currently flux depends only on state,
-    matching the existing compute_interface_flux convention. If
-    time-dependent coefficients (D(t), v(t)) are needed, add a
-    time parameter to both methods.
+    Both methods evaluate the coefficients at the given time and the
+    current parameters themselves, so a flux evaluated before or without
+    a residual evaluation is the same as one evaluated after it.
     """
 
-    def compute_flux(self, state: Array) -> List[Array]:
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
         """Compute flux vector field at all mesh points.
 
         Parameters
         ----------
         state : Array
             Solution state. Shape: (npts,)
+        time : float
+            Time at which the coefficients are evaluated.
 
         Returns
         -------
@@ -366,13 +371,15 @@ class FluxProviderProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def compute_flux_jacobian(self, state: Array) -> List[Array]:
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
         """Compute Jacobian of each flux component w.r.t. state.
 
         Parameters
         ----------
         state : Array
             Solution state. Shape: (npts,)
+        time : float
+            Time at which the coefficients are evaluated.
 
         Returns
         -------

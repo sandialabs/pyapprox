@@ -70,13 +70,15 @@ class GradientNormalOperator(Generic[Array]):
         """Return False: grad(u)·n does not depend on a parameterized coefficient."""
         return False
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Compute grad(u) . n at boundary points.
 
         Parameters
         ----------
         state : Array
             Full solution vector. Shape: (npts,)
+        time : float
+            Unused: grad(u) . n has no coefficient.
 
         Returns
         -------
@@ -85,7 +87,7 @@ class GradientNormalOperator(Generic[Array]):
         """
         return self._normal_deriv_matrix @ state
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Return Jacobian of grad(u) . n w.r.t. state.
 
         For the gradient operator this is state-independent (linear operator).
@@ -94,6 +96,8 @@ class GradientNormalOperator(Generic[Array]):
         ----------
         state : Array
             Full solution vector. Shape: (npts,) (unused for linear operator)
+        time : float
+            Unused: grad(u) . n has no coefficient.
 
         Returns
         -------
@@ -144,13 +148,15 @@ class FluxNormalOperator(Generic[Array]):
         """Return True: flux = -D·grad(u) depends on parameterized D."""
         return True
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Compute flux(u) . n at boundary points.
 
         Parameters
         ----------
         state : Array
             Full solution vector. Shape: (npts,)
+        time : float
+            Time at which the flux coefficients are evaluated.
 
         Returns
         -------
@@ -158,19 +164,21 @@ class FluxNormalOperator(Generic[Array]):
             Flux dot normal at boundary points. Shape: (nboundary_pts,)
         """
         bkd = self._bkd
-        flux_components = self._flux_provider.compute_flux(state)
+        flux_components = self._flux_provider.compute_flux(state, time)
         result = bkd.zeros((self._nboundary_pts,))
         for d, flux_d in enumerate(flux_components):
             result = result + flux_d[self._boundary_indices] * self._normals[:, d]
         return result
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Return Jacobian of flux(u) . n w.r.t. state.
 
         Parameters
         ----------
         state : Array
             Full solution vector. Shape: (npts,)
+        time : float
+            Time at which the flux coefficients are evaluated.
 
         Returns
         -------
@@ -178,7 +186,9 @@ class FluxNormalOperator(Generic[Array]):
             Jacobian. Shape: (nboundary_pts, npts)
         """
         bkd = self._bkd
-        flux_jac_components = self._flux_provider.compute_flux_jacobian(state)
+        flux_jac_components = self._flux_provider.compute_flux_jacobian(
+            state, time
+        )
         npts = flux_jac_components[0].shape[0]
         result = bkd.zeros((self._nboundary_pts, npts))
         # Vectorized row gather (per-row python loops are slow on torch)
@@ -280,13 +290,15 @@ class TractionNormalOperator(Generic[Array]):
         """Return False: traction uses fixed material constants."""
         return False
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of traction t = σ·n at boundary points.
 
         Parameters
         ----------
         state : Array
             Full component-stacked solution [u_x, u_y]. Shape: (2*npts,)
+        time : float
+            Unused: the material constants are fixed.
 
         Returns
         -------
@@ -295,7 +307,7 @@ class TractionNormalOperator(Generic[Array]):
         """
         return self._jacobian @ state
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Return Jacobian of traction component w.r.t. state.
 
         State-independent (traction is linear in displacement).
@@ -304,6 +316,8 @@ class TractionNormalOperator(Generic[Array]):
         ----------
         state : Array
             Full solution vector. Shape: (2*npts,) (unused)
+        time : float
+            Unused: the material constants are fixed.
 
         Returns
         -------

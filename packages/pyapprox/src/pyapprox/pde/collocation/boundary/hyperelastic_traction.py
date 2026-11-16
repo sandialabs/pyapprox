@@ -100,13 +100,15 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         idx = self._mesh_boundary_indices
         return tuple(a[idx] for a in arrays)
 
-    def __call__(self, state: Array) -> Array:
+    def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of PK1 traction t = P·n at boundary.
 
         Parameters
         ----------
         state : Array
             Full component-stacked solution [u_x, u_y]. Shape: (2*npts,)
+        time : float
+            Unused: the stress model is fixed.
 
         Returns
         -------
@@ -129,7 +131,7 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         else:
             return P21 * nx + P22 * ny
 
-    def jacobian(self, state: Array) -> Array:
+    def jacobian(self, state: Array, time: float) -> Array:
         """Return Jacobian of traction component w.r.t. state.
 
         State-dependent (nonlinear hyperelastic).
@@ -138,6 +140,8 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         ----------
         state : Array
             Full solution vector. Shape: (2*npts,)
+        time : float
+            Unused: the stress model is fixed.
 
         Returns
         -------

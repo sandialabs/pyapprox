@@ -2,8 +2,8 @@
 
 Verifies via DerivativeChecker:
 1. residual_mu_jacobian / residual_lamda_jacobian assemblies in 2D
-2. compute_flux matches residual structure
-3. compute_flux_jacobian in 2D
+2. pk1_stress matches residual structure
+3. pk1_stress_jacobian in 2D
 """
 
 from typing import Generic
@@ -169,7 +169,7 @@ class _FluxComponentOfState(Generic[Array]):
     """Wraps one PK1 stress component P_iJ(state) for DerivativeChecker.
 
     Input: state (nstates,1). Output: P_iJ (npts,1).
-    Jacobian: compute_flux_jacobian[i][j].
+    Jacobian: pk1_stress_jacobian[i][j].
     """
 
     def __init__(self, physics, bkd, row, col):
@@ -192,10 +192,10 @@ class _FluxComponentOfState(Generic[Array]):
         if samples.ndim == 2:
             cols = []
             for i in range(samples.shape[1]):
-                flux = self._physics.compute_flux(samples[:, i])
+                flux = self._physics.pk1_stress(samples[:, i])
                 cols.append(flux[self._row][self._col])
             return bkd.stack(cols, axis=1)
-        flux = self._physics.compute_flux(samples)
+        flux = self._physics.pk1_stress(samples)
         return flux[self._row][self._col].reshape(-1, 1)
 
     def derivatives(self):
@@ -204,7 +204,7 @@ class _FluxComponentOfState(Generic[Array]):
     def jacobian(self, sample):
         if sample.ndim == 2:
             sample = sample[:, 0]
-        flux_jac = self._physics.compute_flux_jacobian(sample)
+        flux_jac = self._physics.pk1_stress_jacobian(sample)
         return flux_jac[self._row][self._col]
 
 
@@ -264,15 +264,15 @@ class TestHyperelasticSensitivity2D:
         errors = checker.check_derivatives(sample, verbosity=0)
         assert float(checker.error_ratio(errors[0])) <= 1e-6
 
-    def test_compute_flux_2d_matches_residual(self, bkd):
-        """Verify div(P) from compute_flux matches residual (no forcing)."""
+    def test_pk1_stress_2d_matches_residual(self, bkd):
+        """Verify div(P) from pk1_stress matches residual (no forcing)."""
         physics, basis = _setup_2d_hyperelastic(bkd, npts_1d=6)
         nstates = physics.nstates()
 
         np.random.seed(42)
         state = bkd.asarray(np.random.randn(nstates) * 0.01)
 
-        flux = physics.compute_flux(state)
+        flux = physics.pk1_stress(state)
         P11, P12 = flux[0]
         P21, P22 = flux[1]
 
@@ -285,7 +285,7 @@ class TestHyperelasticSensitivity2D:
         residual = physics.residual(state, 0.0)
         bkd.assert_allclose(div_P, residual, rtol=1e-12)
 
-    def test_compute_flux_jacobian_2d(self, bkd):
+    def test_pk1_stress_jacobian_2d(self, bkd):
         """DerivativeChecker validates dP_iJ/d(state) for all 4 components."""
         physics, basis = _setup_2d_hyperelastic(bkd, npts_1d=6)
         nstates = physics.nstates()

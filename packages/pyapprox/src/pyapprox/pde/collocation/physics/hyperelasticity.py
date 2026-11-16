@@ -8,7 +8,7 @@ stress model. Supports 1D, 2D, and 3D with any constitutive law that
 satisfies StressModelWithSensitivityProtocol.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Tuple, Union
+from typing import Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
@@ -149,11 +149,65 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         return tuple(state[i * npts : (i + 1) * npts] for i in range(self._ndim))
 
     # ------------------------------------------------------------------
-    # Flux computation (PK1 stress)
+    # Flux supply (1D) and PK1 stress
     # ------------------------------------------------------------------
 
-    def compute_flux(self, state: Array) -> Any:
-        """Compute PK1 stress as flux.
+    def _require_scalar_flux(self) -> None:
+        if self._ndim != 1:
+            raise NotImplementedError(
+                "the flux of a vector physics is a tensor; in "
+                f"{self._ndim}D use HyperelasticTractionNormalOperator for "
+                "boundary traction, or pk1_stress for the stress tensor"
+            )
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """Compute the flux in 1D: the PK1 stress ``[P]``.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement field. Shape: (npts,).
+        time : float
+            Unused: the stress model is fixed.
+
+        Returns
+        -------
+        List[Array]
+            ``[P]``, shape (npts,).
+
+        Raises
+        ------
+        NotImplementedError
+            In 2D or 3D, where the flux is a tensor.
+        """
+        self._require_scalar_flux()
+        return self.pk1_stress(state)[0]
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        """Compute the Jacobian of the 1D flux w.r.t. the state.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement field. Shape: (npts,).
+        time : float
+            Unused: the stress model is fixed.
+
+        Returns
+        -------
+        List[Array]
+            ``[dP/du]``, shape (npts, npts).
+
+        Raises
+        ------
+        NotImplementedError
+            In 2D or 3D, where the flux is a tensor.
+        """
+        self._require_scalar_flux()
+        return self.pk1_stress_jacobian(state)[0]
+
+    def pk1_stress(self, state: Array) -> List[List[Array]]:
+        """Compute the first Piola-Kirchhoff stress tensor at every node.
 
         Parameters
         ----------
@@ -162,14 +216,21 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         Returns
         -------
-        1D: List[Array] — [P], each shape (npts,).
-        2D: List[List[Array]] — [[P11,P12],[P21,P22]], each shape (npts,).
+        List[List[Array]]
+            ``P[i][J]``, an ``ndim`` by ``ndim`` nesting, each entry of
+            shape (npts,): ``[[P]]`` in 1D, ``[[P11, P12], [P21, P22]]``
+            in 2D.
+
+        Raises
+        ------
+        NotImplementedError
+            In 3D.
         """
         if self._ndim == 1:
             Dx = self._D[0]
             F = 1.0 + Dx @ state
             P = self._stress_model.compute_stress_1d(F, self._bkd)
-            return [P]
+            return [[P]]
         elif self._ndim == 2:
             bkd = self._bkd
             Dx, Dy = self._D
@@ -183,10 +244,10 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             )
             return [[P11, P12], [P21, P22]]
         else:
-            raise NotImplementedError("compute_flux only implemented for 1D and 2D")
+            raise NotImplementedError("pk1_stress only implemented for 1D and 2D")
 
-    def compute_flux_jacobian(self, state: Array) -> Any:
-        """Compute d(flux)/d(state).
+    def pk1_stress_jacobian(self, state: Array) -> List[List[Array]]:
+        """Compute the Jacobian of each PK1 stress entry w.r.t. the state.
 
         Parameters
         ----------
@@ -195,8 +256,14 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         Returns
         -------
-        1D: List[Array] — each shape (npts, npts).
-        2D: List[List[Array]] — each shape (npts, 2*npts).
+        List[List[Array]]
+            ``dP[i][J]``, nested as in :meth:`pk1_stress`, each entry of
+            shape (npts, nstates).
+
+        Raises
+        ------
+        NotImplementedError
+            In 3D, or if the stress model provides no tangent modulus.
         """
         if not isinstance(self._stress_model, StressModelWithTangentProtocol):
             raise NotImplementedError(
@@ -206,7 +273,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             Dx = self._D[0]
             F = 1.0 + Dx @ state
             A = self._stress_model.compute_tangent_1d(F, self._bkd)
-            return [self._bkd.diag(A) @ Dx]
+            return [[self._bkd.diag(A) @ Dx]]
         elif self._ndim == 2:
             bkd = self._bkd
             npts = self.npts()
@@ -236,7 +303,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             return result
         else:
             raise NotImplementedError(
-                "compute_flux_jacobian only implemented for 1D and 2D"
+                "pk1_stress_jacobian only implemented for 1D and 2D"
             )
 
     # ------------------------------------------------------------------
