@@ -83,6 +83,11 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         """Return True: PK1 stress depends on material parameters."""
         return True
 
+    def is_linear_in_state(self) -> bool:
+        """Return False: PK1 stress is nonlinear in the deformation
+        gradient."""
+        return False
+
     def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of PK1 traction t = P·n at boundary.
 

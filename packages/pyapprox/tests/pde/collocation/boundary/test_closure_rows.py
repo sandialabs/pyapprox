@@ -24,6 +24,10 @@ from pyapprox.pde.collocation.boundary.closure_rows import (
     RobinRows,
 )
 from pyapprox.pde.collocation.boundary.essential_rows import MappedBoundaryData
+from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
+    HyperelasticTractionNormalOperator,
+    hyperelastic_traction_robin_bc,
+)
 from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     GradientNormalOperator,
@@ -34,6 +38,8 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.hyperelasticity import HyperelasticityPhysics
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.util.backends.protocols import Array, Backend
@@ -349,6 +355,104 @@ class TestRobinRows:
         bkd.assert_allclose(
             loaded.residual(state, 0.0), rows.residual(state, 0.0), rtol=1e-14
         )
+
+
+class TestHyperelasticTractionRows:
+    """Hyperelastic traction rows are RobinRows over the PK1 traction
+    operator: neo-Hookean, lambda = 2, mu = 1.5, 6 x 6 mesh, sides 0 and
+    2 (sharing a corner) on both displacement components, alpha = 0.5,
+    beta = 1, small random displacements (scale 0.01)."""
+
+    _N1D_TRACTION = 6
+
+    def _setup(
+        self, bkd: Backend[Array]
+    ) -> Tuple[HyperelasticityPhysics[Array], TransformedMesh2D[Array], int]:
+        mesh = TransformedMesh2D(self._N1D_TRACTION, self._N1D_TRACTION, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        physics = HyperelasticityPhysics(
+            basis, bkd, NeoHookeanLaw(bkd), mu=1.5, lamda=2.0
+        )
+        return physics, mesh, basis.npts()
+
+    def _rows(self, bkd: Backend[Array]) -> Tuple[RobinRows[Array], int]:
+        physics, mesh, npts = self._setup(bkd)
+        parts = [
+            RobinPart(
+                mesh.boundary_indices(side),
+                HyperelasticTractionNormalOperator(
+                    bkd,
+                    mesh.boundary_indices(side),
+                    mesh.boundary_normals(side),
+                    physics,
+                    component,
+                ),
+                0.5,
+                1.0,
+                0.1 * (component + 1),
+                component,
+            )
+            for side in (0, 2)
+            for component in (0, 1)
+        ]
+        return RobinRows(bkd, npts, 2, parts), npts
+
+    def _displacement(self, bkd: Backend[Array], npts: int) -> Array:
+        rng = np.random.default_rng(42)
+        return bkd.asarray(0.01 * rng.standard_normal(2 * npts))
+
+    def test_equals_old_traction_rows(self, bkd: Backend[Array]) -> None:
+        """c and c_u equal the old hyperelastic traction Robin rows in the
+        same order, to 1e-14."""
+        physics, mesh, npts = self._setup(bkd)
+        rows, _ = self._rows(bkd)
+        state = self._displacement(bkd, npts)
+        old_residual = bkd.zeros((2 * npts,))
+        old_jacobian = bkd.zeros((2 * npts, 2 * npts))
+        for side in (0, 2):
+            for component in (0, 1):
+                old = hyperelastic_traction_robin_bc(
+                    bkd,
+                    mesh.boundary_indices(side),
+                    mesh.boundary_normals(side),
+                    physics,
+                    npts,
+                    component,
+                    0.5,
+                    1.0,
+                    0.1 * (component + 1),
+                )
+                old_residual = old.apply_to_residual(old_residual, state, 0.0)
+                old_jacobian = old.apply_to_jacobian(old_jacobian, state, 0.0)
+        bkd.assert_allclose(
+            rows.residual(state, 0.0), old_residual, rtol=1e-14, atol=1e-15
+        )
+        bkd.assert_allclose(
+            rows.jacobian(state, 0.0), old_jacobian, rtol=1e-14, atol=1e-15
+        )
+
+    def test_state_jacobian(self, bkd: Backend[Array]) -> None:
+        """c_u of the nonlinear traction rows passes DerivativeChecker."""
+        rows, npts = self._rows(bkd)
+        function = _VectorFunction(
+            bkd,
+            2 * npts,
+            2 * npts,
+            lambda u: rows.residual(u, 0.0),
+            lambda u: rows.jacobian(u, 0.0),
+        )
+        assert _check(function, self._displacement(bkd, npts), bkd) <= 1e-5
+
+    def test_declared_derivatives(self, bkd: Backend[Array]) -> None:
+        """The PK1 law supplies no second derivative, so c_uu is absent;
+        the Lame dependence is left to the system, so every parameter
+        field is absent."""
+        rows, _ = self._rows(bkd)
+        bundle = rows.derivatives()
+        assert bundle.state_curvature is None
+        assert bundle.param_jacobian is None
+        assert bundle.mixed is None and bundle.param_curvature is None
+        assert not rows.is_time_invariant()
 
 
 # -- helpers -----------------------------------------------------------------
