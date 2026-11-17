@@ -1,24 +1,47 @@
 """Tests for Shallow Water equations physics implementation."""
 
 import math
+import pickle
+from typing import Optional, Tuple
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+import numpy as np
+import pytest
+
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
+    TransformedMesh2D,
     create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalField,
+    NodalSupplier,
 )
 from pyapprox.pde.collocation.physics.shallow_wave import (
     ShallowWavePhysics,
     create_shallow_wave,
 )
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.manufactured import (
     ManufacturedShallowWave,
 )
+from pyapprox.pde.models.collocation.right_hand_side import (
+    CollocationRightHandSide,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,
 )
@@ -37,7 +60,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         # Flat bed
         bed = bkd.zeros((npts,))
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=9.81)
 
         # Positive depth with non-zero momentum
         # h = 1 + 0.1*cos(pi*x), hu = 0.5*h
@@ -59,7 +82,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         # Sloped bed
         bed = 0.1 * nodes
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=9.81)
 
         # Positive depth
         h = 1.5 + 0.2 * bkd.cos(math.pi * nodes)
@@ -83,7 +106,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         forcing = bkd.hstack([f_h, f_hu])
 
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed, g=9.81, forcing=lambda t: forcing
+            basis, bkd, bed=NodalField(bed), g=9.81, forcing=NodalField(forcing)
         )
 
         h = 2.0 + 0.3 * bkd.cos(math.pi * nodes)
@@ -110,7 +133,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         hu = bkd.zeros_like(h)
         state = bkd.hstack([h, hu])
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=9.81)
 
         # For quiescent state with flat surface:
         # dh/dt = -d(hu)/dx = 0 (since hu=0)
@@ -135,7 +158,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         hu = h * u
         state = bkd.hstack([h, hu])
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=9.81)
 
         # For uniform flow:
         # dh/dt = -d(hu)/dx = 0 (since hu=const)
@@ -151,7 +174,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         basis = ChebyshevBasis1D(mesh, bkd)
         bed = bkd.zeros((npts,))
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed))
 
         # 1D: h and hu
         assert physics.ncomponents() == 2
@@ -165,7 +188,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         basis = ChebyshevBasis1D(mesh, bkd)
         bed = bkd.zeros((npts,))
 
-        physics = create_shallow_wave(basis, bkd, bed=bed, g=10.0)
+        physics = create_shallow_wave(basis, bkd, bed=NodalField(bed), g=10.0)
 
         assert physics.ncomponents() == 2
         assert abs(physics.g() - 10.0) < 1e-7
@@ -179,10 +202,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
         nodes = basis.nodes()
         bed = 0.1 * nodes
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=9.81)
 
         assert abs(physics.g() - 9.81) < 1e-7
-        bkd.assert_allclose(physics.bed(), bed)
+        bkd.assert_allclose(physics.bed_function().values(0.0), bed)
 
     def test_transient_small_perturbation(self, bkd):
         """Test transient evolution of small surface perturbation.
@@ -205,7 +228,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         g = 9.81
         h0 = 1.0  # Mean depth
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=g)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=g)
 
         model = CollocationModel(physics, bkd)
 
@@ -265,7 +288,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         bed = man_sol.functions["bed"](nodes[None, :]).flatten()
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81, forcing=forcing_fn)
+        physics = ShallowWavePhysics(
+            basis, bkd, bed=NodalField(bed), g=9.81, forcing=forcing_fn
+        )
 
         # Set Dirichlet BCs for h and hu at both boundaries
         left_idx = bc_mesh.boundary_indices(0)
@@ -330,3 +355,128 @@ class TestShallowWavePhysics(PhysicsTestBase):
         CN integrates quadratic-in-time exactly, so only spatial error remains.
         """
         self._run_transient_shallow_wave(bkd, "crank_nicolson", atol=1e-8)
+
+
+_NPTS_SW = 8
+
+
+def _sw_basis(
+    bkd: Backend[Array], ndim: int
+) -> Tuple[ChebyshevBasis1D[Array] | ChebyshevBasis2D[Array], Array]:
+    """The basis and its node coordinates. Shape of the coordinates:
+    (ndim, npts)"""
+    if ndim == 1:
+        basis = ChebyshevBasis1D(TransformedMesh1D(_NPTS_SW, bkd), bkd)
+        return basis, bkd.reshape(basis.nodes(), (1, _NPTS_SW))
+    mesh = TransformedMesh2D(5, 5, bkd)
+    return ChebyshevBasis2D(mesh, bkd), mesh.points()
+
+
+def _sloped(coords: Array) -> Array:
+    return 0.1 * coords[0]
+
+
+def _rising(coords: Array, time: float) -> Array:
+    return (0.1 + time) * coords[0]
+
+
+def _sw(
+    bkd: Backend[Array],
+    ndim: int,
+    bed: Optional[CoefficientInput[Array]] = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
+) -> ShallowWavePhysics[Array]:
+    basis, coords = _sw_basis(bkd, ndim)
+    if bed is None:
+        bed = NodalField(0.1 * coords[0])
+    return ShallowWavePhysics(basis, bkd, bed=bed, forcing=forcing)
+
+
+def _sw_declared(
+    bkd: Backend[Array], ndim: int, dependent: bool, ncopies: int = 1
+) -> NodalSupplier[Array]:
+    """A declared supplier at the nodes, stacked ``ncopies`` times."""
+    coords = bkd.hstack([_sw_basis(bkd, ndim)[1]] * ncopies)
+    if dependent:
+        rising: TimeDependent[Array] = TimeDependent(_rising)
+        return NodalSupplier(rising, coords)
+    sloped: TimeIndependent[Array] = TimeIndependent(_sloped)
+    return NodalSupplier(sloped, coords)
+
+
+def _sw_state(bkd: Backend[Array], ndim: int) -> Array:
+    """A positive depth and nonzero momenta, random at the nodes."""
+    npts = _sw_basis(bkd, ndim)[0].npts()
+    rng = np.random.default_rng(3)
+    depth = 2.0 + 0.3 * rng.uniform(-1.0, 1.0, npts)
+    momenta = 0.4 * rng.uniform(-1.0, 1.0, ndim * npts)
+    return bkd.asarray(np.concatenate([depth, momenta]))
+
+
+class TestShallowWaveInterior:
+    @pytest.mark.parametrize("ndim", [1, 2])
+    def test_time_dependent_forcing(self, bkd: Backend[Array], ndim: int) -> None:
+        """A time-dependent forcing leaves the Jacobian time-invariant but
+        not the operator; the bundle passes the checker in 1D and 2D."""
+        physics = _sw(bkd, ndim, forcing=_sw_declared(bkd, ndim, True, ndim + 1))
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        assert physics.interior_jacobian_is_time_invariant()
+        assert not physics.interior_is_time_invariant()
+        rhs = CollocationRightHandSide(physics)
+        report = ODEResidualBundleChecker(rhs).check(_sw_state(bkd, ndim), 0.3)
+        assert report.failures() == []
+
+    def test_declared_bed(self, bkd: Backend[Array]) -> None:
+        """The bed carries the Jacobian's time dependence; a declared
+        time-independent one keeps the operator invariant."""
+        moving = _sw(bkd, 1, bed=_sw_declared(bkd, 1, True))
+        assert isinstance(moving, CollocationInteriorOperatorProtocol)
+        assert not moving.interior_jacobian_is_time_invariant()
+        rhs = CollocationRightHandSide(moving)
+        report = ODEResidualBundleChecker(rhs).check(_sw_state(bkd, 1), 0.3)
+        assert report.failures() == []
+        fixed = _sw(bkd, 1, bed=_sw_declared(bkd, 1, False))
+        assert fixed.interior_is_time_invariant()
+
+    @pytest.mark.parametrize("ndim", [1, 2])
+    def test_bed_read_at_evaluation_time(self, bkd: Backend[Array], ndim: int) -> None:
+        """A time-dependent bed gives, at time t, the residual and Jacobian
+        of the physics built from its values at t."""
+        time = 0.7
+        moving_bed = _sw_declared(bkd, ndim, True)
+        moving = _sw(bkd, ndim, bed=moving_bed)
+        reference = _sw(bkd, ndim, bed=NodalField(moving_bed.values(time)))
+        state = _sw_state(bkd, ndim)
+        residual = moving.residual(state, time)
+        bkd.assert_allclose(residual, reference.residual(state, 0.0), rtol=1e-12)
+        bkd.assert_allclose(
+            moving.jacobian(state, time), reference.jacobian(state, 0.0), rtol=1e-12
+        )
+        # and it changes with time, so the comparison is not vacuous
+        change = bkd.max(bkd.abs(moving.residual(state, 0.0) - residual))
+        assert float(change) > 1e-3
+
+    def test_rewritten_bed_is_seen(self, bkd: Backend[Array]) -> None:
+        """Rewriting the bed's values, as a parameterization does, changes
+        the residual: the bed slope is not cached at construction."""
+        basis, coords = _sw_basis(bkd, 1)
+        bed = NodalField(bkd.zeros((_NPTS_SW,)))
+        physics = ShallowWavePhysics(basis, bkd, bed=bed)
+        state = _sw_state(bkd, 1)
+        slope = 0.2 * coords[0]
+        bed.set_values(slope)
+        reference = ShallowWavePhysics(basis, bkd, bed=NodalField(slope))
+        bkd.assert_allclose(
+            physics.residual(state, 0.0), reference.residual(state, 0.0), rtol=1e-12
+        )
+
+    def test_pickle_round_trip(self, bkd: Backend[Array]) -> None:
+        """A physics with nodal bed and forcing pickles and evaluates the
+        same after loading."""
+        forcing = NodalField(0.05 * bkd.ones((2 * _NPTS_SW,)))
+        physics = _sw(bkd, 1, forcing=forcing)
+        loaded = pickle.loads(pickle.dumps(physics))
+        state = _sw_state(bkd, 1)
+        bkd.assert_allclose(
+            loaded.residual(state, 0.0), physics.residual(state, 0.0), rtol=1e-14
+        )

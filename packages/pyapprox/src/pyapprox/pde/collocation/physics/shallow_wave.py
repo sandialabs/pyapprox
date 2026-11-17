@@ -19,9 +19,17 @@ where:
     f = forcing/source terms
 """
 
-from typing import Callable, Optional, Tuple
+from typing import List, Optional, Tuple
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
+from pyapprox.pde.collocation.physics.coefficients import (
+    CoefficientInput,
+    NodalCoefficientProtocol,
+    as_nodal_coefficient,
+    declared_time_invariant,
+    optional_nodal_coefficient,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
@@ -40,57 +48,61 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         Collocation basis (provides nodes, derivative matrices).
     bkd : Backend
         Computational backend.
-    bed : Array
-        Bed elevation (bathymetry). Shape: (npts,)
+    bed : float, NodalCoefficientProtocol or callable
+        Bed elevation (bathymetry) b, in the forms ``as_nodal_coefficient``
+        takes (nodal values arrive as ``NodalField``). Shape of its values:
+        (npts,)
     g : float
         Gravitational acceleration (default: 9.81).
-    forcing : Callable[[float], Array], optional
-        Forcing term for all components. If callable, takes time and returns
-        array of shape (ncomponents * npts,) as [f_h, f_hu] (1D) or
-        [f_h, f_hu, f_hv] (2D).
-        Forcing term for momentum equations. For 1D, returns shape (npts,).
-        For 2D, returns shape (2*npts,) as [f_u, f_v].
+    forcing : float, NodalCoefficientProtocol or callable, optional
+        Forcing for all components, stacked as [f_h, f_hu] (1D) or
+        [f_h, f_hu, f_hv] (2D), in the same forms. Shape of its values:
+        (ncomponents * npts,). Absent means none.
 
     Examples
     --------
     >>> bkd = NumpyBkd()
     >>> mesh = TransformedMesh1D(30, bkd)
     >>> basis = ChebyshevBasis1D(mesh, bkd)
-    >>> bed = bkd.zeros((30,))  # Flat bottom
-    >>> physics = ShallowWavePhysics(basis, bkd, bed=bed)
+    >>> physics = ShallowWavePhysics(basis, bkd, bed=0.0)  # Flat bottom
     """
 
     def __init__(
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        bed: Array,
+        bed: CoefficientInput[Array],
         g: float = 9.81,
-        forcing: Optional[Callable[[float], Array]] = None,
+        forcing: Optional[CoefficientInput[Array]] = None,
     ):
         ndim = basis.ndim()
         ncomponents = ndim + 1  # h + velocity components
         super().__init__(basis, bkd, ncomponents=ncomponents)
 
-        self._bed = bed
+        npts = basis.npts()
+        self._bed = as_nodal_coefficient(bed, npts, bkd)
         self._g = g
-        self._forcing_func = forcing
-
-        basis.npts()
+        self._forcing = optional_nodal_coefficient(forcing, ncomponents * npts, bkd)
 
         # Precompute derivative matrices
         self._D1_matrices = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
-
-        # Precompute bed slope gradient
-        self._bed_gradient = [D @ bed for D in self._D1_matrices]
 
     def g(self) -> float:
         """Return gravitational acceleration."""
         return self._g
 
-    def bed(self) -> Array:
-        """Return bed elevation."""
+    def bed_function(self) -> NodalCoefficientProtocol[Array]:
+        """The bed elevation."""
         return self._bed
+
+    def forcing_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
+        """The stacked forcing; None without a forcing term."""
+        return self._forcing
+
+    def _bed_gradient(self, time: float) -> List[Array]:
+        """The bed slope at ``time``, evaluated, never cached."""
+        bed = self._bed.values(time)
+        return [D @ bed for D in self._D1_matrices]
 
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time.
@@ -98,15 +110,9 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         Returns array of shape (ncomponents * npts,) with forcing for
         all components: [f_h, f_hu] (1D) or [f_h, f_hu, f_hv] (2D).
         """
-        npts = self.npts()
-        bkd = self._bkd
-        ncomponents = self.ncomponents()
-
-        if self._forcing_func is None:
-            return bkd.zeros((ncomponents * npts,))
-        if callable(self._forcing_func):
-            return self._forcing_func(time)
-        return self._forcing_func
+        if self._forcing is None:
+            return self._bkd.zeros((self.ncomponents() * self.npts(),))
+        return self._forcing.values(time)
 
     def _split_state(self, state: Array) -> Tuple[Array, ...]:
         """Split combined state into components (h, hu, [hv]).
@@ -154,7 +160,6 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         Array
             Residual. Shape: (ncomponents * npts,)
         """
-        self.npts()
         ndim = self._basis.ndim()
 
         if ndim == 1:
@@ -184,7 +189,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
 
         # Momentum: d(hu)/dt = -d(hu^2 + 0.5*g*h^2)/dx - g*h*db/dx + f_hu
         flux_u = hu * u + 0.5 * g * h**2
-        res_hu = -D @ flux_u - g * h * self._bed_gradient[0]
+        res_hu = -D @ flux_u - g * h * self._bed_gradient(time)[0]
 
         # Add forcing to all components
         forcing = self._get_forcing(time)
@@ -213,16 +218,18 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         # Continuity: dh/dt = -d(hu)/dx - d(hv)/dy
         res_h = -Dx @ hu - Dy @ hv
 
+        bed_gradient = self._bed_gradient(time)
+
         # x-momentum: d(hu)/dt = -d(hu^2 + 0.5*g*h^2)/dx - d(huv)/dy - g*h*db/dx
         g_hsq = 0.5 * g * h**2
         flux_uu = hu * u + g_hsq
         flux_uv = hu * v
-        res_hu = -Dx @ flux_uu - Dy @ flux_uv - g * h * self._bed_gradient[0]
+        res_hu = -Dx @ flux_uu - Dy @ flux_uv - g * h * bed_gradient[0]
 
         # y-momentum: d(hv)/dt = -d(huv)/dx - d(hv^2 + 0.5*g*h^2)/dy - g*h*db/dy
         flux_vu = hv * u
         flux_vv = hv * v + g_hsq
-        res_hv = -Dx @ flux_vu - Dy @ flux_vv - g * h * self._bed_gradient[1]
+        res_hv = -Dx @ flux_vu - Dy @ flux_vv - g * h * bed_gradient[1]
 
         # Add forcing to all components
         forcing = self._get_forcing(time)
@@ -248,15 +255,16 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
             Jacobian matrix. Shape: (ncomponents * npts, ncomponents * npts)
         """
         ndim = self._basis.ndim()
+        bed_gradient = self._bed_gradient(time)
 
         if ndim == 1:
             h, hu = self._split_state(state)
-            return self._jacobian_1d(h, hu)
+            return self._jacobian_1d(h, hu, bed_gradient)
         else:
             h, hu, hv = self._split_state(state)
-            return self._jacobian_2d(h, hu, hv)
+            return self._jacobian_2d(h, hu, hv, bed_gradient)
 
-    def _jacobian_1d(self, h: Array, hu: Array) -> Array:
+    def _jacobian_1d(self, h: Array, hu: Array, bed_gradient: List[Array]) -> Array:
         """Compute 1D Jacobian."""
         bkd = self._bkd
         npts = self.npts()
@@ -284,7 +292,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         #      = -D @ (-u^2 + g*h) - g*db/dx
         #      = D @ diag(u^2) - g*D @ diag(h) - g*diag(db/dx)
         jacobian[npts : 2 * npts, :npts] = (
-            D @ bkd.diag(u2) - g * D @ bkd.diag(h) - g * bkd.diag(self._bed_gradient[0])
+            D @ bkd.diag(u2) - g * D @ bkd.diag(h) - g * bkd.diag(bed_gradient[0])
         )
 
         # J_hu_hu = d(res_hu)/d(hu)
@@ -294,7 +302,9 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
 
         return jacobian
 
-    def _jacobian_2d(self, h: Array, hu: Array, hv: Array) -> Array:
+    def _jacobian_2d(
+        self, h: Array, hu: Array, hv: Array, bed_gradient: List[Array]
+    ) -> Array:
         """Compute 2D Jacobian."""
         bkd = self._bkd
         npts = self.npts()
@@ -325,7 +335,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
             Dx @ bkd.diag(u2)
             - g * Dx @ bkd.diag(h)
             + Dy @ bkd.diag(uv)
-            - g * bkd.diag(self._bed_gradient[0])
+            - g * bkd.diag(bed_gradient[0])
         )
 
         # d/d(hu): -Dx @ (2*u) - Dy @ (v) = -2*Dx @ diag(u) - Dy @ diag(v)
@@ -346,7 +356,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
             Dx @ bkd.diag(uv)
             + Dy @ bkd.diag(v2)
             - g * Dy @ bkd.diag(h)
-            - g * bkd.diag(self._bed_gradient[1])
+            - g * bkd.diag(bed_gradient[1])
         )
 
         # d/d(hu): -Dx @ (v) = -Dx @ diag(hv/h) / ... = -Dx @ diag(v)
@@ -358,6 +368,31 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         ) - 2.0 * Dy @ bkd.diag(v)
 
         return jacobian
+
+    # -- the interior operator (CollocationInteriorOperatorProtocol)
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """:math:`f(h, hu, [hv], t)`, no boundary condition applied.
+        Shape: (ncomponents * npts,)"""
+        return self.residual(state, time)
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r""":math:`\partial f/\partial (h, hu, [hv])`.
+        Shape: (ncomponents * npts, ncomponents * npts)"""
+        return self.jacobian(state, time)
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """No second derivatives are supplied."""
+        return StateDerivatives.none()
+
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        """Whether the bed is declared time-invariant."""
+        return declared_time_invariant(self._bed)
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether, besides the bed, the forcing is declared
+        time-invariant."""
+        return declared_time_invariant(self._bed, self._forcing)
 
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array
@@ -437,9 +472,9 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
 def create_shallow_wave(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
-    bed: Array,
+    bed: CoefficientInput[Array],
     g: float = 9.81,
-    forcing: Optional[Callable[[float], Array]] = None,
+    forcing: Optional[CoefficientInput[Array]] = None,
 ) -> ShallowWavePhysics[Array]:
     """Create shallow water equations physics.
 
@@ -449,11 +484,11 @@ def create_shallow_wave(
         Collocation basis.
     bkd : Backend
         Computational backend.
-    bed : Array
+    bed : float, NodalCoefficientProtocol or callable
         Bed elevation (bathymetry).
     g : float
         Gravitational acceleration (default: 9.81).
-    forcing : Callable, optional
+    forcing : float, NodalCoefficientProtocol or callable, optional
         Forcing for all components [f_h, f_hu] (1D) or [f_h, f_hu, f_hv] (2D).
 
     Returns

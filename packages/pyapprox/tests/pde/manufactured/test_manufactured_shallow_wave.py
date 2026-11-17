@@ -41,6 +41,7 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import ShallowWavePhysics
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.manufactured import (
     ManufacturedShallowWave,
 )
@@ -130,7 +131,8 @@ class TestManufacturedShallowWave1D:
         # Create physics with manufactured forcing for all components
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
+            basis, bkd, bed=NodalField(bed.flatten()),
+            g=9.81, forcing=NodalField(all_forcing),
         )
 
         # Set Dirichlet BCs at boundaries for both h and hu
@@ -197,7 +199,8 @@ class TestManufacturedShallowWave1D:
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
+            basis, bkd, bed=NodalField(bed.flatten()),
+            g=9.81, forcing=NodalField(all_forcing),
         )
 
         state_exact = bkd.hstack([sol[:, 0], sol[:, 1]])
@@ -233,7 +236,8 @@ class TestManufacturedShallowWave1D:
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
+            basis, bkd, bed=NodalField(bed.flatten()),
+            g=9.81, forcing=NodalField(all_forcing),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -287,7 +291,7 @@ class TestManufacturedShallowWave1D:
         h = surface_level - bed  # Depth that gives flat surface
         hu = bkd.zeros_like(h)  # Zero momentum
 
-        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
+        physics = ShallowWavePhysics(basis, bkd, bed=NodalField(bed), g=9.81)
 
         state = bkd.hstack([h, hu])
         residual = physics.residual(state, 0.0)
@@ -343,7 +347,8 @@ class TestShallowWave1DParameterized:
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
+            basis, bkd, bed=NodalField(bed.flatten()),
+            g=9.81, forcing=NodalField(all_forcing),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -422,7 +427,8 @@ class TestShallowWave1DParameterized:
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
+            basis, bkd, bed=NodalField(bed.flatten()),
+            g=9.81, forcing=NodalField(all_forcing),
         )
 
         state_exact = bkd.hstack([sol[:, 0], sol[:, 1]])
