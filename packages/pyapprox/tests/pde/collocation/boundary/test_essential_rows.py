@@ -7,17 +7,27 @@ reference for the rows ``RowPin`` produces.
 """
 
 import pickle
-from typing import List
+from typing import Callable, Generic, List, Optional
 
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.pinned_rows import RowPin
-from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_state_space
+from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
+    DerivativeOperator,
+    backend_spaces,
+    backend_state_space,
+)
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.boundary.essential_rows import (
     DirichletPart,
     DirichletRows,
+    MappedBoundaryData,
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.coefficients import (
@@ -28,6 +38,8 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
 )
+from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseOperator
 
@@ -201,3 +213,221 @@ class TestDirichletRows:
         loaded = pickle.loads(pickle.dumps(rows))
         bkd.assert_allclose(loaded.values(0.6), rows.values(0.6), rtol=1e-14)
         assert loaded.rows().indices() == rows.rows().indices()
+
+
+# -- data depending on the parameters ---------------------------------------
+#
+# Side 0 (x = -1, 5 nodes) carries g = exp(b0 + sum_k p_k b_k), two
+# parameters, b_k smooth in y; the other sides are constants. The exp map
+# has a second derivative, so the curvature is supplied.
+
+_NPARAMS = 2
+
+
+class _Exp(Generic[Array]):
+    """exp as transform and both its derivatives (picklable)."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, x: Array) -> Array:
+        return self._bkd.exp(x)
+
+
+def _side_map(
+    bkd: Backend[Array], second_derivative: bool = True
+) -> TransformedFieldMap[Array]:
+    mesh = _mesh(bkd)
+    y = mesh.points()[1, mesh.boundary_indices(0)]
+    inner = BasisExpansion(bkd, 0.2, [0.5 * y, 0.3 * y**2 - 0.1])
+    exp = _Exp(bkd)
+    return TransformedFieldMap(
+        inner, exp, exp, bkd, transform_deriv2=exp if second_derivative else None
+    )
+
+
+def _params(bkd: Backend[Array]) -> Array:
+    return bkd.asarray([0.4, -0.7])
+
+
+def _mapped(
+    bkd: Backend[Array], second_derivative: bool = True
+) -> MappedBoundaryData[Array]:
+    return MappedBoundaryData(_side_map(bkd, second_derivative), _params(bkd), bkd)
+
+
+def _with_mapped_side(
+    bkd: Backend[Array], data: MappedBoundaryData[Array], mapped_last: bool
+) -> DirichletRows[Array]:
+    mesh = _mesh(bkd)
+    mapped = DirichletPart(mesh.boundary_indices(0), data)
+    constants = [DirichletPart(mesh.boundary_indices(side), 1.0) for side in (1, 2, 3)]
+    parts = constants + [mapped] if mapped_last else [mapped] + constants
+    return DirichletRows(bkd, _NPTS, 1, parts)
+
+
+def _dense(operator: DerivativeOperator[Array], bkd: Backend[Array]) -> Array:
+    return operator.apply(bkd.eye(operator.domain().size))
+
+
+class _VectorFunction(Generic[Array]):
+    """A function of the parameters with its Jacobian, for
+    DerivativeChecker."""
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        nqoi: int,
+        fun: Callable[[Array], Array],
+        jac: Callable[[Array], Array],
+    ) -> None:
+        self._bkd, self._nqoi, self._fun, self._jac = bkd, nqoi, fun, jac
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return _NPARAMS
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def __call__(self, samples: Array) -> Array:
+        return self._bkd.stack(
+            [self._fun(samples[:, k]) for k in range(samples.shape[1])], axis=1
+        )
+
+    def jacobian(self, sample: Array) -> Array:
+        return self._jac(sample[:, 0])
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
+
+
+def _check(function: _VectorFunction[Array], bkd: Backend[Array]) -> float:
+    checker: DerivativeChecker[Array] = DerivativeChecker(function)
+    errors = checker.check_derivatives(
+        bkd.reshape(_params(bkd), (_NPARAMS, 1)), verbosity=0
+    )
+    return bkd.to_float(checker.error_ratio(errors[0]))
+
+
+class TestParameterizedDirichletRows:
+    @pytest.mark.parametrize("mapped_last", [True, False])
+    def test_data_jacobian(self, bkd: Backend[Array], mapped_last: bool) -> None:
+        """dg/dp of the whole declaration passes DerivativeChecker,
+        whichever side supplies the shared corners."""
+        data = _mapped(bkd)
+        rows = _with_mapped_side(bkd, data, mapped_last)
+        jacobian_fn = rows.parameter_derivatives().values
+        assert callable(jacobian_fn)
+
+        def fun(params: Array) -> Array:
+            data.set_parameters(params)
+            return rows.values(0.0)[:, 0]
+
+        def jac(params: Array) -> Array:
+            data.set_parameters(params)
+            return _dense(jacobian_fn(0.0), bkd)
+
+        assert _check(_VectorFunction(bkd, _NPTS, fun, jac), bkd) <= 1e-6
+
+    @pytest.mark.parametrize("mapped_last", [True, False])
+    def test_data_curvature(self, bkd: Backend[Array], mapped_last: bool) -> None:
+        """sum_i w_i d2g_i/dp2 is the Jacobian of w^T dg/dp, by
+        DerivativeChecker, with weights on every pinned row. The error
+        ratio bottoms out between 6e-7 and 1.2e-6 on both backends; a
+        curvature 10% off stays above 1e-2."""
+        data = _mapped(bkd)
+        rows = _with_mapped_side(bkd, data, mapped_last)
+        bundle = rows.parameter_derivatives()
+        jacobian_fn, curvature_fn = bundle.values, bundle.values_curvature
+        assert callable(jacobian_fn) and callable(curvature_fn)
+        rng = np.random.default_rng(4)
+        weights = bkd.asarray(rng.standard_normal((_NPTS, 1)))
+        weights = rows.rows().replace_rows(bkd.zeros((_NPTS, 1)), weights)
+
+        def fun(params: Array) -> Array:
+            data.set_parameters(params)
+            return (_dense(jacobian_fn(0.0), bkd).T @ weights)[:, 0]
+
+        def jac(params: Array) -> Array:
+            data.set_parameters(params)
+            return _dense(curvature_fn(0.0, weights), bkd)
+
+        def wrong(params: Array) -> Array:
+            return 1.1 * jac(params)
+
+        assert _check(_VectorFunction(bkd, _NPARAMS, fun, jac), bkd) <= 1e-5
+        assert _check(_VectorFunction(bkd, _NPARAMS, fun, wrong), bkd) > 1e-2
+
+    def test_corner_goes_with_its_winner(self, bkd: Backend[Array]) -> None:
+        """A corner shared by the mapped side and a constant side carries
+        the mapped side's derivative only when the mapped side wins it."""
+        mesh = _mesh(bkd)
+        corners = sorted(
+            {bkd.to_int(i) for i in mesh.boundary_indices(0)}
+            & {bkd.to_int(i) for i in mesh.boundary_indices(2)}
+        )
+        for mapped_last, nonzero in ((True, True), (False, False)):
+            rows = _with_mapped_side(bkd, _mapped(bkd), mapped_last)
+            fn = rows.parameter_derivatives().values
+            assert callable(fn)
+            row = _dense(fn(0.0), bkd)[corners[0]]
+            assert (bkd.to_float(bkd.norm(row)) > 0.1) is nonzero
+
+    def test_row_pin_reads_the_data_jacobian(self, bkd: Backend[Array]) -> None:
+        """The shared pin's data term is dg/dp on the pinned rows and zero
+        elsewhere."""
+        rows = _with_mapped_side(bkd, _mapped(bkd), True)
+        states, params = backend_spaces(bkd, _NPTS, _NPARAMS)
+        pin: RowPin[Array] = RowPin(rows)
+        term = pin.data_param_jacobian(0.0, states, params)
+        assert term is not None
+        fn = rows.parameter_derivatives().values
+        assert callable(fn)
+        expected = rows.rows().replace_rows(
+            bkd.zeros((_NPTS, _NPARAMS)), _dense(fn(0.0), bkd)
+        )
+        bkd.assert_allclose(_dense(term, bkd), expected, rtol=1e-14, atol=1e-15)
+
+    def test_declared_fields(self, bkd: Backend[Array]) -> None:
+        """Rates' derivatives are unavailable (no rate is supplied); the
+        curvature is absent when a part's map has no second derivative."""
+        bundle = _with_mapped_side(bkd, _mapped(bkd), True).parameter_derivatives()
+        assert bundle.rates is None and bundle.rates_curvature is None
+        assert callable(bundle.values_curvature)
+        first_order = _with_mapped_side(bkd, _mapped(bkd, False), True)
+        assert first_order.parameter_derivatives().values_curvature is None
+
+    def test_parameter_counts_must_agree(self, bkd: Backend[Array]) -> None:
+        mesh = _mesh(bkd)
+        y = mesh.points()[1, mesh.boundary_indices(1)]
+        three = MappedBoundaryData(
+            BasisExpansion(bkd, 0.0, [y, y**2, y**3]), bkd.zeros((3,)), bkd
+        )
+        with pytest.raises(ValueError, match="number of parameters"):
+            DirichletRows(
+                bkd,
+                _NPTS,
+                1,
+                [
+                    DirichletPart(mesh.boundary_indices(0), _mapped(bkd)),
+                    DirichletPart(mesh.boundary_indices(1), three),
+                ],
+            )
+
+    def test_mapped_data(self, bkd: Backend[Array]) -> None:
+        """Writing the parameters moves the version and the values; a wrong
+        parameter shape is refused; the data pickle."""
+        data = _mapped(bkd)
+        before = data.values(0.0)
+        version = data.version()
+        data.set_parameters(bkd.asarray([0.1, 0.2]))
+        assert data.version() == version + 1
+        assert bkd.to_float(bkd.norm(data.values(0.0) - before)) > 1e-3
+        with pytest.raises(ValueError, match="shape"):
+            data.set_parameters(bkd.zeros((3,)))
+        loaded: Optional[MappedBoundaryData[Array]] = pickle.loads(pickle.dumps(data))
+        assert loaded is not None
+        bkd.assert_allclose(loaded.values(0.0), data.values(0.0), rtol=1e-14)

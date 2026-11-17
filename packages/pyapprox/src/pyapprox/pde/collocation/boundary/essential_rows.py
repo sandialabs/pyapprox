@@ -1,24 +1,191 @@
 r"""A collocation system's essential (Dirichlet) rows and their data.
 
-The rows of the state pinned to boundary data :math:`g(t)`, declared as
+The rows of the state pinned to boundary data :math:`g(t; p)`, declared as
 :class:`~pyapprox.ode.pinned_rows.PinnedRowsProtocol` reads them. The
 declaration does nothing to a residual: the shared pins (``RowPin`` for a
 steady solve or a step's blocks, ``RowPinning``, ``PinnedRowsConstraint``)
-apply it.
+apply it, including the data's parameter derivatives.
+
+Data that depend on the parameters satisfy
+:class:`ParameterizedBoundaryDataProtocol`; the data object, not the
+declaration, owns the map from the parameters to the data and its
+derivatives. :class:`MappedBoundaryData` is one such object, built on a
+field map.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Generic, List, Optional, Sequence
+from typing import (
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives
-from pyapprox.ode.residual_derivatives import backend_state_space
+from pyapprox.ode.residual_derivatives import (
+    DerivativeOperator,
+    backend_spaces,
+    backend_state_space,
+)
 from pyapprox.pde.collocation.physics.coefficients import (
     CoefficientInput,
     NodalCoefficientProtocol,
     as_nodal_coefficient,
 )
+from pyapprox.pde.field_maps.protocol import (
+    FieldMapProtocol,
+    FieldMapWithHVPProtocol,
+    field_map_has_hvp,
+)
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendRowSet
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, BackendRowSet
+from pyapprox.util.linalg.operators import SpaceDescriptor
+
+
+@dataclass(frozen=True)
+class BoundaryDataParamDerivatives(Generic[Array]):
+    r"""The parameter derivatives of boundary data :math:`g(t; p)` on a
+    part's nodes.
+
+    Attributes
+    ----------
+    jacobian : callable
+        ``time -> dg/dp``. Shape: (nboundary, nparams)
+    curvature : callable or None
+        ``(time, weights) -> sum_i w_i d^2 g_i/dp^2`` for weights of shape
+        (nboundary,). Shape: (nparams, nparams). None when the data do not
+        supply second derivatives; a second-order consumer then refuses.
+    """
+
+    jacobian: Callable[[float], Array]
+    curvature: Optional[Callable[[float, Array], Array]] = None
+
+
+@runtime_checkable
+class ParameterizedBoundaryDataProtocol(Protocol, Generic[Array]):
+    """Boundary data that depend on the parameters, read by
+    :class:`DirichletRows`."""
+
+    def values(self, time: float) -> Array:
+        """:math:`g(t; p)` at the part's nodes. Shape: (nboundary,)"""
+        ...
+
+    def is_time_dependent(self) -> bool:
+        """Whether the data change with time at fixed parameters."""
+        ...
+
+    def version(self) -> int:
+        """Moves whenever the parameters are written."""
+        ...
+
+    def nparams(self) -> int:
+        """The number of parameters."""
+        ...
+
+    def param_derivatives(self) -> BoundaryDataParamDerivatives[Array]:
+        """The data's parameter derivatives; which fields are present is
+        fixed for the object's life."""
+        ...
+
+
+class MappedBoundaryData(Generic[Array]):
+    r"""Time-independent boundary data :math:`g = m(p)` from a field map
+    over the part's nodes.
+
+    The parameters are written with :meth:`set_parameters`. The curvature
+    is supplied when the map provides a usable adjoint-weighted HVP; it is
+    assembled column by column (``nparams`` HVPs), as parameter counts of
+    boundary data are small.
+
+    Parameters
+    ----------
+    field_map : FieldMapProtocol
+        Maps the parameters to the data at the part's nodes.
+    params : Array
+        The initial parameters. Shape: (nparams,)
+    bkd : Backend
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        field_map: FieldMapProtocol[Array],
+        params: Array,
+        bkd: Backend[Array],
+    ) -> None:
+        if not isinstance(field_map, FieldMapProtocol):
+            raise TypeError(
+                "field_map must satisfy FieldMapProtocol, got "
+                f"{type(field_map).__name__}"
+            )
+        self._field_map = field_map
+        self._bkd = bkd
+        self._hvp_map: Optional[FieldMapWithHVPProtocol[Array]] = (
+            field_map
+            if isinstance(field_map, FieldMapWithHVPProtocol)
+            and field_map_has_hvp(field_map)
+            else None
+        )
+        self._version = -1
+        self.set_parameters(params)
+
+    def set_parameters(self, params: Array) -> None:
+        """Write the parameters. Shape: (nparams,)"""
+        if params.shape != (self._field_map.nvars(),):
+            raise ValueError(
+                f"params must have shape ({self._field_map.nvars()},), got "
+                f"{tuple(params.shape)}"
+            )
+        self._params = params
+        self._version += 1
+
+    def version(self) -> int:
+        """The number of parameter writes after the first."""
+        return self._version
+
+    def values(self, time: float) -> Array:
+        """:math:`m(p)`. Shape: (nboundary,)"""
+        return self._field_map(self._params)
+
+    def is_time_dependent(self) -> bool:
+        return False
+
+    def nparams(self) -> int:
+        return self._field_map.nvars()
+
+    def _jacobian(self, time: float) -> Array:
+        return self._field_map.jacobian(self._params)
+
+    def _curvature(self, time: float, weights: Array) -> Array:
+        if self._hvp_map is None:
+            raise RuntimeError("the field map supplies no HVP")
+        bkd, nparams = self._bkd, self.nparams()
+        identity = bkd.eye(nparams)
+        return bkd.stack(
+            [
+                self._hvp_map.hvp(self._params, weights, identity[:, k])
+                for k in range(nparams)
+            ],
+            axis=1,
+        )
+
+    def param_derivatives(self) -> BoundaryDataParamDerivatives[Array]:
+        return BoundaryDataParamDerivatives(
+            self._jacobian,
+            None if self._hvp_map is None else self._curvature,
+        )
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._field_map!r})"
+
+
+BoundaryDataInput = Union[
+    CoefficientInput[Array], ParameterizedBoundaryDataProtocol[Array]
+]
 
 
 @dataclass(frozen=True)
@@ -30,18 +197,44 @@ class DirichletPart(Generic[Array]):
     ----------
     boundary_indices : Array
         Mesh node indices of the part. Shape: (nboundary,)
-    data : float, NodalCoefficientProtocol or callable
-        The data at those nodes, in the forms ``as_nodal_coefficient``
-        takes: a constant, a ``NodalField`` of nodal values, or a
-        ``NodalSupplier`` evaluating a declared ``f(coords, time)`` at the
-        boundary nodes' coordinates.
+    data : float, NodalCoefficientProtocol, callable or
+        ParameterizedBoundaryDataProtocol
+        The data at those nodes: a constant, a ``NodalField`` of nodal
+        values, or a ``NodalSupplier`` evaluating a declared
+        ``f(coords, time)`` at the boundary nodes' coordinates (all
+        independent of the parameters, in the forms
+        ``as_nodal_coefficient`` takes); or data depending on the
+        parameters.
     component : int
         The state component fixed (0 for a scalar physics).
     """
 
     boundary_indices: Array
-    data: CoefficientInput[Array]
+    data: BoundaryDataInput[Array]
     component: int = 0
+
+
+class _PlacedDataJacobian(Generic[Array]):
+    r""":math:`t \mapsto \partial g/\partial p`, each parameterized part's
+    rows placed in a parameters-to-states operator; zero on the rows of
+    parts independent of the parameters."""
+
+    def __init__(self, rows: "DirichletRows[Array]") -> None:
+        self._rows = rows
+
+    def __call__(self, time: float) -> DerivativeOperator[Array]:
+        return self._rows._data_jacobian(time)
+
+
+class _SummedDataCurvature(Generic[Array]):
+    r""":math:`(t, w) \mapsto \sum_{i \in R} w_i\, \partial^2 g_i/\partial
+    p^2`, each parameterized part weighted on the rows it supplies."""
+
+    def __init__(self, rows: "DirichletRows[Array]") -> None:
+        self._rows = rows
+
+    def __call__(self, time: float, weights: Array) -> DerivativeOperator[Array]:
+        return self._rows._data_curvature(time, weights)
 
 
 class DirichletRows(Generic[Array]):
@@ -51,7 +244,12 @@ class DirichletRows(Generic[Array]):
     A part's rows are its boundary node indices offset by
     ``component * npts`` in the component-stacked state. Parts may share
     rows (neighboring sides share corner nodes): a later part's data win a
-    shared row.
+    shared row, and its parameter derivatives with them.
+
+    Parameter derivatives are stated zero when no part depends on the
+    parameters. Otherwise :math:`\partial g/\partial p` is supplied, the
+    curvature only when every parameterized part supplies it, and the
+    rate's derivatives are not available (no rate is supplied).
 
     Parameters
     ----------
@@ -69,7 +267,8 @@ class DirichletRows(Generic[Array]):
     ------
     ValueError
         If there are no parts, a component is not in
-        ``[0, ncomponents)``, or a boundary index is not in ``[0, npts)``.
+        ``[0, ncomponents)``, a boundary index is not in ``[0, npts)``, or
+        parameterized parts disagree on the number of parameters.
     """
 
     def __init__(
@@ -83,27 +282,64 @@ class DirichletRows(Generic[Array]):
             raise ValueError("a Dirichlet declaration needs at least one part")
         self._bkd = bkd
         self._nstates = npts * ncomponents
-        self._rows_per_part: List[Array] = []
+        rows_per_part = [self._part_rows(part, npts, ncomponents) for part in parts]
+        self._rows_per_part = [
+            bkd.asarray(rows, dtype=bkd.int64_dtype()) for rows in rows_per_part
+        ]
         self._data: List[NodalCoefficientProtocol[Array]] = []
-        all_rows: List[int] = []
-        for part in parts:
-            if not 0 <= part.component < ncomponents:
-                raise ValueError(
-                    f"component {part.component} is not in [0, {ncomponents})"
-                )
-            # Read once at construction to build the row set
-            indices = [bkd.to_int(index) for index in part.boundary_indices]
-            if indices and (min(indices) < 0 or max(indices) >= npts):
-                raise ValueError(
-                    f"boundary indices must lie in [0, {npts}), got "
-                    f"[{min(indices)}, {max(indices)}]"
-                )
-            rows = [index + part.component * npts for index in indices]
-            all_rows.extend(rows)
-            self._rows_per_part.append(bkd.asarray(rows, dtype=bkd.int64_dtype()))
-            self._data.append(as_nodal_coefficient(part.data, len(rows), bkd))
-        descriptor = backend_state_space(bkd, self._nstates).descriptor()
-        self._rows = BackendRowSet(descriptor, all_rows, bkd)
+        # (part position, data) of each part depending on the parameters
+        self._parameterized: List[
+            tuple[int, ParameterizedBoundaryDataProtocol[Array]]
+        ] = []
+        for position, (part, rows) in enumerate(zip(parts, rows_per_part)):
+            if isinstance(part.data, ParameterizedBoundaryDataProtocol):
+                self._data.append(part.data)
+                self._parameterized.append((position, part.data))
+            else:
+                self._data.append(as_nodal_coefficient(part.data, len(rows), bkd))
+        # 1 where the part supplies the row, 0 where a later part does
+        self._wins = [
+            bkd.asarray(
+                [
+                    0.0
+                    if any(row in later for later in rows_per_part[k + 1 :])
+                    else 1.0
+                    for row in rows
+                ]
+            )
+            for k, rows in enumerate(rows_per_part)
+        ]
+        self._states = backend_state_space(bkd, self._nstates).descriptor()
+        self._rows = BackendRowSet(
+            self._states, [row for rows in rows_per_part for row in rows], bkd
+        )
+        self._params = self._parameter_space()
+
+    def _part_rows(
+        self, part: DirichletPart[Array], npts: int, ncomponents: int
+    ) -> List[int]:
+        if not 0 <= part.component < ncomponents:
+            raise ValueError(f"component {part.component} is not in [0, {ncomponents})")
+        # Read once at construction to build the row set
+        indices = [self._bkd.to_int(index) for index in part.boundary_indices]
+        if indices and (min(indices) < 0 or max(indices) >= npts):
+            raise ValueError(
+                f"boundary indices must lie in [0, {npts}), got "
+                f"[{min(indices)}, {max(indices)}]"
+            )
+        return [index + part.component * npts for index in indices]
+
+    def _parameter_space(self) -> Optional[SpaceDescriptor]:
+        counts = {data.nparams() for _, data in self._parameterized}
+        if not counts:
+            return None
+        if len(counts) > 1:
+            raise ValueError(
+                "parameterized Dirichlet parts disagree on the number of "
+                f"parameters: {sorted(counts)}"
+            )
+        _, params = backend_spaces(self._bkd, self._nstates, counts.pop())
+        return params.descriptor()
 
     def rows(self) -> BackendRowSet[Array]:
         """The pinned rows of the component-stacked state."""
@@ -136,8 +372,61 @@ class DirichletRows(Generic[Array]):
         return None
 
     def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
-        """Independent of the parameters."""
-        return PinnedRowsParamDerivatives.independent()
+        """Stated zero when no part depends on the parameters; otherwise
+        the values' Jacobian, their curvature when every parameterized part
+        supplies one, and no rate derivatives."""
+        if not self._parameterized:
+            return PinnedRowsParamDerivatives.independent()
+        curvature_available = all(
+            data.param_derivatives().curvature is not None
+            for _, data in self._parameterized
+        )
+        return PinnedRowsParamDerivatives(
+            values=_PlacedDataJacobian(self),
+            rates=None,
+            values_curvature=(
+                _SummedDataCurvature(self) if curvature_available else None
+            ),
+            rates_curvature=None,
+        )
+
+    def _require_params(self) -> SpaceDescriptor:
+        if self._params is None:
+            raise RuntimeError("no part depends on the parameters")
+        return self._params
+
+    def _data_jacobian(self, time: float) -> DerivativeOperator[Array]:
+        bkd, params = self._bkd, self._require_params()
+        parameterized = dict(self._parameterized)
+        matrix = bkd.zeros((self._nstates, params.size))
+        # Every part writes its rows in order, so a later part wins a
+        # shared row; a part independent of the parameters writes zeros
+        for position, rows in enumerate(self._rows_per_part):
+            shape = (rows.shape[0], params.size)
+            data = parameterized.get(position)
+            if data is None:
+                matrix = bkd.index_update(matrix, rows, bkd.zeros(shape))
+                continue
+            jacobian = data.param_derivatives().jacobian(time)
+            if jacobian.shape != shape:
+                raise ValueError(
+                    f"boundary data Jacobian must have shape {shape}, got "
+                    f"{tuple(jacobian.shape)}"
+                )
+            matrix = bkd.index_update(matrix, rows, jacobian)
+        return BackendDenseOperator(matrix, params, bkd, range=self._states)
+
+    def _data_curvature(self, time: float, weights: Array) -> DerivativeOperator[Array]:
+        bkd, params = self._bkd, self._require_params()
+        flat = bkd.flatten(weights)
+        matrix = bkd.zeros((params.size, params.size))
+        for position, data in self._parameterized:
+            curvature = data.param_derivatives().curvature
+            if curvature is None:
+                raise RuntimeError("a parameterized part supplies no curvature")
+            rows = self._rows_per_part[position]
+            matrix = matrix + curvature(time, flat[rows] * self._wins[position])
+        return BackendDenseOperator(matrix, params, bkd)
 
     def is_time_invariant(self) -> bool:
         """Whether every part's data are declared time-invariant."""
