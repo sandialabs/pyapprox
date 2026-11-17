@@ -1,7 +1,7 @@
 """Pointwise constitutive models (solver-neutral).
 
-Provides protocols, implementations, and a registry for pluggable
-hyperelastic stress models used by collocation and Galerkin physics,
+Provides protocols and implementations of hyperelastic stress models
+used by collocation and Galerkin physics, which take them injected,
 plus typed coefficient function families (diffusion, velocity,
 reaction) and the advection formulations for ADR-type physics.
 """
@@ -40,14 +40,6 @@ from pyapprox.pde.constitutive.protocols import (
     StressModelWithTangentProtocol,
     SymbolicStressModelProtocol,
 )
-from pyapprox.pde.constitutive.registry import (
-    create_stress_model,
-    list_stress_models,
-    register_stress_model,
-)
-
-# Auto-register built-in stress models
-register_stress_model("neo_hookean", lambda **kw: NeoHookeanStress(**kw))
 
 __all__ = [
     # Coefficient function protocols
@@ -82,8 +74,4 @@ __all__ = [
     "SymbolicStressModelProtocol",
     # Implementations
     "NeoHookeanStress",
-    # Registry
-    "register_stress_model",
-    "create_stress_model",
-    "list_stress_models",
 ]

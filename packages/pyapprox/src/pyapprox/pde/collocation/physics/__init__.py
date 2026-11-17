@@ -51,15 +51,6 @@ from pyapprox.pde.collocation.physics.shallow_wave import (
     ShallowWavePhysics,
     create_shallow_wave,
 )
-from pyapprox.pde.constitutive import (
-    NeoHookeanStress,
-    StressModelProtocol,
-    StressModelWithTangentProtocol,
-    SymbolicStressModelProtocol,
-    create_stress_model,
-    list_stress_models,
-    register_stress_model,
-)
 
 __all__ = [
     # Base classes
@@ -102,12 +93,4 @@ __all__ = [
     "create_shallow_shelf_depth",
     # Hyperelasticity
     "HyperelasticityPhysics",
-    # Stress models
-    "StressModelProtocol",
-    "StressModelWithTangentProtocol",
-    "SymbolicStressModelProtocol",
-    "NeoHookeanStress",
-    "register_stress_model",
-    "create_stress_model",
-    "list_stress_models",
 ]
