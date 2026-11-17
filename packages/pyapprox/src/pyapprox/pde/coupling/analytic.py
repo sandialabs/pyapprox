@@ -60,7 +60,12 @@ step.
 
 from typing import Generic, Optional, Sequence
 
-from pyapprox.pde.coupling.responses import ResponseDerivatives, TimeWindow
+from pyapprox.pde.coupling.responses import (
+    Flux,
+    ResponseDerivatives,
+    TimeWindow,
+    Trace,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -68,9 +73,10 @@ class KirchhoffResponse1D(Generic[Array]):
     r"""A 1D diffusion subdomain with polynomial conductivity.
 
     Satisfies
-    :class:`~pyapprox.pde.coupling.responses.LocalResponseProtocol`.
-    Steady, without parameters or quantities of interest. Port rows are
-    the port ends, the left end first.
+    :class:`~pyapprox.pde.coupling.responses.LocalResponseProtocol`:
+    receives the trace at its port ends and returns the outward flux
+    there. Steady, without parameters or quantities of interest. Port
+    rows are the port ends, the left end first.
 
     Parameters
     ----------
@@ -112,6 +118,12 @@ class KirchhoffResponse1D(Generic[Array]):
 
     def nport(self) -> int:
         return sum(end is None for end in self._ends)
+
+    def receives(self) -> Trace:
+        return Trace()
+
+    def returns(self) -> Flux:
+        return Flux()
 
     def nparams(self) -> int:
         return 0
@@ -198,7 +210,8 @@ class KirchhoffPoint1D(Generic[Array]):
         self._flux = response._flux(port_data)
         self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
 
-    def flux(self) -> Array:
+    def output(self) -> Array:
+        """The outward fluxes at the port ends."""
         return self._flux
 
     def qoi(self) -> Array:

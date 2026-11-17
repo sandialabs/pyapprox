@@ -1,18 +1,22 @@
 r"""Local responses: what a subdomain returns for its interface data.
 
 A response :math:`r_i(\lambda_i, p)` maps a subdomain's port data
-:math:`\lambda_i` (and parameters :math:`p`) to its flux tested against
-the skeleton basis on its ports. The skeleton sums the responses through
-the port transfers, :math:`S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda,
-p)`, so a response is all the coupling sees of a subdomain: how it
-discretizes or solves its interior is its own.
+:math:`\lambda_i` (and parameters :math:`p`) to an output on its ports.
+Each response declares what it :meth:`~LocalResponseProtocol.receives`
+and what it :meth:`~LocalResponseProtocol.returns` as
+:class:`PortQuantity` values: a Dirichlet-to-Neumann response receives
+the :class:`Trace` and returns the :class:`Flux` tested against the
+skeleton basis. The skeleton sums the outputs through the port
+transfers, :math:`S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda, p)`, so a
+response is all the coupling sees of a subdomain: how it discretizes or
+solves its interior is its own.
 
 A response *linearizes, then answers queries*: :meth:`LocalResponseProtocol.
 linearize` does the subdomain's work once for the given data and returns
-a point whose flux, quantities of interest and derivatives refer to that
-data. Port data, fluxes, parameters and QoIs are single-column backend
-arrays: port blocks are the only data crossing between stacks, and small
-replicated data stay arrays.
+a point whose output, quantities of interest and derivatives refer to
+that data. Port data, outputs, parameters and QoIs are single-column
+backend arrays: port blocks are the only data crossing between stacks,
+and small replicated data stay arrays.
 
 Derivatives are optional and travel in a frozen
 :class:`ResponseDerivatives` bundle; an absent capability is ``None``.
@@ -24,9 +28,27 @@ from typing import Callable, Generic, Optional, Protocol, runtime_checkable
 from pyapprox.util.backends.protocols import Array, Backend
 
 TraceJVP = Callable[[Array], Array]
-r"""Directional derivatives of the flux in the port data,
+r"""Directional derivatives of the output in the port data,
 :math:`(\partial r_i/\partial \lambda_i) V` for a block :math:`V` of
 shape (nport, ncols)."""
+
+
+@dataclass(frozen=True)
+class PortQuantity:
+    """What a port block holds. Compared by value; a new kind of port
+    data is a new subclass."""
+
+
+@dataclass(frozen=True)
+class Trace(PortQuantity):
+    """The field's values on the ports, as skeleton coefficients
+    (Dirichlet data)."""
+
+
+@dataclass(frozen=True)
+class Flux(PortQuantity):
+    """The outward normal flux on the ports, tested against the skeleton
+    basis (Neumann data)."""
 
 
 @dataclass(frozen=True)
@@ -91,8 +113,10 @@ class ResponsePointProtocol(Protocol[Array]):
     """A response linearized at one set of port data, parameters and
     window."""
 
-    def flux(self) -> Array:
-        """The tested flux on the ports. Shape: (nport, 1)."""
+    def output(self) -> Array:
+        """The quantity the response :meth:`~LocalResponseProtocol.returns`
+        on its ports (the tested flux, for a Dirichlet-to-Neumann
+        response). Shape: (nport, 1)."""
         ...
 
     def qoi(self) -> Array:
@@ -113,7 +137,15 @@ class LocalResponseProtocol(Protocol[Array]):
         ...
 
     def nport(self) -> int:
-        """The number of rows of the port data and flux."""
+        """The number of rows of the port data and output."""
+        ...
+
+    def receives(self) -> "PortQuantity":
+        """What the port data are: :class:`Trace` for Dirichlet data."""
+        ...
+
+    def returns(self) -> "PortQuantity":
+        """What the output is: :class:`Flux` for the tested flux."""
         ...
 
     def nparams(self) -> int:

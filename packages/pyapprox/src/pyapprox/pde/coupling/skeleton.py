@@ -53,9 +53,12 @@ from pyapprox.implicitfunction.residual_derivatives import (
 )
 from pyapprox.pde.coupling.ports import PortTransferProtocol
 from pyapprox.pde.coupling.responses import (
+    Flux,
     LocalResponseProtocol,
+    PortQuantity,
     ResponsePointProtocol,
     TimeWindow,
+    Trace,
     TraceJVP,
 )
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
@@ -85,6 +88,39 @@ class CoupledSubdomain(Generic[V, Array]):
 
     response: LocalResponseProtocol[Array]
     transfer: PortTransferProtocol[V, Array]
+
+
+@runtime_checkable
+class TransmissionProtocol(Protocol):
+    r"""The transmission condition: what every response receives on its
+    ports and what it must return.
+
+    The skeleton combines outputs as :math:`\sum_i E_i^\top o_i` under
+    every condition; a dual condition, whose skeleton residual is a
+    signed jump, puts its signs in its port transfers.
+    """
+
+    def sends(self) -> PortQuantity:
+        """What the port data given to each response are."""
+        ...
+
+    def expects(self) -> PortQuantity:
+        """What each response must return."""
+        ...
+
+
+class DirichletNeumann:
+    """Responses receive the trace and return the flux; the skeleton
+    residual is the flux balance and its unknown the trace."""
+
+    def sends(self) -> Trace:
+        return Trace()
+
+    def expects(self) -> Flux:
+        return Flux()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
 
 @runtime_checkable
@@ -334,6 +370,9 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     executor
         Runs the per-subdomain work (linearizations, trace products).
         Default: :class:`SerialExecutor`.
+    transmission
+        What responses receive and return; each response must declare
+        the same. Default: :class:`DirichletNeumann`.
     """
 
     def __init__(
@@ -344,7 +383,16 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         points: Optional[PointStoreProtocol[V, Array]] = None,
         window: Optional[TimeWindow] = None,
         executor: Optional[SubdomainExecutorProtocol] = None,
+        transmission: Optional[TransmissionProtocol] = None,
     ) -> None:
+        condition: TransmissionProtocol = (
+            DirichletNeumann() if transmission is None else transmission
+        )
+        if not isinstance(condition, TransmissionProtocol):
+            raise TypeError(
+                "transmission must satisfy TransmissionProtocol, got "
+                f"{type(condition).__name__}"
+            )
         if not isinstance(space, InnerProductSpaceProtocol):
             raise TypeError(
                 "space must satisfy InnerProductSpaceProtocol, got "
@@ -377,6 +425,13 @@ class SkeletonResidual(Generic[V, A, Array, F]):
                 )
             if sd.response.nparams() != 0:
                 raise ValueError(f"subdomain {i}'s response has parameters")
+            pairing = (sd.response.receives(), sd.response.returns())
+            if pairing != (condition.sends(), condition.expects()):
+                raise TypeError(
+                    f"subdomain {i}'s response receives {pairing[0]} and returns "
+                    f"{pairing[1]}; {condition!r} sends {condition.sends()} and "
+                    f"expects {condition.expects()}"
+                )
         self._space = space
         self._subdomains = tuple(subdomains)
         self._schur = schur
@@ -384,6 +439,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
             KeepCurrentPoints() if points is None else points
         )
         self._window = TimeWindow.steady() if window is None else window
+        self._transmission = condition
         self._executor: SubdomainExecutorProtocol = (
             SerialExecutor() if executor is None else executor
         )
@@ -394,6 +450,10 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     def subdomains(self) -> tuple[CoupledSubdomain[V, Array], ...]:
         """Each subdomain's response and port transfer."""
         return self._subdomains
+
+    def transmission(self) -> TransmissionProtocol:
+        """The transmission condition every response was checked against."""
+        return self._transmission
 
     def linearize_all(self, state: V) -> Sequence[ResponsePointProtocol[Array]]:
         def linearize(i: int) -> ResponsePointProtocol[Array]:
@@ -416,7 +476,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         total = self._space.zeros(1)
         points = self._store.points(state, self)
         for sd, point in zip(self._subdomains, points):
-            total = sd.transfer.gather_add(point.flux(), total)
+            total = sd.transfer.gather_add(point.output(), total)
         return total
 
     def _jacobian(

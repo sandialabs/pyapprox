@@ -19,10 +19,13 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
 from pyapprox.pde.coupling.responses import (
+    Flux,
     LocalResponseProtocol,
+    PortQuantity,
     ResponseDerivatives,
     ResponsePointProtocol,
     TimeWindow,
+    Trace,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -42,7 +45,7 @@ def _response(
 
 
 def _flux(r: KirchhoffResponse1D[Array], data: Array) -> Array:
-    return r.linearize(data, r.bkd().zeros((0, 1)), _STEADY).flux()
+    return r.linearize(data, r.bkd().zeros((0, 1)), _STEADY).output()
 
 
 @pytest.mark.parametrize("coefs", [_LINEAR, _NONLINEAR])
@@ -51,11 +54,14 @@ def test_fluxes_balance_the_source(
 ) -> None:
     r = _response(bkd, coefs, None, None)
     assert isinstance(r, LocalResponseProtocol)
+    assert r.receives() == Trace() and r.returns() == Flux()
+    kinds: list[PortQuantity] = [Trace(), Flux()]
+    assert kinds[0] != kinds[1] and kinds[0] == Trace()
     point = r.linearize(bkd.asarray([[0.4], [-1.2]]), bkd.zeros((0, 1)), _STEADY)
     assert isinstance(point, ResponsePointProtocol)
     assert tuple(point.qoi().shape) == (0, 1)
     bkd.assert_allclose(
-        bkd.sum(point.flux(), axis=0), bkd.asarray([-1.7 * 0.8]), rtol=1e-12
+        bkd.sum(point.output(), axis=0), bkd.asarray([-1.7 * 0.8]), rtol=1e-12
     )
 
 

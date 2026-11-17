@@ -30,18 +30,23 @@ from pyapprox.pde.coupling.ports import (
     subdomain_port_dofs,
 )
 from pyapprox.pde.coupling.responses import (
+    Flux,
+    PortQuantity,
     ResponseDerivatives,
     ResponsePointProtocol,
     TimeWindow,
+    Trace,
 )
 from pyapprox.pde.coupling.skeleton import (
     CoupledSubdomain,
     DenseSchur,
+    DirichletNeumann,
     KeepCurrentPoints,
     MatrixFreeSchur,
     PointStoreProtocol,
     RecomputePoints,
     SkeletonResidual,
+    TransmissionProtocol,
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
 from pyapprox.pde.coupling.topology import TensorBoxPartition, local_subdomains
@@ -79,6 +84,12 @@ class _Counting(Generic[Array]):
 
     def nport(self) -> int:
         return self._inner.nport()
+
+    def receives(self) -> PortQuantity:
+        return self._inner.receives()
+
+    def returns(self) -> PortQuantity:
+        return self._inner.returns()
 
     def nparams(self) -> int:
         return self._inner.nparams()
@@ -238,8 +249,8 @@ class _NoTangent(Generic[Array]):
     def __init__(self, inner: ResponsePointProtocol[Array]) -> None:
         self._inner = inner
 
-    def flux(self) -> Array:
-        return self._inner.flux()
+    def output(self) -> Array:
+        return self._inner.output()
 
     def qoi(self) -> Array:
         return self._inner.qoi()
@@ -498,3 +509,44 @@ def test_order_and_scheduling_leave_the_solve_unchanged(bkd: Backend[Array]) -> 
     assert executor.ntasks > 2 * len(coefs) * scheduled.info().iterations
     with pytest.raises(TypeError, match="executor"):
         SkeletonResidual(space, [], schur, executor=object())  # type: ignore[arg-type]
+
+
+class _NeumannReceiving(_Counting[Array]):
+    """Declares the Neumann-to-Dirichlet pairing a dual condition uses."""
+
+    def receives(self) -> PortQuantity:
+        return Flux()
+
+    def returns(self) -> PortQuantity:
+        return Trace()
+
+
+class _NeumannDirichlet:
+    def sends(self) -> Flux:
+        return Flux()
+
+    def expects(self) -> Trace:
+        return Trace()
+
+
+def test_transmission_checks_each_response(bkd: Backend[Array]) -> None:
+    residual, space, _ = _chain(bkd, [(1.0,), (2.0,)])
+    assert isinstance(residual.transmission(), DirichletNeumann)
+    assert isinstance(_NeumannDirichlet(), TransmissionProtocol)
+    sd = residual.subdomains()
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    # A response of another pairing is refused at construction, naming it.
+    dual = _NeumannReceiving(KirchhoffResponse1D(0.5, 1.0, (1.0,), 0.0, None, bkd))
+    with pytest.raises(TypeError, match=r"subdomain 0.*receives Flux"):
+        SkeletonResidual(space, [CoupledSubdomain(dual, sd[0].transfer), sd[1]], schur)
+    # A condition is matched by the values it declares, not its class.
+    with pytest.raises(TypeError, match="subdomain 0"):
+        SkeletonResidual(space, sd, schur, transmission=_NeumannDirichlet())
+    SkeletonResidual(
+        space,
+        [CoupledSubdomain(dual, sd[0].transfer)],
+        schur,
+        transmission=_NeumannDirichlet(),
+    )
+    with pytest.raises(TypeError, match="transmission"):
+        SkeletonResidual(space, sd, schur, transmission=object())  # type: ignore[arg-type]
