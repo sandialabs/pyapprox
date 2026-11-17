@@ -388,3 +388,8 @@ class FluxProviderProtocol(Protocol, Generic[Array]):
             Each shape: (npts, npts)
         """
         ...
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether any coefficient the flux reads is declared
+        time-dependent."""
+        ...

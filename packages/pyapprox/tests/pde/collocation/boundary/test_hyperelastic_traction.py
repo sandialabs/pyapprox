@@ -8,7 +8,7 @@ Verifies via DerivativeChecker:
 5. Small-displacement limit matches linear traction
 """
 
-from typing import Generic, List
+from typing import Generic, List, Tuple
 
 import numpy as np
 import pytest
@@ -34,9 +34,6 @@ from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
-from pyapprox.pde.constitutive.neo_hookean import (
-    NeoHookeanStress,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -47,22 +44,27 @@ class _TractionOfState(Generic[Array]):
     Jacobian: operator.jacobian(state, 0.0).
     """
 
-    def __init__(self, operator, bkd, nstates):
+    def __init__(
+        self,
+        operator: HyperelasticTractionNormalOperator[Array],
+        bkd: Backend[Array],
+        nstates: int,
+    ) -> None:
         self._operator = operator
         self._bkd = bkd
         self._nstates = nstates
         self._nboundary = operator.normals().shape[0]
 
-    def bkd(self):
+    def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._nstates
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._nboundary
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         bkd = self._bkd
         if samples.ndim == 2:
             return bkd.stack(
@@ -72,12 +74,12 @@ class _TractionOfState(Generic[Array]):
                 ],
                 axis=1,
             )
-        return self._operator(samples, 0.0).reshape(-1, 1)
+        return bkd.reshape(self._operator(samples, 0.0), (-1, 1))
 
-    def derivatives(self):
+    def derivatives(self) -> Derivatives[Array]:
         return Derivatives.first_order(jacobian=self.jacobian)
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         if sample.ndim == 2:
             sample = sample[:, 0]
         return self._operator.jacobian(sample, 0.0)
@@ -85,12 +87,22 @@ class _TractionOfState(Generic[Array]):
 
 class TestHyperelasticTraction:
     """Test HyperelasticTractionNormalOperator."""
-    def _setup_operator(self, bkd, npts_1d=6, lamda=2.0, mu=1.5, component=0) :
+    def _setup_operator(
+        self,
+        bkd: Backend[Array],
+        npts_1d: int = 6,
+        lamda: float = 2.0,
+        mu: float = 1.5,
+        component: int = 0,
+    ) -> Tuple[
+        HyperelasticTractionNormalOperator[Array],
+        TransformedMesh2D[Array],
+        ChebyshevBasis2D[Array],
+    ]:
         """Create traction operator on [0,1]^2 left boundary."""
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
 
-        stress_model = NeoHookeanStress(lamda, mu)
         physics = HyperelasticityPhysics(
             basis, bkd, NeoHookeanLaw(bkd), mu=mu, lamda=lamda
         )
@@ -102,11 +114,11 @@ class TestHyperelasticTraction:
         op = HyperelasticTractionNormalOperator(
             bkd, left_idx, normals, physics, component
         )
-        return op, mesh, basis, stress_model
+        return op, mesh, basis
 
-    def test_traction_jacobian_component_0(self, bkd):
+    def test_traction_jacobian_component_0(self, bkd: Backend[Array]) -> None:
         """DerivativeChecker validates d(t_x)/d(state)."""
-        op, mesh, basis, _ = self._setup_operator(bkd, component=0)
+        op, mesh, basis = self._setup_operator(bkd, component=0)
         npts = basis.npts()
 
         np.random.seed(42)
@@ -118,9 +130,9 @@ class TestHyperelasticTraction:
         errors = checker.check_derivatives(sample, verbosity=0)
         assert float(checker.error_ratio(errors[0])) <= 1e-5
 
-    def test_traction_jacobian_component_1(self, bkd):
+    def test_traction_jacobian_component_1(self, bkd: Backend[Array]) -> None:
         """DerivativeChecker validates d(t_y)/d(state)."""
-        op, mesh, basis, _ = self._setup_operator(bkd, component=1)
+        op, mesh, basis = self._setup_operator(bkd, component=1)
         npts = basis.npts()
 
         np.random.seed(42)
@@ -132,9 +144,9 @@ class TestHyperelasticTraction:
         errors = checker.check_derivatives(sample, verbosity=0)
         assert float(checker.error_ratio(errors[0])) <= 1e-5
 
-    def test_traction_is_state_dependent(self, bkd):
+    def test_traction_is_state_dependent(self, bkd: Backend[Array]) -> None:
         """Jacobian at two different states should differ (nonlinear)."""
-        op, mesh, basis, _ = self._setup_operator(bkd)
+        op, mesh, basis = self._setup_operator(bkd)
         npts = basis.npts()
 
         np.random.seed(42)
@@ -148,16 +160,16 @@ class TestHyperelasticTraction:
         diff = bkd.norm(jac1 - jac2)
         assert float(diff) > 1e-10
 
-    def test_zero_displacement_zero_traction(self, bkd):
+    def test_zero_displacement_zero_traction(self, bkd: Backend[Array]) -> None:
         """At zero displacement, F=I so P=0, hence traction is zero."""
         for comp in [0, 1]:
-            op, mesh, basis, _ = self._setup_operator(bkd, component=comp)
+            op, mesh, basis = self._setup_operator(bkd, component=comp)
             npts = basis.npts()
             state = bkd.zeros((2 * npts,))
             traction = op(state, 0.0)
             bkd.assert_allclose(traction, bkd.zeros(traction.shape), atol=1e-14)
 
-    def test_factory_creates_robin_bc(self, bkd):
+    def test_factory_creates_robin_bc(self, bkd: Backend[Array]) -> None:
         """hyperelastic_traction_neumann_bc returns RobinBC with correct indices."""
         npts_1d = 6
         lamda, mu = 2.0, 1.5
@@ -183,7 +195,7 @@ class TestHyperelasticTraction:
                 atol=0,
             )
 
-    def test_linear_limit(self, bkd):
+    def test_linear_limit(self, bkd: Backend[Array]) -> None:
         """Small displacement: hyperelastic traction ≈ linear traction."""
         npts_1d = 6
         lamda, mu = 2.0, 1.5
@@ -214,9 +226,9 @@ class TestHyperelasticTraction:
             t_linear = linear_op(state, 0.0)
             bkd.assert_allclose(t_hyper, t_linear, atol=1e-4)
 
-    def test_has_coefficient_dependence(self, bkd):
+    def test_has_coefficient_dependence(self, bkd: Backend[Array]) -> None:
         """Hyperelastic traction reports coefficient dependence."""
-        op, _, _, _ = self._setup_operator(bkd)
+        op, _, _ = self._setup_operator(bkd)
         assert op.has_coefficient_dependence()
 
 
@@ -238,6 +250,9 @@ class _AffineStressSource(Generic[Array]):
             [self._bkd.eye(npts), self._bkd.zeros((npts, npts))], axis=1
         )
         return [[(i + 1.0) * (J + 2.0) * select for J in range(2)] for i in range(2)]
+
+    def stress_is_time_dependent(self) -> bool:
+        return False
 
 
 class TestTractionFromStressSource:

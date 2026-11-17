@@ -74,6 +74,10 @@ class GradientNormalOperator(Generic[Array]):
         """Return True: grad(u)·n is a fixed matrix applied to the state."""
         return True
 
+    def is_time_dependent(self) -> bool:
+        """Return False: grad(u)·n reads no coefficient."""
+        return False
+
     def __call__(self, state: Array, time: float) -> Array:
         """Compute grad(u) . n at boundary points.
 
@@ -157,6 +161,10 @@ class FluxNormalOperator(Generic[Array]):
         hyperelastic flux is nonlinear), so linearity is not known."""
         return False
 
+    def is_time_dependent(self) -> bool:
+        """Whether the flux provider declares the flux time-dependent."""
+        return self._flux_provider.flux_is_time_dependent()
+
     def __call__(self, state: Array, time: float) -> Array:
         """Compute flux(u) . n at boundary points.
 
@@ -224,6 +232,11 @@ class CauchyStressSourceProtocol(Protocol, Generic[Array]):
         """``dsigma[i][j]/du``, each shape (npts, nstates)."""
         ...
 
+    def stress_is_time_dependent(self) -> bool:
+        """Whether any coefficient the stress reads is declared
+        time-dependent."""
+        ...
+
 
 class TractionNormalOperator(Generic[Array]):
     """Computes one component of traction t = σ·n at boundary points.
@@ -286,6 +299,10 @@ class TractionNormalOperator(Generic[Array]):
         """Return False: the stress source declares no linearity, so
         linearity is not known."""
         return False
+
+    def is_time_dependent(self) -> bool:
+        """Whether the stress source declares the stress time-dependent."""
+        return self._stress_source.stress_is_time_dependent()
 
     def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of traction t = σ·n at boundary points.

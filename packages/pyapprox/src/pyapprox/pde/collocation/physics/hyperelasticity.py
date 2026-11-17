@@ -596,6 +596,14 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         time-invariant."""
         return True
 
+    def flux_is_time_dependent(self) -> bool:
+        """False: the flux is the PK1 stress, whose law takes no time."""
+        return False
+
+    def stress_is_time_dependent(self) -> bool:
+        """False: the PK1 stress law takes no time."""
+        return False
+
     def interior_is_time_invariant(self) -> bool:
         """Whether the body force is declared time-invariant."""
         return declared_time_invariant(self._forcing)

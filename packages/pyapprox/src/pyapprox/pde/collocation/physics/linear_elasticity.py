@@ -381,6 +381,11 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         """Whether both Lamé parameters are declared time-invariant."""
         return declared_time_invariant(self._lamda, self._mu)
 
+    def stress_is_time_dependent(self) -> bool:
+        """Whether either Lamé parameter, which the stress reads, is
+        declared time-dependent."""
+        return not declared_time_invariant(self._lamda, self._mu)
+
     def interior_is_time_invariant(self) -> bool:
         """Whether, besides the Lamé parameters, the forcing is declared
         time-invariant."""

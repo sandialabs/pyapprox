@@ -37,9 +37,10 @@ from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
 from pyapprox.pde.collocation.physics.hyperelasticity import HyperelasticityPhysics
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.util.backends.protocols import Array, Backend
@@ -74,6 +75,11 @@ def _side_coordinate(bkd: Backend[Array], side: int) -> Array:
     """The coordinate varying along a side."""
     mesh = _mesh(bkd)
     return mesh.points()[1 if side < 2 else 0, mesh.boundary_indices(side)]
+
+
+def _growing(coords: Array, time: float) -> Array:
+    """A positive diffusion varying in space and time."""
+    return (1.0 + time) * (2.0 + coords[0] ** 2)
 
 
 def _state(bkd: Backend[Array]) -> Array:
@@ -309,12 +315,32 @@ class TestRobinRows:
         assert callable(first_order.derivatives().mixed)
 
     def test_time_invariance(self, bkd: Backend[Array]) -> None:
+        """Constant data: gradient rows are time-invariant, and so are flux
+        rows over a steady diffusion; flux rows over a diffusion declared
+        time-dependent are not."""
         assert RobinRows(
             bkd, _NPTS, 1, _constant_parts(bkd, "gradient")
         ).is_time_invariant()
-        assert not RobinRows(
+        assert RobinRows(
             bkd, _NPTS, 1, _constant_parts(bkd, "flux")
         ).is_time_invariant()
+        mesh = _mesh(bkd)
+        supplier: TimeDependent[Array] = TimeDependent(_growing)
+        physics = AdvectionDiffusionReaction(
+            ChebyshevBasis2D(mesh, bkd),
+            bkd,
+            diffusion=NodalSupplier(supplier, mesh.points()),
+        )
+        part = RobinPart(
+            mesh.boundary_indices(0),
+            FluxNormalOperator(
+                bkd, mesh.boundary_indices(0), mesh.boundary_normals(0), physics
+            ),
+            1.0,
+            1.0,
+            0.0,
+        )
+        assert not RobinRows(bkd, _NPTS, 1, [part]).is_time_invariant()
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         mesh = _mesh(bkd)
@@ -446,13 +472,14 @@ class TestHyperelasticTractionRows:
     def test_declared_derivatives(self, bkd: Backend[Array]) -> None:
         """The PK1 law supplies no second derivative, so c_uu is absent;
         the Lame dependence is left to the system, so every parameter
-        field is absent."""
+        field is absent; the law takes no time and the data are constant,
+        so the rows are time-invariant."""
         rows, _ = self._rows(bkd)
         bundle = rows.derivatives()
         assert bundle.state_curvature is None
         assert bundle.param_jacobian is None
         assert bundle.mixed is None and bundle.param_curvature is None
-        assert not rows.is_time_invariant()
+        assert rows.is_time_invariant()
 
 
 # -- helpers -----------------------------------------------------------------

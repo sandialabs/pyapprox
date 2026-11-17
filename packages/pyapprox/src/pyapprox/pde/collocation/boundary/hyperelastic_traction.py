@@ -28,6 +28,11 @@ class PK1StressSourceProtocol(Protocol, Generic[Array]):
         """``dP[i][J]/du``, each shape (npts, nstates)."""
         ...
 
+    def stress_is_time_dependent(self) -> bool:
+        """Whether any coefficient the stress reads is declared
+        time-dependent."""
+        ...
+
 
 class HyperelasticTractionNormalOperator(Generic[Array]):
     """Computes one component of PK1 traction t = P·n at boundary points.
@@ -87,6 +92,10 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         """Return False: PK1 stress is nonlinear in the deformation
         gradient."""
         return False
+
+    def is_time_dependent(self) -> bool:
+        """Whether the stress source declares the stress time-dependent."""
+        return self._stress_source.stress_is_time_dependent()
 
     def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of PK1 traction t = P·n at boundary.

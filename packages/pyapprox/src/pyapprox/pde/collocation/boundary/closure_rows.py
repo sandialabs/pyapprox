@@ -149,6 +149,11 @@ class RobinNormalTermProtocol(Protocol, Generic[Array]):
         state derivative is zero. False means not known, not nonlinear."""
         ...
 
+    def is_time_dependent(self) -> bool:
+        """Whether any coefficient :math:`N` reads is declared
+        time-dependent."""
+        ...
+
     def normals(self) -> Array:
         """Outward unit normals at the part's nodes. Shape: (nboundary,
         ndim)"""
@@ -586,11 +591,10 @@ class RobinRows(Generic[Array]):
         return matrix
 
     def is_time_invariant(self) -> bool:
-        """Whether every coefficient is declared time-invariant and no
-        normal term reads a physics coefficient (which may change with
-        time)."""
+        """Whether every part's :math:`\\alpha`, :math:`\\beta`, :math:`g`
+        and normal term are declared time-invariant."""
         return not any(
-            part.normal_term.has_coefficient_dependence()
+            part.normal_term.is_time_dependent()
             or any(c.nodal.is_time_dependent() for c in part.coefficients())
             for part in self._parts
         )

@@ -212,6 +212,11 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         """Linear in the state: zero curvature."""
         return StateDerivatives.linear(self._bkd)
 
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the diffusion is declared time-dependent: the flux reads
+        it and the velocity, which is fixed in time."""
+        return not declared_time_invariant(self._diffusion)
+
     def interior_jacobian_is_time_invariant(self) -> bool:
         """Whether the diffusion and reaction are declared time-invariant
         (the velocity is fixed in time)."""
