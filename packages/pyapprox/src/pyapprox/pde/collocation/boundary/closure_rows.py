@@ -46,6 +46,12 @@ from pyapprox.util.linalg.backend_dense import BackendRowSet
 ClosureParamFn = Callable[[Array, float], Array]
 r""":math:`(u, t) \mapsto \partial c/\partial p` with zero rows outside the
 declaration. Shape: (nstates, nparams)"""
+NormalTermParamFn = Callable[[Array, float, Array, Array], Array]
+r""":math:`(u, t, \text{rows}, n) \mapsto \partial N/\partial p` of a normal
+term reading a physics coefficient, at a part's state rows with outward
+normals ``n`` of shape (nboundary, ndim). Shape: (nboundary, nparams).
+Supplied by the system from the parameterization that owns the
+coefficient."""
 ClosureWeightedFn = Callable[[Array, float, Array], Array]
 r""":math:`(u, t, w) \mapsto \sum_i w_i\, \partial^2 c_i` for a weight
 vector :math:`w` of shape (nstates,); entries outside the declaration's
@@ -100,9 +106,19 @@ class ClosureRowsProtocol(Protocol, Generic[Array]):
         Shape: (nstates, nstates)"""
         ...
 
-    def derivatives(self) -> ClosureRowsDerivatives[Array]:
+    def derivatives(
+        self, normal_term_param: Optional[NormalTermParamFn[Array]] = None
+    ) -> ClosureRowsDerivatives[Array]:
         """The rows' optional derivatives; which fields are present is
-        fixed for the object's life."""
+        fixed for the object's life and the given ``normal_term_param``.
+
+        Parameters
+        ----------
+        normal_term_param : NormalTermParamFn, optional
+            :math:`\\partial N/\\partial p` for rows whose normal term
+            reads a physics coefficient; without it their parameter
+            derivatives are not available.
+        """
         ...
 
     def is_time_invariant(self) -> bool:
@@ -131,6 +147,11 @@ class RobinNormalTermProtocol(Protocol, Generic[Array]):
     def is_linear_in_state(self) -> bool:
         """Whether :math:`N` is declared linear in the state, so its second
         state derivative is zero. False means not known, not nonlinear."""
+        ...
+
+    def normals(self) -> Array:
+        """Outward unit normals at the part's nodes. Shape: (nboundary,
+        ndim)"""
         ...
 
 
@@ -226,11 +247,15 @@ class _RobinPartRows(Generic[Array]):
 
 
 class _RobinParamJacobian(Generic[Array]):
-    def __init__(self, rows: "RobinRows[Array]") -> None:
-        self._rows = rows
+    def __init__(
+        self,
+        rows: "RobinRows[Array]",
+        normal_term_param: Optional[NormalTermParamFn[Array]],
+    ) -> None:
+        self._rows, self._normal_term_param = rows, normal_term_param
 
     def __call__(self, state: Array, time: float) -> Array:
-        return self._rows._param_jacobian(state, time)
+        return self._rows._param_jacobian(state, time, self._normal_term_param)
 
 
 class _RobinMixed(Generic[Array]):
@@ -387,13 +412,17 @@ class RobinRows(Generic[Array]):
             matrix = bkd.index_update(matrix, part.rows, block)
         return matrix
 
-    def derivatives(self) -> ClosureRowsDerivatives[Array]:
+    def derivatives(
+        self, normal_term_param: Optional[NormalTermParamFn[Array]] = None
+    ) -> ClosureRowsDerivatives[Array]:
         r"""The optional derivatives:
 
         - ``state_curvature``: stated zero when every normal term is
           declared linear in the state, else None;
-        - when a part's normal term reads a physics coefficient, every
-          parameter derivative is None (the system supplies them);
+        - when a part's normal term reads a physics coefficient,
+          ``param_jacobian`` adds :math:`\operatorname{diag}(\beta)\,
+          \partial N/\partial p` from ``normal_term_param`` and is None
+          without it; the second parameter derivatives are None;
         - otherwise ``param_jacobian`` and ``param_curvature`` are stated
           zero when nothing depends on the parameters; ``mixed`` is
           stated zero when neither :math:`\alpha` nor :math:`\beta` does
@@ -406,7 +435,14 @@ class RobinRows(Generic[Array]):
             else None
         )
         if any(part.normal_term.has_coefficient_dependence() for part in self._parts):
-            return ClosureRowsDerivatives(state_curvature=state_curvature)
+            return ClosureRowsDerivatives(
+                (
+                    None
+                    if normal_term_param is None
+                    else _RobinParamJacobian(self, normal_term_param)
+                ),
+                state_curvature,
+            )
         if self._nparams is None:
             return ClosureRowsDerivatives(
                 STATED_ZERO, state_curvature, STATED_ZERO, STATED_ZERO
@@ -417,7 +453,7 @@ class RobinRows(Generic[Array]):
             for c in (part.alpha, part.beta)
         )
         return ClosureRowsDerivatives(
-            _RobinParamJacobian(self),
+            _RobinParamJacobian(self, None),
             state_curvature,
             _RobinMixed(self) if coefficients_in_mixed else STATED_ZERO,
             (
@@ -491,12 +527,17 @@ class RobinRows(Generic[Array]):
             raise RuntimeError("no Robin coefficient depends on the parameters")
         return self._nparams
 
-    def _param_jacobian(self, state: Array, time: float) -> Array:
+    def _param_jacobian(
+        self,
+        state: Array,
+        time: float,
+        normal_term_param: Optional[NormalTermParamFn[Array]],
+    ) -> Array:
         self._check_state(state)
-        bkd, nparams = self._bkd, self._require_nparams()
-        matrix = bkd.zeros((self._nstates, nparams))
+        bkd = self._bkd
+        blocks: List[Optional[Array]] = []
         for part in self._parts:
-            block = bkd.zeros((part.rows.shape[0], nparams))
+            terms = []
             factors = (
                 state[part.rows],
                 part.normal_term(state, time),
@@ -507,9 +548,33 @@ class RobinRows(Generic[Array]):
                     jacobian = coefficient.parameterized.param_derivatives().jacobian(
                         time
                     )
-                    block = block + factor[:, None] * jacobian
+                    terms.append(factor[:, None] * jacobian)
+            if part.normal_term.has_coefficient_dependence():
+                if normal_term_param is None:
+                    raise RuntimeError(
+                        "a normal term reads a physics coefficient and no "
+                        "normal_term_param was given"
+                    )
+                sensitivity = normal_term_param(
+                    state, time, part.rows, part.normal_term.normals()
+                )
+                terms.append(part.beta.values(time)[:, None] * sensitivity)
+            blocks.append(None if not terms else sum(terms[1:], terms[0]))
+        widths = {block.shape[1] for block in blocks if block is not None}
+        if len(widths) != 1:
+            raise ValueError(
+                "Robin parameter derivatives disagree on the number of "
+                f"parameters, or none is supplied: {sorted(widths)}"
+            )
+        nparams = widths.pop()
+        matrix = bkd.zeros((self._nstates, nparams))
+        for part, block in zip(self._parts, blocks):
             # Every part writes its rows, so a later part wins a shared row
-            matrix = bkd.index_update(matrix, part.rows, block)
+            matrix = bkd.index_update(
+                matrix,
+                part.rows,
+                bkd.zeros((part.rows.shape[0], nparams)) if block is None else block,
+            )
         return matrix
 
     def is_time_invariant(self) -> bool:

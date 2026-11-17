@@ -186,7 +186,7 @@ class MappedBoundaryData(Generic[Array]):
 
 # Data evaluated at the same node by two suppliers agree to round-off, so
 # a larger relative difference is a real mismatch
-_SHARED_ROW_RTOL = 1e-10
+SHARED_ROW_RTOL = 1e-10
 
 
 def component_state_rows(
@@ -397,7 +397,7 @@ class DirichletRows(Generic[Array]):
             mismatch = bkd.to_float(
                 bkd.max(bkd.abs(first_values - second_values) / scale)
             )
-            if mismatch > _SHARED_ROW_RTOL:
+            if mismatch > SHARED_ROW_RTOL:
                 raise ValueError(
                     f"Dirichlet parts {first} and {second} disagree on their "
                     f"shared rows {rows} (relative mismatch {mismatch:.3e}): "

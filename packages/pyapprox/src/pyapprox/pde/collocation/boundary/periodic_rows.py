@@ -8,10 +8,13 @@ parameters.
 """
 
 from dataclasses import dataclass
-from typing import Generic, List, Sequence, Set
+from typing import Generic, List, Optional, Sequence, Set, Tuple
 
 from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_state_space
-from pyapprox.pde.collocation.boundary.closure_rows import ClosureRowsDerivatives
+from pyapprox.pde.collocation.boundary.closure_rows import (
+    ClosureRowsDerivatives,
+    NormalTermParamFn,
+)
 from pyapprox.pde.collocation.boundary.essential_rows import component_state_rows
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendRowSet
@@ -207,9 +210,24 @@ class PeriodicRows(Generic[Array]):
         self._check_state(state)
         return self._jacobian
 
-    def derivatives(self) -> ClosureRowsDerivatives[Array]:
+    def pairs(self) -> List[Tuple[List[int], List[int]]]:
+        """Each part's paired state rows: (primary rows, partner rows),
+        entry by entry."""
+        bkd = self._bkd
+        return [
+            (
+                [bkd.to_int(i) for i in part.primary],
+                [bkd.to_int(i) for i in part.partner],
+            )
+            for part in self._parts
+        ]
+
+    def derivatives(
+        self, normal_term_param: Optional[NormalTermParamFn[Array]] = None
+    ) -> ClosureRowsDerivatives[Array]:
         """Every derivative stated zero: the rows are linear in the state
-        and do not depend on the parameters."""
+        and do not depend on the parameters. ``normal_term_param`` is
+        unused: the rows have no normal term."""
         return ClosureRowsDerivatives(
             STATED_ZERO, STATED_ZERO, STATED_ZERO, STATED_ZERO
         )

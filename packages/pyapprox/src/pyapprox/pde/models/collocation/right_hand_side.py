@@ -3,7 +3,7 @@ r"""A collocation physics' interior operator as an ODE right-hand side.
 :math:`f = f(u, t; p)`, the interior operator collocated at every node,
 and its derivatives bundle, with no boundary row treated: the boundary
 rows are the business of the system that holds the physics. The bundle's
-Jacobian is classified by what the physics declares it depends on, and
+Jacobian depends on only what the physics declares it depends on, and
 its parameter fields are the parameterization's own, read at a shared
 :class:`ParameterState`.
 """
@@ -13,6 +13,7 @@ from typing import Generic, Optional, Union
 from pyapprox.ode.dense_jacobian_operator import (
     DenseJacobianOperator,
     DenseJacobianSnapshot,
+    JacobianMatrixProtocol,
 )
 from pyapprox.ode.residual_derivatives import (
     Jacobian,
@@ -69,7 +70,43 @@ class _ConstantJacobian(Generic[Array]):
         return self._at_time(0.0, point)
 
 
-def classified_interior_jacobian(
+def bundle_jacobian_from_dense(
+    source: JacobianMatrixProtocol[Array],
+    descriptor: SpaceDescriptor,
+    bkd: Backend[Array],
+    affine: bool,
+    time_invariant: bool,
+) -> Jacobian[Array, DenseFormat[Array]]:
+    r"""A dense Jacobian as a bundle's Jacobian, given only what it
+    depends on.
+
+    Of the state and time unless declared affine in the state; then of
+    the time only, and of neither when also declared time-invariant.
+
+    Parameters
+    ----------
+    source : JacobianMatrixProtocol
+        Supplies ``jacobian(state, time)`` as a dense matrix.
+    descriptor : SpaceDescriptor
+        The state space.
+    bkd : Backend
+        Computational backend.
+    affine : bool
+        Whether :math:`f` is declared affine in the state.
+    time_invariant : bool
+        Whether the Jacobian is declared time-invariant; used only when
+        ``affine``.
+    """
+    operator = DenseJacobianOperator(source, descriptor, bkd)
+    if not affine:
+        return Jacobian.general(operator.jacobian_operator)
+    at_time = _StateFreeJacobian(operator, bkd.zeros((descriptor.size,)))
+    if time_invariant:
+        return Jacobian.constant(_ConstantJacobian(at_time))
+    return Jacobian.state_free(at_time)
+
+
+def interior_bundle_jacobian(
     interior: CollocationInteriorOperatorProtocol[Array],
     descriptor: SpaceDescriptor,
 ) -> Jacobian[Array, DenseFormat[Array]]:
@@ -87,14 +124,13 @@ def classified_interior_jacobian(
     descriptor : SpaceDescriptor
         The state space.
     """
-    bkd = interior.bkd()
-    operator = DenseJacobianOperator(_InteriorJacobianMatrix(interior), descriptor, bkd)
-    if not interior.interior_state_derivatives().affine():
-        return Jacobian.general(operator.jacobian_operator)
-    at_time = _StateFreeJacobian(operator, bkd.zeros((interior.nstates(),)))
-    if interior.interior_jacobian_is_time_invariant():
-        return Jacobian.constant(_ConstantJacobian(at_time))
-    return Jacobian.state_free(at_time)
+    return bundle_jacobian_from_dense(
+        _InteriorJacobianMatrix(interior),
+        descriptor,
+        interior.bkd(),
+        interior.interior_state_derivatives().affine(),
+        interior.interior_jacobian_is_time_invariant(),
+    )
 
 
 class CollocationRightHandSide(Generic[Array]):
@@ -150,7 +186,7 @@ class CollocationRightHandSide(Generic[Array]):
         if parameters is None:
             states = backend_state_space(self._bkd, nstates)
             self._derivatives = ODEResidualDerivatives.state_only(
-                classified_interior_jacobian(interior, states.descriptor())
+                interior_bundle_jacobian(interior, states.descriptor())
             )
             return
         parameterization = parameters.parameterization()
@@ -158,7 +194,7 @@ class CollocationRightHandSide(Generic[Array]):
         states, params = backend_spaces(self._bkd, nstates, parameters.nparams())
         param_derivatives = parameterization.param_derivatives()
         self._derivatives = residual_derivatives(
-            classified_interior_jacobian(interior, states.descriptor()),
+            interior_bundle_jacobian(interior, states.descriptor()),
             param_derivatives,
             interior.interior_state_derivatives().state_state_hvp,
             parameters,
