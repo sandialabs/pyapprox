@@ -38,11 +38,9 @@ from pyapprox.pde.galerkin.noise_mass import (
 )
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.surrogates.kle.spde_kle import SPDEMaternKLE
-from pyapprox.surrogates.kle.utils import (
-    adjust_sign_eig,
-    sort_eigenpairs,
-)
+from pyapprox.surrogates.kle.utils import sort_eigenpairs
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.eigenvector_signs import adjust_sign_eig
 
 
 def create_spde_matern_kle(

@@ -43,8 +43,8 @@ from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinSteadySystemProtocol,
 )
-from pyapprox.surrogates.kle.utils import adjust_sign_eig
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.eigenvector_signs import adjust_sign_eig
 
 
 def bilaplacian_stationary_variance(

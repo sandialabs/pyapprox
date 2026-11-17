@@ -26,13 +26,13 @@ from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
 )
 from pyapprox.surrogates.kle.snapshot_sources import ArraySnapshotSource
-from pyapprox.surrogates.kle.utils import eigenvector_signs
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.eigenvector_signs import eigenvector_signs
 
 NSTATES, NSAMPLES, NTERMS = 400, 30, 8
 
 
-def _snapshots(bkd: Backend, seed: int = 0) -> Any:
+def _snapshots(bkd: Backend[Array], seed: int = 0) -> Any:
     """Low-rank with a decaying spectrum, as real snapshots are."""
     rng = np.random.RandomState(seed)
     left = rng.normal(size=(NSTATES, 16))
@@ -41,7 +41,7 @@ def _snapshots(bkd: Backend, seed: int = 0) -> Any:
 
 
 def _raw_right_factor(
-    bkd: Backend, snapshots: Any, nterms: int = NTERMS
+    bkd: Backend[Array], snapshots: Any, nterms: int = NTERMS
 ) -> Any:
     """``Q / sqrt(lambda)`` from the Gram, with signs left alone.
 
@@ -56,14 +56,14 @@ def _raw_right_factor(
     return bkd.array(vecs / np.sqrt(vals))
 
 
-def _pair(bkd: Backend, seed: int = 0) -> Tuple[Any, Any]:
+def _pair(bkd: Backend[Array], seed: int = 0) -> Tuple[Any, Any]:
     """Snapshots and an unsigned right factor for them."""
     snapshots = _snapshots(bkd, seed)
     return snapshots, _raw_right_factor(bkd, snapshots)
 
 
 def _lift(
-    bkd: Backend, snapshots: Any, factor: Any, **kwargs: Any
+    bkd: Backend[Array], snapshots: Any, factor: Any, **kwargs: Any
 ) -> Any:
     """Lift into a fresh array sink, since a sink is single-use."""
     nterms = int(factor.shape[1])
@@ -79,7 +79,7 @@ def _lift(
 class TestTheLiftMatchesTheResidentSolver:
     """The comparison that makes everything else secondary."""
 
-    def test_reproduces_the_solver_basis(self, bkd: Backend) -> None:
+    def test_reproduces_the_solver_basis(self, bkd: Backend[Array]) -> None:
         """Same data, same eigenvectors, to roundoff.
 
         The solver signs its own factor, so this goes through
@@ -102,7 +102,7 @@ class TestTheLiftMatchesTheResidentSolver:
         )
 
     def test_the_lifted_basis_is_orthonormal(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """``V^T V = I`` for the unweighted metric used here."""
         snapshots, factor = _pair(bkd)
@@ -123,7 +123,7 @@ class TestBlockingChangesNothing:
 
     @pytest.mark.parametrize("max_bytes", [8, 300, 1 << 20])
     def test_the_basis_is_independent_of_the_block_size(
-        self, bkd: Backend, max_bytes: int
+        self, bkd: Backend[Array], max_bytes: int
     ) -> None:
         snapshots, factor = _pair(bkd)
         bkd.assert_allclose(
@@ -134,7 +134,7 @@ class TestBlockingChangesNothing:
 
     @pytest.mark.parametrize("max_bytes", [8, 300, 1 << 20])
     def test_the_signs_are_independent_of_the_block_size(
-        self, bkd: Backend, max_bytes: int
+        self, bkd: Backend[Array], max_bytes: int
     ) -> None:
         """A running max compares unmodified elements, so exactly so.
 
@@ -155,7 +155,7 @@ class TestTheSignConvention:
     """Matching the resident rule, computed without the resident array."""
 
     def test_the_test_data_actually_has_negative_signs(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """Otherwise the rest of this class proves nothing.
 
@@ -170,7 +170,7 @@ class TestTheSignConvention:
         assert int((bkd.to_numpy(signs) < 0).sum()) > 0
 
     def test_signs_match_the_resident_convention(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """The streaming pivot and ``argmax`` pick the same entry."""
         snapshots, factor = _pair(bkd)
@@ -186,7 +186,7 @@ class TestTheSignConvention:
         )
 
     def test_a_signed_lift_equals_the_signed_dense_product(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         snapshots, factor = _pair(bkd)
         dense, signs = eigenvector_signs(
@@ -200,7 +200,7 @@ class TestTheSignConvention:
         assert int((bkd.to_numpy(signs) < 0).sum()) > 0
 
     def test_opting_out_gives_the_unsigned_product(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """The flag's whole contract: ``S R`` with nothing applied."""
         snapshots, factor = _pair(bkd)
@@ -213,7 +213,7 @@ class TestTheSignConvention:
         )
 
     def test_opting_out_visibly_differs_when_signs_are_negative(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """So the default is doing something, not merely costing a pass."""
         snapshots, factor = _pair(bkd)
@@ -229,7 +229,7 @@ class TestTheSignConvention:
         assert difference > 1e-3
 
     def test_the_two_paths_differ_only_by_the_signs(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """Nothing else changes when the convention is applied."""
         snapshots, factor = _pair(bkd)
@@ -245,7 +245,7 @@ class TestTheSignConvention:
         )
 
     def test_a_zero_column_keeps_a_positive_sign(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """``sign(0)`` is 0, which would erase the column rather than flip it.
 
@@ -278,16 +278,18 @@ class TestTheNumberOfPassesIsTheCostPromised:
             return self._inner.bkd()
 
         def nstates(self) -> int:
-            return self._inner.nstates()
+            nstates: int = self._inner.nstates()
+            return nstates
 
         def nsamples(self) -> int:
-            return self._inner.nsamples()
+            nsamples: int = self._inner.nsamples()
+            return nsamples
 
         def row_blocks(self, max_bytes: Any = None) -> Any:
             self.passes += 1
             return self._inner.row_blocks(max_bytes)
 
-    def test_signing_costs_two_passes(self, bkd: Backend) -> None:
+    def test_signing_costs_two_passes(self, bkd: Backend[Array]) -> None:
         snapshots, factor = _pair(bkd)
         source = self._CountingSource(
             ArraySnapshotSource(snapshots, bkd)
@@ -300,7 +302,7 @@ class TestTheNumberOfPassesIsTheCostPromised:
         )
         assert source.passes == 2
 
-    def test_opting_out_costs_one(self, bkd: Backend) -> None:
+    def test_opting_out_costs_one(self, bkd: Backend[Array]) -> None:
         snapshots, factor = _pair(bkd)
         source = self._CountingSource(
             ArraySnapshotSource(snapshots, bkd)
@@ -319,7 +321,7 @@ class TestMismatchedArgumentsAreRejected:
     """Each of these would otherwise fail mid-loop, after real I/O."""
 
     def test_a_right_factor_of_the_wrong_height(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """Snapshots and factor from different datasets."""
         snapshots, _ = _pair(bkd)
@@ -331,7 +333,7 @@ class TestMismatchedArgumentsAreRejected:
         with pytest.raises(ValueError, match="snapshots"):
             _lift(bkd, snapshots, wrong)
 
-    def test_a_1d_right_factor(self, bkd: Backend) -> None:
+    def test_a_1d_right_factor(self, bkd: Backend[Array]) -> None:
         snapshots, _ = _pair(bkd)
         with pytest.raises(ValueError, match="2D"):
             lift_basis(
@@ -342,7 +344,7 @@ class TestMismatchedArgumentsAreRejected:
             )
 
     def test_a_sink_sized_for_the_wrong_ambient_dimension(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         snapshots, factor = _pair(bkd)
         with pytest.raises(ValueError, match="sized for"):
@@ -354,7 +356,7 @@ class TestMismatchedArgumentsAreRejected:
             )
 
     def test_a_sink_sized_for_the_wrong_number_of_terms(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         snapshots, factor = _pair(bkd)
         with pytest.raises(ValueError, match="terms"):
@@ -366,7 +368,7 @@ class TestMismatchedArgumentsAreRejected:
             )
 
     def test_a_bare_array_where_a_source_was_wanted(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         """Caught at the boundary, naming the protocol."""
         snapshots, factor = _pair(bkd)
@@ -379,13 +381,13 @@ class TestMismatchedArgumentsAreRejected:
             )
 
     def test_a_bare_array_where_a_sink_was_wanted(
-        self, bkd: Backend
+        self, bkd: Backend[Array]
     ) -> None:
         snapshots, factor = _pair(bkd)
         with pytest.raises(TypeError, match="BasisSinkProtocol"):
             lift_basis(
                 ArraySnapshotSource(snapshots, bkd),
                 factor,
-                bkd.zeros((NSTATES, NTERMS)),
+                bkd.zeros((NSTATES, NTERMS)),  # type: ignore[arg-type]
                 bkd,
             )

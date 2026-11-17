@@ -7,102 +7,7 @@ from scipy.linalg import eigh as scipy_eigh
 from scipy.sparse.linalg import eigsh
 
 from pyapprox.util.backends.protocols import Array, Backend
-
-
-def adjust_sign_eig(U: Array, bkd: Backend[Array]) -> Array:
-    """Fix the sign each eigenvector is otherwise free to choose.
-
-    An eigenvector is determined only up to scale: if ``A v = lambda v``
-    then ``A (-v) = lambda (-v)``, so a unit-norm eigenvector is one of
-    ``+v`` or ``-v`` and LAPACK's choice between them is not portable.
-    Every quantity a KLE reports is invariant under the flip -- the
-    eigenvalues, the orthonormality, the spectral reconstruction and
-    hence the covariance of the field -- so fixing a convention costs
-    nothing and makes bases comparable across platforms, entry points
-    and stored archives.
-
-    **Each column is decided by itself**, by making its
-    largest-magnitude entry positive. Both properties matter:
-
-    *Per column*, because the sign of one eigenvector says nothing about
-    another. A rule that lets column ``j`` depend on the other columns
-    is not stable under truncation, so canonicalizing ten modes and
-    keeping three would disagree with canonicalizing three -- and then
-    two callers requesting different term counts from identical data get
-    different-signed bases, which is the inconsistency this exists to
-    remove.
-
-    *Largest magnitude*, because that entry's sign is the one furthest
-    from rounding error. Deciding on the first entry instead fails
-    whenever a mode has a node at the start of the domain, which
-    Dirichlet conditions make routine: the value is near zero and its
-    sign is noise. Deciding on the sum fails harder, being exactly zero
-    for every antisymmetric mode.
-
-    Ties are common rather than pathological -- KLE eigenfunctions are
-    symmetric or antisymmetric about the domain centre, so their extreme
-    values match at both ends -- and are broken by taking the lowest
-    index, which keeps the result deterministic and backend-independent.
-    A zero column has no sign to fix and is left alone.
-
-    Parameters
-    ----------
-    U : Array, shape (M, K)
-        Eigenvectors as columns. Modified in place and returned.
-    bkd : Backend[Array]
-        Computational backend.
-
-    Returns
-    -------
-    Array, shape (M, K)
-        The same array, with each column's sign canonicalized.
-    """
-    return eigenvector_signs(U, bkd)[0]
-
-
-def eigenvector_signs(
-    U: Array, bkd: Backend[Array]
-) -> Tuple[Array, Array]:
-    """Canonicalize column signs, and report the signs applied.
-
-    The same operation as :func:`adjust_sign_eig`, which delegates here,
-    but returning the sign vector as well as the signed array.
-
-    A caller holding a second factor of the same decomposition needs
-    this. Flipping the sign of an eigenvector is only free when nothing
-    else is paired with it: for a factorization ``A = U S V^T`` the
-    flip must be applied to the matching column of ``V`` too, or the
-    factors no longer reconstruct ``A``. Returning the signs lets that
-    caller apply them rather than re-deriving a rule that must agree
-    with this one exactly.
-
-    Parameters
-    ----------
-    U : Array, shape (M, K)
-        Eigenvectors as columns.
-    bkd : Backend[Array]
-        Computational backend.
-
-    Returns
-    -------
-    U : Array, shape (M, K)
-        The same array, with each column's sign canonicalized.
-    signs : Array, shape (K,)
-        The sign applied to each column, ``+1`` or ``-1``.
-    """
-    if U.ndim != 2:
-        raise ValueError(f"U must be 2D (M, K), got ndim={U.ndim}")
-    # argmax over each column, ties resolved to the lowest row index by
-    # both backends, so the pivot entry is a property of that column
-    # alone and survives truncation of any other.
-    pivots = bkd.argmax(bkd.abs(U), axis=0)
-    pivot_vals = bkd.get_diagonal(U[pivots, :])
-    signs = bkd.sign(pivot_vals)
-    # sign() is 0 for a zero column, which would erase it rather than
-    # flip it; such a column has no orientation to canonicalize.
-    signs = bkd.where(bkd.equal(signs, 0.0), bkd.full(signs.shape, 1.0), signs)
-    U *= signs
-    return U, signs
+from pyapprox.util.linalg.eigenvector_signs import adjust_sign_eig
 
 
 def sort_eigenpairs(
@@ -138,7 +43,8 @@ def sort_eigenpairs(
         The column each sorted position came from, so that a caller
         holding a second factor of the same decomposition can apply the
         identical permutation. Returned for the reason
-        :func:`eigenvector_signs` returns its signs: the alternative is
+        :func:`~pyapprox.util.linalg.eigenvector_signs.eigenvector_signs`
+        returns its signs: the alternative is
         a caller re-deriving the rule above, and a tie broken
         differently in two places leaves a pair of factors that no
         longer reconstructs the matrix -- with the right shape, and no

@@ -22,10 +22,10 @@ from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.surrogates.kle.utils import (
     eigendecomposition_unweighted,
-    eigenvector_signs,
     sort_eigenpairs,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.eigenvector_signs import eigenvector_signs
 from pyapprox.util.linalg.kernel_operators import KernelMatVecOperator
 from pyapprox.util.linalg.pivoted_cholesky import (
     ColumnOperatorProtocol,

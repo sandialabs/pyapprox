@@ -118,6 +118,8 @@ Analytical
 - AnalyticalExponentialKLE1D: Analytical KLE for 1D exponential kernel
 """
 
+from pyapprox.util.linalg.eigenvector_signs import adjust_sign_eig
+
 from .analytical import AnalyticalExponentialKLE1D
 from .basis_lift import lift_basis, pivot_signs
 from .basis_operator import (
@@ -169,10 +171,7 @@ from .truncation import (
     by_variance_fraction,
     resolve_nterms,
 )
-from .utils import (
-    adjust_sign_eig,
-    sort_eigenpairs,
-)
+from .utils import sort_eigenpairs
 
 __all__ = [
     # Protocols
