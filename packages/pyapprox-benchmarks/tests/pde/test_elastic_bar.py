@@ -13,7 +13,12 @@ from pyapprox_benchmarks.pde.elastic_bar import build_elastic_bar_1d
 
 
 def _make_problem(
-    bkd, constitutive="linear", qoi="tip_displacement", npts=20, num_kle_terms=2
+    bkd,
+    constitutive="linear",
+    qoi="tip_displacement",
+    npts=20,
+    num_kle_terms=2,
+    E_mean=1.0,
 ):
     """Helper for creating problems with small defaults for fast tests."""
     return build_elastic_bar_1d(
@@ -22,7 +27,7 @@ def _make_problem(
         qoi=qoi,
         npts=npts,
         length=1.0,
-        E_mean=1.0,
+        E_mean=E_mean,
         poisson_ratio=0.3,
         traction=1.0,
         num_kle_terms=num_kle_terms,
@@ -216,3 +221,48 @@ class TestElasticBar1D:
         samples = bkd.array([[0.1, -0.1, 0.2], [0.05, 0.0, -0.15]])
         result = fwd(samples)
         assert result.shape == (1, 3)
+
+
+class TestElasticBarQoIMaterial:
+    """Checks that hold only if the stress and energy QoIs read the
+    modulus the state was solved with (the KLE field), not a fixed
+    reference modulus."""
+
+    @pytest.mark.parametrize("constitutive", ["linear", "hyperelastic"])
+    def test_average_stress_independent_of_material(self, bkd, constitutive):
+        """The bar is statically determinate: its stress follows from the
+        traction and the body force alone, so the average stress is the
+        same at any KLE sample and for any E_mean."""
+        sample = bkd.asarray([[0.8], [-0.6]])
+        fwd = _make_problem(bkd, constitutive, "average_stress").function()
+        q_ref = fwd(bkd.zeros((2, 1)))
+        bkd.assert_allclose(fwd(sample), q_ref, rtol=1e-8)
+        fwd_stiff = _make_problem(
+            bkd, constitutive, "average_stress", E_mean=2.0
+        ).function()
+        bkd.assert_allclose(fwd_stiff(sample), q_ref, rtol=1e-8)
+        grad = fwd.derivatives().jacobian(sample)
+        assert float(bkd.max(bkd.abs(grad))) <= 1e-8 * abs(float(q_ref[0, 0]))
+
+    def test_linear_strain_energy_clapeyron(self, bkd):
+        """Clapeyron's theorem for the linear bar: twice the strain energy
+        is the work of the loads, T u(L) + integral f u dx (f = 1,
+        L = 1, T = 1), read from the displacement QoIs."""
+        sample = bkd.asarray([[0.8], [-0.6]])
+        energy = _make_problem(bkd, "linear", "strain_energy").function()(sample)
+        tip = _make_problem(bkd, "linear", "tip_displacement").function()(sample)
+        mean_u = _make_problem(bkd, "linear", "average_displacement").function()(
+            sample
+        )
+        bkd.assert_allclose(2.0 * energy, tip + mean_u, rtol=1e-8)
+
+    @pytest.mark.parametrize("constitutive", ["linear", "hyperelastic"])
+    def test_strain_energy_independent_of_E_mean(self, bkd, constitutive):
+        """The parameterization replaces the modulus the physics is built
+        with, so E_mean changes neither the state nor the energy."""
+        sample = bkd.asarray([[0.8], [-0.6]])
+        q1 = _make_problem(bkd, constitutive, "strain_energy").function()(sample)
+        q2 = _make_problem(
+            bkd, constitutive, "strain_energy", E_mean=2.0
+        ).function()(sample)
+        bkd.assert_allclose(q2, q1, rtol=1e-8)

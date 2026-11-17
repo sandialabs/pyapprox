@@ -7,7 +7,7 @@ configurable QoI functionals.
 
 from __future__ import annotations
 
-from typing import Tuple, Union
+from typing import Union
 
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
@@ -15,6 +15,9 @@ from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
 from pyapprox.pde.collocation.functionals.strain_energy_1d import (
+    LinearStressDensity1D,
+    MaterialMapProtocol,
+    NeoHookeanStressDensity1D,
     StrainEnergyFunctional1D,
     create_linear_strain_energy_1d,
     create_neo_hookean_strain_energy_1d,
@@ -26,12 +29,10 @@ from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
-from pyapprox.pde.constitutive.neo_hookean import (
-    NeoHookeanStress,
-)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
+from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.pde.zoo.elastic_bar_1d import (
@@ -71,18 +72,6 @@ def _make_kle_field_map(
     )
 
 
-def _lame_from_E(
-    E_mean: float,
-    poisson_ratio: float,
-) -> Tuple[float, float]:
-    """Convert Young's modulus and Poisson ratio to Lame parameters."""
-    mu = E_mean / (2.0 * (1.0 + poisson_ratio))
-    lamda = (
-        E_mean * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
-    )
-    return lamda, mu
-
-
 def _make_functional(
     basis: ChebyshevBasis1D[Array],
     nparams: int,
@@ -90,14 +79,18 @@ def _make_functional(
     qoi: str,
     constitutive: str,
     length: float,
-    E_mean: float,
-    poisson_ratio: float,
+    material_map: MaterialMapProtocol[Array],
 ) -> Union[
     PointEvaluationFunctional[Array],
     SubdomainIntegralFunctional[Array],
     StrainEnergyFunctional1D[Array],
 ]:
-    """Create QoI functional from string identifier."""
+    """Create QoI functional from string identifier.
+
+    The stress and energy QoIs read the material ``material_map`` gives
+    at the forward model's parameters: E for the linear bar,
+    ``[mu; lamda]`` for the hyperelastic one.
+    """
     npts = basis.nodes().shape[0]
 
     if qoi == "tip_displacement":
@@ -113,106 +106,26 @@ def _make_functional(
         )
 
     if qoi == "average_stress":
-        return _make_average_stress_functional(
-            basis,
-            nparams,
-            bkd,
-            constitutive,
-            length,
-            E_mean,
-            poisson_ratio,
+        # (1/L) integral sigma dx
+        stress: Union[LinearStressDensity1D[Array], NeoHookeanStressDensity1D[Array]]
+        stress = (
+            LinearStressDensity1D(bkd)
+            if constitutive == "linear"
+            else NeoHookeanStressDensity1D(bkd)
+        )
+        return StrainEnergyFunctional1D(
+            basis, stress, material_map, bkd, scale=1.0 / length
         )
 
     if qoi == "strain_energy":
-        return _make_strain_energy_functional(
-            basis,
-            nparams,
-            bkd,
-            constitutive,
-            E_mean,
-            poisson_ratio,
-        )
+        if constitutive == "linear":
+            return create_linear_strain_energy_1d(basis, material_map, bkd)
+        return create_neo_hookean_strain_energy_1d(basis, material_map, bkd)
 
     raise ValueError(
         f"Unknown qoi: {qoi!r}. Must be one of: "
         "'tip_displacement', 'average_displacement', "
         "'average_stress', 'strain_energy'"
-    )
-
-
-def _make_average_stress_functional(
-    basis: ChebyshevBasis1D[Array],
-    nparams: int,
-    bkd: Backend[Array],
-    constitutive: str,
-    length: float,
-    E_mean: float,
-    poisson_ratio: float,
-) -> StrainEnergyFunctional1D[Array]:
-    """Create average stress functional: (1/L) integral sigma dx."""
-    if constitutive == "linear":
-        inv_L = 1.0 / length
-        E_over_L = E_mean * inv_L
-
-        def energy_density_linear(
-            epsilon: Array,
-            bkd: Backend[Array],
-        ) -> Tuple[Array, Array]:
-            return E_over_L * epsilon, E_over_L * bkd.ones_like(epsilon)
-
-        return StrainEnergyFunctional1D(
-            basis,
-            nparams,
-            bkd,
-            energy_density_linear,
-            deformation_gradient=False,
-        )
-
-    # hyperelastic
-    lamda, mu = _lame_from_E(E_mean, poisson_ratio)
-    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(lamda=lamda, mu=mu)
-    inv_L = 1.0 / length
-
-    def energy_density_hyperelastic(
-        F: Array,
-        bkd: Backend[Array],
-    ) -> Tuple[Array, Array]:
-        P = stress_model.compute_stress_1d(F, bkd)
-        C = stress_model.compute_tangent_1d(F, bkd)
-        return inv_L * P, inv_L * C
-
-    return StrainEnergyFunctional1D(
-        basis,
-        nparams,
-        bkd,
-        energy_density_hyperelastic,
-        deformation_gradient=True,
-    )
-
-
-def _make_strain_energy_functional(
-    basis: ChebyshevBasis1D[Array],
-    nparams: int,
-    bkd: Backend[Array],
-    constitutive: str,
-    E_mean: float,
-    poisson_ratio: float,
-) -> StrainEnergyFunctional1D[Array]:
-    """Create strain energy functional."""
-    if constitutive == "linear":
-        return create_linear_strain_energy_1d(
-            basis,
-            nparams,
-            bkd,
-            E_mean,
-        )
-    lamda, mu = _lame_from_E(E_mean, poisson_ratio)
-    return create_neo_hookean_strain_energy_1d(
-        basis,
-        nparams,
-        bkd,
-        lamda,
-        mu,
     )
 
 
@@ -252,9 +165,9 @@ def build_elastic_bar_1d(
     length : float
         Bar length L.
     E_mean : float
-        Mean Young's modulus (at KLE coefficients = 0, E = exp(0) = 1
-        regardless; E_mean controls the mean of the log-field and the
-        reference modulus used in QoI functionals).
+        The modulus the physics is built with; the parameterization
+        replaces it with the KLE field, so at KLE coefficients = 0 the
+        modulus is E = exp(0) = 1 regardless.
     poisson_ratio : float
         Fixed Poisson ratio (hyperelastic only; ignored for linear).
     traction : float
@@ -291,7 +204,13 @@ def build_elastic_bar_1d(
         correlation_length,
     )
 
-    # QoI functional
+    # QoI functional, reading the material from the parameters with the
+    # map the zoo's parameterization builds from the same field map
+    material_map: MaterialMapProtocol[Array] = (
+        field_map
+        if constitutive == "linear"
+        else FixedPoissonRatioLameMap(field_map, poisson_ratio, npts, bkd)
+    )
     functional = _make_functional(
         basis,
         num_kle_terms,
@@ -299,8 +218,7 @@ def build_elastic_bar_1d(
         qoi,
         constitutive,
         length,
-        E_mean,
-        poisson_ratio,
+        material_map,
     )
 
     # Forward model via zoo factory
