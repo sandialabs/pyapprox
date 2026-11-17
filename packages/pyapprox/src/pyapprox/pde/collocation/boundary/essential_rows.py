@@ -183,6 +183,34 @@ class MappedBoundaryData(Generic[Array]):
         return f"{type(self).__name__}({self._field_map!r})"
 
 
+def component_state_rows(
+    bkd: Backend[Array],
+    boundary_indices: Array,
+    component: int,
+    npts: int,
+    ncomponents: int,
+) -> List[int]:
+    """The rows of the component-stacked state for a component's boundary
+    nodes: ``boundary_indices + component * npts``.
+
+    Raises
+    ------
+    ValueError
+        If ``component`` is not in ``[0, ncomponents)`` or an index is not
+        in ``[0, npts)``.
+    """
+    if not 0 <= component < ncomponents:
+        raise ValueError(f"component {component} is not in [0, {ncomponents})")
+    # Read once at construction to build the row set
+    indices = [bkd.to_int(index) for index in boundary_indices]
+    if indices and (min(indices) < 0 or max(indices) >= npts):
+        raise ValueError(
+            f"boundary indices must lie in [0, {npts}), got "
+            f"[{min(indices)}, {max(indices)}]"
+        )
+    return [index + component * npts for index in indices]
+
+
 BoundaryDataInput = Union[
     CoefficientInput[Array], ParameterizedBoundaryDataProtocol[Array]
 ]
@@ -318,16 +346,9 @@ class DirichletRows(Generic[Array]):
     def _part_rows(
         self, part: DirichletPart[Array], npts: int, ncomponents: int
     ) -> List[int]:
-        if not 0 <= part.component < ncomponents:
-            raise ValueError(f"component {part.component} is not in [0, {ncomponents})")
-        # Read once at construction to build the row set
-        indices = [self._bkd.to_int(index) for index in part.boundary_indices]
-        if indices and (min(indices) < 0 or max(indices) >= npts):
-            raise ValueError(
-                f"boundary indices must lie in [0, {npts}), got "
-                f"[{min(indices)}, {max(indices)}]"
-            )
-        return [index + part.component * npts for index in indices]
+        return component_state_rows(
+            self._bkd, part.boundary_indices, part.component, npts, ncomponents
+        )
 
     def _parameter_space(self) -> Optional[SpaceDescriptor]:
         counts = {data.nparams() for _, data in self._parameterized}
