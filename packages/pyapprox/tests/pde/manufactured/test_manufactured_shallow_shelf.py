@@ -35,6 +35,7 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
 )
 from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.manufactured import (
     ManufacturedShallowShelfVelocityEquations,
 )
@@ -146,12 +147,12 @@ class TestManufacturedShallowShelf2D:
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=depth_vals,
-            bed=bed_vals,
-            friction=friction_vals,
+            depth=NodalField(depth_vals),
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         # Compute residual at exact solution
@@ -201,12 +202,12 @@ class TestManufacturedShallowShelf2D:
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=depth_vals,
-            bed=bed_vals,
-            friction=friction_vals,
+            depth=NodalField(depth_vals),
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         exact_state = bkd.hstack([exact_sol_vals[:, 0], exact_sol_vals[:, 1]])
@@ -253,12 +254,12 @@ class TestManufacturedShallowShelf2D:
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=depth_vals,
-            bed=bed_vals,
-            friction=friction_vals,
+            depth=NodalField(depth_vals),
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         exact_state = bkd.hstack([exact_sol_vals[:, 0], exact_sol_vals[:, 1]])
@@ -324,12 +325,12 @@ class TestShallowShelf2DParameterized:
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=depth_vals,
-            bed=bed_vals,
-            friction=friction_vals,
+            depth=NodalField(depth_vals),
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         exact_state = bkd.hstack([exact_sol_vals[:, 0], exact_sol_vals[:, 1]])
@@ -389,12 +390,12 @@ class TestShallowShelf2DParameterized:
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=depth_vals,
-            bed=bed_vals,
-            friction=friction_vals,
+            depth=NodalField(depth_vals),
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         exact_state = bkd.hstack([exact_sol_vals[:, 0], exact_sol_vals[:, 1]])

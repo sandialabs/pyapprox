@@ -1,6 +1,7 @@
 """Tests for Shallow Shelf Approximation physics implementations."""
 
-from typing import Callable
+import pickle
+from typing import Callable, Union
 
 import numpy as np
 import pytest
@@ -9,12 +10,17 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
+)
+from pyapprox.pde.collocation.physics.coefficients import (
+    NodalField,
+    NodalSupplier,
 )
 from pyapprox.pde.collocation.physics.shallow_shelf import (
     ShallowShelfDepthPhysics,
@@ -23,13 +29,23 @@ from pyapprox.pde.collocation.physics.shallow_shelf import (
     create_shallow_shelf_depth,
     create_shallow_shelf_velocity,
 )
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.manufactured.shallow_shelf import (
     ManufacturedShallowShelfVelocityAndDepthEquations,
     ManufacturedShallowShelfVelocityEquations,
+)
+from pyapprox.pde.models.collocation.right_hand_side import (
+    CollocationRightHandSide,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
@@ -90,7 +106,8 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
+            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
+            friction=1e6, A=1e-16, rho=917.0,
         )
 
         # Small random velocities
@@ -116,7 +133,8 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         depth = bkd.full((npts,), 800.0)
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd, depth=depth, bed=bed, friction=5e5, A=1e-16, rho=917.0
+            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
+            friction=5e5, A=1e-16, rho=917.0,
         )
 
         np.random.seed(123)
@@ -138,7 +156,8 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
+            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
+            friction=1e6, A=1e-16, rho=917.0,
         )
 
         # 2D: u and v velocity components
@@ -157,7 +176,8 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
 
         with pytest.raises(ValueError):
             ShallowShelfVelocityPhysics(
-                basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
+                basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
+                friction=1e6, A=1e-16, rho=917.0,
             )
 
     def test_factory_function(self, bkd):
@@ -172,47 +192,57 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = create_shallow_shelf_velocity(
-            basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
+            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
+            friction=1e6, A=1e-16, rho=917.0,
         )
 
         assert physics.ncomponents() == 2
 
-    def test_set_depth(self, bkd):
-        """Test updating depth."""
+    def test_rewritten_depth_is_seen(self, bkd):
+        """Rewriting the depth's values, as a parameterization or a
+        coupling would, gives the residual of a physics built with the
+        new depth: neither H nor the surface slope is cached."""
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        depth = bkd.full((npts,), 1000.0)
-        bed = bkd.zeros((npts,))
-
+        depth = NodalField(bkd.full((npts,), 1000.0))
+        bed = NodalField(bkd.zeros((npts,)))
         physics = ShallowShelfVelocityPhysics(
             basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
         )
+        np.random.seed(5)
+        state = bkd.array(0.1 * np.random.randn(physics.nstates()))
+        before = physics.residual(state, time=0.0)
 
-        # Update depth
-        new_depth = bkd.full((npts,), 800.0)
-        physics.set_depth(new_depth)
-
-        # Check that residual can still be computed
-        state = bkd.zeros((physics.nstates(),))
-        residual = physics.residual(state, time=0.0)
-        assert residual.shape[0] == physics.nstates()
+        new_depth = bkd.asarray(800.0 + 20.0 * np.random.uniform(-1, 1, npts))
+        depth.set_values(new_depth)
+        reference = ShallowShelfVelocityPhysics(
+            basis,
+            bkd,
+            depth=NodalField(new_depth),
+            bed=bed,
+            friction=1e6,
+            A=1e-16,
+            rho=917.0,
+        )
+        after = physics.residual(state, time=0.0)
+        bkd.assert_allclose(after, reference.residual(state, 0.0), rtol=1e-12)
+        assert float(bkd.max(bkd.abs(after - before))) > 1e-3
 
     def test_jacobian_zero_friction(self, bkd):
         """Exact Jacobian with the sliding term switched off."""
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
-        npts = basis.npts()
 
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=bkd.full((npts,), 800.0),
-            bed=bkd.zeros((npts,)),
+            depth=800.0,
+            bed=0.0,
             friction=0.0,
             A=1e-16,
             rho=917.0,
@@ -222,8 +252,8 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
 
     def test_residual_depth_jacobian_derivative_checker(self, bkd):
-        """d(R_vel)/dH matches finite differences (velocities fixed;
-        set_depth recomputes the surface gradient from H + bed)."""
+        """d(R_vel)/dH matches finite differences (velocities fixed; the
+        depth field is rewritten, and the surface gradient follows)."""
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -233,11 +263,12 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
             np.cos(np.pi * np.arange(npts_1d) / (npts_1d - 1))
         )
         bed = 10.0 * bkd.array(np.tile(nodes_x_1d, npts_1d))
+        depth_field = NodalField(bkd.full((npts,), 800.0))
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=bkd.full((npts,), 800.0),
-            bed=bed,
+            depth=depth_field,
+            bed=NodalField(bed),
             friction=1.0,
             A=1.0,
             rho=1.0,
@@ -249,11 +280,11 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         )
 
         def fun(depth):
-            physics.set_depth(depth)
+            depth_field.set_values(depth)
             return physics.residual(vel_state, 0.0)
 
         def jac(depth):
-            physics.set_depth(depth)
+            depth_field.set_values(depth)
             return physics.residual_depth_jacobian(vel_state, 0.0)
 
         checker = DerivativeChecker(
@@ -331,12 +362,12 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         physics = ShallowShelfVelocityPhysics(
             basis,
             bkd,
-            depth=depth_vals,
-            bed=bed_vals,
-            friction=friction_vals,
+            depth=NodalField(depth_vals),
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         # Compute residual at exact solution
@@ -358,16 +389,14 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = ShallowShelfDepthPhysics(basis, bkd)
-
-        # Set constant velocity field (u, v)
+        # Constant velocity field (u, v)
         velocity = bkd.hstack(
             [
                 bkd.full((npts,), 100.0),  # u
                 bkd.full((npts,), 50.0),  # v
             ]
         )
-        physics.set_velocities(velocity)
+        physics = ShallowShelfDepthPhysics(basis, bkd, NodalField(velocity))
 
         # Positive depth
         np.random.seed(42)
@@ -384,16 +413,14 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = ShallowShelfDepthPhysics(basis, bkd)
-
-        # Set velocity field (u, v)
+        # Velocity field (u, v)
         velocity = bkd.hstack(
             [
                 bkd.full((npts,), 50.0),  # u
                 bkd.full((npts,), 20.0),  # v
             ]
         )
-        physics.set_velocities(velocity)
+        physics = ShallowShelfDepthPhysics(basis, bkd, NodalField(velocity))
 
         # Positive depth
         np.random.seed(42)
@@ -411,7 +438,8 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = ShallowShelfDepthPhysics(basis, bkd)
+        velocity = NodalField(bkd.zeros((2 * npts,)))
+        physics = ShallowShelfDepthPhysics(basis, bkd, velocity)
         np.random.seed(3)
         depth = bkd.asarray(
             500.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,))
@@ -419,11 +447,11 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         vel0 = bkd.array(0.1 * np.random.randn(2 * npts))
 
         def fun(vel):
-            physics.set_velocities(vel)
+            velocity.set_values(vel)
             return physics.residual(depth, 0.0)
 
         def jac(vel):
-            physics.set_velocities(vel)
+            velocity.set_values(vel)
             return physics.residual_velocity_jacobian(depth)
 
         # Exact linearity identity
@@ -448,8 +476,6 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = ShallowShelfDepthPhysics(basis, bkd)
-
         # Uniform velocity (constant velocity is divergence-free)
         velocity = bkd.hstack(
             [
@@ -457,7 +483,7 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
                 bkd.full((npts,), 50.0),  # v
             ]
         )
-        physics.set_velocities(velocity)
+        physics = ShallowShelfDepthPhysics(basis, bkd, NodalField(velocity))
 
         # Uniform depth
         state = bkd.full((npts,), 1000.0)
@@ -476,24 +502,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = ShallowShelfDepthPhysics(basis, bkd)
+        physics = ShallowShelfDepthPhysics(basis, bkd, 0.0)
 
         assert physics.ncomponents() == 1
         assert physics.nstates() == npts
-
-    def test_requires_velocity_set(self, bkd):
-        """Test that residual requires velocities to be set."""
-        npts_1d = 5
-        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-        npts = basis.npts()
-
-        physics = ShallowShelfDepthPhysics(basis, bkd)
-        state = bkd.full((npts,), 1000.0)
-
-        with pytest.raises(RuntimeError):
-            physics.residual(state, time=0.0)
 
     def test_requires_2d_basis(self, bkd):
         """Test that 1D basis raises error."""
@@ -503,7 +515,7 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis1D(mesh, bkd)
 
         with pytest.raises(ValueError):
-            ShallowShelfDepthPhysics(basis, bkd)
+            ShallowShelfDepthPhysics(basis, bkd, 0.0)
 
     def test_factory_function(self, bkd):
         """Test create_shallow_shelf_depth factory."""
@@ -513,7 +525,7 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = create_shallow_shelf_depth(basis, bkd)
+        physics = create_shallow_shelf_depth(basis, bkd, 0.0)
 
         assert physics.ncomponents() == 1
         assert physics.nstates() == npts
@@ -532,16 +544,14 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        physics = ShallowShelfDepthPhysics(basis, bkd)
-
-        # Set constant velocity field (divergence-free)
+        # Constant velocity field (divergence-free)
         velocity = bkd.hstack(
             [
                 bkd.full((npts,), 100.0),  # u = constant
                 bkd.full((npts,), 50.0),  # v = constant
             ]
         )
-        physics.set_velocities(velocity)
+        physics = ShallowShelfDepthPhysics(basis, bkd, NodalField(velocity))
 
         model = CollocationModel(physics, bkd)
 
@@ -587,11 +597,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         f_val = 10.0  # depth increase per unit time
         forcing = bkd.full((npts,), f_val)
 
-        physics = ShallowShelfDepthPhysics(basis, bkd, forcing=lambda t: forcing)
-
-        # Set zero velocity (simplest case)
-        velocity = bkd.zeros((2 * npts,))
-        physics.set_velocities(velocity)
+        # Zero velocity (simplest case)
+        physics = ShallowShelfDepthPhysics(
+            basis, bkd, NodalField(bkd.zeros((2 * npts,))), forcing=NodalField(forcing)
+        )
 
         model = CollocationModel(physics, bkd)
 
@@ -655,14 +664,14 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             df = man_sol.functions["depth_forcing"](nodes, t)
             return df[:, 0] if df.ndim == 2 else df
 
-        physics = ShallowShelfDepthPhysics(basis, bkd, forcing=forcing_fn)
-
-        # Set prescribed velocity (steady)
+        # Prescribed velocity (steady)
         vel_vals = man_sol.functions["solution"](nodes, 0.0)
         u_vals = vel_vals[:, 1]  # component 1 = u
         v_vals = vel_vals[:, 2]  # component 2 = v
         velocity = bkd.hstack([u_vals, v_vals])
-        physics.set_velocities(velocity)
+        physics = ShallowShelfDepthPhysics(
+            basis, bkd, NodalField(velocity), forcing=forcing_fn
+        )
 
         # Dirichlet BCs on all boundaries: H = 2 (constant)
         bc_list = []
@@ -726,7 +735,7 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         bed = bkd.zeros((npts,))
         physics = ShallowShelfDepthVelocityPhysics(
-            basis, bkd, bed=bed, friction=1.0, A=1.0, rho=1.0
+            basis, bkd, bed=NodalField(bed), friction=1.0, A=1.0, rho=1.0
         )
         return bkd, mesh, basis, npts, physics
 
@@ -777,8 +786,9 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
 
     def test_jacobian_block_extraction(self, bkd):
-        """The coupled Jacobian's sub-blocks equal the subphysics
-        assemblies evaluated at the same (cross-updated) state."""
+        """The coupled residual and the Jacobian's sub-blocks equal those
+        of standalone depth and velocity physics given the state's own
+        depth and velocity."""
         bkd, mesh, basis, npts, physics = self._create_coupled_physics(bkd)
         np.random.seed(42)
         H = bkd.asarray(1.0 + 0.1 * np.random.randn(npts))
@@ -788,8 +798,26 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         jac = physics.jacobian(state, 0.0)
         vel_state = bkd.hstack([u, v])
-        depth_physics = physics._depth_physics
-        velocity_physics = physics._velocity_physics
+        depth_physics = ShallowShelfDepthPhysics(basis, bkd, NodalField(vel_state))
+        velocity_physics = ShallowShelfVelocityPhysics(
+            basis,
+            bkd,
+            depth=NodalField(H),
+            bed=physics.bed_function(),
+            friction=1.0,
+            A=1.0,
+            rho=1.0,
+        )
+        bkd.assert_allclose(
+            physics.residual(state, 0.0),
+            bkd.hstack(
+                [
+                    depth_physics.residual(H, 0.0),
+                    velocity_physics.residual(vel_state, 0.0),
+                ]
+            ),
+            rtol=1e-12,
+        )
 
         bkd.assert_allclose(
             jac[:npts, :npts],
@@ -819,7 +847,7 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         with pytest.raises(ValueError):
             ShallowShelfDepthVelocityPhysics(
-                basis, bkd, bed=bkd.zeros((10,)), friction=1.0, A=1.0, rho=1.0
+                basis, bkd, bed=0.0, friction=1.0, A=1.0, rho=1.0
             )
 
     def _setup_transient_coupled_manufactured(self, bkd):
@@ -884,8 +912,8 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         physics = ShallowShelfDepthVelocityPhysics(
             basis,
             bkd,
-            bed=bed_vals,
-            friction=friction_vals,
+            bed=NodalField(bed_vals),
+            friction=NodalField(friction_vals),
             A=A,
             rho=rho,
             g=9.81,
@@ -984,3 +1012,180 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
     def test_transient_coupled_crank_nicolson(self, bkd):
         """Test transient coupled depth+velocity with Crank-Nicolson."""
         self._run_transient_coupled_manufactured(bkd, "crank_nicolson", rtol=1e-5)
+
+
+_NPTS_1D_SSA = 5
+
+
+def _ssa_coords(bkd: Backend[Array]) -> Array:
+    """Node coordinates. Shape: (2, npts)"""
+    return TransformedMesh2D(_NPTS_1D_SSA, _NPTS_1D_SSA, bkd).points()
+
+
+def _ssa_basis(bkd: Backend[Array]) -> ChebyshevBasis2D[Array]:
+    mesh = TransformedMesh2D(_NPTS_1D_SSA, _NPTS_1D_SSA, bkd)
+    return ChebyshevBasis2D(mesh, bkd)
+
+
+def _thick(coords: Array) -> Array:
+    return 1.0 + 0.1 * coords[0] * coords[1]
+
+
+def _thickening(coords: Array, time: float) -> Array:
+    return (1.0 + time) * (1.0 + 0.1 * coords[0] * coords[1])
+
+
+def _ssa_declared(
+    bkd: Backend[Array], dependent: bool, ncopies: int = 1
+) -> NodalSupplier[Array]:
+    """A declared positive supplier at the nodes, stacked ``ncopies``
+    times."""
+    coords = bkd.hstack([_ssa_coords(bkd)] * ncopies)
+    if dependent:
+        thickening: TimeDependent[Array] = TimeDependent(_thickening)
+        return NodalSupplier(thickening, coords)
+    thick: TimeIndependent[Array] = TimeIndependent(_thick)
+    return NodalSupplier(thick, coords)
+
+
+def _ssa_velocity(bkd: Backend[Array]) -> Array:
+    npts = _NPTS_1D_SSA**2
+    rng = np.random.default_rng(9)
+    return bkd.asarray(0.1 * rng.standard_normal(2 * npts))
+
+
+def _ssa_depth(bkd: Backend[Array]) -> Array:
+    npts = _NPTS_1D_SSA**2
+    rng = np.random.default_rng(10)
+    return bkd.asarray(1.0 + 0.1 * rng.uniform(-1.0, 1.0, npts))
+
+
+_ShelfPhysics = Union[
+    ShallowShelfVelocityPhysics[Array],
+    ShallowShelfDepthPhysics[Array],
+    ShallowShelfDepthVelocityPhysics[Array],
+]
+
+
+def _ssa_physics(
+    bkd: Backend[Array], kind: str, dependent: bool
+) -> _ShelfPhysics[Array]:
+    """One of the three physics with every coefficient a declared supplier,
+    time-dependent or not."""
+    basis = _ssa_basis(bkd)
+    if kind == "velocity":
+        return ShallowShelfVelocityPhysics(
+            basis,
+            bkd,
+            depth=_ssa_declared(bkd, dependent),
+            bed=_ssa_declared(bkd, dependent),
+            friction=_ssa_declared(bkd, dependent),
+            A=1.0,
+            rho=1.0,
+            forcing=_ssa_declared(bkd, dependent, 2),
+        )
+    if kind == "depth":
+        return ShallowShelfDepthPhysics(
+            basis,
+            bkd,
+            _ssa_declared(bkd, dependent, 2),
+            forcing=_ssa_declared(bkd, dependent),
+        )
+    return ShallowShelfDepthVelocityPhysics(
+        basis,
+        bkd,
+        bed=_ssa_declared(bkd, dependent),
+        friction=_ssa_declared(bkd, dependent),
+        A=1.0,
+        rho=1.0,
+        depth_forcing=_ssa_declared(bkd, dependent),
+        velocity_forcing=_ssa_declared(bkd, dependent, 2),
+    )
+
+
+def _ssa_state(bkd: Backend[Array], kind: str) -> Array:
+    if kind == "velocity":
+        return _ssa_velocity(bkd)
+    if kind == "depth":
+        return _ssa_depth(bkd)
+    return bkd.hstack([_ssa_depth(bkd), _ssa_velocity(bkd)])
+
+
+class TestShallowShelfInterior:
+    @pytest.mark.parametrize("kind", ["velocity", "depth", "coupled"])
+    def test_bundle_with_moving_coefficients(
+        self, bkd: Backend[Array], kind: str
+    ) -> None:
+        """With every coefficient time-dependent, the bundle passes the
+        checker and neither the operator nor its Jacobian is declared
+        time-invariant."""
+        physics = _ssa_physics(bkd, kind, dependent=True)
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        assert not physics.interior_jacobian_is_time_invariant()
+        assert not physics.interior_is_time_invariant()
+        rhs = CollocationRightHandSide(physics)
+        report = ODEResidualBundleChecker(rhs).check(_ssa_state(bkd, kind), 0.3)
+        assert report.failures() == []
+
+    @pytest.mark.parametrize("kind", ["velocity", "depth", "coupled"])
+    def test_declared_invariant(self, bkd: Backend[Array], kind: str) -> None:
+        """Declared time-independent coefficients make the operator
+        time-invariant, and the bundle passes the checker."""
+        physics = _ssa_physics(bkd, kind, dependent=False)
+        assert isinstance(physics, CollocationInteriorOperatorProtocol)
+        assert physics.interior_is_time_invariant()
+        assert physics.interior_jacobian_is_time_invariant()
+        rhs = CollocationRightHandSide(physics)
+        report = ODEResidualBundleChecker(rhs).check(_ssa_state(bkd, kind), 0.3)
+        assert report.failures() == []
+
+    def test_forcings_leave_jacobian_invariant(self, bkd: Backend[Array]) -> None:
+        """Time-dependent forcings alone leave the coupled Jacobian
+        time-invariant but not the operator."""
+        physics = ShallowShelfDepthVelocityPhysics(
+            _ssa_basis(bkd),
+            bkd,
+            bed=0.0,
+            friction=1.0,
+            A=1.0,
+            rho=1.0,
+            depth_forcing=_ssa_declared(bkd, True),
+            velocity_forcing=_ssa_declared(bkd, True, 2),
+        )
+        assert physics.interior_jacobian_is_time_invariant()
+        assert not physics.interior_is_time_invariant()
+
+    def test_depth_read_at_evaluation_time(self, bkd: Backend[Array]) -> None:
+        """A time-dependent depth gives, at time t, the velocity residual
+        and Jacobian of the physics built from its values at t."""
+        time = 0.7
+        moving_depth = _ssa_declared(bkd, True)
+        basis = _ssa_basis(bkd)
+
+        def velocity_physics(
+            depth: NodalSupplier[Array] | NodalField[Array],
+        ) -> ShallowShelfVelocityPhysics[Array]:
+            return ShallowShelfVelocityPhysics(
+                basis, bkd, depth=depth, bed=0.0, friction=1.0, A=1.0, rho=1.0
+            )
+
+        moving = velocity_physics(moving_depth)
+        reference = velocity_physics(NodalField(moving_depth.values(time)))
+        state = _ssa_velocity(bkd)
+        residual = moving.residual(state, time)
+        bkd.assert_allclose(residual, reference.residual(state, 0.0), rtol=1e-12)
+        bkd.assert_allclose(
+            moving.jacobian(state, time), reference.jacobian(state, 0.0), rtol=1e-12
+        )
+        change = bkd.max(bkd.abs(moving.residual(state, 0.0) - residual))
+        assert float(change) > 1e-3
+
+    @pytest.mark.parametrize("kind", ["velocity", "depth", "coupled"])
+    def test_pickle_round_trip(self, bkd: Backend[Array], kind: str) -> None:
+        """Each physics pickles and evaluates the same after loading."""
+        physics = _ssa_physics(bkd, kind, dependent=False)
+        loaded = pickle.loads(pickle.dumps(physics))
+        state = _ssa_state(bkd, kind)
+        bkd.assert_allclose(
+            loaded.residual(state, 0.3), physics.residual(state, 0.3), rtol=1e-14
+        )
