@@ -7,7 +7,7 @@ reference for the rows ``RowPin`` produces.
 """
 
 import pickle
-from typing import Callable, Generic, List, Optional
+from typing import Callable, Generic, List, Optional, Sequence
 
 import numpy as np
 import pytest
@@ -116,20 +116,51 @@ class TestDirichletRows:
         )
 
     def test_later_part_wins_a_shared_corner(self, bkd: Backend[Array]) -> None:
-        """Sides 0 (x = -1) and 2 (y = -1) share a corner node; the side
-        listed later supplies its value."""
+        """Sides 0 (x = -1) and 2 (y = -1) share a corner node. Data
+        agreeing there to round-off (a relative 1e-12 apart) are accepted,
+        and the side listed later supplies its value."""
         mesh = _mesh(bkd)
         left, bottom = mesh.boundary_indices(0), mesh.boundary_indices(2)
         corner = sorted({bkd.to_int(i) for i in left} & {bkd.to_int(i) for i in bottom})
         assert len(corner) == 1
+        near = 2.0 * (1.0 + 1e-12)
         rows = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(left, 1.0), DirichletPart(bottom, 2.0)]
+            bkd, _NPTS, 1, [DirichletPart(left, 2.0), DirichletPart(bottom, near)]
         )
-        assert bkd.to_float(rows.values(0.0)[corner[0], 0]) == 2.0
+        assert bkd.to_float(rows.values(0.0)[corner[0], 0]) == near
         swapped = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(bottom, 2.0), DirichletPart(left, 1.0)]
+            bkd, _NPTS, 1, [DirichletPart(bottom, near), DirichletPart(left, 2.0)]
         )
-        assert bkd.to_float(swapped.values(0.0)[corner[0], 0]) == 1.0
+        assert bkd.to_float(swapped.values(0.0)[corner[0], 0]) == 2.0
+
+    @pytest.mark.parametrize("gap", [1e-8, 1.0])
+    def test_corner_mismatch_is_refused(self, bkd: Backend[Array], gap: float) -> None:
+        """Data disagreeing at a shared corner by more than a relative
+        1e-10 have no smooth solution: the evaluation refuses, naming the
+        parts and the row."""
+        mesh = _mesh(bkd)
+        left, bottom = mesh.boundary_indices(0), mesh.boundary_indices(2)
+        rows = DirichletRows(
+            bkd, _NPTS, 1, [DirichletPart(left, 2.0), DirichletPart(bottom, 2.0 + gap)]
+        )
+        with pytest.raises(ValueError, match=r"parts 0 and 1 disagree"):
+            rows.values(0.0)
+
+    def test_trimmed_side_shares_nothing(self, bkd: Backend[Array]) -> None:
+        """Leaving the corner out of one side states which condition
+        holds there; different data are then accepted."""
+        mesh = _mesh(bkd)
+        left, bottom = mesh.boundary_indices(0), mesh.boundary_indices(2)
+        left_nodes = {bkd.to_int(i) for i in left}
+        trimmed = bkd.asarray(
+            [bkd.to_int(i) for i in bottom if bkd.to_int(i) not in left_nodes],
+            dtype=bkd.int64_dtype(),
+        )
+        rows = DirichletRows(
+            bkd, _NPTS, 1, [DirichletPart(left, 1.0), DirichletPart(trimmed, 2.0)]
+        )
+        column = rows.values(0.0)
+        bkd.assert_allclose(column[left, 0], bkd.ones((left.shape[0],)))
 
     def test_time_invariance_from_the_data(self, bkd: Backend[Array]) -> None:
         """Invariant exactly when every part's data are declared so."""
@@ -217,11 +248,16 @@ class TestDirichletRows:
 
 # -- data depending on the parameters ---------------------------------------
 #
-# Side 0 (x = -1, 5 nodes) carries g = exp(b0 + sum_k p_k b_k), two
-# parameters, b_k smooth in y; the other sides are constants. The exp map
-# has a second derivative, so the curvature is supplied.
+# Sides 0 (x = -1) and 2 (y = -1) carry one field
+# g(x, y; p) = exp(0.2 + p0 y / 2 + p1 (0.3 y^2 - 0.1 + 0.2 x)), each side
+# its own field map over its nodes, so they agree at their shared corner
+# for every p. Sides 1 and 3 are constants on their nodes off sides 0 and
+# 2, so they share no node with the parameterized sides. The exp map has a
+# second derivative, so the curvature is supplied.
 
 _NPARAMS = 2
+_MAPPED_SIDES = (0, 2)
+_CONSTANT_SIDES = (1, 3)
 
 
 class _Exp(Generic[Array]):
@@ -235,11 +271,12 @@ class _Exp(Generic[Array]):
 
 
 def _side_map(
-    bkd: Backend[Array], second_derivative: bool = True
+    bkd: Backend[Array], side: int, second_derivative: bool = True
 ) -> TransformedFieldMap[Array]:
     mesh = _mesh(bkd)
-    y = mesh.points()[1, mesh.boundary_indices(0)]
-    inner = BasisExpansion(bkd, 0.2, [0.5 * y, 0.3 * y**2 - 0.1])
+    coords = mesh.points()[:, mesh.boundary_indices(side)]
+    x, y = coords[0], coords[1]
+    inner = BasisExpansion(bkd, 0.2, [0.5 * y, 0.3 * y**2 - 0.1 + 0.2 * x])
     exp = _Exp(bkd)
     return TransformedFieldMap(
         inner, exp, exp, bkd, transform_deriv2=exp if second_derivative else None
@@ -251,19 +288,58 @@ def _params(bkd: Backend[Array]) -> Array:
 
 
 def _mapped(
-    bkd: Backend[Array], second_derivative: bool = True
+    bkd: Backend[Array], side: int, second_derivative: bool = True
 ) -> MappedBoundaryData[Array]:
-    return MappedBoundaryData(_side_map(bkd, second_derivative), _params(bkd), bkd)
+    return MappedBoundaryData(
+        _side_map(bkd, side, second_derivative), _params(bkd), bkd
+    )
 
 
-def _with_mapped_side(
-    bkd: Backend[Array], data: MappedBoundaryData[Array], mapped_last: bool
-) -> DirichletRows[Array]:
+def _off_mapped_sides(bkd: Backend[Array], side: int) -> Array:
+    """A side's node indices without the nodes it shares with the mapped
+    sides."""
     mesh = _mesh(bkd)
-    mapped = DirichletPart(mesh.boundary_indices(0), data)
-    constants = [DirichletPart(mesh.boundary_indices(side), 1.0) for side in (1, 2, 3)]
-    parts = constants + [mapped] if mapped_last else [mapped] + constants
-    return DirichletRows(bkd, _NPTS, 1, parts)
+    shared = {bkd.to_int(i) for s in _MAPPED_SIDES for i in mesh.boundary_indices(s)}
+    kept = [
+        bkd.to_int(i)
+        for i in mesh.boundary_indices(side)
+        if bkd.to_int(i) not in shared
+    ]
+    return bkd.asarray(kept, dtype=bkd.int64_dtype())
+
+
+def _corner(bkd: Backend[Array]) -> int:
+    """The node shared by the mapped sides."""
+    mesh = _mesh(bkd)
+    first, second = (
+        {bkd.to_int(i) for i in mesh.boundary_indices(s)} for s in _MAPPED_SIDES
+    )
+    (corner,) = first & second
+    return corner
+
+
+def _with_mapped_sides(
+    bkd: Backend[Array],
+    data: Sequence[MappedBoundaryData[Array]],
+    reverse: bool,
+) -> DirichletRows[Array]:
+    """The mapped sides (in reverse order if asked) after the constants."""
+    mesh = _mesh(bkd)
+    mapped = [
+        DirichletPart(mesh.boundary_indices(side), side_data)
+        for side, side_data in zip(_MAPPED_SIDES, data)
+    ]
+    constants = [
+        DirichletPart(_off_mapped_sides(bkd, side), 1.0) for side in _CONSTANT_SIDES
+    ]
+    return DirichletRows(
+        bkd, _NPTS, 1, constants + (mapped[::-1] if reverse else mapped)
+    )
+
+
+def _set(data: Sequence[MappedBoundaryData[Array]], params: Array) -> None:
+    for side_data in data:
+        side_data.set_parameters(params)
 
 
 def _dense(operator: DerivativeOperator[Array], bkd: Backend[Array]) -> Array:
@@ -313,33 +389,34 @@ def _check(function: _VectorFunction[Array], bkd: Backend[Array]) -> float:
 
 
 class TestParameterizedDirichletRows:
-    @pytest.mark.parametrize("mapped_last", [True, False])
-    def test_data_jacobian(self, bkd: Backend[Array], mapped_last: bool) -> None:
-        """dg/dp of the whole declaration passes DerivativeChecker,
-        whichever side supplies the shared corners."""
-        data = _mapped(bkd)
-        rows = _with_mapped_side(bkd, data, mapped_last)
+    @pytest.mark.parametrize("reverse", [True, False])
+    def test_data_jacobian(self, bkd: Backend[Array], reverse: bool) -> None:
+        """dg/dp of the whole declaration passes DerivativeChecker, in
+        either order of the mapped sides; the perturbed parameters keep
+        the shared corner consistent."""
+        data = [_mapped(bkd, side) for side in _MAPPED_SIDES]
+        rows = _with_mapped_sides(bkd, data, reverse)
         jacobian_fn = rows.parameter_derivatives().values
         assert callable(jacobian_fn)
 
         def fun(params: Array) -> Array:
-            data.set_parameters(params)
+            _set(data, params)
             return rows.values(0.0)[:, 0]
 
         def jac(params: Array) -> Array:
-            data.set_parameters(params)
+            _set(data, params)
             return _dense(jacobian_fn(0.0), bkd)
 
         assert _check(_VectorFunction(bkd, _NPTS, fun, jac), bkd) <= 1e-6
 
-    @pytest.mark.parametrize("mapped_last", [True, False])
-    def test_data_curvature(self, bkd: Backend[Array], mapped_last: bool) -> None:
+    @pytest.mark.parametrize("reverse", [True, False])
+    def test_data_curvature(self, bkd: Backend[Array], reverse: bool) -> None:
         """sum_i w_i d2g_i/dp2 is the Jacobian of w^T dg/dp, by
         DerivativeChecker, with weights on every pinned row. The error
-        ratio bottoms out between 6e-7 and 1.2e-6 on both backends; a
-        curvature 10% off stays above 1e-2."""
-        data = _mapped(bkd)
-        rows = _with_mapped_side(bkd, data, mapped_last)
+        ratio bottoms out near 1e-6 on both backends, so the bound is
+        1e-5; a curvature 10% off stays above 1e-2."""
+        data = [_mapped(bkd, side) for side in _MAPPED_SIDES]
+        rows = _with_mapped_sides(bkd, data, reverse)
         bundle = rows.parameter_derivatives()
         jacobian_fn, curvature_fn = bundle.values, bundle.values_curvature
         assert callable(jacobian_fn) and callable(curvature_fn)
@@ -348,11 +425,11 @@ class TestParameterizedDirichletRows:
         weights = rows.rows().replace_rows(bkd.zeros((_NPTS, 1)), weights)
 
         def fun(params: Array) -> Array:
-            data.set_parameters(params)
+            _set(data, params)
             return (_dense(jacobian_fn(0.0), bkd).T @ weights)[:, 0]
 
         def jac(params: Array) -> Array:
-            data.set_parameters(params)
+            _set(data, params)
             return _dense(curvature_fn(0.0, weights), bkd)
 
         def wrong(params: Array) -> Array:
@@ -361,25 +438,64 @@ class TestParameterizedDirichletRows:
         assert _check(_VectorFunction(bkd, _NPARAMS, fun, jac), bkd) <= 1e-5
         assert _check(_VectorFunction(bkd, _NPARAMS, fun, wrong), bkd) > 1e-2
 
-    def test_corner_goes_with_its_winner(self, bkd: Backend[Array]) -> None:
-        """A corner shared by the mapped side and a constant side carries
-        the mapped side's derivative only when the mapped side wins it."""
-        mesh = _mesh(bkd)
-        corners = sorted(
-            {bkd.to_int(i) for i in mesh.boundary_indices(0)}
-            & {bkd.to_int(i) for i in mesh.boundary_indices(2)}
+    def test_shared_corner_weighted_once(self, bkd: Backend[Array]) -> None:
+        """A weight on the corner both mapped sides supply enters the
+        curvature once, as the side owning it alone would give."""
+        data = [_mapped(bkd, side) for side in _MAPPED_SIDES]
+        rows = _with_mapped_sides(bkd, data, False)
+        curvature_fn = rows.parameter_derivatives().values_curvature
+        assert callable(curvature_fn)
+        corner = _corner(bkd)
+        weights = bkd.zeros((_NPTS, 1))
+        weights = bkd.index_update(
+            weights,
+            bkd.asarray([corner], dtype=bkd.int64_dtype()),
+            bkd.ones((1, 1)),
         )
-        for mapped_last, nonzero in ((True, True), (False, False)):
-            rows = _with_mapped_side(bkd, _mapped(bkd), mapped_last)
-            fn = rows.parameter_derivatives().values
-            assert callable(fn)
-            row = _dense(fn(0.0), bkd)[corners[0]]
-            assert (bkd.to_float(bkd.norm(row)) > 0.1) is nonzero
+        side = _mesh(bkd).boundary_indices(_MAPPED_SIDES[0])
+        position = [bkd.to_int(i) for i in side].index(corner)
+        side_weights = bkd.zeros((side.shape[0],))
+        side_weights = bkd.index_update(
+            side_weights,
+            bkd.asarray([position], dtype=bkd.int64_dtype()),
+            bkd.ones((1,)),
+        )
+        single = data[0].param_derivatives().curvature
+        assert single is not None
+        bkd.assert_allclose(
+            _dense(curvature_fn(0.0, weights), bkd),
+            single(0.0, side_weights),
+            rtol=1e-14,
+        )
+
+    def test_corner_mismatch_after_a_parameter_write(self, bkd: Backend[Array]) -> None:
+        """A constant side matching the mapped side's corner at the
+        initial parameters is accepted; writing other parameters breaks
+        the match, and the next evaluation refuses."""
+        mesh = _mesh(bkd)
+        data = _mapped(bkd, 0)
+        corner = _corner(bkd)
+        position = [bkd.to_int(i) for i in mesh.boundary_indices(0)].index(corner)
+        matching = bkd.to_float(data.values(0.0)[position])
+        rows = DirichletRows(
+            bkd,
+            _NPTS,
+            1,
+            [
+                DirichletPart(mesh.boundary_indices(0), data),
+                DirichletPart(mesh.boundary_indices(2), matching),
+            ],
+        )
+        rows.values(0.0)
+        data.set_parameters(bkd.asarray([0.0, 0.0]))
+        with pytest.raises(ValueError, match="disagree on their shared rows"):
+            rows.values(0.0)
 
     def test_row_pin_reads_the_data_jacobian(self, bkd: Backend[Array]) -> None:
         """The shared pin's data term is dg/dp on the pinned rows and zero
         elsewhere."""
-        rows = _with_mapped_side(bkd, _mapped(bkd), True)
+        data = [_mapped(bkd, side) for side in _MAPPED_SIDES]
+        rows = _with_mapped_sides(bkd, data, False)
         states, params = backend_spaces(bkd, _NPTS, _NPARAMS)
         pin: RowPin[Array] = RowPin(rows)
         term = pin.data_param_jacobian(0.0, states, params)
@@ -394,11 +510,17 @@ class TestParameterizedDirichletRows:
     def test_declared_fields(self, bkd: Backend[Array]) -> None:
         """Rates' derivatives are unavailable (no rate is supplied); the
         curvature is absent when a part's map has no second derivative."""
-        bundle = _with_mapped_side(bkd, _mapped(bkd), True).parameter_derivatives()
+        data = [_mapped(bkd, side) for side in _MAPPED_SIDES]
+        bundle = _with_mapped_sides(bkd, data, False).parameter_derivatives()
         assert bundle.rates is None and bundle.rates_curvature is None
         assert callable(bundle.values_curvature)
-        first_order = _with_mapped_side(bkd, _mapped(bkd, False), True)
-        assert first_order.parameter_derivatives().values_curvature is None
+        first_order = [_mapped(bkd, 0), _mapped(bkd, 2, False)]
+        assert (
+            _with_mapped_sides(bkd, first_order, False)
+            .parameter_derivatives()
+            .values_curvature
+            is None
+        )
 
     def test_parameter_counts_must_agree(self, bkd: Backend[Array]) -> None:
         mesh = _mesh(bkd)
@@ -412,7 +534,7 @@ class TestParameterizedDirichletRows:
                 _NPTS,
                 1,
                 [
-                    DirichletPart(mesh.boundary_indices(0), _mapped(bkd)),
+                    DirichletPart(mesh.boundary_indices(0), _mapped(bkd, 0)),
                     DirichletPart(mesh.boundary_indices(1), three),
                 ],
             )
@@ -420,7 +542,7 @@ class TestParameterizedDirichletRows:
     def test_mapped_data(self, bkd: Backend[Array]) -> None:
         """Writing the parameters moves the version and the values; a wrong
         parameter shape is refused; the data pickle."""
-        data = _mapped(bkd)
+        data = _mapped(bkd, 0)
         before = data.values(0.0)
         version = data.version()
         data.set_parameters(bkd.asarray([0.1, 0.2]))

@@ -21,6 +21,7 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
+    Tuple,
     Union,
     runtime_checkable,
 )
@@ -183,6 +184,11 @@ class MappedBoundaryData(Generic[Array]):
         return f"{type(self).__name__}({self._field_map!r})"
 
 
+# Data evaluated at the same node by two suppliers agree to round-off, so
+# a larger relative difference is a real mismatch
+_SHARED_ROW_RTOL = 1e-10
+
+
 def component_state_rows(
     bkd: Backend[Array],
     boundary_indices: Array,
@@ -337,6 +343,7 @@ class DirichletRows(Generic[Array]):
             )
             for k, rows in enumerate(rows_per_part)
         ]
+        self._shared = self._shared_rows(rows_per_part)
         self._states = backend_state_space(bkd, self._nstates).descriptor()
         self._rows = BackendRowSet(
             self._states, [row for rows in rows_per_part for row in rows], bkd
@@ -349,6 +356,55 @@ class DirichletRows(Generic[Array]):
         return component_state_rows(
             self._bkd, part.boundary_indices, part.component, npts, ncomponents
         )
+
+    def _shared_rows(
+        self, rows_per_part: List[List[int]]
+    ) -> List[Tuple[int, int, Array, Array, List[int]]]:
+        """Each pair of parts sharing rows: (earlier part, later part, the
+        positions of the shared rows in each part's data, the rows)."""
+        shared = []
+        for first, first_rows in enumerate(rows_per_part):
+            for second in range(first + 1, len(rows_per_part)):
+                second_rows = rows_per_part[second]
+                common = [row for row in first_rows if row in second_rows]
+                if common:
+                    shared.append(
+                        (
+                            first,
+                            second,
+                            self._bkd.asarray(
+                                [first_rows.index(row) for row in common],
+                                dtype=self._bkd.int64_dtype(),
+                            ),
+                            self._bkd.asarray(
+                                [second_rows.index(row) for row in common],
+                                dtype=self._bkd.int64_dtype(),
+                            ),
+                            common,
+                        )
+                    )
+        return shared
+
+    def _check_shared_rows_agree(self, part_values: List[Array]) -> None:
+        bkd = self._bkd
+        for first, second, first_at, second_at, rows in self._shared:
+            first_values = part_values[first][first_at]
+            second_values = part_values[second][second_at]
+            scale = bkd.maximum(
+                bkd.maximum(bkd.abs(first_values), bkd.abs(second_values)),
+                bkd.ones(first_values.shape),
+            )
+            mismatch = bkd.to_float(
+                bkd.max(bkd.abs(first_values - second_values) / scale)
+            )
+            if mismatch > _SHARED_ROW_RTOL:
+                raise ValueError(
+                    f"Dirichlet parts {first} and {second} disagree on their "
+                    f"shared rows {rows} (relative mismatch {mismatch:.3e}): "
+                    "no smooth solution satisfies both. Make the data agree "
+                    "there, or leave the shared nodes out of one part to "
+                    "choose which condition holds"
+                )
 
     def _parameter_space(self) -> Optional[SpaceDescriptor]:
         counts = {data.nparams() for _, data in self._parameterized}
@@ -373,10 +429,13 @@ class DirichletRows(Generic[Array]):
         Raises
         ------
         ValueError
-            If a part's data do not have one value per boundary node.
+            If a part's data do not have one value per boundary node, or
+            two parts' data on a shared row (a corner) differ by more than
+            a relative 1e-10: collocation needs a smooth solution, which
+            cannot take two values there.
         """
         bkd = self._bkd
-        column = bkd.zeros((self._nstates,))
+        part_values = []
         for rows, data in zip(self._rows_per_part, self._data):
             values = data.values(time)
             if values.shape != rows.shape:
@@ -384,6 +443,10 @@ class DirichletRows(Generic[Array]):
                     f"Dirichlet data must have shape {tuple(rows.shape)}, got "
                     f"{tuple(values.shape)}"
                 )
+            part_values.append(values)
+        self._check_shared_rows_agree(part_values)
+        column = bkd.zeros((self._nstates,))
+        for rows, values in zip(self._rows_per_part, part_values):
             column = bkd.index_update(column, rows, values)
         return bkd.reshape(column, (self._nstates, 1))
 
