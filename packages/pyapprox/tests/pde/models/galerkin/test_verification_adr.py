@@ -36,8 +36,14 @@ multi-field problems, a box with named coordinates.
 
 from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
 import pytest
+
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
+import numpy as np
 import sympy as sp
 from numpy.typing import NDArray
 

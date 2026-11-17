@@ -34,8 +34,14 @@ Cases:
 
 from typing import Any, Dict, List, Sequence, Tuple, Union
 
-import numpy as np
 import pytest
+
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
+import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole

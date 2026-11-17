@@ -24,6 +24,12 @@ import math
 from typing import Any, Callable, List, Sequence, Tuple
 
 import pytest
+
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis

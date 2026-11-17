@@ -36,6 +36,12 @@ Cases:
 from typing import Any, Dict, List, Sequence, Union
 
 import pytest
+
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 import sympy as sp
 from numpy.typing import NDArray
 
