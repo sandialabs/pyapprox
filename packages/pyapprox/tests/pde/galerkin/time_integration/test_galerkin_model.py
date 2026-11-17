@@ -28,7 +28,6 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinSteadyModel,
     GalerkinTransientModel,
     TimeIntegrationConfig,
     skfem_ode_residual,
@@ -312,16 +311,6 @@ class TestExplicitUnifiedPipeline:
 
 
 class TestModelConstruction:
-    def test_steady_model_rejects_a_non_system(self) -> None:
-        with pytest.raises(TypeError, match="GalerkinSteadySystemProtocol"):
-            GalerkinSteadyModel(object())  # type: ignore[arg-type]
-
-    def test_steady_model_takes_its_backend_from_the_system(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
-        system, _ = _setup_adr_system(numpy_bkd, nx=4)
-        assert GalerkinSteadyModel(system).bkd() is system.bkd()
-
     def test_transient_model_rejects_a_non_adapter(self, numpy_bkd: NumpyBkd) -> None:
         system, _ = _setup_adr_system(numpy_bkd, nx=4)
         with pytest.raises(TypeError, match="GalerkinODEResidualProtocol"):

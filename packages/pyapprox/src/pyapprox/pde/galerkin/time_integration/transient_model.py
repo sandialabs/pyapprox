@@ -2,8 +2,8 @@
 
 :class:`GalerkinTransientModel` is built from the adapter alone: the
 adapter carries the system, the stack, the assemblers and the solver,
-so nothing is passed twice. Steady solves are a different object,
-:class:`~pyapprox.pde.galerkin.time_integration.galerkin_model.GalerkinSteadyModel`.
+so nothing is passed twice. Steady solves are
+:func:`~pyapprox.pde.models.galerkin.steady_residual.solve_galerkin_steady`.
 """
 
 from typing import Generic, Optional, Tuple

@@ -30,7 +30,6 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinSteadyModel,
     skfem_discretization,
     skfem_ode_residual,
 )
@@ -43,6 +42,7 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 from pyapprox.pde.time_order import SecondOrderInTimeProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from tests._helpers.galerkin_steady_solve import steady_solve
 
 _NumpyArray = NDArray[Any]
 
@@ -142,10 +142,9 @@ class TestGalerkinLinearElasticityTimeOrder:
     def test_steady_solve_still_works(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         _, system, exact = _setup(bkd)
-        solution = GalerkinSteadyModel(system).solve_steady(
-            bkd.zeros((system.nstates(),))
-        )
-        bkd.assert_allclose(solution, exact, atol=1e-10)
+        result = steady_solve(system)
+        assert result.converged, result.residual_norm
+        bkd.assert_allclose(result.solution, exact, atol=1e-10)
 
     def test_physics_mass_still_available(self, numpy_bkd: NumpyBkd) -> None:
         """Reduced models read the physics' mass directly."""

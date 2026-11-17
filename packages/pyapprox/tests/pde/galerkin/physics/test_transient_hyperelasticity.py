@@ -37,7 +37,6 @@ from pyapprox.pde.galerkin.physics import (
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinSteadyModel,
     skfem_discretization,
     skfem_ode_residual,
 )
@@ -50,6 +49,7 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 from pyapprox.pde.time_order import SecondOrderInTimeProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from tests._helpers.galerkin_steady_solve import steady_solve
 
 _NumpyArray = NDArray[Any]
 _Physics = Union[
@@ -146,10 +146,9 @@ class TestGalerkinHyperelasticityTimeOrder:
     ) -> None:
         bkd = numpy_bkd
         _, system, exact = _setup(bkd, physics_name)
-        solution = GalerkinSteadyModel(system).solve_steady(
-            bkd.zeros((system.nstates(),))
-        )
-        bkd.assert_allclose(solution, exact, atol=1e-6)
+        result = steady_solve(system)
+        assert result.converged, result.residual_norm
+        bkd.assert_allclose(result.solution, exact, atol=1e-6)
 
     @pytest.mark.parametrize("physics_name", _PHYSICS_NAMES)
     def test_physics_mass_still_available(

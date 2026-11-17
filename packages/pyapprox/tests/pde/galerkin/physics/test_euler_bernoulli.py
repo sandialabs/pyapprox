@@ -19,7 +19,7 @@ if not package_available("skfem"):
 from typing import Callable, Union
 
 import numpy as np
-from scipy.sparse import issparse
+from scipy.sparse import sparray, spmatrix
 
 from pyapprox.pde.galerkin.basis import CubicHermiteBasis, LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
@@ -34,26 +34,28 @@ from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     element_curvatures,
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinSteadyModel,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.galerkin_steady_checks import DenseSteadyResidual
+from tests._helpers.galerkin_steady_solve import steady_solve
 
 
-def _to_dense(mat):
-    """Convert sparse matrix to dense numpy array if needed."""
-    if issparse(mat):
-        return mat.toarray()
-    if hasattr(mat, 'detach'):
-        return mat.detach().numpy()
+def _to_dense(mat: Union[NumpyArray, spmatrix, sparray]) -> NumpyArray:
+    """Return ``mat`` as a dense array.
+
+    The beam's matrix accessors are annotated ``Array`` but return the
+    sparse matrix skfem assembles, so both are accepted.
+    """
+    if isinstance(mat, (spmatrix, sparray)):
+        dense: NumpyArray = mat.toarray()
+        return dense
     return np.asarray(mat)
 
 
 class TestEulerBernoulliAnalytical:
     """Tests for the analytical Euler-Bernoulli beam solutions."""
-    def test_uniform_load_tip_deflection(self, numpy_bkd) -> None:
+    def test_uniform_load_tip_deflection(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         L, EI, q0 = 1.0, 1.0, 1.0
         beam = EulerBernoulliBeamAnalytical(
@@ -65,7 +67,7 @@ class TestEulerBernoulliAnalytical:
             rtol=1e-14,
         )
 
-    def test_linear_load_tip_deflection(self, numpy_bkd) -> None:
+    def test_linear_load_tip_deflection(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         L, EI, q0 = 2.0, 3.0, 5.0
         beam = EulerBernoulliBeamAnalytical(
@@ -77,7 +79,7 @@ class TestEulerBernoulliAnalytical:
             rtol=1e-14,
         )
 
-    def test_uniform_load_boundary_conditions(self, numpy_bkd) -> None:
+    def test_uniform_load_boundary_conditions(self, numpy_bkd: NumpyBkd) -> None:
         """w(0)=0, w'(0)=0 for cantilever."""
         bkd = numpy_bkd
         L, EI, q0 = 1.0, 1.0, 1.0
@@ -92,7 +94,7 @@ class TestEulerBernoulliAnalytical:
             beam.slope(x), bkd.asarray([0.0]), atol=1e-15
         )
 
-    def test_linear_load_boundary_conditions(self, numpy_bkd) -> None:
+    def test_linear_load_boundary_conditions(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         L, EI, q0 = 1.0, 1.0, 1.0
         beam = EulerBernoulliBeamAnalytical(
@@ -106,7 +108,7 @@ class TestEulerBernoulliAnalytical:
             beam.slope(x), bkd.asarray([0.0]), atol=1e-15
         )
 
-    def test_uniform_load_deflection_values(self, numpy_bkd) -> None:
+    def test_uniform_load_deflection_values(self, numpy_bkd: NumpyBkd) -> None:
         """Check w(x) at interior points against formula."""
         bkd = numpy_bkd
         L, EI, q0 = 1.0, 1.0, 1.0
@@ -118,7 +120,7 @@ class TestEulerBernoulliAnalytical:
         expected = bkd.asarray([4.25 / 96.0])
         bkd.assert_allclose(beam.deflection(x), expected, rtol=1e-14)
 
-    def test_invalid_load_type_raises(self, numpy_bkd) -> None:
+    def test_invalid_load_type_raises(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         with pytest.raises(ValueError):
             EulerBernoulliBeamAnalytical(
@@ -166,11 +168,10 @@ def _cantilever(beam: EulerBernoulliBeamFEM[Array]) -> GalerkinSystem[Array]:
     )
 
 
-def _solve(system: GalerkinSystem[Array]) -> Array:
-    bkd = system.bkd()
-    return GalerkinSteadyModel(system).solve_steady(
-        bkd.zeros((system.nstates(),))
-    )
+def _solve(system: GalerkinSystem[NumpyArray]) -> NumpyArray:
+    result = steady_solve(system)
+    assert result.converged, result.residual_norm
+    return result.solution
 
 
 def _tip(beam: EulerBernoulliBeamFEM[Array], coeffs: Array) -> float:
@@ -203,7 +204,7 @@ class TestEulerBernoulliFEM:
         bkd = numpy_bkd
         basis = LagrangeBasis(StructuredMesh1D(4, (0.0, 1.0), bkd), degree=2)
         with pytest.raises(TypeError, match="CubicHermiteBasis"):
-            EulerBernoulliBeamFEM(basis, 1.0, _uniform(1.0), bkd)
+            EulerBernoulliBeamFEM(basis, 1.0, _uniform(1.0), bkd)  # type: ignore[arg-type]
 
     def test_rejects_wrong_EI_shape(self, numpy_bkd: NumpyBkd) -> None:
         with pytest.raises(ValueError, match="one value per element"):
@@ -233,7 +234,7 @@ class TestEulerBernoulliFEM:
         system = _cantilever(_beam(bkd, 8, 2.0, 1.5, _uniform(1.0)))
         sol = _solve(system)
         bkd.assert_allclose(
-            system.steady().steady_residual(sol),
+            DenseSteadyResidual(system).value(sol),
             bkd.zeros((system.nstates(),)),
             atol=1e-10,
         )
@@ -381,7 +382,7 @@ class TestEulerBernoulliFEM:
         )
 
 
-def _smooth_EI_field(x_nodes: np.ndarray, EI_mean: float) -> np.ndarray:
+def _smooth_EI_field(x_nodes: NumpyArray, EI_mean: float) -> NumpyArray:
     """Smooth spatially-varying EI: EI(x) = EI_mean * (1 + 0.5*sin(pi*x/L)).
 
     Returns per-element EI evaluated at element midpoints.
@@ -408,7 +409,7 @@ class TestEulerBernoulliVaryingEI:
         system = _cantilever(self._make_beam(bkd, nx=10, EI_mean=2.0))
         sol = _solve(system)
         bkd.assert_allclose(
-            system.steady().steady_residual(sol),
+            DenseSteadyResidual(system).value(sol),
             bkd.zeros((system.nstates(),)),
             atol=1e-10,
         )
@@ -428,10 +429,10 @@ class TestEulerBernoulliVaryingEI:
         )
         ndofs = steady.nstates()
 
-        def residual_func(samples: Array) -> Array:
+        def residual_func(samples: NumpyArray) -> NumpyArray:
             return bkd.reshape(bkd.asarray(steady.value(samples[:, 0])), (ndofs, 1))
 
-        def jacobian_func(sample: Array) -> Array:
+        def jacobian_func(sample: NumpyArray) -> NumpyArray:
             return bkd.asarray(steady.jacobian(sample[:, 0]))
 
         wrapper = FunctionWithJacobianFromCallable(

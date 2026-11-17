@@ -70,8 +70,8 @@ class GalerkinTransientForwardModel(Generic[Array]):
 
     Its transient solves run through a
     :class:`~pyapprox.pde.galerkin.time_integration.transient_model.GalerkinTransientModel`
-    it holds (:meth:`transient_model`); steady solves are a separate
-    ``GalerkinSteadyModel``.
+    it holds (:meth:`transient_model`); steady solves are
+    :func:`~pyapprox.pde.models.galerkin.steady_residual.solve_galerkin_steady`.
 
     Parameters
     ----------

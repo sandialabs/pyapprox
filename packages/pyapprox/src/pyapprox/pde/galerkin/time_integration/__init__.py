@@ -12,9 +12,6 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingForwardResidual,
     create_galerkin_bc_enforcing_residual,
 )
-from pyapprox.pde.galerkin.time_integration.galerkin_model import (
-    GalerkinSteadyModel,
-)
 from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
     RowTreatmentFactory,
@@ -39,7 +36,6 @@ __all__ = [
     "skfem_discretization",
     "skfem_ode_residual",
     "GalerkinBCEnforcingForwardResidual",
-    "GalerkinSteadyModel",
     "GalerkinTransientModel",
     "NeutralizedRows",
     "RowTreatmentFactory",
