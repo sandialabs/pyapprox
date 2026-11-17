@@ -7,7 +7,7 @@ Schur action against finite differences of the residual; the stores by
 counting linearizations, with results equal under every store.
 """
 
-from typing import Any, Generic, Optional, Sequence
+from typing import Any, Callable, Generic, Optional, Sequence, TypeVar
 
 import numpy as np
 import pytest
@@ -44,7 +44,7 @@ from pyapprox.pde.coupling.skeleton import (
     SkeletonResidual,
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
-from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.pde.coupling.topology import TensorBoxPartition, local_subdomains
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -64,6 +64,7 @@ from tests._helpers.linalg.mock_stack import MockVector
 from tests._helpers.linalg.stacks import MockCase, mock_case
 
 _LABEL = LinearizationPoint(0, "test", provisional=True)
+T = TypeVar("T")
 
 
 class _Counting(Generic[Array]):
@@ -425,3 +426,75 @@ def test_mock_stack_solves_to_the_exact_values(
     )
     # Kept points are recognized by value on an opaque stack too.
     assert all(r.count == iterations + 1 for r in responses)
+
+
+class _ReversedExecutor:
+    """Runs tasks last to first and records them, returning results in
+    the order given, as the protocol requires of any scheduling."""
+
+    def __init__(self) -> None:
+        self.ntasks = 0
+
+    def map(self, task: Callable[[int], T], subdomains: Sequence[int]) -> list[T]:
+        results = {i: task(i) for i in reversed(list(subdomains))}
+        self.ntasks += len(results)
+        return [results[i] for i in subdomains]
+
+
+def _jacobian_action(
+    residual: SkeletonResidual[Array, Array, Array, MatrixFree],
+    state: Array,
+    direction: Array,
+) -> Array:
+    jacobian = residual.derivatives().jacobian
+    assert jacobian is not None
+    return jacobian(state, _LABEL).apply(direction)
+
+
+def test_rank_residuals_sum_to_the_whole(bkd: Backend[Array]) -> None:
+    coefs = [(1.5, 0.0, 1.5), (1.0,), (2.0, 0.4), (0.5,)]
+    whole, space, _ = _chain(bkd, coefs)
+    # Ranks own subdomains 1, 3 and 0, 2: each rank's residual over its
+    # own subdomains, summed as the skeleton stack's scatter-add would.
+    topo = TensorBoxPartition((4,), owners=[1, 0, 1, 0])
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    ranks = [
+        SkeletonResidual(
+            space, [whole.subdomains()[s] for s in local_subdomains(topo, r)], schur
+        )
+        for r in (0, 1)
+    ]
+    state, direction = bkd.asarray([[0.3], [-0.4], [0.2]]), bkd.ones((3, 1))
+    bkd.assert_allclose(
+        ranks[0](state) + ranks[1](state), whole(state), rtol=1e-14
+    )
+    bkd.assert_allclose(
+        _jacobian_action(ranks[0], state, direction)
+        + _jacobian_action(ranks[1], state, direction),
+        _jacobian_action(whole, state, direction),
+        rtol=1e-14,
+    )
+
+
+def test_order_and_scheduling_leave_the_solve_unchanged(bkd: Backend[Array]) -> None:
+    coefs = [(1.5, 0.0, 1.5)] * 3 + [(2.0,), (0.5, 0.0, 1.0)]
+    serial, space, _ = _chain(bkd, coefs, 4.0)
+    reference = _gmres_solve(serial, space, bkd)
+    assert reference.converged()
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    permuted = SkeletonResidual(
+        space, [serial.subdomains()[s] for s in (3, 0, 4, 2, 1)], schur
+    )
+    again = _gmres_solve(permuted, space, bkd)
+    bkd.assert_allclose(again.solution(), reference.solution(), rtol=1e-12)
+    executor = _ReversedExecutor()
+    reversed_run = SkeletonResidual(
+        space, serial.subdomains(), schur, executor=executor
+    )
+    scheduled = _gmres_solve(reversed_run, space, bkd)
+    # Results come back in subdomain order, so the sums are the same
+    # floating-point operations as the serial run's.
+    bkd.assert_allclose(scheduled.solution(), reference.solution(), rtol=0.0)
+    assert executor.ntasks > 2 * len(coefs) * scheduled.info().iterations
+    with pytest.raises(TypeError, match="executor"):
+        SkeletonResidual(space, [], schur, executor=object())  # type: ignore[arg-type]

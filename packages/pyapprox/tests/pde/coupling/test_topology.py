@@ -13,6 +13,8 @@ import pytest
 from pyapprox.pde.coupling.topology import (
     SkeletonTopologyProtocol,
     TensorBoxPartition,
+    entity_owner,
+    local_subdomains,
 )
 
 
@@ -151,6 +153,34 @@ def test_ownership() -> None:
     topo = TensorBoxPartition((2, 2), owners=[1, 0, 3, 2])
     assert [topo.owner(s) for s in range(4)] == [1, 0, 3, 2]
     assert isinstance(topo, SkeletonTopologyProtocol)
+
+
+def test_entity_owner_is_the_lowest_incident_owner() -> None:
+    # A chain: interface 0 joins subdomains 0 and 1 (owners 2, 5),
+    # interface 1 joins 1 and 2 (owners 5, 1).
+    chain = TensorBoxPartition((3,), owners=[2, 5, 1])
+    assert [entity_owner(chain, e) for e in range(chain.nentities())] == [2, 1]
+    # On a 2x2 square the center vertex touches all four subdomains; a
+    # boundary piece touches fewer, and takes the lowest of those.
+    square = TensorBoxPartition((2, 2), owners=[3, 1, 2, 4])
+    for e in range(square.nentities()):
+        incident = square.incident_subdomains(e)
+        owners = {square.owner(s) for s in incident}
+        assert entity_owner(square, e) == min(owners)
+        if len(incident) == 4:
+            assert entity_owner(square, e) == 1
+    uniform = TensorBoxPartition((2, 2, 2), owners=[7] * 8)
+    assert {entity_owner(uniform, e) for e in range(uniform.nentities())} == {7}
+
+
+@pytest.mark.parametrize("ncells", [(4,), (3, 2), (2, 2, 2)])
+def test_local_subdomains_partition_the_subdomains(ncells: tuple[int, ...]) -> None:
+    n = prod(ncells)
+    topo = TensorBoxPartition(ncells, owners=[s % 2 for s in range(n)])
+    pieces = [local_subdomains(topo, rank) for rank in range(3)]
+    assert sorted(itertools.chain.from_iterable(pieces)) == list(range(n))
+    assert all(list(p) == sorted(p) for p in pieces)
+    assert pieces[2] == ()
 
 
 def test_invalid_input() -> None:

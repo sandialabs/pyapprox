@@ -37,7 +37,15 @@ depend on calls the store's ``clear``.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
+from typing import (
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Sequence,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
@@ -68,6 +76,7 @@ V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 F = TypeVar("F", bound=FormatProtocol)
 F_co = TypeVar("F_co", bound=FormatProtocol, covariant=True)
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -76,6 +85,27 @@ class CoupledSubdomain(Generic[V, Array]):
 
     response: LocalResponseProtocol[Array]
     transfer: PortTransferProtocol[V, Array]
+
+
+@runtime_checkable
+class SubdomainExecutorProtocol(Protocol):
+    """Runs per-subdomain work over the subdomains a rank holds."""
+
+    def map(self, task: Callable[[int], T], subdomains: Sequence[int]) -> list[T]:
+        """``task(i)`` for each ``i`` in ``subdomains``, returned in that
+        order whatever order they ran in, so sums over the results do not
+        depend on scheduling."""
+        ...
+
+
+class SerialExecutor:
+    """Runs each subdomain's work in turn, in order."""
+
+    def map(self, task: Callable[[int], T], subdomains: Sequence[int]) -> list[T]:
+        return [task(i) for i in subdomains]
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
 
 @runtime_checkable
@@ -154,6 +184,7 @@ class SchurBuilderProtocol(Protocol[V, Array, F_co]):
         space: VectorSpaceProtocol[V],
         subdomains: Sequence[CoupledSubdomain[V, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
+        executor: SubdomainExecutorProtocol,
     ) -> ActionOperatorProtocol[V, F_co]: ...
 
 
@@ -179,8 +210,9 @@ class MatrixFreeSchur(Generic[V, Array]):
         space: VectorSpaceProtocol[V],
         subdomains: Sequence[CoupledSubdomain[V, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
+        executor: SubdomainExecutorProtocol,
     ) -> "SchurOperator[V, Array]":
-        return SchurOperator(space, subdomains, points)
+        return SchurOperator(space, subdomains, points, executor)
 
 
 class DenseSchur(Generic[Array]):
@@ -205,13 +237,19 @@ class DenseSchur(Generic[Array]):
         space: VectorSpaceProtocol[Array],
         subdomains: Sequence[CoupledSubdomain[Array, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
+        executor: SubdomainExecutorProtocol,
     ) -> BackendDenseOperator[Array]:
         bkd, descriptor = self._bkd, space.descriptor()
         identity = bkd.eye(descriptor.size)
+        tangents = _tangents(points)
+
+        def block(i: int) -> Array:
+            # S_i E_i: the tangent of each column of E_i.
+            return tangents[i](subdomains[i].transfer.scatter(identity))
+
+        blocks = executor.map(block, range(len(subdomains)))
         matrix = bkd.zeros((descriptor.size, descriptor.size))
-        for sd, tangent in zip(subdomains, _tangents(points)):
-            # Columns of E_i, then S_i E_i, then E_i^T S_i E_i.
-            local = tangent(sd.transfer.scatter(identity))
+        for sd, local in zip(subdomains, blocks):
             matrix = sd.transfer.gather_add(local, matrix)
         return BackendDenseOperator(matrix, descriptor, bkd)
 
@@ -231,10 +269,12 @@ class SchurOperator(Generic[V, Array]):
         space: VectorSpaceProtocol[V],
         subdomains: Sequence[CoupledSubdomain[V, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
+        executor: SubdomainExecutorProtocol,
     ) -> None:
         self._space = space
         self._transfers = [sd.transfer for sd in subdomains]
         self._tangents = _tangents(points)
+        self._executor = executor
 
     def domain(self) -> SpaceDescriptor:
         return self._space.descriptor()
@@ -249,9 +289,13 @@ class SchurOperator(Generic[V, Array]):
         return MatrixFree()
 
     def apply(self, x: V, out: Optional[V] = None) -> V:
+        def local(i: int) -> Array:
+            return self._tangents[i](self._transfers[i].scatter(x))
+
+        blocks = self._executor.map(local, range(len(self._transfers)))
         total = self._space.zeros(self._space.ncols(x))
-        for transfer, tangent in zip(self._transfers, self._tangents):
-            total = transfer.gather_add(tangent(transfer.scatter(x)), total)
+        for transfer, block in zip(self._transfers, blocks):
+            total = transfer.gather_add(block, total)
         return total
 
     def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
@@ -274,7 +318,10 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     space
         The skeleton's space; states are its single-column vectors.
     subdomains
-        Each subdomain's response and port transfer.
+        Each subdomain's response and port transfer: every subdomain in a
+        serial run, a rank's own (:func:`~pyapprox.pde.coupling.topology.
+        local_subdomains`) in a distributed one, where the skeleton
+        stack's scatter-add sums across ranks.
     schur
         Forms the Jacobian: :class:`MatrixFreeSchur` for a Krylov solver,
         :class:`DenseSchur` for a dense direct one. The setup strategy of
@@ -284,6 +331,9 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         :class:`KeepCurrentPoints`.
     window
         The window every response covers. Default: steady.
+    executor
+        Runs the per-subdomain work (linearizations, trace products).
+        Default: :class:`SerialExecutor`.
     """
 
     def __init__(
@@ -293,6 +343,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         schur: SchurBuilderProtocol[V, Array, F],
         points: Optional[PointStoreProtocol[V, Array]] = None,
         window: Optional[TimeWindow] = None,
+        executor: Optional[SubdomainExecutorProtocol] = None,
     ) -> None:
         if not isinstance(space, InnerProductSpaceProtocol):
             raise TypeError(
@@ -302,6 +353,13 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         if not isinstance(schur, SchurBuilderProtocol):
             raise TypeError(
                 f"schur must satisfy SchurBuilderProtocol, got {type(schur).__name__}"
+            )
+        if executor is not None and not isinstance(
+            executor, SubdomainExecutorProtocol
+        ):
+            raise TypeError(
+                "executor must satisfy SubdomainExecutorProtocol, got "
+                f"{type(executor).__name__}"
             )
         for i, sd in enumerate(subdomains):
             if not isinstance(sd.response, LocalResponseProtocol):
@@ -326,6 +384,9 @@ class SkeletonResidual(Generic[V, A, Array, F]):
             KeepCurrentPoints() if points is None else points
         )
         self._window = TimeWindow.steady() if window is None else window
+        self._executor: SubdomainExecutorProtocol = (
+            SerialExecutor() if executor is None else executor
+        )
         self._derivs: ResidualDerivatives[V, F] = ResidualDerivatives.state_only(
             ResidualJacobian.general(self._jacobian)
         )
@@ -335,12 +396,13 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         return self._subdomains
 
     def linearize_all(self, state: V) -> Sequence[ResponsePointProtocol[Array]]:
-        points = []
-        for sd in self._subdomains:
+        def linearize(i: int) -> ResponsePointProtocol[Array]:
+            sd = self._subdomains[i]
             params = sd.response.bkd().zeros((0, 1))
             port_data = sd.transfer.scatter(state)
-            points.append(sd.response.linearize(port_data, params, self._window))
-        return points
+            return sd.response.linearize(port_data, params, self._window)
+
+        return self._executor.map(linearize, range(len(self._subdomains)))
 
     def same_state(self, a: V, b: V) -> bool:
         difference = self._space.axpby(1.0, a, -1.0, b)
@@ -362,7 +424,8 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     ) -> LinearizedOperator[V, F]:
         points = self._store.points(state, self)
         return LinearizedOperator(
-            self._schur.build(self._space, self._subdomains, points), label
+            self._schur.build(self._space, self._subdomains, points, self._executor),
+            label,
         )
 
     def derivatives(self) -> ResidualDerivatives[V, F]:

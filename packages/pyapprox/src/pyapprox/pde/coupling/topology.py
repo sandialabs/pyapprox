@@ -64,6 +64,23 @@ class SkeletonTopologyProtocol(Protocol):
         ...
 
 
+def entity_owner(topology: SkeletonTopologyProtocol, entity: int) -> int:
+    """The rank that owns ``entity``'s skeleton DOFs: the lowest owner
+    among its incident subdomains.
+
+    A function of the topology alone, so every rank computes the same
+    owner without communicating.
+    """
+    return min(topology.owner(s) for s in topology.incident_subdomains(entity))
+
+
+def local_subdomains(topology: SkeletonTopologyProtocol, rank: int) -> tuple[int, ...]:
+    """The subdomains ``rank`` owns, increasing."""
+    return tuple(
+        s for s in range(topology.nsubdomains()) if topology.owner(s) == rank
+    )
+
+
 def _check_index(index: int, size: int, name: str) -> None:
     if not 0 <= index < size:
         raise IndexError(f"{name} {index} is out of range [0, {size})")
