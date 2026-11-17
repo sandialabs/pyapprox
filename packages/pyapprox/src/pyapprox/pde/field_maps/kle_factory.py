@@ -21,12 +21,14 @@ element, this can quickly become prohibitive:
   during projection, so peak memory is similar to the quadrature
   Nystrom variant.
 
-For large meshes, prefer the sparse SPDE-based factories in
-:mod:`pyapprox.pde.galerkin.kle_factory` (Matern fields; O(N) memory)
-or ``create_fem_nystrom_nodes_kle`` (arbitrary kernels). The SPDE
-factories live with the galerkin solver because they assemble the
-precision operator with galerkin machinery (BiLaplacianPrior, Robin
-BCs); this module stays solver-free.
+For large meshes, prefer a sparse SPDE-based Matern KLE (O(N) memory):
+the eigenpairs of a precision operator such as
+:class:`~pyapprox.pde.galerkin.bilaplacian.BiLaplacianPrior`'s, turned
+into a KLE by
+:func:`~pyapprox.surrogates.kle.spde_kle.spde_matern_kle_from_precision_eigenpairs`
+and exponentiated by
+:func:`~pyapprox.pde.field_maps.transformed.exponentiated_field_map`.
+For arbitrary kernels, ``create_fem_nystrom_nodes_kle``.
 """
 
 from __future__ import annotations
@@ -45,7 +47,7 @@ from pyapprox.pde.field_maps.mesh_kle_field_map import (
 )
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
-    _ExpTransform,
+    exponentiated_field_map,
 )
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
@@ -119,15 +121,7 @@ def create_lognormal_kle_field_map(
     )
 
     inner = MeshKLEFieldMap(bkd, mean_log_field, mesh_kle.weighted_eigenvectors())
-
-    exp_transform = _ExpTransform(bkd)
-    return TransformedFieldMap(
-        inner,
-        transform=exp_transform,
-        transform_deriv=exp_transform,
-        bkd=bkd,
-        transform_deriv2=exp_transform,
-    )
+    return exponentiated_field_map(inner, bkd)
 
 
 def _build_phi_matrix(skfem_basis: CellBasis) -> npt.NDArray[np.floating[Any]]:

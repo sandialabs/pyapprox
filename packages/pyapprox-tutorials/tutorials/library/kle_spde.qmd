@@ -38,7 +38,7 @@ jupyter: python3
 After completing this tutorial, you will be able to:
 
 - Explain the SPDE connection between Matern covariance kernels and differential operators
-- Use `create_spde_matern_kle` to build a sparse SPDE-based KLE
+- Build a sparse SPDE-based KLE from the eigenpairs of a bilaplacian precision
 - Compare SPDE eigenvalues against the dense kernel-based `MeshKLE`
 - Understand boundary artefacts and how they diminish as the domain grows
 - Choose between `MeshKLE`, `DataDrivenKLE`, and `SPDEMaternKLE` for a given problem
@@ -62,12 +62,33 @@ from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.field_maps.kle_factory import (
     create_fem_nystrom_nodes_kle,
 )
-from pyapprox.pde.galerkin.kle_factory import (
-    create_spde_matern_kle,
+from pyapprox.pde.galerkin.bilaplacian import (
+    BiLaplacianPrior,
+    bilaplacian_stationary_variance,
+    default_robin_coefficient,
+)
+from pyapprox.pde.galerkin.noise_mass import ConsistentNoiseMass
+from pyapprox.surrogates.kle.spde_kle import (
+    spde_matern_kle_from_precision_eigenpairs,
 )
 
 bkd = NumpyBkd()
 rng = np.random.default_rng(7)
+
+
+def spde_matern_kle(basis, n_modes, gamma, delta, sigma, bkd):
+    """KLE of the bilaplacian Matern field: precision eigenpairs -> KLE."""
+    xi = default_robin_coefficient(gamma, delta)
+    prior = BiLaplacianPrior.with_uniform_robin(
+        basis, gamma=gamma, delta=delta, bkd=bkd, robin_alpha=xi,
+        noise_mass=ConsistentNoiseMass(basis, bkd),
+    )
+    mu, phi = prior.generalized_eigenpairs(n_modes)
+    variance = bilaplacian_stationary_variance(gamma, delta, basis.mesh().ndim())
+    return spde_matern_kle_from_precision_eigenpairs(
+        mu, phi, variance, sigma=sigma, bkd=bkd,
+        gamma=gamma, delta=delta, xi=xi,
+    )
 ```
 
 
@@ -146,12 +167,15 @@ Smaller $\nu$ produces rougher (less differentiable) paths. The SPDE approach
 lets us work with any $\nu$ through the integer $\alpha$ parametrization.
 
 
-## Building the SPDE KLE with `create_spde_matern_kle`
+## Building the SPDE KLE
 
-The `create_spde_matern_kle` factory assembles the sparse FEM precision operator
+The `spde_matern_kle` function defined above composes two steps.
+`BiLaplacianPrior` assembles the sparse FEM precision operator
 $A = \gamma K_{\text{stiff}} + \delta M + \xi M_{\partial}$
-and solves the generalized eigenvalue problem $A\phi_k = \mu_k M \phi_k$.
-The KLE eigenvalues are $\lambda_k = \gamma^2/(\tau^2 \mu_k^2)$.
+and solves the generalized eigenvalue problem $A\phi_k = \mu_k M \phi_k$;
+`spde_matern_kle_from_precision_eigenpairs` turns those eigenpairs into a KLE,
+with eigenvalues $\lambda_k = 1/(v\,\mu_k^2)$ for the field's stationary
+variance $v$, so that the marginal variance is $\sigma^2$.
 
 This uses only sparse matrices, giving $O(N)$ memory instead of $O(N^2)$.
 
@@ -172,7 +196,7 @@ mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 2.0), bkd=bkd)
 basis = LagrangeBasis(mesh, degree=1)
 
 # Create SPDE KLE
-kle_spde = create_spde_matern_kle(
+kle_spde = spde_matern_kle(
     basis, n_modes=nterms, gamma=gamma, delta=delta,
     sigma=1.0, bkd=bkd,
 )
@@ -236,7 +260,7 @@ for domain_len in [1.0, 2.0, 5.0]:
     gamma_d = 1.0
     delta_d = gamma_d / ell_c_fixed**2
     nterms_d = min(40, nx_d - 2)
-    kle_d = create_spde_matern_kle(
+    kle_d = spde_matern_kle(
         basis_d, n_modes=nterms_d, gamma=gamma_d, delta=delta_d,
         sigma=1.0, bkd=bkd,
     )
@@ -289,7 +313,7 @@ fields_by_ell = []
 for ell_target in ells:
     gamma_t = 1.0
     delta_t = gamma_t / ell_target**2
-    kle_t = create_spde_matern_kle(
+    kle_t = spde_matern_kle(
         basis_s, n_modes=20, gamma=gamma_t, delta=delta_t,
         sigma=1.0, bkd=bkd,
     )
@@ -326,7 +350,7 @@ cov_by_ell = []
 for ell_target in ells:
     gamma_t = 1.0
     delta_t = gamma_t / ell_target**2
-    kle_t = create_spde_matern_kle(
+    kle_t = spde_matern_kle(
         basis_s, n_modes=20, gamma=gamma_t, delta=delta_t,
         sigma=1.0, bkd=bkd,
     )
@@ -350,7 +374,7 @@ for L in domain_sizes:
     mesh_conv = StructuredMesh1D(nx=nx_conv, bounds=(0.0, float(L)), bkd=bkd)
     basis_conv = LagrangeBasis(mesh_conv, degree=1)
 
-    kle_spde_conv = create_spde_matern_kle(
+    kle_spde_conv = spde_matern_kle(
         basis_conv, n_modes=n_modes_conv, gamma=gamma_conv, delta=delta_conv,
         sigma=sigma_conv, bkd=bkd,
     )

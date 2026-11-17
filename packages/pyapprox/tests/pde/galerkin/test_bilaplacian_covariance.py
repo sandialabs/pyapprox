@@ -29,7 +29,6 @@ from pyapprox.pde.galerkin.bilaplacian import (
     default_robin_coefficient,
 )
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.kle_factory import create_spde_matern_kle
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.noise_mass import (
     ConsistentNoiseMass,
@@ -45,6 +44,7 @@ from pyapprox.probability.covariance.dense import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
+from tests._helpers.spde_fields import spde_matern_kle
 
 _GAMMA, _DELTA = 10.0, 100.0
 
@@ -432,7 +432,7 @@ class TestFromCorrelationLength:
             basis, length, std, bkd, robin_alpha=robin, noise_mass=noise_mass
         )
         gamma, delta = bilaplacian_correlation_parameters(length, std, 2)
-        kle = create_spde_matern_kle(
+        kle = spde_matern_kle(
             basis,
             n_modes=basis.ndofs(),
             gamma=gamma,

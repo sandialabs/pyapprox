@@ -1,13 +1,14 @@
-r"""Tests for SPDEMaternKLE and SPDE factory functions.
+r"""Tests for SPDEMaternKLE built from bi-Laplacian precision eigenpairs.
 
 NumPy-only tests (eigensolve is scipy-based; skfem is a dependency).
 Uses small meshes (10x10 or 20-element 1D) to keep tests fast and
 memory-light.
 
 These tests live in tests/pde/galerkin/ (not surrogates/kle/ or
-pde/field_maps/) because the SPDE factory functions live in
-pde.galerkin.kle_factory — they assemble the precision operator with
-galerkin machinery (BiLaplacianPrior, Robin BCs, skfem).
+pde/field_maps/) because the precision operator is assembled with
+galerkin machinery (BiLaplacianPrior, Robin BCs, skfem); the
+composition into a KLE and a field map is
+``tests._helpers.spde_fields``.
 
 Math Behind the Three Cross-Method Tests
 =========================================
@@ -218,10 +219,6 @@ from pyapprox.pde.field_maps.kle_factory import (
 )
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
-from pyapprox.pde.galerkin.kle_factory import (
-    create_spde_lognormal_kle_field_map,
-    create_spde_matern_kle,
-)
 from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -232,6 +229,10 @@ from pyapprox.pde.galerkin.noise_mass import (
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
+from tests._helpers.spde_fields import (
+    spde_lognormal_field_map,
+    spde_matern_kle,
+)
 
 
 def _make_2d_kle(
@@ -253,7 +254,7 @@ def _make_2d_kle(
         bkd=bkd,
     )
     basis = LagrangeBasis(mesh, degree=1)
-    return create_spde_matern_kle(
+    return spde_matern_kle(
         basis,
         n_modes=n_modes,
         gamma=gamma,
@@ -271,7 +272,7 @@ def _make_1d_kle(
     """Create an SPDE Matern KLE on [0, 1]."""
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
-    return create_spde_matern_kle(
+    return spde_matern_kle(
         basis,
         n_modes=n_modes,
         gamma=gamma,
@@ -452,7 +453,7 @@ class TestSPDEMaternKLE:
         n_modes = 20
         mesh = StructuredMesh1D(nx=80, bounds=(0.0, 10.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        kle = create_spde_matern_kle(
+        kle = spde_matern_kle(
             basis,
             n_modes=n_modes,
             gamma=0.01,
@@ -507,7 +508,7 @@ class TestSPDEMaternKLE:
         assert isinstance(kle, KLEProtocol)
 
     def test_lognormal_factory_shapes(self, numpy_bkd) -> None:
-        """create_spde_lognormal_kle_field_map returns correct shapes."""
+        """spde_lognormal_field_map returns correct shapes."""
         bkd = numpy_bkd
         n_modes = 3
         mesh = StructuredMesh2D(
@@ -519,7 +520,7 @@ class TestSPDEMaternKLE:
         basis = LagrangeBasis(mesh, degree=1)
         mean_log = bkd.zeros((basis.ndofs(),))
 
-        tfm = create_spde_lognormal_kle_field_map(
+        tfm = spde_lognormal_field_map(
             basis,
             mean_log,
             bkd,
@@ -546,7 +547,7 @@ class TestSPDEMaternKLE:
         basis = LagrangeBasis(mesh, degree=1)
         mean_log = bkd.zeros((basis.ndofs(),))
 
-        tfm = create_spde_lognormal_kle_field_map(
+        tfm = spde_lognormal_field_map(
             basis,
             mean_log,
             bkd,
@@ -569,7 +570,7 @@ class TestSPDEMaternKLE:
         basis = LagrangeBasis(mesh, degree=1)
         mean_log = bkd.linspace(0.0, 1.0, basis.ndofs())
 
-        tfm = create_spde_lognormal_kle_field_map(
+        tfm = spde_lognormal_field_map(
             basis,
             mean_log,
             bkd,
@@ -737,7 +738,7 @@ class TestSPDEMaternKLE:
             basis = LagrangeBasis(mesh, degree=1)
             skfem_basis = basis.skfem_basis()
 
-            kle_spde = create_spde_matern_kle(
+            kle_spde = spde_matern_kle(
                 basis,
                 n_modes=n_modes,
                 gamma=gamma,
@@ -789,7 +790,7 @@ class TestSPDEKLENoiseMass:
             ("consistent", ConsistentNoiseMass(basis, bkd)),
             ("lumped", LumpedNoiseMass(basis, bkd)),
         ):
-            kle = create_spde_matern_kle(
+            kle = spde_matern_kle(
                 basis,
                 n_modes=basis.ndofs(),
                 gamma=gamma,
@@ -818,7 +819,7 @@ class TestSPDEKLENoiseMass:
     def test_default_is_consistent(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         kle_default, basis = _make_2d_kle(bkd, n_modes=4, nx=6, ny=6)
-        kle_consistent = create_spde_matern_kle(
+        kle_consistent = spde_matern_kle(
             basis,
             n_modes=4,
             gamma=1.0,

@@ -69,7 +69,9 @@ from typing import Generic, Union
 
 import numpy as np
 
+from pyapprox.surrogates.kle.utils import sort_eigenpairs
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.eigenvector_signs import adjust_sign_eig
 
 
 class SPDEMaternKLE(Generic[Array]):
@@ -137,8 +139,8 @@ class SPDEMaternKLE(Generic[Array]):
         self._nterms = eigenvalues.shape[0]
         nnodes = eigenvectors.shape[0]
 
-        if np.isscalar(mean_field):
-            self._mean_field = bkd.full((nnodes,), 1) * mean_field
+        if isinstance(mean_field, (int, float)):
+            self._mean_field = bkd.full((nnodes,), float(mean_field))
         else:
             self._mean_field = mean_field
 
@@ -224,3 +226,90 @@ class SPDEMaternKLE(Generic[Array]):
             f"sigma={self._sigma}, "
             f"corr_len={self.correlation_length():.4f})"
         )
+
+
+def spde_matern_kle_from_precision_eigenpairs(
+    precision_eigenvalues: Array,
+    eigenvectors: Array,
+    stationary_variance: float,
+    sigma: float,
+    bkd: Backend[Array],
+    gamma: float,
+    delta: float,
+    xi: float,
+    mean_field: Union[float, Array] = 0.0,
+) -> SPDEMaternKLE[Array]:
+    r"""Build an SPDE Matern KLE from the precision's generalized eigenpairs.
+
+    Given the smallest generalized eigenpairs
+    :math:`A\,\phi_k = \mu_k\,M\,\phi_k` of the SPDE precision operator
+    :math:`A` and the white-noise mass :math:`M`, with
+    :math:`\Phi^\top M \Phi = I`, the covariance
+    :math:`A^{-1} M A^{-1} = \Phi\,\mathrm{diag}(\mu^{-2})\,\Phi^\top`.
+    Dividing by the field's stationary marginal variance :math:`v` gives
+    the unit-variance eigenvalues :math:`\lambda_k = 1/(v\,\mu_k^2)`;
+    :class:`SPDEMaternKLE` then scales the field by :math:`\sigma`, so
+    the marginal variance is :math:`\sigma^2`.
+
+    Only operators' eigenpairs enter, so the discretization that
+    assembled :math:`A` and :math:`M` is the caller's choice.
+
+    Parameters
+    ----------
+    precision_eigenvalues : Array, shape (nterms,)
+        Generalized eigenvalues :math:`\mu_k > 0`, in any order.
+    eigenvectors : Array, shape (nnodes, nterms)
+        The corresponding :math:`M`-orthonormal eigenvectors.
+    stationary_variance : float
+        Marginal variance :math:`v` of the field :math:`A^{-1} M A^{-1}`
+        away from the boundary.
+    sigma : float
+        Target marginal standard deviation.
+    bkd : Backend[Array]
+        Computational backend.
+    gamma, delta : float
+        Diffusion and reaction coefficients of the SPDE; recorded for
+        :meth:`SPDEMaternKLE.correlation_length`.
+    xi : float
+        Robin coefficient used to assemble :math:`A`; recorded.
+    mean_field : float or Array, optional
+        Mean field. Scalar is broadcast to all nodes. Default: 0.
+
+    Returns
+    -------
+    SPDEMaternKLE
+        Eigenpairs sorted by descending :math:`\lambda_k`, signs fixed by
+        :func:`~pyapprox.util.linalg.eigenvector_signs.adjust_sign_eig`.
+
+    Raises
+    ------
+    ValueError
+        If ``precision_eigenvalues`` is not 1D, its length differs from
+        the number of eigenvector columns, or an eigenvalue is not
+        positive.
+    """
+    if precision_eigenvalues.ndim != 1:
+        raise ValueError(
+            "precision_eigenvalues must be 1D, got shape "
+            f"{precision_eigenvalues.shape}"
+        )
+    nterms = precision_eigenvalues.shape[0]
+    if eigenvectors.ndim != 2 or eigenvectors.shape[1] != nterms:
+        raise ValueError(
+            f"eigenvectors must have shape (nnodes, {nterms}), got "
+            f"{eigenvectors.shape}"
+        )
+    if not bkd.all_bool(precision_eigenvalues > 0.0):
+        raise ValueError("precision_eigenvalues must be positive")
+    eig_vals = 1.0 / (stationary_variance * precision_eigenvalues**2)
+    eig_vals, eig_vecs, _ = sort_eigenpairs(eig_vals, eigenvectors, nterms, bkd)
+    return SPDEMaternKLE(
+        eigenvalues=eig_vals,
+        eigenvectors=adjust_sign_eig(eig_vecs, bkd),
+        sigma=sigma,
+        mean_field=mean_field,
+        bkd=bkd,
+        gamma=gamma,
+        delta=delta,
+        xi=xi,
+    )

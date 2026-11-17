@@ -125,10 +125,8 @@ class _ExpTransform(Generic[Array]):
 
     One instance serves as ``transform``, ``transform_deriv``, and
     ``transform_deriv2`` for the exp map (since ``d/dx exp = exp``).
-    Replaces the ``lambda x: bkd.exp(x)`` triple that previously broke
-    pickling of the :class:`TransformedFieldMap` returned by the
-    lognormal KLE factories (``pde.field_maps.kle_factory`` and
-    ``pde.galerkin.kle_factory``).
+    A class rather than a lambda so that the map returned by
+    :func:`exponentiated_field_map` pickles.
     """
 
     def __init__(self, bkd: Backend[Array]) -> None:
@@ -136,3 +134,34 @@ class _ExpTransform(Generic[Array]):
 
     def __call__(self, x: Array) -> Array:
         return self._bkd.exp(x)
+
+
+def exponentiated_field_map(
+    inner: FieldMapProtocol[Array], bkd: Backend[Array]
+) -> TransformedFieldMap[Array]:
+    """Return the field map ``exp(inner(params))``, with its HVP.
+
+    The lognormal field of a Gaussian expansion: with ``inner`` the
+    linear map ``mean + W @ params`` of :class:`MeshKLEFieldMap`, the
+    result is ``exp(mean + W @ params)``.
+
+    Parameters
+    ----------
+    inner : FieldMapProtocol
+        The field map to exponentiate.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    TransformedFieldMap
+        Picklable; has an HVP whenever ``inner`` has one.
+    """
+    exp_transform = _ExpTransform(bkd)
+    return TransformedFieldMap(
+        inner,
+        transform=exp_transform,
+        transform_deriv=exp_transform,
+        bkd=bkd,
+        transform_deriv2=exp_transform,
+    )

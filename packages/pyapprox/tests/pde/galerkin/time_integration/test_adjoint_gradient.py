@@ -40,9 +40,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.kle_factory import (
-    create_spde_lognormal_kle_field_map,
-)
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
@@ -64,6 +61,9 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.adjoint_checks import HVPOperatorFunction
+from tests._helpers.spde_fields import (
+    spde_lognormal_field_map,
+)
 
 _NumpyArray = NDArray[Any]
 
@@ -113,7 +113,7 @@ def _build_pipeline(
     bkd: NumpyBkd, method: str
 ) -> Tuple[TimeIntegrator[_NumpyArray], Any, GalerkinSystem[_NumpyArray]]:
     physics, basis, system = _make_physics(bkd)
-    diffusivity_map = create_spde_lognormal_kle_field_map(
+    diffusivity_map = spde_lognormal_field_map(
         basis,
         bkd.asarray(np.log(0.1) * np.ones(basis.ndofs())),
         bkd,

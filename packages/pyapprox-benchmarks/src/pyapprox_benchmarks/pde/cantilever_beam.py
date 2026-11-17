@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
         CompositeLinearElasticity,
     )
+    from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
     from pyapprox.pde.galerkin.system import GalerkinSystem
     from pyapprox.util.rootfinding.nonlinear import Newton
 
@@ -258,6 +259,54 @@ class _SkfemSubmesh(Generic[Array]):
         return self._bkd.asarray(node_idx.astype(np.int64))
 
 
+def _spde_lognormal_field_map(
+    basis: "GalerkinBasisProtocol[Array]",
+    mean_log_field: Array,
+    bkd: Backend[Array],
+    n_modes: int,
+    gamma: float,
+    delta: float,
+    sigma: float,
+) -> TransformedFieldMap[Array]:
+    """``exp(mean_log_field + W @ params)`` for the bi-Laplacian Matern
+    field on ``basis``, ``W`` its ``n_modes`` weighted KLE eigenvectors
+    (consistent noise mass, the prior's default Robin coefficient)."""
+    from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
+    from pyapprox.pde.field_maps.transformed import exponentiated_field_map
+    from pyapprox.pde.galerkin.bilaplacian import (
+        BiLaplacianPrior,
+        bilaplacian_stationary_variance,
+        default_robin_coefficient,
+    )
+    from pyapprox.pde.galerkin.noise_mass import ConsistentNoiseMass
+    from pyapprox.surrogates.kle.spde_kle import (
+        spde_matern_kle_from_precision_eigenpairs,
+    )
+
+    xi = default_robin_coefficient(gamma, delta)
+    prior = BiLaplacianPrior.with_uniform_robin(
+        basis,
+        gamma=gamma,
+        delta=delta,
+        bkd=bkd,
+        robin_alpha=xi,
+        noise_mass=ConsistentNoiseMass(basis, bkd),
+    )
+    mu, phi = prior.generalized_eigenpairs(n_modes)
+    kle = spde_matern_kle_from_precision_eigenpairs(
+        mu,
+        phi,
+        bilaplacian_stationary_variance(gamma, delta, basis.mesh().ndim()),
+        sigma=sigma,
+        bkd=bkd,
+        gamma=gamma,
+        delta=delta,
+        xi=xi,
+    )
+    inner = MeshKLEFieldMap(bkd, mean_log_field, kle.weighted_eigenvectors())
+    return exponentiated_field_map(inner, bkd)
+
+
 def _create_subdomain_spde_kle_field_maps(
     skfem_mesh: "skfem.Mesh",
     subdomain_elements: Dict[str, np.ndarray],
@@ -322,9 +371,6 @@ def _create_subdomain_spde_kle_field_maps(
 
         # Build submesh and basis
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-        from pyapprox.pde.galerkin.kle_factory import (
-            create_spde_lognormal_kle_field_map,
-        )
 
         submesh_skfem = skfem_mesh.restrict(elem_idx)
         submesh = _SkfemSubmesh(submesh_skfem, bkd)
@@ -332,7 +378,7 @@ def _create_subdomain_spde_kle_field_maps(
 
         mean_log = bkd.full((n_nodes,), mean_log_E)
 
-        fm = create_spde_lognormal_kle_field_map(
+        fm = _spde_lognormal_field_map(
             basis,
             mean_log,
             bkd,
@@ -1362,9 +1408,6 @@ def build_cantilever_beam_1d_spde(
         Correlation length for the SPDE Matern field.
     """
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-    from pyapprox.pde.galerkin.kle_factory import (
-        create_spde_lognormal_kle_field_map,
-    )
     from pyapprox.pde.galerkin.mesh.structured import StructuredMesh1D
 
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
@@ -1374,7 +1417,7 @@ def build_cantilever_beam_1d_spde(
     delta = 1.0
     mean_log = bkd.full((basis.ndofs(),), float(np.log(EI_mean)))
 
-    field_map = create_spde_lognormal_kle_field_map(
+    field_map = _spde_lognormal_field_map(
         basis,
         mean_log,
         bkd,

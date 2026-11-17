@@ -62,9 +62,6 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     RobinBC,
 )
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.kle_factory import (
-    create_spde_lognormal_kle_field_map,
-)
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
@@ -84,6 +81,9 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.linalg.symmetric_weight import ScipySparseWeight
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.spde_fields import (
+    spde_lognormal_field_map,
+)
 
 _N_KLE_MODES = 4
 _N_FORCING_MODES = 2
@@ -165,7 +165,7 @@ def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = Fa
 def _diffusivity_map(bkd: NumpyBkd, basis):
     """Bilaplacian-prior lognormal KLE (correlation length ~0.5)."""
     nnodes = basis.ndofs()
-    return create_spde_lognormal_kle_field_map(
+    return spde_lognormal_field_map(
         basis,
         bkd.asarray(np.log(0.1) * np.ones(nnodes)),
         bkd,

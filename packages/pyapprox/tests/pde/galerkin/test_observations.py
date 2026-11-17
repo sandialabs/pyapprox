@@ -39,9 +39,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.kle_factory import (
-    create_spde_lognormal_kle_field_map,
-)
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.observations import (
     nodal_outflux_functional,
@@ -58,6 +55,9 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from tests._helpers.spde_fields import (
+    spde_lognormal_field_map,
+)
 
 # Interior, on an edge, and on a vertex (incl. the domain corner).
 _POINTS = np.array(
@@ -205,7 +205,7 @@ def _problem(bkd: NumpyBkd) -> tuple[Any, Any, Any]:
     system = compose_galerkin_system(
         physics, [DirichletBC(basis, "left", 0.0, bkd)]
     )
-    diffusivity_map = create_spde_lognormal_kle_field_map(
+    diffusivity_map = spde_lognormal_field_map(
         basis,
         bkd.asarray(np.log(0.1) * np.ones(basis.ndofs())),
         bkd,
