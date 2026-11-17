@@ -212,8 +212,9 @@ class BiLaplacianPrior(Generic[Array]):
     TypeError
         If an argument does not satisfy its protocol.
     ValueError
-        If the system has essential constraints, or the noise mass is on
-        a different number of DOFs.
+        If the system has essential constraints or data declared
+        time-dependent, or the noise mass is on a different number of
+        DOFs.
     """
 
     def __init__(
@@ -236,6 +237,12 @@ class BiLaplacianPrior(Generic[Array]):
                 "a precision operator takes only natural boundary terms; "
                 f"the system constrains {system.constraint_set().ndofs()} "
                 "DOFs"
+            )
+        if not system.spatial_operator().is_time_invariant():
+            raise ValueError(
+                f"{type(system.spatial_operator()).__name__} has data "
+                "declared time-dependent; a precision operator must be "
+                "time-invariant"
             )
         if noise_mass.mass_matrix().shape[0] != system.nstates():
             raise ValueError(
@@ -360,12 +367,15 @@ class BiLaplacianPrior(Generic[Array]):
         return self._system
 
     def _assemble_system(self) -> None:
-        """Take ``K`` once, as minus the system's Jacobian (the system is
-        linear, so any state gives it)."""
+        """Take ``K`` once, as minus the operator's Jacobian. The operator
+        is linear, so any state gives it, and time-invariant, so any time
+        does; with no essential constraints no rows are replaced."""
         if self._stiffness is not None:
             return
         zero_state = self._bkd.zeros((self._system.nstates(),))
-        self._stiffness = -self._system.steady().steady_jacobian(zero_state)
+        self._stiffness = -self._system.spatial_operator().spatial_jacobian(
+            zero_state, 0.0
+        )
 
     def rvs(
         self,
