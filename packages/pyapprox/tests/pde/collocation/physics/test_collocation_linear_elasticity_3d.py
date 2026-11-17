@@ -12,7 +12,7 @@ tests, while the 3D residual/jacobian are covered here and by the 3D
 manufactured-solution tests.
 """
 
-from typing import Callable
+from typing import Callable, Generic, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -27,25 +27,45 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh3D,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
+from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.physics_test_utils import PhysicsDerivativeWrapper
 
 _NPTS_1D = 4
 
 
-def _make_basis(bkd, npts_1d=_NPTS_1D, transform=None):
+def _make_basis(
+    bkd: Backend[Array],
+    npts_1d: int = _NPTS_1D,
+    transform: Optional[TransformProtocol[Array]] = None,
+) -> Tuple[TransformedMesh3D[Array], ChebyshevBasis3D[Array]]:
     mesh = TransformedMesh3D(npts_1d, npts_1d, npts_1d, bkd, transform)
     return mesh, ChebyshevBasis3D(mesh, bkd)
 
 
-def _random(bkd, shape, lb=-1.0, ub=1.0):
+def _random(
+    bkd: Backend[Array],
+    shape: Tuple[int, ...],
+    lb: float = -1.0,
+    ub: float = 1.0,
+) -> Array:
     return bkd.asarray(np.random.uniform(lb, ub, shape))
 
 
-class _VectorFunctionWrapper:
+def _assert_identity(bkd: Backend[Array], actual: Array, expected: Array) -> None:
+    """Assert an exact algebraic identity up to rounding: entries agree to
+    1e-12 relative to the largest entry of ``expected``. The states are
+    random, so an entry may cancel to near zero, where a relative
+    comparison alone fails on rounding."""
+    scale = float(bkd.max(bkd.abs(expected)))
+    bkd.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12 * scale)
+
+
+class _VectorFunctionWrapper(Generic[Array]):
     """Adapts a 1D-array function and its assembly for DerivativeChecker."""
 
     def __init__(
@@ -82,20 +102,20 @@ class _VectorFunctionWrapper:
 
 
 class TestConstruction:
-    def test_constructor_rejects_1d(self, bkd):
+    def test_constructor_rejects_1d(self, bkd: Backend[Array]) -> None:
         mesh = TransformedMesh1D(5, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         with pytest.raises(ValueError, match="2D or 3D"):
             LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
 
-    def test_dimensions(self, bkd):
+    def test_dimensions(self, bkd: Backend[Array]) -> None:
         _, basis = _make_basis(bkd)
         physics = LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
         npts = _NPTS_1D**3
         assert physics.ncomponents() == 3
         assert physics.nstates() == 3 * npts
 
-    def test_state_state_hvp_zero(self, bkd):
+    def test_state_state_hvp_zero(self, bkd: Backend[Array]) -> None:
         _, basis = _make_basis(bkd)
         physics = LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
         npts = _NPTS_1D**3
@@ -120,13 +140,15 @@ class TestPatchUniformStrain:
     _LAM = 1.0
     _MU = 1.0
 
-    def _patch_state(self, bkd, mesh):
+    def _patch_state(
+        self, bkd: Backend[Array], mesh: TransformedMesh3D[Array]
+    ) -> Array:
         pts = mesh.points()
         return bkd.concatenate(
             [self._A * pts[0], -self._B * pts[1], -self._B * pts[2]]
         )
 
-    def test_residual_zero(self, bkd):
+    def test_residual_zero(self, bkd: Backend[Array]) -> None:
         mesh, basis = _make_basis(bkd, npts_1d=6)
         physics = LinearElasticityPhysics(
             basis, bkd, self._LAM, self._MU
@@ -137,7 +159,7 @@ class TestPatchUniformStrain:
             res, bkd.zeros((physics.nstates(),)), atol=1e-9
         )
 
-    def test_interface_flux_faces(self, bkd):
+    def test_interface_flux_faces(self, bkd: Backend[Array]) -> None:
         mesh, basis = _make_basis(bkd, npts_1d=6)
         physics = LinearElasticityPhysics(
             basis, bkd, self._LAM, self._MU
@@ -175,27 +197,39 @@ class TestPatchUniformStrain:
 
 
 class TestJacobian:
-    def _setup(self, bkd, transform=None, field_lame=False):
+    def _setup(
+        self,
+        bkd: Backend[Array],
+        transform: Optional[TransformProtocol[Array]] = None,
+        field_lame: bool = False,
+    ) -> Tuple[LinearElasticityPhysics[Array], Array, int]:
         mesh, basis = _make_basis(bkd, transform=transform)
         npts = _NPTS_1D**3
-        physics = LinearElasticityPhysics(basis, bkd, 1.5, 1.0)
         if field_lame:
-            physics.mu_function().set_values(_random(bkd, (npts,), 1.0, 2.0))
-            physics.lamda_function().set_values(_random(bkd, (npts,), 1.5, 2.5))
+            physics = LinearElasticityPhysics(
+                basis,
+                bkd,
+                NodalField(_random(bkd, (npts,), 1.5, 2.5)),
+                NodalField(_random(bkd, (npts,), 1.0, 2.0)),
+            )
+        else:
+            physics = LinearElasticityPhysics(basis, bkd, 1.5, 1.0)
         state = _random(bkd, (3 * npts,))
         return physics, state, npts
 
     @pytest.mark.parametrize("field_lame", [False, True])
-    def test_linearity_identity(self, bkd, field_lame):
+    def test_linearity_identity(
+        self, bkd: Backend[Array], field_lame: bool
+    ) -> None:
         """J @ state == residual(state) - residual(0) exactly: the
         residual is affine in the displacement."""
         physics, state, npts = self._setup(bkd, field_lame=field_lame)
         jac = physics.jacobian(state, 0.0)
         res = physics.residual(state, 0.0)
         res0 = physics.residual(bkd.zeros((3 * npts,)), 0.0)
-        bkd.assert_allclose(jac @ state, res - res0, rtol=1e-12)
+        _assert_identity(bkd, jac @ state, res - res0)
 
-    def test_jacobian_derivative_checker(self, bkd):
+    def test_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         physics, state, _ = self._setup(bkd)
         checker = DerivativeChecker(
             PhysicsDerivativeWrapper(physics, time=0.0)
@@ -203,7 +237,7 @@ class TestJacobian:
         errors = checker.check_derivatives(state[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_jacobian_affine_transform(self, bkd):
+    def test_jacobian_affine_transform(self, bkd: Backend[Array]) -> None:
         """Curvilinear-ordering guard: on a non-unit box the mixed
         blocks D_i @ diag @ D_j depend on operator order."""
         transform = AffineTransform3D(
@@ -213,7 +247,7 @@ class TestJacobian:
         jac = physics.jacobian(state, 0.0)
         res = physics.residual(state, 0.0)
         res0 = physics.residual(bkd.zeros((3 * npts,)), 0.0)
-        bkd.assert_allclose(jac @ state, res - res0, rtol=1e-12)
+        _assert_identity(bkd, jac @ state, res - res0)
         checker = DerivativeChecker(
             PhysicsDerivativeWrapper(physics, time=0.0)
         )
@@ -222,18 +256,24 @@ class TestJacobian:
 
 
 class TestAssemblies:
-    def _setup(self, bkd):
+    def _setup(self, bkd: Backend[Array]) -> Tuple[
+        ChebyshevBasis3D[Array],
+        LinearElasticityPhysics[Array],
+        Array,
+        int,
+        NodalField[Array],
+        NodalField[Array],
+    ]:
+        """Lame fields held as NodalFields the tests set directly."""
         npts = _NPTS_1D**3
-        mu_field = _random(bkd, (npts,), 1.0, 2.0)
-        lam_field = _random(bkd, (npts,), 1.5, 2.5)
+        mu = NodalField(_random(bkd, (npts,), 1.0, 2.0))
+        lam = NodalField(_random(bkd, (npts,), 1.5, 2.5))
         _, basis = _make_basis(bkd)
-        physics = LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
-        physics.mu_function().set_values(mu_field)
-        physics.lamda_function().set_values(lam_field)
+        physics = LinearElasticityPhysics(basis, bkd, lam, mu)
         state = _random(bkd, (3 * npts,))
-        return basis, physics, state, npts, mu_field, lam_field
+        return basis, physics, state, npts, mu, lam
 
-    def test_mu_bilinearity_identity(self, bkd):
+    def test_mu_bilinearity_identity(self, bkd: Backend[Array]) -> None:
         """A_mu(delta) w == S_mu(w) delta: stress bilinear in
         (strain, mu)."""
         _, physics, state, npts, _, _ = self._setup(bkd)
@@ -241,26 +281,27 @@ class TestAssemblies:
         wvec = _random(bkd, (3 * npts,))
         amat = physics.residual_mu_state_jacobian(delta, state)
         smat_w = physics.residual_mu_jacobian(wvec)
-        bkd.assert_allclose(amat @ wvec, smat_w @ delta, rtol=1e-12)
+        _assert_identity(bkd, amat @ wvec, smat_w @ delta)
 
-    def test_lamda_bilinearity_identity(self, bkd):
+    def test_lamda_bilinearity_identity(self, bkd: Backend[Array]) -> None:
         _, physics, state, npts, _, _ = self._setup(bkd)
         delta = _random(bkd, (npts,))
         wvec = _random(bkd, (3 * npts,))
         amat = physics.residual_lamda_state_jacobian(delta, state)
         smat_w = physics.residual_lamda_jacobian(wvec)
-        bkd.assert_allclose(amat @ wvec, smat_w @ delta, rtol=1e-12)
+        _assert_identity(bkd, amat @ wvec, smat_w @ delta)
 
-    def test_mu_jacobian_derivative_checker(self, bkd):
+    def test_mu_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         """The residual is affine in the mu field."""
-        _, physics, state, npts, mu_field, _ = self._setup(bkd)
+        _, physics, state, npts, mu, _ = self._setup(bkd)
+        mu_field = mu.values(0.0)
 
-        def fun(mfield):
-            physics.mu_function().set_values(mfield)
+        def fun(mfield: Array) -> Array:
+            mu.set_values(mfield)
             return physics.residual(state, 0.0)
 
-        def jac(mfield):
-            physics.mu_function().set_values(mfield)
+        def jac(mfield: Array) -> Array:
+            mu.set_values(mfield)
             return physics.residual_mu_jacobian(state)
 
         checker = DerivativeChecker(
@@ -269,16 +310,17 @@ class TestAssemblies:
         errors = checker.check_derivatives(mu_field[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_lamda_jacobian_derivative_checker(self, bkd):
+    def test_lamda_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         """The residual is affine in the lambda field."""
-        _, physics, state, npts, _, lam_field = self._setup(bkd)
+        _, physics, state, npts, _, lam = self._setup(bkd)
+        lam_field = lam.values(0.0)
 
-        def fun(lfield):
-            physics.lamda_function().set_values(lfield)
+        def fun(lfield: Array) -> Array:
+            lam.set_values(lfield)
             return physics.residual(state, 0.0)
 
-        def jac(lfield):
-            physics.lamda_function().set_values(lfield)
+        def jac(lfield: Array) -> Array:
+            lam.set_values(lfield)
             return physics.residual_lamda_jacobian(state)
 
         checker = DerivativeChecker(
@@ -289,15 +331,15 @@ class TestAssemblies:
         )
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_mixed_assemblies_derivative_checker(self, bkd):
+    def test_mixed_assemblies_derivative_checker(self, bkd: Backend[Array]) -> None:
         """A(delta) is d/d(state) of S(state) delta for both fields."""
         _, physics, state, npts, _, _ = self._setup(bkd)
         delta = _random(bkd, (npts,))
 
-        def fun_mu(uvec):
+        def fun_mu(uvec: Array) -> Array:
             return physics.residual_mu_jacobian(uvec) @ delta
 
-        def jac_mu(uvec):
+        def jac_mu(uvec: Array) -> Array:
             return physics.residual_mu_state_jacobian(delta, uvec)
 
         checker = DerivativeChecker(
@@ -306,10 +348,10 @@ class TestAssemblies:
         errors = checker.check_derivatives(state[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-        def fun_lam(uvec):
+        def fun_lam(uvec: Array) -> Array:
             return physics.residual_lamda_jacobian(uvec) @ delta
 
-        def jac_lam(uvec):
+        def jac_lam(uvec: Array) -> Array:
             return physics.residual_lamda_state_jacobian(delta, uvec)
 
         checker = DerivativeChecker(
@@ -320,7 +362,7 @@ class TestAssemblies:
         errors = checker.check_derivatives(state[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_boundary_traction_direct_formula(self, bkd):
+    def test_boundary_traction_direct_formula(self, bkd: Backend[Array]) -> None:
         """Each traction row has exactly two nonzeros — the local
         strain contractions — recomputed here from the public
         derivative matrices, for all three component offsets."""
@@ -361,4 +403,4 @@ class TestAssemblies:
             expected = dt_dmu * delta_mu[mesh_idx] + trace * normals[
                 :, comp
             ] * delta_lam[mesh_idx]
-            bkd.assert_allclose(bmat @ stacked, expected, rtol=1e-12)
+            _assert_identity(bkd, bmat @ stacked, expected)
