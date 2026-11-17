@@ -70,6 +70,10 @@ class GradientNormalOperator(Generic[Array]):
         """Return False: grad(u)·n does not depend on a parameterized coefficient."""
         return False
 
+    def is_linear_in_state(self) -> bool:
+        """Return True: grad(u)·n is a fixed matrix applied to the state."""
+        return True
+
     def __call__(self, state: Array, time: float) -> Array:
         """Compute grad(u) . n at boundary points.
 
@@ -147,6 +151,11 @@ class FluxNormalOperator(Generic[Array]):
     def has_coefficient_dependence(self) -> bool:
         """Return True: flux = -D·grad(u) depends on parameterized D."""
         return True
+
+    def is_linear_in_state(self) -> bool:
+        """Return False: the flux provider declares no linearity (the
+        hyperelastic flux is nonlinear), so linearity is not known."""
+        return False
 
     def __call__(self, state: Array, time: float) -> Array:
         """Compute flux(u) . n at boundary points.
@@ -272,6 +281,11 @@ class TractionNormalOperator(Generic[Array]):
     def has_coefficient_dependence(self) -> bool:
         """Return True: the traction depends on the Lame parameters."""
         return True
+
+    def is_linear_in_state(self) -> bool:
+        """Return False: the stress source declares no linearity, so
+        linearity is not known."""
+        return False
 
     def __call__(self, state: Array, time: float) -> Array:
         """Compute one component of traction t = σ·n at boundary points.

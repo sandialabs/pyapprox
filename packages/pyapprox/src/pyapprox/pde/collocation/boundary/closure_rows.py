@@ -46,21 +46,40 @@ from pyapprox.util.linalg.backend_dense import BackendRowSet
 ClosureParamFn = Callable[[Array, float], Array]
 r""":math:`(u, t) \mapsto \partial c/\partial p` with zero rows outside the
 declaration. Shape: (nstates, nparams)"""
+ClosureWeightedFn = Callable[[Array, float, Array], Array]
+r""":math:`(u, t, w) \mapsto \sum_i w_i\, \partial^2 c_i` for a weight
+vector :math:`w` of shape (nstates,); entries outside the declaration's
+rows are ignored."""
 
 
 @dataclass(frozen=True)
-class ClosureRowsParamDerivatives(Generic[Array]):
-    """How closure rows depend on the parameters.
+class ClosureRowsDerivatives(Generic[Array]):
+    r"""The optional derivatives of closure rows. The state Jacobian is
+    always supplied, by the rows themselves.
+
+    Every field is a function, ``STATED_ZERO`` (the rows do not depend on
+    that variable that way), or None (not known here: a consumer needing
+    it refuses or supplies it).
 
     Attributes
     ----------
-    jacobian : ClosureParamFn, STATED_ZERO or None
-        :math:`\\partial c/\\partial p`. ``STATED_ZERO`` when the rows do
-        not depend on the parameters; None when the dependence is not
-        known here (a consumer needing it refuses or supplies it).
+    param_jacobian : ClosureParamFn, STATED_ZERO or None
+        :math:`\partial c/\partial p`. Shape: (nstates, nparams)
+    state_curvature : ClosureWeightedFn, STATED_ZERO or None
+        :math:`\sum_i w_i\, \partial^2 c_i/\partial u^2`.
+        Shape: (nstates, nstates)
+    mixed : ClosureWeightedFn, STATED_ZERO or None
+        :math:`\sum_i w_i\, \partial^2 c_i/\partial u\, \partial p`.
+        Shape: (nstates, nparams)
+    param_curvature : ClosureWeightedFn, STATED_ZERO or None
+        :math:`\sum_i w_i\, \partial^2 c_i/\partial p^2`.
+        Shape: (nparams, nparams)
     """
 
-    jacobian: Union[ClosureParamFn[Array], StatedZero, None] = None
+    param_jacobian: Union[ClosureParamFn[Array], StatedZero, None] = None
+    state_curvature: Union[ClosureWeightedFn[Array], StatedZero, None] = None
+    mixed: Union[ClosureWeightedFn[Array], StatedZero, None] = None
+    param_curvature: Union[ClosureWeightedFn[Array], StatedZero, None] = None
 
 
 @runtime_checkable
@@ -81,8 +100,8 @@ class ClosureRowsProtocol(Protocol, Generic[Array]):
         Shape: (nstates, nstates)"""
         ...
 
-    def parameter_derivatives(self) -> ClosureRowsParamDerivatives[Array]:
-        """The rows' parameter derivatives; which fields are present is
+    def derivatives(self) -> ClosureRowsDerivatives[Array]:
+        """The rows' optional derivatives; which fields are present is
         fixed for the object's life."""
         ...
 
@@ -107,6 +126,11 @@ class RobinNormalTermProtocol(Protocol, Generic[Array]):
     def has_coefficient_dependence(self) -> bool:
         """Whether :math:`N` reads a physics coefficient, through which it
         may depend on the parameters."""
+        ...
+
+    def is_linear_in_state(self) -> bool:
+        """Whether :math:`N` is declared linear in the state, so its second
+        state derivative is zero. False means not known, not nonlinear."""
         ...
 
 
@@ -192,6 +216,14 @@ class _RobinPartRows(Generic[Array]):
     def coefficients(self) -> Tuple[_PartCoefficient[Array], ...]:
         return (self.alpha, self.beta, self.data)
 
+    def has_curvature(self) -> bool:
+        """Whether every parameterized coefficient supplies its curvature."""
+        return all(
+            c.parameterized.param_derivatives().curvature is not None
+            for c in self.coefficients()
+            if c.parameterized is not None
+        )
+
 
 class _RobinParamJacobian(Generic[Array]):
     def __init__(self, rows: "RobinRows[Array]") -> None:
@@ -199,6 +231,22 @@ class _RobinParamJacobian(Generic[Array]):
 
     def __call__(self, state: Array, time: float) -> Array:
         return self._rows._param_jacobian(state, time)
+
+
+class _RobinMixed(Generic[Array]):
+    def __init__(self, rows: "RobinRows[Array]") -> None:
+        self._rows = rows
+
+    def __call__(self, state: Array, time: float, weights: Array) -> Array:
+        return self._rows._mixed(state, time, weights)
+
+
+class _RobinParamCurvature(Generic[Array]):
+    def __init__(self, rows: "RobinRows[Array]") -> None:
+        self._rows = rows
+
+    def __call__(self, state: Array, time: float, weights: Array) -> Array:
+        return self._rows._param_curvature(state, time, weights)
 
 
 class RobinRows(Generic[Array]):
@@ -211,7 +259,9 @@ class RobinRows(Generic[Array]):
     parameters. It is stated zero when nothing does, and not available
     (None) when a part's normal term reads a physics coefficient: the
     coefficient's dependence on the parameters is not known here, so the
-    system supplies that term.
+    system supplies that term. The second derivatives follow
+    :meth:`derivatives`; a weight on a shared row counts only for the part
+    supplying it.
 
     Parameters
     ----------
@@ -268,6 +318,16 @@ class RobinRows(Generic[Array]):
                 f"parameters: {sorted(counts)}"
             )
         self._nparams: Optional[int] = counts.pop() if counts else None
+        # 1 where the part supplies the row, 0 where a later part does
+        self._wins = [
+            bkd.asarray(
+                [
+                    0.0 if any(row in later for later in row_lists[k + 1 :]) else 1.0
+                    for row in rows
+                ]
+            )
+            for k, rows in enumerate(row_lists)
+        ]
         self._rows = BackendRowSet(
             backend_state_space(bkd, self._nstates).descriptor(),
             [row for rows in row_lists for row in rows],
@@ -327,21 +387,113 @@ class RobinRows(Generic[Array]):
             matrix = bkd.index_update(matrix, part.rows, block)
         return matrix
 
-    def parameter_derivatives(self) -> ClosureRowsParamDerivatives[Array]:
-        """Not available when a part's normal term reads a physics
-        coefficient; otherwise stated zero when no coefficient depends on
-        the parameters, else the Jacobian."""
+    def derivatives(self) -> ClosureRowsDerivatives[Array]:
+        r"""The optional derivatives:
+
+        - ``state_curvature``: stated zero when every normal term is
+          declared linear in the state, else None;
+        - when a part's normal term reads a physics coefficient, every
+          parameter derivative is None (the system supplies them);
+        - otherwise ``param_jacobian`` and ``param_curvature`` are stated
+          zero when nothing depends on the parameters; ``mixed`` is
+          stated zero when neither :math:`\alpha` nor :math:`\beta` does
+          (:math:`g` does not enter it); ``param_curvature`` is None when
+          a parameterized coefficient supplies no curvature.
+        """
+        state_curvature: Union[ClosureWeightedFn[Array], StatedZero, None] = (
+            STATED_ZERO
+            if all(part.normal_term.is_linear_in_state() for part in self._parts)
+            else None
+        )
         if any(part.normal_term.has_coefficient_dependence() for part in self._parts):
-            return ClosureRowsParamDerivatives(None)
+            return ClosureRowsDerivatives(state_curvature=state_curvature)
         if self._nparams is None:
-            return ClosureRowsParamDerivatives(STATED_ZERO)
-        return ClosureRowsParamDerivatives(_RobinParamJacobian(self))
+            return ClosureRowsDerivatives(
+                STATED_ZERO, state_curvature, STATED_ZERO, STATED_ZERO
+            )
+        coefficients_in_mixed = any(
+            c.parameterized is not None
+            for part in self._parts
+            for c in (part.alpha, part.beta)
+        )
+        return ClosureRowsDerivatives(
+            _RobinParamJacobian(self),
+            state_curvature,
+            _RobinMixed(self) if coefficients_in_mixed else STATED_ZERO,
+            (
+                _RobinParamCurvature(self)
+                if all(part.has_curvature() for part in self._parts)
+                else None
+            ),
+        )
+
+    def _part_weights(self, position: int, weights: Array) -> Array:
+        """The part's weights on the rows it supplies."""
+        part = self._parts[position]
+        return weights[part.rows] * self._wins[position]
+
+    def _check_weights(self, weights: Array) -> None:
+        if weights.shape != (self._nstates,):
+            raise ValueError(
+                f"weights must have shape ({self._nstates},), got "
+                f"{tuple(weights.shape)}"
+            )
+
+    def _mixed(self, state: Array, time: float, weights: Array) -> Array:
+        r""":math:`\sum_i w_i\, \partial^2 c_i/\partial u\, \partial p
+        = E^\top \operatorname{diag}(w)\, \alpha_p
+        + N_u^\top \operatorname{diag}(w)\, \beta_p`, per part on the rows
+        it supplies."""
+        self._check_state(state)
+        self._check_weights(weights)
+        nparams = self._require_nparams()
+        bkd = self._bkd
+        matrix = bkd.zeros((self._nstates, nparams))
+        for position, part in enumerate(self._parts):
+            part_weights = self._part_weights(position, weights)[:, None]
+            factors = (part.selection, part.normal_term.jacobian(state, time))
+            for coefficient, factor in zip((part.alpha, part.beta), factors):
+                if coefficient.parameterized is not None:
+                    jacobian = coefficient.parameterized.param_derivatives().jacobian(
+                        time
+                    )
+                    matrix = matrix + factor.T @ (part_weights * jacobian)
+        return matrix
+
+    def _param_curvature(self, state: Array, time: float, weights: Array) -> Array:
+        r""":math:`\sum_i w_i\, \partial^2 c_i/\partial p^2`, the curvatures
+        of :math:`\alpha`, :math:`\beta` and :math:`g` weighted by
+        :math:`w u`, :math:`w N(u)` and :math:`-w`, per part on the rows
+        it supplies."""
+        self._check_state(state)
+        self._check_weights(weights)
+        nparams = self._require_nparams()
+        bkd = self._bkd
+        matrix = bkd.zeros((nparams, nparams))
+        for position, part in enumerate(self._parts):
+            part_weights = self._part_weights(position, weights)
+            factors = (
+                state[part.rows],
+                part.normal_term(state, time),
+                -bkd.ones((part.rows.shape[0],)),
+            )
+            for coefficient, factor in zip(part.coefficients(), factors):
+                if coefficient.parameterized is None:
+                    continue
+                curvature = coefficient.parameterized.param_derivatives().curvature
+                if curvature is None:
+                    raise RuntimeError("a parameterized coefficient has no curvature")
+                matrix = matrix + curvature(time, part_weights * factor)
+        return matrix
+
+    def _require_nparams(self) -> int:
+        if self._nparams is None:
+            raise RuntimeError("no Robin coefficient depends on the parameters")
+        return self._nparams
 
     def _param_jacobian(self, state: Array, time: float) -> Array:
         self._check_state(state)
-        if self._nparams is None:
-            raise RuntimeError("no Robin coefficient depends on the parameters")
-        bkd, nparams = self._bkd, self._nparams
+        bkd, nparams = self._bkd, self._require_nparams()
         matrix = bkd.zeros((self._nstates, nparams))
         for part in self._parts:
             block = bkd.zeros((part.rows.shape[0], nparams))

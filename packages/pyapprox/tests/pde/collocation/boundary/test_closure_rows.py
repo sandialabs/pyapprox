@@ -7,7 +7,7 @@ the flux operator of an ADR physics with D = 1.5 + 0.5 x y. The old path
 """
 
 import pickle
-from typing import Callable, Generic, List, Union
+from typing import Callable, Generic, List, Sequence, Tuple, Union
 
 import numpy as np
 import pytest
@@ -181,26 +181,17 @@ class TestRobinRows:
         parameters passes DerivativeChecker, whichever side wins the
         corners. The error ratio bottoms out near 1.3e-6 on both backends,
         so the bound is 1e-5; dc/dp with the wrong sign stays above 1e-2."""
-        mesh = _mesh(bkd)
-        alpha, beta, g = (_mapped(bkd, scale) for scale in (1.0, 0.5, 2.0))
-        mapped = RobinPart(
-            mesh.boundary_indices(0), _normal_term(bkd, 0, "gradient"), alpha, beta, g
-        )
-        others = _constant_parts(bkd, "gradient")[1:]
-        parts = others + [mapped] if mapped_last else [mapped] + others
-        rows = RobinRows(bkd, _NPTS, 1, parts)
-        jacobian_fn = rows.parameter_derivatives().jacobian
+        rows, data = _mapped_rows(bkd, mapped_last)
+        jacobian_fn = rows.derivatives().param_jacobian
         assert callable(jacobian_fn)
         state = _state(bkd)
 
         def fun(params: Array) -> Array:
-            for data in (alpha, beta, g):
-                data.set_parameters(params)
+            _set(data, params)
             return rows.residual(state, 0.0)
 
         def jac(params: Array) -> Array:
-            for data in (alpha, beta, g):
-                data.set_parameters(params)
+            _set(data, params)
             return jacobian_fn(state, 0.0)
 
         def wrong(params: Array) -> Array:
@@ -212,13 +203,104 @@ class TestRobinRows:
         assert _check(right_fn, params, bkd) <= 1e-5
         assert _check(wrong_fn, params, bkd) > 1e-2
 
-    def test_declared_parameter_dependence(self, bkd: Backend[Array]) -> None:
-        """Stated zero with nothing parameterized; not available when a
-        normal term reads a physics coefficient."""
+    @pytest.mark.parametrize("mapped_last", [True, False])
+    def test_mixed(self, bkd: Backend[Array], mapped_last: bool) -> None:
+        """sum_i w_i d2c_i/du dp is the Jacobian of p -> c_u^T w, by
+        DerivativeChecker, with weights on every replaced row (the shared
+        corners included); a mixed term 10% off stays above 1e-2."""
+        rows, data = _mapped_rows(bkd, mapped_last)
+        mixed_fn = rows.derivatives().mixed
+        assert callable(mixed_fn)
+        state, weights = _state(bkd), _row_weights(bkd, rows)
+
+        def fun(params: Array) -> Array:
+            _set(data, params)
+            return rows.jacobian(state, 0.0).T @ weights
+
+        def jac(params: Array) -> Array:
+            _set(data, params)
+            return mixed_fn(state, 0.0, weights)
+
+        def wrong(params: Array) -> Array:
+            return 1.1 * jac(params)
+
+        params = bkd.reshape(_params(bkd), (_NPARAMS, 1))
+        assert (
+            _check(_VectorFunction(bkd, _NPARAMS, _NPTS, fun, jac), params, bkd) <= 1e-5
+        )
+        assert (
+            _check(_VectorFunction(bkd, _NPARAMS, _NPTS, fun, wrong), params, bkd)
+            > 1e-2
+        )
+
+    @pytest.mark.parametrize("mapped_last", [True, False])
+    def test_param_curvature(self, bkd: Backend[Array], mapped_last: bool) -> None:
+        """sum_i w_i d2c_i/dp2 is the Jacobian of p -> c_p^T w, by
+        DerivativeChecker; a curvature 10% off stays above 1e-2."""
+        rows, data = _mapped_rows(bkd, mapped_last)
+        bundle = rows.derivatives()
+        jacobian_fn, curvature_fn = bundle.param_jacobian, bundle.param_curvature
+        assert callable(jacobian_fn) and callable(curvature_fn)
+        state, weights = _state(bkd), _row_weights(bkd, rows)
+
+        def fun(params: Array) -> Array:
+            _set(data, params)
+            return jacobian_fn(state, 0.0).T @ weights
+
+        def jac(params: Array) -> Array:
+            _set(data, params)
+            return curvature_fn(state, 0.0, weights)
+
+        def wrong(params: Array) -> Array:
+            return 1.1 * jac(params)
+
+        params = bkd.reshape(_params(bkd), (_NPARAMS, 1))
+        assert (
+            _check(_VectorFunction(bkd, _NPARAMS, _NPARAMS, fun, jac), params, bkd)
+            <= 1e-5
+        )
+        assert (
+            _check(_VectorFunction(bkd, _NPARAMS, _NPARAMS, fun, wrong), params, bkd)
+            > 1e-2
+        )
+
+    def test_declared_derivatives(self, bkd: Backend[Array]) -> None:
+        """Gradient rows: c_uu, c_p, c_up, c_pp stated zero with nothing
+        parameterized. Flux rows: c_uu not known and every parameter
+        derivative left to the system. c_up stated zero when only g
+        depends on the parameters; c_pp absent when a map has no second
+        derivative."""
         gradient = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, "gradient"))
-        assert gradient.parameter_derivatives().jacobian is STATED_ZERO
-        flux = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, "flux"))
-        assert flux.parameter_derivatives().jacobian is None
+        bundle = gradient.derivatives()
+        assert bundle.state_curvature is STATED_ZERO
+        assert bundle.param_jacobian is STATED_ZERO
+        assert bundle.mixed is STATED_ZERO
+        assert bundle.param_curvature is STATED_ZERO
+        flux = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, "flux")).derivatives()
+        assert flux.state_curvature is None
+        assert flux.param_jacobian is None
+        assert flux.mixed is None and flux.param_curvature is None
+        mesh = _mesh(bkd)
+        g_only = RobinRows(
+            bkd,
+            _NPTS,
+            1,
+            [
+                RobinPart(
+                    mesh.boundary_indices(0),
+                    _normal_term(bkd, 0, "gradient"),
+                    1.0,
+                    1.0,
+                    _mapped(bkd, 1.0),
+                )
+            ],
+        ).derivatives()
+        assert callable(g_only.param_jacobian)
+        assert g_only.mixed is STATED_ZERO
+        assert callable(g_only.param_curvature)
+        first_order, _ = _mapped_rows(bkd, True, second_derivative=False)
+        assert first_order.derivatives().param_curvature is None
+        assert callable(first_order.derivatives().mixed)
 
     def test_time_invariance(self, bkd: Backend[Array]) -> None:
         assert RobinRows(
@@ -282,14 +364,50 @@ class _Exp(Generic[Array]):
         return self._bkd.exp(x)
 
 
-def _mapped(bkd: Backend[Array], scale: float) -> MappedBoundaryData[Array]:
+def _mapped(
+    bkd: Backend[Array], scale: float, second_derivative: bool = True
+) -> MappedBoundaryData[Array]:
     """scale * exp(0.1 + p0 y / 2 + p1 (0.3 y^2 - 0.1)) on side 0, written
     as exp(log(scale) + 0.1 + ...)."""
     y = _side_coordinate(bkd, 0)
     inner = BasisExpansion(bkd, 0.1 + float(np.log(scale)), [0.5 * y, 0.3 * y**2 - 0.1])
     exp = _Exp(bkd)
-    field_map = TransformedFieldMap(inner, exp, exp, bkd, transform_deriv2=exp)
+    field_map = TransformedFieldMap(
+        inner, exp, exp, bkd, transform_deriv2=exp if second_derivative else None
+    )
     return MappedBoundaryData(field_map, _params(bkd), bkd)
+
+
+def _mapped_rows(
+    bkd: Backend[Array], mapped_last: bool, second_derivative: bool = True
+) -> Tuple[RobinRows[Array], List[MappedBoundaryData[Array]]]:
+    """Side 0 with alpha, beta and g as exp maps of two parameters (scales
+    1, 0.5, 2), the other sides constant, side 0 listed last or first."""
+    mesh = _mesh(bkd)
+    alpha = _mapped(bkd, 1.0)
+    beta = _mapped(bkd, 0.5, second_derivative)
+    g = _mapped(bkd, 2.0)
+    mapped = RobinPart(
+        mesh.boundary_indices(0), _normal_term(bkd, 0, "gradient"), alpha, beta, g
+    )
+    others = _constant_parts(bkd, "gradient")[1:]
+    parts = others + [mapped] if mapped_last else [mapped] + others
+    return RobinRows(bkd, _NPTS, 1, parts), [alpha, beta, g]
+
+
+def _set(data: Sequence[MappedBoundaryData[Array]], params: Array) -> None:
+    for coefficient in data:
+        coefficient.set_parameters(params)
+
+
+def _row_weights(bkd: Backend[Array], rows: RobinRows[Array]) -> Array:
+    """Random weights on the replaced rows, zero elsewhere. Shape:
+    (nstates,)"""
+    rng = np.random.default_rng(11)
+    column = rows.rows().replace_rows(
+        bkd.zeros((_NPTS, 1)), bkd.asarray(rng.standard_normal((_NPTS, 1)))
+    )
+    return column[:, 0]
 
 
 def _params(bkd: Backend[Array]) -> Array:
