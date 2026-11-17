@@ -11,9 +11,18 @@ where:
     f0, f1 = forcing/source terms
 """
 
-from typing import Generic, List, Optional, Protocol, Tuple, Union, runtime_checkable
+from __future__ import annotations
 
-import sympy as sp
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
@@ -27,6 +36,11 @@ from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    # sympy appears only in the reactions' symbolic signatures; importing
+    # it here would load it for every user of the physics package
+    import sympy as sp
 
 
 @runtime_checkable

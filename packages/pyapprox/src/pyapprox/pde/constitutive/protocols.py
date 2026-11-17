@@ -11,11 +11,24 @@ All protocols use the full (potentially non-symmetric) first Piola-Kirchhoff
 stress tensor P_iJ, supporting both isotropic and anisotropic materials.
 """
 
-from typing import Dict, Generic, Protocol, Tuple, Union, runtime_checkable
+from __future__ import annotations
 
-import sympy as sp
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    Generic,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    # sympy appears only in the symbolic protocol's signatures; importing
+    # it here would load it for every numerical user of this package
+    import sympy as sp
 
 
 @runtime_checkable
@@ -321,8 +334,8 @@ class StressModelWithSensitivityProtocol(Protocol, Generic[Array]):
 class SymbolicStressModelProtocol(Protocol):
     """Protocol for stress models with sympy expression support.
 
-    Used by ManufacturedHyperelasticityEquations to symbolically compute
-    forcing terms for the Method of Manufactured Solutions (MMS).
+    Used by the Galerkin manufactured-solution adapter to symbolically
+    compute forcing terms for the Method of Manufactured Solutions (MMS).
     """
 
     def sympy_stress_1d(self, F_expr: sp.Expr) -> sp.Expr:

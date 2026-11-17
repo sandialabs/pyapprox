@@ -8,14 +8,19 @@ where F is the deformation gradient, J = det(F), and lamda, mu are
 Lame parameters.
 
 Implements StressModelProtocol, StressModelWithTangentProtocol (1D/2D),
-and SymbolicStressModelProtocol.
+and the sympy stress expressions manufactured solutions read. sympy is
+imported only inside those methods, so the numerical model loads
+without it.
 """
 
-from typing import Dict, Generic, Tuple, Union
+from __future__ import annotations
 
-import sympy as sp
+from typing import TYPE_CHECKING, Dict, Generic, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    import sympy as sp
 
 
 class NeoHookeanStress(Generic[Array]):
@@ -394,6 +399,8 @@ class NeoHookeanStress(Generic[Array]):
 
     def sympy_stress_1d(self, F_expr: sp.Expr) -> sp.Expr:
         """Return symbolic 1D PK1 stress."""
+        import sympy as sp
+
         lamda = (
             sp.Rational(self._lamda)
             if self._lamda == int(self._lamda)
@@ -411,6 +418,8 @@ class NeoHookeanStress(Generic[Array]):
         F22: sp.Expr,
     ) -> Tuple[sp.Expr, sp.Expr, sp.Expr, sp.Expr]:
         """Return symbolic 2D PK1 stress expressions."""
+        import sympy as sp
+
         lamda = (
             sp.Rational(self._lamda)
             if self._lamda == int(self._lamda)
@@ -438,6 +447,8 @@ class NeoHookeanStress(Generic[Array]):
         F: Tuple[Tuple[sp.Expr, ...], ...],
     ) -> Tuple[Tuple[sp.Expr, ...], ...]:
         """Return symbolic 3D PK1 stress expressions."""
+        import sympy as sp
+
         lamda = (
             sp.Rational(self._lamda)
             if self._lamda == int(self._lamda)

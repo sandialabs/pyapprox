@@ -1,22 +1,49 @@
 """Manufactured solutions for hyperelasticity equations.
 
 Provides a sympy-based manufactured solution class that works with any
-stress model implementing SymbolicStressModelProtocol. Computes forcing
+stress model satisfying SymbolicPK1StressProtocol. Computes forcing
 f such that div(P(u*)) + f = 0 for a given exact displacement u*.
 
 Supports 1D, 2D, and 3D.
 """
 
-from typing import Generic, List
+from typing import Generic, List, Protocol, Tuple, runtime_checkable
 
-from pyapprox.pde.constitutive.protocols import (
-    SymbolicStressModelProtocol,
-)
+import sympy as sp
+
 from pyapprox.pde.manufactured.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class SymbolicPK1StressProtocol(Protocol):
+    """What the manufactured solution needs from a stress model: the
+    first Piola-Kirchhoff stress as sympy expressions of the
+    deformation gradient. ``NeoHookeanStress`` satisfies it."""
+
+    def sympy_stress_1d(self, F_expr: sp.Expr) -> sp.Expr:
+        """The 1D PK1 stress of the scalar deformation gradient."""
+        ...
+
+    def sympy_stress_2d(
+        self,
+        F11: sp.Expr,
+        F12: sp.Expr,
+        F21: sp.Expr,
+        F22: sp.Expr,
+    ) -> Tuple[sp.Expr, sp.Expr, sp.Expr, sp.Expr]:
+        """``(P11, P12, P21, P22)`` of the 2D deformation gradient."""
+        ...
+
+    def sympy_stress_3d(
+        self,
+        F: Tuple[Tuple[sp.Expr, ...], ...],
+    ) -> Tuple[Tuple[sp.Expr, ...], ...]:
+        """The 3x3 PK1 stress of the 3x3 deformation gradient."""
+        ...
 
 
 class ManufacturedHyperelasticityEquations(
@@ -43,7 +70,7 @@ class ManufacturedHyperelasticityEquations(
         For 1D: ["u(x)"], for 2D: ["u(x,y)", "v(x,y)"], etc.
     nvars : int
         Number of spatial dimensions (1, 2, or 3).
-    stress_model : SymbolicStressModelProtocol
+    stress_model : SymbolicPK1StressProtocol
         Stress model with sympy expression support.
     bkd : Backend
         Computational backend.
@@ -55,7 +82,7 @@ class ManufacturedHyperelasticityEquations(
         self,
         sol_strs: List[str],
         nvars: int,
-        stress_model: SymbolicStressModelProtocol,
+        stress_model: SymbolicPK1StressProtocol,
         bkd: Backend[Array],
         oned: bool = False,
     ):
