@@ -7,7 +7,7 @@ state Jacobian.
 # TODO: this is specific to collocation, should it go in
 # collocation module or in benchmark module
 
-from typing import Generic, Literal
+from typing import Generic, Literal, Sequence
 
 from pyapprox.implicitfunction.functionals.derivatives import (
     SteadyFunctionalDerivatives,
@@ -19,6 +19,54 @@ from pyapprox.surrogates.affine.univariate.lagrange import (
     univariate_lagrange_polynomial,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def point_interpolation_weights(
+    basis: ChebyshevBasis1D[Array], points: Sequence[float], bkd: Backend[Array]
+) -> Array:
+    r"""The weights :math:`W` whose column :math:`k` interpolates a nodal
+    state at :math:`x_k`: :math:`w_k^\top u = u(x_k)`, the Lagrange
+    interpolant through the collocation nodes.
+
+    Parameters
+    ----------
+    basis : ChebyshevBasis1D
+        The 1D Chebyshev collocation basis.
+    points : sequence of float
+        The points :math:`x_k`, in physical coordinates, each in the mesh's
+        closed domain.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        :math:`W`, shape ``(npts, npoints)``.
+
+    Raises
+    ------
+    ValueError
+        If ``points`` is empty or a point lies outside the domain, where
+        the interpolant would extrapolate.
+    """
+    points = list(points)
+    if not points:
+        raise ValueError("an interpolation needs at least one point")
+    physical = basis.mesh().points()[0]
+    lower = bkd.to_float(bkd.min(physical))
+    upper = bkd.to_float(bkd.max(physical))
+    slack = 1e-12 * (upper - lower)
+    outside = [x for x in points if x < lower - slack or x > upper + slack]
+    if outside:
+        raise ValueError(
+            f"points {outside} lie outside the domain [{lower}, {upper}]"
+        )
+    targets = bkd.asarray([points])  # shape (1, npoints)
+    transform = basis.mesh().transform()
+    if transform is not None:
+        targets = transform.map_to_reference(targets)
+    rows = univariate_lagrange_polynomial(basis.nodes(), targets[0], bkd)
+    return rows.T
 
 
 class PointEvaluationFunctional(Generic[Array]):
@@ -50,23 +98,11 @@ class PointEvaluationFunctional(Generic[Array]):
         self._bkd = bkd
         self._nparams = nparams
 
-        ref_nodes = basis.nodes()  # shape (npts,)
-        self._nstates = ref_nodes.shape[0]
-
-        # Map eval_point to reference coordinates
-        transform = basis.mesh().transform()
-        if transform is not None:
-            ref_pt = transform.map_to_reference(
-                bkd.asarray([[eval_point]])
-            )  # shape (1, 1)
-            target = ref_pt[0, :]  # shape (1,)
-        else:
-            target = bkd.asarray([eval_point])  # shape (1,)
-
-        # Build interpolation row: L_j(x*) for j = 0..npts-1
-        self._interp_row = univariate_lagrange_polynomial(
-            ref_nodes, target, bkd
-        )  # shape (1, npts)
+        self._nstates = basis.nodes().shape[0]
+        # Interpolation row: L_j(x*) for j = 0..npts-1, shape (1, npts)
+        self._interp_row = point_interpolation_weights(
+            basis, [eval_point], bkd
+        ).T
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
