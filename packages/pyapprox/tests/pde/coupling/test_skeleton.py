@@ -7,9 +7,11 @@ Schur action against finite differences of the residual; the stores by
 counting linearizations, with results equal under every store.
 """
 
-from typing import Generic, Optional, Sequence
+from typing import Any, Generic, Optional, Sequence
 
+import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.setups import RecomputeAlways
@@ -43,15 +45,23 @@ from pyapprox.pde.coupling.skeleton import (
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
 from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendVectorSpace,
     DenseFormat,
 )
-from pyapprox.util.linalg.operators import LinearizationPoint, MatrixFree
+from pyapprox.util.linalg.operators import (
+    LinearizationPoint,
+    MatrixFree,
+    SpaceDescriptor,
+)
 from pyapprox.util.linalg.operators.krylov import GMRES
 from pyapprox.util.rootfinding.nonlinear import Newton
+from tests._helpers.coupling import MockPortRows
+from tests._helpers.linalg.mock_stack import MockVector
+from tests._helpers.linalg.stacks import MockCase, mock_case
 
 _LABEL = LinearizationPoint(0, "test", provisional=True)
 
@@ -359,3 +369,59 @@ def test_dense_schur_solves_with_a_direct_method(bkd: Backend[Array]) -> None:
     assert point.converged() and point.info().iterations == 1
     exact = _exact_piecewise_constant([k[0] for k in _PIECEWISE], f)
     bkd.assert_allclose(point.solution(), bkd.asarray([[v] for v in exact]), rtol=1e-12)
+
+
+def _mock_chain(
+    coefs: Sequence[tuple[float, ...]], f: float
+) -> tuple[
+    SkeletonResidual[MockVector, NDArray[Any], NDArray[Any], MatrixFree],
+    MockCase,
+    SpaceDescriptor,
+    list[_Counting[NDArray[Any]]],
+]:
+    """:func:`_chain` on the opaque mock stack: skeleton vectors are mock
+    handles, port blocks and responses NumPy."""
+    bkd, case = NumpyBkd(), mock_case()
+    n = len(coefs)
+    topo = TensorBoxPartition((n,))
+    skeleton = ContinuousSkeletonSpace(topo, TensorLagrangeBasis(0, 1, bkd))
+    descriptor = skeleton.descriptor()
+    responses, subdomains = [], []
+    for s in range(n):
+        left = 0.0 if s == 0 else None
+        right = 0.0 if s == n - 1 else None
+        r = _Counting(KirchhoffResponse1D(1.0 / n, f, coefs[s], left, right, bkd))
+        rows = MockPortRows(descriptor, subdomain_port_dofs(topo, skeleton, s))
+        responses.append(r)
+        subdomains.append(CoupledSubdomain(r, MatchingNodalTransfer(rows)))
+    schur: MatrixFreeSchur[MockVector, NDArray[Any]] = MatrixFreeSchur()
+    residual = SkeletonResidual(case.space(descriptor), subdomains, schur)
+    return residual, case, descriptor, responses
+
+
+@pytest.mark.parametrize(
+    "coefs,f,exact",
+    [
+        (_PIECEWISE, 1.7, _exact_piecewise_constant([k[0] for k in _PIECEWISE], 1.7)),
+        ([(1.5, 0.0, 1.5)] * 5, 6.0, _exact_one_nonlinear((1.5, 0.0, 1.5), 6.0, 5)),
+    ],
+)
+def test_mock_stack_solves_to_the_exact_values(
+    coefs: list[tuple[float, ...]], f: float, exact: list[float]
+) -> None:
+    residual, case, descriptor, responses = _mock_chain(coefs, f)
+    space = case.space(descriptor)
+    setups: RecomputeAlways[MockVector, MatrixFree] = RecomputeAlways(
+        GMRES(space, case.bkd, tol=1e-13)
+    )
+    point = SteadySystem(residual, space, setups).solve(
+        Newton(atol=1e-11, rtol=1e-11, maxiters=20), space.zeros(1)
+    )
+    assert point.converged()
+    iterations = point.info().iterations
+    assert iterations == 1 if len(coefs[0]) == 1 else iterations > 1
+    case.assert_vector(
+        point.solution(), case.dense(np.asarray(exact)[:, None]), rtol=1e-10
+    )
+    # Kept points are recognized by value on an opaque stack too.
+    assert all(r.count == iterations + 1 for r in responses)

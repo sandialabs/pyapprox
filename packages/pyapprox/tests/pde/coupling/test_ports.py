@@ -27,7 +27,8 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.linalg.operators import SpaceDescriptor
-from tests._helpers.linalg.mock_stack import MockFormat, MockVector, peek, wrap
+from tests._helpers.coupling import MockPortRows
+from tests._helpers.linalg.mock_stack import MockFormat, MockVector
 from tests._helpers.linalg.stacks import (
     A,
     F,
@@ -36,25 +37,6 @@ from tests._helpers.linalg.stacks import (
     dense_case,
     mock_case,
 )
-
-
-class _MockPortRows:
-    """Port rows of the mock stack; only stack code looks inside a handle."""
-
-    def __init__(self, descriptor: SpaceDescriptor, dofs: Sequence[int]) -> None:
-        self._descriptor = descriptor
-        self._dofs = np.asarray(dofs, dtype=np.intp)
-
-    def nrows(self) -> int:
-        return int(self._dofs.shape[0])
-
-    def take(self, x: MockVector) -> NDArray[np.float64]:
-        return peek(x)[self._dofs, :]
-
-    def add_to(self, y: MockVector, block: NDArray[np.float64]) -> MockVector:
-        data = peek(y)
-        np.add.at(data, self._dofs, block)
-        return wrap(data, self._descriptor)
 
 
 @dataclass
@@ -85,7 +67,7 @@ _AnyStack = Union[_Stack[MockVector, MockFormat, NDArray[Any]], DenseStack]
 @pytest.fixture(params=["dense-numpy", "dense-torch", "mock"])
 def stack(request: pytest.FixtureRequest) -> _AnyStack:
     if request.param == "mock":
-        return _Stack(mock_case(), _MockPortRows)
+        return _Stack(mock_case(), MockPortRows)
     fixture = "numpy_bkd" if request.param == "dense-numpy" else "torch_bkd"
     return _dense_stack(request.getfixturevalue(fixture))
 
