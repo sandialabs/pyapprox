@@ -28,6 +28,7 @@ from typing import (
 
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, PinnedRowsProtocol
 from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
     DerivativeOperator,
     ODEResidualDerivatives,
     StatedZero,
@@ -36,6 +37,7 @@ from pyapprox.ode.residual_derivatives import (
 from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureParamFn,
     ClosureRowsProtocol,
+    ClosureWeightedFn,
     NormalTermParamFn,
 )
 from pyapprox.pde.collocation.boundary.essential_rows import SHARED_ROW_RTOL
@@ -278,6 +280,31 @@ class CollocationSystem(Generic[Array]):
         )
 
 
+def _refuse_own_parameters(system: CollocationSystem[Array]) -> None:
+    """Refuse declarations whose data hold parameters of their own: the
+    system's parameter state must be the only writer of the parameters,
+    and boundary data cannot yet be targets of its parameterization."""
+    essential = system.essential()
+    if essential is not None and not isinstance(
+        essential.parameter_derivatives().values, StatedZero
+    ):
+        raise ValueError(
+            "the essential data depend on parameters of their own; a system "
+            "with a parameter state does not yet accept parameter-dependent "
+            "boundary data"
+        )
+    for k, closure in enumerate(system.closures()):
+        # Without a normal-term sensitivity, a parameter Jacobian can only
+        # come from the declaration's own data
+        own = closure.derivatives().param_jacobian
+        if own is not None and not isinstance(own, StatedZero):
+            raise ValueError(
+                f"closure {k} holds parameters of its own; a system with a "
+                "parameter state does not yet accept parameter-dependent "
+                "boundary data"
+            )
+
+
 class _NormalTermSensitivity(Generic[Array]):
     """The parameterization's flux sensitivity at the current parameters."""
 
@@ -304,6 +331,20 @@ class _ClosedParam(Generic[Array]):
 
     def __call__(self, state: Array, time: float) -> DerivativeOperator[Array]:
         return self._rhs._param_operator(state, time)
+
+
+_STATE_STATE, _STATE_PARAM, _PARAM_PARAM = 0, 1, 2
+_Weighted = Union[ClosureWeightedFn[Array], StatedZero]
+
+
+class _ClosedSecond(Generic[Array]):
+    def __init__(self, rhs: "ClosedRightHandSide[Array]", kind: int) -> None:
+        self._rhs, self._kind = rhs, kind
+
+    def __call__(
+        self, state: Array, time: float, adj: Array
+    ) -> DerivativeOperator[Array]:
+        return self._rhs._second_operator(self._kind, state, time, adj)
 
 
 class ClosedRightHandSide(Generic[Array]):
@@ -347,6 +388,7 @@ class ClosedRightHandSide(Generic[Array]):
         self._parameters = parameters
         sensitivity: Optional[NormalTermParamFn[Array]] = None
         if parameters is not None:
+            _refuse_own_parameters(system)
             fn = (
                 parameters.parameterization()
                 .param_derivatives()
@@ -387,12 +429,68 @@ class ClosedRightHandSide(Generic[Array]):
             return ODEResidualDerivatives.state_only(jacobian)
         self._states_desc = states_desc
         self._params_desc = interior_bundle.param_space.descriptor()
-        return ODEResidualDerivatives(
+        states = backend_state_space(bkd, nstates)
+        params = interior_bundle.param_space
+        curvatures = self._closure_curvatures()
+        if (
+            interior_bundle.state_state is None
+            or interior_bundle.initial_state_curvature is None
+            or curvatures is None
+        ):
+            return ODEResidualDerivatives.first_order(
+                states,
+                params,
+                jacobian=jacobian,
+                param=_ClosedParam(self),
+                initial_state=interior_bundle.initial_state,
+            )
+        self._curvatures = curvatures
+        return ODEResidualDerivatives.second_order(
+            states,
+            params,
             jacobian=jacobian,
             param=_ClosedParam(self),
             initial_state=interior_bundle.initial_state,
-            param_space=interior_bundle.param_space,
+            initial_state_curvature=interior_bundle.initial_state_curvature,
+            state_state=(STATED_ZERO if affine else _ClosedSecond(self, _STATE_STATE)),
+            state_param=_ClosedSecond(self, _STATE_PARAM),
+            param_param=_ClosedSecond(self, _PARAM_PARAM),
         )
+
+    def _closure_curvatures(
+        self,
+    ) -> Optional[List[Tuple[_Weighted[Array], _Weighted[Array], _Weighted[Array]]]]:
+        """Each closure's (state, mixed, parameter) curvature, or None when
+        a closure lacks one."""
+        curvatures = []
+        for derivatives in self._closure_derivatives:
+            state = derivatives.state_curvature
+            mixed, param = derivatives.mixed, derivatives.param_curvature
+            if state is None or mixed is None or param is None:
+                return None
+            curvatures.append((state, mixed, param))
+        return curvatures
+
+    def _second_operator(
+        self, kind: int, state: Array, time: float, adj: Array
+    ) -> DerivativeOperator[Array]:
+        """One adjoint-weighted second derivative of f~: the interior's at
+        the adjoint on its rows, plus each closure's at the adjoint on the
+        rows it supplies."""
+        bkd = self._bkd
+        bundle = self._interior.derivatives()
+        interior_fn = (bundle.state_state, bundle.state_param, bundle.param_param)[kind]
+        if interior_fn is None:
+            raise RuntimeError("the interior has no second derivatives")
+        domain = self._states_desc if kind == _STATE_STATE else self._params_desc
+        range_ = self._params_desc if kind == _PARAM_PARAM else self._states_desc
+        masked = self._system.interior_mask() * adj
+        matrix = interior_fn(state, time, masked).apply(bkd.eye(domain.size))
+        for curvature, mask in zip(self._curvatures, self._system.closure_masks()):
+            field = curvature[kind]
+            if not isinstance(field, StatedZero):
+                matrix = matrix + field(state, time, mask * adj)
+        return BackendDenseOperator(matrix, domain, bkd, range=range_)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

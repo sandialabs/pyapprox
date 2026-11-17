@@ -12,6 +12,7 @@ import pytest
 
 from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureRowsDerivatives,
@@ -23,6 +24,7 @@ from pyapprox.pde.collocation.boundary.closure_rows import (
 from pyapprox.pde.collocation.boundary.essential_rows import (
     DirichletPart,
     DirichletRows,
+    MappedBoundaryData,
 )
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     HyperelasticTractionNormalOperator,
@@ -39,11 +41,13 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
 from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.hyperelasticity import HyperelasticityPhysics
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
+from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.models.collocation.closed_system import (
     ClosedRightHandSide,
     CollocationSystem,
 )
+from pyapprox.pde.models.collocation.right_hand_side import CollocationRightHandSide
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
 )
@@ -379,6 +383,211 @@ class TestHyperelasticTraction:
         assert "param" in self._report(bkd, True)
 
 
+class TestSecondOrder:
+    """Parameterized ADR (KLE diffusion) with Dirichlet left/right and
+    linear Robin rows bottom/top."""
+
+    def _rhs(
+        self, bkd: Backend[Array]
+    ) -> Tuple[ClosedRightHandSide[Array], CollocationRightHandSide[Array]]:
+        """The closed right-hand side and the bare interior one, on the same
+        physics and parameter state."""
+        physics, parameters = _parameterized_adr(bkd)
+        essential = _dirichlet(bkd, (0, 1))
+        system = CollocationSystem(physics, essential, [_gradient_robin(bkd, (2, 3))])
+        return (
+            ClosedRightHandSide(system, parameters, initial_state=STATED_ZERO),
+            CollocationRightHandSide(physics, parameters, initial_state=STATED_ZERO),
+        )
+
+    def test_bundle_checks(self, bkd: Backend[Array]) -> None:
+        """Every second-order term against finite differences."""
+        rhs, _ = self._rhs(bkd)
+        bundle = rhs.derivatives()
+        assert bundle.state_param is not None and bundle.param_param is not None
+        report = ODEResidualBundleChecker(rhs).check(
+            _state(bkd), _TIME, adj=_state(bkd, seed=6), param=_param(bkd)
+        )
+        assert report.failures() == []
+
+    def test_interior_weighted_on_its_rows_only(self, bkd: Backend[Array]) -> None:
+        """f~_up[w] is the interior's at w masked to its rows (the Robin
+        terms are stated zero), and differs from the interior's at w:
+        the masking is what the bundle check above exercises. (f_pp is
+        identically zero here: f is linear in the diffusion and the KLE
+        map linear in p.)"""
+        rhs, bare = self._rhs(bkd)
+        rhs.set_param(_param(bkd))
+        state, adj = _state(bkd), _state(bkd, seed=6)
+        closed = rhs.derivatives().state_param
+        interior = bare.derivatives().state_param
+        assert closed is not None and interior is not None
+        eye = bkd.eye(_NMODES)
+        masked = rhs.system().interior_mask() * adj
+        bkd.assert_allclose(
+            closed(state, _TIME, adj).apply(eye),
+            interior(state, _TIME, masked).apply(eye),
+            rtol=1e-12,
+            atol=1e-14,
+        )
+        gap = closed(state, _TIME, adj).apply(eye) - interior(state, _TIME, adj).apply(
+            eye
+        )
+        assert bkd.to_float(bkd.max(bkd.abs(gap))) > 1e-3
+
+    def test_first_order_when_a_closure_lacks_curvature(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Flux Robin rows supply no second parameter derivatives: f~ is
+        first order, not second order with zeros."""
+        physics, parameters = _parameterized_adr(bkd)
+        system = CollocationSystem(physics, None, [_flux_robin(bkd, physics, (2, 3))])
+        bundle = ClosedRightHandSide(
+            system, parameters, initial_state=STATED_ZERO
+        ).derivatives()
+        assert bundle.param is not None and bundle.state_param is None
+
+
+class _QuadraticInterior(Generic[Array]):
+    """ADR plus 0.3 u^2: a parameterized interior with nonzero state
+    curvature, exact second derivative 0.6 lambda * w. The added term does
+    not depend on the parameters, so the ADR parameterization's
+    derivatives hold unchanged; ownership is the ADR physics'."""
+
+    def __init__(self, physics: AdvectionDiffusionReaction[Array]) -> None:
+        self._physics = physics
+
+    def bkd(self) -> Backend[Array]:
+        return self._physics.bkd()
+
+    def nstates(self) -> int:
+        return self._physics.nstates()
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        return self._physics.interior_residual(state, time) + 0.3 * state**2
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        return self._physics.interior_jacobian(state, time) + self.bkd().diag(
+            0.6 * state
+        )
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        return StateDerivatives.second_order(self._state_state_hvp)
+
+    def _state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
+    ) -> Array:
+        return 0.6 * adj_state * wvec
+
+    def interior_is_time_invariant(self) -> bool:
+        return self._physics.interior_is_time_invariant()
+
+    def interior_jacobian_is_time_invariant(self) -> bool:
+        return self._physics.interior_jacobian_is_time_invariant()
+
+    def owns(self, target: object) -> bool:
+        return target is self._physics
+
+
+class TestNonlinearSecondOrder:
+    """The quadratic interior with Dirichlet left/right and linear Robin
+    rows bottom/top: f~_uu[w] keeps the interior curvature off the Robin
+    rows only."""
+
+    def _rhs(self, bkd: Backend[Array]) -> ClosedRightHandSide[Array]:
+        physics, parameters = _parameterized_adr(bkd)
+        essential = _dirichlet(bkd, (0, 1))
+        system = CollocationSystem(
+            _QuadraticInterior(physics), essential, [_gradient_robin(bkd, (2, 3))]
+        )
+        return ClosedRightHandSide(system, parameters, initial_state=STATED_ZERO)
+
+    def test_bundle_checks(self, bkd: Backend[Array]) -> None:
+        rhs = self._rhs(bkd)
+        bundle = rhs.derivatives()
+        assert bundle.jacobian is not None and not bundle.jacobian.affine()
+        report = ODEResidualBundleChecker(rhs).check(
+            _state(bkd), _TIME, adj=_state(bkd, seed=6), param=_param(bkd)
+        )
+        assert report.failures() == []
+
+    def test_state_curvature_masked(self, bkd: Backend[Array]) -> None:
+        """f~_uu[w] = diag(0.6 P w), exactly."""
+        rhs = self._rhs(bkd)
+        state_state = rhs.derivatives().state_state
+        assert state_state is not None
+        adj = _state(bkd, seed=6)
+        expected = bkd.diag(0.6 * rhs.system().interior_mask() * adj)
+        bkd.assert_allclose(
+            state_state(_state(bkd), _TIME, adj).apply(bkd.eye(_NPTS)),
+            expected,
+            rtol=1e-12,
+            atol=1e-14,
+        )
+
+
+class TestOwnParametersRefused:
+    """Boundary data holding parameters of their own cannot join a system
+    with a parameter state: the state must be the parameters' only
+    writer."""
+
+    def _mapped(self, bkd: Backend[Array], side: int) -> MappedBoundaryData[Array]:
+        mesh = _mesh(bkd)
+        x = mesh.points()[0, mesh.boundary_indices(side)]
+        field_map = BasisExpansion(bkd, 1.0, [x, x**2])
+        return MappedBoundaryData(field_map, bkd.asarray([0.1, 0.2]), bkd)
+
+    def test_dirichlet(self, bkd: Backend[Array]) -> None:
+        physics, parameters = _parameterized_adr(bkd)
+        mesh = _mesh(bkd)
+        essential = DirichletRows(
+            bkd,
+            _NPTS,
+            1,
+            [DirichletPart(mesh.boundary_indices(2), self._mapped(bkd, 2))],
+        )
+        system = CollocationSystem(physics, essential)
+        with pytest.raises(ValueError, match="essential data depend"):
+            ClosedRightHandSide(system, parameters, initial_state=STATED_ZERO)
+
+    def _robin(
+        self,
+        bkd: Backend[Array],
+        physics: AdvectionDiffusionReaction[Array],
+        flux: bool,
+    ) -> RobinRows[Array]:
+        mesh, basis = _mesh(bkd), _basis(bkd)
+        indices, normals = mesh.boundary_indices(2), mesh.boundary_normals(2)
+        derivatives = [basis.derivative_matrix(1, 0), basis.derivative_matrix(1, 1)]
+        normal_term: "FluxNormalOperator[Array] | GradientNormalOperator[Array]" = (
+            FluxNormalOperator(bkd, indices, normals, physics)
+            if flux
+            else GradientNormalOperator(bkd, indices, normals, derivatives)
+        )
+        part = RobinPart(indices, normal_term, 1.0, 0.5, self._mapped(bkd, 2))
+        return RobinRows(bkd, _NPTS, 1, [part])
+
+    def test_robin(self, bkd: Backend[Array]) -> None:
+        physics, parameters = _parameterized_adr(bkd)
+        system = CollocationSystem(physics, None, [self._robin(bkd, physics, False)])
+        with pytest.raises(ValueError, match="closure 0 holds parameters"):
+            ClosedRightHandSide(system, parameters, initial_state=STATED_ZERO)
+
+    def test_flux_robin(self, bkd: Backend[Array]) -> None:
+        """Flux rows: refused by the rows when handed the sensitivity."""
+        physics, parameters = _parameterized_adr(bkd)
+        system = CollocationSystem(physics, None, [self._robin(bkd, physics, True)])
+        with pytest.raises(ValueError, match="parameters of their own"):
+            ClosedRightHandSide(system, parameters, initial_state=STATED_ZERO)
+
+    def test_accepted_without_a_parameter_state(self, bkd: Backend[Array]) -> None:
+        """Without a parameter state there is no second writer."""
+        physics = _adr(bkd)
+        system = CollocationSystem(physics, None, [self._robin(bkd, physics, False)])
+        rhs = ClosedRightHandSide(system)
+        assert rhs.derivatives().param is None
+
+
 class TestRefusals:
     def test_physics_type(self, bkd: Backend[Array]) -> None:
         with pytest.raises(TypeError, match="CollocationInteriorOperatorProtocol"):
@@ -423,7 +632,9 @@ class _ZeroSensitivity(Generic[Array]):
     def derivatives(
         self, normal_term_param: Optional[NormalTermParamFn[Array]] = None
     ) -> ClosureRowsDerivatives[Array]:
-        return self._rows.derivatives(_zero_sensitivity)
+        return self._rows.derivatives(
+            None if normal_term_param is None else _zero_sensitivity
+        )
 
     def is_time_invariant(self) -> bool:
         return self._rows.is_time_invariant()

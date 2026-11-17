@@ -422,7 +422,9 @@ class RobinRows(Generic[Array]):
         - when a part's normal term reads a physics coefficient,
           ``param_jacobian`` adds :math:`\operatorname{diag}(\beta)\,
           \partial N/\partial p` from ``normal_term_param`` and is None
-          without it; the second parameter derivatives are None;
+          without it; the second parameter derivatives are None; given
+          ``normal_term_param``, rows whose data hold parameters of their
+          own are refused (``ValueError``);
         - otherwise ``param_jacobian`` and ``param_curvature`` are stated
           zero when nothing depends on the parameters; ``mixed`` is
           stated zero when neither :math:`\alpha` nor :math:`\beta` does
@@ -435,6 +437,12 @@ class RobinRows(Generic[Array]):
             else None
         )
         if any(part.normal_term.has_coefficient_dependence() for part in self._parts):
+            if normal_term_param is not None and self._nparams is not None:
+                raise ValueError(
+                    "these rows hold parameters of their own and cannot also "
+                    "take the system's normal-term sensitivity: boundary data "
+                    "cannot yet be targets of the system's parameterization"
+                )
             return ClosureRowsDerivatives(
                 (
                     None
