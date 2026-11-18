@@ -18,6 +18,7 @@ from typing import Generic, Sequence
 import numpy as np
 import pytest
 
+from pyapprox.pde.coupling.assembly import DenseMassAssembler
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import skeleton_dof_points
@@ -212,7 +213,7 @@ def test_shared_edge_nodes_match(bkd: Backend[Array]) -> None:
 def test_mass_integrates_linears(bkd: Backend[Array]) -> None:
     bases = UniformBases(_CubicTriangle(bkd))
     topo, space = _space(bkd, bases)
-    mass = space.mass()
+    mass = DenseMassAssembler(bkd).assemble(space)
     points = skeleton_dof_points(space, _AffineFaces(topo, bkd), bases)
     # f(x) = 1 + x + 2y + 3z at each DOF; its integral over a triangle is
     # the area times f at the centroid.

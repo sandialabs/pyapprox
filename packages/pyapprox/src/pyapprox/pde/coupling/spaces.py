@@ -2,8 +2,11 @@ r"""Skeleton spaces: the discrete interface unknowns :math:`\Lambda_h`.
 
 A skeleton space numbers the unknowns on the skeleton, says which
 belong to each skeleton entity, and supplies the interface mass
-:math:`M_{ij} = \int_\Gamma \phi_i \phi_j \, ds` as an operator. Its
-vectors are those of a linear-algebra stack; nothing here indexes them.
+:math:`M_{ij} = \int_\Gamma \phi_i \phi_j \, ds` as small dense blocks,
+one per face, with their global DOFs. It forms no operator: an
+assembler of the vector stack does
+(:mod:`~pyapprox.pde.coupling.assembly`), so the space does not decide
+how skeleton vectors and operators are stored.
 """
 
 from dataclasses import dataclass
@@ -11,11 +14,10 @@ from typing import Generic, Mapping, Protocol, Sequence, TypeVar, runtime_checka
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
-    BackendDenseOperator,
     BackendVectorSpace,
     backend_dtype_name,
 )
-from pyapprox.util.linalg.operators import OperatorProperties, SpaceDescriptor
+from pyapprox.util.linalg.operators import SpaceDescriptor
 
 B = TypeVar("B")
 
@@ -104,27 +106,32 @@ def _face_bases(
     return bases.face_basis(faces[0]).bkd()
 
 
-def _face_mass(
-    bkd: Backend[Array],
-    size: int,
+@dataclass(frozen=True)
+class MassBlock(Generic[Array]):
+    r"""One face's contribution to the interface mass: the dense block
+    :math:`|f|\, \Phi_f^\top W_f \Phi_f` on the global DOFs ``dofs`` of
+    the face's nodes, in node order. The mass is the sum of the blocks,
+    each added at its rows and columns; an assembler of the vector stack
+    forms it."""
+
+    dofs: tuple[int, ...]
+    matrix: Array
+
+
+def _face_blocks(
     face_dofs: Mapping[int, Sequence[int]],
     bases: FaceBasesProtocol[Array],
     measures: Mapping[int, float],
-) -> Array:
-    r"""The sum over faces of :math:`G_f^\top (|f|\, \Phi_f^\top W_f \Phi_f)
-    G_f`, :math:`G_f` reading face ``f``'s nodes from the DOFs."""
-    matrix = bkd.zeros((size, size))
+) -> tuple[MassBlock[Array], ...]:
+    blocks = []
     for face, dofs in face_dofs.items():
         basis = bases.face_basis(face)
+        bkd = basis.bkd()
         points, weights = basis.quadrature()
         phi = basis.evaluate(points)
         block = measures[face] * bkd.dot(phi.T, weights * phi)
-        select = bkd.asarray(
-            [[1.0 if dof == col else 0.0 for col in range(size)] for dof in dofs],
-            dtype=bkd.default_dtype(),
-        )
-        matrix = matrix + bkd.dot(select.T, bkd.dot(block, select))
-    return matrix
+        blocks.append(MassBlock(tuple(dofs), block))
+    return tuple(blocks)
 
 
 @runtime_checkable
@@ -206,21 +213,11 @@ class FacetSkeletonSpace(Generic[Array]):
             )
         return self._entity_dofs[entity]
 
-    def mass(self) -> BackendDenseOperator[Array]:
-        r"""The interface mass, block diagonal over faces: each block is
-        the face measure times :math:`\Phi^\top W \Phi` on the reference
-        face."""
-        matrix = _face_mass(
-            self._bkd,
-            self._descriptor.size,
-            self._face_dofs,
-            self._bases,
-            self._measures,
-        )
-        props = OperatorProperties(symmetric=True, spd=True)
-        return BackendDenseOperator(
-            matrix, self._descriptor, self._bkd, properties=props
-        )
+    def mass_blocks(self) -> tuple[MassBlock[Array], ...]:
+        r"""The interface mass by face; the blocks do not overlap, so the
+        mass is block diagonal, each block the face measure times
+        :math:`\Phi^\top W \Phi` on the reference face."""
+        return _face_blocks(self._face_dofs, self._bases, self._measures)
 
 
 def _check_numbering(
@@ -385,16 +382,8 @@ class ContinuousSkeletonSpace(Generic[Array]):
             raise KeyError(f"entity {face} is not a skeleton face")
         return self._face_dofs[face]
 
-    def mass(self) -> BackendDenseOperator[Array]:
-        r"""The interface mass :math:`G^\top M_{\text{broken}} G`."""
-        matrix = _face_mass(
-            self._bkd,
-            self._descriptor.size,
-            self._face_dofs,
-            self._bases,
-            self._measures,
-        )
-        props = OperatorProperties(symmetric=True, spd=True)
-        return BackendDenseOperator(
-            matrix, self._descriptor, self._bkd, properties=props
-        )
+    def mass_blocks(self) -> tuple[MassBlock[Array], ...]:
+        r"""The interface mass :math:`G^\top M_{\text{broken}} G` by face:
+        faces sharing a closure entity overlap on its DOFs, where their
+        blocks add."""
+        return _face_blocks(self._face_dofs, self._bases, self._measures)

@@ -10,6 +10,7 @@ from typing import Generic, Sequence
 import numpy as np
 import pytest
 
+from pyapprox.pde.coupling.assembly import DenseMassAssembler
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.reference_faces import ReferenceBox
@@ -83,12 +84,13 @@ def test_facet_space_dofs_and_mass(
     for e, block in enumerate(blocks):
         assert len(block) == (nterms if e in faces else 0)
 
-    matrix = space.mass().format().matrix()
+    mass = DenseMassAssembler(bkd).assemble(space)
+    matrix = mass.format().matrix()
     bkd.assert_allclose(matrix, matrix.T, rtol=1e-12)
     eigenvalues, _ = bkd.eigh(matrix)
     assert bkd.to_float(bkd.min(eigenvalues)) > 0.0
     ones = space.vector_space().zeros() + 1.0
-    total = bkd.sum(ones * space.mass().apply(ones))
+    total = bkd.sum(ones * mass.apply(ones))
     expected = sum(topo.entity_measure(f) for f in faces)
     bkd.assert_allclose(
         bkd.reshape(total, (1,)), bkd.asarray([expected]), rtol=1e-12
@@ -157,7 +159,7 @@ def test_continuous_mass_integrates_linears(
     basis = TensorLagrangeBasis(d - 1, npoints, bkd)
     bases = UniformBases(basis)
     space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
-    mass = space.mass()
+    mass = DenseMassAssembler(bkd).assemble(space)
     matrix = mass.format().matrix()
     bkd.assert_allclose(matrix, matrix.T, rtol=1e-12)
     eigenvalues, _ = bkd.eigh(matrix)
@@ -283,7 +285,7 @@ def test_faces_may_differ_where_they_conform(bkd: Backend[Array]) -> None:
     assert space.descriptor().size == base.descriptor().size + 2
     assert len(space.face_dofs(face)) == 4
     ones = space.vector_space().zeros() + 1.0
-    total = bkd.sum(ones * space.mass().apply(ones))
+    total = bkd.sum(ones * DenseMassAssembler(bkd).assemble(space).apply(ones))
     expected = sum(square.entity_measure(f) for f in space.faces())
     bkd.assert_allclose(bkd.reshape(total, (1,)), bkd.asarray([expected]), rtol=1e-12)
     # In 3D faces share edges: degrees 2 and 1 put 1 and 0 nodes on one.
