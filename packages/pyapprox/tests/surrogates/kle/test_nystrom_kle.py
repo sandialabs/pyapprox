@@ -16,10 +16,13 @@ rank at these sizes, so they are used wherever the landmark count is
 the variable, and the precondition is asserted rather than assumed.
 """
 
+import tracemalloc
 from pathlib import Path
+from typing import Any, Callable
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
@@ -30,6 +33,7 @@ from pyapprox.surrogates.kle.io import load_nystrom_kle, save_nystrom_kle
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.nystrom_kle import (
     NystromKLE,
+    _nystrom_extension,
     create_nystrom_kle,
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
@@ -544,6 +548,68 @@ class TestRowBlocking:
             self._with_blocking(
                 kle, kernel, bkd, 7,  # type: ignore[arg-type]
             )
+
+
+def _peak_bytes(run: Callable[[], object]) -> int:
+    """Peak bytes tracemalloc sees while ``run`` executes (numpy only)."""
+    tracemalloc.start()
+    try:
+        run()
+        return tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+class TestPeakMemory:
+    """Blocking bounds the peak by the budget, not by ``N x m``.
+
+    Numpy only: tracemalloc sees numpy's allocations but not torch's.
+    The unit is ``U = N * m * 8`` bytes, one ``N x m`` float64 array.
+    Measured at N = 5000, m = 200, budget 256 KiB: the extension peaks
+    at 0.60 U blocked against 5.17 U unblocked, ``eigenvectors_at`` at
+    0.20 U against 3.00 U. The bounds leave room for allocator noise.
+    """
+
+    _NPOINTS, _NLANDMARKS = 5000, 200
+
+    def _setup(
+        self, bkd: NumpyBkd
+    ) -> tuple[SquaredExponentialKernel[NDArray[Any]], NDArray[Any],
+               NDArray[Any], NDArray[Any]]:
+        rng = np.random.RandomState(0)
+        coords = rng.uniform(0.0, 1.0, (3, self._NPOINTS))
+        sqrt_weights = np.sqrt(rng.uniform(0.5, 1.5, self._NPOINTS))
+        pivots = rng.choice(self._NPOINTS, self._NLANDMARKS, replace=False)
+        kernel = SquaredExponentialKernel(
+            bkd.full((3,), 0.05), (0.001, 10.0), 3, bkd
+        )
+        return kernel, coords, sqrt_weights, pivots
+
+    def test_extension_peak_is_bounded(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        kernel, coords, sqrt_weights, pivots = self._setup(bkd)
+        unit = self._NPOINTS * self._NLANDMARKS * 8
+        peak = _peak_bytes(lambda: _nystrom_extension(
+            kernel, coords, coords[:, pivots], bkd.asarray(pivots), 20,
+            sqrt_weights, bkd, ByteBudgetBlocking(256 * 1024),
+        ))
+        assert peak < 1.5 * unit, f"peak {peak / unit:.2f} U"
+
+    def test_eigenvectors_at_peak_is_bounded(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        kernel, coords, _sqrt_weights, pivots = self._setup(bkd)
+        rng = np.random.RandomState(1)
+        kle = NystromKLE(
+            kernel, coords[:, pivots],
+            rng.normal(size=(self._NLANDMARKS, 20)), bkd.full((20,), 1.0),
+            rng.normal(size=(self._NLANDMARKS, 20)), bkd=bkd,
+            row_blocking=ByteBudgetBlocking(256 * 1024),
+        )
+        unit = self._NPOINTS * self._NLANDMARKS * 8
+        peak = _peak_bytes(lambda: kle.eigenvectors_at(coords))
+        assert peak < 1.0 * unit, f"peak {peak / unit:.2f} U"
 
 
 class TestRankGuard:

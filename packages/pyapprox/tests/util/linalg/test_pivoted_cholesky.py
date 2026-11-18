@@ -4,6 +4,7 @@ Tests replicate legacy tests from pyapprox/util/tests/test_linalg.py
 using the new typing module implementation.
 """
 
+import tracemalloc
 from typing import Any
 
 import numpy as np
@@ -23,6 +24,7 @@ from pyapprox.util.linalg.pivoted_cholesky import (
     PivotedCholeskyFactorizer,
 )
 from pyapprox.util.linalg.row_blocking import (
+    ByteBudgetBlocking,
     FixedRowBlocking,
     NoBlocking,
     RowBlockingProtocol,
@@ -578,6 +580,36 @@ class TestBlockedUpdate:
         )
         fact = solver.factorize(kernel, X, 5)
         assert fact._row_blocking is blocking
+
+    def test_peak_memory_is_bounded(self, numpy_bkd: NumpyBkd) -> None:
+        """Blocked, the generic update peaks near the factor itself.
+
+        Numpy only (tracemalloc does not see torch). With U the bytes of
+        the ``N x npivots`` factor, measured at N = 5000, 200 pivots and
+        a 256 KiB budget: 1.06 U blocked against 1.98 U unblocked, the
+        gathered copy of ``L`` making the difference. The bound sits
+        between them.
+        """
+        bkd = numpy_bkd
+        npoints, npivots = 5000, 200
+        X = bkd.asarray(np.random.uniform(0.0, 1.0, (3, npoints)))
+        kernel = SquaredExponentialKernel(
+            bkd.full((3,), 0.05), (0.001, 10.0), 3, bkd
+        )
+        fact = PivotedCholeskyFactorizer(
+            KernelColumnOperator(kernel, X, bkd), bkd, tol=0.0,
+            row_blocking=ByteBudgetBlocking(256 * 1024),
+        )
+        fact._use_numba = False
+        tracemalloc.start()
+        try:
+            fact.factorize(npivots)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert fact.npivots() == npivots
+        unit = npoints * npivots * 8
+        assert peak < 1.5 * unit, f"peak {peak / unit:.2f} U"
 
     def test_rejects_a_non_blocking_object(self, bkd: Backend[Array]) -> None:
         A = self._kernel_matrix(bkd, 10)
