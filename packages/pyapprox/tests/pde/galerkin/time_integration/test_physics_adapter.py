@@ -20,7 +20,9 @@ from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_ode_residual,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 

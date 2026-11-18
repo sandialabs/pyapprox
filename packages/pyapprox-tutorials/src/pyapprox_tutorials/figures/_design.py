@@ -78,7 +78,9 @@ def _steady_solution(system, max_iter, initial_guess=None, atol=1e-10,
     ``initial_guess``, a 1-D solution, is given; line search of at most 10
     halvings; sparse LU); the solution, 1-D."""
     from pyapprox.implicitfunction.setups import RecomputeAlways
-    from pyapprox.pde.galerkin.time_integration import skfem_discretization
+    from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+        skfem_discretization,
+    )
     from pyapprox.pde.models.galerkin.steady_residual import (
         solve_galerkin_steady,
     )

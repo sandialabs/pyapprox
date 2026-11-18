@@ -80,7 +80,9 @@ class _BeamSolve:
     def __init__(self, beam, system, bkd):
         from pyapprox.implicitfunction.setups import RecomputeAlways
         from pyapprox.implicitfunction.steady_system import SteadySystem
-        from pyapprox.pde.galerkin.time_integration import skfem_discretization
+        from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+            skfem_discretization,
+        )
         from pyapprox.pde.models.galerkin.steady_residual import (
             galerkin_steady_residual,
         )

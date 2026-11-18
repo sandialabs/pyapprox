@@ -15,8 +15,10 @@ from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
 from pyapprox.pde.models.galerkin.physics_adapter import (

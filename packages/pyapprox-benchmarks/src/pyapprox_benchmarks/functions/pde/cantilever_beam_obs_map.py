@@ -78,7 +78,9 @@ def build_cantilever_beam_design_matrix(
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.time_integration import skfem_discretization
+    from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+        skfem_discretization,
+    )
     from pyapprox.pde.models.galerkin.steady_residual import (
         solve_galerkin_steady,
     )

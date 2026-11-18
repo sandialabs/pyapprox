@@ -20,9 +20,11 @@ from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinTransientModel,
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.numpy import NumpyBkd

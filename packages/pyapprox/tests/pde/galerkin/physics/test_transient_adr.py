@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
@@ -40,11 +41,14 @@ from pyapprox.pde.galerkin.manufactured import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinTransientModel,
-    TimeIntegrationConfig,
+from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slow_test

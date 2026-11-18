@@ -20,7 +20,9 @@ import numpy as np
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton

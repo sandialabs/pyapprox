@@ -26,6 +26,7 @@ from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.protocols import StateConstraintProtocol
 from pyapprox.ode.stepper_table import create_stepper
@@ -39,16 +40,21 @@ from pyapprox.pde.galerkin.manufactured.adapter import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsToODEResidualAdapter,
-    GalerkinTransientModel,
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     SymmetricNeutralizedRows,
-    TimeIntegrationConfig,
+)
+from pyapprox.pde.galerkin.time_integration.physics_adapter import (
+    GalerkinPhysicsToODEResidualAdapter,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
 )
 from pyapprox.pde.galerkin.time_integration.state_constraints import (
     EssentialPin,
     MassConsistentProjection,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array

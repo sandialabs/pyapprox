@@ -29,7 +29,9 @@ from pyapprox.pde.galerkin import (
 )
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
 from pyapprox.surrogates.kernels import SquaredExponentialKernel
 from pyapprox.surrogates.kle import MeshKLE

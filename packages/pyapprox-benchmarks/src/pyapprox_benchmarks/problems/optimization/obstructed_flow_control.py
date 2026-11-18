@@ -280,7 +280,9 @@ class ObstructedFlowControlProblem:
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
-        from pyapprox.pde.galerkin.time_integration import skfem_discretization
+        from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+            skfem_discretization,
+        )
         from pyapprox.pde.galerkin.zone_weights import (
             ElementAlignedRectangleZone,
         )

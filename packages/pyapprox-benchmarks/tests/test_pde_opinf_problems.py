@@ -30,9 +30,11 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     create_adr_manufactured_test,
 )
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinTransientModel,
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,

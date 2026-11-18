@@ -28,6 +28,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
@@ -43,10 +44,11 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinTransientModel,
-    TimeIntegrationConfig,
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.pde.manufactured.stokes import (
     ManufacturedStokes,

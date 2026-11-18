@@ -31,7 +31,9 @@ from pyapprox.interface.functions.derivative_checks.bundle_checks import (
 from pyapprox.ode.residual_derivatives import STATED_ZERO
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     essential_boundary_flux,
 )

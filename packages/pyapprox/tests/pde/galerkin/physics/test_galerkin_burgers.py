@@ -39,8 +39,10 @@ from pyapprox.pde.galerkin.manufactured import GalerkinManufacturedSolution
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
 )
 from pyapprox.pde.manufactured.burgers import (

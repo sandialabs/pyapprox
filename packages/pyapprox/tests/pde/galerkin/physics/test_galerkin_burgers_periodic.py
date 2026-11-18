@@ -34,9 +34,11 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinTransientModel,
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,

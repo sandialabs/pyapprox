@@ -143,7 +143,9 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU

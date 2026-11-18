@@ -199,7 +199,9 @@ step solved by sparse LU.
 
 ```{python}
 from pyapprox.implicitfunction.setups import RecomputeAlways
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.steady_residual import solve_galerkin_steady
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU

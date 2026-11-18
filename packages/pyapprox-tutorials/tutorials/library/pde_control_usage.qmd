@@ -226,7 +226,9 @@ from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )

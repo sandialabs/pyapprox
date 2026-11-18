@@ -135,10 +135,12 @@ solve differs.
 import numpy as np
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinTransientModel,
-    TimeIntegrationConfig,
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
+)
+from pyapprox.pde.galerkin.time_integration.transient_model import (
+    GalerkinTransientModel,
 )
 from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
 from pyapprox.util.backends.numpy import NumpyBkd

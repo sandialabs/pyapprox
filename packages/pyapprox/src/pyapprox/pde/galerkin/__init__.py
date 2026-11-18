@@ -32,7 +32,7 @@ from pyapprox.pde.galerkin.protocols import (
 from pyapprox.pde.galerkin.solvers import (
     SteadyStateSolver,
 )
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.util.optional_deps import package_available

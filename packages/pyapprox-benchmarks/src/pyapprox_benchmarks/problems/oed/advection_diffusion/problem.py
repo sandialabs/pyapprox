@@ -370,9 +370,11 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
-        from pyapprox.pde.galerkin.time_integration import (
-            GalerkinTransientModel,
+        from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
             skfem_ode_residual,
+        )
+        from pyapprox.pde.galerkin.time_integration.transient_model import (
+            GalerkinTransientModel,
         )
 
         bkd = self._bkd

@@ -67,7 +67,9 @@ from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
     QuasilinearDiffusion,
 )
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )

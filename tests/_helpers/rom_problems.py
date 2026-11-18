@@ -39,9 +39,11 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSteadySystem
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.galerkin.time_integration.dense_discretization import (
     DenseSteadyDiscretization,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
 )
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,

@@ -44,7 +44,9 @@ from pyapprox.pde.galerkin.manufactured import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     essential_boundary_flux,
 )

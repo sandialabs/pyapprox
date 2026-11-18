@@ -24,12 +24,12 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.assembly import ElementDofMapProtocol
-from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
 from pyapprox.pde.galerkin.time_integration.constrained_mass import (
     ConstrainedMassMatrixProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
+    skfem_ode_residual,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_jacobian_assembler import (
     SkfemJacobianAssembler,

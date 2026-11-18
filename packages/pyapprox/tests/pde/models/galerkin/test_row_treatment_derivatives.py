@@ -37,6 +37,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
@@ -57,9 +58,10 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     SymmetricNeutralizedRows,
-    TimeIntegrationConfig,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
 from pyapprox.pde.galerkin.time_integration.state_constraints import (

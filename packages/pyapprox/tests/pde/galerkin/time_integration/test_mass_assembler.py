@@ -24,11 +24,13 @@ from scipy.sparse import csr_matrix
 from pyapprox.pde.assembly import MassAssemblerProtocol, ScipyAssemblyStack
 from pyapprox.pde.assembly.protocols import AssemblyStackProtocol
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
 from pyapprox.pde.galerkin.time_integration.constrained_mass import (
     ConstrainedMassMatrixProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import essential_rows
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_ode_residual,
+)
 from pyapprox.pde.galerkin.time_integration.skfem_jacobian_assembler import (
     require_sparse,
 )

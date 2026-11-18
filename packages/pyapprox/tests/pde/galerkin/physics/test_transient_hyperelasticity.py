@@ -36,7 +36,7 @@ from pyapprox.pde.galerkin.physics import (
     HyperelasticityPhysics,
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
     skfem_ode_residual,
 )

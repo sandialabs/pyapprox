@@ -45,7 +45,9 @@ from pyapprox.pde.galerkin.observations import (
     probe_observation_functional,
 )
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )

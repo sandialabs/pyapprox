@@ -97,7 +97,9 @@ if package_available("skfem"):
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import StructuredMesh1D
     from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-    from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
+    from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+        skfem_ode_residual,
+    )
     from pyapprox.util.backends.numpy import NumpyBkd
 
 

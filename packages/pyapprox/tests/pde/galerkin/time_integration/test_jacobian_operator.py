@@ -34,10 +34,12 @@ from pyapprox.pde.assembly.protocols import (
     MatrixSinkProtocol,
 )
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import skfem_ode_residual
 from pyapprox.pde.galerkin.time_integration.jacobian_operator import (
     GalerkinJacobianOperator,
     essential_rows,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_ode_residual,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_jacobian_assembler import (
     SkfemJacobianAssembler,

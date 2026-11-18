@@ -36,10 +36,12 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.galerkin.time_integration import (
+from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     NeutralizedRows,
     RowTreatmentFactory,
     SymmetricNeutralizedRows,
+)
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
 )
 from pyapprox.pde.galerkin.time_integration.state_constraints import (
