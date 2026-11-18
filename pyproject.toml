@@ -1,6 +1,11 @@
 # Root pyproject.toml — dev tooling config only.
 # Package build configs live in packages/*/pyproject.toml.
 
+# Old import paths of moved modules: ck resolves them through this table,
+# as pyapprox._moved's import finder does at runtime.
+[tool.ck]
+import-aliases = ["packages/pyapprox/src/pyapprox/_moved.py:MOVED"]
+
 [tool.pytest.ini_options]
 testpaths = [
     "packages/pyapprox/tests",
