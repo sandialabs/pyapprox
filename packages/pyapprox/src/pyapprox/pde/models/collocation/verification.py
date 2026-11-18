@@ -767,10 +767,16 @@ class DecaysExponentially:
     ``-rate``.
 
     Spectral methods on smooth solutions converge as :math:`e \sim
-    C\exp(-\rho N)`, which no algebraic rate in :math:`h` states. On
-    Chebyshev-Gauss-Lobatto nodes :math:`1/h` is linear in :math:`N`
-    (:meth:`ChebyshevLevel.h`), so the slope is :math:`\rho` per node
-    scaled by :math:`2/(\pi L)` on a side of length :math:`L`.
+    C\exp(-\rho N)`, which no algebraic rate in :math:`h` states: the
+    slope of :math:`\log e` against :math:`\log h` grows without bound,
+    while against :math:`N` it is the constant :math:`-\rho`. On
+    Chebyshev-Gauss-Lobatto nodes :math:`1/h \approx 2(N - 1)/(\pi L)` on
+    a side of length :math:`L` (:meth:`ChebyshevLevel.h`), so the slope
+    against :math:`1/h` is :math:`\rho\,\pi L/2`, and :math:`\rho =
+    2\,\mathrm{slope}/(\pi L)` per node. For an entire solution the
+    convergence is faster than any exponential and the slope steepens
+    with :math:`N`; ``rate`` is a floor, which that only clears more
+    easily. Fit levels above round-off, where the curve flattens.
 
     Parameters
     ----------
