@@ -1,0 +1,143 @@
+r"""Where skeleton faces are: maps from reference faces to physical space.
+
+Geometry is separate from the topology and the space. A partition says
+which entities exist and how they meet, with plain integers; a space
+says which unknowns there are; a geometry says where a face's reference
+points land. Curved or mesh-derived faces are new geometries, with the
+same topology and space.
+"""
+
+from typing import Generic, Protocol, Sequence, runtime_checkable
+
+from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import SpaceDescriptor
+
+
+@runtime_checkable
+class FaceGeometryProtocol(Protocol[Array]):
+    """Maps a skeleton face's reference points to physical points."""
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def ndim(self) -> int:
+        """The dimension of physical space."""
+        ...
+
+    def face_points(self, face: int, points: Array) -> Array:
+        """The physical points of reference ``points`` of ``face``,
+        shape (ndim - 1, npoints). Shape: (ndim, npoints)."""
+        ...
+
+
+class TensorBoxGeometry(Generic[Array]):
+    r"""The affine maps of a :class:`~pyapprox.pde.coupling.topology.
+    TensorBoxPartition`'s faces: reference coordinate :math:`x` along a
+    spanned direction lands at :math:`l + (x + 1)(u - l)/2`, in the
+    order of the partition's reference boxes (increasing axis).
+
+    Parameters
+    ----------
+    partition
+        The partition, read for its entity extents.
+    bkd
+        The backend of the points.
+    """
+
+    def __init__(self, partition: TensorBoxPartition, bkd: Backend[Array]) -> None:
+        self._partition, self._bkd = partition, bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def ndim(self) -> int:
+        return self._partition.ndim()
+
+    def face_points(self, face: int, points: Array) -> Array:
+        """See :class:`FaceGeometryProtocol`.
+
+        Raises
+        ------
+        ValueError
+            If ``face`` is not a face or ``points`` has the wrong shape.
+        """
+        bkd, partition = self._bkd, self._partition
+        if partition.entity_dim(face) != partition.ndim() - 1:
+            raise ValueError(f"entity {face} is not a face")
+        if points.ndim != 2 or points.shape[0] != partition.ndim() - 1:
+            raise ValueError(
+                f"points must have shape ({partition.ndim() - 1}, npoints), "
+                f"got {tuple(points.shape)}"
+            )
+        npoints, spanned, rows = int(points.shape[1]), 0, []
+        for lo, up in partition.entity_bounds(face):
+            if up > lo:
+                rows.append(lo + (points[spanned] + 1.0) * ((up - lo) / 2.0))
+                spanned += 1
+            else:
+                rows.append(bkd.full((npoints,), lo))
+        return bkd.stack(rows, axis=0)
+
+
+@runtime_checkable
+class FaceDofsProtocol(Protocol):
+    """What :func:`skeleton_dof_points` asks of a skeleton space."""
+
+    def descriptor(self) -> SpaceDescriptor:
+        """The space's descriptor; its size is the number of DOFs."""
+        ...
+
+    def faces(self) -> Sequence[int]:
+        """The faces carrying nodes."""
+        ...
+
+    def face_dofs(self, face: int) -> tuple[int, ...]:
+        """The DOF each of ``face``'s nodes reads, in node order."""
+        ...
+
+
+def skeleton_dof_points(
+    space: FaceDofsProtocol,
+    geometry: FaceGeometryProtocol[Array],
+    nodes: Array,
+    tol: float = 1e-12,
+) -> Array:
+    r"""The physical point of each skeleton DOF, shape (ndim, ndofs):
+    each face's ``nodes`` (reference, shape (ndim - 1, nterms)) through
+    its map.
+
+    Every face reading a DOF must put it at the same point; a numbering
+    or geometry that disagrees is refused, which checks the two against
+    each other without a reference solution.
+
+    Raises
+    ------
+    TypeError
+        If ``space`` or ``geometry`` does not satisfy its protocol.
+    ValueError
+        If faces place one DOF at points farther apart than ``tol``, or
+        some DOF is on no face.
+    """
+    if not isinstance(space, FaceDofsProtocol):
+        raise TypeError(
+            f"space must satisfy FaceDofsProtocol, got {type(space).__name__}"
+        )
+    if not isinstance(geometry, FaceGeometryProtocol):
+        raise TypeError(
+            "geometry must satisfy FaceGeometryProtocol, got "
+            f"{type(geometry).__name__}"
+        )
+    bkd = geometry.bkd()
+    columns: dict[int, Array] = {}
+    for face in space.faces():
+        placed = geometry.face_points(face, nodes)
+        for j, dof in enumerate(space.face_dofs(face)):
+            point = placed[:, j]
+            if dof not in columns:
+                columns[dof] = point
+            elif bkd.to_float(bkd.max(bkd.abs(columns[dof] - point))) > tol:
+                raise ValueError(f"faces place DOF {dof} at different points")
+    size = space.descriptor().size
+    if sorted(columns) != list(range(size)):
+        raise ValueError("some skeleton DOF lies on no face")
+    return bkd.stack([columns[d] for d in range(size)], axis=1)

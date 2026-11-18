@@ -312,6 +312,11 @@ class ContinuousSkeletonSpace(Generic[Array]):
             )
         return self._entity_dofs[entity]
 
+    def faces(self) -> tuple[int, ...]:
+        """The skeleton faces, increasing: the entities that carry nodes
+        of their own, faces of dimension ``ndim - 1`` off the boundary."""
+        return tuple(self._face_dofs)
+
     def face_dofs(self, face: int) -> tuple[int, ...]:
         """The DOF of each of ``face``'s basis nodes, in node order."""
         if face not in self._face_dofs:

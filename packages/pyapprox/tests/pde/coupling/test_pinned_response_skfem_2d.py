@@ -42,6 +42,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
+from pyapprox.pde.coupling.geometry import TensorBoxGeometry, skeleton_dof_points
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
     SteadyPinnedPoint,
@@ -174,6 +175,7 @@ class _Problem:
             self.topo, basis, VertexWeightNumbering(self.topo, basis)
         )
         self.sink, self.essentials = sink, essentials
+        self._basis = basis
         self._ref_nodes = np.asarray(basis.nodes()[0])
 
     def cell_coords(self, direction: int, cell: int) -> _Np:
@@ -190,16 +192,9 @@ class _Problem:
 
     def skeleton_coords(self) -> _Np:
         """The point of each skeleton DOF. Shape: (2, ndofs)."""
-        points = np.full((2, self.skeleton.descriptor().size), np.nan)
-        for face in range(self.topo.nentities()):
-            if self.topo.entity_dim(face) != 1 or self.topo.on_boundary(face):
-                continue
-            bounds = self.topo.entity_bounds(face)
-            for dof, xi in zip(self.skeleton.face_dofs(face), self._ref_nodes):
-                points[:, dof] = [
-                    lo + 0.5 * (xi + 1.0) * (up - lo) for lo, up in bounds
-                ]
-        return points
+        return skeleton_dof_points(
+            self.skeleton, TensorBoxGeometry(self.topo, self.bkd), self._basis.nodes()
+        )
 
     def system(self, xs: _Np, ys: _Np, sides: Sequence[tuple[str, float]]) -> Any:
         mesh = _TensorQuadMesh(xs, ys, self.bkd)
