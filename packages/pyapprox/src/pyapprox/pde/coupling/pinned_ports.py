@@ -174,6 +174,7 @@ class PortPinnedData(Generic[V, P]):
                 f"at most params' size {params.descriptor().size}; got {counts}"
             )
         self._rows, self._param_ports = rows, param_ports
+        self._state_ports = state_ports
         self._states, self._params = states, params
         self._placement = PortPlacement(state_ports, param_ports, states, params)
         self._bundle: PinnedValuesParamDerivatives[V] = (
@@ -209,6 +210,10 @@ class PortPinnedData(Generic[V, P]):
     def state_space(self) -> VectorSpaceProtocol[V]:
         """The state space."""
         return self._states
+
+    def state_ports(self) -> PortRowsProtocol[V, P]:
+        """The port rows of the state space, in port order."""
+        return self._state_ports
 
     def placement(self) -> PortPlacement[V, P]:
         """:math:`B`."""
