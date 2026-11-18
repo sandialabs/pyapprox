@@ -7,7 +7,7 @@ vectors are those of a linear-algebra stack; nothing here indexes them.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Generic, Mapping, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -16,6 +16,8 @@ from pyapprox.util.linalg.backend_dense import (
     backend_dtype_name,
 )
 from pyapprox.util.linalg.operators import OperatorProperties, SpaceDescriptor
+
+B = TypeVar("B")
 
 
 @runtime_checkable
@@ -52,6 +54,80 @@ class SkeletonBasisProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
+class FaceBasesProtocol(Protocol[Array]):
+    """The basis on each skeleton face: degree, node family and face shape
+    may differ between faces."""
+
+    def face_basis(self, face: int) -> SkeletonBasisProtocol[Array]:
+        """The basis on ``face``'s reference face."""
+        ...
+
+
+class UniformBases(Generic[B]):
+    """The same basis on every face.
+
+    Parameters
+    ----------
+    basis
+        The basis, of the face dimension.
+    """
+
+    def __init__(self, basis: B) -> None:
+        self._basis = basis
+
+    def face_basis(self, face: int) -> B:
+        return self._basis
+
+
+def _face_bases(
+    bases: FaceBasesProtocol[Array], faces: Sequence[int], face_dim: int
+) -> Backend[Array]:
+    """Check each face's basis; the backend they share."""
+    if not isinstance(bases, FaceBasesProtocol):
+        raise TypeError(
+            f"bases must satisfy FaceBasesProtocol, got {type(bases).__name__}"
+        )
+    if not faces:
+        raise ValueError("the partition has no skeleton faces")
+    for face in faces:
+        basis = bases.face_basis(face)
+        if not isinstance(basis, SkeletonBasisProtocol):
+            raise TypeError(
+                f"face {face}'s basis must satisfy SkeletonBasisProtocol, got "
+                f"{type(basis).__name__}"
+            )
+        if basis.ndim() != face_dim:
+            raise ValueError(
+                f"face {face}'s basis dimension {basis.ndim()} differs from the "
+                f"face dimension {face_dim}"
+            )
+    return bases.face_basis(faces[0]).bkd()
+
+
+def _face_mass(
+    bkd: Backend[Array],
+    size: int,
+    face_dofs: Mapping[int, Sequence[int]],
+    bases: FaceBasesProtocol[Array],
+    measures: Mapping[int, float],
+) -> Array:
+    r"""The sum over faces of :math:`G_f^\top (|f|\, \Phi_f^\top W_f \Phi_f)
+    G_f`, :math:`G_f` reading face ``f``'s nodes from the DOFs."""
+    matrix = bkd.zeros((size, size))
+    for face, dofs in face_dofs.items():
+        basis = bases.face_basis(face)
+        points, weights = basis.quadrature()
+        phi = basis.evaluate(points)
+        block = measures[face] * bkd.dot(phi.T, weights * phi)
+        select = bkd.asarray(
+            [[1.0 if dof == col else 0.0 for col in range(size)] for dof in dofs],
+            dtype=bkd.default_dtype(),
+        )
+        matrix = matrix + bkd.dot(select.T, bkd.dot(block, select))
+    return matrix
+
+
+@runtime_checkable
 class FacetTopologyProtocol(Protocol):
     """What a facet space needs of a partition: its faces and their size."""
 
@@ -67,52 +143,51 @@ class FacetTopologyProtocol(Protocol):
 class FacetSkeletonSpace(Generic[Array]):
     """Unknowns on skeleton faces only, discontinuous across their closure.
 
-    Every face (an entity of dimension ``ndim() - 1``) carries the same
-    reference basis; lower-dimensional entities carry no unknowns. DOFs
-    are numbered face by face, in entity order.
+    Each face (an entity of dimension ``ndim() - 1``) carries its own
+    basis's unknowns; lower-dimensional entities carry none. DOFs are
+    numbered face by face, in entity order.
 
     Parameters
     ----------
     topology
         The partition.
-    basis
-        The basis on the reference face, of dimension
-        ``topology.ndim() - 1``.
+    bases
+        The basis on each face, of dimension ``topology.ndim() - 1``.
+
+    Raises
+    ------
+    TypeError
+        If an argument or a face's basis does not satisfy its protocol.
+    ValueError
+        If a face's basis has the wrong dimension, or there are no faces.
     """
 
     def __init__(
-        self, topology: FacetTopologyProtocol, basis: SkeletonBasisProtocol[Array]
+        self, topology: FacetTopologyProtocol, bases: FaceBasesProtocol[Array]
     ) -> None:
         if not isinstance(topology, FacetTopologyProtocol):
             raise TypeError(
                 "topology must satisfy FacetTopologyProtocol, got "
                 f"{type(topology).__name__}"
             )
-        if not isinstance(basis, SkeletonBasisProtocol):
-            raise TypeError(
-                "basis must satisfy SkeletonBasisProtocol, got "
-                f"{type(basis).__name__}"
-            )
         face_dim = topology.ndim() - 1
-        if basis.ndim() != face_dim:
-            raise ValueError(
-                f"basis dimension {basis.ndim()} differs from the face "
-                f"dimension {face_dim}"
-            )
-        self._bkd = basis.bkd()
-        self._basis = basis
         faces = [
             e for e in range(topology.nentities()) if topology.entity_dim(e) == face_dim
         ]
-        nterms = basis.nterms()
+        self._bkd = _face_bases(bases, faces, face_dim)
+        self._bases = bases
         self._entity_dofs: list[tuple[int, ...]] = [
             () for _ in range(topology.nentities())
         ]
-        for k, face in enumerate(faces):
-            self._entity_dofs[face] = tuple(range(k * nterms, (k + 1) * nterms))
-        self._measures = [topology.entity_measure(face) for face in faces]
+        size = 0
+        for face in faces:
+            nterms = bases.face_basis(face).nterms()
+            self._entity_dofs[face] = tuple(range(size, size + nterms))
+            size += nterms
+        self._face_dofs = {face: self._entity_dofs[face] for face in faces}
+        self._measures = {face: topology.entity_measure(face) for face in faces}
         self._descriptor = SpaceDescriptor(
-            "skeleton", len(faces) * nterms, backend_dtype_name(self._bkd)
+            "skeleton", size, backend_dtype_name(self._bkd)
         )
         self._space = BackendVectorSpace(self._descriptor, self._bkd)
 
@@ -135,32 +210,28 @@ class FacetSkeletonSpace(Generic[Array]):
         r"""The interface mass, block diagonal over faces: each block is
         the face measure times :math:`\Phi^\top W \Phi` on the reference
         face."""
-        matrix = _broken_mass(self._basis, self._measures)
+        matrix = _face_mass(
+            self._bkd,
+            self._descriptor.size,
+            self._face_dofs,
+            self._bases,
+            self._measures,
+        )
         props = OperatorProperties(symmetric=True, spd=True)
         return BackendDenseOperator(
             matrix, self._descriptor, self._bkd, properties=props
         )
 
 
-def _broken_mass(basis: SkeletonBasisProtocol[Array], measures: list[float]) -> Array:
-    """The mass of face-by-face nodal values: diag(measures) kron the
-    reference mass."""
-    bkd = basis.bkd()
-    points, weights = basis.quadrature()
-    phi = basis.evaluate(points)
-    reference = bkd.dot(phi.T, weights * phi)
-    return bkd.kron(bkd.diag(bkd.asarray(measures)), reference)
-
-
 def _check_numbering(
     face_nodes: Sequence[Sequence[tuple[int, int]]],
     counts: Mapping[int, int],
-    nfaces: int,
-    nterms: int,
+    nterms: Sequence[int],
 ) -> None:
-    if len(face_nodes) != nfaces or any(len(n) != nterms for n in face_nodes):
+    if [len(nodes) for nodes in face_nodes] != list(nterms):
         raise ValueError(
-            f"the numbering must give {nterms} nodes for each of {nfaces} faces"
+            f"the numbering must give {list(nterms)} nodes for the faces, got "
+            f"{[len(nodes) for nodes in face_nodes]}"
         )
     read = {(e, r) for nodes in face_nodes for e, r in nodes}
     if any(e not in counts or not 0 <= r < counts[e] for e, r in read):
@@ -225,27 +296,27 @@ class ContinuousSkeletonSpace(Generic[Array]):
     ----------
     topology
         The partition.
-    basis
-        The basis on every face, of dimension ``topology.ndim() - 1``.
+    bases
+        The nodal basis on each face, of dimension ``topology.ndim() - 1``.
     numbering
         Identifies the faces' closure nodes, for the same topology and
-        basis (e.g. :class:`~pyapprox.pde.coupling.closure_numbering.
+        bases (e.g. :class:`~pyapprox.pde.coupling.closure_numbering.
         VertexWeightNumbering`).
 
     Raises
     ------
     TypeError
-        If an argument does not satisfy its protocol.
+        If an argument or a face's basis does not satisfy its protocol.
     ValueError
-        If the basis dimension is not the face dimension, or the
-        numbering's answer does not fit the faces and basis: a face or
-        node missing, a rank out of range, or a DOF no node reads.
+        If a face's basis has the wrong dimension, there are no faces, or
+        the numbering's answer does not fit the faces and bases: a face
+        or node missing, a rank out of range, or a DOF no node reads.
     """
 
     def __init__(
         self,
         topology: ContinuousTopologyProtocol,
-        basis: SkeletonBasisProtocol[Array],
+        bases: FaceBasesProtocol[Array],
         numbering: ClosureNumberingProtocol,
     ) -> None:
         if not isinstance(topology, ContinuousTopologyProtocol):
@@ -253,32 +324,23 @@ class ContinuousSkeletonSpace(Generic[Array]):
                 "topology must satisfy ContinuousTopologyProtocol, got "
                 f"{type(topology).__name__}"
             )
-        if not isinstance(basis, SkeletonBasisProtocol):
-            raise TypeError(
-                "basis must satisfy SkeletonBasisProtocol, got "
-                f"{type(basis).__name__}"
-            )
         if not isinstance(numbering, ClosureNumberingProtocol):
             raise TypeError(
                 "numbering must satisfy ClosureNumberingProtocol, got "
                 f"{type(numbering).__name__}"
             )
         face_dim = topology.ndim() - 1
-        if basis.ndim() != face_dim:
-            raise ValueError(
-                f"basis dimension {basis.ndim()} differs from the face "
-                f"dimension {face_dim}"
-            )
-        self._bkd = basis.bkd()
-        self._basis = basis
         faces = [
             e
             for e in range(topology.nentities())
             if topology.entity_dim(e) == face_dim and not topology.on_boundary(e)
         ]
+        self._bkd = _face_bases(bases, faces, face_dim)
+        self._bases = bases
         numbered = numbering.number(faces)
         local, counts = numbered.face_nodes, dict(numbered.entity_counts)
-        _check_numbering(local, counts, len(faces), basis.nterms())
+        nterms = [bases.face_basis(face).nterms() for face in faces]
+        _check_numbering(local, counts, nterms)
         offsets, size = {}, 0
         for entity in sorted(counts):
             offsets[entity] = size
@@ -291,7 +353,7 @@ class ContinuousSkeletonSpace(Generic[Array]):
             face: tuple(offsets[p] + r for p, r in nodes)
             for face, nodes in zip(faces, local)
         }
-        self._measures = [topology.entity_measure(face) for face in faces]
+        self._measures = {face: topology.entity_measure(face) for face in faces}
         self._descriptor = SpaceDescriptor(
             "skeleton", size, backend_dtype_name(self._bkd)
         )
@@ -325,14 +387,14 @@ class ContinuousSkeletonSpace(Generic[Array]):
 
     def mass(self) -> BackendDenseOperator[Array]:
         r"""The interface mass :math:`G^\top M_{\text{broken}} G`."""
-        bkd, size = self._bkd, self._descriptor.size
-        rows = [
-            [1.0 if dof == col else 0.0 for col in range(size)]
-            for dofs in self._face_dofs.values()
-            for dof in dofs
-        ]
-        gather = bkd.asarray(rows, dtype=bkd.default_dtype())
-        broken = _broken_mass(self._basis, self._measures)
-        matrix = bkd.dot(gather.T, bkd.dot(broken, gather))
+        matrix = _face_mass(
+            self._bkd,
+            self._descriptor.size,
+            self._face_dofs,
+            self._bases,
+            self._measures,
+        )
         props = OperatorProperties(symmetric=True, spd=True)
-        return BackendDenseOperator(matrix, self._descriptor, bkd, properties=props)
+        return BackendDenseOperator(
+            matrix, self._descriptor, self._bkd, properties=props
+        )

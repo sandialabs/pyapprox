@@ -17,7 +17,7 @@ from pyapprox.pde.coupling.geometry import (
     TensorBoxGeometry,
     skeleton_dof_points,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
+from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import SpaceDescriptor
@@ -44,9 +44,9 @@ def test_face_corners_land_on_extent(bkd: Backend[Array]) -> None:
 def test_dof_points(bkd: Backend[Array], ncells: tuple[int, ...], npoints: int) -> None:
     d = len(ncells)
     topo = TensorBoxPartition(ncells, bounds=_BOUNDS[:d])
-    basis = TensorLagrangeBasis(d - 1, npoints, bkd)
-    space = ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis))
-    points = skeleton_dof_points(space, TensorBoxGeometry(topo, bkd), basis.nodes())
+    bases = UniformBases(TensorLagrangeBasis(d - 1, npoints, bkd))
+    space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
+    points = skeleton_dof_points(space, TensorBoxGeometry(topo, bkd), bases)
     size = space.descriptor().size
     assert tuple(points.shape) == (d, size)
     coords = [[bkd.to_float(points[i, k]) for i in range(d)] for k in range(size)]
@@ -96,14 +96,17 @@ class _Missing:
 def test_rejects_bad_input(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2))
     basis = TensorLagrangeBasis(1, 2, bkd)
-    space = ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis))
+    bases = UniformBases(basis)
+    space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     geometry = TensorBoxGeometry(topo, bkd)
     with pytest.raises(ValueError, match="different points"):
-        skeleton_dof_points(space, _Shifted(geometry), basis.nodes())
+        skeleton_dof_points(space, _Shifted(geometry), bases)
     line = TensorBoxPartition((2,))
     with pytest.raises(ValueError, match="no face"):
         skeleton_dof_points(
-            _Missing(), TensorBoxGeometry(line, bkd), bkd.zeros((0, 1))
+            _Missing(),
+            TensorBoxGeometry(line, bkd),
+            UniformBases(TensorLagrangeBasis(0, 1, bkd)),
         )
     vertex = next(e for e in range(topo.nentities()) if topo.entity_dim(e) == 0)
     with pytest.raises(ValueError, match="not a face"):
@@ -111,6 +114,8 @@ def test_rejects_bad_input(bkd: Backend[Array]) -> None:
     with pytest.raises(ValueError, match="shape"):
         geometry.face_points(space.faces()[0], bkd.zeros((2, 1)))
     with pytest.raises(TypeError):
-        skeleton_dof_points(object(), geometry, basis.nodes())  # type: ignore[arg-type]
+        skeleton_dof_points(object(), geometry, bases)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
-        skeleton_dof_points(space, object(), basis.nodes())  # type: ignore[arg-type]
+        skeleton_dof_points(space, object(), bases)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        skeleton_dof_points(space, geometry, object())  # type: ignore[arg-type]

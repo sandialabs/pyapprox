@@ -49,7 +49,7 @@ from pyapprox.pde.coupling.skeleton import (
     SkeletonResidual,
     TransmissionProtocol,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
+from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition, local_subdomains
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -119,9 +119,9 @@ def _chain(
     u = 0 at both ends."""
     n = len(coefs)
     topo = TensorBoxPartition((n,))
-    basis = TensorLagrangeBasis(0, 1, bkd)
-    numbering = VertexWeightNumbering(topo, basis)
-    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
+    bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
+    numbering = VertexWeightNumbering(topo, bases)
+    skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
     space = skeleton.vector_space()
     responses, subdomains = [], []
     for s in range(n):
@@ -399,9 +399,9 @@ def _mock_chain(
     bkd, case = NumpyBkd(), mock_case()
     n = len(coefs)
     topo = TensorBoxPartition((n,))
-    basis = TensorLagrangeBasis(0, 1, bkd)
-    numbering = VertexWeightNumbering(topo, basis)
-    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
+    bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
+    numbering = VertexWeightNumbering(topo, bases)
+    skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
     descriptor = skeleton.descriptor()
     responses, subdomains = [], []
     for s in range(n):

@@ -57,7 +57,7 @@ from pyapprox.pde.coupling.skeleton import (
     MatrixFreeSchur,
     SkeletonResidual,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
+from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.galerkin.system import GalerkinSteadySystem
 from pyapprox.pde.galerkin.time_integration.dense_discretization import (
@@ -248,9 +248,9 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     skeleton and solved by Newton with matrix-free GMRES: the interface
     value is the halved single-domain one to 1e-10."""
     topo = TensorBoxPartition((2,))
-    basis = TensorLagrangeBasis(0, 1, bkd)
-    numbering = VertexWeightNumbering(topo, basis)
-    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
+    bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
+    numbering = VertexWeightNumbering(topo, bases)
+    skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
     space = skeleton.vector_space()
     pieces = [
         _Piece(bkd, True, (0, 1.0), (_NCELLS,)).response(),

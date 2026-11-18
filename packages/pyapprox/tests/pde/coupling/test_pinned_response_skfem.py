@@ -56,7 +56,7 @@ from pyapprox.pde.coupling.skeleton import (
     MatrixFreeSchur,
     SkeletonResidual,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
+from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
@@ -194,9 +194,9 @@ def _single_domain(bkd: NumpyBkd, reaction: bool) -> _Np:
 
 def _solve_skeleton(bkd: NumpyBkd, pieces: Sequence[_Response]) -> _Np:
     topo = TensorBoxPartition((2,))
-    basis = TensorLagrangeBasis(0, 1, bkd)
-    numbering = VertexWeightNumbering(topo, basis)
-    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
+    bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
+    numbering = VertexWeightNumbering(topo, bases)
+    skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
     space = skeleton.vector_space()
     subdomains = [
         CoupledSubdomain(

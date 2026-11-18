@@ -7,11 +7,13 @@ points land. Curved or mesh-derived faces are new geometries, with the
 same topology and space.
 """
 
-from typing import Generic, Protocol, Sequence, runtime_checkable
+from typing import Generic, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.pde.coupling.topology import TensorBoxPartition
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import SpaceDescriptor
+
+A_co = TypeVar("A_co", bound=ArrayProtocol, covariant=True)
 
 
 @runtime_checkable
@@ -96,15 +98,30 @@ class FaceDofsProtocol(Protocol):
         ...
 
 
+@runtime_checkable
+class NodalBasisProtocol(Protocol[A_co]):
+    """What :func:`skeleton_dof_points` asks of a face's basis."""
+
+    def nodes(self) -> A_co:
+        """The nodes on the reference face. Shape: (ndim - 1, nterms)."""
+        ...
+
+
+@runtime_checkable
+class NodalBasesProtocol(Protocol[A_co]):
+    """What :func:`skeleton_dof_points` asks for each face: its basis."""
+
+    def face_basis(self, face: int) -> NodalBasisProtocol[A_co]: ...
+
+
 def skeleton_dof_points(
     space: FaceDofsProtocol,
     geometry: FaceGeometryProtocol[Array],
-    nodes: Array,
+    bases: NodalBasesProtocol[Array],
     tol: float = 1e-12,
 ) -> Array:
     r"""The physical point of each skeleton DOF, shape (ndim, ndofs):
-    each face's ``nodes`` (reference, shape (ndim - 1, nterms)) through
-    its map.
+    each face's basis nodes through its map.
 
     Every face reading a DOF must put it at the same point; a numbering
     or geometry that disagrees is refused, which checks the two against
@@ -113,11 +130,16 @@ def skeleton_dof_points(
     Raises
     ------
     TypeError
-        If ``space`` or ``geometry`` does not satisfy its protocol.
+        If ``space``, ``geometry`` or ``bases`` does not satisfy its
+        protocol.
     ValueError
         If faces place one DOF at points farther apart than ``tol``, or
         some DOF is on no face.
     """
+    if not isinstance(bases, NodalBasesProtocol):
+        raise TypeError(
+            f"bases must satisfy NodalBasesProtocol, got {type(bases).__name__}"
+        )
     if not isinstance(space, FaceDofsProtocol):
         raise TypeError(
             f"space must satisfy FaceDofsProtocol, got {type(space).__name__}"
@@ -130,7 +152,7 @@ def skeleton_dof_points(
     bkd = geometry.bkd()
     columns: dict[int, Array] = {}
     for face in space.faces():
-        placed = geometry.face_points(face, nodes)
+        placed = geometry.face_points(face, bases.face_basis(face).nodes())
         for j, dof in enumerate(space.face_dofs(face)):
             point = placed[:, j]
             if dof not in columns:

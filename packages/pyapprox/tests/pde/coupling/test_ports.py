@@ -27,6 +27,7 @@ from pyapprox.pde.coupling.ports import (
 from pyapprox.pde.coupling.spaces import (
     ContinuousSkeletonSpace,
     FacetSkeletonSpace,
+    UniformBases,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -82,9 +83,9 @@ def _skeleton(ncells: tuple[int, ...], npoints: int) -> tuple[
     TensorBoxPartition, ContinuousSkeletonSpace[NDArray[Any]]
 ]:
     topo = TensorBoxPartition(ncells)
-    basis = TensorLagrangeBasis(topo.ndim() - 1, npoints, NumpyBkd())
+    bases = UniformBases(TensorLagrangeBasis(topo.ndim() - 1, npoints, NumpyBkd()))
     return topo, ContinuousSkeletonSpace(
-        topo, basis, VertexWeightNumbering(topo, basis)
+        topo, bases, VertexWeightNumbering(topo, bases)
     )
 
 
@@ -151,11 +152,11 @@ def test_backend_port_rows_reject_bad_input(numpy_bkd: Backend[Array]) -> None:
 
 def test_both_spaces_give_entity_dofs() -> None:
     topo = TensorBoxPartition((2, 2))
-    basis = TensorLagrangeBasis(1, 3, NumpyBkd())
+    bases = UniformBases(TensorLagrangeBasis(1, 3, NumpyBkd()))
     assert isinstance(topo, SubdomainEntitiesProtocol)
     for space in (
-        ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis)),
-        FacetSkeletonSpace(topo, basis),
+        ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases)),
+        FacetSkeletonSpace(topo, bases),
     ):
         assert isinstance(space, EntityDofsProtocol)
         dofs = subdomain_port_dofs(topo, space, 0)

@@ -18,6 +18,7 @@ from pyapprox.pde.coupling.spaces import (
     ContinuousSkeletonSpace,
     FacetSkeletonSpace,
     SkeletonBasisProtocol,
+    UniformBases,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.util.backends.protocols import Array, Backend
@@ -70,7 +71,9 @@ def test_facet_space_dofs_and_mass(
     bounds = [(0.0, 2.0)] + [(0.0, 1.0)] * (len(ncells) - 1)
     topo = TensorBoxPartition(ncells, bounds=bounds)
     d = topo.ndim()
-    space = FacetSkeletonSpace(topo, TensorLagrangeBasis(d - 1, npoints, bkd))
+    space = FacetSkeletonSpace(
+        topo, UniformBases(TensorLagrangeBasis(d - 1, npoints, bkd))
+    )
     faces = [e for e in range(topo.nentities()) if topo.entity_dim(e) == d - 1]
     nterms = npoints ** (d - 1)
     size = space.descriptor().size
@@ -124,7 +127,8 @@ def test_continuous_space_is_single_valued(
     topo = TensorBoxPartition(ncells, bounds=[(0.0, 2.0)] * len(ncells))
     d = topo.ndim()
     basis = TensorLagrangeBasis(d - 1, npoints, bkd)
-    space = ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis))
+    bases = UniformBases(basis)
+    space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     # Lobatto nodes: (npoints - 2)^m strictly inside an m-dimensional entity.
     expected = sum((npoints - 2) ** topo.entity_dim(e) for e in range(topo.nentities()))
     assert space.descriptor().size == expected
@@ -151,7 +155,8 @@ def test_continuous_mass_integrates_linears(
     topo = TensorBoxPartition(ncells)
     d = topo.ndim()
     basis = TensorLagrangeBasis(d - 1, npoints, bkd)
-    space = ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis))
+    bases = UniformBases(basis)
+    space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     mass = space.mass()
     matrix = mass.format().matrix()
     bkd.assert_allclose(matrix, matrix.T, rtol=1e-12)
@@ -222,7 +227,7 @@ class _Anisotropic(Generic[Array]):
 
 def test_continuous_space_rejects_nonconforming(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2, 2))
-    anisotropic = _Anisotropic(bkd)
+    anisotropic = UniformBases(_Anisotropic(bkd))
     with pytest.raises(ValueError, match="disagree"):
         ContinuousSkeletonSpace(
             topo, anisotropic, VertexWeightNumbering(topo, anisotropic)
@@ -232,16 +237,60 @@ def test_continuous_space_rejects_nonconforming(bkd: Backend[Array]) -> None:
         ContinuousSkeletonSpace(
             square, anisotropic, VertexWeightNumbering(square, anisotropic)
         )
-    basis = TensorLagrangeBasis(1, 2, bkd)
+    bases = UniformBases(TensorLagrangeBasis(1, 2, bkd))
     space = ContinuousSkeletonSpace(
-        square, basis, VertexWeightNumbering(square, basis)
+        square, bases, VertexWeightNumbering(square, bases)
     )
     with pytest.raises(KeyError):
         space.face_dofs(space.descriptor().size + 100)
     with pytest.raises(IndexError):
         space.entity_dofs(-1)
     with pytest.raises(TypeError, match="ClosureNumberingProtocol"):
-        ContinuousSkeletonSpace(square, basis, object())  # type: ignore[arg-type]
+        ContinuousSkeletonSpace(square, bases, object())  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="FaceBasesProtocol"):
+        ContinuousSkeletonSpace(
+            square, object(), VertexWeightNumbering(square, bases)  # type: ignore[arg-type]
+        )
+
+
+class _PerFace(Generic[Array]):
+    """``npoints`` Lobatto points on the faces listed, ``default`` on the
+    others."""
+
+    def __init__(
+        self, ndim: int, default: int, chosen: dict[int, int], bkd: Backend[Array]
+    ) -> None:
+        self._default = TensorLagrangeBasis(ndim, default, bkd)
+        self._chosen = {
+            f: TensorLagrangeBasis(ndim, n, bkd) for f, n in chosen.items()
+        }
+
+    def face_basis(self, face: int) -> TensorLagrangeBasis[Array]:
+        return self._chosen.get(face, self._default)
+
+
+def test_faces_may_differ_where_they_conform(bkd: Backend[Array]) -> None:
+    # In 2D faces share only vertices, one node each: one face of degree
+    # 3 beside faces of degree 1 conforms, adding its two interior nodes.
+    square = TensorBoxPartition((2, 2))
+    uniform = UniformBases(TensorLagrangeBasis(1, 2, bkd))
+    base = ContinuousSkeletonSpace(
+        square, uniform, VertexWeightNumbering(square, uniform)
+    )
+    face = base.faces()[0]
+    mixed = _PerFace(1, 2, {face: 4}, bkd)
+    space = ContinuousSkeletonSpace(square, mixed, VertexWeightNumbering(square, mixed))
+    assert space.descriptor().size == base.descriptor().size + 2
+    assert len(space.face_dofs(face)) == 4
+    ones = space.vector_space().zeros() + 1.0
+    total = bkd.sum(ones * space.mass().apply(ones))
+    expected = sum(square.entity_measure(f) for f in space.faces())
+    bkd.assert_allclose(bkd.reshape(total, (1,)), bkd.asarray([expected]), rtol=1e-12)
+    # In 3D faces share edges: degrees 2 and 1 put 1 and 0 nodes on one.
+    cube = TensorBoxPartition((2, 2, 2))
+    clash = _PerFace(2, 2, {0: 3}, bkd)
+    with pytest.raises(ValueError, match="disagree"):
+        ContinuousSkeletonSpace(cube, clash, VertexWeightNumbering(cube, clash))
 
 
 class _FixedNumbering:
@@ -257,13 +306,13 @@ class _FixedNumbering:
 def test_continuous_space_takes_any_numbering(bkd: Backend[Array]) -> None:
     # Three subdomains on a line: faces 0 and 1 are points, one node each.
     topo = TensorBoxPartition((3,))
-    basis = TensorLagrangeBasis(0, 1, bkd)
+    basis = UniformBases(TensorLagrangeBasis(0, 1, bkd))
     reversed_ranks = ClosureNumbering((((0, 0),), ((1, 0),)), {1: 1, 0: 1})
     space = ContinuousSkeletonSpace(topo, basis, _FixedNumbering(reversed_ranks))
     assert space.descriptor().size == 2
     assert (space.face_dofs(0), space.face_dofs(1)) == ((0,), (1,))
     for bad, message in (
-        (ClosureNumbering((((0, 0),),), {0: 1}), "nodes for each"),
+        (ClosureNumbering((((0, 0),),), {0: 1}), "nodes for the faces"),
         (ClosureNumbering((((0, 0),), ((1, 1),)), {0: 1, 1: 1}), "outside"),
         (ClosureNumbering((((0, 0),), ((0, 0),)), {0: 1, 1: 1}), "no face node"),
     ):
@@ -273,10 +322,17 @@ def test_continuous_space_takes_any_numbering(bkd: Backend[Array]) -> None:
 
 def test_facet_space_rejects_mismatch(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2))
+    bases = UniformBases(TensorLagrangeBasis(1, 2, bkd))
     with pytest.raises(ValueError):
-        FacetSkeletonSpace(topo, TensorLagrangeBasis(2, 2, bkd))
+        FacetSkeletonSpace(topo, UniformBases(TensorLagrangeBasis(2, 2, bkd)))
     with pytest.raises(TypeError):
-        FacetSkeletonSpace(object(), TensorLagrangeBasis(1, 2, bkd))  # type: ignore[arg-type]
-    space = FacetSkeletonSpace(topo, TensorLagrangeBasis(1, 2, bkd))
+        FacetSkeletonSpace(object(), bases)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="no skeleton faces"):
+        FacetSkeletonSpace(TensorBoxPartition((1, 1)), bases)
+    space = FacetSkeletonSpace(topo, bases)
     with pytest.raises(IndexError):
         space.entity_dofs(topo.nentities())
+    # A face of higher degree gets a bigger block.
+    mixed = FacetSkeletonSpace(topo, _PerFace(1, 2, {0: 3}, bkd))
+    assert len(mixed.entity_dofs(0)) == 3
+    assert mixed.descriptor().size == space.descriptor().size + 1

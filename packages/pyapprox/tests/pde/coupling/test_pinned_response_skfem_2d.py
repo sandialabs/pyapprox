@@ -59,7 +59,7 @@ from pyapprox.pde.coupling.skeleton import (
     MatrixFreeSchur,
     SkeletonResidual,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
+from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
@@ -171,11 +171,11 @@ class _Problem:
         self.bkd = NumpyBkd()
         self.topo = TensorBoxPartition(ncells)
         basis = TensorLagrangeBasis(1, _NPOINTS, self.bkd)
+        self._bases = UniformBases(basis)
         self.skeleton = ContinuousSkeletonSpace(
-            self.topo, basis, VertexWeightNumbering(self.topo, basis)
+            self.topo, self._bases, VertexWeightNumbering(self.topo, self._bases)
         )
         self.sink, self.essentials = sink, essentials
-        self._basis = basis
         self._ref_nodes = np.asarray(basis.nodes()[0])
 
     def cell_coords(self, direction: int, cell: int) -> _Np:
@@ -193,7 +193,7 @@ class _Problem:
     def skeleton_coords(self) -> _Np:
         """The point of each skeleton DOF. Shape: (2, ndofs)."""
         return skeleton_dof_points(
-            self.skeleton, TensorBoxGeometry(self.topo, self.bkd), self._basis.nodes()
+            self.skeleton, TensorBoxGeometry(self.topo, self.bkd), self._bases
         )
 
     def system(self, xs: _Np, ys: _Np, sides: Sequence[tuple[str, float]]) -> Any:

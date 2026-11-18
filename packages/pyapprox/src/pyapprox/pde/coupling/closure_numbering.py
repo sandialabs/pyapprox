@@ -81,6 +81,15 @@ class PlacedNodesProtocol(Protocol[Array]):
         ...
 
 
+@runtime_checkable
+class PlacedBasesProtocol(Protocol[Array]):
+    """What the numbering asks for each face: its nodal basis."""
+
+    def face_basis(self, face: int) -> PlacedNodesProtocol[Array]:
+        """The basis on ``face``'s reference face."""
+        ...
+
+
 # Weights on a node's vertices, as (vertex entity, weight) pairs sorted by
 # entity: the same from every face that has the node in its closure.
 _NodeKey = tuple[tuple[int, float], ...]
@@ -97,8 +106,9 @@ class VertexWeightNumbering(Generic[Array]):
     ----------
     topology
         Each face's shape and closure.
-    basis
-        The nodes, the same on every face.
+    bases
+        Each face's nodes; faces may differ, provided neighbors put the
+        same nodes on the entities they share.
     tol
         The largest weight difference two faces' keys of one node may
         have.
@@ -106,13 +116,13 @@ class VertexWeightNumbering(Generic[Array]):
     Raises
     ------
     TypeError
-        If ``topology`` or ``basis`` does not satisfy its protocol.
+        If ``topology`` or ``bases`` does not satisfy its protocol.
     """
 
     def __init__(
         self,
         topology: FaceClosureProtocol,
-        basis: PlacedNodesProtocol[Array],
+        bases: PlacedBasesProtocol[Array],
         tol: float = 1e-10,
     ) -> None:
         if not isinstance(topology, FaceClosureProtocol):
@@ -120,33 +130,53 @@ class VertexWeightNumbering(Generic[Array]):
                 "topology must satisfy FaceClosureProtocol, got "
                 f"{type(topology).__name__}"
             )
-        if not isinstance(basis, PlacedNodesProtocol):
+        if not isinstance(bases, PlacedBasesProtocol):
             raise TypeError(
-                "basis must satisfy PlacedNodesProtocol, got "
-                f"{type(basis).__name__}"
+                "bases must satisfy PlacedBasesProtocol, got "
+                f"{type(bases).__name__}"
             )
-        self._topology, self._basis, self._tol = topology, basis, tol
+        self._topology, self._bases, self._tol = topology, bases, tol
 
     def number(self, faces: Sequence[int]) -> ClosureNumbering:
         """Each node of each of ``faces`` as (entity, rank).
 
         Raises
         ------
+        TypeError
+            If a face's basis does not satisfy its protocol.
         ValueError
-            If a face's shape is not the basis's, or two faces put
+            If a face's shape is not its basis's, or two faces put
             different nodes on a shared entity.
         """
-        basis, topology = self._basis, self._topology
-        reference, on = basis.reference(), basis.node_entities()
-        bkd, nodes = basis.bkd(), basis.nodes()
-        # Node positions are fixed structure, read once to identify nodes.
-        points = [
-            [bkd.to_float(nodes[i, j]) for i in range(reference.ndim())]
-            for j in range(len(on))
-        ]
+        topology = self._topology
+        # Node positions are fixed structure, read once per basis. Each
+        # entry keeps its basis alive, so no later basis reuses its id.
+        placed: dict[
+            int,
+            tuple[list[list[float]], tuple[int, ...], PlacedNodesProtocol[Array]],
+        ] = {}
         keys: dict[int, list[_NodeKey]] = {}
         local = []
         for face in faces:
+            basis = self._bases.face_basis(face)
+            if not isinstance(basis, PlacedNodesProtocol):
+                raise TypeError(
+                    f"face {face}'s basis must satisfy PlacedNodesProtocol, got "
+                    f"{type(basis).__name__}"
+                )
+            reference = basis.reference()
+            if id(basis) not in placed:
+                bkd, nodes = basis.bkd(), basis.nodes()
+                on = basis.node_entities()
+                placed[id(basis)] = (
+                    [
+                        [bkd.to_float(nodes[i, j]) for i in range(reference.ndim())]
+                        for j in range(len(on))
+                    ],
+                    on,
+                    basis,
+                )
+            points, on, _ = placed[id(basis)]
             if topology.face_reference(face) != reference:
                 raise ValueError(
                     f"face {face} has shape {topology.face_reference(face)}, "
