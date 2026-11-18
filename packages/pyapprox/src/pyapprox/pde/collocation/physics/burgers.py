@@ -12,9 +12,13 @@ but not at the nodes:
   integrates exactly to the boundary flux difference;
 - non-conservative (advective),
   :math:`-u \circ D_1 u + \nu\, D_2 u + (D_1 \nu) \circ D_1 u + f`.
+
+The physics has no flux of its own: which flux a Neumann or Robin end
+prescribes is the boundary's choice, made by injecting
+:class:`BurgersViscousFlux` or :class:`BurgersTotalFlux`.
 """
 
-from typing import Optional
+from typing import Generic, List, Optional
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
@@ -196,6 +200,84 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
         """Whether, besides the viscosity, the forcing is declared
         time-invariant."""
         return declared_time_invariant(self._viscosity, self._forcing)
+
+
+class BurgersViscousFlux(Generic[Array]):
+    r"""The viscous flux :math:`-\nu u_x` of a Burgers physics, as a
+    boundary condition prescribes it.
+
+    A Neumann or Robin end built on it prescribes only the viscous part
+    of the flux, whichever discrete form the interior uses. Reads the
+    physics' current viscosity at each call.
+
+    Satisfies ``FluxProviderProtocol``.
+
+    Parameters
+    ----------
+    physics : BurgersPhysics1D
+        Supplies the viscosity and the derivative matrix.
+    """
+
+    def __init__(self, physics: BurgersPhysics1D[Array]) -> None:
+        self._physics = physics
+        self._D1 = physics.basis().derivative_matrix(1, 0)
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """The flux at all mesh points, one component. Shape: (npts,)"""
+        nu = self._physics.viscosity_function().values(time)
+        return [-nu * (self._D1 @ state)]
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        r"""The state Jacobian of the flux, :math:`-\mathrm{diag}(\nu)
+        D_1`. Shape: (npts, npts)"""
+        nu = self._physics.viscosity_function().values(time)
+        return [-(nu[:, None] * self._D1)]
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the viscosity is declared time-dependent."""
+        return not declared_time_invariant(self._physics.viscosity_function())
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
+
+class BurgersTotalFlux(Generic[Array]):
+    r"""The total flux :math:`u^2/2 - \nu u_x` of a Burgers physics, as a
+    boundary condition prescribes it.
+
+    A Neumann or Robin end built on it prescribes the advective flux as
+    well as the viscous one, whichever discrete form the interior uses.
+    Reads the physics' current viscosity at each call.
+
+    Satisfies ``FluxProviderProtocol``.
+
+    Parameters
+    ----------
+    physics : BurgersPhysics1D
+        Supplies the viscosity and the derivative matrix.
+    """
+
+    def __init__(self, physics: BurgersPhysics1D[Array]) -> None:
+        self._viscous = BurgersViscousFlux(physics)
+        self._bkd = physics.bkd()
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """The flux at all mesh points, one component. Shape: (npts,)"""
+        (viscous,) = self._viscous.compute_flux(state, time)
+        return [0.5 * state * state + viscous]
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        r"""The state Jacobian of the flux, :math:`\mathrm{diag}(u) -
+        \mathrm{diag}(\nu) D_1`. Shape: (npts, npts)"""
+        (viscous,) = self._viscous.compute_flux_jacobian(state, time)
+        return [self._bkd.diag(state) + viscous]
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the viscosity is declared time-dependent."""
+        return self._viscous.flux_is_time_dependent()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
 
 def create_burgers_1d(
