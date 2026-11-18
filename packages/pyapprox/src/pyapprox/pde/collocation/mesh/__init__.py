@@ -1,6 +1,7 @@
 """Mesh module for spectral collocation methods."""
 
 from pyapprox.pde.collocation.mesh.base import (
+    BoundarySide,
     MeshData,
     MeshDataWithTransform,
     compute_boundary_indices_1d,
@@ -33,6 +34,7 @@ from pyapprox.pde.collocation.mesh.transforms import (
 
 __all__ = [
     # Data structures
+    "BoundarySide",
     "MeshData",
     "MeshDataWithTransform",
     # Utilities

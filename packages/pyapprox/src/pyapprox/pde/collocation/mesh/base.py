@@ -5,10 +5,36 @@ separating data from algorithms for C++ portability.
 """
 
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import Generic, List, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_samples
+
+
+class BoundarySide(IntEnum):
+    """The boundary ids of a tensor-product mesh, by the side of the
+    reference hypercube :math:`[-1, 1]^d` they lie on.
+
+    A mesh of dimension :math:`d` has the first :math:`2d`: an interval
+    ``LEFT`` and ``RIGHT``; a rectangle also ``BOTTOM`` and ``TOP``; a box
+    also ``FRONT`` and ``BACK``. The names are of the reference sides,
+    so under a curved transform (polar, say) ``LEFT`` is the side mapped
+    from reference :math:`x = -1`, wherever that lies physically.
+    """
+
+    LEFT = 0
+    """Reference :math:`x = -1`."""
+    RIGHT = 1
+    """Reference :math:`x = 1`."""
+    BOTTOM = 2
+    """Reference :math:`y = -1`."""
+    TOP = 3
+    """Reference :math:`y = 1`."""
+    FRONT = 4
+    """Reference :math:`z = -1`."""
+    BACK = 5
+    """Reference :math:`z = 1`."""
 
 
 @dataclass
