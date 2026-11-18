@@ -69,7 +69,6 @@ from pyapprox_benchmarks.pde import (
     build_cantilever_beam_2d_neohookean,
     build_cantilever_beam_2d_neohookean_spde,
     build_elastic_bar_1d,
-    build_hyperelastic_pressurized_cylinder_2d,
     build_pressurized_cylinder_2d,
 )
 
@@ -138,7 +137,6 @@ __all__ = [
     "build_cantilever_beam_2d_linear_spde",
     "build_cantilever_beam_2d_neohookean",
     "build_cantilever_beam_2d_neohookean_spde",
-    "build_hyperelastic_pressurized_cylinder_2d",
     "build_pressurized_cylinder_2d",
     # Sensitivity benchmarks
     "IshigamiBenchmark",

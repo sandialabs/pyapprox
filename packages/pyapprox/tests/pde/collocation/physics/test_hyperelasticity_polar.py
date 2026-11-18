@@ -1,31 +1,17 @@
-"""Tests for the 2D hyperelastic pressurized cylinder zoo factory.
+"""Neo-Hookean hyperelasticity on a quarter-annulus (polar transform).
 
 Verifies:
 1. Manufactured solution with all-Dirichlet BCs (baseline)
 2. Manufactured solution with mixed (traction + Dirichlet) BCs
-3. Small pressure: hyperelastic QoI matches linear QoI
-4. Parameter Jacobian on full forward model via DerivativeChecker
-5. Factory produces valid model with correct protocol compliance
 """
 
 import math
+from typing import List, Tuple
 
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.interface.functions.fromcallable.jacobian import (
-    FunctionWithJacobianFromCallable,
-)
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
-)
-from pyapprox.pde.collocation.functionals.elasticity_2d import (
-    OuterWallRadialDisplacementFunctional,
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
@@ -34,30 +20,27 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
+from pyapprox.pde.collocation.protocols.boundary import (
+    BoundaryConditionProtocol,
+)
 from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
-from pyapprox.pde.field_maps.kle_factory import (
-    create_lognormal_kle_field_map,
-)
 from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
-from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
-    create_hyperelastic_pressurized_cylinder_2d,
-)
-from pyapprox.pde.zoo.pressurized_cylinder_2d import (
-    create_linear_pressurized_cylinder_2d,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
 
-# ======================================================================
-# Helpers
-# ======================================================================
 
-
-def _setup_polar_mesh_and_basis(bkd, npts_r, npts_theta, r_inner, r_outer):
+def _setup_polar_mesh_and_basis(
+    bkd: Backend[Array],
+    npts_r: int,
+    npts_theta: int,
+    r_inner: float,
+    r_outer: float,
+) -> Tuple[TransformedMesh2D[Array], ChebyshevBasis2D[Array]]:
     """Create polar mesh and 2D Chebyshev basis on quarter-annulus."""
     transform = PolarTransform(
         (r_inner, r_outer),
@@ -69,62 +52,15 @@ def _setup_polar_mesh_and_basis(bkd, npts_r, npts_theta, r_inner, r_outer):
     return mesh, basis
 
 
-def _make_kle_field_map_2d(bkd, mesh, num_kle_terms=2):
-    """Create lognormal KLE field map on 2D polar mesh nodes."""
-    physical_pts = mesh.points()  # (2, npts)
-    npts = physical_pts.shape[1]
-
-    x = physical_pts[0, :]
-    y = physical_pts[1, :]
-    x_min, x_max = float(bkd.min(x)), float(bkd.max(x))
-    y_min, y_max = float(bkd.min(y)), float(bkd.max(y))
-    x_range = max(x_max - x_min, 1e-12)
-    y_range = max(y_max - y_min, 1e-12)
-    x_norm = (x - x_min) / x_range
-    y_norm = (y - y_min) / y_range
-    mesh_coords = bkd.stack([x_norm, y_norm], axis=0)  # (2, npts)
-
-    mean_log = bkd.zeros((npts,))
-    return create_lognormal_kle_field_map(
-        mesh_coords,
-        mean_log,
-        bkd,
-        num_kle_terms=num_kle_terms,
-        sigma=0.3,
-    )
-
-
-def _make_outer_wall_functional(bkd, mesh, npts, nparams):
-    """Create OuterWallRadialDisplacementFunctional for comparison tests."""
-    outer_idx = mesh.boundary_indices(1)
-    pts = mesh.points()
-    outer_pts = pts[:, bkd.to_numpy(outer_idx).astype(int)]
-    r = bkd.sqrt(outer_pts[0, :] ** 2 + outer_pts[1, :] ** 2)
-    cos_theta = outer_pts[0, :] / r
-    sin_theta = outer_pts[1, :] / r
-    return OuterWallRadialDisplacementFunctional(
-        outer_idx,
-        cos_theta,
-        sin_theta,
-        npts,
-        nparams,
-        bkd,
-    )
-
-
-# ======================================================================
-# Test class
-# ======================================================================
-
-
 @slow_test
-class TestHyperelasticCylinder2D:
-    """Tests for 2D hyperelastic pressurized cylinder."""
+class TestHyperelasticityPolar:
+    """Neo-Hookean hyperelasticity on the quarter-annulus."""
+
     # ------------------------------------------------------------------
     # Manufactured solution with all-Dirichlet BCs (baseline)
     # ------------------------------------------------------------------
 
-    def test_manufactured_all_dirichlet(self, bkd):
+    def test_manufactured_all_dirichlet(self, bkd: Backend[Array]) -> None:
         """Manufactured hyperelastic solution with all-Dirichlet BCs."""
         npts_r, npts_theta = 12, 12
         r_inner, r_outer = 1.0, 2.0
@@ -140,7 +76,9 @@ class TestHyperelasticCylinder2D:
         npts = basis.npts()
         pts = mesh.points()
 
-        stress_model = NeoHookeanStress(lamda=lamda_val, mu=mu_val)
+        stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
+            lamda=lamda_val, mu=mu_val
+        )
 
         # Small polynomial displacement
         man_sol = ManufacturedHyperelasticityEquations(
@@ -168,7 +106,7 @@ class TestHyperelasticCylinder2D:
         )
 
         # All-Dirichlet BCs on all 4 sides, both components
-        bcs = []
+        bcs: List[BoundaryConditionProtocol[Array]] = []
         for side in range(4):
             bnd_idx = mesh.boundary_indices(side)
             bnd_idx_np = bkd.to_numpy(bnd_idx).astype(int)
@@ -192,7 +130,7 @@ class TestHyperelasticCylinder2D:
     # Manufactured solution with mixed BCs
     # ------------------------------------------------------------------
 
-    def test_manufactured_mixed_bcs(self, bkd):
+    def test_manufactured_mixed_bcs(self, bkd: Backend[Array]) -> None:
         """Manufactured hyperelastic solution with cylinder-style BCs."""
         npts_r, npts_theta = 12, 12
         r_inner, r_outer = 1.0, 2.5
@@ -208,7 +146,9 @@ class TestHyperelasticCylinder2D:
         npts = basis.npts()
         pts = mesh.points()
 
-        stress_model = NeoHookeanStress(lamda=lamda_val, mu=mu_val)
+        stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
+            lamda=lamda_val, mu=mu_val
+        )
 
         man_sol = ManufacturedHyperelasticityEquations(
             sol_strs=[
@@ -235,7 +175,7 @@ class TestHyperelasticCylinder2D:
             forcing=NodalField(forcing_flat),
         )
 
-        bcs = []
+        bcs: List[BoundaryConditionProtocol[Array]] = []
 
         # Inner (bnd 0): traction with exact manufactured PK1 traction
         inner_idx = mesh.boundary_indices(0)
@@ -335,170 +275,3 @@ class TestHyperelasticCylinder2D:
             maxiter=50,
         )
         bkd.assert_allclose(sol, exact_flat, atol=1e-7)
-
-    # ------------------------------------------------------------------
-    # Small pressure: hyperelastic ≈ linear
-    # ------------------------------------------------------------------
-
-    def test_small_pressure_matches_linear(self, bkd):
-        """Low pressure: hyperelastic QoI matches linear QoI."""
-        npts_r, npts_theta = 10, 10
-        r_inner, r_outer = 1.0, 2.0
-        E_mean = 1.0
-        nu = 0.3
-        pressure = 1e-3
-        num_kle_terms = 2
-
-        mesh, basis = _setup_polar_mesh_and_basis(
-            bkd,
-            npts_r,
-            npts_theta,
-            r_inner,
-            r_outer,
-        )
-        npts = basis.npts()
-        field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
-
-        functional_hyper = _make_outer_wall_functional(
-            bkd,
-            mesh,
-            npts,
-            num_kle_terms,
-        )
-        functional_linear = _make_outer_wall_functional(
-            bkd,
-            mesh,
-            npts,
-            num_kle_terms,
-        )
-
-        fwd_hyper = create_hyperelastic_pressurized_cylinder_2d(
-            bkd=bkd,
-            npts_r=npts_r,
-            npts_theta=npts_theta,
-            r_inner=r_inner,
-            r_outer=r_outer,
-            E_mean=E_mean,
-            poisson_ratio=nu,
-            inner_pressure=pressure,
-            field_map=field_map,
-            functional=functional_hyper,
-        )
-        fwd_linear = create_linear_pressurized_cylinder_2d(
-            bkd=bkd,
-            npts_r=npts_r,
-            npts_theta=npts_theta,
-            r_inner=r_inner,
-            r_outer=r_outer,
-            E_mean=E_mean,
-            poisson_ratio=nu,
-            inner_pressure=pressure,
-            field_map=field_map,
-            functional=functional_linear,
-        )
-
-        sample = bkd.zeros((num_kle_terms, 1))
-        qoi_hyper = fwd_hyper(sample)
-        qoi_linear = fwd_linear(sample)
-
-        bkd.assert_allclose(qoi_hyper, qoi_linear, rtol=1e-2)
-
-    # ------------------------------------------------------------------
-    # Parameter Jacobian via DerivativeChecker
-    # ------------------------------------------------------------------
-
-    def test_param_jacobian(self, bkd):
-        """DerivativeChecker on KLE-parameterized hyperelastic cylinder."""
-        npts_r, npts_theta = 8, 8
-        r_inner, r_outer = 1.0, 2.0
-        E_mean = 1.0
-        nu = 0.3
-        pressure = 0.1
-        num_kle_terms = 2
-
-        mesh, basis = _setup_polar_mesh_and_basis(
-            bkd,
-            npts_r,
-            npts_theta,
-            r_inner,
-            r_outer,
-        )
-        field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
-
-        fwd = create_hyperelastic_pressurized_cylinder_2d(
-            bkd=bkd,
-            npts_r=npts_r,
-            npts_theta=npts_theta,
-            r_inner=r_inner,
-            r_outer=r_outer,
-            E_mean=E_mean,
-            poisson_ratio=nu,
-            inner_pressure=pressure,
-            field_map=field_map,
-        )
-
-        assert isinstance(fwd, FunctionProtocol)
-        assert fwd.derivatives().jacobian is not None
-
-        wrapper = FunctionWithJacobianFromCallable(
-            nqoi=fwd.nqoi(),
-            nvars=fwd.nvars(),
-            fun=fwd,
-            jacobian=fwd.derivatives().jacobian,
-            bkd=bkd,
-        )
-        checker = DerivativeChecker(wrapper)
-        sample = bkd.array([0.1, -0.1])[:, None]
-        errors = checker.check_derivatives(sample, relative=True)[0]
-        ratio = float(bkd.min(errors) / bkd.max(errors))
-        assert ratio <= 1e-5
-
-    # ------------------------------------------------------------------
-    # Factory produces valid model
-    # ------------------------------------------------------------------
-
-    def test_factory_produces_valid_model(self, bkd):
-        """Zoo factory returns valid SteadyForwardModel with correct shapes."""
-        npts_r, npts_theta = 6, 6
-        r_inner, r_outer = 1.0, 2.0
-        num_kle_terms = 2
-
-        mesh, basis = _setup_polar_mesh_and_basis(
-            bkd,
-            npts_r,
-            npts_theta,
-            r_inner,
-            r_outer,
-        )
-        field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
-
-        fwd = create_hyperelastic_pressurized_cylinder_2d(
-            bkd=bkd,
-            npts_r=npts_r,
-            npts_theta=npts_theta,
-            r_inner=r_inner,
-            r_outer=r_outer,
-            E_mean=1.0,
-            poisson_ratio=0.3,
-            inner_pressure=1.0,
-            field_map=field_map,
-        )
-
-        assert isinstance(fwd, FunctionProtocol)
-        assert fwd.derivatives().jacobian is not None
-
-        npts = npts_r * npts_theta
-        assert fwd.nvars() == num_kle_terms
-        assert fwd.nqoi() == 2 * npts
-
-        sample = bkd.zeros((num_kle_terms, 1))
-        result = fwd(sample)
-        assert result.shape == (2 * npts, 1)
-
-        jac = fwd.derivatives().jacobian(sample)
-        assert jac.shape == (2 * npts, num_kle_terms)
-
-
-# ======================================================================
-# Backend-specific test classes
-# ======================================================================

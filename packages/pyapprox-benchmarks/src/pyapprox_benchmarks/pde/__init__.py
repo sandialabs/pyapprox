@@ -26,7 +26,6 @@ from pyapprox_benchmarks.pde.elastic_bar import (
     build_elastic_bar_1d,
 )
 from pyapprox_benchmarks.pde.pressurized_cylinder import (
-    build_hyperelastic_pressurized_cylinder_2d,
     build_pressurized_cylinder_2d,
 )
 
@@ -44,7 +43,6 @@ __all__ = [
     "build_cantilever_beam_2d_neohookean",
     "build_cantilever_beam_2d_neohookean_spde",
     "build_elastic_bar_1d",
-    "build_hyperelastic_pressurized_cylinder_2d",
     "build_pressurized_cylinder_2d",
     "SharedFieldBeamModel",
     "build_shared_field_beam",
