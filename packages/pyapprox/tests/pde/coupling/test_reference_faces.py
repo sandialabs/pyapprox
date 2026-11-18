@@ -12,7 +12,7 @@ from math import comb
 import pytest
 
 from pyapprox.pde.coupling.closure_numbering import ReferenceFaceProtocol
-from pyapprox.pde.coupling.reference_faces import ReferenceBox
+from pyapprox.pde.coupling.reference_faces import ReferenceBox, ReferenceSimplex
 
 
 @pytest.mark.parametrize("ndim", [0, 1, 2, 3])
@@ -65,7 +65,61 @@ def test_edge_key_is_orientation_free() -> None:
     assert keys[0] == pytest.approx(keys[1])
 
 
+@pytest.mark.parametrize("ndim", [0, 1, 2, 3])
+def test_simplex_subentities(ndim: int) -> None:
+    simplex = ReferenceSimplex(ndim)
+    assert isinstance(simplex, ReferenceFaceProtocol)
+    assert simplex.nsubentities() == 2 ** (ndim + 1) - 1
+    dims = [simplex.subentity_dim(k) for k in range(simplex.nsubentities())]
+    assert dims == sorted(dims)
+    for k in range(ndim + 1):
+        assert dims.count(k) == comb(ndim + 1, k + 1)
+    for k in range(simplex.nsubentities()):
+        vertices = simplex.subentity_vertices(k)
+        assert all(simplex.subentity_vertices(v) == (v,) for v in vertices)
+        assert simplex.subentity(vertices) == k
+
+
+@pytest.mark.parametrize("ndim", [1, 2, 3])
+def test_simplex_weights_reproduce_points(ndim: int) -> None:
+    simplex = ReferenceSimplex(ndim)
+    corners = [[0.0] * ndim] + [
+        [1.0 if i == j else 0.0 for i in range(ndim)] for j in range(ndim)
+    ]
+    for k in range(simplex.nsubentities()):
+        vertices = simplex.subentity_vertices(k)
+        # A point inside the sub-entity: unequal weights on its vertices.
+        mix = [float(i + 1) for i in range(len(vertices))]
+        mix = [m / sum(mix) for m in mix]
+        point = [
+            sum(m * corners[v][j] for m, v in zip(mix, vertices)) for j in range(ndim)
+        ]
+        assert simplex.vertex_weights(k, point) == pytest.approx(mix, abs=1e-14)
+
+
+def test_simplex_edge_key_is_orientation_free() -> None:
+    # A triangle's edge between local vertices 1 and 2, read by two
+    # triangles that list its global vertices 4 and 9 in opposite order.
+    simplex = ReferenceSimplex(2)
+    edge = simplex.subentity((1, 2))
+    keys = []
+    for ends, point in (({1: 4, 2: 9}, [0.7, 0.3]), ({1: 9, 2: 4}, [0.3, 0.7])):
+        weights = simplex.vertex_weights(edge, point)
+        keys.append(sorted((ends[v], w) for v, w in zip((1, 2), weights)))
+    assert keys[0] == pytest.approx(keys[1])
+
+
 def test_rejects_bad_input() -> None:
+    with pytest.raises(ValueError):
+        ReferenceSimplex(-1)
+    triangle = ReferenceSimplex(2)
+    with pytest.raises(IndexError):
+        triangle.subentity_vertices(7)
+    with pytest.raises(ValueError):
+        triangle.subentity((0, 3))
+    with pytest.raises(ValueError):
+        triangle.vertex_weights(6, [0.2])
+    assert triangle == ReferenceSimplex(2) and triangle != ReferenceBox(2)
     with pytest.raises(ValueError):
         ReferenceBox(-1)
     box = ReferenceBox(2)

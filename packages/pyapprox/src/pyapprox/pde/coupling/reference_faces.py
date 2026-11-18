@@ -7,6 +7,9 @@ partition maps each face's sub-entities to skeleton entities; a nodal
 basis says which sub-entity each node lies on. Weights on vertices,
 attached to the skeleton's vertex entities, identify a node on a shared
 entity the same way from every face, whatever each face's orientation.
+
+Boxes (:class:`ReferenceBox`) and simplices (:class:`ReferenceSimplex`)
+are the shapes here; any other is a new class with the same methods.
 """
 
 import itertools
@@ -102,3 +105,77 @@ class ReferenceBox:
 
     def __repr__(self) -> str:
         return f"ReferenceBox({self._ndim})"
+
+
+class ReferenceSimplex:
+    r"""The reference simplex with vertices :math:`0, e_1, \ldots, e_m`.
+
+    A sub-entity is a nonempty set of its vertices; the sub-entities are
+    numbered by size, vertices first (vertex :math:`k` is sub-entity
+    :math:`k`), then lexicographically. Weights are barycentric.
+
+    Parameters
+    ----------
+    ndim
+        The dimension :math:`m`, at least 0.
+    """
+
+    def __init__(self, ndim: int) -> None:
+        if ndim < 0:
+            raise ValueError(f"ndim must be >= 0, got {ndim}")
+        self._ndim = ndim
+        self._sets = tuple(
+            subset
+            for size in range(1, ndim + 2)
+            for subset in itertools.combinations(range(ndim + 1), size)
+        )
+        self._ids = {s: k for k, s in enumerate(self._sets)}
+
+    def ndim(self) -> int:
+        return self._ndim
+
+    def nsubentities(self) -> int:
+        return len(self._sets)
+
+    def subentity_dim(self, subentity: int) -> int:
+        return len(self.subentity_vertices(subentity)) - 1
+
+    def subentity_vertices(self, subentity: int) -> tuple[int, ...]:
+        if not 0 <= subentity < len(self._sets):
+            raise IndexError(
+                f"subentity {subentity} is out of range [0, {len(self._sets)})"
+            )
+        return self._sets[subentity]
+
+    def vertex_weights(
+        self, subentity: int, point: Sequence[float]
+    ) -> tuple[float, ...]:
+        r"""The barycentric coordinates of ``point``, which lies on
+        ``subentity``, on its vertices: :math:`1 - \sum_j x_j` on vertex
+        0 and :math:`x_j` on vertex :math:`j`."""
+        vertices = self.subentity_vertices(subentity)
+        if len(point) != self._ndim:
+            raise ValueError(
+                f"point must have {self._ndim} coordinates, got {len(point)}"
+            )
+        barycentric = [1.0 - sum(point)] + [float(x) for x in point]
+        return tuple(barycentric[v] for v in vertices)
+
+    def subentity(self, vertices: Sequence[int]) -> int:
+        """The sub-entity spanned by ``vertices``."""
+        key = tuple(sorted(vertices))
+        if key not in self._ids:
+            raise ValueError(
+                f"vertices must be a nonempty set from 0..{self._ndim}, got "
+                f"{tuple(vertices)}"
+            )
+        return self._ids[key]
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, ReferenceSimplex) and other._ndim == self._ndim
+
+    def __hash__(self) -> int:
+        return hash((ReferenceSimplex, self._ndim))
+
+    def __repr__(self) -> str:
+        return f"ReferenceSimplex({self._ndim})"
