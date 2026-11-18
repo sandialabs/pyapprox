@@ -73,4 +73,13 @@ jobs:
         run: bash scripts/mypy_diff.sh "$(sed -n 's/^mypy_src=//p' ratchet_baselines.txt)" packages/pyapprox/src/pyapprox/
       - name: mypy ratchet for pyapprox-benchmarks
         run: bash scripts/mypy_diff.sh "$(sed -n 's/^mypy_benchmarks=//p' ratchet_baselines.txt)" packages/pyapprox-benchmarks/src/pyapprox_benchmarks/
+      # Moved modules: references to old paths must not exceed their
+      # moved:<prefix> baselines in ratchet_baselines.txt, and the type
+      # stubs at the old paths must match pyapprox._moved.MOVED. This is
+      # the gate; the added-lines pre-commit hook is only a local early
+      # warning, since hooks are not installed on every checkout.
+      - name: moved-module ratchet
+        run: python -m pyapprox._moved_ratchet
+      - name: moved-module stubs in sync
+        run: python -m pyapprox._moved_stubs --check
 
