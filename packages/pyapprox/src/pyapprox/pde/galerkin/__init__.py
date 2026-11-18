@@ -29,9 +29,6 @@ from pyapprox.pde.galerkin.protocols import (
     StructuredMeshProtocol,
     VectorBasisProtocol,
 )
-from pyapprox.pde.galerkin.solvers import (
-    SteadyStateSolver,
-)
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
@@ -50,8 +47,6 @@ __all__ = [
     "compose_galerkin_system",
     # Time integration adapter
     "GalerkinPhysicsToODEResidualAdapter",
-    # Solvers
-    "SteadyStateSolver",
     # Postprocessing
     "integrate",
     "strain_from_displacement",

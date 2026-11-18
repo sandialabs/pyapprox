@@ -25,7 +25,6 @@ from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.system import GalerkinSystem
-from pyapprox.pde.steady_view import SteadyView
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.operators import SpaceDescriptor
@@ -128,12 +127,6 @@ class MassScaledSystem:
 
     def constraint_set(self) -> ConstraintSetProtocol[NpArray]:
         return self._inner.constraint_set()
-
-    def steady(self) -> SteadyView[NpArray]:
-        return self._inner.steady()
-
-    def steady_snapshot(self, time: float) -> SteadyView[NpArray]:
-        return self._inner.steady_snapshot(time)
 
     def mass_matrix(self) -> NpArray:
         return self._mass

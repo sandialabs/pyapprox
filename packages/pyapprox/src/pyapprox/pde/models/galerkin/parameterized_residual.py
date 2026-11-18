@@ -3,7 +3,8 @@
 ``F(u, p, t)`` is the spatial residual of a composed system, interior
 plus natural boundary terms, BEFORE its essential rows are replaced by
 the constraints. Almost every consumer differentiates the constrained
-residual (``SteadyView``, ``constrain_param_derivatives``); quantities
+residual (``galerkin_steady_residual``, ``constrain_param_derivatives``);
+quantities
 that read the essential rows themselves, such as the flux through an
 essential boundary, need the raw one.
 
