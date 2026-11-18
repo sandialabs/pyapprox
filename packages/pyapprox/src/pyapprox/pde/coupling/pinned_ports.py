@@ -215,6 +215,10 @@ class PortPinnedData(Generic[V, P]):
         """The port rows of the state space, in port order."""
         return self._state_ports
 
+    def param_ports(self) -> PortRowsProtocol[V, P]:
+        """The port data's rows of the parameter space, in port order."""
+        return self._param_ports
+
     def placement(self) -> PortPlacement[V, P]:
         """:math:`B`."""
         return self._placement

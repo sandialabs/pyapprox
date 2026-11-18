@@ -16,11 +16,22 @@ the outward flux tested against the port basis, which is what
 subdomains at an interface, it is the single-domain residual of the
 interface rows, so a skeleton solve reproduces the single-domain
 discrete solution and the flux balance holds to solver tolerance.
+
+The trace tangent, what a skeleton Newton step needs, is one tangent
+solve at the subdomain's solution: the port data are the residual's
+parameters, so :math:`R_u\, \delta u = -R_\theta [d; 0]` gives the
+state's change, and the flux changes by :math:`-B^\top F_u\, \delta u`.
+With a setup strategy keeping the Jacobian's setup at the solution, each
+skeleton Krylov product costs one back-substitution per subdomain.
 """
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
+from pyapprox.implicitfunction.residual_derivatives import (
+    ResidualJacobian,
+    ResidualParamFn,
+)
 from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.pde.coupling.pinned_ports import (
@@ -38,6 +49,7 @@ from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
     InnerProductSpaceProtocol,
+    LinearizationPoint,
 )
 from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 
@@ -60,12 +72,47 @@ class ResponseParametersProtocol(Protocol[A_contra]):
         ...
 
 
-class SteadyPinnedPoint(Generic[V, A]):
-    """A :class:`SteadyPinnedResponse` solved at one set of port data and
-    parameters."""
+class _TraceTangent(Generic[V, A, F]):
+    r"""What a point's trace tangent reads: the port-pinned residual
+    :math:`R`, the essentially pinned :math:`F` below it, and the port
+    data."""
 
-    def __init__(self, point: SteadyPoint[V, A], output: A, bkd: Backend[A]) -> None:
+    def __init__(
+        self,
+        residual: PinnedResidual[V, F],
+        pinned: PinnedResidual[V, F],
+        ports: PortPinnedData[V, A],
+    ) -> None:
+        self.pinned, self.ports = pinned, ports
+        param, jacobian = residual.derivatives().param, pinned.derivatives().jacobian
+        if param is None or jacobian is None:
+            raise ValueError(
+                "a trace tangent needs the port-pinned residual's parameter "
+                "Jacobian and the essentially pinned residual's Jacobian"
+            )
+        self.param: ResidualParamFn[V] = param
+        self.jacobian: ResidualJacobian[V, F] = jacobian
+
+
+class SteadyPinnedPoint(Generic[V, A, F]):
+    r"""A :class:`SteadyPinnedResponse` solved at one set of port data and
+    parameters.
+
+    Its derivatives hold while the response is not linearized again: a
+    later solve changes the port data, and a tangent requested after it
+    is refused.
+    """
+
+    def __init__(
+        self,
+        point: SteadyPoint[V, A],
+        output: A,
+        bkd: Backend[A],
+        tangent: _TraceTangent[V, A, F],
+    ) -> None:
         self._point, self._output, self._bkd = point, output, bkd
+        self._tangent = tangent
+        self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
 
     def output(self) -> A:
         """The outward flux on the ports. Shape: (nport, 1)."""
@@ -75,7 +122,41 @@ class SteadyPinnedPoint(Generic[V, A]):
         return self._bkd.zeros((0, 1))
 
     def derivatives(self) -> ResponseDerivatives[A]:
-        return ResponseDerivatives.none()
+        return self._derivs
+
+    def jvp_trace(self, directions: A) -> A:
+        r""":math:`(\partial r/\partial \lambda)` ``directions``, for a
+        block of shape (nport, ncols): one tangent solve :math:`R_u\,
+        \delta u = -R_\theta [d; 0]` for all columns, then the flux
+        tangent :math:`-B^\top F_u\, \delta u`.
+
+        Raises
+        ------
+        ValueError
+            If ``directions`` has the wrong shape, or the response has been
+            linearized again since this point.
+        """
+        t = self._tangent
+        nport = t.ports.nport()
+        if directions.ndim != 2 or directions.shape[0] != nport:
+            raise ValueError(
+                f"directions must have shape ({nport}, ncols), got "
+                f"{tuple(directions.shape)}"
+            )
+        state = self._point.solution()
+        params = t.ports.param_space()
+        # theta = [d; 0]: the directions on the port data's rows.
+        theta = t.ports.param_ports().add_to(
+            params.zeros(int(directions.shape[1])), directions
+        )
+        space = t.ports.state_space()
+        rhs = space.scale(-1.0, t.param(state).apply(theta))
+        delta, info = self._point.jacobian_handle().solve(rhs)
+        if not info.converged:
+            raise ValueError("the tangent solve did not converge")
+        label = LinearizationPoint(t.pinned.parameters_version(), self._point)
+        change = t.jacobian(state, label).apply(delta)
+        return -t.ports.state_ports().take(change)
 
     def state(self) -> V:
         """The subdomain's solved state."""
@@ -149,6 +230,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         self._pinned, self._ports = pinned, ports
         self._residual = pin_ports(pinned, ports, physical)
         self._system = SteadySystem(self._residual, space, setups)
+        self._tangent = _TraceTangent(self._residual, pinned, ports)
         self._nonlinear, self._bkd = nonlinear, bkd
         self._parameters = parameters
         self._guess = space.zeros(1)
@@ -177,7 +259,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
 
     def linearize(
         self, port_data: A, params: A, window: TimeWindow
-    ) -> SteadyPinnedPoint[V, A]:
+    ) -> SteadyPinnedPoint[V, A, F]:
         """Solve with ``port_data`` (nport, 1) and ``params`` (nparams,
         1).
 
@@ -208,7 +290,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         self._guess = point.state()
         # The essentially pinned residual keeps F on the port rows.
         reaction = self._ports.state_ports().take(self._pinned(point.state()))
-        return SteadyPinnedPoint(point, -reaction, self._bkd)
+        return SteadyPinnedPoint(point, -reaction, self._bkd, self._tangent)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nport={self.nport()})"
