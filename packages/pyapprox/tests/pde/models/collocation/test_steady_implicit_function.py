@@ -1,9 +1,9 @@
 r"""Collocation steady states as implicit functions of the parameters.
 
-``SteadyImplicitFunction`` over ``collocation_steady_residual`` (``Newton``
-atol 1e-10, above the flux rows' roundoff floor near 1.5e-11; dense LU,
-``RecomputeAlways``), the functional the state at
-the middle node, on the problems of the old steady derivative tests:
+``collocation_steady_function`` with its defaults (``Newton`` atol 1e-10,
+above the flux rows' roundoff floor near 1.5e-11, with a line search;
+dense LU, ``RecomputeAlways``), the functional the state at the middle
+node, on the problems of the old steady derivative tests:
 
 - ``dirichlet``: 1D diffusion on :math:`[-1, 1]` (20 nodes), :math:`D = 2
   + p_0 + p_1 x`, forcing :math:`\pi^2 \sin \pi x`, zero Dirichlet ends;
@@ -41,6 +41,7 @@ Tests:
   curvature zero.
 """
 
+import dataclasses
 import math
 from typing import Callable, Dict, Generic, List, Optional
 
@@ -53,11 +54,13 @@ from pyapprox.implicitfunction.functionals.weighted_sum import (
 from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
-from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
+from pyapprox.implicitfunction.steady_function import (
+    SteadyImplicitFunction,
+    TangentColumns,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.ode.residual_derivatives import backend_state_space
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     PeriodicBC,
@@ -83,16 +86,18 @@ from pyapprox.pde.collocation.mesh import AffineTransform1D, TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
 from pyapprox.pde.collocation.protocols.boundary import BoundaryConditionProtocol
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.scalar import ScalarAmplitude
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap, _ExpTransform
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady import SteadyForwardModel
-from pyapprox.pde.models.collocation.steady_residual import (
-    collocation_steady_residual,
+from pyapprox.pde.models.collocation.steady_function import (
+    ParameterizedCollocationSystem,
+    collocation_steady_function,
 )
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
@@ -151,16 +156,7 @@ class _Problem(Generic[Array]):
             1,
             state_terms=(ObservedValue(StateEntries(bkd, self.nstates, [self.node])),),
         )
-        return SteadyImplicitFunction(
-            collocation_steady_residual(self.system, parameters),
-            backend_state_space(bkd, self.nstates),
-            parameters,
-            RecomputeAlways(BackendDenseLU(bkd)),
-            Newton(atol=1e-10, rtol=0.0, maxiters=30),
-            functional,
-            bkd.zeros((self.nstates, 1)),
-            bkd,
-        )
+        return collocation_steady_function(self.system, parameters, functional)
 
     def old_model(self) -> SteadyForwardModel[Array]:
         bkd = self.bkd
@@ -490,3 +486,97 @@ class TestDerivatives:
         w = bkd.asarray(rng.normal(size=(nparams, 1)))
         h_v, h_w = hvp(problem.param, v), hvp(problem.param, w)
         bkd.assert_allclose(bkd.sum(h_v * w), bkd.sum(h_w * v), rtol=1e-10)
+
+
+def _growing(coords: Array, time: float) -> Array:
+    """A forcing growing in time."""
+    return (1.0 + time) * (2.0 + coords[0] ** 2)
+
+
+def _middle_value(
+    bkd: Backend[Array], nstates: int, node: int
+) -> StateFunctional[Array, Array]:
+    return StateFunctional.from_terms(
+        bkd, 1, state_terms=(ObservedValue(StateEntries(bkd, nstates, [node])),)
+    )
+
+
+class TestBuilder:
+    """``collocation_steady_function``'s arguments and refusals, on the
+    ``dirichlet`` problem unless stated."""
+
+    def test_configured_system_is_frozen(self, bkd: Backend[Array]) -> None:
+        problem = _dirichlet(bkd)
+        configured = ParameterizedCollocationSystem(
+            problem.system, problem.parameterization, None
+        )
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            configured.system = problem.system  # type: ignore[misc]
+
+    def test_overrides_reach_the_function(self, bkd: Backend[Array]) -> None:
+        """Columns by tangents, a nonzero initial guess, and Newton without
+        a line search give the default function's values and Jacobian to
+        1e-12."""
+        problem = _dirichlet(bkd)
+        default = problem.function()
+        parameters = ParameterState(problem.parameterization)
+        overridden = collocation_steady_function(
+            problem.system,
+            parameters,
+            _middle_value(bkd, problem.nstates, problem.node),
+            init_state=bkd.ones((problem.nstates, 1)),
+            setups=RecomputeAlways(BackendDenseLU(bkd)),
+            nonlinear=Newton(atol=1e-12, rtol=0.0, maxiters=10),
+            jacobian=TangentColumns(),
+        )
+        assert "TangentColumns" in repr(overridden)
+        _close(bkd, overridden(problem.param), default(problem.param), 1e-12)
+        new, old = overridden.derivatives().jacobian, default.derivatives().jacobian
+        assert new is not None and old is not None
+        _close(bkd, new(problem.param), old(problem.param), 1e-12)
+
+    def test_refuses_a_wrong_initial_guess(self, bkd: Backend[Array]) -> None:
+        problem = _dirichlet(bkd)
+        with pytest.raises(ValueError, match="init_state"):
+            collocation_steady_function(
+                problem.system,
+                ParameterState(problem.parameterization),
+                _middle_value(bkd, problem.nstates, problem.node),
+                init_state=bkd.zeros((problem.nstates,)),
+            )
+
+    def test_time_dependent_forcing_needs_the_time(self, bkd: Backend[Array]) -> None:
+        """Omitted, the time is refused, naming the physics; given, the
+        state is the one at that time, so later times differ."""
+        mesh = TransformedMesh1D(20, bkd, AffineTransform1D((-1.0, 1.0), bkd))
+        supplier: TimeDependent[Array] = TimeDependent(_growing)
+        physics = AdvectionDiffusionReaction(
+            ChebyshevBasis1D(mesh, bkd),
+            bkd,
+            diffusion=2.0,
+            forcing=NodalSupplier(supplier, mesh.points()),
+        )
+        left, right = mesh.boundary_indices(0), mesh.boundary_indices(1)
+        essential = DirichletRows(
+            bkd, 20, 1, [DirichletPart(left, 0.0), DirichletPart(right, 0.0)]
+        )
+        system = CollocationSystem(physics, essential)
+        parameterization = create_diffusion_parameterization(
+            physics,
+            bkd,
+            _diffusion_map(bkd, 2.0, [bkd.ones((20,)), mesh.points()[0]]),
+        )
+        functional = _middle_value(bkd, 20, 10)
+        param = bkd.reshape(bkd.asarray([0.3, -0.2]), (2, 1))
+        with pytest.raises(ValueError, match="AdvectionDiffusionReaction"):
+            collocation_steady_function(
+                system, ParameterState(parameterization), functional
+            )
+        early, late = (
+            collocation_steady_function(
+                system, ParameterState(parameterization), functional, time=time
+            )(param)
+            for time in (0.0, 1.0)
+        )
+        # The forcing doubles, and the problem is linear.
+        _close(bkd, late, 2.0 * early, 1e-10)
