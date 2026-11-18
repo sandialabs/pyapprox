@@ -23,24 +23,30 @@ from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     SquaredExponentialKernel,
 )
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.nystrom_kle import (
     create_nystrom_kle,
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg import ByteBudgetBlocking, FixedRowBlocking
 
 
-def _coords(bkd, npoints=100):
+def _coords(bkd: Backend[Array], npoints: int = 100) -> Array:
     return bkd.array(np.linspace(0.0, 1.0, npoints)[None, :])
 
 
-def _out_of_sample(bkd, npoints=100):
+def _out_of_sample(bkd: Backend[Array], npoints: int = 100) -> Array:
     """Midpoints: in neither the collocation set nor any subset of it."""
     grid = np.linspace(0.0, 1.0, npoints)
     return bkd.array(((grid[:-1] + grid[1:]) / 2)[None, :])
 
 
-def _full_rank_kernel(bkd, lenscale=0.2):
+def _full_rank_kernel(
+    bkd: Backend[Array], lenscale: float = 0.2
+) -> Matern32Kernel[Array]:
     """Matern-3/2: full numerical rank at these sizes.
 
     Required wherever the landmark count is the variable under test.
@@ -48,20 +54,24 @@ def _full_rank_kernel(bkd, lenscale=0.2):
     return Matern32Kernel(bkd.full((1,), lenscale), (0.01, 100.0), 1, bkd)
 
 
-def _low_rank_kernel(bkd, lenscale=0.3):
+def _low_rank_kernel(
+    bkd: Backend[Array], lenscale: float = 0.3
+) -> SquaredExponentialKernel[Array]:
     """Squared exponential: numerical rank 15 at 100 points."""
     return SquaredExponentialKernel(
         bkd.full((1,), lenscale), (0.01, 100.0), 1, bkd
     )
 
 
-def _weights(bkd, npoints=100, seed=0):
+def _weights(bkd: Backend[Array], npoints: int = 100, seed: int = 0) -> Array:
     np.random.seed(seed)
     weights = np.random.uniform(0.5, 1.5, npoints)
     return bkd.array(weights / weights.sum())
 
 
-def _numerical_rank(bkd, kernel, coords):
+def _numerical_rank(
+    bkd: Backend[Array], kernel: KernelProtocol[Array], coords: Array
+) -> int:
     kmat = bkd.to_numpy(kernel(coords, coords))
     eigvals = np.linalg.eigvalsh(kmat)[::-1]
     return int(
@@ -74,7 +84,7 @@ class TestOutOfSampleEvaluation:
 
     @pytest.mark.parametrize("weighted", [False, True])
     def test_mercer_reconstruction_away_from_the_basis(
-        self, bkd, weighted
+        self, bkd: Backend[Array], weighted: bool
     ) -> None:
         r"""``sum_k lam_k phi_k(x) phi_k(y)`` must approach ``C(x, y)``.
 
@@ -89,9 +99,9 @@ class TestOutOfSampleEvaluation:
         points where they should cancel. Both yield plausible output.
         """
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
-        kwargs = {"quad_weights": _weights(bkd)} if weighted else {}
         kle = create_nystrom_kle(
-            kernel, coords, 12, bkd, nlandmarks=60, **kwargs
+            kernel, coords, 12, bkd, nlandmarks=60,
+            quad_weights=_weights(bkd) if weighted else None,
         )
         query = _out_of_sample(bkd)
         basis = bkd.to_numpy(kle.eigenvectors_at(query))
@@ -104,7 +114,7 @@ class TestOutOfSampleEvaluation:
             "the extension is not reproducing the covariance"
         )
 
-    def test_reproduces_the_basis_at_the_landmarks(self, bkd) -> None:
+    def test_reproduces_the_basis_at_the_landmarks(self, bkd: Backend[Array]) -> None:
         """``eigenvectors_at(landmarks)`` must match ``eigenvectors()``.
 
         Self-consistency at the points the basis was built from. Weaker
@@ -135,7 +145,7 @@ class TestOutOfSampleEvaluation:
             rtol=0.0,
         )
 
-    def test_call_agrees_with_the_public_accessors(self, bkd) -> None:
+    def test_call_agrees_with_the_public_accessors(self, bkd: Backend[Array]) -> None:
         """The basis reported must be the basis used.
 
         ``eigenvectors()`` returned the sign-canonicalized landmark
@@ -154,7 +164,9 @@ class TestOutOfSampleEvaluation:
         ) @ coef
         bkd.assert_allclose(kle(coef), implied, atol=1e-12, rtol=0.0)
 
-    def test_mean_field_matches_mean_field_at_landmarks(self, bkd) -> None:
+    def test_mean_field_matches_mean_field_at_landmarks(
+        self, bkd: Backend[Array]
+    ) -> None:
         """The no-argument accessor reports where the basis is."""
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         kle = create_nystrom_kle(
@@ -169,7 +181,9 @@ class TestOutOfSampleEvaluation:
         assert kle.mean_field().shape == (kle.eigenvectors().shape[0],)
 
     @pytest.mark.parametrize("weighted", [False, True])
-    def test_satisfies_the_eigenvalue_equation(self, bkd, weighted) -> None:
+    def test_satisfies_the_eigenvalue_equation(
+        self, bkd: Backend[Array], weighted: bool
+    ) -> None:
         r"""The defining equation, where it holds exactly.
 
         For each retained ``k``, ``K W phi_k = lam_k phi_k``. This
@@ -198,9 +212,9 @@ class TestOutOfSampleEvaluation:
         coords = _coords(bkd, npoints)
         kernel = _full_rank_kernel(bkd)
         weights = _weights(bkd, npoints)
-        kwargs = {"quad_weights": weights} if weighted else {}
         kle = create_nystrom_kle(
-            kernel, coords, 8, bkd, nlandmarks=npoints, **kwargs
+            kernel, coords, 8, bkd, nlandmarks=npoints,
+            quad_weights=weights if weighted else None,
         )
         kmat = bkd.to_numpy(kernel(coords, coords))
         wts = bkd.to_numpy(weights) if weighted else np.ones(npoints)
@@ -223,7 +237,7 @@ class TestOutOfSampleEvaluation:
             "the eigenpairs do not satisfy K W phi = lam phi"
         )
 
-    def test_second_moment_matches_the_spectrum(self, bkd) -> None:
+    def test_second_moment_matches_the_spectrum(self, bkd: Backend[Array]) -> None:
         r"""``Var[field(x)] = sigma^2 sum_k lam_k phi_k(x)^2``.
 
         Exercises the sampling path, which every other oracle here
@@ -257,7 +271,7 @@ class TestOutOfSampleEvaluation:
             f"empirical variance differs from the spectrum by {relative:.2e}"
         )
 
-    def test_evaluate_at_returns_field_values(self, bkd) -> None:
+    def test_evaluate_at_returns_field_values(self, bkd: Backend[Array]) -> None:
         """Shape and mean handling at points outside the basis."""
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         kle = create_nystrom_kle(
@@ -275,7 +289,7 @@ class TestOutOfSampleEvaluation:
             rtol=1e-12,
         )
 
-    def test_agrees_with_dense_kle_at_collocation(self, bkd) -> None:
+    def test_agrees_with_dense_kle_at_collocation(self, bkd: Backend[Array]) -> None:
         """Necessary but not sufficient, and labelled as such.
 
         The textbook Nystrom formula also passes this while being wrong
@@ -300,7 +314,9 @@ class TestOutOfSampleEvaluation:
 class TestConvergesInLandmarks:
     """More landmarks, closer to the full operator."""
 
-    def test_fixture_rank_exceeds_the_landmark_counts(self, numpy_bkd):
+    def test_fixture_rank_exceeds_the_landmark_counts(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """Guards the test below from measuring the wrong ceiling.
 
         A landmark count only binds while the operator has directions
@@ -313,7 +329,9 @@ class TestConvergesInLandmarks:
         coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
         assert _numerical_rank(bkd, kernel, coords) > 80
 
-    def test_error_decreases_with_more_landmarks(self, numpy_bkd) -> None:
+    def test_error_decreases_with_more_landmarks(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """Out-of-sample accuracy improves as landmarks are added.
 
         Two conditions have to hold for the landmark count to be the
@@ -352,10 +370,76 @@ class TestConvergesInLandmarks:
         )
 
 
+class TestRowBlocking:
+    """Blocking the extension's ``N x m`` work changes memory, not results."""
+
+    @pytest.mark.parametrize("weighted", [False, True])
+    @pytest.mark.parametrize("nrows_per_block", [1, 7, 1000])
+    def test_blocked_matches_unblocked(
+        self, bkd: Backend[Array], weighted: bool, nrows_per_block: int
+    ) -> None:
+        """Same eigenvalues and basis to round-off, at any block size.
+
+        Seven rows leave a ragged last block (100 points); one row is the
+        smallest block; 1000 exceeds N, so it is a single block. The
+        extension matrix itself is not compared entry by entry: in
+        directions the kernel columns barely reach it is determined only
+        to about 1e-6 relative, and nothing computed from it sees that.
+        """
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        weights = _weights(bkd) if weighted else None
+        ref = create_nystrom_kle(
+            kernel, coords, 10, bkd, nlandmarks=40, quad_weights=weights,
+        )
+        kle = create_nystrom_kle(
+            kernel, coords, 10, bkd, nlandmarks=40, quad_weights=weights,
+            row_blocking=FixedRowBlocking(nrows_per_block),
+        )
+        bkd.assert_allclose(kle.eigenvalues(), ref.eigenvalues(), rtol=1e-10)
+        query = _out_of_sample(bkd)
+        ref_basis = ref.eigenvectors_at(query)
+        scale = bkd.to_float(bkd.max(bkd.abs(ref_basis)))
+        bkd.assert_allclose(
+            kle.eigenvectors_at(query), ref_basis, rtol=0.0,
+            atol=1e-10 * scale,
+        )
+        bkd.assert_allclose(
+            kle.eigenvectors(), ref.eigenvectors(), rtol=0.0,
+            atol=1e-10 * scale,
+        )
+
+    def test_one_block_is_the_unblocked_arithmetic(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """A budget that holds every row reproduces the default exactly."""
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        ref = create_nystrom_kle(
+            kernel, coords, 10, bkd, nlandmarks=40,
+            quad_weights=_weights(bkd),
+        )
+        kle = create_nystrom_kle(
+            kernel, coords, 10, bkd, nlandmarks=40,
+            quad_weights=_weights(bkd),
+            row_blocking=ByteBudgetBlocking(10**9),
+        )
+        bkd.assert_allclose(kle.extension(), ref.extension(), rtol=0.0)
+        bkd.assert_allclose(kle.eigenvalues(), ref.eigenvalues(), rtol=0.0)
+
+    def test_rejects_a_non_blocking_object(self, bkd: Backend[Array]) -> None:
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        with pytest.raises(TypeError, match="RowBlockingProtocol"):
+            create_nystrom_kle(
+                kernel, coords, 10, bkd, nlandmarks=40,
+                row_blocking=7,  # type: ignore[arg-type]
+            )
+
+
 class TestRankGuard:
     """Requesting more terms than the landmark block can supply."""
 
-    def test_refuses_when_effective_rank_is_too_small(self, bkd) -> None:
+    def test_refuses_when_effective_rank_is_too_small(
+        self, bkd: Backend[Array]
+    ) -> None:
         """The guard is on effective rank, not on the landmark count.
 
         A squared exponential at lengthscale 0.3 has numerical rank 15,
@@ -367,7 +451,7 @@ class TestRankGuard:
         with pytest.raises(ValueError, match="usable directions"):
             create_nystrom_kle(kernel, coords, 30, bkd, nlandmarks=40)
 
-    def test_error_names_the_measured_rank(self, bkd) -> None:
+    def test_error_names_the_measured_rank(self, bkd: Backend[Array]) -> None:
         """The message must be actionable, not merely a refusal."""
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         with pytest.raises(ValueError) as excinfo:
@@ -380,10 +464,10 @@ class TestRankGuard:
 class TestMeanField:
     """An array mean has no value at a point outside its own set."""
 
-    def test_accepts_a_callable(self, bkd) -> None:
+    def test_accepts_a_callable(self, bkd: Backend[Array]) -> None:
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
 
-        def mean_field(pts):
+        def mean_field(pts: Array) -> Array:
             return bkd.flatten(pts[0:1, :]) * 2.0
 
         kle = create_nystrom_kle(
@@ -395,7 +479,7 @@ class TestMeanField:
             bkd.flatten(field), bkd.flatten(query[0:1, :]) * 2.0, rtol=1e-12
         )
 
-    def test_rejects_an_array(self, bkd) -> None:
+    def test_rejects_an_array(self, bkd: Backend[Array]) -> None:
         """The representation MeshKLE uses cannot work here."""
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         with pytest.raises(TypeError, match="scalar or a callable"):
@@ -405,19 +489,19 @@ class TestMeanField:
                 6,
                 bkd,
                 nlandmarks=30,
-                mean_field=bkd.full((100,), 1.0),
+                mean_field=bkd.full((100,), 1.0),  # type: ignore[arg-type]
             )
 
 
 class TestProtocol:
     """Satisfies the KLE protocol at the landmark set."""
 
-    def test_satisfies_kle_protocol(self, bkd) -> None:
+    def test_satisfies_kle_protocol(self, bkd: Backend[Array]) -> None:
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         kle = create_nystrom_kle(kernel, coords, 8, bkd, nlandmarks=40)
         assert isinstance(kle, KLEProtocol)
 
-    def test_eigenvalues_descending_and_nonnegative(self, bkd) -> None:
+    def test_eigenvalues_descending_and_nonnegative(self, bkd: Backend[Array]) -> None:
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         kle = create_nystrom_kle(kernel, coords, 8, bkd, nlandmarks=40)
         eigvals = bkd.to_numpy(kle.eigenvalues())
@@ -425,7 +509,7 @@ class TestProtocol:
         assert np.all(eigvals >= 0.0)
 
     def test_landmark_count_may_fall_short_of_the_request(
-        self, bkd
+        self, bkd: Backend[Array]
     ) -> None:
         """``nlandmarks`` is a request, not a guarantee.
 

@@ -21,6 +21,11 @@ from pyapprox.surrogates.kle.eigensolvers import (
     finalize_eigenpairs,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.row_blocking import (
+    NoBlocking,
+    RowBlockingProtocol,
+    row_block_ranges,
+)
 
 MeanFieldFn = Callable[[Array], Array]
 
@@ -284,6 +289,7 @@ def create_nystrom_kle(
     mean_field: Union[float, MeanFieldFn[Array]] = 0.0,
     use_log: bool = False,
     landmark_multiplier: float = 8.0,
+    row_blocking: RowBlockingProtocol = NoBlocking(),
 ) -> NystromKLE[Array]:
     r"""Build a :class:`NystromKLE` by pivoted-Cholesky landmark selection.
 
@@ -322,9 +328,18 @@ def create_nystrom_kle(
         Passed to :class:`NystromKLE`.
     landmark_multiplier : float
         Default landmark count as a multiple of ``nterms``.
+    row_blocking : RowBlockingProtocol
+        How many of the ``N`` points to process at a time when forming
+        the extension. The default, :class:`NoBlocking`, holds the full
+        ``N x m`` kernel matrix and its weighted copies; at large ``N``
+        pass a :class:`ByteBudgetBlocking`, which bounds them by its
+        budget at the same result to round-off.
 
     Raises
     ------
+    TypeError
+        If ``row_blocking`` does not satisfy
+        :class:`RowBlockingProtocol`.
     ValueError
         If the landmark block cannot supply ``nterms`` directions. The
         binding constraint is the *effective rank after filtering*
@@ -335,6 +350,11 @@ def create_nystrom_kle(
     """
     if nterms < 1:
         raise ValueError(f"nterms must be >= 1, got {nterms}")
+    if not isinstance(row_blocking, RowBlockingProtocol):
+        raise TypeError(
+            "row_blocking must satisfy RowBlockingProtocol, got "
+            f"{type(row_blocking).__name__}"
+        )
     npoints = int(coords.shape[1])
     if nlandmarks is None:
         nlandmarks = int(math.ceil(landmark_multiplier * nterms))
@@ -354,7 +374,8 @@ def create_nystrom_kle(
     landmark_coords = coords[:, pivots]
 
     extension, eig_vals, landmark_vecs = _nystrom_extension(
-        kernel, coords, landmark_coords, pivots, nterms, sqrt_weights, bkd
+        kernel, coords, landmark_coords, pivots, nterms, sqrt_weights, bkd,
+        row_blocking,
     )
     return NystromKLE(
         kernel,
@@ -377,6 +398,7 @@ def _nystrom_extension(
     nterms: int,
     sqrt_weights: Optional[Array],
     bkd: Backend[Array],
+    row_blocking: RowBlockingProtocol = NoBlocking(),
 ) -> Tuple[Array, Array, Array]:
     r"""Eigenpairs of the full operator, and the extension matrix.
 
@@ -395,14 +417,34 @@ def _nystrom_extension(
     applied to the textbook form afterwards -- its eigenpairs satisfy an
     equation summed over all ``N`` points, while the textbook extension
     restricts the sum to the landmarks.
+
+    The ``N x m`` weighted kernel matrix :math:`K` enters only through
+    the ``R`` factor of :math:`B = K G`, where :math:`G` depends on the
+    ``m x m`` landmark block alone. So :math:`B` is formed one block of
+    rows at a time (``row_blocking``) and folded into a running QR,
+    ``R <- qr([R; B_block])``, and no ``N x m`` array is held. The
+    running ``R`` equals the one-shot ``R`` up to a sign per row,
+    :math:`D R` with :math:`D` diagonal of :math:`\pm 1`;
+    :math:`R R^\top` becomes :math:`D R R^\top D`, its eigenvectors
+    :math:`D V`, and :math:`R^\top V` -- all the extension uses -- is
+    unchanged.
     """
     nlandmarks = int(landmark_coords.shape[1])
-    kmat_nm = kernel(coords, landmark_coords)
+    npoints = int(coords.shape[1])
+    # The kernel evaluates each pair of points independently, so this
+    # block equals the pivot rows of the full kernel matrix.
+    kmat_ll = kernel(landmark_coords, landmark_coords)
+    sqrt_w_landmarks = (
+        sqrt_weights[pivots]
+        if sqrt_weights is not None
+        else bkd.full((nlandmarks,), 1.0)
+    )
     if sqrt_weights is not None:
-        kmat_nm = (sqrt_weights[:, None] * kmat_nm) * sqrt_weights[pivots][
+        kmat_mm = (sqrt_w_landmarks[:, None] * kmat_ll) * sqrt_w_landmarks[
             None, :
         ]
-    kmat_mm = kmat_nm[pivots, :]
+    else:
+        kmat_mm = kmat_ll
 
     block_vals, block_vecs = bkd.eigh(kmat_mm)
     # drop non-positive directions: Lam_S^{-1/2} amplifies them without
@@ -427,9 +469,20 @@ def _nystrom_extension(
     block_vecs = block_vecs[:, idx]
 
     gmat = block_vecs / bkd.sqrt(block_vals)[None, :]
-    bmat = kmat_nm @ gmat
-    qmat, rmat = bkd.qr(bmat)
-    del qmat  # only R is needed; Q would be the N-row basis we avoid
+    # Only R of B = K G is needed; Q would be the N-row basis this avoids.
+    rmat: Optional[Array] = None
+    for start, stop in row_block_ranges(row_blocking, npoints, nlandmarks):
+        kblock = kernel(coords[:, start:stop], landmark_coords)
+        if sqrt_weights is not None:
+            kblock = (sqrt_weights[start:stop, None] * kblock) * (
+                sqrt_w_landmarks[None, :]
+            )
+        bblock = kblock @ gmat
+        del kblock
+        stacked = bblock if rmat is None else bkd.vstack([rmat, bblock])
+        rmat = bkd.qr(stacked)[1]
+    # create_nystrom_kle selects at least one landmark, so npoints >= 1
+    assert rmat is not None
     sig, vmat = bkd.eigh(rmat @ rmat.T)
     order = bkd.arange(sig.shape[0] - 1, -1, -1, dtype=bkd.int64_dtype())[
         :nterms
@@ -438,16 +491,11 @@ def _nystrom_extension(
     vmat = vmat[:, order]
 
     # T maps kernel columns at any x to the basis there
-    sqrt_w_landmarks = (
-        sqrt_weights[pivots]
-        if sqrt_weights is not None
-        else bkd.full((nlandmarks,), 1.0)
-    )
     extension = (
         sqrt_w_landmarks[:, None] * (gmat @ (rmat.T @ vmat)) / sig[None, :]
     )
 
-    landmark_vecs = kernel(landmark_coords, landmark_coords) @ extension
+    landmark_vecs = kmat_ll @ extension
     raw_landmark_vecs = landmark_vecs
     eig_vals, landmark_vecs = finalize_eigenpairs(
         sig, landmark_vecs, None, nterms, bkd
