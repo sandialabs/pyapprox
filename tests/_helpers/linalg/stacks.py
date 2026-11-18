@@ -9,6 +9,7 @@ variables suites annotate with). The ``case`` fixture of
 from typing import Any, Optional, TypeVar, Union
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
@@ -164,3 +165,16 @@ def mock_case() -> MockCase:
         NumpyBkd(),
         True,
     )
+
+
+def stack_case(request: pytest.FixtureRequest) -> StackCase:
+    """The case of the stack named by ``request.param`` (one of
+    ``STACK_NAMES``): the body of a ``case`` fixture parametrized over
+    them. The dense stacks take the ``numpy_bkd`` and ``torch_bkd``
+    fixtures, so a missing Torch skips its case."""
+    if request.param == "csr":
+        return csr_case()
+    if request.param == "mock":
+        return mock_case()
+    fixture = "numpy_bkd" if request.param == "dense-numpy" else "torch_bkd"
+    return dense_case(request.getfixturevalue(fixture))
