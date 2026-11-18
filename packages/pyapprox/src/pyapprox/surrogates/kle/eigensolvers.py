@@ -35,6 +35,7 @@ from pyapprox.util.linalg.pivoted_cholesky import (
 from pyapprox.util.linalg.randomized import (
     randomized_symmetric_eigendecomposition,
 )
+from pyapprox.util.linalg.row_blocking import NoBlocking, RowBlockingProtocol
 
 _MACHINE_EPS = float(np.finfo(float).eps)
 
@@ -407,6 +408,9 @@ class PivotedCholeskyEigenSolver(_KLEEigenSolver[Array]):
         Absolute rank, overriding ``rank_multiplier``.
     tol : float
         Relative trace tolerance for early termination.
+    row_blocking : RowBlockingProtocol
+        Passed to :class:`PivotedCholeskyFactorizer`, whose column update
+        it bounds; the default :class:`NoBlocking` leaves it unblocked.
     """
 
     def __init__(
@@ -415,6 +419,7 @@ class PivotedCholeskyEigenSolver(_KLEEigenSolver[Array]):
         rank_multiplier: float = 4.0,
         rank: Optional[int] = None,
         tol: float = 1e-12,
+        row_blocking: RowBlockingProtocol = NoBlocking(),
     ):
         super().__init__(bkd)
         if rank_multiplier < 1.0:
@@ -427,6 +432,7 @@ class PivotedCholeskyEigenSolver(_KLEEigenSolver[Array]):
         self._rank_multiplier = float(rank_multiplier)
         self._rank = rank
         self._tol = float(tol)
+        self._row_blocking = row_blocking
 
     def rank_for(self, nterms: int, npoints: int) -> int:
         """Factorization rank used for ``nterms`` modes."""
@@ -458,7 +464,8 @@ class PivotedCholeskyEigenSolver(_KLEEigenSolver[Array]):
             else KernelColumnOperator(kernel, coords, self._bkd)
         )
         factorizer = PivotedCholeskyFactorizer(
-            operator, self._bkd, tol=self._tol
+            operator, self._bkd, tol=self._tol,
+            row_blocking=self._row_blocking,
         )
         factorizer.factorize(self.rank_for(nterms, int(coords.shape[1])))
         return factorizer

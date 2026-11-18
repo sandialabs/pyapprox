@@ -356,9 +356,11 @@ def create_nystrom_kle(
     landmark_multiplier : float
         Default landmark count as a multiple of ``nterms``.
     row_blocking : RowBlockingProtocol
-        How many of the ``N`` points to process at a time when forming
-        the extension. The default, :class:`NoBlocking`, holds the full
-        ``N x m`` kernel matrix and its weighted copies; at large ``N``
+        How many of the ``N`` points to process at a time: in the
+        pivoted Cholesky column update that selects the landmarks, in
+        forming the extension, and in the returned basis's
+        :meth:`NystromKLE.eigenvectors_at`. The default,
+        :class:`NoBlocking`, holds full ``N x m`` arrays; at large ``N``
         pass a :class:`ByteBudgetBlocking`, which bounds them by its
         budget at the same result to round-off.
 
@@ -396,7 +398,9 @@ def create_nystrom_kle(
         sqrt_weights = bkd.sqrt(quad_weights)
 
     # the pivots are the landmarks
-    selector = PivotedCholeskyEigenSolver(bkd, rank=nlandmarks)
+    selector = PivotedCholeskyEigenSolver(
+        bkd, rank=nlandmarks, row_blocking=row_blocking
+    )
     pivots = selector.factorize(kernel, coords, nterms, sqrt_weights).pivots()
     landmark_coords = coords[:, pivots]
 
