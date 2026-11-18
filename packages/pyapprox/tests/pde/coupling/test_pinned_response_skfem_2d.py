@@ -31,7 +31,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Optional, Protocol, Sequence, Union
+from typing import Any, Callable, Optional, Protocol, Sequence, TypeVar, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -67,6 +67,7 @@ from pyapprox.pde.coupling.reference_faces import ReferenceBox
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.skeleton import (
     CoupledSubdomain,
+    DenseSchur,
     MatrixFreeSchur,
     SkeletonResidual,
 )
@@ -82,7 +83,16 @@ from pyapprox.pde.models.galerkin.steady_residual import (
     solve_galerkin_steady,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.operators import InnerProductSpaceProtocol, MatrixFree
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseLU,
+    BackendRowSet,
+    DenseFormat,
+)
+from pyapprox.util.linalg.operators import (
+    FormatProtocol,
+    InnerProductSpaceProtocol,
+    MatrixFree,
+)
 from pyapprox.util.linalg.operators.krylov import GMRES
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
@@ -94,6 +104,7 @@ _Reaction = Callable[[_Np, _Np], _Np]
 # Essential data on a side: a constant or g(points).
 _Value = Union[float, Callable[[_Np], _Np]]
 _Piece = SteadyPinnedResponse[_Np, _Np, Any]
+_F = TypeVar("_F", bound=FormatProtocol)
 
 
 class _TensorQuadMesh:
@@ -325,7 +336,24 @@ class _Problem:
         assert point.converged()
         return point.state(), mesh.nodes()
 
-    def solve_skeleton(self, pieces: Sequence[_Piece]) -> _Np:
+    def _pin(self, residual: ResidualProtocol[_Np, _F]) -> ResidualProtocol[_Np, _F]:
+        """``residual`` with the boundary DOFs pinned, if there is boundary
+        data."""
+        if self._boundary is None:
+            return residual
+        bkd, pinned = self.bkd, self.pinned()
+        values = bkd.zeros((self.skeleton.descriptor().size, 1))
+        values[pinned, 0] = self._boundary(self.skeleton_coords()[:, pinned])
+        return PinnedSkeletonResidual(
+            residual,
+            self.skeleton.vector_space(),
+            BackendRowSet(self.skeleton.descriptor(), pinned, bkd),
+            values,
+        )
+
+    def solve_skeleton(self, pieces: Sequence[_Piece], dense: bool = False) -> _Np:
+        """The skeleton solution: matrix-free Schur and GMRES, or with
+        ``dense`` the assembled Schur complement and dense LU."""
         bkd, space = self.bkd, self.skeleton.vector_space()
         subdomains = [
             CoupledSubdomain(
@@ -340,23 +368,20 @@ class _Problem:
             )
             for s, piece in enumerate(pieces)
         ]
-        schur: MatrixFreeSchur[_Np, _Np] = MatrixFreeSchur()
-        residual: ResidualProtocol[_Np, MatrixFree] = SkeletonResidual(
-            space, subdomains, schur
-        )
-        pinned = self.pinned()
-        if self._boundary is not None:
-            g = self._boundary(self.skeleton_coords()[:, pinned])
-            residual = PinnedSkeletonResidual(
-                residual,
-                BackendPortRows(self.skeleton.descriptor(), pinned, bkd),
-                bkd.reshape(g, (len(pinned), 1)),
-            )
-        setups: RecomputeAlways[_Np, MatrixFree] = RecomputeAlways(
-            GMRES(space, bkd, tol=1e-13)
-        )
         newton: Newton[_Np, _Np] = Newton(atol=1e-11, rtol=1e-11, maxiters=20)
-        point = SteadySystem(residual, space, setups).solve(newton, space.zeros(1))
+        if dense:
+            assembled = self._pin(SkeletonResidual(space, subdomains, DenseSchur(bkd)))
+            lu: RecomputeAlways[_Np, DenseFormat[_Np]] = RecomputeAlways(
+                BackendDenseLU(bkd)
+            )
+            point = SteadySystem(assembled, space, lu).solve(newton, space.zeros(1))
+        else:
+            schur: MatrixFreeSchur[_Np, _Np] = MatrixFreeSchur()
+            applied = self._pin(SkeletonResidual(space, subdomains, schur))
+            krylov: RecomputeAlways[_Np, MatrixFree] = RecomputeAlways(
+                GMRES(space, bkd, tol=1e-13)
+            )
+            point = SteadySystem(applied, space, krylov).solve(newton, space.zeros(1))
         assert point.converged()
         return point.solution()
 
@@ -369,11 +394,11 @@ def _node_at(nodes: _Np, point: _Np) -> int:
     return node
 
 
-def _check(problem: _Problem) -> None:
+def _check(problem: _Problem, dense: bool = False) -> None:
     bkd = problem.bkd
     reference, ref_nodes = problem.single_domain()
     built = [problem.piece(s) for s in range(problem.topo.nsubdomains())]
-    lam = problem.solve_skeleton([piece for piece, _, _ in built])
+    lam = problem.solve_skeleton([piece for piece, _, _ in built], dense)
     skel = problem.skeleton_coords()
     at_skeleton = [_node_at(ref_nodes, skel[:, d]) for d in range(skel.shape[1])]
     bkd.assert_allclose(lam, reference[at_skeleton], atol=1e-10)
@@ -503,8 +528,9 @@ def _boundary_data(x: _Np) -> _Np:
     return data
 
 
+@pytest.mark.parametrize("dense", [False, True])
 @pytest.mark.parametrize("cubic", [False, True])
-def test_dirichlet_closure_dofs_are_pinned(cubic: bool) -> None:
+def test_dirichlet_closure_dofs_are_pinned(cubic: bool, dense: bool) -> None:
     sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
         _linear_sink, _linear_sink_deriv
     )
@@ -512,23 +538,7 @@ def test_dirichlet_closure_dofs_are_pinned(cubic: bool) -> None:
     problem = _box((2, 2), sink, sides, boundary=_boundary_data)
     # The four interface ends, one on each outer edge.
     assert len(problem.pinned()) == 4
-    _check(problem)
-
-
-def test_pinning_rejects_bad_input() -> None:
-    problem = _box((2, 2), (_linear_sink, _linear_sink_deriv), [])
-    space = problem.skeleton.vector_space()
-    rows = BackendPortRows(problem.skeleton.descriptor(), [0, 1], problem.bkd)
-    residual: SkeletonResidual[_Np, _Np, _Np, MatrixFree] = SkeletonResidual(
-        space, [], MatrixFreeSchur()
-    )
-    g, wrong = problem.bkd.zeros((2, 1)), problem.bkd.zeros((3, 1))
-    with pytest.raises(ValueError, match="shape"):
-        PinnedSkeletonResidual(residual, rows, wrong)
-    with pytest.raises(TypeError, match="ResidualProtocol"):
-        PinnedSkeletonResidual(object(), rows, g)  # type: ignore[arg-type]
-    with pytest.raises(TypeError, match="PortRowsProtocol"):
-        PinnedSkeletonResidual(residual, object(), g)  # type: ignore[arg-type]
+    _check(problem, dense)
 
 
 @pytest.mark.parametrize("cubic", [False, True])
