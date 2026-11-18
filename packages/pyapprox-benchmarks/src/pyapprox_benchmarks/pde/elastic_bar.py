@@ -1,49 +1,66 @@
 """1D elastic bar forward UQ problems.
 
-Wraps the zoo factories (linear and hyperelastic 1D bar) into
-ForwardUQProblem instances with standard normal KLE priors and
-configurable QoI functionals.
+Wraps the collocation bar builders (linear and hyperelastic 1D bar) into
+ForwardUQProblem instances with standard normal KLE priors. The
+constitutive law and the QoI are objects passed in, each satisfying a
+protocol of this module (:class:`BarConstitutiveProtocol`,
+:class:`BarQoIProtocol`), so a new law or QoI needs no change here.
 """
 
 from __future__ import annotations
 
-from typing import Union
+from dataclasses import dataclass
+from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.interface.functions.protocols import FunctionProtocol
+from pyapprox.implicitfunction.functional_terms import StateTermProtocol
+from pyapprox.implicitfunction.observation_terms import ObservedValue
+from pyapprox.implicitfunction.state_functional import StateFunctional
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.functionals.point_evaluation import (
-    PointEvaluationFunctional,
+from pyapprox.pde.collocation.functionals.density_terms import (
+    NodalMaterialMapProtocol,
+    gradient_density_term_1d,
+)
+from pyapprox.pde.collocation.functionals.observations import (
+    point_observation,
+    subdomain_integral_observation,
 )
 from pyapprox.pde.collocation.functionals.strain_energy_1d import (
+    GradientDensity1DProtocol,
+    LinearStrainEnergyDensity1D,
     LinearStressDensity1D,
-    MaterialMapProtocol,
+    NeoHookeanStrainEnergyDensity1D,
     NeoHookeanStressDensity1D,
-    StrainEnergyFunctional1D,
-    create_linear_strain_energy_1d,
-    create_neo_hookean_strain_energy_1d,
-)
-from pyapprox.pde.collocation.functionals.subdomain_integral import (
-    SubdomainIntegralFunctional,
 )
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeAwareCallableProtocol,
+    TimeIndependent,
+)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
 from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
+from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
-from pyapprox.pde.parameterizations.fields import ConstantInTimeField
-from pyapprox.pde.zoo.elastic_bar_1d import (
-    create_linear_elastic_bar_1d,
+from pyapprox.pde.models.collocation.steady_function import (
+    ParameterizedCollocationSystem,
+    collocation_steady_function,
 )
-from pyapprox.pde.zoo.hyperelastic_bar_1d import (
-    create_hyperelastic_bar_1d,
-)
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import DenseFormat
+from pyapprox_benchmarks.functions.pde.collocation.elastic_bar_1d import (
+    build_linear_elastic_bar_1d,
+)
+from pyapprox_benchmarks.functions.pde.collocation.hyperelastic_bar_1d import (
+    build_hyperelastic_bar_1d,
+)
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
 
@@ -72,104 +89,259 @@ def _make_kle_field_map(
     )
 
 
-def _make_functional(
-    basis: ChebyshevBasis1D[Array],
-    nparams: int,
-    bkd: Backend[Array],
-    qoi: str,
-    constitutive: str,
-    length: float,
-    material_map: MaterialMapProtocol[Array],
-) -> Union[
-    PointEvaluationFunctional[Array],
-    SubdomainIntegralFunctional[Array],
-    StrainEnergyFunctional1D[Array],
-]:
-    """Create QoI functional from string identifier.
+class _UnitLoad(Generic[Array]):
+    """The body force f = 1."""
 
-    The stress and energy QoIs read the material ``material_map`` gives
-    at the forward model's parameters: E for the linear bar,
-    ``[mu; lamda]`` for the hyperelastic one.
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, coords: Array) -> Array:
+        return self._bkd.ones((coords.shape[1],))
+
+
+@runtime_checkable
+class BarConstitutiveProtocol(Protocol):
+    """A constitutive law of the bar: its configured system and the
+    material and densities its stress and energy QoIs read."""
+
+    def label(self) -> str:
+        """The name used in the problem's name."""
+        ...
+
+    def configure(
+        self,
+        mesh: TransformedMesh1D[Array],
+        forcing: TimeAwareCallableProtocol[Array],
+        field_map: FieldMapProtocol[Array],
+        traction: float,
+    ) -> ParameterizedCollocationSystem[Array, ChebyshevBasis1D[Array]]:
+        """The bar, fixed at the left end, ``traction`` at the right, with
+        Young's modulus ``field_map``."""
+        ...
+
+    def material_map(
+        self, field_map: FieldMapProtocol[Array], npts: int, bkd: Backend[Array]
+    ) -> NodalMaterialMapProtocol[Array]:
+        """The material the densities read, from the parameters: the same
+        map the configured parameterization applies."""
+        ...
+
+    def stress_density(self, bkd: Backend[Array]) -> GradientDensity1DProtocol[Array]:
+        """The pointwise stress."""
+        ...
+
+    def strain_energy_density(
+        self, bkd: Backend[Array]
+    ) -> GradientDensity1DProtocol[Array]:
+        """The pointwise strain energy density."""
+        ...
+
+
+@dataclass(frozen=True)
+class LinearElastic:
+    """Linear elasticity, :math:`\\sigma = E u'`; the material is E."""
+
+    def label(self) -> str:
+        return "linear"
+
+    def configure(
+        self,
+        mesh: TransformedMesh1D[Array],
+        forcing: TimeAwareCallableProtocol[Array],
+        field_map: FieldMapProtocol[Array],
+        traction: float,
+    ) -> ParameterizedCollocationSystem[Array, ChebyshevBasis1D[Array]]:
+        return build_linear_elastic_bar_1d(mesh, forcing, field_map, traction)
+
+    def material_map(
+        self, field_map: FieldMapProtocol[Array], npts: int, bkd: Backend[Array]
+    ) -> NodalMaterialMapProtocol[Array]:
+        return field_map
+
+    def stress_density(self, bkd: Backend[Array]) -> GradientDensity1DProtocol[Array]:
+        return LinearStressDensity1D(bkd)
+
+    def strain_energy_density(
+        self, bkd: Backend[Array]
+    ) -> GradientDensity1DProtocol[Array]:
+        return LinearStrainEnergyDensity1D(bkd)
+
+
+@dataclass(frozen=True)
+class NeoHookean:
+    """A Neo-Hookean law with a fixed Poisson ratio; the material is the
+    stacked Lame fields ``[mu; lamda]`` of E."""
+
+    poisson_ratio: float = 0.3
+
+    def label(self) -> str:
+        return "hyperelastic"
+
+    def configure(
+        self,
+        mesh: TransformedMesh1D[Array],
+        forcing: TimeAwareCallableProtocol[Array],
+        field_map: FieldMapProtocol[Array],
+        traction: float,
+    ) -> ParameterizedCollocationSystem[Array, ChebyshevBasis1D[Array]]:
+        return build_hyperelastic_bar_1d(
+            mesh, forcing, field_map, self.poisson_ratio, traction
+        )
+
+    def material_map(
+        self, field_map: FieldMapProtocol[Array], npts: int, bkd: Backend[Array]
+    ) -> NodalMaterialMapProtocol[Array]:
+        return FixedPoissonRatioLameMap(field_map, self.poisson_ratio, npts, bkd)
+
+    def stress_density(self, bkd: Backend[Array]) -> GradientDensity1DProtocol[Array]:
+        return NeoHookeanStressDensity1D(bkd)
+
+    def strain_energy_density(
+        self, bkd: Backend[Array]
+    ) -> GradientDensity1DProtocol[Array]:
+        return NeoHookeanStrainEnergyDensity1D(bkd)
+
+
+@dataclass(frozen=True)
+class BarQoIContext(Generic[Array]):
+    """What a QoI builds its term from.
+
+    Attributes
+    ----------
+    basis : ChebyshevBasis1D
+        The bar's basis.
+    parameters : ParameterState
+        The parameters, shared with the forward model.
+    material_map : NodalMaterialMapProtocol
+        The material from the parameters, as the constitutive law reads it.
+    stress, strain_energy : GradientDensity1DProtocol
+        The law's pointwise stress and strain energy densities.
+    length : float
+        The bar length L.
+    bkd : Backend
+        Computational backend.
     """
-    npts = basis.nodes().shape[0]
 
-    if qoi == "tip_displacement":
-        return PointEvaluationFunctional(basis, length, nparams, bkd)
+    basis: ChebyshevBasis1D[Array]
+    parameters: ParameterState[Array]
+    material_map: NodalMaterialMapProtocol[Array]
+    stress: GradientDensity1DProtocol[Array]
+    strain_energy: GradientDensity1DProtocol[Array]
+    length: float
+    bkd: Backend[Array]
 
-    if qoi == "average_displacement":
-        coeff = bkd.ones((npts,)) / length
-        return SubdomainIntegralFunctional(
-            basis,
-            nparams,
-            bkd,
-            coefficient=coeff,
+
+@runtime_checkable
+class BarQoIProtocol(Protocol):
+    """A scalar QoI of the bar's displacement."""
+
+    def label(self) -> str:
+        """The name used in the problem's name."""
+        ...
+
+    def term(self, context: BarQoIContext[Array]) -> StateTermProtocol[Array, Array]:
+        """The QoI's term, of one entry."""
+        ...
+
+
+@dataclass(frozen=True)
+class TipDisplacement:
+    """u(x=L) via interpolation."""
+
+    def label(self) -> str:
+        return "tip_displacement"
+
+    def term(self, context: BarQoIContext[Array]) -> StateTermProtocol[Array, Array]:
+        bkd = context.bkd
+        return ObservedValue(point_observation(context.basis, [context.length], bkd))
+
+
+@dataclass(frozen=True)
+class AverageDisplacement:
+    """(1/L) integral u dx."""
+
+    def label(self) -> str:
+        return "average_displacement"
+
+    def term(self, context: BarQoIContext[Array]) -> StateTermProtocol[Array, Array]:
+        bkd = context.bkd
+        coefficient = bkd.ones((context.basis.npts(),)) / context.length
+        return ObservedValue(
+            subdomain_integral_observation(context.basis, bkd, coefficient)
         )
 
-    if qoi == "average_stress":
-        # (1/L) integral sigma dx
-        stress: Union[LinearStressDensity1D[Array], NeoHookeanStressDensity1D[Array]]
-        stress = (
-            LinearStressDensity1D(bkd)
-            if constitutive == "linear"
-            else NeoHookeanStressDensity1D(bkd)
-        )
-        return StrainEnergyFunctional1D(
-            basis, stress, material_map, bkd, scale=1.0 / length
+
+@dataclass(frozen=True)
+class AverageStress:
+    """(1/L) integral sigma dx, sigma the law's stress at the material the
+    state was solved with."""
+
+    def label(self) -> str:
+        return "average_stress"
+
+    def term(self, context: BarQoIContext[Array]) -> StateTermProtocol[Array, Array]:
+        return gradient_density_term_1d(
+            context.basis,
+            context.stress,
+            context.material_map,
+            context.parameters,
+            context.bkd,
+            scale=1.0 / context.length,
         )
 
-    if qoi == "strain_energy":
-        if constitutive == "linear":
-            return create_linear_strain_energy_1d(basis, material_map, bkd)
-        return create_neo_hookean_strain_energy_1d(basis, material_map, bkd)
 
-    raise ValueError(
-        f"Unknown qoi: {qoi!r}. Must be one of: "
-        "'tip_displacement', 'average_displacement', "
-        "'average_stress', 'strain_energy'"
-    )
+@dataclass(frozen=True)
+class StrainEnergy:
+    """integral psi(epsilon) dx, psi the law's strain energy density at
+    the material the state was solved with."""
+
+    def label(self) -> str:
+        return "strain_energy"
+
+    def term(self, context: BarQoIContext[Array]) -> StateTermProtocol[Array, Array]:
+        return gradient_density_term_1d(
+            context.basis,
+            context.strain_energy,
+            context.material_map,
+            context.parameters,
+            context.bkd,
+        )
 
 
 def build_elastic_bar_1d(
     bkd: Backend[Array],
-    constitutive: str = "linear",
-    qoi: str = "tip_displacement",
+    constitutive: BarConstitutiveProtocol = LinearElastic(),
+    qoi: BarQoIProtocol = TipDisplacement(),
     npts: int = 25,
     length: float = 1.0,
-    E_mean: float = 1.0,
-    poisson_ratio: float = 0.3,
     traction: float = 1.0,
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
+) -> ForwardUQProblem[SteadyImplicitFunction[Array, DenseFormat[Array]], Array]:
     """Create a 1D elastic bar forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
-    collocation PDE solve. Supports linear and hyperelastic (Neo-Hookean)
-    constitutive models with four QoI options.
+    collocation PDE solve. The bar is fixed at x=0, carries the traction
+    at x=L and a unit body force, and has Young's modulus E = exp(KLE),
+    so E = 1 at KLE coefficients = 0.
 
     Parameters
     ----------
     bkd : Backend
         Computational backend.
-    constitutive : str
-        ``"linear"`` or ``"hyperelastic"`` (Neo-Hookean).
-    qoi : str
+    constitutive : BarConstitutiveProtocol
+        The law: ``LinearElastic()`` or ``NeoHookean(poisson_ratio)``.
+    qoi : BarQoIProtocol
         Quantity of interest:
-        - ``"tip_displacement"``: u(x=L) via interpolation
-        - ``"average_displacement"``: (1/L) integral u dx
-        - ``"average_stress"``: (1/L) integral sigma dx
-        - ``"strain_energy"``: integral psi(epsilon) dx
+        - ``TipDisplacement()``: u(x=L) via interpolation
+        - ``AverageDisplacement()``: (1/L) integral u dx
+        - ``AverageStress()``: (1/L) integral sigma dx
+        - ``StrainEnergy()``: integral psi(epsilon) dx
     npts : int
         Number of Chebyshev collocation points.
     length : float
         Bar length L.
-    E_mean : float
-        The modulus the physics is built with; the parameterization
-        replaces it with the KLE field, so at KLE coefficients = 0 the
-        modulus is E = exp(0) = 1 regardless.
-    poisson_ratio : float
-        Fixed Poisson ratio (hyperelastic only; ignored for linear).
     traction : float
         Applied traction at x=L.
     num_kle_terms : int
@@ -184,16 +356,25 @@ def build_elastic_bar_1d(
     ForwardUQProblem
         Problem with ``function()`` (the forward model) and ``prior()``
         (iid standard normal).
+
+    Raises
+    ------
+    TypeError
+        If ``constitutive`` or ``qoi`` does not satisfy its protocol.
     """
-    if constitutive not in ("linear", "hyperelastic"):
-        raise ValueError(
-            f"constitutive must be 'linear' or 'hyperelastic', got {constitutive!r}"
+    if not isinstance(constitutive, BarConstitutiveProtocol):
+        raise TypeError(
+            "constitutive must satisfy BarConstitutiveProtocol, got "
+            f"{type(constitutive).__name__}"
+        )
+    if not isinstance(qoi, BarQoIProtocol):
+        raise TypeError(
+            f"qoi must satisfy BarQoIProtocol, got {type(qoi).__name__}"
         )
 
-    # Mesh and basis
+    # Mesh
     transform = AffineTransform1D((0.0, length), bkd)
     mesh = TransformedMesh1D(npts, bkd, transform)
-    basis = ChebyshevBasis1D(mesh, bkd)
 
     # KLE field map
     field_map = _make_kle_field_map(
@@ -204,48 +385,30 @@ def build_elastic_bar_1d(
         correlation_length,
     )
 
-    # QoI functional, reading the material from the parameters with the
-    # map the zoo's parameterization builds from the same field map
-    material_map: MaterialMapProtocol[Array] = (
-        field_map
-        if constitutive == "linear"
-        else FixedPoissonRatioLameMap(field_map, poisson_ratio, npts, bkd)
+    # The configured bar, and the parameters its residual and the QoI
+    # share
+    configured = constitutive.configure(
+        mesh, TimeIndependent(_UnitLoad(bkd)), field_map, traction
     )
-    functional = _make_functional(
-        basis,
-        num_kle_terms,
-        bkd,
-        qoi,
-        constitutive,
+    parameters = ParameterState(configured.parameterization)
+
+    # QoI functional, reading the material from the parameters with the
+    # map the configured parameterization applies to the same field map
+    context = BarQoIContext(
+        configured.basis,
+        parameters,
+        constitutive.material_map(field_map, npts, bkd),
+        constitutive.stress_density(bkd),
+        constitutive.strain_energy_density(bkd),
         length,
-        material_map,
+        bkd,
+    )
+    functional = StateFunctional.from_terms(
+        bkd, 1, state_terms=(qoi.term(context),)
     )
 
-    # Forward model via zoo factory
-    forcing = ConstantInTimeField(bkd.ones((npts,)))
-    if constitutive == "linear":
-        fwd = create_linear_elastic_bar_1d(
-            bkd=bkd,
-            npts=npts,
-            length=length,
-            E_mean_field=E_mean,
-            forcing=forcing,
-            field_map=field_map,
-            traction=traction,
-            functional=functional,
-        )
-    else:
-        fwd = create_hyperelastic_bar_1d(
-            bkd=bkd,
-            npts=npts,
-            length=length,
-            E_mean=E_mean,
-            poisson_ratio=poisson_ratio,
-            forcing=forcing,
-            field_map=field_map,
-            traction=traction,
-            functional=functional,
-        )
+    # Forward model
+    fwd = collocation_steady_function(configured.system, parameters, functional)
 
     # Prior: iid standard normal
     prior = IndependentJoint(
@@ -253,9 +416,9 @@ def build_elastic_bar_1d(
         bkd,
     )
 
-    name = f"elastic_bar_1d_{constitutive}_{qoi}"
+    name = f"elastic_bar_1d_{constitutive.label()}_{qoi.label()}"
     description = (
-        f"1D {constitutive} elastic bar, QoI={qoi}, "
+        f"1D {constitutive.label()} elastic bar, QoI={qoi.label()}, "
         f"npts={npts}, {num_kle_terms} KLE terms"
     )
 
