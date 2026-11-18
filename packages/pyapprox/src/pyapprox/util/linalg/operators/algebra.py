@@ -36,26 +36,31 @@ def scaled_sum_properties(
 ) -> OperatorProperties:
     r"""Properties of :math:`\sum_i c_i A_i`.
 
-    Symmetric or diagonal if every term is; SPD if every term is SPD with
-    a positive coefficient; never the identity.
+    Symmetric, diagonal or transposable if every term is; SPD if every
+    term is SPD with a positive coefficient; never the identity.
     """
     symmetric = all(props.symmetric for _, props in terms)
     diagonal = all(props.diagonal for _, props in terms)
     spd = all(props.spd and c > 0 for c, props in terms)
-    return OperatorProperties(symmetric=symmetric, spd=spd, diagonal=diagonal)
+    transposable = all(props.transposable for _, props in terms)
+    return OperatorProperties(
+        symmetric=symmetric, spd=spd, diagonal=diagonal, transposable=transposable
+    )
 
 
 def product_properties(factors: Sequence[OperatorProperties]) -> OperatorProperties:
-    r"""Properties of :math:`A_1 A_2 \cdots A_k`: none unless all are diagonal.
+    r"""Properties of :math:`A_1 A_2 \cdots A_k`: transposable if every
+    factor is, and nothing more unless all are diagonal.
 
-    Nothing is declared unless every factor is diagonal: a product of
-    symmetric (or SPD) matrices is in general neither. When every factor
-    is diagonal, the product is diagonal, hence equal to its transpose
-    (symmetric); it is SPD when every factor has a positive diagonal
-    (SPD), and the identity when every factor is.
+    A product of symmetric (or SPD) matrices is in general neither. When
+    every factor is diagonal, the product is diagonal, hence equal to its
+    transpose (symmetric); it is SPD when every factor has a positive
+    diagonal (SPD), and the identity when every factor is.
     """
     if not all(props.diagonal for props in factors):
-        return OperatorProperties()
+        return OperatorProperties(
+            transposable=all(props.transposable for props in factors)
+        )
     return OperatorProperties(
         symmetric=True,
         spd=all(props.spd for props in factors),
@@ -186,9 +191,18 @@ class Transposed(Generic[V, F]):
     ----------
     op : ActionOperatorProtocol
         The operator to transpose.
+
+    Raises
+    ------
+    ValueError
+        If ``op`` has no transpose: :math:`A^\top` would have no action.
     """
 
     def __init__(self, op: ActionOperatorProtocol[V, F]) -> None:
+        if not op.properties().transposable:
+            raise ValueError(
+                f"{op!r} has no transpose (properties().transposable is False)"
+            )
         self._op = op
         self._format: Optional[F] = None
 

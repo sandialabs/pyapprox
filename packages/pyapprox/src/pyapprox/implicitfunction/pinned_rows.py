@@ -135,7 +135,8 @@ class PinnedValuesProtocol(Protocol[V]):
 
 class RowsKept(Generic[V]):
     r""":math:`(I - P) A`: an operator with the rows outside :math:`R`
-    zeroed; ``MatrixFree``. ``out`` is ignored."""
+    zeroed; ``MatrixFree``, transposable when :math:`A` is. ``out`` is
+    ignored."""
 
     def __init__(
         self,
@@ -152,7 +153,7 @@ class RowsKept(Generic[V]):
         return self._op.range()
 
     def properties(self) -> OperatorProperties:
-        return OperatorProperties()
+        return OperatorProperties(transposable=self._op.properties().transposable)
 
     def format(self) -> MatrixFree:
         return MatrixFree()

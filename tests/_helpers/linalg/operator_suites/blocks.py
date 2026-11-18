@@ -1,4 +1,5 @@
-"""Stack-generic operator suites: ``BlockVectorSpaceSuite``, ``BlockOperatorSuite``, ``BlockLowerTriangularHandleSuite``.
+"""Stack-generic operator suites: ``BlockVectorSpaceSuite``,
+``BlockOperatorSuite``, ``BlockLowerTriangularHandleSuite``.
 
 Each runs on the stack its ``case`` fixture supplies
 (``TypedStackCase``); a stack's test directory subclasses it and
@@ -21,6 +22,7 @@ from pyapprox.util.linalg.operators import (
     InnerProductSpaceProtocol,
     LinearMapProtocol,
     MatrixFree,
+    OperatorProperties,
     SolveInfo,
     SolverHandleBase,
     SolverHandleProtocol,
@@ -28,6 +30,7 @@ from pyapprox.util.linalg.operators import (
     SpaceMismatchError,
     VectorSpaceProtocol,
 )
+from tests._helpers.linalg.forward_only import ForwardOnly
 from tests._helpers.linalg.stack_case import (
     A,
     F,
@@ -124,6 +127,17 @@ def _handles(
         assert block is not None
         handles.append(case.direct_solver().setup(case.build(block, d)))
     return handles
+
+
+def _diagonal_block(
+    case: TypedStackCase[V, F, A],
+    grid: Sequence[Sequence[Optional[_Np]]],
+    descriptors: Sequence[SpaceDescriptor],
+    i: int,
+) -> LinearMapProtocol[V]:
+    block = grid[i][i]
+    assert block is not None
+    return case.build(block, descriptors[i])
 
 
 class _FailingHandle(SolverHandleBase[V]):
@@ -232,6 +246,26 @@ class BlockOperatorSuite:
             _product(case, [_U1, _U2]),
         ).is_lower_triangular()
 
+    def test_a_transpose_needs_every_block_to_have_one(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """``transposable`` is inferred from the blocks, and a declaration
+        the blocks contradict is refused."""
+        space = _product(case, [_U1, _U2])
+        block = case.build(random_matrix(3, 3, 1), _U1)
+        forward = ForwardOnly(case.build(random_matrix(2, 2, 3), _U2))
+        stored = BlockOperator([[block, None], [None, None]], space, space)
+        assert stored.properties().transposable
+        op = BlockOperator([[block, None], [None, forward]], space, space)
+        assert not op.properties().transposable
+        with pytest.raises(ValueError, match="a block has none"):
+            BlockOperator(
+                [[block, None], [None, forward]],
+                space,
+                space,
+                OperatorProperties(symmetric=True),
+            )
+
     def test_refuses_a_grid_that_does_not_match(
         self, case: TypedStackCase[V, F, A]
     ) -> None:
@@ -292,6 +326,29 @@ class BlockLowerTriangularHandleSuite:
         _, info = handle.solve(_block_vec(case, descriptors, 1, 0))
         assert not info.converged
         assert info.message == "block 1: planted failure"
+        assert handle.transpose() is None
+
+    def test_no_transpose_with_a_forward_only_block(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """Backward substitution applies the coupling blocks transposed."""
+        descriptors = [_U1, _U2]
+        grid = _lower_grid(descriptors)
+        coupling = grid[1][0]
+        assert coupling is not None
+        blocks: list[list[Optional[LinearMapProtocol[V]]]] = [
+            [_diagonal_block(case, grid, descriptors, 0), None],
+            [
+                ForwardOnly(case.build(coupling, _U1, _U2)),
+                _diagonal_block(case, grid, descriptors, 1),
+            ],
+        ]
+        space = _product(case, descriptors)
+        handle = BlockLowerTriangularHandle(
+            BlockOperator(blocks, space, space), _handles(case, grid, descriptors)
+        )
+        _, info = handle.solve(_block_vec(case, descriptors, 1, 0))
+        assert info.converged
         assert handle.transpose() is None
 
     def test_refusals(self, case: TypedStackCase[V, F, A]) -> None:

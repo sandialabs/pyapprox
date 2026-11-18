@@ -72,6 +72,13 @@ class OperatorProperties:
     zero : bool
         :math:`A = 0`, declared rather than computed, so a consumer may
         skip the operator. Excludes ``identity``.
+    transposable : bool
+        ``apply_transpose`` works. Default ``True``; an operator known
+        only by its forward action (a matrix-free operator whose library
+        gives no transposed action) declares ``False``, and its
+        ``apply_transpose`` raises ``TypeError``. A consumer that needs
+        the transpose (an adjoint) checks this before its first
+        transposed solve. Implied by ``symmetric``.
 
     Raises
     ------
@@ -85,6 +92,7 @@ class OperatorProperties:
     diagonal: bool = False
     identity: bool = False
     zero: bool = False
+    transposable: bool = True
 
     def __post_init__(self) -> None:
         implications = (
@@ -92,6 +100,7 @@ class OperatorProperties:
             ("diagonal", self.diagonal, "symmetric", self.symmetric),
             ("identity", self.identity, "diagonal", self.diagonal),
             ("identity", self.identity, "spd", self.spd),
+            ("symmetric", self.symmetric, "transposable", self.transposable),
         )
         for name, value, implied, implied_value in implications:
             if value and not implied_value:
@@ -213,6 +222,12 @@ class LinearMapProtocol(Protocol, Generic[V]):
 
         The plain algebraic transpose: no conjugation and no weighting
         by an inner product.
+
+        Raises
+        ------
+        TypeError
+            If the operator has no transpose
+            (``properties().transposable`` is ``False``).
         """
         ...
 

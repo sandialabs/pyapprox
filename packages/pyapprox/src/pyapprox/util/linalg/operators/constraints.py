@@ -48,15 +48,16 @@ def rows_replaced_properties(
 ) -> OperatorProperties:
     r"""Properties of :math:`P A + (I - P)` when the set has ``nrows`` rows.
 
-    Unchanged for an empty set. Otherwise none, unless :math:`A` is
-    diagonal: then the result is diagonal (its replaced entries are 1),
-    hence symmetric, SPD if :math:`A` is, and the identity if :math:`A`
-    is. A replaced row of a non-diagonal matrix makes it unsymmetric.
+    Unchanged for an empty set. Otherwise transposable if :math:`A` is,
+    and nothing more unless :math:`A` is diagonal: then the result is
+    diagonal (its replaced entries are 1), hence symmetric, SPD if
+    :math:`A` is, and the identity if :math:`A` is. A replaced row of a
+    non-diagonal matrix makes it unsymmetric.
     """
     if nrows == 0:
         return props
     if not props.diagonal:
-        return OperatorProperties()
+        return OperatorProperties(transposable=props.transposable)
     return OperatorProperties(
         symmetric=True, spd=props.spd, diagonal=True, identity=props.identity
     )
@@ -65,14 +66,15 @@ def rows_replaced_properties(
 def rows_zeroed_properties(props: OperatorProperties, nrows: int) -> OperatorProperties:
     r"""Properties of :math:`P A` when the set has ``nrows`` rows.
 
-    Unchanged for an empty set. Otherwise none, unless :math:`A` is
-    diagonal: then the result is diagonal and symmetric, but singular, so
-    neither SPD nor the identity.
+    Unchanged for an empty set. Otherwise transposable if :math:`A` is,
+    and nothing more unless :math:`A` is diagonal: then the result is
+    diagonal and symmetric, but singular, so neither SPD nor the
+    identity.
     """
     if nrows == 0:
         return props
     if not props.diagonal:
-        return OperatorProperties()
+        return OperatorProperties(transposable=props.transposable)
     return OperatorProperties(symmetric=True, diagonal=True)
 
 
@@ -84,8 +86,8 @@ def symmetric_eliminated_properties(
     Up to a permutation it is block diagonal: :math:`A`'s principal block
     on the rows outside the set and the identity on the set. A principal
     block of a symmetric, SPD, diagonal or identity matrix is one too, so
-    each of those properties carries over; ``zero`` does not (the unit
-    diagonal), unless the set is empty.
+    each of those properties carries over, as does ``transposable``;
+    ``zero`` does not (the unit diagonal), unless the set is empty.
     """
     if nrows == 0:
         return props
@@ -94,6 +96,7 @@ def symmetric_eliminated_properties(
         spd=props.spd,
         diagonal=props.diagonal,
         identity=props.identity,
+        transposable=props.transposable,
     )
 
 

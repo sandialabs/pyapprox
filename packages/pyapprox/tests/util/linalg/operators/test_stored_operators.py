@@ -17,10 +17,10 @@ from pyapprox.util.linalg.operators import (
     SpaceDescriptor,
 )
 from pyapprox.util.linalg.scipy_stack import ScipyCSROperator
-from tests._helpers.linalg.stack_case import random_matrix as _random
 from tests._helpers.linalg.operator_suites.stored_operators import (
     StoredOperatorConformanceSuite,
 )
+from tests._helpers.linalg.stack_case import random_matrix as _random
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)
@@ -40,6 +40,9 @@ class TestOperatorProperties:
             OperatorProperties(symmetric=True, spd=True, identity=True)
         with pytest.raises(ValueError, match="identity=True requires spd"):
             OperatorProperties(symmetric=True, diagonal=True, identity=True)
+        with pytest.raises(ValueError, match="symmetric=True requires transposable"):
+            OperatorProperties(symmetric=True, transposable=False)
+        assert OperatorProperties().transposable
 
 
 class TestScipyCSROperator:

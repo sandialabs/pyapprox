@@ -28,6 +28,7 @@ from pyapprox.util.linalg.scipy_stack import (
     ScipyCSROperator,
     ScipyGMRES,
 )
+from tests._helpers.linalg.forward_only import ForwardOnly
 from tests._helpers.linalg.stack_case import random_matrix, spd_matrix
 
 _BKD = NumpyBkd()
@@ -96,6 +97,15 @@ class TestSolves:
 
 
 class TestBehavior:
+    def test_no_transpose_for_a_forward_only_operator(self) -> None:
+        a = spd_matrix(6, 0)
+        forward = ForwardOnly(_operator(a, False, _SPD))
+        for solver in (ScipyCG(), ScipyGMRES()):
+            handle = solver.setup(forward)
+            assert handle.transpose() is None
+            _, info = handle.solve(_rhs(1))
+            assert info.converged
+
     def test_satisfies_the_protocol_and_pairs_with_matrix_free(self) -> None:
         solver: LinearSolverProtocol[NDArray[np.float64], MatrixFree] = ScipyGMRES()
         assert isinstance(solver, LinearSolverProtocol)

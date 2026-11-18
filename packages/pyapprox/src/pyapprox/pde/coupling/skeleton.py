@@ -319,7 +319,8 @@ class SchurOperator(Generic[V, Array]):
         return self._space.descriptor()
 
     def properties(self) -> OperatorProperties:
-        return OperatorProperties()
+        """No transpose: the responses carry no ``vjp_trace``."""
+        return OperatorProperties(transposable=False)
 
     def format(self) -> MatrixFree:
         return MatrixFree()

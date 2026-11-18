@@ -172,7 +172,11 @@ class _CGHandle(_KrylovHandle[V, A, G]):
             rr = rr_next
         return x, self._maxiter
 
-    def transpose(self) -> "_CGHandle[V, A, G]":
+    def transpose(self) -> Optional["_CGHandle[V, A, G]"]:
+        r"""CG on :math:`A^\top`, or ``None`` when the operator has no
+        transpose."""
+        if not self._op.properties().transposable:
+            return None
         return _CGHandle(
             Transposed(self._op), self._space, self._bkd, self._tol, self._maxiter
         )
@@ -254,7 +258,11 @@ class _GMRESHandle(_KrylovHandle[V, A, G]):
             x = space.axpby(y[i], basis[i], 1.0, x, out=x)
         return x, total, stop
 
-    def transpose(self) -> "_GMRESHandle[V, A, G]":
+    def transpose(self) -> Optional["_GMRESHandle[V, A, G]"]:
+        r"""GMRES on :math:`A^\top`, or ``None`` when the operator has no
+        transpose."""
+        if not self._op.properties().transposable:
+            return None
         return _GMRESHandle(
             Transposed(self._op),
             self._space,

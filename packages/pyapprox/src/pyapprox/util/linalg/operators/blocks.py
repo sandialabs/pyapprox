@@ -290,13 +290,16 @@ class BlockOperator(Generic[V]):
     domain_space, range_space : BlockVectorSpace
         The product spaces.
     properties : OperatorProperties, optional
-        Declared by the caller; nothing is inferred from the blocks.
+        Declared by the caller; nothing is inferred from the blocks but
+        ``transposable``, which holds when every block's does. Default:
+        no properties beyond that.
 
     Raises
     ------
     ValueError
-        If the grid's shape does not match the spaces, or a block's
-        spaces do not match its position.
+        If the grid's shape does not match the spaces, a block's spaces
+        do not match its position, or ``properties`` declares a transpose
+        (directly or through ``symmetric``) that a block does not have.
     """
 
     def __init__(
@@ -329,7 +332,20 @@ class BlockOperator(Generic[V]):
         self._blocks = tuple(tuple(row) for row in blocks)
         self._domain_space = domain_space
         self._range_space = range_space
-        self._properties = OperatorProperties() if properties is None else properties
+        transposable = all(
+            block.properties().transposable
+            for row in self._blocks
+            for block in row
+            if block is not None
+        )
+        if properties is None:
+            properties = OperatorProperties(transposable=transposable)
+        elif properties.transposable and not transposable:
+            raise ValueError(
+                "properties declare a transpose, but a block has none "
+                "(properties().transposable is False)"
+            )
+        self._properties = properties
 
     def domain(self) -> SpaceDescriptor:
         return self._domain_space.descriptor()
@@ -553,6 +569,10 @@ class BlockLowerTriangularHandle(SolverHandleBase[BlockVector[V]]):
         )
 
     def transpose(self) -> Optional["BlockLowerTriangularHandle[V]"]:
+        r"""Backward substitution with :math:`A^\top`, or ``None`` when a
+        block or a diagonal handle has no transpose."""
+        if not self._op.properties().transposable:
+            return None
         handles: list[SolverHandleProtocol[V]] = []
         for handle in self._handles:
             transposed = handle.transpose()

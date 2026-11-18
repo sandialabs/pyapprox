@@ -11,6 +11,7 @@ from tests._helpers.linalg.operator_suites.algebra import (
     AsMatrixFreeSuite,
     ProductSuite,
     ScaledSumSuite,
+    TransposeCapabilitySuite,
     TransposedSuite,
 )
 
@@ -20,6 +21,7 @@ _SPD = OperatorProperties(symmetric=True, spd=True)
 _DIAG = OperatorProperties(symmetric=True, diagonal=True)
 _DIAG_SPD = OperatorProperties(symmetric=True, spd=True, diagonal=True)
 _IDENT = OperatorProperties(symmetric=True, spd=True, diagonal=True, identity=True)
+_FWD = OperatorProperties(transposable=False)
 
 
 class TestScaledSum(ScaledSumSuite):
@@ -27,6 +29,10 @@ class TestScaledSum(ScaledSumSuite):
 
 
 class TestTransposed(TransposedSuite):
+    pass
+
+
+class TestTransposeCapability(TransposeCapabilitySuite):
     pass
 
 
@@ -49,6 +55,8 @@ class TestPropertyPropagation:
             ([(1.0, _DIAG_SPD), (3.0, _IDENT)], _DIAG_SPD),
             ([(1.0, _IDENT)], _DIAG_SPD),
             ([(1.0, _DIAG), (1.0, _SPD)], _SYM),
+            ([(1.0, _SYM), (2.0, _FWD)], _FWD),
+            ([(1.0, _IDENT), (1.0, _FWD)], _FWD),
         ],
     )
     def test_scaled_sum(
@@ -67,6 +75,8 @@ class TestPropertyPropagation:
             ([_DIAG, _DIAG_SPD], _DIAG),
             ([_DIAG_SPD, _IDENT], _DIAG_SPD),
             ([_IDENT, _IDENT], _IDENT),
+            ([_SPD, _FWD], _FWD),
+            ([_DIAG, _FWD], _FWD),
         ],
     )
     def test_product(

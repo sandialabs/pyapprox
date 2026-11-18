@@ -810,7 +810,11 @@ class _ScipyCGHandle(_ScipyKrylovHandle[G]):
         )[0]
         return solution
 
-    def transpose(self) -> "_ScipyCGHandle[G]":
+    def transpose(self) -> Optional["_ScipyCGHandle[G]"]:
+        r"""CG on :math:`A^\top`, or ``None`` when the operator has no
+        transpose."""
+        if not self._op.properties().transposable:
+            return None
         return _ScipyCGHandle(Transposed(self._op), self._tol, self._maxiter)
 
 
@@ -853,7 +857,11 @@ class _ScipyGMRESHandle(_ScipyKrylovHandle[G]):
         )[0]
         return solution
 
-    def transpose(self) -> "_ScipyGMRESHandle[G]":
+    def transpose(self) -> Optional["_ScipyGMRESHandle[G]"]:
+        r"""GMRES on :math:`A^\top`, or ``None`` when the operator has no
+        transpose."""
+        if not self._op.properties().transposable:
+            return None
         return _ScipyGMRESHandle(
             Transposed(self._op), self._tol, self._maxiter, self._restart
         )

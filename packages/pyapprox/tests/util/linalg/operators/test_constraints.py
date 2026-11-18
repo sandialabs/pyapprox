@@ -37,6 +37,7 @@ _U = SpaceDescriptor("u", 5)
 _ROWS = [3, 0, 3]  # unsorted, with a duplicate: the set is {0, 3}
 _SPD = OperatorProperties(symmetric=True, spd=True)
 _DIAG_SPD = OperatorProperties(symmetric=True, spd=True, diagonal=True)
+_FWD = OperatorProperties(transposable=False)
 
 
 class TestRowSet(RowSetSuite):
@@ -77,6 +78,7 @@ class TestPropertyRules:
                 ),
                 OperatorProperties(symmetric=True, diagonal=True),
             ),
+            (_FWD, 2, _FWD, _FWD),
         ],
     )
     def test_table(
@@ -100,6 +102,7 @@ class TestPropertyRules:
             # The unit diagonal on the set is not zero.
             (OperatorProperties(zero=True), 2, OperatorProperties()),
             (OperatorProperties(zero=True), 0, OperatorProperties(zero=True)),
+            (_FWD, 2, _FWD),
         ],
     )
     def test_symmetric_elimination_keeps_structure(

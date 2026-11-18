@@ -1,4 +1,5 @@
-"""Stack-generic operator suites: ``ScaledSumSuite``, ``TransposedSuite``, ``ProductSuite``, ``AsMatrixFreeSuite``.
+"""Stack-generic operator suites: ``ScaledSumSuite``, ``TransposedSuite``,
+``TransposeCapabilitySuite``, ``ProductSuite``, ``AsMatrixFreeSuite``.
 
 Each runs on the stack its ``case`` fixture supplies
 (``TypedStackCase``); a stack's test directory subclasses it and
@@ -11,6 +12,7 @@ import pytest
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
+    LinearMapProtocol,
     MatrixFree,
     OperatorProperties,
     Product,
@@ -20,6 +22,7 @@ from pyapprox.util.linalg.operators import (
     Transposed,
     as_matrix_free,
 )
+from tests._helpers.linalg.forward_only import ForwardOnly
 from tests._helpers.linalg.stack_case import (
     A,
     F,
@@ -146,6 +149,36 @@ class TransposedSuite:
     def test_keeps_properties(self, case: TypedStackCase[V, F, A]) -> None:
         op = case.build(spd_matrix(5, 13), _U, properties=_SPD)
         assert Transposed(op).properties() == _SPD
+
+    def test_refuses_an_operator_without_a_transpose(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        forward = ForwardOnly(case.build(random_matrix(3, 5, 9), _U, _P))
+        with pytest.raises(ValueError, match="has no transpose"):
+            Transposed(forward)
+
+
+class TransposeCapabilitySuite:
+    def test_combinators_carry_a_missing_transpose(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """A sum or product with a forward-only operand is forward-only,
+        and still applies."""
+        a = random_matrix(5, 5, 22)
+        stored = case.build(a, _U)
+        forward: ForwardOnly[V] = ForwardOnly(stored)
+        total = ScaledSum(
+            [(1.0, as_matrix_free(stored)), (2.0, forward)], case.space(_U)
+        )
+        factors: list[LinearMapProtocol[V]] = [stored, forward]
+        product = Product(factors)
+        assert not total.properties().transposable
+        assert not product.properties().transposable
+        assert ScaledSum([(1.0, stored)], case.space(_U)).properties().transposable
+        x = case.vec(_U, 1, 23)
+        case.assert_vector(total.apply(x), case.times(3.0 * case.dense(a), x))
+        with pytest.raises(TypeError, match="no transpose"):
+            total.apply_transpose(x)
 
 
 class ProductSuite:

@@ -12,6 +12,7 @@ from tests._helpers.implicitfunction_suites.steady_derivatives import (
     TheGradientSuite,
     TheHessianSuite,
     TheTangentSuite,
+    TransposesSuite,
 )
 
 
@@ -32,6 +33,10 @@ class TestSetups(SetupsSuite):
 
 
 class TestLevels(LevelsSuite):
+    pass
+
+
+class TestTransposes(TransposesSuite):
     pass
 
 

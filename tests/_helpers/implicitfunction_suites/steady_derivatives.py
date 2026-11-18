@@ -27,11 +27,14 @@ g + r` with :math:`g = \tfrac12 u^\top D u + p_1 u_1`, :math:`D =
   the wrong type, a point among them.
 """
 
-from typing import Callable, Generic, List, Tuple
+from typing import Callable, Generic, List, Optional, Tuple
 
 import pytest
 
 from pyapprox.implicitfunction.functional_terms import ParameterTermDerivatives
+from pyapprox.implicitfunction.pinned_residual import PinnedResidual
+from pyapprox.implicitfunction.pinned_rows import RowPin
+from pyapprox.implicitfunction.residual_derivatives import DerivativeOperator
 from pyapprox.implicitfunction.setups import (
     KeepAll,
     KeepStateFree,
@@ -42,10 +45,18 @@ from pyapprox.implicitfunction.setups import (
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    LinearSolverProtocol,
+    SolveInfo,
+    SolverHandleBase,
+    SolverHandleProtocol,
+)
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.implicitfunction_stack_cases import (
     QUADRATIC_PARAM,
     QuadraticParameterTerm,
+    QuadraticPinnedData,
     QuadraticResidual,
     QuadraticStateTerm,
     pinned_quadratic,
@@ -53,6 +64,7 @@ from tests._helpers.implicitfunction_stack_cases import (
 )
 from tests._helpers.implicitfunction_suites.checks import min_fd_error
 from tests._helpers.linalg.counting_solver import CountingSolver
+from tests._helpers.linalg.forward_only import ForwardOnly
 from tests._helpers.linalg.stack_case import A, F, TypedStackCase, V
 
 
@@ -278,6 +290,85 @@ class LevelsSuite:
         gradient = derivs.gradient(derivs.adjoint(point))
         assert solved.lu.setups == setups
         case.assert_vector(gradient, 0.3 * p, rtol=1e-14)
+
+
+class _ForwardParam(QuadraticResidual[V, F, A]):
+    """The quadratic, its parameter Jacobian known only by its forward
+    action."""
+
+    def _param(self, state: V) -> DerivativeOperator[V]:
+        return ForwardOnly(super()._param(state))
+
+
+class _NoTransposeHandle(SolverHandleBase[V]):
+    """Solves through another handle; offers no transposed solve."""
+
+    def __init__(self, inner: SolverHandleProtocol[V]) -> None:
+        super().__init__(inner)
+        self._inner = inner
+
+    def solve(
+        self, rhs: V, tol: Optional[float] = None, x0: Optional[V] = None
+    ) -> tuple[V, SolveInfo]:
+        return self._inner.solve(rhs, tol, x0)
+
+    def transpose(self) -> None:
+        return None
+
+
+class _NoTransposeSolver(Generic[V, F]):
+    """``inner``, its handles without transposed solves."""
+
+    def __init__(self, inner: LinearSolverProtocol[V, F]) -> None:
+        self._inner = inner
+
+    def setup(self, op: ActionOperatorProtocol[V, F]) -> SolverHandleProtocol[V]:
+        return _NoTransposeHandle(self._inner.setup(op))
+
+
+def _solved_with(
+    case: TypedStackCase[V, F, A],
+    f: QuadraticResidual[V, F, A],
+    solver: LinearSolverProtocol[V, F],
+) -> Tuple[SteadyDerivatives[V, A, F], SteadyPoint[V, A]]:
+    """``f`` pinned, solved at the case's parameters with ``solver``."""
+    pinned = PinnedResidual(f, RowPin(QuadraticPinnedData(f)), f.states)
+    system = SteadySystem(pinned, f.states, KeepAll(solver))
+    f.set_param(_param(case)[:, 0])
+    newton: Newton[V, A] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
+    point = system.solve(newton, f.states.zeros(1))
+    assert point.converged()
+    return SteadyDerivatives(pinned, f.states, quadratic_functional(f)), point
+
+
+class TransposesSuite:
+    """The adjoint refuses, before solving, a missing transpose; the
+    tangent needs none."""
+
+    def test_a_parameter_jacobian_without_one(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        f: _ForwardParam[V, F, A] = _ForwardParam(case)
+        derivs, point = _solved_with(case, f, case.direct_solver())
+        with pytest.raises(ValueError, match="parameter Jacobian has no transpose"):
+            derivs.adjoint(point)
+        solved = _Solved(case)
+        reference = solved.solve(_param(case))
+        direction = solved.direction([0.5, -0.2])
+        case.bkd.assert_allclose(
+            derivs.tangent(point, f.parameters.vector(case.array(direction))),
+            solved.derivs.tangent(reference, direction),
+            rtol=1e-12,
+        )
+
+    def test_a_handle_without_one(self, case: TypedStackCase[V, F, A]) -> None:
+        f: QuadraticResidual[V, F, A] = QuadraticResidual(case)
+        derivs, point = _solved_with(
+            case, f, _NoTransposeSolver(case.direct_solver())
+        )
+        with pytest.raises(ValueError, match="handle has no transpose"):
+            derivs.adjoint(point)
+        derivs.tangent(point, f.parameters.vector(case.bkd.ones((2, 1))))
 
 
 class RefusalsSuite:

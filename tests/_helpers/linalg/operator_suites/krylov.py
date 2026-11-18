@@ -1,4 +1,5 @@
-"""Stack-generic operator suites: ``ConjugateGradientSuite``, ``GMRESSuite``, ``SharedSuite``.
+"""Stack-generic operator suites: ``ConjugateGradientSuite``,
+``GMRESSuite``, ``SharedSuite``.
 
 Each runs on the stack its ``case`` fixture supplies
 (``TypedStackCase``); a stack's test directory subclasses it and
@@ -20,6 +21,7 @@ from pyapprox.util.linalg.operators import (
     SpaceMismatchError,
     as_matrix_free,
 )
+from tests._helpers.linalg.forward_only import ForwardOnly
 from tests._helpers.linalg.stack_case import (
     A,
     F,
@@ -85,6 +87,17 @@ class ConjugateGradientSuite:
         assert info.converged
         _assert_solves(case, case.dense(a).T, xt, b)
 
+    def test_no_transpose_for_a_forward_only_operator(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        a = spd_matrix(6, 0)
+        handle = ConjugateGradient(case.space(_U), case.bkd).setup(
+            ForwardOnly(case.build(a, _U))
+        )
+        assert handle.transpose() is None
+        x, info = handle.solve(case.vec(_U, 1, 1))
+        assert info.converged
+
     def test_reports_a_strongly_nonsymmetric_operator(
         self, case: TypedStackCase[V, F, A]
     ) -> None:
@@ -118,6 +131,16 @@ class GMRESSuite:
         xt, info = transposed.solve(b)
         assert info.converged
         _assert_solves(case, case.dense(a).T, xt, b)
+
+    def test_no_transpose_for_a_forward_only_operator(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        handle = GMRES(case.space(_U), case.bkd).setup(
+            ForwardOnly(case.build(_nonsymmetric(3), _U))
+        )
+        assert handle.transpose() is None
+        _, info = handle.solve(case.vec(_U, 1, 4))
+        assert info.converged
 
     def test_solves_what_conjugate_gradients_cannot(
         self, case: TypedStackCase[V, F, A]

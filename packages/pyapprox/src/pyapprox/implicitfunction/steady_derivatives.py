@@ -127,6 +127,24 @@ class _Linearized(Generic[V, A]):
         r""":math:`R_p^\top \lambda`, a new vector."""
         return self.params.copy(self._residual_param(state).apply_transpose(adjoint))
 
+    def require_param_transpose(self, state: V) -> None:
+        r"""Refuse, before the adjoint solve, an :math:`R_p` without a
+        transpose: the gradient would fail after it. (The handle's
+        transpose is checked by :meth:`solve`, before it solves; asking
+        here would cost a setup the solve may not need.)
+
+        Raises
+        ------
+        ValueError
+            If :math:`R_p` has none.
+        """
+        if not self._residual_param(state).properties().transposable:
+            raise ValueError(
+                "the residual's parameter Jacobian has no transpose "
+                "(properties().transposable is False); the adjoint gradient "
+                "needs one"
+            )
+
     def state_tangent(self, point: SteadyPointProtocol[V], state: V, direction: V) -> V:
         r""":math:`\delta u` solving :math:`R_u\, \delta u = -R_p v`: the
         state's derivative along ``direction``.
@@ -247,8 +265,10 @@ class SteadyDerivatives(Generic[V, A, F]):
     ----------
     residual : ResidualProtocol
         :math:`R(u;\, p)`; its bundle must have the parameter Jacobian.
-        The adjoint solves transposed: a point whose handle has no
-        transpose is refused at the first adjoint solve.
+        The adjoint solves transposed and applies :math:`R_p^\top`: a
+        point whose handle has no transpose, or a parameter Jacobian
+        without one (``properties().transposable``), is refused by
+        :meth:`adjoint` before it solves. The tangent needs neither.
     space : InnerProductSpaceProtocol
         The state space.
     functional : StateFunctional
@@ -336,11 +356,14 @@ class SteadyDerivatives(Generic[V, A, F]):
             If ``point`` is not a :class:`SteadyPointProtocol`.
         ValueError
             If the point is not a solution of the current residual, the
-            weights have the wrong shape, or the solve fails.
+            weights have the wrong shape, the solver's handle or the
+            residual's parameter Jacobian has no transpose, or the solve
+            fails.
         """
         lin = self._linearized
         state = _checked(point).solution()
         omega = self._functional.weights(weights)
+        lin.require_param_transpose(state)
         rhs: Optional[V] = None
         for term in self._state_terms:
             rhs = accumulate(
