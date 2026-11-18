@@ -5,7 +5,10 @@ r"""The pinned quadratic residual on any linear-algebra stack.
 3)`, at :math:`p = (0.7, -0.4)` (:math:`p_0 = 0` for the affine case);
 the rows :math:`\{0, 2\}` pinned to :math:`g = (p_0^2 + 1, \cdot, p_0
 p_1)`. Every derivative is analytic, and the data read :math:`F`'s
-parameters, so one ``set_param`` moves both.
+parameters, so one ``set_param`` moves both. A functional :math:`Q = g +
+r` of a state term :math:`g = \tfrac12 u^\top D u + p_1 u_1` and a
+parameter term :math:`r = \tfrac{3}{20}\|p\|^2` reads them too; its
+gradients are stack vectors (:class:`ScalarGradient`).
 
 The residual is a producer written against a stack case
 (``TypedStackCase``): its state-space work uses only the stack's
@@ -27,6 +30,10 @@ from typing import Generic, List, Optional, Sequence
 
 import numpy as np
 
+from pyapprox.implicitfunction.functional_terms import (
+    ParameterTermDerivatives,
+    StateTermDerivatives,
+)
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import (
     PinnedValuesParamDerivatives,
@@ -38,6 +45,8 @@ from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
     ResidualJacobian,
 )
+from pyapprox.implicitfunction.state_functional import StateFunctional
+from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     InnerProductSpaceProtocol,
@@ -315,3 +324,139 @@ def pinned_quadratic(
     """:math:`F` and its pinned residual."""
     f: QuadraticResidual[V, F, A] = QuadraticResidual(stack, order, affine)
     return f, PinnedResidual(f, RowPin(QuadraticPinnedData(f, bundle)), f.states)
+
+
+class ScalarGradient(Generic[V, A]):
+    r"""The linearization of a scalar by its gradient :math:`g`, a single
+    vector of ``space``: forward :math:`g^\top x` by the space's ``dot``,
+    shape ``(1, ncols)``; transposed :math:`g\, \omega` for a ``(1, 1)``
+    weight."""
+
+    def __init__(
+        self, gradient: V, space: InnerProductSpaceProtocol[V, A], bkd: Backend[A]
+    ) -> None:
+        self._gradient, self._space, self._bkd = gradient, space, bkd
+
+    def apply(self, x: V) -> A:
+        return self._space.dot(self._gradient, x)
+
+    def apply_transpose(self, weights: A) -> V:
+        if tuple(weights.shape) != (1, 1):
+            raise ValueError(f"weights must have shape (1, 1), got {weights.shape}")
+        return self._space.scale(_float(self._bkd, weights), self._gradient)
+
+
+def _float(bkd: Backend[A], scalar: A) -> float:
+    """A ``(1, 1)`` backend value as the float stack operations take."""
+    return bkd.to_float(scalar[0, 0])
+
+
+class QuadraticStateTerm(Generic[V, F, A]):
+    r""":math:`g(u; p) = \tfrac12 u^\top D u + p_1 u_1`, :math:`D =
+    \mathrm{diag}(1, 2, 3)`, reading :math:`F`'s parameters; second order
+    unless ``order=1``, none with ``order=0``."""
+
+    def __init__(self, residual: QuadraticResidual[V, F, A], order: int = 2) -> None:
+        self._f = residual
+        stack, bkd = residual.stack, residual.bkd
+        self._d = stack.from_diagonal(
+            stack.vector(bkd.asarray([[1.0], [2.0], [3.0]]), STATES), STATES
+        )
+        self._e1 = stack.vector(bkd.asarray([[0.0], [1.0], [0.0]]), STATES)
+        self._bundle: StateTermDerivatives[V, A]
+        if order == 0:
+            self._bundle = StateTermDerivatives.none()
+        elif order == 1:
+            self._bundle = StateTermDerivatives.first_order(
+                self._wrt_state, self._wrt_param
+            )
+        else:
+            self._bundle = StateTermDerivatives.second_order(
+                self._wrt_state,
+                self._wrt_param,
+                self._state_state,
+                self._state_param,
+                self._param_state,
+                self._param_param,
+            )
+
+    def nqoi(self) -> int:
+        return 1
+
+    def value(self, state: V) -> A:
+        states = self._f.states
+        quadratic = states.dot(state, self._d.apply(state))
+        return 0.5 * quadratic + self._f.p[1, 0] * states.dot(self._e1, state)
+
+    def derivatives(self) -> StateTermDerivatives[V, A]:
+        return self._bundle
+
+    def _wrt_state(self, state: V) -> ScalarGradient[V, A]:
+        states = self._f.states
+        p1 = self._f.coefficients()[1]
+        gradient = states.axpby(p1, self._e1, 1.0, self._d.apply(state))
+        return ScalarGradient(gradient, states, self._f.bkd)
+
+    def _wrt_param(self, state: V) -> ScalarGradient[V, A]:
+        u1 = self._f.states.dot(self._e1, state)
+        params = self._f.parameters
+        gradient = params.vector(self._f.bkd.vstack([0.0 * u1, u1]))
+        return ScalarGradient(gradient, params.space(), self._f.bkd)
+
+    def _state_state(self, state: V, weights: A, x: V) -> V:
+        return self._f.states.scale(_float(self._f.bkd, weights), self._d.apply(x))
+
+    def _state_param(self, state: V, weights: A, x: V) -> V:
+        x1 = self._f.parameters.entries(x)[1:2, 0:1]
+        return self._f.states.scale(_float(self._f.bkd, weights * x1), self._e1)
+
+    def _param_state(self, state: V, weights: A, x: V) -> V:
+        x1 = self._f.states.dot(self._e1, x)
+        return self._f.parameters.vector(
+            self._f.bkd.vstack([0.0 * x1, weights * x1])
+        )
+
+    def _param_param(self, state: V, weights: A, x: V) -> None:
+        return None
+
+
+class QuadraticParameterTerm(Generic[V, F, A]):
+    r""":math:`r(p) = \tfrac{3}{20} \|p\|^2`, reading :math:`F`'s
+    parameters."""
+
+    def __init__(self, residual: QuadraticResidual[V, F, A]) -> None:
+        self._f = residual
+        self._bundle: ParameterTermDerivatives[V, A] = (
+            ParameterTermDerivatives.second_order(self._wrt_param, self._param_param)
+        )
+
+    def nqoi(self) -> int:
+        return 1
+
+    def value(self) -> A:
+        bkd = self._f.bkd
+        return bkd.reshape(0.15 * bkd.sum(self._f.p**2), (1, 1))
+
+    def derivatives(self) -> ParameterTermDerivatives[V, A]:
+        return self._bundle
+
+    def _wrt_param(self) -> ScalarGradient[V, A]:
+        params = self._f.parameters
+        return ScalarGradient(
+            params.vector(0.3 * self._f.p), params.space(), self._f.bkd
+        )
+
+    def _param_param(self, weights: A, x: V) -> V:
+        return self._f.parameters.space().scale(0.3 * _float(self._f.bkd, weights), x)
+
+
+def quadratic_functional(
+    residual: QuadraticResidual[V, F, A], order: int = 2
+) -> StateFunctional[V, A]:
+    """:math:`Q = g + r` on :math:`F`'s parameters."""
+    return StateFunctional.from_terms(
+        residual.bkd,
+        1,
+        parameter_terms=(QuadraticParameterTerm(residual),),
+        state_terms=(QuadraticStateTerm(residual, order),),
+    )
