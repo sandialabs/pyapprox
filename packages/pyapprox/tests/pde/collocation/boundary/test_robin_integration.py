@@ -5,6 +5,8 @@ verifying that the numerical solution matches the exact solution.
 """
 
 import math
+from dataclasses import dataclass
+from typing import Generic, List, Sequence
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -26,29 +28,36 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
 )
+from pyapprox.pde.collocation.mesh.cartesian_2d import CartesianMesh2D
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
-from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.coefficients import (
+    NodalField,
+    NodalSupplier,
+)
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
+from pyapprox.pde.collocation.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
 from pyapprox.pde.constitutive.advection import ConservativeAdvection
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
 )
 from pyapprox.pde.manufactured.linear_elasticity import (
     ManufacturedLinearElasticityEquations,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestGradientNeumannSolve:
     """Integration tests for gradient Neumann BCs."""
 
-    def test_1d_gradient_neumann_solve(self, bkd):
+    def test_1d_gradient_neumann_solve(self, bkd: Backend[Array]) -> None:
         """1D diffusion: Neumann left, Dirichlet right.
 
         u = x^2 + x, D = 1
@@ -71,12 +80,12 @@ class TestGradientNeumannSolve:
             oned=True,
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=lambda t: forcing
+            basis, bkd, diffusion=1.0, forcing=NodalField(forcing)
         )
 
         # Left: gradient Neumann, grad(u).n = g
@@ -101,7 +110,7 @@ class TestGradientNeumannSolve:
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_2d_gradient_neumann_solve(self, bkd):
+    def test_2d_gradient_neumann_solve(self, bkd: Backend[Array]) -> None:
         """2D diffusion: Neumann on left, Dirichlet on other 3 sides.
 
         u = (1 - x^2)*y, D = 1
@@ -126,7 +135,7 @@ class TestGradientNeumannSolve:
         forcing = man_sol.functions["forcing"](pts)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=lambda t: forcing
+            basis, bkd, diffusion=1.0, forcing=NodalField(forcing)
         )
 
         Dx = basis.derivative_matrix(1, 0)
@@ -143,16 +152,11 @@ class TestGradientNeumannSolve:
         bc_left = gradient_neumann_bc(bkd, left_idx, left_normals, D_list, neumann_left)
 
         # Other 3 sides: Dirichlet
-        bcs = [bc_left]
+        bcs: List[BoundaryConditionProtocol[Array]] = [bc_left]
         for side in range(1, 4):
             idx = tmesh.boundary_indices(side)
-            bc = constant_dirichlet_bc(bkd, idx, 0.0)
             # Use exact values for non-zero boundaries
-            vals = u_exact[idx]
-            from pyapprox.pde.collocation.boundary import DirichletBC
-
-            bc = DirichletBC(bkd, idx, lambda t, v=vals: v)
-            bcs.append(bc)
+            bcs.append(DirichletBC(bkd, idx, u_exact[idx]))
 
         physics.set_boundary_conditions(bcs)
 
@@ -166,7 +170,7 @@ class TestGradientNeumannSolve:
 class TestGradientRobinSolve:
     """Integration tests for gradient Robin BCs."""
 
-    def test_1d_gradient_robin_solve(self, bkd):
+    def test_1d_gradient_robin_solve(self, bkd: Backend[Array]) -> None:
         """1D diffusion: Robin left, Dirichlet right.
 
         u = x^2 + 2x + 1, D = 1
@@ -189,12 +193,12 @@ class TestGradientRobinSolve:
             oned=True,
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=lambda t: forcing
+            basis, bkd, diffusion=1.0, forcing=NodalField(forcing)
         )
 
         # Left: Robin with alpha=1, beta=1
@@ -233,7 +237,7 @@ class TestGradientRobinSolve:
 class TestFluxNeumannSolve:
     """Integration tests for flux Neumann BCs."""
 
-    def test_1d_flux_neumann_solve(self, bkd):
+    def test_1d_flux_neumann_solve(self, bkd: Backend[Array]) -> None:
         """1D diffusion: flux Neumann left, Dirichlet right.
 
         u = x^2, D = 2
@@ -256,12 +260,12 @@ class TestFluxNeumannSolve:
             oned=True,
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=2.0, forcing=lambda t: forcing
+            basis, bkd, diffusion=2.0, forcing=NodalField(forcing)
         )
 
         # Left: flux Neumann
@@ -284,7 +288,7 @@ class TestFluxNeumannSolve:
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_1d_flux_neumann_with_velocity(self, bkd):
+    def test_1d_flux_neumann_with_velocity(self, bkd: Backend[Array]) -> None:
         """1D ADR: flux Neumann left, Dirichlet right.
 
         u = x^2, D = 1, v = 2
@@ -319,13 +323,18 @@ class TestFluxNeumannSolve:
             advection_form=ConservativeAdvection(),
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
         velocity = [bkd.full((npts,), 2.0)]
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, velocity=velocity, forcing=lambda t: forcing
+            basis,
+            bkd,
+            diffusion=1.0,
+            velocity=velocity,
+            forcing=NodalField(forcing),
+            advection_form=ConservativeAdvection(),
         )
 
         # Left: flux Neumann
@@ -352,7 +361,7 @@ class TestFluxNeumannSolve:
 class TestFluxRobinSolve:
     """Integration tests for flux Robin BCs."""
 
-    def test_1d_flux_robin_solve(self, bkd):
+    def test_1d_flux_robin_solve(self, bkd: Backend[Array]) -> None:
         """1D diffusion: flux Robin left, Dirichlet right.
 
         u = x^2 + x, D = 1
@@ -377,12 +386,12 @@ class TestFluxRobinSolve:
             oned=True,
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=lambda t: forcing
+            basis, bkd, diffusion=1.0, forcing=NodalField(forcing)
         )
 
         # Left: flux Robin, alpha=2, beta=1
@@ -411,7 +420,7 @@ class TestFluxRobinSolve:
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_1d_flux_robin_with_velocity(self, bkd):
+    def test_1d_flux_robin_with_velocity(self, bkd: Backend[Array]) -> None:
         """1D ADR: flux Robin left, Dirichlet right.
 
         u = x^2, D = 1, v = 3
@@ -437,13 +446,18 @@ class TestFluxRobinSolve:
             advection_form=ConservativeAdvection(),
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
         velocity = [bkd.full((npts,), 3.0)]
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, velocity=velocity, forcing=lambda t: forcing
+            basis,
+            bkd,
+            diffusion=1.0,
+            velocity=velocity,
+            forcing=NodalField(forcing),
+            advection_form=ConservativeAdvection(),
         )
 
         # Left: flux Robin, alpha=1, beta=1
@@ -476,16 +490,23 @@ class TestFluxRobinSolve:
 class TestMixedBCSolve:
     """Integration tests for mixed Dirichlet + Robin/Neumann BCs."""
 
-    def _dirichlet_bcs_on_sides(self, bkd, tmesh, u_exact, sides) :
+    def _dirichlet_bcs_on_sides(
+        self,
+        bkd: Backend[Array],
+        tmesh: TransformedMesh2D[Array],
+        u_exact: Array,
+        sides: Sequence[int],
+    ) -> List[BoundaryConditionProtocol[Array]]:
         """Create Dirichlet BCs from exact solution on given sides."""
-        bcs = []
+        bcs: List[BoundaryConditionProtocol[Array]] = []
         for side in sides:
             idx = tmesh.boundary_indices(side)
-            vals = u_exact[idx]
-            bcs.append(DirichletBC(bkd, idx, lambda t, v=vals: v))
+            bcs.append(DirichletBC(bkd, idx, u_exact[idx]))
         return bcs
 
-    def _solve_2d_mixed_robin(self, bkd, convention, diffusion) :
+    def _solve_2d_mixed_robin(
+        self, bkd: Backend[Array], convention: str, diffusion: float
+    ) -> None:
         """Solve 2D diffusion with Robin on left, Dirichlet on other 3."""
         npts = 12
         tmesh = TransformedMesh2D(npts, npts, bkd)
@@ -510,7 +531,7 @@ class TestMixedBCSolve:
             bkd,
             diffusion=diffusion,
             reaction=1.0,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         left_idx = tmesh.boundary_indices(0)
@@ -558,15 +579,15 @@ class TestMixedBCSolve:
         )
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-8)
 
-    def test_mixed_dirichlet_gradient_robin(self, bkd):
+    def test_mixed_dirichlet_gradient_robin(self, bkd: Backend[Array]) -> None:
         """2D: 3 Dirichlet + 1 gradient Robin, D=1, reaction=u."""
         self._solve_2d_mixed_robin(bkd, "gradient", 1.0)
 
-    def test_mixed_dirichlet_flux_robin(self, bkd):
+    def test_mixed_dirichlet_flux_robin(self, bkd: Backend[Array]) -> None:
         """2D: 3 Dirichlet + 1 flux Robin, D=2, reaction=u."""
         self._solve_2d_mixed_robin(bkd, "flux", 2.0)
 
-    def test_variable_diffusion_flux_neumann(self, bkd):
+    def test_variable_diffusion_flux_neumann(self, bkd: Backend[Array]) -> None:
         """1D with D(x) = 1+x^2, flux Neumann left, Dirichlet right."""
         npts = 15
         tmesh = TransformedMesh1D(npts, bkd)
@@ -583,7 +604,7 @@ class TestMixedBCSolve:
             oned=True,
         )
 
-        nodes = basis.nodes().reshape(1, -1)
+        nodes = bkd.reshape(basis.nodes(), (1, -1))
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
 
@@ -630,7 +651,13 @@ class TestMixedBCSolve:
 class TestTransientRobinSolve:
     """Integration tests for time-dependent Robin BCs."""
 
-    def _solve_1d_transient_robin(self, convention, diffusion, velocity_val, bkd):
+    def _solve_1d_transient_robin(
+        self,
+        convention: str,
+        diffusion: float,
+        velocity_val: int,
+        bkd: Backend[Array],
+    ) -> None:
         """Solve 1D transient with Robin left, Dirichlet right.
 
         u = (x^2+1)*(1+T), linear in time => backward Euler exact.
@@ -656,9 +683,6 @@ class TestTransientRobinSolve:
 
         pts = tmesh.points()
 
-        def forcing_fn(t):
-            return man_sol.functions["forcing"](pts, t)
-
         velocity = [bkd.full((npts,), float(velocity_val))] if velocity_val else None
         physics = AdvectionDiffusionReaction(
             basis,
@@ -666,7 +690,8 @@ class TestTransientRobinSolve:
             diffusion=diffusion,
             reaction=1.0,
             velocity=velocity,
-            forcing=forcing_fn,
+            forcing=NodalSupplier(TimeDependent(man_sol.functions["forcing"]), pts),
+            advection_form=ConservativeAdvection(),
         )
 
         # Left: time-dependent Robin, alpha=1, beta=1
@@ -674,8 +699,11 @@ class TestTransientRobinSolve:
         left_normals = tmesh.boundary_normals(0)
         left_pts = pts[:, left_idx]
 
-        def robin_values_fn(t, lp=left_pts, ln=left_normals, ms=man_sol, c=convention):
-            return ms.robin_values(lp, ln, 1.0, 1.0, time=t, convention=c)
+        def robin_values_fn(t: float) -> Array:
+            values: Array = man_sol.robin_values(
+                left_pts, left_normals, 1.0, 1.0, time=t, convention=convention
+            )
+            return values
 
         if convention == "gradient":
             bc_left = gradient_robin_bc(
@@ -702,15 +730,16 @@ class TestTransientRobinSolve:
         right_idx = umesh.boundary_indices(1)
         right_pts = pts[:, right_idx]
 
-        def right_dirichlet_fn(t, rp=right_pts, ms=man_sol):
-            return ms.functions["solution"](rp, t)
+        def right_dirichlet_fn(t: float) -> Array:
+            values: Array = man_sol.functions["solution"](right_pts, t)
+            return values
 
         bc_right = DirichletBC(bkd, right_idx, right_dirichlet_fn)
         physics.set_boundary_conditions([bc_left, bc_right])
 
         model = CollocationModel(physics, bkd)
         u_initial = man_sol.functions["solution"](pts, 0.0)
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="backward_euler",
             final_time=1.0,
             deltat=0.25,
@@ -725,11 +754,11 @@ class TestTransientRobinSolve:
         u_exact_final = man_sol.functions["solution"](pts, t_final)
         bkd.assert_allclose(solutions[:, -1], u_exact_final, atol=1e-8)
 
-    def test_transient_gradient_robin(self, bkd):
+    def test_transient_gradient_robin(self, bkd: Backend[Array]) -> None:
         """1D transient gradient Robin, D=1, no velocity."""
         self._solve_1d_transient_robin("gradient", 1.0, 0, bkd)
 
-    def test_transient_flux_robin(self, bkd):
+    def test_transient_flux_robin(self, bkd: Backend[Array]) -> None:
         """1D transient flux Robin, D=2, v=1."""
         self._solve_1d_transient_robin("flux", 2.0, 1, bkd)
 
@@ -737,7 +766,7 @@ class TestTransientRobinSolve:
 class TestCurvilinearRobinSolve:
     """Integration tests for Robin BCs on curvilinear meshes."""
 
-    def test_polar_gradient_robin_solve(self, bkd):
+    def test_polar_gradient_robin_solve(self, bkd: Backend[Array]) -> None:
         """Polar domain r in [1,2], theta in [-pi/2,pi/2].
 
         u = x^2*y^2, D=1, reaction=u.
@@ -771,7 +800,7 @@ class TestCurvilinearRobinSolve:
             bkd,
             diffusion=1.0,
             reaction=1.0,
-            forcing=lambda t: forcing,
+            forcing=NodalField(forcing),
         )
 
         Dx = basis.derivative_matrix(1, 0)
@@ -798,11 +827,10 @@ class TestCurvilinearRobinSolve:
         )
 
         # Other 3 sides: Dirichlet
-        bcs = [bc_left]
+        bcs: List[BoundaryConditionProtocol[Array]] = [bc_left]
         for side in range(1, 4):
             idx = tmesh.boundary_indices(side)
-            vals = u_exact[idx]
-            bcs.append(DirichletBC(bkd, idx, lambda t, v=vals: v))
+            bcs.append(DirichletBC(bkd, idx, u_exact[idx]))
 
         physics.set_boundary_conditions(bcs)
 
@@ -815,10 +843,23 @@ class TestCurvilinearRobinSolve:
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)
 
 
+@dataclass(frozen=True)
+class _ElasticitySetup(Generic[Array]):
+    """The pieces of the elasticity problem the traction tests use."""
+
+    tmesh: TransformedMesh2D[Array]
+    umesh: CartesianMesh2D[Array]
+    man_sol: ManufacturedLinearElasticityEquations[Array]
+    pts: Array
+    u_exact_flat: Array
+    physics: LinearElasticityPhysics[Array]
+    npts_total: int
+
+
 class TestElasticityTractionBC:
     """Integration tests for elasticity traction Robin/Neumann BCs."""
 
-    def _setup_elasticity_problem(self, bkd):
+    def _setup_elasticity_problem(self, bkd: Backend[Array]) -> _ElasticitySetup[Array]:
         """Set up 2D elasticity problem with solution nonzero on left boundary.
 
         Solution: u = [x^2*(1-y^2), x*y*(1-y^2)]
@@ -848,30 +889,29 @@ class TestElasticityTractionBC:
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda, mu=mu, forcing=lambda t: forcing_flat
+            basis, bkd, lamda=lamda, mu=mu, forcing=NodalField(forcing_flat)
         )
 
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
+        return _ElasticitySetup(
+            tmesh=tmesh,
+            umesh=umesh,
+            man_sol=man_sol,
+            pts=pts,
+            u_exact_flat=u_exact_flat,
+            physics=physics,
+            npts_total=npts_total,
+        )
 
-        return {
-            "bkd": bkd,
-            "tmesh": tmesh,
-            "basis": basis,
-            "umesh": umesh,
-            "man_sol": man_sol,
-            "pts": pts,
-            "u_exact_flat": u_exact_flat,
-            "physics": physics,
-            "npts_total": npts_total,
-            "lamda": lamda,
-            "mu": mu,
-            "D_list": [Dx, Dy],
-        }
-
-    def _dirichlet_bcs_for_elasticity(self, bkd, umesh, u_exact_flat, npts, sides) :
+    def _dirichlet_bcs_for_elasticity(
+        self,
+        bkd: Backend[Array],
+        umesh: CartesianMesh2D[Array],
+        u_exact_flat: Array,
+        npts: int,
+        sides: Sequence[int],
+    ) -> List[BoundaryConditionProtocol[Array]]:
         """Create Dirichlet BCs for both components on given sides."""
-        bcs = []
+        bcs: List[BoundaryConditionProtocol[Array]] = []
         for side in sides:
             boundary_idx = umesh.boundary_indices(side)
             # u-component
@@ -883,7 +923,7 @@ class TestElasticityTractionBC:
             bcs.append(DirichletBC(bkd, boundary_idx_v, vals_v))
         return bcs
 
-    def test_elasticity_traction_neumann(self, bkd):
+    def test_elasticity_traction_neumann(self, bkd: Backend[Array]) -> None:
         """Traction Neumann on left, Dirichlet on other 3 sides.
 
         Tests pure traction (alpha=0, beta=1) with nonzero displacement
@@ -891,20 +931,20 @@ class TestElasticityTractionBC:
         """
         s = self._setup_elasticity_problem(bkd)
 
-        left_idx = s["umesh"].boundary_indices(0)
-        left_normals = s["tmesh"].boundary_normals(0)
-        left_pts = s["pts"][:, left_idx]
+        left_idx = s.umesh.boundary_indices(0)
+        left_normals = s.tmesh.boundary_normals(0)
+        left_pts = s.pts[:, left_idx]
 
         # Exact traction values at left boundary
-        traction_vals = s["man_sol"].traction_values(left_pts, left_normals)
+        traction_vals = s.man_sol.traction_values(left_pts, left_normals)
 
         # Traction Neumann for each component
         bc_tx = traction_neumann_bc(
             bkd,
             left_idx,
             left_normals,
-            s["physics"],
-            s["npts_total"],
+            s.physics,
+            s.npts_total,
             0,
             traction_vals[:, 0],
         )
@@ -912,25 +952,26 @@ class TestElasticityTractionBC:
             bkd,
             left_idx,
             left_normals,
-            s["physics"],
-            s["npts_total"],
+            s.physics,
+            s.npts_total,
             1,
             traction_vals[:, 1],
         )
 
         # Dirichlet on sides 1, 2, 3
-        bcs = [bc_tx, bc_ty] + self._dirichlet_bcs_for_elasticity(bkd,
-            s["umesh"], s["u_exact_flat"], s["npts_total"], [1, 2, 3]
+        bcs: List[BoundaryConditionProtocol[Array]] = [bc_tx, bc_ty]
+        bcs += self._dirichlet_bcs_for_elasticity(
+            bkd, s.umesh, s.u_exact_flat, s.npts_total, [1, 2, 3]
         )
-        s["physics"].set_boundary_conditions(bcs)
+        s.physics.set_boundary_conditions(bcs)
 
-        model = CollocationModel(s["physics"], bkd)
+        model = CollocationModel(s.physics, bkd)
         u_numerical = model.solve_steady(
-            bkd.zeros((2 * s["npts_total"],)), tol=1e-10, maxiter=50
+            bkd.zeros((2 * s.npts_total,)), tol=1e-10, maxiter=50
         )
-        bkd.assert_allclose(u_numerical, s["u_exact_flat"], atol=1e-8)
+        bkd.assert_allclose(u_numerical, s.u_exact_flat, atol=1e-8)
 
-    def test_elasticity_traction_robin(self, bkd):
+    def test_elasticity_traction_robin(self, bkd: Backend[Array]) -> None:
         """Traction Robin (alpha=1, beta=1) on left, Dirichlet on other 3.
 
         Tests full Robin with nonzero alpha*u contribution at boundary.
@@ -938,20 +979,20 @@ class TestElasticityTractionBC:
         s = self._setup_elasticity_problem(bkd)
 
         alpha, beta = 1.0, 1.0
-        left_idx = s["umesh"].boundary_indices(0)
-        left_normals = s["tmesh"].boundary_normals(0)
-        left_pts = s["pts"][:, left_idx]
+        left_idx = s.umesh.boundary_indices(0)
+        left_normals = s.tmesh.boundary_normals(0)
+        left_pts = s.pts[:, left_idx]
 
         # Exact Robin values at left boundary
-        robin_vals = s["man_sol"].robin_values(left_pts, left_normals, alpha, beta)
+        robin_vals = s.man_sol.robin_values(left_pts, left_normals, alpha, beta)
 
         # Traction Robin for each component
         bc_rx = traction_robin_bc(
             bkd,
             left_idx,
             left_normals,
-            s["physics"],
-            s["npts_total"],
+            s.physics,
+            s.npts_total,
             0,
             alpha,
             beta,
@@ -961,8 +1002,8 @@ class TestElasticityTractionBC:
             bkd,
             left_idx,
             left_normals,
-            s["physics"],
-            s["npts_total"],
+            s.physics,
+            s.npts_total,
             1,
             alpha,
             beta,
@@ -970,16 +1011,17 @@ class TestElasticityTractionBC:
         )
 
         # Dirichlet on sides 1, 2, 3
-        bcs = [bc_rx, bc_ry] + self._dirichlet_bcs_for_elasticity(bkd,
-            s["umesh"], s["u_exact_flat"], s["npts_total"], [1, 2, 3]
+        bcs: List[BoundaryConditionProtocol[Array]] = [bc_rx, bc_ry]
+        bcs += self._dirichlet_bcs_for_elasticity(
+            bkd, s.umesh, s.u_exact_flat, s.npts_total, [1, 2, 3]
         )
-        s["physics"].set_boundary_conditions(bcs)
+        s.physics.set_boundary_conditions(bcs)
 
-        model = CollocationModel(s["physics"], bkd)
+        model = CollocationModel(s.physics, bkd)
         u_numerical = model.solve_steady(
-            bkd.zeros((2 * s["npts_total"],)), tol=1e-10, maxiter=50
+            bkd.zeros((2 * s.npts_total,)), tol=1e-10, maxiter=50
         )
-        bkd.assert_allclose(u_numerical, s["u_exact_flat"], atol=1e-8)
+        bkd.assert_allclose(u_numerical, s.u_exact_flat, atol=1e-8)
 
 
 # NumPy backend

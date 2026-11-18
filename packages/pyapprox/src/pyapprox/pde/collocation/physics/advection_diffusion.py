@@ -1,16 +1,18 @@
 """Advection-Diffusion-Reaction physics for spectral collocation.
 
 Implements the scalar ADR equation:
-    du/dt = div(D * grad(u)) - v . grad(u) + r*u + f
+    du/dt = div(D * grad(u)) - A(v, u) + r*u + f
 
 where:
 - D: diffusion coefficient (scalar or field)
 - v: velocity field (vector)
+- A: the advection term of an injected form, v . grad(u) (non-conservative)
+  or div(v u) (conservative)
 - r: reaction coefficient (scalar or field)
 - f: forcing/source term (field)
 """
 
-from typing import List, Optional
+from typing import Generic, List, Optional
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.operators.differential import (
@@ -29,6 +31,10 @@ from pyapprox.pde.collocation.physics.coefficients import (
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    NonConservativeAdvection,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -36,11 +42,17 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
     """Advection-Diffusion-Reaction physics.
 
     Implements the scalar ADR equation:
-        du/dt = div(D * grad(u)) - v . grad(u) + r*u + f
+        du/dt = div(D * grad(u)) - A(v, u) + r*u + f
 
-    In conservative form:
-        du/dt = -div(flux) + r*u + f
-    where flux = -D * grad(u) + u * v
+    with the advection term ``A`` of ``advection_form``: ``v . grad(u)``
+    (non-conservative, the default) or ``div(v u)`` (conservative). The
+    flux (:meth:`compute_flux`) is the one the form's divergence terms
+    carry, ``-D * grad(u)`` plus the form's advective flux (``v u`` for
+    the conservative form, none for the non-conservative), so
+    ``du/dt = -div(flux) + ... `` holds for either form. A boundary
+    condition that prescribes another flux, such as the total flux
+    ``-D * grad(u) + v u`` on a non-conservative equation, injects it as
+    an :class:`AdvectionDiffusionFlux`.
 
     Parameters
     ----------
@@ -61,6 +73,14 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         the constant 0, means no reaction term.
     forcing : float, NodalCoefficientProtocol or callable, optional
         Forcing term, in the forms ``diffusion`` takes. Absent means none.
+    advection_form : AdvectionFormProtocol, optional
+        How the advection term is written. Default:
+        ``NonConservativeAdvection()``.
+
+    Raises
+    ------
+    TypeError
+        If ``advection_form`` does not satisfy ``AdvectionFormProtocol``.
     """
 
     def __init__(
@@ -71,8 +91,17 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         velocity: Optional[List[Array]] = None,
         reaction: Optional[CoefficientInput[Array]] = None,
         forcing: Optional[CoefficientInput[Array]] = None,
+        advection_form: Optional[AdvectionFormProtocol] = None,
     ):
         super().__init__(basis, bkd)
+        if advection_form is None:
+            advection_form = NonConservativeAdvection()
+        if not isinstance(advection_form, AdvectionFormProtocol):
+            raise TypeError(
+                "advection_form must satisfy AdvectionFormProtocol, got "
+                f"{type(advection_form).__name__}"
+            )
+        self._advection_form = advection_form
         self._laplacian = Laplacian(basis, bkd)
         self._gradient = Gradient(basis, bkd)
         self._divergence = Divergence(basis, bkd)
@@ -119,6 +148,63 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
     def diffusion_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
         """The diffusion coefficient; None without a diffusion term."""
         return self._diffusion
+
+    def velocity(self) -> Optional[List[Array]]:
+        """The velocity components, fixed in time; None without advection.
+        Each shape: (npts,)"""
+        return self._velocity
+
+    def advection_form(self) -> AdvectionFormProtocol:
+        """How the advection term is written."""
+        return self._advection_form
+
+    def _derivative(self, values: Array, dim: int) -> Array:
+        """The derivative along ``dim``, as the advection form applies it:
+        to a nodal vector, or to each column of a matrix."""
+        return self._D_matrices[dim] @ values
+
+    def _advection(self, state: Array) -> Array:
+        """The form's advection term. Shape: (npts,)"""
+        if self._velocity is None:
+            return self._bkd.zeros((self.npts(),))
+        return self._advection_form.strong_term(
+            self._velocity, state, self._derivative
+        )
+
+    def _advection_jacobian(self) -> Array:
+        """The advection term's state Jacobian: the form applied to the
+        identity, with each velocity component scaling rows.
+        Shape: (npts, npts)"""
+        bkd = self._bkd
+        if self._velocity is None:
+            return bkd.zeros((self.npts(), self.npts()))
+        return self._advection_form.strong_term(
+            [component[:, None] for component in self._velocity],
+            bkd.eye(self.npts()),
+            self._derivative,
+        )
+
+    def diffusive_flux(self, state: Array, time: float) -> List[Array]:
+        """``-D * du/dx_d`` per dimension, D at ``time`` and the current
+        parameters; zero without diffusion. Each shape: (npts,)"""
+        bkd = self._bkd
+        diffusion = (
+            self._get_diffusion(time)
+            if self._diffusion is not None
+            else bkd.zeros((self.npts(),))
+        )
+        return [-diffusion * (D_dim @ state) for D_dim in self._D_matrices]
+
+    def diffusive_flux_jacobian(self, time: float) -> List[Array]:
+        """``-diag(D) @ D_d`` per dimension, the state Jacobian of
+        :meth:`diffusive_flux`. Each shape: (npts, npts)"""
+        bkd = self._bkd
+        diffusion = (
+            self._get_diffusion(time)
+            if self._diffusion is not None
+            else bkd.zeros((self.npts(),))
+        )
+        return [-diffusion[:, None] * D_dim for D_dim in self._D_matrices]
 
     def reaction_function(self) -> Optional[NodalCoefficientProtocol[Array]]:
         """The reaction coefficient; None without a reaction term."""
@@ -423,12 +509,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 D_dim = self._D_matrices[dim]
                 residual = residual + (D_dim @ diff_array) * (D_dim @ state)
 
-        # Advection term: -v . grad(u)
+        # Advection term: -A(v, u), v . grad(u) or div(v u) by the form
         if self._velocity is not None:
-            for dim in range(self._basis.ndim()):
-                D_dim = self._D_matrices[dim]
-                grad_u_dim = D_dim @ state
-                residual = residual - self._velocity[dim] * grad_u_dim
+            residual = residual - self._advection(state)
 
         # Reaction term: r * u
         if self._reaction is not None:
@@ -470,11 +553,10 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 D_dim = self._D_matrices[dim]
                 jacobian = jacobian + (D_dim @ diff_array)[:, None] * D_dim
 
-        # Advection term Jacobian: d/du[-v . grad(u)] = -sum_i diag(v_i) @ D_i
+        # Advection term Jacobian: -sum_i diag(v_i) @ D_i (non-conservative)
+        # or -sum_i D_i @ diag(v_i) (conservative)
         if self._velocity is not None:
-            for dim in range(self._basis.ndim()):
-                D_dim = self._D_matrices[dim]
-                jacobian = jacobian - self._velocity[dim][:, None] * D_dim
+            jacobian = jacobian - self._advection_jacobian()
 
         # Reaction term Jacobian: d/du[r * u] = diag(r)
         if self._reaction is not None:
@@ -484,12 +566,13 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         return jacobian
 
     def compute_flux(self, state: Array, time: float) -> List[Array]:
-        """Compute total conservative flux at all mesh points.
+        """Compute the flux of the equation's divergence terms at all mesh
+        points.
 
-        Returns the sum of diffusive and advective flux:
-          flux_d = -D * du/dx_d + v_d * u  (for each dimension d)
-
-        For pure diffusion (no velocity): flux_d = -D * du/dx_d
+        The diffusive flux plus the advection form's advective flux:
+          flux_d = -D * du/dx_d + v_d * u  (conservative form)
+          flux_d = -D * du/dx_d            (non-conservative form, or no
+                                            velocity)
 
         The diffusivity is evaluated at ``time`` and the current
         parameters, independently of any earlier residual evaluation.
@@ -506,27 +589,15 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         List[Array]
             Flux components, one per dimension. Each shape: (npts,)
         """
-        bkd = self._bkd
-        diffusion = (
-            self._get_diffusion(time)
-            if self._diffusion is not None
-            else bkd.zeros((self.npts(),))
+        return AdvectionDiffusionFlux(self, self._advection_form).compute_flux(
+            state, time
         )
-        flux = []
-        for dim in range(self._basis.ndim()):
-            # Diffusive flux: -D * du/dx_d
-            flux_dim = -diffusion * (self._D_matrices[dim] @ state)
-            # Advective flux: v_d * u
-            if self._velocity is not None:
-                flux_dim = flux_dim + self._velocity[dim] * state
-            flux.append(flux_dim)
-        return flux
 
     def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
-        """Compute Jacobian of total conservative flux w.r.t. state.
+        """Compute Jacobian of :meth:`compute_flux` w.r.t. state.
 
-        d(flux_d)/du = -diag(D) @ D_d + diag(v_d), with D evaluated at
-        ``time`` and the current parameters.
+        d(flux_d)/du = -diag(D) @ D_d, plus diag(v_d) for the conservative
+        form, with D evaluated at ``time`` and the current parameters.
 
         Parameters
         ----------
@@ -540,19 +611,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         List[Array]
             Jacobian of each flux component. Each shape: (npts, npts)
         """
-        bkd = self._bkd
-        diffusion = (
-            self._get_diffusion(time)
-            if self._diffusion is not None
-            else bkd.zeros((self.npts(),))
-        )
-        flux_jacs = []
-        for dim in range(self._basis.ndim()):
-            jac_dim = -diffusion[:, None] * self._D_matrices[dim]
-            if self._velocity is not None:
-                jac_dim = jac_dim + bkd.diag(self._velocity[dim])
-            flux_jacs.append(jac_dim)
-        return flux_jacs
+        return AdvectionDiffusionFlux(
+            self, self._advection_form
+        ).compute_flux_jacobian(state, time)
 
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array
@@ -601,6 +662,82 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         # Scale by the diffusion coefficient at the boundary points; it is
         # time-independent, so any time reads it
         return self._get_diffusion(0.0)[boundary_indices] * flux
+
+
+class AdvectionDiffusionFlux(Generic[Array]):
+    r"""The flux of an advection-diffusion physics under a chosen advection
+    form, as a boundary condition prescribes it.
+
+    ``flux_d = -D du/dx_d`` plus the form's advective flux: ``v_d u`` for
+    :class:`~pyapprox.pde.constitutive.advection.ConservativeAdvection`,
+    none for the non-conservative form. With the physics' own form it is
+    the physics' flux; with another it states a different condition on
+    the same equation, such as the total flux :math:`-D\nabla u\cdot n +
+    (v\cdot n) u` (a Danckwerts inflow) on a non-conservative equation.
+    Reads the physics' current diffusivity and velocity at each call.
+
+    Satisfies ``FluxProviderProtocol``.
+
+    Parameters
+    ----------
+    physics : AdvectionDiffusionReaction
+        Supplies the diffusivity and velocity.
+    advection_form : AdvectionFormProtocol
+        Whose advective flux the boundary prescribes.
+
+    Raises
+    ------
+    TypeError
+        If ``advection_form`` does not satisfy ``AdvectionFormProtocol``.
+    """
+
+    def __init__(
+        self,
+        physics: AdvectionDiffusionReaction[Array],
+        advection_form: AdvectionFormProtocol,
+    ) -> None:
+        if not isinstance(advection_form, AdvectionFormProtocol):
+            raise TypeError(
+                "advection_form must satisfy AdvectionFormProtocol, got "
+                f"{type(advection_form).__name__}"
+            )
+        self._physics = physics
+        self._advection_form = advection_form
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """The flux components at all mesh points. Each shape: (npts,)"""
+        flux = self._physics.diffusive_flux(state, time)
+        velocity = self._physics.velocity()
+        if velocity is None:
+            return flux
+        advective = self._advection_form.flux(velocity, state)
+        if advective is None:
+            return flux
+        return [q + a for q, a in zip(flux, advective)]
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        """The state Jacobian of each flux component.
+        Each shape: (npts, npts)"""
+        jacobian = self._physics.diffusive_flux_jacobian(time)
+        velocity = self._physics.velocity()
+        if velocity is None:
+            return jacobian
+        bkd = self._physics.bkd()
+        advective = self._advection_form.flux(
+            [component[:, None] for component in velocity],
+            bkd.eye(self._physics.npts()),
+        )
+        if advective is None:
+            return jacobian
+        return [q + a for q, a in zip(jacobian, advective)]
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the diffusivity is declared time-dependent (the
+        velocity is fixed in time)."""
+        return self._physics.flux_is_time_dependent()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._advection_form!r})"
 
 
 def create_steady_diffusion(

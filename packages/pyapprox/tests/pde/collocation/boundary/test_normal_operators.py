@@ -19,18 +19,24 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionFlux,
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
+from pyapprox.pde.constitutive.advection import (
+    ConservativeAdvection,
+    NonConservativeAdvection,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestGradientNormalOperator:
     """Base test class for GradientNormalOperator."""
 
-    def test_1d_left_boundary(self, bkd):
+    def test_1d_left_boundary(self, bkd: Backend[Array]) -> None:
         """Test grad(u).n at left boundary for u = x^2."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -50,7 +56,7 @@ class TestGradientNormalOperator:
         result = normal_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
-    def test_1d_right_boundary(self, bkd):
+    def test_1d_right_boundary(self, bkd: Backend[Array]) -> None:
         """Test grad(u).n at right boundary for u = x^2."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -70,7 +76,7 @@ class TestGradientNormalOperator:
         result = normal_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
-    def test_jacobian_is_constant(self, bkd):
+    def test_jacobian_is_constant(self, bkd: Backend[Array]) -> None:
         """Test that gradient normal operator Jacobian is state-independent."""
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
@@ -88,7 +94,7 @@ class TestGradientNormalOperator:
         jac2 = normal_op.jacobian(state2, 0.0)
         bkd.assert_allclose(jac1, jac2, atol=1e-14)
 
-    def test_jacobian_consistency(self, bkd):
+    def test_jacobian_consistency(self, bkd: Backend[Array]) -> None:
         """Test that jacobian @ state matches __call__(state)."""
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
@@ -107,7 +113,7 @@ class TestGradientNormalOperator:
         result_from_jac = jac @ state
         bkd.assert_allclose(result, result_from_jac, atol=1e-12)
 
-    def test_2d_constant_normals(self, bkd):
+    def test_2d_constant_normals(self, bkd: Backend[Array]) -> None:
         """Test 2D gradient normal operator with constant normals."""
         npts_x, npts_y = 8, 8
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
@@ -140,7 +146,7 @@ class TestGradientNormalOperator:
 class TestFluxNormalOperator:
     """Base test class for FluxNormalOperator."""
 
-    def test_flux_with_adr_physics_1d(self, bkd):
+    def test_flux_with_adr_physics_1d(self, bkd: Backend[Array]) -> None:
         """Test FluxNormalOperator with ADR physics as flux provider."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -162,8 +168,9 @@ class TestFluxNormalOperator:
         result = flux_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([-4.0]), atol=1e-10)
 
-    def test_flux_with_velocity(self, bkd):
-        """Test FluxNormalOperator with ADR physics including velocity."""
+    def test_flux_with_velocity(self, bkd: Backend[Array]) -> None:
+        """Test FluxNormalOperator with conservative ADR physics including
+        velocity, whose flux carries the advective part."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -172,7 +179,11 @@ class TestFluxNormalOperator:
         diffusion = 1.0
         velocity = [bkd.full((npts,), 3.0)]  # v = 3
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=diffusion, velocity=velocity
+            basis,
+            bkd,
+            diffusion=diffusion,
+            velocity=velocity,
+            advection_form=ConservativeAdvection(),
         )
 
         right_idx = umesh.boundary_indices(1)
@@ -188,7 +199,48 @@ class TestFluxNormalOperator:
         result = flux_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
-    def test_flux_jacobian_consistency(self, bkd):
+    def test_injected_flux_on_non_conservative_physics(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The non-conservative physics' own flux has no advective part
+        (-D u' . n = -1 at x = 1 for u = x); the total flux of the same
+        equation, injected as AdvectionDiffusionFlux with the conservative
+        form, adds (v . n) u = 3, and its Jacobian matches the operator's
+        action on the linear state."""
+        npts = 10
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        physics = AdvectionDiffusionReaction(
+            basis,
+            bkd,
+            diffusion=1.0,
+            velocity=[bkd.full((npts,), 3.0)],
+            advection_form=NonConservativeAdvection(),
+        )
+        right_idx = mesh.boundary_indices(1)
+        normals = bkd.array([[1.0]])
+        state = bkd.copy(basis.nodes())
+        own = FluxNormalOperator(bkd, right_idx, normals, physics)
+        bkd.assert_allclose(own(state, 0.0), bkd.array([-1.0]), atol=1e-10)
+        total = FluxNormalOperator(
+            bkd,
+            right_idx,
+            normals,
+            AdvectionDiffusionFlux(physics, ConservativeAdvection()),
+        )
+        bkd.assert_allclose(total(state, 0.0), bkd.array([2.0]), atol=1e-10)
+        bkd.assert_allclose(
+            total.jacobian(state, 0.0) @ state, total(state, 0.0), atol=1e-10
+        )
+
+    def test_injected_flux_refuses_a_non_form(self, numpy_bkd: Backend[Array]) -> None:
+        bkd = numpy_bkd
+        basis = ChebyshevBasis1D(TransformedMesh1D(5, bkd), bkd)
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
+        with pytest.raises(TypeError, match="AdvectionFormProtocol"):
+            AdvectionDiffusionFlux(physics, object())  # type: ignore[arg-type]
+
+    def test_flux_jacobian_consistency(self, bkd: Backend[Array]) -> None:
         """Test flux operator Jacobian via finite differences."""
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
@@ -218,7 +270,7 @@ class TestFluxNormalOperator:
 class TestTractionNormalOperator:
     """Base test class for TractionNormalOperator."""
 
-    def test_traction_at_boundary(self, bkd):
+    def test_traction_at_boundary(self, bkd: Backend[Array]) -> None:
         """Test traction at left boundary for known polynomial displacement."""
         npts_x, npts_y = 8, 8
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
@@ -258,7 +310,7 @@ class TestTractionNormalOperator:
         bkd.assert_allclose(result_x, expected_x, atol=1e-10)
         bkd.assert_allclose(result_y, expected_y, atol=1e-10)
 
-    def test_jacobian_consistency(self, bkd):
+    def test_jacobian_consistency(self, bkd: Backend[Array]) -> None:
         """Test traction operator Jacobian via finite differences."""
         npts_x, npts_y = 6, 6
         npts = npts_x * npts_y
@@ -294,7 +346,7 @@ class TestTractionNormalOperator:
                     bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5
                 )
 
-    def test_jacobian_is_constant(self, bkd):
+    def test_jacobian_is_constant(self, bkd: Backend[Array]) -> None:
         """Test that traction Jacobian is state-independent."""
         npts_x, npts_y = 6, 6
         npts = npts_x * npts_y
@@ -317,7 +369,7 @@ class TestTractionNormalOperator:
         jac2 = traction_op.jacobian(state2, 0.0)
         bkd.assert_allclose(jac1, jac2, atol=1e-14)
 
-    def test_traction_follows_material_update(self, bkd):
+    def test_traction_follows_material_update(self, bkd: Backend[Array]) -> None:
         """The traction reads the physics' current material: after the
         Lame fields are set to c times their values, traction and
         Jacobian are c times their former values (linear in the
@@ -344,7 +396,7 @@ class TestTractionNormalOperator:
             mu.set_values(bkd.full((npts,), 0.5))
             lamda.set_values(bkd.full((npts,), 2.0))
 
-    def test_non_stress_source_refused(self, numpy_bkd):
+    def test_non_stress_source_refused(self, numpy_bkd: Backend[Array]) -> None:
         bkd = numpy_bkd
         with pytest.raises(TypeError, match="CauchyStressSourceProtocol"):
             TractionNormalOperator(
