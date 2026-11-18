@@ -7,6 +7,8 @@ the basis they will be assembled on:
                  - \Big(\sum \text{stiffness}\Big) u,
 
 with the state loads' Jacobians alongside (:class:`GalerkinResidualTerms`).
+The stiffness may include forms integrated over the boundary facets,
+which the element-wise assembly does not yet support.
 Everything else lives here, written once: how terms combine into a
 residual and a Jacobian, which assembled pieces may be cached and on
 what key, and when the physics' validity check runs. Two assemblies
@@ -65,6 +67,15 @@ class GalerkinResidualTerms:
     ----------
     stiffness : tuple of skfem BilinearForm
         Their sum :math:`K` enters as :math:`-K u`.
+    boundary_stiffness : tuple of skfem BilinearForm
+        Integrated over every boundary facet of the basis and added to
+        :math:`K`: terms the weak form itself leaves on the boundary,
+        such as the advective flux of an advection term integrated by
+        parts. Boundary conditions are not terms of the physics and are
+        never listed here. Cached with the stiffness, on its key.
+    boundary_intorder : int, optional
+        Quadrature order on the boundary facets; ``None`` takes the
+        basis default.
     loads : tuple of skfem LinearForm
         State-independent, entering with a plus sign.
     state_loads : tuple of (LinearForm, BilinearForm) pairs
@@ -82,6 +93,8 @@ class GalerkinResidualTerms:
     """
 
     stiffness: Tuple[_Form, ...] = ()
+    boundary_stiffness: Tuple[_Form, ...] = ()
+    boundary_intorder: Optional[int] = None
     loads: Tuple[_Form, ...] = ()
     state_loads: Tuple[Tuple[_Form, _Form], ...] = ()
     stiffness_key: Optional[Hashable] = None
@@ -109,6 +122,10 @@ class _Assembly(Protocol):
     def basis(self) -> _SkfemBasis: ...
 
     def bilinear(self, form: _Form, **params: Any) -> _Matrix: ...
+
+    def boundary_bilinear(
+        self, form: _Form, intorder: Optional[int]
+    ) -> _Matrix: ...
 
     def linear(self, form: _Form, **params: Any) -> _Dense: ...
 
@@ -152,6 +169,10 @@ def _stiffness(
         total = assembly.zero_matrix()
         for form in terms.stiffness:
             total = total + assembly.bilinear(form)
+        for form in terms.boundary_stiffness:
+            total = total + assembly.boundary_bilinear(
+                form, terms.boundary_intorder
+            )
         return total
 
     result: _Matrix = cache.get(terms.stiffness_key, build)
@@ -222,6 +243,17 @@ class _GlobalAssembly:
         matrix: _Matrix = _skfem().asm(form, self._skfem_basis, **params)
         return matrix
 
+    def boundary_bilinear(self, form: _Form, intorder: Optional[int]) -> _Matrix:
+        # Every boundary facet; the facet basis numbers the DOFs as the
+        # cell basis does, so the matrix adds to the interior one. A mesh
+        # without boundary (periodic, wrapped) has no term at all, and
+        # skfem cannot build a facet basis over no facets.
+        if self._skfem_basis.mesh.boundary_facets().size == 0:
+            return self.zero_matrix()
+        facets = self._skfem_basis.boundary(intorder=intorder)
+        matrix: _Matrix = _skfem().asm(form, facets)
+        return matrix
+
     def linear(self, form: _Form, **params: Any) -> _Dense:
         return np.asarray(_skfem().asm(form, self._skfem_basis, **params))
 
@@ -268,6 +300,16 @@ class _ElementAssembly:
         data = np.asarray(form.coo_data(self._skfem_basis, **params).data)
         blocks = data.reshape(self._nper, self._nper, self._nselected)
         return np.transpose(blocks, (2, 1, 0))
+
+    def boundary_bilinear(self, form: _Form, intorder: Optional[int]) -> _Matrix:
+        # Attributing each boundary facet to the selected element that
+        # owns it is possible but not built; dropping the term instead
+        # would return element residuals that no longer sum to the
+        # assembled one.
+        raise NotImplementedError(
+            "element-wise evaluation of a physics with boundary terms "
+            "(boundary_stiffness) is not supported"
+        )
 
     def linear(self, form: _Form, **params: Any) -> _Dense:
         data = np.asarray(form.coo_data(self._skfem_basis, **params).data)

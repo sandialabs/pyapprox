@@ -1,8 +1,10 @@
 r"""Galerkin advection-diffusion-reaction verified by manufactured solutions.
 
 The problem is stated as terms, its strong form
-:math:`\nabla\cdot(-D\nabla u + [v u]) + [v\cdot\nabla u] - R(u) = f`
-(the bracket matching the advection form), and the physics under test,
+:math:`\nabla\cdot(-D\nabla u) + v\cdot\nabla u + [(\nabla\cdot v)\, u]
+- R(u) = f` (the bracket present for the conservative form, whose
+advection is :math:`\nabla\cdot(v u)`). Natural data prescribe the
+diffusive flux in both forms, and the physics under test,
 :class:`~pyapprox.pde.galerkin.physics.AdvectionDiffusionReaction`, is
 built from the same coefficient strings by a system factory. Errors are
 true :math:`L^2` errors, integrated by skfem quadrature against
@@ -25,16 +27,29 @@ Cases (fitted rate over the last three levels, tolerance 0.1):
   in both forms;
 - periodic ends in 1D (the mesh identifies them), P1 and P2 rates in
   both advection forms;
+- a do-nothing outflow, a side with no condition object, in 1D and 2D
+  and both advection forms: P1 rate 2 for solutions with zero diffusive
+  flux and nonzero advective flux leaving there;
 - wrong-model controls, fitted rate below 0.5: natural data with the
   normal reversed; Robin without its spring term; a non-periodic
-  solution on periodic ends.
+  solution on periodic ends; the conservative form without its
+  advective boundary term on the do-nothing outflow.
 
 Refusals: periodic sides the mesh does not wrap and wrapped sides with
 ordinary conditions, periodic meshes beyond 1D, transient and
 multi-field problems, a box with named coordinates.
 """
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 import pytest
 
@@ -51,8 +66,10 @@ from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.constitutive.advection import (
     AdvectionFormProtocol,
     ConservativeAdvection,
+    FieldExpression,
     NonConservativeAdvection,
 )
+from pyapprox.pde.expressions.symbols import coordinates
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
@@ -93,6 +110,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.galerkin_verification import coded, converges, recovers, stalls
 
 _Np = NDArray[Any]
+_F = TypeVar("_F", bound=FieldExpression)
 
 
 class _ADR:
@@ -122,24 +140,39 @@ class _ADR:
 
     def terms(self, coords: Sequence[str]) -> List[TermProtocol]:
         """The strong form as terms on row ``u``."""
+        # Natural data are the diffusive flux in both forms (the
+        # conservative physics keeps its advective boundary term), so
+        # only -D grad(u) goes inside the divergence; the conservative
+        # div(v u) is a source, expanded to v.grad(u) + div(v) u.
         fluxes = [f"-({self._diffusivity})*u_{c}" for c in coords]
         terms: List[TermProtocol] = []
         if self._velocity is not None:
+            transport = [f"({v})*u_{c}" for v, c in zip(self._velocity, coords)]
             if self._conservative:
-                fluxes = [f"{q} + ({v})*u" for q, v in zip(fluxes, self._velocity)]
-            else:
-                transport = [f"({v})*u_{c}" for v, c in zip(self._velocity, coords)]
-                terms.append(Source("u", " + ".join(transport)))
+                symbols = dict(zip(coords, coordinates(coords)))
+                divergence = sum(
+                    sp.diff(sp.sympify(v, locals=symbols), symbols[c])
+                    for v, c in zip(self._velocity, coords)
+                )
+                transport.append(f"({divergence})*u")
+            terms.append(Source("u", " + ".join(transport)))
         terms.append(Divergence("u", fluxes))
         if self._reaction is not None:
             terms.append(Source("u", f"-({self._reaction})"))
         return terms
 
     def physics(
-        self, problem: ManufacturedProblem, basis: LagrangeBasis[_Np]
+        self,
+        problem: ManufacturedProblem,
+        basis: LagrangeBasis[_Np],
+        advection_form: Optional[AdvectionFormProtocol] = None,
     ) -> AdvectionDiffusionReaction[_Np]:
+        """The physics, with ``advection_form`` in place of the one
+        ``conservative`` selects when given (for wrong-model controls)."""
         form: AdvectionFormProtocol = (
-            ConservativeAdvection()
+            advection_form
+            if advection_form is not None
+            else ConservativeAdvection()
             if self._conservative
             else NonConservativeAdvection()
         )
@@ -172,6 +205,72 @@ class _ADR:
         return (
             f"_ADR({self._diffusivity!r}, {self._velocity!r}, {self._reaction!r}, "
             f"conservative={self._conservative})"
+        )
+
+
+class _ConservativeDroppingBoundary:
+    """Wrong model: the conservative weak integrand, but a flux of None,
+    so the physics adds no advective boundary term and its natural data
+    become the total flux."""
+
+    def __init__(self) -> None:
+        self._form = ConservativeAdvection()
+
+    def strong_term(
+        self, velocity: Sequence[_F], u: _F, derivative: Callable[[_F, int], _F]
+    ) -> _F:
+        return self._form.strong_term(velocity, u, derivative)
+
+    def weak_integrand(
+        self,
+        velocity: Sequence[_F],
+        u: _F,
+        grad_u: Sequence[_F],
+        test: _F,
+        grad_test: Sequence[_F],
+    ) -> _F:
+        return self._form.weak_integrand(velocity, u, grad_u, test, grad_test)
+
+    def flux(self, velocity: Sequence[_F], u: _F) -> Optional[List[_F]]:
+        return None
+
+
+class _DoNothing:
+    """``adr`` with the Neumann conditions on ``sides`` left out of the
+    system: those sides get no condition object at all.
+
+    The problem still names a Neumann condition there, so its exact
+    solution must have zero diffusive flux on them.
+    """
+
+    def __init__(
+        self,
+        adr: _ADR,
+        sides: Sequence[str],
+        advection_form: Optional[AdvectionFormProtocol] = None,
+    ) -> None:
+        self._adr = adr
+        self._sides: FrozenSet[str] = frozenset(sides)
+        self._form = advection_form
+
+    def system(
+        self, problem: ManufacturedProblem, basis: LagrangeBasis[_Np]
+    ) -> GalerkinSystem[_Np]:
+        physics = self._adr.physics(problem, basis, self._form)
+        conditions = boundary_conditions(problem, basis, "u")
+        kept = [
+            bc
+            for bc in conditions
+            if not (isinstance(bc, NeumannBC) and bc.boundary_name() in self._sides)
+        ]
+        if len(conditions) - len(kept) != len(self._sides):
+            raise ValueError(f"no Neumann condition on every side of {self._sides}")
+        return compose_galerkin_system(physics, kept)
+
+    def __repr__(self) -> str:
+        return (
+            f"_DoNothing({self._adr!r}, {sorted(self._sides)}, "
+            f"advection_form={self._form!r})"
         )
 
 
@@ -238,6 +337,48 @@ class TestRates:
         adr = _ADR("1 + x**2/2", ["y", "-x"], "-u", conservative)
         problem = _problem("exp(x)*cos(y)", adr, Disk(), {"circle": Robin(2.0)})
         converges(problem, SkfemDisk([2, 3, 4, 5]), 1, adr, 2.0)
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+class TestDoNothingOutflow:
+    """An outflow side with no condition object is a free outflow, zero
+    diffusive flux, in both advection forms. Solutions have zero normal
+    derivative and a nonzero value there, so the advective flux leaving
+    is nonzero and a zero-total-flux wall would be wrong."""
+
+    def test_1d(self, conservative: bool) -> None:
+        """Dirichlet left, nothing right, v = 1 + x leaving: P1 rate 2."""
+        adr = _ADR("1 + x/2", ["1 + x"], "-u", conservative)
+        problem = _problem(
+            "2 + cos(pi*x) + x*(2 - x)", adr, Box([(0.0, 1.0)]), _MIXED_1D
+        )
+        converges(
+            problem, StructuredBox([8, 16, 32, 64]), 1, _DoNothing(adr, ["right"]), 2.0
+        )
+
+    def test_2d(self, conservative: bool) -> None:
+        """Unit square, nothing on the right where v leaves, Dirichlet and
+        Robin elsewhere, variable D and diverging v: Q1 rate 2."""
+        adr = _ADR("1 + x*y/4", ["1 + x/2", "y/2"], "-u", conservative)
+        box = Box([(0.0, 1.0), (0.0, 1.0)])
+        problem = _problem("2 + cos(pi*x)*sin(pi*y) + y", adr, box, _MIXED_2D)
+        converges(
+            problem, StructuredBox([4, 8, 16, 32]), 1, _DoNothing(adr, ["right"]), 2.0
+        )
+
+
+def test_conservative_without_boundary_term_stalls() -> None:
+    """Wrong-model control: the conservative physics without its
+    advective boundary term makes the do-nothing side a zero-total-flux
+    wall, which the 1D outflow solution violates by (v u)(1) = 4."""
+    adr = _ADR("1 + x/2", ["1 + x"], "-u", conservative=True)
+    problem = _problem("2 + cos(pi*x) + x*(2 - x)", adr, Box([(0.0, 1.0)]), _MIXED_1D)
+    stalls(
+        problem,
+        StructuredBox([8, 16, 32, 64]),
+        1,
+        _DoNothing(adr, ["right"], _ConservativeDroppingBoundary()),
+    )
 
 
 def test_variable_robin() -> None:

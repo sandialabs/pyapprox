@@ -10,8 +10,13 @@ Non-conservative (default):
 
 Conservative:
     du/dt + div(v * u) = div(D * grad(u)) + R(u) + f
-  Weak form (after integration by parts of div(v*u)):
-    -(v*u, grad(w)) + (grad(w), D*grad(u)) - (w, R(u)) = (w, f)
+  Weak form (after integration by parts of div(v*u), keeping the
+  advective boundary term on every boundary facet):
+    -(v*u, grad(w)) + <(v.n)*u, w> + (grad(w), D*grad(u)) - (w, R(u))
+        = (w, f)
+
+In both forms natural boundary data prescribe the diffusive flux
+D*grad(u).n, so a boundary with no condition is a free outflow.
 
 where:
     D = diffusivity (scalar or function of x)
@@ -69,10 +74,8 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.elementwise import ElementSet
 from pyapprox.pde.galerkin.boundary.flux_law import (
-    AdvectiveFlux,
     DiffusiveFlux,
     NormalFluxLawProtocol,
-    SumFlux,
 )
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -411,6 +414,97 @@ class _AdvectionKernel:
         )
 
 
+def _normal_flux_integrand(
+    advection_form: AdvectionFormProtocol,
+    velocity: List[NDArray[np.floating[Any]]],
+    u: NDArray[np.floating[Any]],
+    test: NDArray[np.floating[Any]],
+    normal: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
+    """``(q . n) test`` for the form's advective flux ``q``, which the
+    caller has established is not None."""
+    flux = advection_form.flux(velocity, u)
+    if flux is None:
+        raise RuntimeError(
+            f"{advection_form!r} integrates nothing by parts; no boundary "
+            "term should have been built"
+        )
+    normal_flux = flux[0] * normal[0]
+    for dim in range(1, len(flux)):
+        normal_flux = normal_flux + flux[dim] * normal[dim]
+    result: NDArray[np.floating[Any]] = normal_flux * test
+    return result
+
+
+class _AdvectiveBoundaryKernel:
+    r"""Picklable facet kernel for the advective boundary term.
+
+    The integration by parts that gives the conservative weak integrand
+    also leaves :math:`\int_{\partial\Omega} (q\cdot n)\, w`, with
+    :math:`q = v u` the form's advective flux; it enters the stiffness
+    with a plus sign. Assembled on the boundary facets.
+    """
+
+    __name__ = "advective_boundary"
+
+    def __init__(
+        self,
+        velocity: _TimedEvaluatorProtocol,
+        advection_form: AdvectionFormProtocol,
+        time: float = 0.0,
+    ) -> None:
+        self._velocity = velocity
+        self._advection_form = advection_form
+        # Bound at construction; see _DiffusionReactionKernel.
+        self._time = time
+
+    def __call__(
+        self,
+        u: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        vel = self._velocity(np.asarray(w.x), self._time)
+        return _normal_flux_integrand(
+            self._advection_form,
+            list(vel),
+            np.asarray(u.value),
+            np.asarray(v.value),
+            np.asarray(w.n),
+        )
+
+
+class _VelocityBoundarySensitivityKernel:
+    """Mixed facet kernel for the boundary part of dF/d(velocity DOFs).
+
+    Trial function the VECTOR velocity basis function ``a``, test
+    function the scalar state basis function, the state interpolated on
+    the facets: minus the advective boundary integrand with ``a`` as the
+    velocity, which it is linear in.
+    """
+
+    __name__ = "velocity_boundary_sensitivity"
+
+    def __init__(self, advection_form: AdvectionFormProtocol) -> None:
+        self._advection_form = advection_form
+
+    def __call__(
+        self,
+        a: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        values = np.asarray(a.value)
+        velocity = [values[dim] for dim in range(values.shape[0])]
+        return -_normal_flux_integrand(
+            self._advection_form,
+            velocity,
+            np.asarray(w["u_prev"]),
+            np.asarray(v.value),
+            np.asarray(w.n),
+        )
+
+
 class _ForcingKernel:
     """Picklable kernel for the forcing load form (w, f).
 
@@ -666,6 +760,16 @@ class AdvectionDiffusionReaction(Generic[Array]):
             and forcing.is_time_dependent()
         )
         self._advection_formulation = advection_form
+        # Whether the advection form leaves a boundary term, decided once.
+        # A form's flux is None exactly when it integrates nothing by
+        # parts, a property of the form and not of the values, so asking
+        # with plain numbers answers it for every velocity and state. A
+        # mesh without boundary facets (periodic) has no term either.
+        self._has_advective_boundary = (
+            self._velocity_function is not None
+            and advection_form.flux([1.0], 1.0) is not None
+            and basis.skfem_basis().mesh.boundary_facets().size > 0
+        )
 
         # Version-keyed assembly caches: coefficient objects carry a
         # version() bumped on mutation (set_dofs), and each cached
@@ -826,6 +930,40 @@ class AdvectionDiffusionReaction(Generic[Array]):
             _AdvectionKernel(evaluator, self._advection_formulation, time)
         )
 
+    def _advective_boundary_forms(
+        self, time: float
+    ) -> Tuple["BilinearForm", ...]:
+        r"""The advective boundary term :math:`\int (v\cdot n) u w`, or
+        nothing when the advection form leaves none.
+
+        The velocity is evaluated by coordinate: a nodal velocity's own
+        basis has no facet quadrature to share, and the boundary is a
+        small part of the assembly.
+        """
+        velocity = self._velocity_function
+        if not self._has_advective_boundary or velocity is None:
+            return ()
+        return (
+            BilinearForm(
+                _AdvectiveBoundaryKernel(
+                    velocity.values, self._advection_formulation, time
+                )
+            ),
+        )
+
+    def _boundary_intorder(self) -> int:
+        """Exact facet quadrature for a polynomial velocity: the state
+        and test degrees plus the velocity's (the state's when the
+        velocity has no basis)."""
+        degree = int(self._basis.skfem_basis().elem.maxdeg)
+        velocity = self._velocity_function
+        velocity_degree = (
+            int(velocity.basis().skfem_basis().elem.maxdeg)
+            if isinstance(velocity, NodalFieldVelocity)
+            else degree
+        )
+        return 2 * degree + velocity_degree
+
     def forcing_form(self, time: float) -> Optional["LinearForm"]:
         """Linear form for the forcing contribution (w, f), or None.
 
@@ -881,6 +1019,11 @@ class AdvectionDiffusionReaction(Generic[Array]):
     ) -> List["BilinearForm"]:
         """Return the bilinear forms whose sum assembles the stiffness.
 
+        Interior forms only: with an advection form that integrates by
+        parts (``ConservativeAdvection``) the stiffness also holds the
+        advective boundary term, which ``residual_terms`` lists and
+        these do not.
+
         Each form can be assembled on any compatible skfem basis — in
         particular a ``basis.with_elements(...)``-restricted basis — so
         consumers such as hyper-reduction can extract per-element
@@ -932,7 +1075,9 @@ class AdvectionDiffusionReaction(Generic[Array]):
         ``F = (w, f) + (w, R(u)) - K u``: the forcing load, the
         nonlinear reaction as a state load with its Jacobian, and the
         stiffness forms (diffusion with any linear reaction, and
-        advection). Every assembly of this physics, over the whole mesh
+        advection), with the advective boundary term ``<(v.n) u, w>``
+        on every boundary facet when the advection form integrates by
+        parts. Every assembly of this physics, over the whole mesh
         or a subset of elements, goes through these terms
         (``pyapprox.pde.galerkin.term_assembly``), so they are the single
         definition of its residual. The stiffness carries the
@@ -948,6 +1093,8 @@ class AdvectionDiffusionReaction(Generic[Array]):
         )
         return GalerkinResidualTerms(
             stiffness=tuple(self._stiffness_forms(time, skfem_basis)),
+            boundary_stiffness=self._advective_boundary_forms(time),
+            boundary_intorder=self._boundary_intorder(),
             loads=() if forcing is None else (forcing,),
             state_loads=state_loads,
             stiffness_key=self._stiffness_key(time),
@@ -1019,7 +1166,10 @@ class AdvectionDiffusionReaction(Generic[Array]):
         Satisfies ``ElementwiseOperatorProtocol`` on the NumPy backend,
         the only one skfem assembles on: the restricted operator
         evaluates element residuals and Jacobians from element-local
-        states through the same terms as the global assembly.
+        states through the same terms as the global assembly. With an
+        advection form that integrates by parts, its evaluations raise
+        ``NotImplementedError``: the advective boundary term is not yet
+        attributed to elements.
         """
         return SkfemRestrictedOperator(self, self._basis.skfem_basis(), elements)
 
@@ -1138,23 +1288,17 @@ class AdvectionDiffusionReaction(Generic[Array]):
         return not self._stiffness_is_time_dependent()
 
     def flux_law(self) -> NormalFluxLawProtocol:
-        r"""The flux the weak form integrates by parts.
+        r"""The flux natural boundary data prescribe: :math:`D\nabla u\cdot n`.
 
-        :math:`D\nabla u\cdot n`, plus the advective flux the advection form
-        integrates by parts: :math:`-(v\cdot n)u` for the conservative
-        form, nothing for the non-conservative one.
+        The diffusive flux in either advection form. The conservative
+        form keeps the advective boundary term
+        :math:`\int (v\cdot n)\, u\, w` in the operator, so its natural
+        data mean the same as the non-conservative form's: a boundary
+        with no condition has zero diffusive flux (a free outflow), and a
+        Danckwerts inflow is the Robin condition
+        :math:`D\nabla u\cdot n = (v\cdot n)(u - u_{in})`.
         """
-        diffusive = DiffusiveFlux(self._diffusion_function)
-        if self._velocity_function is None:
-            return diffusive
-        return SumFlux(
-            [
-                diffusive,
-                AdvectiveFlux(
-                    self._velocity_function, self._advection_formulation
-                ),
-            ]
-        )
+        return DiffusiveFlux(self._diffusion_function)
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
@@ -1294,9 +1438,10 @@ class AdvectionDiffusionReaction(Generic[Array]):
         velocity basis DOF ordering). Both forms are linear in the
         velocity: :math:`-\int (\psi_k \cdot \nabla u) \, \phi_j` for the
         non-conservative form, :math:`+\int u\, \psi_k \cdot \nabla
-        \phi_j` for the conservative one. S is LINEAR in the state with
-        zero constant part. Requires the velocity to be a
-        ``NodalFieldVelocity``.
+        \phi_j` for the conservative one, which adds the boundary part
+        :math:`-\int_{\partial\Omega} (\psi_k\cdot n)\, u\, \phi_j`. S is
+        LINEAR in the state with zero constant part. Requires the
+        velocity to be a ``NodalFieldVelocity`` on the state's mesh.
 
         Parameters
         ----------
@@ -1328,6 +1473,20 @@ class AdvectionDiffusionReaction(Generic[Array]):
             scalar_skfem,
             u_prev=scalar_skfem.interpolate(state_np),
         )
+        if self._has_advective_boundary:
+            intorder = self._boundary_intorder()
+            vel_facets = vel_skfem.boundary(intorder=intorder)
+            scalar_facets = scalar_skfem.boundary(intorder=intorder)
+            sensitivity = sensitivity + asm(
+                BilinearForm(
+                    _VelocityBoundarySensitivityKernel(
+                        self._advection_formulation
+                    )
+                ),
+                vel_facets,
+                scalar_facets,
+                u_prev=scalar_facets.interpolate(state_np),
+            )
         result: Array = sensitivity
         return result
 
@@ -1336,8 +1495,9 @@ class AdvectionDiffusionReaction(Generic[Array]):
     ) -> Array:
         r"""Compute :math:`A(\delta a) = d/du \, [dF/d(a)\,\delta a]`.
 
-        Minus the advection stiffness assembled with the GIVEN velocity
-        field :math:`\delta a`. The advection term is linear in both the
+        Minus the advection stiffness, with its boundary term in the
+        conservative form, assembled with the GIVEN velocity field
+        :math:`\delta a`. The advection term is linear in both the
         velocity and the state, in either form, so the result is
         state-independent; the ``state`` argument is kept for the typed
         field-derivative signature.
@@ -1374,6 +1534,15 @@ class AdvectionDiffusionReaction(Generic[Array]):
             ),
             scalar_skfem,
         )
+        if self._has_advective_boundary:
+            advection = advection + asm(
+                BilinearForm(
+                    _AdvectiveBoundaryKernel(
+                        delta_velocity.values, self._advection_formulation
+                    )
+                ),
+                scalar_skfem.boundary(intorder=self._boundary_intorder()),
+            )
         result: Array = -advection
         return result
 

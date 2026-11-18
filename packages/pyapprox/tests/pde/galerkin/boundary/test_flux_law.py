@@ -15,7 +15,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,7 +28,9 @@ from pyapprox.pde.constitutive.advection import (
 from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     ConstantVelocity,
+    CoordinateVelocity,
     NodalFieldDiffusion,
+    TimeIndependent,
 )
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
@@ -79,14 +81,14 @@ def _points_and_normals(ndim: int, npts: int = 7) -> Tuple[_Pts, _Pts]:
     return coords, normal / np.linalg.norm(normal, axis=0)
 
 
-def _scalar_state(functions: dict, coords: _Pts) -> Tuple[_Pts, _Pts]:
+def _scalar_state(functions: Dict[str, _Fn], coords: _Pts) -> Tuple[_Pts, _Pts]:
     """Exact ``u`` ``(1, npts)`` and ``grad_u`` ``(1, ndim, npts)``."""
     u = np.asarray(functions["solution"](coords)).reshape(1, -1)
     grad_u = np.asarray(functions["gradient"](coords)).T[np.newaxis]
     return u, grad_u
 
 
-def _vector_state(functions: dict, coords: _Pts) -> Tuple[_Pts, _Pts]:
+def _vector_state(functions: Dict[str, _Fn], coords: _Pts) -> Tuple[_Pts, _Pts]:
     """Exact ``u`` ``(ncomp, npts)`` and ``grad_u`` ``(ncomp, ndim, npts)``."""
     u = np.asarray(functions["solution"](coords)).T
     grad_u = np.transpose(np.asarray(functions["gradient"](coords)), (0, 2, 1))
@@ -148,23 +150,16 @@ class TestScalarPhysicsLaws:
     """Diffusion-type physics against the manufactured diffusive flux."""
 
     @pytest.mark.parametrize(
-        "advection_form,flux_key",
-        [
-            (NonConservativeAdvection(), "diffusive_flux"),
-            (ConservativeAdvection(), "flux"),
-        ],
+        "advection_form",
+        [NonConservativeAdvection(), ConservativeAdvection()],
         ids=["nonconservative", "conservative"],
     )
     def test_advection_diffusion(
-        self, advection_form: AdvectionFormProtocol, flux_key: str
+        self, advection_form: AdvectionFormProtocol
     ) -> None:
-        """Non-conservative: D grad(u).n. Conservative also has -(v.n)u,
-        so it matches the manufactured total flux -(-D grad u + v u).n.
-
-        The advective part comes from the same form object on both sides,
-        so this checks the diffusive part and the sign and normal of the
-        advective part; the assemblies and convergence tests check the
-        form itself."""
+        """D grad(u).n in either form: the conservative form keeps its
+        advective boundary term in the operator, so its natural data are
+        the diffusive flux too, never the manufactured total flux."""
         bkd = NumpyBkd()
         man = ManufacturedAdvectionDiffusionReaction(
             sol_str="sin(x)*cos(2*y)+x*y",
@@ -185,14 +180,16 @@ class TestScalarPhysicsLaws:
 
         physics = AdvectionDiffusionReaction(
             basis=_scalar_basis_2d(),
-            diffusivity=diffusivity,
+            diffusivity=TimeIndependent(diffusivity),
             bkd=bkd,
-            velocity=velocity,
+            velocity=CoordinateVelocity(TimeIndependent(velocity)),
             advection_form=advection_form,
         )
         coords, normal = _points_and_normals(2)
         u, grad_u = _scalar_state(man.functions, coords)
-        expected = -_scalar_flux_dot_n(man.functions[flux_key], coords, normal)
+        expected = -_scalar_flux_dot_n(
+            man.functions["diffusive_flux"], coords, normal
+        )
         _check_law(physics, coords, u, grad_u, normal, expected)
 
     def test_conservative_without_velocity_is_diffusive(self) -> None:
@@ -294,7 +291,7 @@ class TestElasticPhysicsLaws:
 
     def test_hyperelasticity(self) -> None:
         bkd = NumpyBkd()
-        stress = NeoHookeanStress(lamda=1.2, mu=0.7)
+        stress: NeoHookeanStress[NDArray[Any]] = NeoHookeanStress(lamda=1.2, mu=0.7)
         man = ManufacturedHyperelasticityEquations(
             sol_strs=["0.1*sin(x)*y", "0.1*x**2"],
             nvars=2,
@@ -314,7 +311,7 @@ class TestCompositeMaterialLaws:
 
     _MATERIALS = {"left": (1.0, 0.3), "right": (5.0, 0.2)}
 
-    def _split(self, nx: int) -> Tuple[Any, dict]:
+    def _split(self, nx: int) -> Tuple[Any, Dict[str, NDArray[np.intp]]]:
         """A 4x4 mesh split at x = 1/2 into two materials."""
         basis = _vector_basis_2d(nx)
         mesh = basis.skfem_basis().mesh
@@ -383,7 +380,9 @@ class TestCompositeMaterialLaws:
         )
         sol_strs = ["0.1*sin(x)*y", "0.1*x**2"]
 
-        def manufactured(name: str) -> ManufacturedHyperelasticityEquations:
+        def manufactured(
+            name: str,
+        ) -> ManufacturedHyperelasticityEquations[NDArray[Any]]:
             lam, mu = _lame(*self._MATERIALS[name])
             return ManufacturedHyperelasticityEquations(
                 sol_strs=sol_strs, nvars=2,

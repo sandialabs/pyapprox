@@ -128,16 +128,11 @@ class ConservativeAdvection:
     r"""Advection as :math:`\nabla\cdot(v u)`, integrated by parts.
 
     Weak integrand :math:`-u\, v\cdot\nabla w`; the boundary flux is
-    :math:`v u`.
-
-    Limitation: no Galerkin physics adds the advective boundary term
-    :math:`\int_{\Gamma} (v\cdot n)\, u\, w` that the integration by parts
-    leaves. A boundary with no condition (do-nothing) therefore imposes
-    zero *total* flux :math:`(v u - \kappa\nabla u)\cdot n = 0`, not zero
-    diffusive flux: a free outflow modeled that way traps material and
-    gives plausible but wrong solutions. Prescribe the boundary data, or
-    use :class:`NonConservativeAdvection`, until an outflow facet term
-    exists.
+    :math:`v u`. The integration by parts leaves
+    :math:`\int_{\partial\Omega} (v\cdot n)\, u\, w`, which a consumer
+    keeps in its operator (the Galerkin advection-diffusion physics does,
+    on every boundary facet), so natural boundary data prescribe the
+    diffusive flux in this form as in the non-conservative one.
     """
 
     def strong_term(
