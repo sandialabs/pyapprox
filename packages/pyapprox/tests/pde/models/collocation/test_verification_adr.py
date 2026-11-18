@@ -71,6 +71,7 @@ from pyapprox.pde.models.collocation.verification import (
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
     Dirichlet,
+    Neumann,
     Periodic,
     Robin,
 )
@@ -156,7 +157,7 @@ class _ADR:
         self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
     ) -> CollocationSystem[Array]:
         physics = self.physics(problem, level)
-        return collocation_system(physics, problem, level, "u", flux=physics)
+        return collocation_system(physics, problem, level, {"u": physics})
 
     def __repr__(self) -> str:
         return (
@@ -357,6 +358,40 @@ def test_time_dependence_is_declared_per_coefficient(
 
 
 class TestAdapterPieces:
+    def test_two_fields_take_their_components(
+        self, numpy_bkd: Backend[Array]
+    ) -> None:
+        """Field w, second in the problem, has its rows on the second
+        component (offset npts); its Neumann side gets w's flux; the
+        approximation measures both fields: u* = x, w* = 2x against a
+        zero state on [0, 1] give L2 error sqrt(1/3 + 4/3) and nodal
+        error 2."""
+        bkd = numpy_bkd
+        two = ManufacturedProblem(
+            {"u": "x", "w": "2*x"},
+            [Divergence("u", ["-u_x"]), Divergence("w", ["-w_x"])],
+            _UNIT,
+            {
+                "left": {"u": Dirichlet(), "w": Dirichlet()},
+                "right": {"u": Dirichlet(), "w": Neumann()},
+            },
+        )
+        (level,) = ChebyshevBox([5], bkd).levels(_UNIT)
+        npts = level.npts()
+        left, _ = side_nodes(level, "left")
+        right, _ = side_nodes(level, "right")
+        scalar = _problem("x", _ADR("1"), _UNIT, coded("DD", _UNIT))
+        physics = _ADR("1").physics(scalar, level)
+        declarations = boundary_conditions(two, level, {"w": physics})
+        assert declarations.essential is not None
+        pinned = list(declarations.essential.rows().indices())
+        assert pinned == sorted([int(left[0]), int(right[0]), int(left[0]) + npts])
+        (robin,) = declarations.closures
+        assert list(robin.rows().indices()) == [int(right[0]) + npts]
+        approximation = CollocationApproximation(two, level, bkd.zeros((2 * npts,)))
+        assert abs(approximation.l2_error() - math.sqrt(5.0 / 3.0)) < 1e-13
+        assert abs(approximation.nodal_error() - 2.0) < 1e-13
+
     def test_decay_check(self) -> None:
         """Errors exp(-2N) decay at 2 per node: required 1.5 passes, 2.5
         fails; a zero error fails, and a single level or a node count
@@ -394,7 +429,7 @@ class TestAdapterPieces:
         problem = _problem("x", _ADR("1"), box, conditions)
         (level,) = ChebyshevBox([4], bkd).levels(box)
         approximation = CollocationApproximation(
-            problem, "u", level, bkd.zeros((level.npts(),))
+            problem, level, bkd.zeros((level.npts(),))
         )
         assert abs(approximation.l2_error() - math.sqrt(expected)) < 1e-13
         assert abs(approximation.nodal_error() - 1.0) < 1e-13
@@ -415,9 +450,10 @@ class TestRefusals:
         with pytest.raises(ValueError, match="steady"):
             discretizer.approximations(transient)
 
-    def test_multi_field(self, numpy_bkd: Backend[Array]) -> None:
-        """The discretizer solves one field; a two-field problem is
-        refused rather than measured on its first field only."""
+    def test_scalar_system_for_two_fields(self, numpy_bkd: Backend[Array]) -> None:
+        """A scalar physics given a two-field problem is refused rather
+        than measured on one field: the two-component rows do not fit
+        its states."""
         adr = _ADR("1")
         discretizer = CollocationDiscretizer(ChebyshevBox([4], numpy_bkd), adr)
         two = ManufacturedProblem(
@@ -426,7 +462,7 @@ class TestRefusals:
             _UNIT,
             {"left": Dirichlet(), "right": Dirichlet()},
         )
-        with pytest.raises(ValueError, match="one field"):
+        with pytest.raises(ValueError, match="size 8, not the physics' 4 states"):
             discretizer.approximations(two)
 
     def test_not_a_box(self, numpy_bkd: Backend[Array]) -> None:
@@ -446,7 +482,7 @@ class TestRefusals:
         problem = _problem("sin(2*pi*x)", adr, _UNIT, conditions)
         (level,) = ChebyshevBox([5], numpy_bkd).levels(_UNIT)
         with pytest.raises(ValueError, match="'right', across x, is not"):
-            boundary_conditions(problem, level, "u")
+            boundary_conditions(problem, level)
 
     def test_flux_condition_needs_a_flux(self, numpy_bkd: Backend[Array]) -> None:
         """Neumann and Robin rows prescribe a normal flux, so they need
@@ -454,15 +490,36 @@ class TestRefusals:
         adr = _ADR("1")
         problem = _problem("x", adr, _UNIT, coded("DN", _UNIT))
         (level,) = ChebyshevBox([5], numpy_bkd).levels(_UNIT)
-        with pytest.raises(ValueError, match="prescribes a flux"):
-            boundary_conditions(problem, level, "u")
+        with pytest.raises(ValueError, match="prescribes a flux of 'u'"):
+            boundary_conditions(problem, level)
 
-    def test_row_without_conditions(self, numpy_bkd: Backend[Array]) -> None:
+    def test_flux_of_an_unknown_field(self, numpy_bkd: Backend[Array]) -> None:
+        """A flux for a field the problem lacks is a misspelling, not a
+        flux to ignore."""
         adr = _ADR("1")
-        problem = _problem("x", adr, _UNIT, coded("DD", _UNIT))
+        problem = _problem("x", adr, _UNIT, coded("DN", _UNIT))
         (level,) = ChebyshevBox([5], numpy_bkd).levels(_UNIT)
-        with pytest.raises(ValueError, match="takes no boundary conditions"):
-            boundary_conditions(problem, level, "w")
+        physics = adr.physics(problem, level)
+        with pytest.raises(ValueError, match=r"name fields \['w'\]"):
+            boundary_conditions(problem, level, {"w": physics})
+
+    def test_flux_that_is_not_one(self, numpy_bkd: Backend[Array]) -> None:
+        problem = _problem("x", _ADR("1"), _UNIT, coded("DN", _UNIT))
+        (level,) = ChebyshevBox([5], numpy_bkd).levels(_UNIT)
+        with pytest.raises(TypeError, match="flux of 'u' must satisfy"):
+            boundary_conditions(problem, level, {"u": object()})  # type: ignore[dict-item]
+
+    def test_state_of_the_wrong_size(self, numpy_bkd: Backend[Array]) -> None:
+        """A two-field problem's approximation needs both fields' values."""
+        two = ManufacturedProblem(
+            {"u": "x", "w": "x"},
+            [Divergence("u", ["-u_x"]), Divergence("w", ["-w_x"])],
+            _UNIT,
+            {"left": Dirichlet(), "right": Dirichlet()},
+        )
+        (level,) = ChebyshevBox([4], numpy_bkd).levels(_UNIT)
+        with pytest.raises(ValueError, match=r"shape \(8,\)"):
+            CollocationApproximation(two, level, numpy_bkd.zeros((4,)))
 
     def test_helpers(self, numpy_bkd: Backend[Array]) -> None:
         """Coefficients may use only coordinates, t and constants (not

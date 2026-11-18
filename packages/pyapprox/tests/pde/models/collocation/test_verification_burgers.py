@@ -109,7 +109,7 @@ class _Burgers:
             if self._total_at_boundary
             else BurgersViscousFlux(physics)
         )
-        return collocation_system(physics, problem, level, "u", flux=flux)
+        return collocation_system(physics, problem, level, {"u": flux})
 
     def __repr__(self) -> str:
         return (

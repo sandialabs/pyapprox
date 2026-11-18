@@ -18,11 +18,15 @@ leave it, as floats.
   helpers :func:`field`, :func:`nodal_vector` and :func:`forcing`, which
   declare each coefficient's time dependence from its expression (it
   uses ``t`` or not).
-- :func:`boundary_conditions` builds the rows of each side's condition:
-  Dirichlet as :class:`~pyapprox.pde.collocation.boundary.essential_rows.
+- The state stacks one component per field of the problem, in the
+  problem's field order; a scalar problem has one.
+- :func:`boundary_conditions` builds the rows of each side's condition
+  on each field, on that field's component: Dirichlet as
+  :class:`~pyapprox.pde.collocation.boundary.essential_rows.
   DirichletRows`; Neumann and Robin as :class:`~pyapprox.pde.collocation.
-  boundary.closure_rows.RobinRows` on the flux normal operator of a
-  supplied flux; periodic sides as :class:`~pyapprox.pde.collocation.
+  boundary.closure_rows.RobinRows` on the flux normal operator of the
+  flux supplied for that field; periodic sides as
+  :class:`~pyapprox.pde.collocation.
   boundary.periodic_rows.PeriodicRows` pairing the two sides of a
   coordinate. A node two sides share follows the system's rule: essential
   rows win it, then the Robin rows, then the periodic rows. A case that
@@ -51,6 +55,7 @@ from dataclasses import dataclass
 from typing import (
     Generic,
     List,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -449,8 +454,9 @@ _BuiltPart = Union[
 
 
 class _CollocationCondition(Generic[Array]):
-    """Builds the rows of one row's condition on one side; ``None`` for the
-    upper side of a periodic pair, whose rows the lower side builds."""
+    """Builds the rows of one row's condition on one side, on the row's
+    state component; ``None`` for the upper side of a periodic pair, whose
+    rows the lower side builds."""
 
     def __init__(
         self,
@@ -458,10 +464,12 @@ class _CollocationCondition(Generic[Array]):
         level: ChebyshevLevel[Array],
         part: str,
         row: str,
+        component: int,
         flux: Optional[FluxProviderProtocol[Array]],
     ) -> None:
         self._problem, self._level = problem, level
         self._part, self._row, self._flux = part, row, flux
+        self._component = component
         self._indices, self._normals = side_nodes(level, part)
 
     def _values(self, expression: sp.Expr) -> Union[float, _BoundaryValues[Array]]:
@@ -473,24 +481,37 @@ class _CollocationCondition(Generic[Array]):
     def _flux_term(self) -> FluxNormalOperator[Array]:
         if self._flux is None:
             raise ValueError(
-                f"the condition on {self._part!r} prescribes a flux; pass the "
-                "flux provider whose normal flux it prescribes"
+                f"the condition on {self._part!r} prescribes a flux of "
+                f"{self._row!r}; pass the flux provider whose normal flux it "
+                "prescribes"
             )
         return FluxNormalOperator(
             self._level.bkd(), self._indices, self._normals, self._flux
         )
 
     def dirichlet(self, condition: Dirichlet) -> _BuiltPart[Array]:
-        return DirichletPart(self._indices, self._data())
+        return DirichletPart(self._indices, self._data(), self._component)
 
     def neumann(self, condition: Neumann) -> _BuiltPart[Array]:
-        return RobinPart(self._indices, self._flux_term(), 0.0, 1.0, self._data())
+        return RobinPart(
+            self._indices,
+            self._flux_term(),
+            0.0,
+            1.0,
+            self._data(),
+            self._component,
+        )
 
     def robin(self, condition: Robin) -> _BuiltPart[Array]:
         names = self._problem.names()
         alpha = names.substitute_constants(condition.alpha(names))
         return RobinPart(
-            self._indices, self._flux_term(), self._values(-alpha), 1.0, self._data()
+            self._indices,
+            self._flux_term(),
+            self._values(-alpha),
+            1.0,
+            self._data(),
+            self._component,
         )
 
     def periodic(self, condition: Periodic) -> _BuiltPart[Array]:
@@ -513,6 +534,7 @@ class _CollocationCondition(Generic[Array]):
             mesh.boundary_indices(lower),
             mesh.boundary_indices(upper),
             self._level.basis().derivative_matrix(1, dim),
+            self._component,
         )
 
 
@@ -529,64 +551,82 @@ class BoundaryDeclarations(Generic[Array]):
 def boundary_conditions(
     problem: ManufacturedProblem,
     level: ChebyshevLevel[Array],
-    row: str,
-    flux: Optional[FluxProviderProtocol[Array]] = None,
+    fluxes: Optional[Mapping[str, FluxProviderProtocol[Array]]] = None,
 ) -> BoundaryDeclarations[Array]:
-    """The rows of every side's condition on scalar field ``row``, with data
-    from the problem's expressions.
+    """The rows of every side's condition on every field, with data from
+    the problem's expressions.
+
+    The state stacks one component per field of the problem, in the
+    problem's field order (a scalar problem has one); a field's rows act
+    on its component. Fields that take no boundary conditions get none.
 
     Parameters
     ----------
     problem : ManufacturedProblem
-        Gives the conditions and their data.
+        Gives the fields, the conditions and their data.
     level : ChebyshevLevel
         The mesh the rows live on.
-    row : str
-        The field.
-    flux : FluxProviderProtocol, optional
-        The flux whose outward normal component Neumann and Robin sides
-        prescribe: the physics' own, or another such as
-        :class:`~pyapprox.pde.collocation.physics.advection_diffusion.
-        AdvectionDiffusionFlux`. Needed only when a side has one.
+    fluxes : Mapping[str, FluxProviderProtocol], optional
+        By field, the flux whose outward normal component that field's
+        Neumann and Robin sides prescribe: the physics' own, or another
+        such as :class:`~pyapprox.pde.collocation.physics.
+        advection_diffusion.AdvectionDiffusionFlux`. Each maps the whole
+        stacked state to that field's flux. Needed only for a field with
+        such a side.
 
     Raises
     ------
     ValueError
-        If ``row`` takes no boundary conditions, a side prescribes a flux
-        and none is given, or only one side of a coordinate is periodic.
+        If ``fluxes`` names a field the problem does not have, a side
+        prescribes a flux its field was not given, or only one side of a
+        coordinate is periodic.
     TypeError
-        If ``flux`` does not satisfy ``FluxProviderProtocol``.
+        If a flux does not satisfy ``FluxProviderProtocol``.
     """
-    if row not in problem.boundary_rows():
+    fields = problem.fields()
+    given = {} if fluxes is None else dict(fluxes)
+    unknown = set(given) - set(fields)
+    if unknown:
         raise ValueError(
-            f"row {row!r} takes no boundary conditions; the boundary rows are "
-            f"{list(problem.boundary_rows())}"
+            f"fluxes name fields {sorted(unknown)} the problem does not have; "
+            f"its fields are {list(fields)}"
         )
-    if flux is not None and not isinstance(flux, FluxProviderProtocol):
-        raise TypeError(
-            f"flux must satisfy FluxProviderProtocol, got {type(flux).__name__}"
-        )
+    for row, flux in given.items():
+        if not isinstance(flux, FluxProviderProtocol):
+            raise TypeError(
+                f"the flux of {row!r} must satisfy FluxProviderProtocol, got "
+                f"{type(flux).__name__}"
+            )
     dirichlet: List[DirichletPart[Array]] = []
     robin: List[RobinPart[Array]] = []
     periodic: List[PeriodicPart[Array]] = []
-    for part in level.domain().boundaries():
-        visitor = _CollocationCondition(problem, level, part, row, flux)
-        built = problem.conditions(part)[row].accept(visitor)
-        if isinstance(built, DirichletPart):
-            dirichlet.append(built)
-        elif isinstance(built, RobinPart):
-            robin.append(built)
-        elif isinstance(built, PeriodicPart):
-            periodic.append(built)
-    bkd, npts = level.bkd(), level.npts()
+    for component, row in enumerate(fields):
+        if row not in problem.boundary_rows():
+            continue
+        for part in level.domain().boundaries():
+            visitor = _CollocationCondition(
+                problem, level, part, row, component, given.get(row)
+            )
+            built = problem.conditions(part)[row].accept(visitor)
+            if isinstance(built, DirichletPart):
+                dirichlet.append(built)
+            elif isinstance(built, RobinPart):
+                robin.append(built)
+            elif isinstance(built, PeriodicPart):
+                periodic.append(built)
+    bkd, npts, ncomponents = level.bkd(), level.npts(), len(fields)
     closures: List[ClosureRowsProtocol[Array]] = []
     if periodic:
-        closures.append(PeriodicRows(bkd, level.mesh().reference_points(), 1, periodic))
+        closures.append(
+            PeriodicRows(bkd, level.mesh().reference_points(), ncomponents, periodic)
+        )
     if robin:
         # After the periodic rows, so a side's own condition wins the
         # nodes it shares with a periodic side.
-        closures.append(RobinRows(bkd, npts, 1, robin))
-    essential = DirichletRows(bkd, npts, 1, dirichlet) if dirichlet else None
+        closures.append(RobinRows(bkd, npts, ncomponents, robin))
+    essential = (
+        DirichletRows(bkd, npts, ncomponents, dirichlet) if dirichlet else None
+    )
     return BoundaryDeclarations(essential, tuple(closures))
 
 
@@ -594,11 +634,11 @@ def collocation_system(
     physics: CollocationInteriorOperatorProtocol[Array],
     problem: ManufacturedProblem,
     level: ChebyshevLevel[Array],
-    row: str,
-    flux: Optional[FluxProviderProtocol[Array]] = None,
+    fluxes: Optional[Mapping[str, FluxProviderProtocol[Array]]] = None,
 ) -> CollocationSystem[Array]:
-    """``physics`` closed by the rows of :func:`boundary_conditions`."""
-    declarations = boundary_conditions(problem, level, row, flux)
+    """``physics`` closed by the rows of :func:`boundary_conditions`; its
+    state stacks the problem's fields in the problem's order."""
+    declarations = boundary_conditions(problem, level, fluxes)
     return CollocationSystem(physics, declarations.essential, declarations.closures)
 
 
@@ -629,34 +669,50 @@ def _quadrature_weights(level: ChebyshevLevel[Array]) -> Array:
 
 
 class CollocationApproximation(Generic[Array]):
-    """One level's collocation solution of a scalar field, with errors
+    """One level's collocation solution of a problem's fields, with errors
     against the exact solution at the collocation nodes.
+
+    The state stacks one component per field in the problem's field
+    order. Errors combine over the fields: the L2 error is the root of the
+    sum of their squared L2 errors, the nodal error their largest.
 
     Parameters
     ----------
     problem : ManufacturedProblem
         The problem solved.
-    row : str
-        The field the solution approximates.
     level : ChebyshevLevel
         The level it was solved on.
     state : Array
-        The nodal values. Shape: (npts,)
+        The nodal values, field by field. Shape: (nfields * npts,)
+
+    Raises
+    ------
+    ValueError
+        If ``state`` is not one value per node per field.
     """
 
     def __init__(
         self,
         problem: ManufacturedProblem,
-        row: str,
         level: ChebyshevLevel[Array],
         state: Array,
     ) -> None:
         bkd = level.bkd()
+        fields = problem.fields()
+        expected = len(fields) * level.npts()
+        if state.shape != (expected,):
+            raise ValueError(
+                f"the state must have shape ({expected},), one value per node "
+                f"for each of {list(fields)}; got {tuple(state.shape)}"
+            )
         exact = PointExpressions(
-            [problem.solution(row)], problem.names(), problem.coordinates(), bkd
-        )(level.mesh().points())[0]
-        self._error = exact - state
-        self._weights = _quadrature_weights(level)
+            [problem.solution(row) for row in fields],
+            problem.names(),
+            problem.coordinates(),
+            bkd,
+        )(level.mesh().points())
+        self._error = bkd.reshape(exact, (-1,)) - state
+        self._weights = bkd.tile(_quadrature_weights(level), (len(fields),))
         self._bkd, self._state, self._h = bkd, state, level.h()
         self._nodes = max(level.mesh().npts_per_dim())
 
@@ -669,25 +725,28 @@ class CollocationApproximation(Generic[Array]):
         return self._nodes
 
     def state(self) -> Array:
-        """The nodal values. Shape: (npts,)"""
+        """The nodal values, field by field. Shape: (nfields * npts,)"""
         return self._state
 
     def l2_error(self) -> float:
         r""":math:`\|u^* - u_h\|_{L^2}` by the collocation quadrature of the
-        squared nodal error: exact for the interpolant of the error when
-        its square is in the quadrature's polynomial space."""
+        squared nodal error, summed over the fields: exact for the
+        interpolant of the error when its square is in the quadrature's
+        polynomial space."""
         bkd = self._bkd
         return math.sqrt(bkd.to_float(bkd.sum(self._weights * self._error**2)))
 
     def nodal_error(self) -> float:
-        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the collocation nodes."""
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the collocation nodes
+        and the fields."""
         bkd = self._bkd
         return bkd.to_float(bkd.max(bkd.abs(self._error)))
 
 
 class CollocationDiscretizer(Generic[Array]):
-    """Solves a steady scalar problem with this stack at every level of a
-    family.
+    """Solves a steady problem with this stack at every level of a family.
+    The factory's system stacks the problem's fields in the problem's
+    order.
 
     Each level: the factory's system, the steady residual
     (``collocation_steady_residual``), and ``SteadySystem`` with a dense
@@ -724,8 +783,8 @@ class CollocationDiscretizer(Generic[Array]):
         Raises
         ------
         ValueError
-            If ``problem`` is transient, has no domain, or has more than
-            one field, or a system's state is not one value per node.
+            If ``problem`` is transient or has no domain, or a system's
+            state is not one value per node per field.
         RuntimeError
             If a solve does not converge.
         """
@@ -737,18 +796,14 @@ class CollocationDiscretizer(Generic[Array]):
         if domain is None:
             raise ValueError("CollocationDiscretizer needs a domain; this is an ODE")
         fields = problem.fields()
-        if len(fields) != 1:
-            raise ValueError(
-                f"CollocationDiscretizer solves one field, got {list(fields)}"
-            )
         approximations = []
         for level in self._levels.levels(domain):
             system = self._factory.system(problem, level)
             bkd, nstates = level.bkd(), system.nstates()
-            if nstates != level.npts():
+            if nstates != len(fields) * level.npts():
                 raise ValueError(
                     f"the system has {nstates} states, not one per node "
-                    f"({level.npts()})"
+                    f"({level.npts()}) for each of {list(fields)}"
                 )
             steady = SteadySystem(
                 collocation_steady_residual(system),
@@ -761,7 +816,7 @@ class CollocationDiscretizer(Generic[Array]):
                     f"the solve on {level!r} did not converge: {point.info().message}"
                 )
             approximations.append(
-                CollocationApproximation(problem, fields[0], level, point.state()[:, 0])
+                CollocationApproximation(problem, level, point.state()[:, 0])
             )
         return approximations
 

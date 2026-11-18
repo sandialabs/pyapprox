@@ -80,7 +80,7 @@ class _Helmholtz:
             wave_number_sq=self._physics_k2,
             forcing=forcing(problem, "u", level),
         )
-        return collocation_system(physics, problem, level, "u", flux=physics)
+        return collocation_system(physics, problem, level, {"u": physics})
 
     def __repr__(self) -> str:
         return f"_Helmholtz({self._k2}, physics={self._physics_k2})"
