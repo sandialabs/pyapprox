@@ -308,8 +308,13 @@ class TestGeqp3FaithfulDeepSpectrum:
         assert err < 1e-9
 
     def test_numpy_paths_agree_tightly(self):
-        # The two numpy paths (vectorized-generic and numba) share LAPACK-style
-        # arithmetic, so they must agree on rank and R-diagonal near bit-level.
+        # The two numpy paths (vectorized-generic and numba) must agree on rank
+        # and on the R-diagonal to roundoff relative to R[0,0]. A per-entry
+        # relative tolerance would be wrong: the diagonal spans about 1e10, and
+        # its smallest entries carry an absolute error of order eps * R[0,0]
+        # that differs between the two paths (measured: up to 2.5% relative on
+        # the smallest entry, 7e-12 relative to R[0,0], numba 0.68.1 against
+        # numpy 2.5.4).
         A_np = _hard_matrix(seed=2)
         rds = {}
         ranks = {}
@@ -321,9 +326,10 @@ class TestGeqp3FaithfulDeepSpectrum:
                 np.asarray(bkd.to_numpy(fac.rdiag()), float))[::-1]
         assert ranks["numpy-numba"] == ranks["numpy-generic"]
         n = min(len(rds["numpy-numba"]), len(rds["numpy-generic"]))
-        np.testing.assert_allclose(
-            rds["numpy-numba"][:n], rds["numpy-generic"][:n],
-            rtol=1e-10, atol=1e-14,
+        ref = rds["numpy-generic"][:n]
+        bkd.assert_allclose(
+            bkd.asarray(rds["numpy-numba"][:n]), bkd.asarray(ref),
+            rtol=0.0, atol=1e-10 * float(ref[0]),
         )
 
     def test_torch_agrees_in_resolvable_range(self):
