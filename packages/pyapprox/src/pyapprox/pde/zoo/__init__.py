@@ -1,9 +1,5 @@
 """Zoo of pre-configured forward models for common PDE problems."""
 
-from .diffusion import (
-    create_steady_diffusion_1d,
-    create_transient_diffusion_1d,
-)
 from .elastic_bar_1d import (
     create_linear_elastic_bar_1d,
 )
@@ -28,8 +24,6 @@ __all__ = [
     "ParabolicInlet",
     "ZeroVelocity",
     "build_obstructed_mesh",
-    "create_steady_diffusion_1d",
-    "create_transient_diffusion_1d",
     "create_linear_elastic_bar_1d",
     "create_hyperelastic_bar_1d",
     "create_linear_pressurized_cylinder_2d",
