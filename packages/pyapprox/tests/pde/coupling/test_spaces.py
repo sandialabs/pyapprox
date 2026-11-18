@@ -89,7 +89,7 @@ def test_facet_space_dofs_and_mass(
     bkd.assert_allclose(matrix, matrix.T, rtol=1e-12)
     eigenvalues, _ = bkd.eigh(matrix)
     assert bkd.to_float(bkd.min(eigenvalues)) > 0.0
-    ones = space.vector_space().zeros() + 1.0
+    ones = bkd.ones((space.descriptor().size, 1))
     total = bkd.sum(ones * mass.apply(ones))
     expected = sum(topo.entity_measure(f) for f in faces)
     bkd.assert_allclose(
@@ -183,7 +183,7 @@ def test_continuous_mass_integrates_linears(
         f_centroid = 1.0 + sum((j + 1) * x for j, x in enumerate(centroid))
         integral += topo.entity_measure(face) * f_centroid
     f = bkd.reshape(bkd.asarray(values), (len(values), 1))
-    ones = space.vector_space().zeros() + 1.0
+    ones = bkd.ones((space.descriptor().size, 1))
     total = bkd.sum(ones * mass.apply(f))
     bkd.assert_allclose(
         bkd.reshape(total, (1,)), bkd.asarray([integral]), rtol=1e-12
@@ -284,7 +284,7 @@ def test_faces_may_differ_where_they_conform(bkd: Backend[Array]) -> None:
     space = ContinuousSkeletonSpace(square, mixed, VertexWeightNumbering(square, mixed))
     assert space.descriptor().size == base.descriptor().size + 2
     assert len(space.face_dofs(face)) == 4
-    ones = space.vector_space().zeros() + 1.0
+    ones = bkd.ones((space.descriptor().size, 1))
     total = bkd.sum(ones * DenseMassAssembler(bkd).assemble(space).apply(ones))
     expected = sum(square.entity_measure(f) for f in space.faces())
     bkd.assert_allclose(bkd.reshape(total, (1,)), bkd.asarray([expected]), rtol=1e-12)

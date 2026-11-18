@@ -69,6 +69,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendRowSet,
+    BackendVectorSpace,
     DenseFormat,
 )
 from pyapprox.util.linalg.operators import MatrixFree
@@ -251,7 +252,7 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
     numbering = VertexWeightNumbering(topo, bases)
     skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
-    space = skeleton.vector_space()
+    space = BackendVectorSpace(skeleton.descriptor(), bkd)
     pieces = [
         _Piece(bkd, True, (0, 1.0), (_NCELLS,)).response(),
         _Piece(bkd, True, (_NCELLS, 2.0), (0,)).response(),

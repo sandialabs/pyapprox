@@ -13,10 +13,7 @@ from dataclasses import dataclass
 from typing import Generic, Mapping, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import (
-    BackendVectorSpace,
-    backend_dtype_name,
-)
+from pyapprox.util.linalg.backend_dense import backend_dtype_name
 from pyapprox.util.linalg.operators import SpaceDescriptor
 
 B = TypeVar("B")
@@ -196,14 +193,11 @@ class FacetSkeletonSpace(Generic[Array]):
         self._descriptor = SpaceDescriptor(
             "skeleton", size, backend_dtype_name(self._bkd)
         )
-        self._space = BackendVectorSpace(self._descriptor, self._bkd)
 
     def descriptor(self) -> SpaceDescriptor:
+        """The skeleton space's descriptor; its vectors come from the
+        stack's space for it."""
         return self._descriptor
-
-    def vector_space(self) -> BackendVectorSpace[Array]:
-        """The stack's space of skeleton vectors."""
-        return self._space
 
     def entity_dofs(self, entity: int) -> tuple[int, ...]:
         """The DOFs on ``entity``: its face's block, empty below faces."""
@@ -354,14 +348,11 @@ class ContinuousSkeletonSpace(Generic[Array]):
         self._descriptor = SpaceDescriptor(
             "skeleton", size, backend_dtype_name(self._bkd)
         )
-        self._space = BackendVectorSpace(self._descriptor, self._bkd)
 
     def descriptor(self) -> SpaceDescriptor:
+        """The skeleton space's descriptor; its vectors come from the
+        stack's space for it."""
         return self._descriptor
-
-    def vector_space(self) -> BackendVectorSpace[Array]:
-        """The stack's space of skeleton vectors."""
-        return self._space
 
     def entity_dofs(self, entity: int) -> tuple[int, ...]:
         """The DOFs on ``entity`` itself (not its closure)."""

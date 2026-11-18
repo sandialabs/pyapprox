@@ -73,7 +73,11 @@ from pyapprox.pde.models.galerkin.steady_residual import (
     solve_galerkin_steady,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.backend_dense import BackendDenseLU, BackendRowSet
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseLU,
+    BackendRowSet,
+    BackendVectorSpace,
+)
 from pyapprox.util.linalg.operators import InnerProductSpaceProtocol, MatrixFree
 from pyapprox.util.linalg.operators.krylov import GMRES
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipySparseLU
@@ -197,7 +201,7 @@ def _solve_skeleton(bkd: NumpyBkd, pieces: Sequence[_Response]) -> _Np:
     bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
     numbering = VertexWeightNumbering(topo, bases)
     skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
-    space = skeleton.vector_space()
+    space = BackendVectorSpace(skeleton.descriptor(), bkd)
     subdomains = [
         CoupledSubdomain(
             piece,

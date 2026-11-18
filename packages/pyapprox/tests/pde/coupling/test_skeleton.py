@@ -122,7 +122,7 @@ def _chain(
     bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
     numbering = VertexWeightNumbering(topo, bases)
     skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
-    space = skeleton.vector_space()
+    space = BackendVectorSpace(skeleton.descriptor(), bkd)
     responses, subdomains = [], []
     for s in range(n):
         left = 0.0 if s == 0 else None

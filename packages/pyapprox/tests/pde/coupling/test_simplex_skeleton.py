@@ -219,7 +219,7 @@ def test_mass_integrates_linears(bkd: Backend[Array]) -> None:
     # the area times f at the centroid.
     f = 1.0 + points[0] + 2.0 * points[1] + 3.0 * points[2]
     f = bkd.reshape(f, (f.shape[0], 1))
-    ones = space.vector_space().zeros() + 1.0
+    ones = bkd.ones((space.descriptor().size, 1))
     integral, area = 0.0, 0.0
     for face in space.faces():
         centroid = np.mean([_POINTS[v] for v in topo.face_labels(face)], axis=0)

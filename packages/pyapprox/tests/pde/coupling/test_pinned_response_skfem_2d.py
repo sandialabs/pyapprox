@@ -87,6 +87,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendRowSet,
+    BackendVectorSpace,
     DenseFormat,
 )
 from pyapprox.util.linalg.operators import (
@@ -344,7 +345,7 @@ class _Problem:
         values[pinned, 0] = self._boundary(self.skeleton_coords()[:, pinned])
         return PinnedSkeletonResidual(
             residual,
-            self.skeleton.vector_space(),
+            BackendVectorSpace(self.skeleton.descriptor(), bkd),
             BackendRowSet(self.skeleton.descriptor(), pinned, bkd),
             values,
         )
@@ -352,7 +353,8 @@ class _Problem:
     def solve_skeleton(self, pieces: Sequence[_Piece], dense: bool = False) -> _Np:
         """The skeleton solution: matrix-free Schur and GMRES, or with
         ``dense`` the assembled Schur complement and dense LU."""
-        bkd, space = self.bkd, self.skeleton.vector_space()
+        bkd = self.bkd
+        space = BackendVectorSpace(self.skeleton.descriptor(), bkd)
         subdomains = [
             CoupledSubdomain(
                 piece,
