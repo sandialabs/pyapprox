@@ -31,12 +31,13 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Protocol, Sequence
+from typing import Any, Callable, Optional, Protocol, Sequence, Union
 
 import numpy as np
 from numpy.typing import NDArray
 from skfem import MeshQuad
 
+from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -56,6 +57,7 @@ from pyapprox.pde.coupling.pinned_response import (
     SteadyPinnedPoint,
     SteadyPinnedResponse,
 )
+from pyapprox.pde.coupling.pinning import PinnedSkeletonResidual
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     MatchingNodalTransfer,
@@ -89,15 +91,21 @@ _Np = NDArray[Any]
 _NPOINTS = 5
 _STEADY = TimeWindow.steady()
 _Reaction = Callable[[_Np, _Np], _Np]
+# Essential data on a side: a constant or g(points).
+_Value = Union[float, Callable[[_Np], _Np]]
 _Piece = SteadyPinnedResponse[_Np, _Np, Any]
 
 
 class _TensorQuadMesh:
     """Q1 quadrilaterals on the tensor grid of ``xs`` by ``ys``, with
-    boundaries named left, right, bottom and top."""
+    boundaries named left, right, bottom and top; the nodes at the points
+    ``free`` (shape (2, n)) belong to no named boundary."""
 
-    def __init__(self, xs: _Np, ys: _Np, bkd: NumpyBkd) -> None:
+    def __init__(
+        self, xs: _Np, ys: _Np, bkd: NumpyBkd, free: Optional[_Np] = None
+    ) -> None:
         self._bkd = bkd
+        self._free = np.zeros((2, 0)) if free is None else free
         self._lower = (float(xs[0]), float(ys[0]))
         self._upper = (float(xs[-1]), float(ys[-1]))
         self._mesh = MeshQuad.init_tensor(xs, ys)
@@ -131,7 +139,12 @@ class _TensorQuadMesh:
             "bottom": (1, self._lower[1]),
             "top": (1, self._upper[1]),
         }[boundary_id]
-        return np.where(np.abs(self._nodes[axis] - value) < 1e-12)[0]
+        on_side = np.abs(self._nodes[axis] - value) < 1e-12
+        gaps = np.linalg.norm(
+            self._nodes[:, :, None] - self._free[:, None, :], axis=0
+        )
+        freed = np.any(gaps < 1e-12, axis=1)
+        return np.where(on_side & ~freed)[0]
 
 
 def _forcing(x: _Np) -> _Np:
@@ -191,7 +204,7 @@ class _Partition(Protocol):
 
 
 # A subdomain's mesh coordinates along x and y, and its essential sides.
-_Grid = tuple[_Np, _Np, Sequence[tuple[str, float]]]
+_Grid = tuple[_Np, _Np, Sequence[tuple[str, "_Value"]]]
 _REFERENCE = np.asarray(TensorLagrangeBasis(1, _NPOINTS, NumpyBkd()).nodes()[0])
 
 
@@ -217,8 +230,10 @@ class _Problem:
         grids: Sequence[_Grid],
         whole: _Grid,
         sink: tuple[_Reaction, _Reaction],
+        boundary: Optional[Callable[[_Np], _Np]] = None,
     ) -> None:
         self.bkd = NumpyBkd()
+        self._boundary = boundary
         self.topo, self._geometry = topo, geometry
         self._grids, self._whole = grids, whole
         self._bases = UniformBases(TensorLagrangeBasis(1, _NPOINTS, self.bkd))
@@ -231,8 +246,28 @@ class _Problem:
         """The point of each skeleton DOF. Shape: (2, ndofs)."""
         return skeleton_dof_points(self.skeleton, self._geometry, self._bases)
 
-    def system(self, xs: _Np, ys: _Np, sides: Sequence[tuple[str, float]]) -> Any:
-        mesh = _TensorQuadMesh(xs, ys, self.bkd)
+    def pinned(self) -> list[int]:
+        """The skeleton DOFs pinned to the boundary data: every DOF on the
+        physical boundary when there is boundary data, else none."""
+        if self._boundary is None:
+            return []
+        return [
+            dof
+            for e in range(self.topo.nentities())
+            if self.topo.on_boundary(e)
+            for dof in self.skeleton.entity_dofs(e)
+        ]
+
+    def system(
+        self,
+        xs: _Np,
+        ys: _Np,
+        sides: Sequence[tuple[str, _Value]],
+        free: Optional[_Np] = None,
+    ) -> Any:
+        """The system on the grid ``xs`` by ``ys``; essential rows on
+        ``sides`` except at the points ``free`` (shape (2, n))."""
+        mesh = _TensorQuadMesh(xs, ys, self.bkd, free)
         basis = LagrangeBasis(mesh, degree=1)
         physics = AdvectionDiffusionReaction(
             basis=basis,
@@ -241,16 +276,25 @@ class _Problem:
             reaction=CallableReaction(*self.sink),
             forcing=TimeIndependent(_forcing),
         )
-        conditions = [DirichletBC(basis, side, v, self.bkd) for side, v in sides]
+        conditions = [
+            DirichletBC(
+                basis,
+                side,
+                v if isinstance(v, float) else TimeIndependent(v),
+                self.bkd,
+            )
+            for side, v in sides
+        ]
         return compose_galerkin_system(physics, conditions), mesh
 
     def piece(self, subdomain: int) -> tuple[_Piece, _Np, tuple[int, ...]]:
         """Subdomain ``subdomain``'s response, its node points and its
         skeleton DOFs."""
-        system, mesh = self.system(*self._grids[subdomain])
-        disc = skfem_discretization(system)
         dofs = subdomain_port_dofs(self.topo, self.skeleton, subdomain)
         skel = self.skeleton_coords()
+        # Pinned port nodes take g through the skeleton, not as essentials.
+        system, mesh = self.system(*self._grids[subdomain], skel[:, list(dofs)])
+        disc = skfem_discretization(system)
         ports = [_node_at(mesh.nodes(), skel[:, d]) for d in dofs]
         states, theta = disc.space(), disc.parameter_space(len(ports))
         # The stack's space has an inner product; its declared type does not.
@@ -297,7 +341,17 @@ class _Problem:
             for s, piece in enumerate(pieces)
         ]
         schur: MatrixFreeSchur[_Np, _Np] = MatrixFreeSchur()
-        residual = SkeletonResidual(space, subdomains, schur)
+        residual: ResidualProtocol[_Np, MatrixFree] = SkeletonResidual(
+            space, subdomains, schur
+        )
+        pinned = self.pinned()
+        if self._boundary is not None:
+            g = self._boundary(self.skeleton_coords()[:, pinned])
+            residual = PinnedSkeletonResidual(
+                residual,
+                BackendPortRows(self.skeleton.descriptor(), pinned, bkd),
+                bkd.reshape(g, (len(pinned), 1)),
+            )
         setups: RecomputeAlways[_Np, MatrixFree] = RecomputeAlways(
             GMRES(space, bkd, tol=1e-13)
         )
@@ -330,16 +384,19 @@ def _check(problem: _Problem) -> None:
         np.add.at(balance, list(dofs), point.output())
         rows = [_node_at(ref_nodes, nodes[:, k]) for k in range(nodes.shape[1])]
         bkd.assert_allclose(point.state(), reference[rows], atol=1e-10)
+    # Pinned DOFs carry the boundary's reaction, not a balance.
+    balance[problem.pinned()] = 0.0
     bkd.assert_allclose(balance, bkd.zeros(balance.shape), atol=1e-10)
 
 
 def _box(
     ncells: tuple[int, int],
     sink: tuple[_Reaction, _Reaction],
-    essentials: Sequence[tuple[str, float]],
+    essentials: Sequence[tuple[str, _Value]],
+    boundary: Optional[Callable[[_Np], _Np]] = None,
 ) -> _Problem:
     """A box partition of the unit square, each cell meshed on its
-    Lobatto grid."""
+    Lobatto grid; ``boundary`` pins the skeleton's boundary DOFs."""
     topo = TensorBoxPartition(ncells)
     ex, ey = (np.linspace(0.0, 1.0, n + 1) for n in ncells)
     grids: list[_Grid] = []
@@ -361,7 +418,8 @@ def _box(
         _union(*(_lobatto(ey[i], ey[i + 1]) for i in range(ncells[1]))),
         essentials,
     )
-    return _Problem(topo, TensorBoxGeometry(topo, NumpyBkd()), grids, whole, sink)
+    geometry = TensorBoxGeometry(topo, NumpyBkd())
+    return _Problem(topo, geometry, grids, whole, sink, boundary)
 
 
 # The hanging-vertex partition: subdomain 0 is [0, 1/2] x [0, 1], 1 is
@@ -438,6 +496,39 @@ def test_four_subdomains_equal_the_single_domain(cubic: bool) -> None:
     problem = _box((2, 2), sink, [])
     assert len(problem.skeleton_coords()[0]) == 4 * (_NPOINTS - 2) + 5
     _check(problem)
+
+
+def _boundary_data(x: _Np) -> _Np:
+    data: _Np = 1.0 + x[0] * x[1] + 0.5 * x[1] ** 2
+    return data
+
+
+@pytest.mark.parametrize("cubic", [False, True])
+def test_dirichlet_closure_dofs_are_pinned(cubic: bool) -> None:
+    sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
+        _linear_sink, _linear_sink_deriv
+    )
+    sides = [(s, _boundary_data) for s in ("left", "right", "bottom", "top")]
+    problem = _box((2, 2), sink, sides, boundary=_boundary_data)
+    # The four interface ends, one on each outer edge.
+    assert len(problem.pinned()) == 4
+    _check(problem)
+
+
+def test_pinning_rejects_bad_input() -> None:
+    problem = _box((2, 2), (_linear_sink, _linear_sink_deriv), [])
+    space = problem.skeleton.vector_space()
+    rows = BackendPortRows(problem.skeleton.descriptor(), [0, 1], problem.bkd)
+    residual: SkeletonResidual[_Np, _Np, _Np, MatrixFree] = SkeletonResidual(
+        space, [], MatrixFreeSchur()
+    )
+    g, wrong = problem.bkd.zeros((2, 1)), problem.bkd.zeros((3, 1))
+    with pytest.raises(ValueError, match="shape"):
+        PinnedSkeletonResidual(residual, rows, wrong)
+    with pytest.raises(TypeError, match="ResidualProtocol"):
+        PinnedSkeletonResidual(object(), rows, g)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="PortRowsProtocol"):
+        PinnedSkeletonResidual(residual, object(), g)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("cubic", [False, True])
