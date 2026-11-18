@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from pyapprox.util.backends.numpy import NumpyBkd
+from tests._helpers.markers import matching_target
 
 if TYPE_CHECKING:
     from pyapprox.util.backends.torch import TorchBkd
@@ -139,15 +140,10 @@ _SLOW_TIERS = {
 }
 
 
-def _extract_backend_name(
-    item: pytest.Item,
-) -> Optional[str]:
-    """Extract backend name from a test item's parametrize ID, or None."""
-    nodeid = item.nodeid
-    for name, _ in _BACKEND_FACTORIES:
-        if f"[{name}" in nodeid:  # handles [NumpyBkd] and [NumpyBkd-...] combos
-            return name
-    return None
+def _parametrize_id(item: pytest.Item) -> Optional[str]:
+    """The item's combined parametrize id, or None if not parametrized."""
+    callspec = getattr(item, "callspec", None)
+    return None if callspec is None else str(callspec.id)
 
 
 def pytest_collection_modifyitems(
@@ -156,21 +152,22 @@ def pytest_collection_modifyitems(
 ) -> None:
     """Skip slow tests based on env vars and per-backend markers."""
     for item in items:
-        backend_name = _extract_backend_name(item)
         for marker_name, (enabled, tier_label, env_var) in _SLOW_TIERS.items():
             marker = item.get_closest_marker(marker_name)
             if marker is None:
                 continue
-            # marker.args contains backend names, e.g. ("*",) or ("TorchBkd",)
-            target_backends = marker.args if marker.args else ("*",)
-            # Check if this test's backend matches any target
-            applies = "*" in target_backends or (
-                backend_name is not None and backend_name in target_backends
+            # marker.args names backends or stack cases, e.g. ("*",),
+            # ("TorchBkd",) or ("dense-torch", "mock").
+            targets = tuple(marker.args) if marker.args else ("*",)
+            matched = (
+                None
+                if "*" in targets
+                else matching_target(_parametrize_id(item), targets)
             )
-            if applies and not enabled:
+            if ("*" in targets or matched is not None) and not enabled:
                 item.add_marker(
                     pytest.mark.skip(
-                        reason=f"{tier_label} on {backend_name or 'all'}. "
+                        reason=f"{tier_label} on {matched or 'all'}. "
                         f"Set {env_var}=1 to run."
                     )
                 )

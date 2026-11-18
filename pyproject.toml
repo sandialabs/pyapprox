@@ -28,9 +28,9 @@ filterwarnings = [
     "ignore:The balance properties of Sobol:UserWarning",
 ]
 markers = [
-    "slow_on: marks tests as slow (>5s). Args: backend names or '*' for all.",
-    "slower_on: marks tests as slower (>30s). Args: backend names or '*' for all.",
-    "slowest_on: marks tests as slowest (>60s). Args: backend names or '*' for all.",
+    "slow_on: marks tests as slow (>5s). Args: backend or stack-case ids, or '*' for all.",
+    "slower_on: marks tests as slower (>30s). Args: backend or stack-case ids, or '*' for all.",
+    "slowest_on: marks tests as slowest (>60s). Args: backend or stack-case ids, or '*' for all.",
 ]
 
 [tool.coverage.run]
