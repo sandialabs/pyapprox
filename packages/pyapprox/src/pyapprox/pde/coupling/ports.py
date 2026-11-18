@@ -136,18 +136,46 @@ class BackendPortRows(Generic[Array]):
         return y + self._bkd.dot(self._select.T, block)
 
 
-class _SpaceWithEntityDofs(Protocol):
-    def entity_dofs(self, entity: int) -> tuple[int, ...]: ...
+@runtime_checkable
+class EntityDofsProtocol(Protocol):
+    """What :func:`subdomain_port_dofs` asks of a skeleton space: the DOFs
+    each skeleton entity carries. Any discretization of the interface
+    provides it, whatever its faces' shape or basis."""
+
+    def entity_dofs(self, entity: int) -> tuple[int, ...]:
+        """The DOFs on ``entity`` itself, empty if it carries none."""
+        ...
 
 
-class _SubdomainEntities(Protocol):
-    def subdomain_entities(self, subdomain: int) -> tuple[int, ...]: ...
+@runtime_checkable
+class SubdomainEntitiesProtocol(Protocol):
+    """What :func:`subdomain_port_dofs` asks of a partition: the skeleton
+    entities on each subdomain's boundary."""
+
+    def subdomain_entities(self, subdomain: int) -> tuple[int, ...]:
+        """The skeleton entities on ``subdomain``'s boundary."""
+        ...
 
 
 def subdomain_port_dofs(
-    topology: _SubdomainEntities, space: _SpaceWithEntityDofs, subdomain: int
+    topology: SubdomainEntitiesProtocol, space: EntityDofsProtocol, subdomain: int
 ) -> tuple[int, ...]:
-    """The skeleton DOFs on ``subdomain``'s closure entities, increasing."""
+    """The skeleton DOFs on ``subdomain``'s closure entities, increasing.
+
+    Raises
+    ------
+    TypeError
+        If ``topology`` or ``space`` does not satisfy its protocol.
+    """
+    if not isinstance(topology, SubdomainEntitiesProtocol):
+        raise TypeError(
+            "topology must satisfy SubdomainEntitiesProtocol, got "
+            f"{type(topology).__name__}"
+        )
+    if not isinstance(space, EntityDofsProtocol):
+        raise TypeError(
+            f"space must satisfy EntityDofsProtocol, got {type(space).__name__}"
+        )
     return tuple(
         sorted(
             dof

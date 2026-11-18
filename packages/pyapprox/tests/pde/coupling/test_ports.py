@@ -16,12 +16,17 @@ from numpy.typing import NDArray
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
+    EntityDofsProtocol,
     MatchingNodalTransfer,
     PortRowsProtocol,
     PortTransferProtocol,
+    SubdomainEntitiesProtocol,
     subdomain_port_dofs,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace
+from pyapprox.pde.coupling.spaces import (
+    ContinuousSkeletonSpace,
+    FacetSkeletonSpace,
+)
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
@@ -139,3 +144,43 @@ def test_backend_port_rows_reject_bad_input(numpy_bkd: Backend[Array]) -> None:
         rows.add_to(numpy_bkd.zeros((4, 1)), numpy_bkd.zeros((3, 1)))
     with pytest.raises(TypeError):
         MatchingNodalTransfer(object())  # type: ignore[arg-type]
+
+
+def test_both_spaces_give_entity_dofs() -> None:
+    topo = TensorBoxPartition((2, 2))
+    basis = TensorLagrangeBasis(1, 3, NumpyBkd())
+    assert isinstance(topo, SubdomainEntitiesProtocol)
+    for space in (
+        ContinuousSkeletonSpace(topo, basis),
+        FacetSkeletonSpace(topo, basis),
+    ):
+        assert isinstance(space, EntityDofsProtocol)
+        dofs = subdomain_port_dofs(topo, space, 0)
+        assert list(dofs) == sorted(set(dofs))
+
+
+class _TwoTriangleSkeleton:
+    """A hand-numbered interface, not a box partition: three subdomains
+    meeting along two edges (entities 0 and 1) at a vertex (entity 2)
+    with one DOF, each edge carrying two interior DOFs."""
+
+    def subdomain_entities(self, subdomain: int) -> tuple[int, ...]:
+        return ((0, 2), (0, 1, 2), (1, 2))[subdomain]
+
+    def entity_dofs(self, entity: int) -> tuple[int, ...]:
+        return ((1, 2), (3, 4), (0,))[entity]
+
+
+def test_port_dofs_need_no_box_partition() -> None:
+    skeleton = _TwoTriangleSkeleton()
+    assert subdomain_port_dofs(skeleton, skeleton, 0) == (0, 1, 2)
+    assert subdomain_port_dofs(skeleton, skeleton, 1) == (0, 1, 2, 3, 4)
+    assert subdomain_port_dofs(skeleton, skeleton, 2) == (0, 3, 4)
+
+
+def test_port_dofs_reject_bad_input() -> None:
+    topo, space = _skeleton((2,), 2)
+    with pytest.raises(TypeError, match="SubdomainEntitiesProtocol"):
+        subdomain_port_dofs(object(), space, 0)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="EntityDofsProtocol"):
+        subdomain_port_dofs(topo, object(), 0)  # type: ignore[arg-type]
