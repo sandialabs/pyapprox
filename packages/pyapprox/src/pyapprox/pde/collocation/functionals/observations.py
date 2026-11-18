@@ -1,6 +1,7 @@
-r"""Linear observations of a 1D collocation state.
+r"""Linear observations of a collocation state.
 
-A point value off the nodes and a subdomain integral are each a weight
+A point value off the nodes, a subdomain integral and an average radial
+displacement are each a weight
 column :math:`w` over the nodes, so the observation is :math:`H = W^\top`
 for the stacked columns. Each factory returns a
 :class:`~pyapprox.implicitfunction.observation_terms.RowWeights` reading
@@ -28,10 +29,24 @@ from pyapprox.util.linalg.backend_dense import BackendRowSet, backend_dtype_name
 from pyapprox.util.linalg.operators import SpaceDescriptor
 
 
-def _every_node(bkd: Backend[Array], npts: int) -> BackendRowSet[Array]:
-    """The row set of every node of a scalar state of ``npts`` nodes."""
-    descriptor = SpaceDescriptor("state", npts, backend_dtype_name(bkd))
-    return BackendRowSet(descriptor, range(npts), bkd)
+def _every_node(bkd: Backend[Array], nstates: int) -> BackendRowSet[Array]:
+    """The row set of every entry of a state of ``nstates`` entries."""
+    descriptor = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
+    return BackendRowSet(descriptor, range(nstates), bkd)
+
+
+def _selection(
+    bkd: Backend[Array], indices: Sequence[int], offset: int, nstates: int
+) -> Array:
+    """The ``(nstates, len(indices))`` 0/1 matrix whose column ``k``
+    selects entry ``indices[k] + offset``, built from plain integers
+    (constant data)."""
+    return bkd.asarray(
+        [
+            [1.0 if row == index + offset else 0.0 for index in indices]
+            for row in range(nstates)
+        ]
+    )
 
 
 def point_observation(
@@ -104,3 +119,53 @@ def subdomain_integral_observation(
             )
         weights = weights * coefficient
     return RowWeights(bkd, _every_node(bkd, npts), bkd.reshape(weights, (npts, 1)))
+
+
+def average_radial_displacement_observation(
+    bkd: Backend[Array],
+    mesh_indices: Sequence[int],
+    cos_theta: Array,
+    sin_theta: Array,
+    npts: int,
+) -> RowWeights[Array]:
+    r"""The average radial displacement
+    :math:`\frac{1}{n} \sum_k (u_{x,k} \cos\theta_k + u_{y,k} \sin\theta_k)`
+    over ``n`` nodes of a component-stacked 2D displacement
+    :math:`[u_x; u_y]` (``2 * npts`` entries).
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    mesh_indices : sequence of int
+        The nodes, each in ``[0, npts)``.
+    cos_theta, sin_theta : Array
+        :math:`\cos\theta_k` and :math:`\sin\theta_k`, each shape ``(n,)``.
+    npts : int
+        The number of mesh nodes.
+
+    Raises
+    ------
+    ValueError
+        If ``mesh_indices`` is empty or out of range, or an angle array is
+        not of shape ``(n,)``.
+    """
+    indices = [int(index) for index in mesh_indices]
+    if not indices:
+        raise ValueError("an average needs at least one node")
+    if any(index < 0 or index >= npts for index in indices):
+        raise ValueError(f"node indices {indices} are not all in [0, {npts})")
+    count = len(indices)
+    for name, angles in (("cos_theta", cos_theta), ("sin_theta", sin_theta)):
+        if tuple(angles.shape) != (count,):
+            raise ValueError(
+                f"{name} must have shape ({count},), got {tuple(angles.shape)}"
+            )
+    nstates = 2 * npts
+    weights = (
+        _selection(bkd, indices, 0, nstates) @ cos_theta
+        + _selection(bkd, indices, npts, nstates) @ sin_theta
+    ) / count
+    return RowWeights(
+        bkd, _every_node(bkd, nstates), bkd.reshape(weights, (nstates, 1))
+    )
