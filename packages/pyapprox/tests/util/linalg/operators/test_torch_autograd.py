@@ -29,7 +29,7 @@ from pyapprox.util.linalg.operators import (
     ScaledSum,
     SpaceDescriptor,
 )
-from tests._helpers.linalg.stacks import random_matrix
+from tests._helpers.linalg.stack_case import random_matrix
 
 _U = SpaceDescriptor("u", 5)
 _P = SpaceDescriptor("p", 3)

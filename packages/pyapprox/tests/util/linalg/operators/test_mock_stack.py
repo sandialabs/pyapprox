@@ -37,7 +37,7 @@ from tests._helpers.linalg.mock_stack import (
     peek,
     wrap,
 )
-from tests._helpers.linalg.stacks import random_matrix, spd_matrix
+from tests._helpers.linalg.stack_case import random_matrix, spd_matrix
 
 _BKD = NumpyBkd()
 _U = SpaceDescriptor("u", 5)

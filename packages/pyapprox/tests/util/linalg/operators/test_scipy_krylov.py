@@ -28,7 +28,7 @@ from pyapprox.util.linalg.scipy_stack import (
     ScipyCSROperator,
     ScipyGMRES,
 )
-from tests._helpers.linalg.stacks import random_matrix, spd_matrix
+from tests._helpers.linalg.stack_case import random_matrix, spd_matrix
 
 _BKD = NumpyBkd()
 _U = SpaceDescriptor("u", 6)

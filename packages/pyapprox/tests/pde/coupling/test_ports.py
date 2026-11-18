@@ -38,14 +38,8 @@ from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.linalg.operators import SpaceDescriptor
 from tests._helpers.coupling import MockPortRows
 from tests._helpers.linalg.mock_stack import MockFormat, MockVector
-from tests._helpers.linalg.stacks import (
-    A,
-    F,
-    TypedStackCase,
-    V,
-    dense_case,
-    mock_case,
-)
+from tests._helpers.linalg.stack_case import A, F, TypedStackCase, V
+from tests._helpers.linalg.stacks import dense_case, mock_case
 
 
 @dataclass

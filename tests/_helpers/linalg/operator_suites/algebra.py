@@ -1,0 +1,212 @@
+"""Stack-generic operator suites: ``ScaledSumSuite``, ``TransposedSuite``, ``ProductSuite``, ``AsMatrixFreeSuite``.
+
+Each runs on the stack its ``case`` fixture supplies
+(``TypedStackCase``); a stack's test directory subclasses it and
+defines the fixture.
+"""
+
+import numpy as np
+import pytest
+
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    FormatProtocol,
+    MatrixFree,
+    OperatorProperties,
+    Product,
+    ScaledSum,
+    SpaceDescriptor,
+    SpaceMismatchError,
+    Transposed,
+    as_matrix_free,
+)
+from tests._helpers.linalg.stack_case import (
+    A,
+    F,
+    TypedStackCase,
+    V,
+    random_matrix,
+    spd_matrix,
+)
+
+_U = SpaceDescriptor("u", 5)
+_P = SpaceDescriptor("p", 3)
+_SPD = OperatorProperties(symmetric=True, spd=True)
+
+
+class ScaledSumSuite:
+    def test_action_and_format_equal_the_matrix_sum(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        bkd = case.bkd
+        a, b = random_matrix(5, 5, 0), spd_matrix(5, 1)
+        op = ScaledSum(
+            [
+                (2.0, case.build(a, _U)),
+                (-0.5, case.build(b, _U)),
+                (3.0, case.identity(_U)),
+            ],
+            case.space(_U),
+        )
+        expected = case.dense(2.0 * a - 0.5 * b + 3.0 * np.eye(5))
+        x = case.vec(_U, 2, 2)
+        case.assert_vector(op.apply(x), case.times(expected, x), rtol=1e-12)
+        case.assert_vector(op.apply_transpose(x), case.times(expected.T, x), rtol=1e-12)
+        assert isinstance(op, ActionOperatorProtocol)
+        assert isinstance(op.format(), case.format_type)
+        bkd.assert_allclose(case.format_dense(op.format()), expected, rtol=1e-12)
+        case.assert_dot_identity(op, 3)
+
+    def test_format_is_computed_once(self, case: TypedStackCase[V, F, A]) -> None:
+        op = ScaledSum([(1.0, case.identity(_U))], case.space(_U))
+        assert op.format() is op.format()
+
+    def test_apply_with_out(self, case: TypedStackCase[V, F, A]) -> None:
+        bkd = case.bkd
+        a = random_matrix(5, 5, 4)
+        op = ScaledSum(
+            [(1.0, case.build(a, _U)), (2.0, case.identity(_U))], case.space(_U)
+        )
+        x = case.vec(_U, 1, 5)
+        out = case.vector(bkd.zeros((5, 1)), _U)
+        result = op.apply(x, out=out)
+        case.assert_vector(result, case.times(case.dense(a + 2.0 * np.eye(5)), x))
+        assert (result is out) == case.in_place
+
+    def test_rectangular_needs_both_spaces(self, case: TypedStackCase[V, F, A]) -> None:
+        a, b = random_matrix(3, 5, 6), random_matrix(3, 5, 7)
+        terms = [(1.0, case.build(a, _U, _P)), (-1.0, case.build(b, _U, _P))]
+        op = ScaledSum(terms, case.space(_P), case.space(_U))
+        y = case.vec(_P, 1, 8)
+        case.assert_vector(
+            op.apply_transpose(y), case.times(case.dense(a - b).T, y), rtol=1e-12
+        )
+        with pytest.raises(SpaceMismatchError, match="domain space"):
+            ScaledSum(terms, case.space(_P))
+
+    def test_rejects_mismatched_terms(self, case: TypedStackCase[V, F, A]) -> None:
+        with pytest.raises(SpaceMismatchError, match="summed operator"):
+            ScaledSum(
+                [
+                    (1.0, case.identity(_U)),
+                    (1.0, case.identity(SpaceDescriptor("v", 5))),
+                ],
+                case.space(_U),
+            )
+        with pytest.raises(SpaceMismatchError, match="space of a scaled sum"):
+            ScaledSum([(1.0, case.identity(_U))], case.space(SpaceDescriptor("v", 5)))
+        with pytest.raises(ValueError, match="at least one term"):
+            ScaledSum([], case.space(_U))
+
+    @pytest.mark.parametrize("stored_first", [True, False], ids=["stored", "free"])
+    def test_mixed_formats_apply_but_have_no_format(
+        self, case: TypedStackCase[V, F, A], stored_first: bool
+    ) -> None:
+        """Either order: the action works, asking for storage is refused
+        clearly (also by a direct solver), and as_matrix_free uses it."""
+        a, b = random_matrix(5, 5, 9), random_matrix(5, 5, 10)
+        stored = case.build(a, _U)
+        free = as_matrix_free(case.build(b, _U))
+        pair: list[tuple[float, ActionOperatorProtocol[V, FormatProtocol]]] = [
+            (1.0, stored),
+            (2.0, free),
+        ]
+        terms = pair if stored_first else pair[::-1]
+        op = ScaledSum(terms, case.space(_U))
+        x = case.vec(_U, 1, 11)
+        case.assert_vector(
+            op.apply(x), case.times(case.dense(a + 2.0 * b), x), rtol=1e-12
+        )
+        with pytest.raises(TypeError, match="different formats"):
+            op.format()
+        with pytest.raises(TypeError, match="different formats"):
+            case.direct_solver().setup(op)  # type: ignore[arg-type]
+        assert as_matrix_free(op).format() == MatrixFree()
+        case.assert_vector(
+            as_matrix_free(op).apply(x),
+            case.times(case.dense(a + 2.0 * b), x),
+            rtol=1e-12,
+        )
+
+
+class TransposedSuite:
+    def test_action_format_and_layouts(self, case: TypedStackCase[V, F, A]) -> None:
+        bkd = case.bkd
+        a = random_matrix(3, 5, 9)
+        op = Transposed(case.build(a, _U, _P))
+        assert op.domain() == _P and op.range() == _U
+        y = case.vec(_P, 2, 10)
+        case.assert_vector(op.apply(y), case.times(case.dense(a).T, y), rtol=1e-12)
+        x = case.vec(_U, 2, 11)
+        case.assert_vector(op.apply_transpose(x), case.times(case.dense(a), x))
+        assert isinstance(op.format(), case.format_type)
+        bkd.assert_allclose(case.format_dense(op.format()), case.dense(a).T)
+        case.assert_dot_identity(op, 12)
+
+    def test_keeps_properties(self, case: TypedStackCase[V, F, A]) -> None:
+        op = case.build(spd_matrix(5, 13), _U, properties=_SPD)
+        assert Transposed(op).properties() == _SPD
+
+
+class ProductSuite:
+    def test_action_matches_the_matrix_product(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """(3x5)(5x5)(5x3): a 3x3 operator on p, applied right to left."""
+        a, b, c = random_matrix(3, 5, 14), spd_matrix(5, 15), random_matrix(5, 3, 16)
+        op = Product([case.build(a, _U, _P), case.build(b, _U), case.build(c, _P, _U)])
+        assert op.domain() == _P and op.range() == _P
+        expected = case.dense(a @ b @ c)
+        y = case.vec(_P, 2, 17)
+        case.assert_vector(op.apply(y), case.times(expected, y), rtol=1e-12)
+        case.assert_vector(op.apply_transpose(y), case.times(expected.T, y), rtol=1e-12)
+        assert op.format() == MatrixFree()
+        case.assert_dot_identity(op, 18)
+
+    def test_apply_with_out(self, case: TypedStackCase[V, F, A]) -> None:
+        bkd = case.bkd
+        a = spd_matrix(5, 19)
+        op = Product([case.build(a, _U), case.identity(_U)])
+        x = case.vec(_U, 1, 20)
+        out = case.vector(bkd.zeros((5, 1)), _U)
+        result = op.apply(x, out=out)
+        case.assert_vector(result, case.times(case.dense(a), x), rtol=1e-12)
+        assert (result is out) == case.in_place
+
+    def test_rejects_unchained_layouts(self, case: TypedStackCase[V, F, A]) -> None:
+        with pytest.raises(SpaceMismatchError, match="product factor"):
+            Product([case.identity(_U), case.identity(_P)])
+        with pytest.raises(ValueError, match="at least one factor"):
+            Product([])
+
+
+class AsMatrixFreeSuite:
+    def test_keeps_action_and_properties_erases_format(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        a = spd_matrix(5, 21)
+        stored = case.build(a, _U, properties=_SPD)
+        op = as_matrix_free(stored)
+        assert isinstance(op, ActionOperatorProtocol)
+        assert op.format() == MatrixFree()
+        assert op.properties() == _SPD
+        x = case.vec(_U, 2, 22)
+        case.assert_vector(op.apply(x), case.array(stored.apply(x)))
+        case.assert_vector(op.apply_transpose(x), case.array(stored.apply_transpose(x)))
+
+    def test_mixed_formats_sum_after_erasure(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """A stored operator plus a product (always matrix-free): the
+        shape of a stepper block with an inverse inside."""
+        a, b = spd_matrix(5, 23), random_matrix(5, 5, 24)
+        product = Product([case.build(b, _U), case.build(b, _U)])
+        op = ScaledSum(
+            [(1.0, as_matrix_free(case.build(a, _U))), (0.5, product)],
+            case.space(_U),
+        )
+        assert op.format() == MatrixFree()
+        x = case.vec(_U, 1, 25)
+        case.assert_vector(
+            op.apply(x), case.times(case.dense(a + 0.5 * b @ b), x), rtol=1e-12
+        )
