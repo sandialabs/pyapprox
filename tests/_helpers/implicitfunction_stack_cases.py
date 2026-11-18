@@ -269,10 +269,11 @@ class QuadraticPinnedData(Generic[V, F, A]):
         self,
         residual: QuadraticResidual[V, F, A],
         bundle: Optional[PinnedValuesParamDerivatives[V]] = None,
+        rows: Optional[RowSetProtocol[V]] = None,
     ) -> None:
         self._f = residual
         stack, bkd = residual.stack, residual.bkd
-        self._rows = stack.rows(STATES, [0, 2])
+        self._rows = stack.rows(STATES, [0, 2]) if rows is None else rows
         self._e0 = stack.vector(bkd.asarray([[1.0], [0.0], [0.0]]), STATES)
         self._e2 = stack.vector(bkd.asarray([[0.0], [0.0], [1.0]]), STATES)
         self._bundle = (

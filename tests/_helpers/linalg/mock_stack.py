@@ -49,7 +49,9 @@ _RTOL = 1e-12
 class MockVector:
     """An opaque block of vectors of one space."""
 
-    __slots__ = ("_data", "_descriptor")
+    # __weakref__: real stacks' vectors accept weak references, which a
+    # check that kept setups hold no state relies on.
+    __slots__ = ("_data", "_descriptor", "__weakref__")
 
     def __init__(self, data: _Array, descriptor: SpaceDescriptor) -> None:
         if data.ndim != 2 or data.shape[0] != descriptor.size:
