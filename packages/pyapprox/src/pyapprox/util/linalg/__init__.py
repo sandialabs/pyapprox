@@ -46,6 +46,13 @@ from pyapprox.util.linalg.randomized import (
     get_low_rank_matrix,
     randomized_symmetric_eigendecomposition,
 )
+from pyapprox.util.linalg.row_blocking import (
+    ByteBudgetBlocking,
+    FixedRowBlocking,
+    NoBlocking,
+    RowBlockingProtocol,
+    row_block_ranges,
+)
 from pyapprox.util.linalg.sparse_dispatch import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
@@ -75,6 +82,12 @@ __all__ = [
     # Pivoted QR
     "PivotedQRFactorizer",
     "TruncatedPivotedQRFactorizer",
+    # Row blocking (bounds the temporaries of tall dense computations)
+    "RowBlockingProtocol",
+    "NoBlocking",
+    "ByteBudgetBlocking",
+    "FixedRowBlocking",
+    "row_block_ranges",
     # Sparse dispatch
     "solve_maybe_sparse",
     "sparse_or_dense_solve",
