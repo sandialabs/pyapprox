@@ -558,7 +558,9 @@ class TestCompositeLinearElasticityBase:
         p0_arr = bkd.asarray(p0)
 
         pjac = bkd.to_numpy(
-            parameterization.param_derivatives().param_jacobian(u0, 0.0, p0_arr)
+            parameterization.param_derivatives()
+            .param_jacobian(u0, 0.0, p0_arr)
+            .matrix()
         )
 
         # FD check

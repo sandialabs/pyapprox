@@ -45,7 +45,10 @@ from pyapprox.pde.galerkin.time_integration.dense_discretization import (
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+    dense_param_jacobian,
+)
 from pyapprox.pde.rom import AlgebraicLift
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -369,7 +372,7 @@ class ModalCoefficientParameterization(Generic[Array]):
 
     def param_derivatives(self) -> ParamDerivatives[Array]:
         return ParamDerivatives.first_order(
-            self._param_jacobian, self._initial_param_jacobian
+            dense_param_jacobian(self._param_jacobian), self._initial_param_jacobian
         )
 
     def _param_jacobian(self, state: Array, time: float, params_1d: Array) -> Array:

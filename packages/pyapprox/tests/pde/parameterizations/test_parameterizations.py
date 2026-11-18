@@ -3,6 +3,7 @@
 import dataclasses
 import math
 
+import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.functionals.weighted_sum import (
@@ -53,6 +54,7 @@ from pyapprox.pde.parameterizations.composite import (
 )
 from pyapprox.pde.parameterizations.derivatives import (
     ParamDerivatives,
+    dense_param_jacobian,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
@@ -138,7 +140,7 @@ class _MockSecondOrderParam:
         self._scale = scale
         self._name = name
         self._derivs = ParamDerivatives.second_order(
-            self._param_jacobian,
+            dense_param_jacobian(self._param_jacobian),
             self._initial_param_jacobian,
             self._param_param_hvp,
             self._state_param_hvp,
@@ -267,7 +269,7 @@ class _ToyCompositeStateEquation:
         return self._kappa(param[:, 0]) * self._bkd.eye(self.nstates())
 
     def param_jacobian(self, state, param):
-        return self._param_jacobian(state[:, 0], 0.0, param[:, 0])
+        return self._param_jacobian(state[:, 0], 0.0, param[:, 0]).matrix()
 
     def state_state_hvp(self, state, param, adj_state, wvec):
         # R is linear in y
@@ -365,7 +367,7 @@ class TestParameterizations:
             dp.apply(p)
             param_jac = dp.param_derivatives().param_jacobian
             assert param_jac is not None
-            return param_jac(state, time, p)
+            return param_jac(state, time, p).matrix()
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -417,7 +419,7 @@ class TestParameterizations:
         dp.apply(params)
         param_jac = dp.param_derivatives().param_jacobian
         assert param_jac is not None
-        analytical_jac = param_jac(state, time, params)
+        analytical_jac = param_jac(state, time, params).matrix()
         bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
 
     def test_diffusion_initial_param_jacobian_zeros(self, bkd) -> None:
@@ -466,7 +468,7 @@ class TestParameterizations:
             fp.apply(p)
             param_jac = fp.param_derivatives().param_jacobian
             assert param_jac is not None
-            return param_jac(state, time, p)
+            return param_jac(state, time, p).matrix()
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -513,7 +515,7 @@ class TestParameterizations:
             rp.apply(p)
             param_jac = rp.param_derivatives().param_jacobian
             assert param_jac is not None
-            return param_jac(state, time, p)
+            return param_jac(state, time, p).matrix()
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -609,7 +611,7 @@ class TestParameterizations:
         def jac_of_params(sample):
             p = sample[:, 0]
             comp.apply(p)
-            return comp_param_jac(state, time, p)
+            return comp_param_jac(state, time, p).matrix()
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -623,6 +625,52 @@ class TestParameterizations:
         errors = checker.check_derivatives(params)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
         assert ratio <= 1e-5
+
+    def test_composite_param_jacobian_actions_match_matrix(self, bkd) -> None:
+        """The composite's actions agree with its matrix, and its column
+        blocks are the parts' own Jacobians at their parameter slices."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
+        npts = basis.npts()
+        fm_d = BasisExpansion(bkd, 1.0, [nodes, bkd.cos(nodes)])
+        dp = create_diffusion_parameterization(physics, bkd, fm_d)
+        fm_f = ScalarAmplitude(bkd, bkd.sin(math.pi * nodes))
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm_f, bkd=bkd
+        )
+        comp = CompositeParameterization([dp, fp], bkd)
+        params = bkd.array([0.2, -0.1, 1.5])
+        comp.apply(params)
+        state = bkd.sin(math.pi * nodes) + nodes
+        comp_fn = comp.param_derivatives().param_jacobian
+        dp_fn = dp.param_derivatives().param_jacobian
+        fp_fn = fp.param_derivatives().param_jacobian
+        assert comp_fn is not None and dp_fn is not None and fp_fn is not None
+        jac = comp_fn(state, 0.0, params)
+        matrix = jac.matrix()
+        bkd.assert_allclose(
+            matrix[:, :2], dp_fn(state, 0.0, params[:2]).matrix(), rtol=1e-14
+        )
+        bkd.assert_allclose(
+            matrix[:, 2:], fp_fn(state, 0.0, params[2:]).matrix(), rtol=1e-14
+        )
+        rng = np.random.default_rng(11)
+        vecs = bkd.asarray(rng.normal(size=(3, 2)))
+        adjs = bkd.asarray(rng.normal(size=(npts, 2)))
+        bkd.assert_allclose(jac.apply(vecs), matrix @ vecs, rtol=1e-12)
+        bkd.assert_allclose(
+            jac.apply_transpose(adjs), matrix.T @ adjs, rtol=1e-12
+        )
+
+    def test_composite_without_parts_param_jacobian(self, bkd) -> None:
+        """No parts: an empty block of columns, zero actions."""
+        nodes = bkd.linspace(0.0, 1.0, 5)
+        comp = CompositeParameterization([], bkd)
+        fn = comp.param_derivatives().param_jacobian
+        assert fn is not None
+        jac = fn(nodes, 0.0, bkd.zeros((0,)))
+        assert tuple(jac.matrix().shape) == (5, 0)
+        bkd.assert_allclose(jac.apply(bkd.zeros((0, 2))), bkd.zeros((5, 2)))
+        assert tuple(jac.apply_transpose(bkd.ones((5, 2))).shape) == (0, 2)
 
     def test_composite_initial_param_jacobian(self, bkd) -> None:
         """CompositeParameterization.initial_param_jacobian block structure."""
@@ -788,7 +836,7 @@ class TestParameterizations:
         mock = _MockSecondOrderParam(object(), bkd, 2, 5, 1.0, "coef_a")
         with pytest.raises(TypeError, match="initial_param_hvp"):
             ParamDerivatives.second_order(
-                mock._param_jacobian,
+                dense_param_jacobian(mock._param_jacobian),
                 mock._initial_param_jacobian,
                 mock._param_param_hvp,
                 mock._state_param_hvp,

@@ -211,8 +211,8 @@ class TestAdvectionDiffusionParameterization:
         assert f_derivs.param_jacobian is not None
         assert c_derivs.param_jacobian is not None
         bkd.assert_allclose(
-            f_derivs.param_jacobian(state, 0.0, params),
-            c_derivs.param_jacobian(state, 0.0, params),
+            f_derivs.param_jacobian(state, 0.0, params).matrix(),
+            c_derivs.param_jacobian(state, 0.0, params).matrix(),
             rtol=1e-14,
         )
         assert f_derivs.param_param_hvp is not None

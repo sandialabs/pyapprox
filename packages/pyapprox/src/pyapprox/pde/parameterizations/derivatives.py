@@ -17,9 +17,13 @@ Field signatures (the producer holds its physics; one producer
 instance binds ONE physics instance — ensembles construct one producer
 per physics):
 
-- ``param_jacobian``: ``(state, time, params_1d)
-  -> (nstates, nparams)`` — d(residual)/d(params), RAW (no Dirichlet
-  handling; BC wrappers own all constraint corrections).
+- ``param_jacobian``: ``(state, time, params_1d) ->``
+  :class:`ParamJacobianProtocol` — d(residual)/d(params) at that point,
+  applied to blocks rather than returned as a matrix, so a producer
+  whose Jacobian is a product (a sparse assembly times a field map's
+  Jacobian) never forms it. RAW (no Dirichlet handling; BC wrappers own
+  all constraint corrections). A producer with the matrix wraps its
+  function with :func:`dense_param_jacobian`.
 - ``initial_param_jacobian``: ``(params_1d) -> (nstates, nparams)`` —
   d(initial_state)/d(params).
 - ``initial_param_hvp``: ``(params_1d, weight (nstates,),
@@ -40,19 +44,117 @@ per physics):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, ArrayProtocol
 
 A = TypeVar("A", bound=ArrayProtocol)
 
-ParamJacobianFn = Callable[[Array, float, Array], Array]
+
+@runtime_checkable
+class ParamJacobianProtocol(Protocol[Array]):
+    r""":math:`\partial F/\partial p` at one ``(state, time, params)``.
+
+    Blocks are backend arrays with one column per vector. The actions are
+    what a sweep reads; :meth:`matrix` is for a consumer that needs the
+    entries (a projection onto a basis, a dense model), and costs a
+    matrix-free implementation ``nparams`` actions or one product.
+    """
+
+    def apply(self, vecs: Array) -> Array:
+        r""":math:`(\partial F/\partial p) V`. Shape: (nparams, ncols) ->
+        (nstates, ncols)."""
+        ...
+
+    def apply_transpose(self, vecs: Array) -> Array:
+        r""":math:`(\partial F/\partial p)^\top W`. Shape:
+        (nstates, ncols) -> (nparams, ncols)."""
+        ...
+
+    def matrix(self) -> Array:
+        """The entries. Shape: (nstates, nparams)."""
+        ...
+
+
+ParamJacobianMatrixFn = Callable[[Array, float, Array], Array]
+"""``(state, time, params_1d) -> (nstates, nparams)``: a parameter
+Jacobian as a matrix."""
+ParamJacobianFn = Callable[[Array, float, Array], ParamJacobianProtocol[Array]]
 InitialParamJacobianFn = Callable[[Array], Array]
 InitialParamHVPFn = Callable[[Array, Array, Array], Array]
 ParamHVPFn = Callable[[Array, float, Array, Array, Array], Array]
 BCFluxParamSensitivityFn = Callable[
     [Array, float, Array, Array, Array], Array
 ]
+
+class DenseParamJacobian(Generic[Array]):
+    """A parameter Jacobian stored as its matrix.
+
+    Satisfies :class:`ParamJacobianProtocol`; the actions are backend
+    products, so a torch graph through the matrix or the blocks is kept.
+
+    Parameters
+    ----------
+    matrix : Array
+        Shape: (nstates, nparams).
+    """
+
+    def __init__(self, matrix: Array) -> None:
+        if matrix.ndim != 2:
+            raise ValueError(
+                "matrix must have shape (nstates, nparams), got "
+                f"{tuple(matrix.shape)}"
+            )
+        self._matrix = matrix
+
+    def apply(self, vecs: Array) -> Array:
+        """``matrix @ vecs``. Shape: (nparams, ncols) -> (nstates, ncols)."""
+        result: Array = self._matrix @ vecs
+        return result
+
+    def apply_transpose(self, vecs: Array) -> Array:
+        """``matrix.T @ vecs``. Shape: (nstates, ncols) -> (nparams, ncols)."""
+        result: Array = self._matrix.T @ vecs
+        return result
+
+    def matrix(self) -> Array:
+        """The stored matrix. Shape: (nstates, nparams)."""
+        return self._matrix
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(shape={tuple(self._matrix.shape)})"
+
+
+class _DenseParamJacobianFn(Generic[Array]):
+    """A function returning the matrix, as one returning the Jacobian."""
+
+    def __init__(self, matrix: ParamJacobianMatrixFn[Array]) -> None:
+        self._matrix = matrix
+
+    def __call__(
+        self, state: Array, time: float, params_1d: Array
+    ) -> DenseParamJacobian[Array]:
+        return DenseParamJacobian(self._matrix(state, time, params_1d))
+
+
+def dense_param_jacobian(
+    matrix: ParamJacobianMatrixFn[Array],
+) -> ParamJacobianFn[Array]:
+    """Declare a parameter Jacobian given as a matrix of the state, time
+    and parameters.
+
+    Parameters
+    ----------
+    matrix : callable
+        ``(state, time, params_1d) -> (nstates, nparams)``; typically a
+        public bound method, which the producer keeps.
+    """
+    if not callable(matrix):
+        raise TypeError(
+            f"matrix must be callable, got {type(matrix).__name__}"
+        )
+    return _DenseParamJacobianFn(matrix)
+
 
 _FIELD_NAMES = (
     "param_jacobian",

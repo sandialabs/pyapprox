@@ -257,8 +257,8 @@ class TestFacadeConstruction:
         assert fd.param_jacobian is not None
         assert cd.param_jacobian is not None
         bkd.assert_allclose(
-            cd.param_jacobian(state, 0.0, params),
-            fd.param_jacobian(state, 0.0, params),
+            cd.param_jacobian(state, 0.0, params).matrix(),
+            fd.param_jacobian(state, 0.0, params).matrix(),
             rtol=1e-14,
         )
         assert fd.param_param_hvp is not None

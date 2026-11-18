@@ -199,7 +199,9 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
-        return self._param_jacobian_fn(state, time, self._require_params())
+        return self._param_jacobian_fn(
+            state, time, self._require_params()
+        ).matrix()
 
     def initial_param_jacobian(self) -> Array:
         """Compute d(initial_state)/d(params).

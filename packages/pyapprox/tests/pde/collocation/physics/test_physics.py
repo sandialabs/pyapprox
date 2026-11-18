@@ -270,7 +270,7 @@ class TestDiffusionParameterizationFactory:
         # Analytical parameter Jacobian
         param_jac_fn = dp.param_derivatives().param_jacobian
         assert param_jac_fn is not None
-        param_jac = param_jac_fn(u, 0.0, param)
+        param_jac = param_jac_fn(u, 0.0, param).matrix()
 
         # Verify via finite differences
         eps = 1e-7

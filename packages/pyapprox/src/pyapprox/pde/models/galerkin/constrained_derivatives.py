@@ -26,8 +26,33 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamDerivatives,
     ParamHVPFn,
     ParamJacobianFn,
+    ParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
+
+
+class _RowZeroedParamJacobianAt(Generic[Array]):
+    """``P dF/dp`` at one point, ``P`` zeroing the essential rows."""
+
+    def __init__(
+        self,
+        raw: ParamJacobianProtocol[Array],
+        constraint_set: ConstraintSetProtocol[Array],
+    ) -> None:
+        self._raw = raw
+        self._constraint_set = constraint_set
+
+    def apply(self, vecs: Array) -> Array:
+        """``P (dF/dp) V``. Shape: (nparams, ncols) -> (nstates, ncols)."""
+        return self._constraint_set.zero_rows(self._raw.apply(vecs))
+
+    def apply_transpose(self, vecs: Array) -> Array:
+        """``(dF/dp)^T P W``. Shape: (nstates, ncols) -> (nparams, ncols)."""
+        return self._raw.apply_transpose(self._constraint_set.zero_rows(vecs))
+
+    def matrix(self) -> Array:
+        """``P dF/dp``. Shape: (nstates, nparams)."""
+        return self._constraint_set.zero_rows(self._raw.matrix())
 
 
 class _RowZeroedParamJacobian(Generic[Array]):
@@ -41,9 +66,11 @@ class _RowZeroedParamJacobian(Generic[Array]):
         self._raw = raw
         self._constraint_set = constraint_set
 
-    def __call__(self, state: Array, time: float, params_1d: Array) -> Array:
-        return self._constraint_set.zero_rows(
-            self._raw(state, time, params_1d)
+    def __call__(
+        self, state: Array, time: float, params_1d: Array
+    ) -> _RowZeroedParamJacobianAt[Array]:
+        return _RowZeroedParamJacobianAt(
+            self._raw(state, time, params_1d), self._constraint_set
         )
 
 

@@ -41,7 +41,7 @@ from pyapprox.pde.models.galerkin.parameterized_residual import (
 )
 from pyapprox.pde.parameterizations.derivatives import (
     ParamHVPFn,
-    ParamJacobianFn,
+    ParamJacobianMatrixFn,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import FormatProtocol
@@ -281,7 +281,7 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
         self._rule: Optional[StepResidualRuleProtocol[Array]] = None
         self._mass: Optional[MassMatrixProtocol[Array]] = None
         derivs = residual.derivatives()
-        self._param_jacobian_fn: Optional[ParamJacobianFn[Array]] = (
+        self._param_jacobian_fn: Optional[ParamJacobianMatrixFn[Array]] = (
             derivs.param_jacobian
         )
         self._state_state_fn: Optional[ParamHVPFn[Array]] = derivs.state_state_hvp

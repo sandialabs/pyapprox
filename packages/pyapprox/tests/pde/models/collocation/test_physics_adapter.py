@@ -33,6 +33,7 @@ from pyapprox.pde.models.collocation import (
 )
 from pyapprox.pde.parameterizations.derivatives import (
     ParamDerivatives,
+    dense_param_jacobian,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
@@ -131,7 +132,7 @@ class _ToyCurvatureParameterization:
 
     def param_derivatives(self):
         return ParamDerivatives.second_order(
-            self._param_jacobian,
+            dense_param_jacobian(self._param_jacobian),
             self._initial_param_jacobian,
             self._param_param_hvp,
             self._state_param_hvp,

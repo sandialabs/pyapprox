@@ -26,7 +26,10 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithSetParamAdapter,
     create_galerkin_physics_ode_residual,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+    dense_param_jacobian,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
@@ -79,7 +82,9 @@ class _FirstOrderParameterization(_EvalOnlyParameterization):
         return self._bkd.zeros((self._physics.nstates(), 1))
 
     def param_derivatives(self) -> ParamDerivatives[_Np]:
-        return ParamDerivatives.first_order(self._jacobian, self._initial_jacobian)
+        return ParamDerivatives.first_order(
+            dense_param_jacobian(self._jacobian), self._initial_jacobian
+        )
 
 
 class TestGalerkinAdapterFactoryTiers:

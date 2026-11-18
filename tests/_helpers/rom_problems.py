@@ -48,7 +48,10 @@ from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+    dense_param_jacobian,
+)
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -293,7 +296,7 @@ class _FiniteDifferenceParameterization:
 
     def param_derivatives(self) -> ParamDerivatives[NumpyArray]:
         return ParamDerivatives.first_order(
-            self._param_jacobian, self._initial_param_jacobian
+            dense_param_jacobian(self._param_jacobian), self._initial_param_jacobian
         )
 
     def _param_jacobian(

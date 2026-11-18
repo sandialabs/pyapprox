@@ -1,12 +1,19 @@
 """Tests for the ParamDerivatives family bundle."""
 
 import dataclasses
+import pickle
+from typing import Any, Generic
 
+import numpy as np
 import pytest
 
 from pyapprox.pde.parameterizations.derivatives import (
+    DenseParamJacobian,
     ParamDerivatives,
+    ParamJacobianProtocol,
+    dense_param_jacobian,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _param_jacobian(physics, state, time, params_1d):
@@ -113,3 +120,77 @@ class TestParamDerivatives:
         d = ParamDerivatives.none()
         with pytest.raises(dataclasses.FrozenInstanceError):
             d.param_jacobian = _param_jacobian  # type: ignore[misc]
+
+
+_NSTATES, _NPARAMS = 4, 3
+
+
+def _matrix() -> Any:
+    """Distinct entries, so a transposed product shows."""
+    return np.arange(1.0, _NSTATES * _NPARAMS + 1.0).reshape(_NSTATES, _NPARAMS)
+
+
+class _MatrixProducer(Generic[Array]):
+    """A producer keeping its public matrix method, as a parameterization
+    does; module level, so its bound method pickles."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def param_jacobian(self, state: Array, time: float, params_1d: Array) -> Array:
+        return self._bkd.asarray(_matrix()) * params_1d[0]
+
+
+class TestDenseParamJacobian:
+    def test_actions_are_the_matrix_products(self, bkd: Backend[Array]) -> None:
+        jac = DenseParamJacobian(bkd.asarray(_matrix()))
+        assert isinstance(jac, ParamJacobianProtocol)
+        rng = np.random.default_rng(3)
+        vecs = rng.normal(size=(_NPARAMS, 2))
+        adjs = rng.normal(size=(_NSTATES, 2))
+        bkd.assert_allclose(jac.matrix(), bkd.asarray(_matrix()))
+        bkd.assert_allclose(
+            jac.apply(bkd.asarray(vecs)), bkd.asarray(_matrix() @ vecs), rtol=1e-14
+        )
+        bkd.assert_allclose(
+            jac.apply_transpose(bkd.asarray(adjs)),
+            bkd.asarray(_matrix().T @ adjs),
+            rtol=1e-14,
+        )
+
+    def test_refuses_a_vector(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="shape"):
+            DenseParamJacobian(bkd.ones((_NSTATES,)))
+
+    def test_wraps_a_matrix_function(self, bkd: Backend[Array]) -> None:
+        fn = dense_param_jacobian(_MatrixProducer(bkd).param_jacobian)
+        jac = fn(bkd.zeros((_NSTATES,)), 0.0, bkd.asarray(np.array([2.0, 0.0, 0.0])))
+        assert isinstance(jac, DenseParamJacobian)
+        bkd.assert_allclose(jac.matrix(), bkd.asarray(2.0 * _matrix()))
+
+    def test_refuses_a_non_callable(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(TypeError, match="callable"):
+            dense_param_jacobian(bkd.ones((_NSTATES, _NPARAMS)))  # type: ignore[arg-type]
+
+    def test_wrapped_function_pickles(self, numpy_bkd: Backend[Array]) -> None:
+        fn = dense_param_jacobian(_MatrixProducer(numpy_bkd).param_jacobian)
+        restored = pickle.loads(pickle.dumps(fn))
+        args = (
+            numpy_bkd.zeros((_NSTATES,)),
+            0.0,
+            numpy_bkd.asarray(np.array([3.0, 0.0, 0.0])),
+        )
+        numpy_bkd.assert_allclose(restored(*args).matrix(), fn(*args).matrix())
+
+    def test_actions_keep_the_graph(self, torch_bkd: Backend[Array]) -> None:
+        """A gradient flows through ``apply`` and ``apply_transpose`` to
+        the matrix: d/dM of sum(M 1) + sum(M^T 1) is 2 in every entry."""
+        import torch
+
+        matrix = torch.tensor(_matrix(), dtype=torch.float64, requires_grad=True)
+        jac = DenseParamJacobian(matrix)
+        ones_p = torch.ones((_NPARAMS, 1), dtype=torch.float64)
+        ones_n = torch.ones((_NSTATES, 1), dtype=torch.float64)
+        total = jac.apply(ones_p).sum() + jac.apply_transpose(ones_n).sum()
+        (grad,) = torch.autograd.grad(total, matrix)
+        assert torch.allclose(grad, torch.full_like(matrix, 2.0))

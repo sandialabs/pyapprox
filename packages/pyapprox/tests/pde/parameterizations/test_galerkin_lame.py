@@ -192,7 +192,7 @@ class TestGalerkinLameParameterizationFactory:
         def jacobian_of_params(params: Array) -> Array:
             p = params[:, 0]
             param.apply(p)
-            pj = param_jac(u, 0.0, p)
+            pj = param_jac(u, 0.0, p).matrix()
             param.apply(bkd.asarray(np.array([E0, nu0])))
             return pj
 
@@ -239,7 +239,7 @@ class TestGalerkinLameParameterizationFactory:
         def jacobian_of_params(params: Array) -> Array:
             p = params[:, 0]
             param.apply(p)
-            pj = param_jac(u, 0.0, p)
+            pj = param_jac(u, 0.0, p).matrix()
             param.apply(bkd.asarray(p0))
             return pj
 
@@ -292,7 +292,9 @@ class TestGalerkinLameParameterizationFactory:
         assert orig_jac is not None
         assert clone_jac is not None
         bkd.assert_allclose(
-            orig_jac(u, 0.0, p0), clone_jac(u, 0.0, p0), rtol=1e-14
+            orig_jac(u, 0.0, p0).matrix(),
+            clone_jac(u, 0.0, p0).matrix(),
+            rtol=1e-14,
         )
 
     def test_residual_derivatives_pass_the_bundle_checker(

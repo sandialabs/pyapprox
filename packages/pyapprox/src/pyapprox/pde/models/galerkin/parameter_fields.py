@@ -10,8 +10,9 @@ makes that conversion, for every system built over one
 essential rows treated, and the unconstrained one, whose functions are
 raw, convert the same way and read the same parameters.
 
-The parameter and initial-state Jacobians arrive as dense matrices and
-become dense operators here, the one place they are converted.
+The parameter Jacobian arrives as an action and the initial-state
+Jacobian as a dense matrix; both become dense operators here, the one
+place they are converted.
 """
 
 from typing import Generic, Optional, TypeVar, Union
@@ -43,7 +44,7 @@ F = TypeVar("F", bound=FormatProtocol)
 
 
 class _ParamJacobianAt(Generic[Array]):
-    """``(state, time) -> dF/dp`` at the current parameters."""
+    """``(state, time) -> dF/dp`` at the current parameters, as a matrix."""
 
     def __init__(
         self, fn: ParamJacobianFn[Array], parameters: ParameterState[Array]
@@ -51,7 +52,7 @@ class _ParamJacobianAt(Generic[Array]):
         self._fn, self._parameters = fn, parameters
 
     def __call__(self, state: Array, time: float) -> Array:
-        return self._fn(state, time, self._parameters.current())
+        return self._fn(state, time, self._parameters.current()).matrix()
 
 
 class _InitialParamJacobianAt(Generic[Array]):

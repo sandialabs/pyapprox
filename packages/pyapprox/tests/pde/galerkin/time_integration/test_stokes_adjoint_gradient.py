@@ -50,7 +50,10 @@ from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
 from pyapprox.pde.models.galerkin.physics_adapter import (
     create_galerkin_physics_ode_residual,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+    dense_param_jacobian,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -83,7 +86,8 @@ class _ViscosityForcingParameterization:
         self._bkd = bkd
         self._derivs: ParamDerivatives[NumpyArray] = (
             ParamDerivatives.first_order(
-                self._param_jacobian, self._initial_param_jacobian
+                dense_param_jacobian(self._param_jacobian),
+                self._initial_param_jacobian,
             )
         )
 

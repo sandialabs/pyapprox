@@ -221,7 +221,7 @@ class TestLameParameterization:
         def jac_of_params(sample):
             p = sample[:, 0]
             param.apply(p)
-            return param_jac(state, time, p)
+            return param_jac(state, time, p).matrix()
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=nstates,

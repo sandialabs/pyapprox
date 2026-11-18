@@ -22,7 +22,10 @@ from pyapprox.pde.models.galerkin.constrained_derivatives import (
     constrain_state_derivatives,
     constrain_state_state_hvp,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+    dense_param_jacobian,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 _NSTATES, _NPARAMS = 5, 2
@@ -35,6 +38,11 @@ def _constraints(bkd: Backend[Array]) -> DirichletConstraintSet[Array]:
     )
 
 
+def _raw_param_jacobian() -> Any:
+    """Distinct entries, so a transpose or a row mix-up shows."""
+    return np.arange(1.0, _NSTATES * _NPARAMS + 1.0).reshape(_NSTATES, _NPARAMS)
+
+
 class _Raw:
     """Raw derivatives whose outputs expose what they were given."""
 
@@ -42,7 +50,7 @@ class _Raw:
         self._bkd = bkd
 
     def param_jacobian(self, state: Any, time: float, params: Any) -> Any:
-        return self._bkd.ones((_NSTATES, _NPARAMS))
+        return self._bkd.asarray(_raw_param_jacobian())
 
     def param_hvp(
         self, state: Any, time: float, params: Any, adj: Any, vec: Any
@@ -52,6 +60,9 @@ class _Raw:
 
     def initial_param_hvp(self, params: Any, weight: Any, vvec: Any) -> Any:
         return weight
+
+    def initial_param_jacobian(self, params: Any) -> Any:
+        return self._bkd.ones((_NSTATES, _NPARAMS))
 
     def state_state_hvp(
         self, state: Any, adj: Any, wvec: Any, time: float
@@ -73,15 +84,43 @@ class TestConstrainedDerivatives:
     def test_param_jacobian_rows_zeroed(self, bkd: Backend[Array]) -> None:
         raw = _Raw(bkd)
         derivs = constrain_param_derivatives(
-            ParamDerivatives(param_jacobian=raw.param_jacobian),
+            ParamDerivatives(param_jacobian=dense_param_jacobian(raw.param_jacobian)),
             _constraints(bkd),
         )
         jac = derivs.param_jacobian
         assert jac is not None
-        expected = np.ones((_NSTATES, _NPARAMS))
+        expected = _raw_param_jacobian()
         expected[_ESSENTIAL] = 0.0
         bkd.assert_allclose(
-            jac(_ones(bkd), 0.0, bkd.ones((_NPARAMS,))), bkd.asarray(expected)
+            jac(_ones(bkd), 0.0, bkd.ones((_NPARAMS,))).matrix(),
+            bkd.asarray(expected),
+        )
+
+    def test_param_jacobian_actions_match_rows_zeroed_matrix(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """``apply`` is ``P J V`` and ``apply_transpose`` is ``J^T P W``: the
+        transpose zeroes the essential rows of its input, not its output."""
+        raw = _Raw(bkd)
+        derivs = constrain_param_derivatives(
+            ParamDerivatives(param_jacobian=dense_param_jacobian(raw.param_jacobian)),
+            _constraints(bkd),
+        )
+        jac = derivs.param_jacobian
+        assert jac is not None
+        at = jac(_ones(bkd), 0.0, bkd.ones((_NPARAMS,)))
+        zeroed = _raw_param_jacobian()
+        zeroed[_ESSENTIAL] = 0.0
+        rng = np.random.default_rng(7)
+        vecs = rng.normal(size=(_NPARAMS, 3))
+        adjs = rng.normal(size=(_NSTATES, 3))
+        bkd.assert_allclose(
+            at.apply(bkd.asarray(vecs)), bkd.asarray(zeroed @ vecs), rtol=1e-14
+        )
+        bkd.assert_allclose(
+            at.apply_transpose(bkd.asarray(adjs)),
+            bkd.asarray(zeroed.T @ adjs),
+            rtol=1e-14,
         )
 
     def test_contraction_weights_zeroed(self, bkd: Backend[Array]) -> None:
@@ -137,19 +176,21 @@ class TestConstrainedDerivatives:
     ) -> None:
         raw = _Raw(bkd)
         derivs = constrain_param_derivatives(
-            ParamDerivatives(initial_param_jacobian=raw.initial_param_hvp),
+            ParamDerivatives(initial_param_jacobian=raw.initial_param_jacobian),
             _constraints(bkd),
         )
-        assert derivs.initial_param_jacobian == raw.initial_param_hvp
+        assert derivs.initial_param_jacobian == raw.initial_param_jacobian
 
     def test_pickles(self, numpy_bkd: Backend[Array]) -> None:
         raw = _Raw(numpy_bkd)
         derivs = constrain_param_derivatives(
-            ParamDerivatives(param_jacobian=raw.param_jacobian),
+            ParamDerivatives(param_jacobian=dense_param_jacobian(raw.param_jacobian)),
             _constraints(numpy_bkd),
         )
         restored = pickle.loads(pickle.dumps(derivs))
         jac, restored_jac = derivs.param_jacobian, restored.param_jacobian
         assert jac is not None and restored_jac is not None
         args = (_ones(numpy_bkd), 0.0, numpy_bkd.ones((_NPARAMS,)))
-        numpy_bkd.assert_allclose(restored_jac(*args), jac(*args))
+        numpy_bkd.assert_allclose(
+            restored_jac(*args).matrix(), jac(*args).matrix()
+        )

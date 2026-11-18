@@ -287,7 +287,7 @@ class CollocationParameterizedStateEquation(Generic[Array]):
         param_jac_fn = self._parameterization.param_derivatives().param_jacobian
         if param_jac_fn is None:
             raise RuntimeError("parameterization does not provide param_jacobian")
-        pjac = param_jac_fn(state_1d, 0.0, param[:, 0])
+        pjac = param_jac_fn(state_1d, 0.0, param[:, 0]).matrix()
 
         # Apply each BC's parameter-Jacobian row correction
         for bc in self._physics.boundary_conditions():

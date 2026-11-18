@@ -57,7 +57,10 @@ from pyapprox.pde.field_maps.protocol import (
     LinearFieldMapProtocol,
     field_map_has_hvp,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+    dense_param_jacobian,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -481,7 +484,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             self._hvp_field_map = field_map
             self._derivs: ParamDerivatives[Array] = (
                 ParamDerivatives.second_order(
-                    self.param_jacobian,
+                    dense_param_jacobian(self.param_jacobian),
                     self.initial_param_jacobian,
                     self.param_param_hvp,
                     self.state_param_hvp,
@@ -492,7 +495,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             )
         else:
             self._derivs = ParamDerivatives.first_order(
-                self.param_jacobian,
+                dense_param_jacobian(self.param_jacobian),
                 self.initial_param_jacobian,
                 bc_flux_param_sensitivity=bc_flux_fn,
             )

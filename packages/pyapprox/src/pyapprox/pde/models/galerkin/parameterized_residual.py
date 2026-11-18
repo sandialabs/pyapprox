@@ -32,6 +32,7 @@ from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.derivatives import (
     ParamHVPFn,
     ParamJacobianFn,
+    ParamJacobianMatrixFn,
 )
 from pyapprox.pde.parameterizations.protocol import ParameterizationProtocol
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
@@ -67,7 +68,7 @@ class ParameterizedResidualDerivatives(Generic[Array]):
     adjoint needs every one), and they require ``param_jacobian``.
     """
 
-    param_jacobian: Optional[ParamJacobianFn[Array]] = None
+    param_jacobian: Optional[ParamJacobianMatrixFn[Array]] = None
     state_state_hvp: Optional[ParamHVPFn[Array]] = None
     state_param_hvp: Optional[ParamHVPFn[Array]] = None
     param_state_hvp: Optional[ParamHVPFn[Array]] = None
@@ -96,14 +97,14 @@ class ParameterizedResidualDerivatives(Generic[Array]):
 
     @staticmethod
     def first_order(
-        param_jacobian: ParamJacobianFn[A],
+        param_jacobian: ParamJacobianMatrixFn[A],
     ) -> "ParameterizedResidualDerivatives[A]":
         """The parameter Jacobian only."""
         return ParameterizedResidualDerivatives(param_jacobian=param_jacobian)
 
     @staticmethod
     def second_order(
-        param_jacobian: ParamJacobianFn[A],
+        param_jacobian: ParamJacobianMatrixFn[A],
         state_state_hvp: ParamHVPFn[A],
         state_param_hvp: ParamHVPFn[A],
         param_state_hvp: ParamHVPFn[A],
@@ -247,7 +248,7 @@ class GalerkinParameterizedResidual(Generic[Array]):
         if fn is None:
             raise self._unavailable("param_jacobian")
         self._parameterization.apply(params)
-        return fn(state, time, params)
+        return fn(state, time, params).matrix()
 
     def _state_state_hvp(
         self, state: Array, time: float, params: Array, adj: Array,

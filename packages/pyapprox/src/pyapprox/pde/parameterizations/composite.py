@@ -10,6 +10,7 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamDerivatives,
     ParamHVPFn,
     ParamJacobianFn,
+    ParamJacobianProtocol,
 )
 from pyapprox.pde.parameterizations.protocol import (
     AffineInParamsProtocol,
@@ -31,6 +32,44 @@ def _all_or_none(fns: Sequence[Optional[_F]]) -> Optional[List[_F]]:
             return None
         result.append(fn)
     return result
+
+
+class _CompositeParamJacobian(Generic[Array]):
+    """The parts' parameter Jacobians side by side: one column block per
+    part, over its contiguous parameter slice."""
+
+    def __init__(
+        self,
+        parts: List[ParamJacobianProtocol[Array]],
+        slices: List[Tuple[int, int]],
+        nstates: int,
+        bkd: Backend[Array],
+    ) -> None:
+        self._parts, self._slices = parts, slices
+        self._nstates, self._bkd = nstates, bkd
+
+    def apply(self, vecs: Array) -> Array:
+        """The sum of the parts' products with their slices of ``vecs``.
+        Shape: (nparams, ncols) -> (nstates, ncols)."""
+        result = self._bkd.zeros((self._nstates, vecs.shape[1]))
+        for part, (start, stop) in zip(self._parts, self._slices):
+            result = result + part.apply(vecs[start:stop])
+        return result
+
+    def apply_transpose(self, vecs: Array) -> Array:
+        """The parts' transposed products, stacked. Shape:
+        (nstates, ncols) -> (nparams, ncols)."""
+        blocks = [part.apply_transpose(vecs) for part in self._parts]
+        if not blocks:
+            return self._bkd.zeros((0, vecs.shape[1]))
+        return self._bkd.vstack(blocks)
+
+    def matrix(self) -> Array:
+        """The parts' matrices side by side. Shape: (nstates, nparams)."""
+        blocks = [part.matrix() for part in self._parts]
+        if not blocks:
+            return self._bkd.zeros((self._nstates, 0))
+        return self._bkd.hstack(blocks)
 
 
 class CompositeParameterization(Generic[Array]):
@@ -283,26 +322,28 @@ class CompositeParameterization(Generic[Array]):
         state: Array,
         time: float,
         params_1d: Array,
-    ) -> Array:
-        """Block-column assembly of param Jacobian. Shape: (npts, total_nparams)."""
+    ) -> _CompositeParamJacobian[Array]:
+        """The parts' Jacobians, each at its parameter slice, side by side.
+        Shape: (npts, total_nparams)."""
         fns = self._part_param_jacs
         if fns is None:
             raise RuntimeError(
                 "param_jacobian is unavailable; check param_derivatives() "
                 "before calling"
             )
-        npts = state.shape[0]
-        result = self._bkd.zeros((npts, self._total_nparams))
-        result = self._bkd.copy(result)
-        for ii, fn in enumerate(fns):
-            offset = self._offsets[ii]
-            np_i = self._parts[ii].nparams()
-            sub_params = params_1d[offset : offset + np_i]
-            block = fn(state, time, sub_params)
-            for col in range(np_i):
-                for row in range(npts):
-                    result[row, offset + col] = block[row, col]
-        return result
+        slices = [
+            (offset, offset + part.nparams())
+            for offset, part in zip(self._offsets, self._parts)
+        ]
+        return _CompositeParamJacobian(
+            [
+                fn(state, time, params_1d[start:stop])
+                for fn, (start, stop) in zip(fns, slices)
+            ],
+            slices,
+            state.shape[0],
+            self._bkd,
+        )
 
     def _initial_param_jacobian(self, params_1d: Array) -> Array:
         """Block-column assembly of initial param Jacobian."""

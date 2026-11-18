@@ -215,7 +215,7 @@ class TestDerivatives:
 
         def jac(sample: Array) -> Array:
             parameterization.apply(sample[:, 0])
-            return param_jacobian(state, 0.0, sample[:, 0])
+            return param_jacobian(state, 0.0, sample[:, 0]).matrix()
 
         checker = DerivativeChecker(
             FunctionWithJacobianFromCallable(
