@@ -14,12 +14,18 @@ from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     SquaredExponentialKernel,
 )
+from pyapprox.surrogates.kle.eigensolvers import PivotedCholeskyEigenSolver
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.pivoted_cholesky import (
     _HAS_NUMBA,
     KernelColumnOperator,
     PivotedCholeskyFactorizer,
+)
+from pyapprox.util.linalg.row_blocking import (
+    FixedRowBlocking,
+    NoBlocking,
+    RowBlockingProtocol,
 )
 
 
@@ -476,6 +482,111 @@ class TestKernelColumnOperatorFused:
 
 
 @pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
+class TestBlockedUpdate:
+    """Blocking the generic column update leaves the factorization as is.
+
+    Each row of the update is the same dot product whatever block it
+    falls in, but BLAS may accumulate a matrix-vector product
+    differently for a different row count (measured with numpy: up to
+    1.1e-15 absolute on a factor of max 1; torch matched exactly). So
+    pivots are compared exactly and the factor to round-off. The generic
+    path is forced: with numba installed numpy would take the numba
+    kernels, which ignore blocking.
+    """
+
+    @staticmethod
+    def _assert_same(
+        bkd: Backend[Array],
+        fact: PivotedCholeskyFactorizer[Array],
+        ref: PivotedCholeskyFactorizer[Array],
+    ) -> None:
+        assert fact.npivots() == ref.npivots()
+        bkd.assert_allclose(fact.pivots(), ref.pivots(), rtol=0.0)
+        scale = bkd.to_float(bkd.max(bkd.abs(ref.factor())))
+        bkd.assert_allclose(
+            fact.factor(), ref.factor(), rtol=0.0, atol=1e-13 * scale
+        )
+
+    @pytest.fixture(autouse=True)
+    def _seed(self) -> None:
+        np.random.seed(5)
+
+    def _factor(
+        self,
+        bkd: Backend[Array],
+        A: Array,
+        npivots: int,
+        row_blocking: RowBlockingProtocol,
+        pivot_weights: Array | None = None,
+        init_pivots: Array | None = None,
+    ) -> PivotedCholeskyFactorizer[Array]:
+        fact = PivotedCholeskyFactorizer(
+            A, bkd, tol=0.0, row_blocking=row_blocking
+        )
+        fact._use_numba = False
+        fact.factorize(
+            npivots, init_pivots=init_pivots, pivot_weights=pivot_weights
+        )
+        return fact
+
+    def _kernel_matrix(self, bkd: Backend[Array], n: int) -> Array:
+        X = bkd.asarray(np.random.uniform(0.0, 1.0, (2, n)))
+        kernel = Matern32Kernel(bkd.asarray([0.3, 0.3]), (0.01, 10.0), 2, bkd)
+        return kernel(X, X)
+
+    @pytest.mark.parametrize("nrows_per_block", [1, 7, 1000])
+    def test_blocked_matches_unblocked(
+        self, bkd: Backend[Array], nrows_per_block: int
+    ) -> None:
+        """Blocks of 1, 7 (ragged against 59 remaining rows) and > n."""
+        A = self._kernel_matrix(bkd, 60)
+        ref = self._factor(bkd, A, 25, NoBlocking())
+        fact = self._factor(bkd, A, 25, FixedRowBlocking(nrows_per_block))
+        assert ref.npivots() == 25
+        self._assert_same(bkd, fact, ref)
+
+    def test_blocked_with_weights_and_init_pivots(
+        self, bkd: Backend[Array]
+    ) -> None:
+        A = self._kernel_matrix(bkd, 40)
+        weights = bkd.asarray(np.random.uniform(0.5, 2.0, 40))
+        init = bkd.asarray(np.array([3, 11], dtype=np.int64))
+        ref = self._factor(
+            bkd, A, 15, NoBlocking(), pivot_weights=weights, init_pivots=init
+        )
+        fact = self._factor(
+            bkd, A, 15, FixedRowBlocking(4), pivot_weights=weights,
+            init_pivots=init,
+        )
+        self._assert_same(bkd, fact, ref)
+
+    def test_update_continues_in_blocks(self, bkd: Backend[Array]) -> None:
+        """update() uses the same blocking as factorize()."""
+        A = self._kernel_matrix(bkd, 40)
+        ref = self._factor(bkd, A, 20, NoBlocking())
+        fact = self._factor(bkd, A, 12, FixedRowBlocking(5))
+        fact.update(20)
+        self._assert_same(bkd, fact, ref)
+
+    def test_eigensolver_passes_blocking(self, bkd: Backend[Array]) -> None:
+        """PivotedCholeskyEigenSolver hands its blocking to the factorizer."""
+        X = bkd.asarray(np.random.uniform(0.0, 1.0, (1, 50)))
+        kernel = Matern32Kernel(bkd.asarray([0.2]), (0.01, 10.0), 1, bkd)
+        blocking = FixedRowBlocking(6)
+        solver = PivotedCholeskyEigenSolver(
+            bkd, rank=10, row_blocking=blocking
+        )
+        fact = solver.factorize(kernel, X, 5)
+        assert fact._row_blocking is blocking
+
+    def test_rejects_a_non_blocking_object(self, bkd: Backend[Array]) -> None:
+        A = self._kernel_matrix(bkd, 10)
+        with pytest.raises(TypeError, match="RowBlockingProtocol"):
+            PivotedCholeskyFactorizer(
+                A, bkd, row_blocking=4,  # type: ignore[arg-type]
+            )
+
+
 class TestNumbaGenericAgreement:
     """Verify numba and generic paths produce identical pivots and factors."""
 

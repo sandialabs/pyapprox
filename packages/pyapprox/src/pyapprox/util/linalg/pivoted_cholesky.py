@@ -19,6 +19,11 @@ NumbaScalarKernelFn = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
 
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Array_co, Backend
+from pyapprox.util.linalg.row_blocking import (
+    NoBlocking,
+    RowBlockingProtocol,
+    row_block_ranges,
+)
 from pyapprox.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
@@ -172,6 +177,22 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         If False, use Schur complement norm.
     tol : float
         Tolerance for early termination based on relative residual.
+    row_blocking : RowBlockingProtocol
+        How many remaining rows each column update processes at a time.
+        The update of column ``ii`` gathers the ``(nrows - ii - 1) x ii``
+        block of ``L`` for its remaining rows, a copy approaching the
+        size of ``L`` itself late in the factorization. The default,
+        :class:`NoBlocking`, gathers it whole; a
+        :class:`ByteBudgetBlocking` bounds it. Each row is the same dot
+        product either way, but BLAS may accumulate it differently for a
+        different row count, so the factor agrees to round-off. The
+        numba paths update one row at a time without the copy, so they
+        ignore it.
+
+    Raises
+    ------
+    TypeError
+        If ``row_blocking`` does not satisfy :class:`RowBlockingProtocol`.
     """
 
     def __init__(
@@ -180,8 +201,15 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         bkd: Backend[Array],
         econ: bool = True,
         tol: float = 1e-14,
+        row_blocking: RowBlockingProtocol = NoBlocking(),
     ) -> None:
+        if not isinstance(row_blocking, RowBlockingProtocol):
+            raise TypeError(
+                "row_blocking must satisfy RowBlockingProtocol, got "
+                f"{type(row_blocking).__name__}"
+            )
         self._bkd = bkd
+        self._row_blocking = row_blocking
         self._econ = econ
         self._tol = tol
         self._ncompleted_pivots = 0
@@ -408,13 +436,20 @@ class PivotedCholeskyFactorizer(Generic[Array]):
                 self._pivots_arr[ii : ii + 1]
             )[0])
             full_col = self._op.column(pivot_idx)
-            col_pivot = full_col[self._pivots_arr[ii + 1 :]]
+            rows = self._pivots_arr[ii + 1 :]
+            col_pivot = full_col[rows]
+            pivot_row = self._L[self._pivots_arr[ii], :ii]
+            pivot_diag = self._L[self._pivots_arr[ii], ii]
 
-            self._L[self._pivots_arr[ii + 1 :], ii] = (
-                col_pivot
-                - self._L[self._pivots_arr[ii + 1 :], :ii]
-                @ self._L[self._pivots_arr[ii], :ii]
-            ) / self._L[self._pivots_arr[ii], ii]
+            # L[rows, :ii] is a gathered copy; in blocks it never exceeds
+            # one block.
+            for start, stop in row_block_ranges(
+                self._row_blocking, int(rows.shape[0]), ii
+            ):
+                block = rows[start:stop]
+                self._L[block, ii] = (
+                    col_pivot[start:stop] - self._L[block, :ii] @ pivot_row
+                ) / pivot_diag
 
             self._diag[self._pivots_arr[ii + 1 :]] -= (
                 self._L[self._pivots_arr[ii + 1 :], ii] ** 2
