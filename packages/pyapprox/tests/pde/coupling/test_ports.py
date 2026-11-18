@@ -11,6 +11,7 @@ from typing import Any, Callable, Generic, Sequence, Union
 
 import numpy as np
 import pytest
+import torch
 from numpy.typing import NDArray
 
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
@@ -32,6 +33,7 @@ from pyapprox.pde.coupling.spaces import (
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.linalg.operators import SpaceDescriptor
 from tests._helpers.coupling import MockPortRows
@@ -148,6 +150,22 @@ def test_backend_port_rows_reject_bad_input(numpy_bkd: Backend[Array]) -> None:
         rows.add_to(numpy_bkd.zeros((4, 1)), numpy_bkd.zeros((3, 1)))
     with pytest.raises(TypeError):
         MatchingNodalTransfer(object())  # type: ignore[arg-type]
+
+
+def test_backend_port_rows_keep_the_torch_graph(torch_bkd: TorchBkd) -> None:
+    rows = BackendPortRows(SpaceDescriptor("skeleton", 5), [3, 0], torch_bkd)
+    x = torch.arange(5.0, dtype=torch.float64).reshape(5, 1).requires_grad_()
+    block = torch.tensor([[2.0], [-1.0]], dtype=torch.float64, requires_grad=True)
+    out = rows.add_to(x, block * rows.take(x))
+    # out = x + P^T (block * P x): d sum(out)/dx = 1 + P^T block,
+    # d sum(out)/d block = P x.
+    dx, dblock = torch.autograd.grad(out.sum(), [x, block])
+    torch_bkd.assert_allclose(
+        dx, torch.tensor([[0.0], [1.0], [1.0], [3.0], [1.0]], dtype=torch.float64)
+    )
+    torch_bkd.assert_allclose(
+        dblock, torch.tensor([[3.0], [0.0]], dtype=torch.float64)
+    )
 
 
 def test_both_spaces_give_entity_dofs() -> None:

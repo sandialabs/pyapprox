@@ -85,9 +85,10 @@ class BackendPortRows(Generic[Array]):
     """Port rows of a skeleton stored as backend arrays.
 
     Satisfies :class:`PortRowsProtocol` with backend arrays as both the
-    skeleton vectors and the port blocks. Both operations multiply by a
-    constant 0/1 selection matrix, so a torch graph through the operands
-    is preserved.
+    skeleton vectors and the port blocks. Both operations index the
+    port rows, costing O(nport) per column; the add writes through the
+    backend's functional ``index_update`` (the rows are distinct), so a
+    torch graph through the operands is preserved.
 
     Parameters
     ----------
@@ -111,10 +112,7 @@ class BackendPortRows(Generic[Array]):
             )
         self._descriptor = descriptor
         self._bkd = bkd
-        selection = [
-            [1.0 if col == d else 0.0 for col in range(descriptor.size)] for d in dofs
-        ]
-        self._select = bkd.asarray(selection, dtype=bkd.default_dtype())
+        self._rows = bkd.asarray(list(dofs), dtype=bkd.int64_dtype())
         self._nrows = len(dofs)
 
     def nrows(self) -> int:
@@ -128,12 +126,12 @@ class BackendPortRows(Generic[Array]):
 
     def take(self, x: Array) -> Array:
         self._check(x, self._descriptor.size, "x")
-        return self._bkd.dot(self._select, x)
+        return x[self._rows]
 
     def add_to(self, y: Array, block: Array) -> Array:
         self._check(y, self._descriptor.size, "y")
         self._check(block, self._nrows, "block")
-        return y + self._bkd.dot(self._select.T, block)
+        return self._bkd.index_update(y, self._rows, y[self._rows] + block)
 
 
 @runtime_checkable
