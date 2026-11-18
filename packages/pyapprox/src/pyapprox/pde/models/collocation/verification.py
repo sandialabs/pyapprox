@@ -32,8 +32,11 @@ leave it, as floats.
   ``collocation_steady_residual`` + ``SteadySystem`` with a dense LU and
   returns :class:`CollocationApproximation` objects, whose errors are
   measured at the collocation nodes.
-- :class:`DecaysExponentially` judges a spectral study: the error falls
-  exponentially in the number of nodes, which no algebraic rate states.
+- :class:`DecaysExponentially` judges a spectral study, a
+  :class:`NodeStudy` of errors against node counts from
+  :func:`run_node_study`: the error falls exponentially in the number of
+  nodes, which no algebraic rate states. The core's study records mesh
+  sizes only, so this pair lives here until the core has its own.
 
 Natural data: the core states them with the outward flux :math:`q\cdot
 n`, which is what this stack's flux normal operator computes, so Neumann
@@ -112,7 +115,7 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.study import CheckResult, Study
+from pyapprox.pde.verification.study import CheckResult, ErrorMeasureProtocol
 from pyapprox.util.backends.protocols import Array, Array_co, Backend
 from pyapprox.util.expressions.parsing import Value, parse
 from pyapprox.util.linalg.backend_dense import BackendDenseLU
@@ -655,10 +658,15 @@ class CollocationApproximation(Generic[Array]):
         self._error = exact - state
         self._weights = _quadrature_weights(level)
         self._bkd, self._state, self._h = bkd, state, level.h()
+        self._nodes = max(level.mesh().npts_per_dim())
 
     def h(self) -> float:
         """The largest gap between neighboring nodes (:meth:`ChebyshevLevel.h`)."""
         return self._h
+
+    def nodes(self) -> int:
+        """The most nodes along any direction, :math:`N`."""
+        return self._nodes
 
     def state(self) -> Array:
         """The nodal values. Shape: (npts,)"""
@@ -761,19 +769,69 @@ class CollocationDiscretizer(Generic[Array]):
         return f"{type(self).__name__}({self._levels!r}, {self._factory!r})"
 
 
+@dataclass(frozen=True)
+class NodeStudy:
+    """Node counts and errors, coarsest first: a spectral study, which
+    the core's :class:`~pyapprox.pde.verification.study.Study` (mesh
+    sizes only) cannot hold.
+
+    Raises
+    ------
+    ValueError
+        If there are no levels, the lengths differ, a node count is below
+        two, or an error is negative or not finite.
+    """
+
+    nodes: Tuple[int, ...]
+    errors: Tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        if not self.nodes or len(self.nodes) != len(self.errors):
+            raise ValueError(
+                f"a study needs one error per node count, at least one; got "
+                f"{len(self.nodes)} counts and {len(self.errors)} errors"
+            )
+        if any(n < 2 for n in self.nodes):
+            raise ValueError(f"node counts must be at least two, got {self.nodes}")
+        if any(not (math.isfinite(e) and e >= 0.0) for e in self.errors):
+            raise ValueError(f"errors must be finite and non-negative: {self.errors}")
+
+
+def run_node_study(
+    problem: ManufacturedProblem,
+    discretizer: CollocationDiscretizer[Array],
+    measure: ErrorMeasureProtocol,
+) -> NodeStudy:
+    """Solve ``problem`` at every level of ``discretizer`` and record
+    ``measure`` against each level's node count.
+
+    Raises
+    ------
+    TypeError
+        If ``measure`` does not satisfy ``ErrorMeasureProtocol``.
+    """
+    if not isinstance(measure, ErrorMeasureProtocol):
+        raise TypeError(
+            f"measure must satisfy ErrorMeasureProtocol, got {type(measure).__name__}"
+        )
+    approximations = discretizer.approximations(problem)
+    return NodeStudy(
+        tuple(a.nodes() for a in approximations),
+        tuple(measure.measure(a) for a in approximations),
+    )
+
+
 class DecaysExponentially:
-    r"""The error falls at least exponentially in the resolution: the
-    least-squares slope of :math:`\log e` against :math:`1/h` is at most
+    r"""The error falls at least exponentially in the number of nodes: the
+    least-squares slope of :math:`\log e` against :math:`N` is at most
     ``-rate``.
 
     Spectral methods on smooth solutions converge as :math:`e \sim
     C\exp(-\rho N)`, which no algebraic rate in :math:`h` states: the
     slope of :math:`\log e` against :math:`\log h` grows without bound,
-    while against :math:`N` it is the constant :math:`-\rho`. On
-    Chebyshev-Gauss-Lobatto nodes :math:`1/h \approx 2(N - 1)/(\pi L)` on
-    a side of length :math:`L` (:meth:`ChebyshevLevel.h`), so the slope
-    against :math:`1/h` is :math:`\rho\,\pi L/2`, and :math:`\rho =
-    2\,\mathrm{slope}/(\pi L)` per node. For an entire solution the
+    while against :math:`N` it is the constant :math:`-\rho`, with
+    :math:`\rho = \ln r` for a solution analytic inside the Bernstein
+    ellipse of parameter :math:`r`. For an entire solution the
     convergence is faster than any exponential and the slope steepens
     with :math:`N`; ``rate`` is a floor, which that only clears more
     easily. Fit levels above round-off, where the curve flattens.
@@ -781,7 +839,7 @@ class DecaysExponentially:
     Parameters
     ----------
     rate : float
-        The decay a correct model reaches, per unit of :math:`1/h`.
+        The decay :math:`\rho` a correct model reaches, per node.
     last : int, optional
         Fit only the finest ``last`` levels.
     """
@@ -789,36 +847,36 @@ class DecaysExponentially:
     def __init__(self, rate: float, last: Optional[int] = None) -> None:
         self._rate, self._last = rate, last
 
-    def verify(self, study: Study) -> CheckResult:
+    def verify(self, study: NodeStudy) -> CheckResult:
         """Pass if the fitted decay reaches ``rate``; fail on a zero error,
         whose logarithm the fit cannot take.
 
         Raises
         ------
         ValueError
-            If fewer than two levels are fitted or the fitted mesh sizes
+            If fewer than two levels are fitted or the fitted node counts
             are all equal.
         """
-        h, errors = study.h, study.errors
+        nodes, errors = study.nodes, study.errors
         if self._last is not None:
-            h, errors = h[-self._last :], errors[-self._last :]
-        if len(h) < 2:
-            raise ValueError(f"a decay needs at least two levels, got {len(h)}")
+            nodes, errors = nodes[-self._last :], errors[-self._last :]
+        if len(nodes) < 2:
+            raise ValueError(f"a decay needs at least two levels, got {len(nodes)}")
         if any(e == 0.0 for e in errors):
             return CheckResult(False, 0.0, f"an error is zero: {errors}")
-        xs = [1.0 / value for value in h]
+        xs = [float(n) for n in nodes]
         ys = [math.log(e) for e in errors]
         xmean, ymean = sum(xs) / len(xs), sum(ys) / len(ys)
         sxx = sum((x - xmean) ** 2 for x in xs)
         if sxx == 0.0:
-            raise ValueError(f"a decay needs distinct mesh sizes, got {h}")
+            raise ValueError(f"a decay needs distinct node counts, got {nodes}")
         slope = sum((x - xmean) * (y - ymean) for x, y in zip(xs, ys)) / sxx
         observed = -slope
         return CheckResult(
             observed >= self._rate,
             observed,
-            f"fitted decay {observed:.3f} per unit 1/h, expected at least "
-            f"{self._rate:.3f}; errors {errors}",
+            f"fitted decay {observed:.3f} per node, expected at least "
+            f"{self._rate:.3f}; nodes {nodes}, errors {errors}",
         )
 
     def __repr__(self) -> str:

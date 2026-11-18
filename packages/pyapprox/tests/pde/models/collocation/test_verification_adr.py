@@ -19,7 +19,7 @@ Cases:
   on its sides; variable D, v and r, both advection forms, so the
   Neumann and Robin data carry the advective flux exactly when the form
   is conservative;
-- spectral decay (fitted decay of log error against 1/h) of analytic
+- spectral decay (fitted decay of log error per node) of analytic
   solutions: 1D and 2D under mixed conditions, and periodic ends in 1D
   and a 2D box periodic in x, in both advection forms;
 - wrong-model controls, fitted algebraic rate below 0.5: Neumann data
@@ -59,6 +59,7 @@ from pyapprox.pde.models.collocation.verification import (
     CollocationApproximation,
     CollocationDiscretizer,
     DecaysExponentially,
+    NodeStudy,
     boundary_conditions,
     collocation_system,
     field,
@@ -75,7 +76,6 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.study import Study
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
@@ -209,23 +209,24 @@ def test_recovers_cubic_2d(bkd: Backend[Array], codes: str, conservative: bool) 
 def test_decays_1d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """u = exp(x) sin(3 x) on [0, 1], Dirichlet left and Neumann right,
     variable D and v: the L2 error falls exponentially over 4-12 nodes
-    (0.2 to 4e-9; observed decay 3.3 non-conservative, 3.4 conservative,
-    required 1.5)."""
+    (0.2 to 4e-9; observed decay 2.07 per node non-conservative, 2.12
+    conservative, required 1)."""
     adr = _ADR("1 + x/2", ["1 + x"], "-1", conservative)
     problem = _problem("exp(x)*sin(3*x)", adr, _UNIT, coded("DN", _UNIT))
-    decays(problem, adr, [4, 6, 8, 10, 12], 1.5, numpy_bkd)
+    decays(problem, adr, [4, 6, 8, 10, 12], 1.0, numpy_bkd)
 
 
 @pytest.mark.parametrize("conservative", [False, True])
 def test_decays_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """u = exp(x/2) sin(2 y) + x y on [0, 1] x [-1, 1], Dirichlet,
     Robin and Neumann sides, rotating v: exponential decay over 4-12
-    nodes per direction (observed 6.8 in both forms, required 3)."""
+    nodes per direction (observed 2.16 per node in both forms, required
+    1)."""
     adr = _ADR("1 + x*y/4", ["1 - y", "x/2"], "-1", conservative)
     problem = _problem(
         "exp(x/2)*sin(2*y) + x*y", adr, _RECTANGLE, coded("DRDN", _RECTANGLE)
     )
-    decays(problem, adr, [4, 6, 8, 10, 12], 3.0, numpy_bkd)
+    decays(problem, adr, [4, 6, 8, 10, 12], 1.0, numpy_bkd)
 
 
 _PERIODIC_1D: Dict[str, ConditionProtocol] = {"left": Periodic(), "right": Periodic()}
@@ -235,20 +236,20 @@ _PERIODIC_1D: Dict[str, ConditionProtocol] = {"left": Periodic(), "right": Perio
 def test_decays_periodic_1d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """Both ends periodic, periodic D and v, absorption r = -1: the
     value and derivative match close the system, exponential decay over
-    8-20 nodes (2.1 to 3e-7 L2; observed 2.07 non-conservative, 1.98
-    conservative, required 1)."""
+    8-20 nodes (2.1 to 3e-7 L2; observed 1.31 per node non-conservative,
+    1.26 conservative, required 0.6)."""
     adr = _ADR("1 + sin(2*pi*x)/2", ["1 + cos(2*pi*x)/4"], "-1", conservative)
     problem = _problem(
         "sin(2*pi*x) + cos(4*pi*x)/2 + 1", adr, _UNIT, _PERIODIC_1D
     )
-    decays(problem, adr, [8, 12, 16, 20], 1.0, numpy_bkd)
+    decays(problem, adr, [8, 12, 16, 20], 0.6, numpy_bkd)
 
 
 @pytest.mark.parametrize("conservative", [False, True])
 def test_decays_periodic_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """[0, 1] x [-1, 1] periodic in x, Dirichlet bottom and Robin top:
     exponential decay over 8-16 nodes per direction (1e-3 to 3e-11 L2;
-    observed 6.8 in both forms, required 3); the bottom Dirichlet values
+    observed 2.16 per node in both forms, required 1); the bottom Dirichlet values
     agree on the paired corners."""
     adr = _ADR("1", ["1", "x/4 + 1/2"], "-1", conservative)
     conditions: Dict[str, ConditionProtocol] = {
@@ -258,7 +259,7 @@ def test_decays_periodic_2d(numpy_bkd: Backend[Array], conservative: bool) -> No
         "top": Robin(1.0),
     }
     problem = _problem("sin(2*pi*x)*exp(y/2) + y", adr, _RECTANGLE, conditions)
-    decays(problem, adr, [8, 10, 12, 14, 16], 3.0, numpy_bkd)
+    decays(problem, adr, [8, 10, 12, 14, 16], 1.0, numpy_bkd)
 
 
 class _NoSpring(_ADR):
@@ -357,16 +358,20 @@ def test_time_dependence_is_declared_per_coefficient(
 
 class TestAdapterPieces:
     def test_decay_check(self) -> None:
-        """Errors exp(-2/h) decay at 2 per unit 1/h: required 1.5 passes,
-        2.5 fails; a zero error or a single level is refused."""
-        h = (0.5, 0.25, 0.125)
-        study = Study(h, tuple(math.exp(-2.0 / value) for value in h))
+        """Errors exp(-2N) decay at 2 per node: required 1.5 passes, 2.5
+        fails; a zero error fails, and a single level or a node count
+        below two is refused."""
+        nodes = (4, 8, 12)
+        study = NodeStudy(nodes, tuple(math.exp(-2.0 * n) for n in nodes))
         result = DecaysExponentially(1.5).verify(study)
         assert result.passed and abs(result.observed - 2.0) < 1e-12
         assert not DecaysExponentially(2.5).verify(study).passed
-        assert not DecaysExponentially(1.0).verify(Study(h, (1.0, 0.1, 0.0))).passed
+        zero = NodeStudy(nodes, (1.0, 0.1, 0.0))
+        assert not DecaysExponentially(1.0).verify(zero).passed
         with pytest.raises(ValueError, match="at least two levels"):
             DecaysExponentially(1.0, last=1).verify(study)
+        with pytest.raises(ValueError, match="at least two"):
+            NodeStudy((1, 4), (1.0, 0.1))
 
     @pytest.mark.parametrize(
         "box, expected",

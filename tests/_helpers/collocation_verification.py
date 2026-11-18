@@ -14,6 +14,7 @@ from pyapprox.pde.models.collocation.verification import (
     CollocationDiscretizer,
     DecaysExponentially,
     SystemFactoryProtocol,
+    run_node_study,
 )
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
@@ -70,9 +71,10 @@ def decays(
     last: Optional[int] = None,
 ) -> None:
     """The L2 error falls exponentially over ``sizes`` nodes per
-    direction, at least ``rate`` per unit 1/h."""
+    direction, at least ``rate`` per node."""
     discretizer = CollocationDiscretizer(ChebyshevBox(sizes, bkd), factory)
-    result = verify(problem, discretizer, L2Error(), DecaysExponentially(rate, last))
+    study = run_node_study(problem, discretizer, L2Error())
+    result = DecaysExponentially(rate, last).verify(study)
     assert result.passed, result.message
 
 
