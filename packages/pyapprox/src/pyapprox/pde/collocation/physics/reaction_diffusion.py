@@ -557,6 +557,79 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         return bkd.concatenate(fluxes)
 
 
+class SpeciesDiffusiveFlux(Generic[Array]):
+    r"""The diffusive flux :math:`-D_k \nabla u_k` of one species of a
+    two-species reaction-diffusion physics, as a boundary condition on
+    that species prescribes it.
+
+    Maps the whole stacked state :math:`[u_0, u_1]` to the species'
+    flux, so its Jacobian has a column per state entry and is nonzero
+    only in the species' block. A species that does not diffuse has zero
+    flux. Reads the physics' current diffusivity at each call.
+
+    Satisfies ``FluxProviderProtocol``.
+
+    Parameters
+    ----------
+    physics : TwoSpeciesReactionDiffusionPhysics
+        Supplies the diffusivities and the derivative matrices.
+    species : int
+        0 or 1.
+
+    Raises
+    ------
+    ValueError
+        If ``species`` is not 0 or 1.
+    """
+
+    def __init__(
+        self, physics: TwoSpeciesReactionDiffusionPhysics[Array], species: int
+    ) -> None:
+        if species not in (0, 1):
+            raise ValueError(f"species must be 0 or 1, got {species}")
+        self._physics, self._species = physics, species
+        basis = physics.basis()
+        self._derivatives = [
+            basis.derivative_matrix(1, dim) for dim in range(basis.ndim())
+        ]
+
+    def _diffusion(self, time: float) -> Optional[Array]:
+        coefficient = self._physics.diffusion_functions()[self._species]
+        return None if coefficient is None else coefficient.values(time)
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """The flux components at all mesh points, one per dimension.
+        Each shape: (npts,)"""
+        npts = self._physics.npts()
+        u = state[self._species * npts : (self._species + 1) * npts]
+        diffusion = self._diffusion(time)
+        if diffusion is None:
+            bkd = self._physics.bkd()
+            return [bkd.zeros((npts,)) for _ in self._derivatives]
+        return [-diffusion * (D1 @ u) for D1 in self._derivatives]
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        """The state Jacobian of each flux component, zero outside the
+        species' columns. Each shape: (npts, 2 * npts)"""
+        bkd, npts = self._physics.bkd(), self._physics.npts()
+        diffusion = self._diffusion(time)
+        zero = bkd.zeros((npts, npts))
+        jacobians: List[Array] = []
+        for D1 in self._derivatives:
+            block = zero if diffusion is None else -(diffusion[:, None] * D1)
+            blocks = [block, zero] if self._species == 0 else [zero, block]
+            jacobians.append(bkd.hstack(blocks))
+        return jacobians
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the species' diffusivity is declared time-dependent."""
+        coefficient = self._physics.diffusion_functions()[self._species]
+        return not declared_time_invariant(coefficient)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(species={self._species})"
+
+
 def create_two_species_reaction_diffusion(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],

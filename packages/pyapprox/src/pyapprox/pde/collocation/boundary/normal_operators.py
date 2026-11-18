@@ -171,7 +171,7 @@ class FluxNormalOperator(Generic[Array]):
         Parameters
         ----------
         state : Array
-            Full solution vector. Shape: (npts,)
+            Full solution vector, all components stacked. Shape: (nstates,)
         time : float
             Time at which the flux coefficients are evaluated.
 
@@ -193,21 +193,22 @@ class FluxNormalOperator(Generic[Array]):
         Parameters
         ----------
         state : Array
-            Full solution vector. Shape: (npts,)
+            Full solution vector, all components stacked. Shape: (nstates,)
         time : float
             Time at which the flux coefficients are evaluated.
 
         Returns
         -------
         Array
-            Jacobian. Shape: (nboundary_pts, npts)
+            Jacobian, one column per state entry (``nstates`` = ``npts``
+            for a scalar physics). Shape: (nboundary_pts, nstates)
         """
         bkd = self._bkd
         flux_jac_components = self._flux_provider.compute_flux_jacobian(
             state, time
         )
-        npts = flux_jac_components[0].shape[0]
-        result = bkd.zeros((self._nboundary_pts, npts))
+        nstates = flux_jac_components[0].shape[1]
+        result = bkd.zeros((self._nboundary_pts, nstates))
         # Vectorized row gather (per-row python loops are slow on torch)
         for d, jac_d in enumerate(flux_jac_components):
             result = result + (
