@@ -2,7 +2,10 @@
 
 The discretization applies no boundary condition: its Jacobian and mass
 are the system's as assembled, compared with the system's own matrices,
-and its row set selects exactly the constraint set's DOFs. The adapter
+and its row set selects exactly the constraint set's DOFs. These are the
+stack-generic discretization suites, run on the SciPy stack (the skfem
+builder) and on the opaque mock stack (the same skfem assemblers), so
+nothing in the discretization depends on the SciPy stack. The adapter
 applies the essential rows: its implicit system's mass has identity rows
 and its Jacobian zero rows there, matching the adapter's matrix forms,
 and a shifted-Jacobian solve equals a dense solve with sigma M - J. For a
@@ -10,7 +13,8 @@ scalar linear physics, a scalar nonlinear one and a mixed one, with the
 consistent and the lumped mass.
 """
 
-from typing import Any
+from functools import partial
+from typing import Any, Union
 
 import pytest
 
@@ -44,6 +48,10 @@ from pyapprox.pde.galerkin.time_integration.stack_discretization import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
 from pyapprox.util.linalg.scipy_stack import CSRFormat
+from tests._helpers.galerkin_discretization_suites import (
+    TransientDiscretizationCase,
+    TransientDiscretizationSuite,
+)
 from tests._helpers.galerkin_systems import (
     SYSTEM_NAMES,
     MassScaledSystem,
@@ -54,11 +62,12 @@ from tests._helpers.linalg.mock_stack import (
     MockAssemblyStack,
     MockFormat,
     MockVector,
-    peek,
-    wrap,
 )
+from tests._helpers.linalg.stacks import csr_case, mock_case
 
 _Np = NDArray[Any]
+_CsrDiscretizationCase = TransientDiscretizationCase[_Np, _Np, CSRFormat, _Np]
+_MockDiscretizationCase = TransientDiscretizationCase[_Np, MockVector, MockFormat, _Np]
 
 
 def _dense(matrix: _Np) -> _Np:
@@ -95,51 +104,87 @@ def _essential(system: NpSystem, bkd: NumpyBkd) -> _Np:
     return dofs
 
 
-@pytest.mark.parametrize("lumped", [False, True])
+def _system_mass(system: NpSystem, lumped: bool) -> _Np:
+    """The system's mass as a dense array, row-sum lumped if ``lumped``."""
+    mass = _dense(system.mass_matrix())
+    if lumped:
+        lumped_mass: _Np = np.diag(mass.sum(axis=1))
+        return lumped_mass
+    return mass
+
+
+def _csr_discretization_case(system: NpSystem, lumped: bool) -> _CsrDiscretizationCase:
+    disc = skfem_discretization(system, lumped_mass=lumped)
+    return TransientDiscretizationCase(
+        csr_case(),
+        disc,
+        system,
+        partial(_raw_jacobian, system),
+        [int(dof) for dof in _essential(system, NumpyBkd())],
+        disc,
+        _system_mass(system, lumped),
+        lumped,
+    )
+
+
+def _mock_discretization_case(
+    physics: str, bkd: NumpyBkd, lumped: bool
+) -> _MockDiscretizationCase:
+    """The skfem assemblers building into the opaque mock stack."""
+    system, basis, descriptor = galerkin_system(physics, bkd)
+    stack = MockAssemblyStack()
+    disc = GalerkinStackDiscretization(
+        system,
+        stack,
+        SkfemJacobianAssembler(system, stack, basis, descriptor),
+        SkfemMassAssembler(system, stack, basis, descriptor, lumped=lumped),
+        descriptor,
+    )
+    return TransientDiscretizationCase(
+        mock_case(),
+        disc,
+        system,
+        partial(_raw_jacobian, system),
+        [int(dof) for dof in _essential(system, bkd)],
+        disc,
+        _system_mass(system, lumped),
+        lumped,
+    )
+
+
+_CASES = [
+    (stack, physics, lumped)
+    for stack in ("csr", "mock")
+    for physics in SYSTEM_NAMES
+    for lumped in (False, True)
+]
+
+
+@pytest.fixture(
+    params=_CASES,
+    ids=[f"{s}-{p}-{'lumped' if m else 'consistent'}" for s, p, m in _CASES],
+)
+def case(
+    request: pytest.FixtureRequest, numpy_bkd: NumpyBkd
+) -> Union[_CsrDiscretizationCase, _MockDiscretizationCase]:
+    stack, physics, lumped = request.param
+    if stack == "mock":
+        return _mock_discretization_case(physics, numpy_bkd, lumped)
+    system, _, _ = galerkin_system(physics, numpy_bkd)
+    return _csr_discretization_case(system, lumped)
+
+
+class TestSkfemDiscretization(TransientDiscretizationSuite):
+    pass
+
+
 @pytest.mark.parametrize("physics", SYSTEM_NAMES)
-class TestSkfemDiscretization:
-    def test_mass_is_the_systems_as_assembled(
-        self, numpy_bkd: NumpyBkd, physics: str, lumped: bool
-    ) -> None:
-        system, _, _ = galerkin_system(physics, numpy_bkd)
-        disc = skfem_discretization(system, lumped_mass=lumped)
-        unconstrained, _ = _adapter_masses(system, lumped)
-        stored = disc.assemble_mass().format()
-        assert isinstance(stored, CSRFormat)
-        numpy_bkd.assert_allclose(_csr(stored), unconstrained, atol=1e-15)
-        assert disc.assemble_mass().properties().diagonal == lumped
-
-    def test_jacobian_is_the_systems_as_assembled(
-        self, numpy_bkd: NumpyBkd, physics: str, lumped: bool
-    ) -> None:
-        system, _, _ = galerkin_system(physics, numpy_bkd)
-        disc = skfem_discretization(system, lumped_mass=lumped)
-        state = _state(system)
-        op = disc.assemble_jacobian(state, 0.3)
-        numpy_bkd.assert_allclose(
-            _csr(op.format()), _raw_jacobian(system, state, 0.3), atol=1e-14
-        )
-
-    def test_row_set_is_the_constraint_sets(
-        self, numpy_bkd: NumpyBkd, physics: str, lumped: bool
-    ) -> None:
-        system, _, _ = galerkin_system(physics, numpy_bkd)
-        disc = skfem_discretization(system, lumped_mass=lumped)
-        n = system.nstates()
-        zeroed = disc.essential_rows().zero_rows(np.ones((n, 1)))[:, 0]
-        expected = _essential(system, numpy_bkd)
-        np.testing.assert_array_equal(np.flatnonzero(zeroed == 0.0), expected)
-        assert disc.essential_rows().count() == expected.size > 0
-
-    def test_spaces(self, numpy_bkd: NumpyBkd, physics: str, lumped: bool) -> None:
-        system, _, _ = galerkin_system(physics, numpy_bkd)
-        disc = skfem_discretization(system, lumped_mass=lumped)
-        descriptor = SpaceDescriptor("state", system.nstates(), "float64")
-        assert disc.descriptor() == descriptor
-        assert disc.nstates() == system.nstates()
-        assert disc.system() is system
-        op = disc.assemble_mass()
-        assert (op.domain(), op.range()) == (descriptor, descriptor)
+def test_the_builder_states_are_float64(numpy_bkd: NumpyBkd, physics: str) -> None:
+    system, _, _ = galerkin_system(physics, numpy_bkd)
+    disc = skfem_discretization(system)
+    descriptor = SpaceDescriptor("state", system.nstates(), "float64")
+    assert disc.descriptor() == descriptor
+    assert disc.space().descriptor() == descriptor
 
 
 @pytest.mark.parametrize("lumped", [False, True])
@@ -246,45 +291,6 @@ def test_the_builder_takes_the_basis_from_the_system(numpy_bkd: NumpyBkd) -> Non
     assert system.basis() is basis
     assert isinstance(system.basis(), ElementDofMapProtocol)
     assert skfem_discretization(system).nstates() == system.nstates()
-
-
-def _mock_discretization(
-    bkd: NumpyBkd,
-) -> tuple[NpSystem, GalerkinStackDiscretization[_Np, MockVector, MockFormat]]:
-    system, basis, descriptor = galerkin_system("burgers", bkd)
-    stack = MockAssemblyStack()
-    return system, GalerkinStackDiscretization(
-        system,
-        stack,
-        SkfemJacobianAssembler(system, stack, basis, descriptor),
-        SkfemMassAssembler(system, stack, basis, descriptor),
-        descriptor,
-    )
-
-
-class TestOnAnotherStack:
-    def test_operators_match_the_systems(self, numpy_bkd: NumpyBkd) -> None:
-        """Nothing in the discretization depends on the SciPy stack."""
-        system, disc = _mock_discretization(numpy_bkd)
-        unconstrained, _ = _adapter_masses(system, False)
-        numpy_bkd.assert_allclose(disc.assemble_mass().format().dense(), unconstrained)
-        state = _state(system)
-        op = disc.assemble_jacobian(state, 0.0)
-        x = np.random.default_rng(1).normal(size=(system.nstates(), 2))
-        reference = _raw_jacobian(system, state, 0.0)
-        numpy_bkd.assert_allclose(
-            peek(op.apply(wrap(x, disc.descriptor()))), reference @ x
-        )
-        numpy_bkd.assert_allclose(
-            peek(op.apply_transpose(wrap(x, disc.descriptor()))), reference.T @ x
-        )
-
-    def test_masses_are_independent_of_later_calls(self, numpy_bkd: NumpyBkd) -> None:
-        _, disc = _mock_discretization(numpy_bkd)
-        first = disc.assemble_mass()
-        before = first.format().dense().copy()
-        disc.assemble_mass()
-        numpy_bkd.assert_allclose(first.format().dense(), before)
 
 
 class TestErrors:

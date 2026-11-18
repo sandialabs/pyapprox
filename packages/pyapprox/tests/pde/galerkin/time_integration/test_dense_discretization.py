@@ -5,8 +5,10 @@ The mock P1 operator of ``tests._helpers.mock_elementwise`` on 8 cells of
 u(0) = 1, u(1) = 2, its modal parameterization at p = (0.3, -0.2, 0.1,
 0.4, -0.1, 0.2).
 
-- ``DenseSteadyDiscretization`` gives the system's spaces, its two
-  essential rows, and the operator's own Jacobian, on both backends.
+- ``DenseSteadyDiscretization`` passes the stack-generic steady
+  discretization suite (spaces, the two essential rows, the operator's
+  own Jacobian and its transpose), with and without the reaction, on
+  both backends.
 - ``galerkin_steady_residual`` over it: free rows equal the operator's
   residual to 1e-12 and the pinned rows hold :math:`u - g`, at
   u = linspace(0.5, 1.5); the state and parameter Jacobians pass central
@@ -18,7 +20,6 @@ u(0) = 1, u(1) = 2, its modal parameterization at p = (0.3, -0.2, 0.1,
 
 from typing import Callable, Generic
 
-import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
@@ -38,10 +39,15 @@ from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residua
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendDenseLU
+from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.linalg.operators import LinearizationPoint
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.galerkin_discretization_suites import (
+    SteadyDiscretizationCase,
+    SteadyDiscretizationSuite,
+)
+from tests._helpers.linalg.stacks import dense_case
 from tests._helpers.mock_elementwise import (
     MockP1Operator,
     ModalCoefficientParameterization,
@@ -91,22 +97,21 @@ class _Case(Generic[Array]):
         return point.state()
 
 
-class TestTheDiscretization:
-    def test_spaces_rows_and_jacobian(self, bkd: Backend[Array]) -> None:
-        case: _Case[Array] = _Case(bkd, reaction=True)
-        disc = case.discretization
-        assert disc.system() is case.system
-        assert disc.nstates() == case.n
-        assert disc.space().descriptor().size == case.n
-        assert disc.parameter_space(6).descriptor().size == 6
-        assert disc.essential_rows().count() == 2
-        state = bkd.asarray(np.linspace(0.5, 1.5, case.n))
-        direction = bkd.asarray(np.linspace(-1.0, 1.0, case.n))[:, None]
-        expected = bkd.dot(case.operator.spatial_jacobian(state, 0.0), direction)
-        bkd.assert_allclose(
-            disc.assemble_jacobian(state, 0.0).apply(direction), expected, rtol=1e-14
-        )
+@pytest.fixture(params=[False, True], ids=["linear", "reaction"])
+def case(
+    request: pytest.FixtureRequest, bkd: Backend[Array]
+) -> SteadyDiscretizationCase[Array, Array, DenseFormat[Array], Array]:
+    built: _Case[Array] = _Case(bkd, reaction=request.param)
+    return SteadyDiscretizationCase(
+        dense_case(bkd),
+        built.discretization,
+        built.system,
+        built.operator.spatial_jacobian,
+        [0, built.n - 1],
+    )
 
+
+class TestTheDiscretization(SteadyDiscretizationSuite):
     def test_refuses_an_object_that_is_not_a_system(self) -> None:
         with pytest.raises(TypeError, match="GalerkinSteadySystemProtocol"):
             DenseSteadyDiscretization(object())  # type: ignore[arg-type]
