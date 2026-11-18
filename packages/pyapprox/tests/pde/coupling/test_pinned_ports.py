@@ -38,6 +38,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.coupling.pinned_ports import (
+    PortParameterResidual,
     PortPinnedData,
     PortPlacement,
     pin_ports,
@@ -55,7 +56,7 @@ from pyapprox.util.linalg.backend_dense import (
     BackendRowSet,
     DenseFormat,
 )
-from pyapprox.util.linalg.operators import SpaceDescriptor
+from pyapprox.util.linalg.operators import LinearizationPoint, SpaceDescriptor
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.coupling import MockPortRows
 from tests._helpers.linalg.mock_stack import MockFormat, MockVector
@@ -76,6 +77,7 @@ from tests._helpers.rom_problem import FixedValue
 _NCELLS = 8
 _PORT = _NCELLS
 _LAMBDA = 1.7
+_POINT = LinearizationPoint(0, ("test",))
 
 
 @dataclass
@@ -200,6 +202,18 @@ class TestTheGalerkinSubdomain:
         ).check_derivatives(bkd.asarray([[_LAMBDA]]), relative=True, central=True)
         assert bkd.to_float(bkd.min(errors[0])) < 1e-6
 
+    def test_nested_jacobian_is_the_union_pin(self, bkd: Backend[Array]) -> None:
+        r"""The nested pin's state Jacobian equals that of one pin of the
+        essential and port rows together, built with no port code."""
+        sub = _Subdomain(bkd)
+        nested = pin_ports(sub.pinned, sub.ports()).derivatives().jacobian
+        union = _Subdomain(bkd, port_essential=True).pinned.derivatives().jacobian
+        assert nested is not None and union is not None
+        state = bkd.linspace(0.5, 1.5, sub.n)[:, None]
+        eye = bkd.eye(sub.n)
+        expected = union(state, _POINT).apply(eye)
+        bkd.assert_allclose(nested(state, _POINT).apply(eye), expected, atol=1e-14)
+
     def test_solve_equals_the_essential_problem(self, bkd: Backend[Array]) -> None:
         sub = _Subdomain(bkd)
         ports = sub.ports()
@@ -212,8 +226,18 @@ class TestTheGalerkinSubdomain:
 class TestRefusals:
     def test_port_on_an_essential_row(self, bkd: Backend[Array]) -> None:
         sub = _Subdomain(bkd)
-        with pytest.raises(ValueError, match="essential"):
+        with pytest.raises(ValueError, match="1 port rows are also essential"):
             pin_ports(sub.pinned, sub.ports((0,)))
+        # A partial overlap: one of two port rows is essential.
+        with pytest.raises(ValueError, match="1 port rows are also essential"):
+            pin_ports(sub.pinned, sub.ports((_PORT, 0)))
+
+    def test_a_residual_that_is_not_pinned(self, bkd: Backend[Array]) -> None:
+        sub = _Subdomain(bkd)
+        with pytest.raises(TypeError, match="PinnedResidual"):
+            PortParameterResidual(
+                sub.pinned.unpinned(), sub.ports()  # type: ignore[arg-type]
+            )
 
     def test_residual_with_parameters(self, bkd: Backend[Array]) -> None:
         sub = _Subdomain(bkd)

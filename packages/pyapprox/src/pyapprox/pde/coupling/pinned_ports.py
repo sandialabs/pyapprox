@@ -31,7 +31,6 @@ from pyapprox.implicitfunction.pinned_rows import (
     PinnedValuesParamDerivatives,
     RowPin,
 )
-from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
@@ -231,35 +230,49 @@ class _ZeroParam(Generic[V]):
 
 
 class PortParameterResidual(Generic[V, F]):
-    r""":math:`F(u)` with the port data as its parameters, on which it
-    does not depend: :math:`F_\lambda = 0`.
+    r""":math:`F(u)`, its essential rows pinned, with the port data as its
+    parameters, on which it does not depend: :math:`F_\lambda = 0`.
 
     Satisfies :class:`~pyapprox.implicitfunction.residual.
     ResidualProtocol`. Its parameter version counts both :math:`F`'s and
-    the port data's changes.
+    the port data's changes. Pinning the port rows over it is the pin of
+    the union of the essential and port rows only because the two sets
+    are disjoint, which construction checks.
 
     Parameters
     ----------
-    residual : ResidualProtocol
-        :math:`F`, without parameters of its own.
+    residual : PinnedResidual
+        :math:`F` with its essential rows pinned, without parameters of
+        its own.
     ports : PortPinnedData
         The port data.
 
     Raises
     ------
     TypeError
-        If ``residual`` does not satisfy ``ResidualProtocol``.
+        If ``residual`` is not a ``PinnedResidual``.
     ValueError
-        If ``residual`` has parameter derivatives: its own parameters and
-        the port data would need one combined parameter space.
+        If a port row is also an essential row, the port rows belong to
+        another space, or ``residual`` has parameter derivatives: its own
+        parameters and the port data would need one combined parameter
+        space.
     """
 
     def __init__(
-        self, residual: ResidualProtocol[V, F], ports: PortPinnedData[V, P]
+        self, residual: PinnedResidual[V, F], ports: PortPinnedData[V, P]
     ) -> None:
-        if not isinstance(residual, ResidualProtocol):
+        if not isinstance(residual, PinnedResidual):
             raise TypeError(
-                f"residual must satisfy ResidualProtocol, got {type(residual).__name__}"
+                f"residual must be a PinnedResidual, got {type(residual).__name__}"
+            )
+        residual.space().descriptor().require_same(
+            ports.rows().descriptor(), "the port rows"
+        )
+        free = ports.rows().difference(residual.pin().rows())
+        if free.count() != ports.nport():
+            raise ValueError(
+                f"{ports.nport() - free.count()} port rows are also essential "
+                "rows; a port must not carry an essential condition"
             )
         bundle = residual.derivatives()
         if bundle.param is not None:
@@ -311,12 +324,6 @@ def pin_ports(
         If a port row is also a pinned row of ``pinned``, the spaces
         differ, or ``pinned`` has parameters of its own.
     """
-    essential = pinned.pin().rows()
-    free = ports.rows().difference(essential)
-    if free.count() != ports.nport():
-        raise ValueError(
-            f"{ports.nport() - free.count()} port rows are also essential rows; "
-            "a port must not carry an essential condition"
-        )
-    space = pinned.space()
-    return PinnedResidual(PortParameterResidual(pinned, ports), RowPin(ports), space)
+    return PinnedResidual(
+        PortParameterResidual(pinned, ports), RowPin(ports), pinned.space()
+    )
