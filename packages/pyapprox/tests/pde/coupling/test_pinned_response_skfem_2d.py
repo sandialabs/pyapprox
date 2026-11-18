@@ -13,6 +13,10 @@ discrete equations, equal to solver tolerance.
   left edge, u = 2 on the right, natural on top and bottom.
 - Four subdomains (2 x 2, one cross point),
   :math:`-\Delta u + u [+ u^3] = f`, natural all round.
+- Three subdomains, not a box partition: one on the left half, two
+  stacked on the right, so the left one's side is two skeleton faces
+  and the vertex between them (a hanging vertex) is incident to all
+  three subdomains, with one skeleton DOF. Same PDE as the four.
 
 Interface ends lie on natural boundaries, where they are unknowns of
 the skeleton like any interface node. Checks: the skeleton solution and
@@ -27,7 +31,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Protocol, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,7 +46,11 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
-from pyapprox.pde.coupling.geometry import TensorBoxGeometry, skeleton_dof_points
+from pyapprox.pde.coupling.geometry import (
+    FaceGeometryProtocol,
+    TensorBoxGeometry,
+    skeleton_dof_points,
+)
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
     SteadyPinnedPoint,
@@ -53,6 +61,7 @@ from pyapprox.pde.coupling.ports import (
     MatchingNodalTransfer,
     subdomain_port_dofs,
 )
+from pyapprox.pde.coupling.reference_faces import ReferenceBox
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.skeleton import (
     CoupledSubdomain,
@@ -159,42 +168,68 @@ def _newton() -> Newton[_Np, _Np]:
     return Newton(atol=1e-13, rtol=0.0, maxiters=30)
 
 
+class _Partition(Protocol):
+    """What the harness asks of a partition of the square."""
+
+    def ndim(self) -> int: ...
+
+    def nsubdomains(self) -> int: ...
+
+    def nentities(self) -> int: ...
+
+    def entity_dim(self, entity: int) -> int: ...
+
+    def entity_measure(self, entity: int) -> float: ...
+
+    def on_boundary(self, entity: int) -> bool: ...
+
+    def face_reference(self, face: int) -> ReferenceBox: ...
+
+    def face_closure(self, face: int) -> tuple[int, ...]: ...
+
+    def subdomain_entities(self, subdomain: int) -> tuple[int, ...]: ...
+
+
+# A subdomain's mesh coordinates along x and y, and its essential sides.
+_Grid = tuple[_Np, _Np, Sequence[tuple[str, float]]]
+_REFERENCE = np.asarray(TensorLagrangeBasis(1, _NPOINTS, NumpyBkd()).nodes()[0])
+
+
+def _lobatto(lo: float, up: float) -> _Np:
+    """The skeleton's face nodes on [lo, up]."""
+    points: _Np = lo + 0.5 * (_REFERENCE + 1.0) * (up - lo)
+    return points
+
+
+def _union(*pieces: _Np) -> _Np:
+    """Consecutive pieces' points, each shared end once."""
+    return np.concatenate([pieces[0]] + [p[1:] for p in pieces[1:]])
+
+
 class _Problem:
-    """A partition of the unit square, its skeleton, and the PDE data."""
+    """A partition of the unit square, its skeleton, the subdomain and
+    single-domain meshes, and the PDE data."""
 
     def __init__(
         self,
-        ncells: tuple[int, int],
+        topo: _Partition,
+        geometry: FaceGeometryProtocol[_Np],
+        grids: Sequence[_Grid],
+        whole: _Grid,
         sink: tuple[_Reaction, _Reaction],
-        essentials: Sequence[tuple[str, float]],
     ) -> None:
         self.bkd = NumpyBkd()
-        self.topo = TensorBoxPartition(ncells)
-        basis = TensorLagrangeBasis(1, _NPOINTS, self.bkd)
-        self._bases = UniformBases(basis)
+        self.topo, self._geometry = topo, geometry
+        self._grids, self._whole = grids, whole
+        self._bases = UniformBases(TensorLagrangeBasis(1, _NPOINTS, self.bkd))
         self.skeleton = ContinuousSkeletonSpace(
-            self.topo, self._bases, VertexWeightNumbering(self.topo, self._bases)
+            topo, self._bases, VertexWeightNumbering(topo, self._bases)
         )
-        self.sink, self.essentials = sink, essentials
-        self._ref_nodes = np.asarray(basis.nodes()[0])
-
-    def cell_coords(self, direction: int, cell: int) -> _Np:
-        """The Lobatto points of ``cell`` along ``direction``."""
-        width = 1.0 / self.topo.ncells()[direction]
-        return cell * width + 0.5 * (self._ref_nodes + 1.0) * width
-
-    def coords(self, direction: int) -> _Np:
-        """The union of the cells' points along ``direction``."""
-        cells = [
-            self.cell_coords(direction, c) for c in range(self.topo.ncells()[direction])
-        ]
-        return np.concatenate([cells[0]] + [c[1:] for c in cells[1:]])
+        self.sink = sink
 
     def skeleton_coords(self) -> _Np:
         """The point of each skeleton DOF. Shape: (2, ndofs)."""
-        return skeleton_dof_points(
-            self.skeleton, TensorBoxGeometry(self.topo, self.bkd), self._bases
-        )
+        return skeleton_dof_points(self.skeleton, self._geometry, self._bases)
 
     def system(self, xs: _Np, ys: _Np, sides: Sequence[tuple[str, float]]) -> Any:
         mesh = _TensorQuadMesh(xs, ys, self.bkd)
@@ -212,17 +247,7 @@ class _Problem:
     def piece(self, subdomain: int) -> tuple[_Piece, _Np, tuple[int, ...]]:
         """Subdomain ``subdomain``'s response, its node points and its
         skeleton DOFs."""
-        ix, iy = divmod(subdomain, self.topo.ncells()[1])
-        xs, ys = self.cell_coords(0, ix), self.cell_coords(1, iy)
-        # Only the outer edges a subdomain touches carry its essentials.
-        touched = {
-            "left": ix == 0,
-            "right": ix == self.topo.ncells()[0] - 1,
-            "bottom": iy == 0,
-            "top": iy == self.topo.ncells()[1] - 1,
-        }
-        sides = [(s, v) for s, v in self.essentials if touched[s]]
-        system, mesh = self.system(xs, ys, sides)
+        system, mesh = self.system(*self._grids[subdomain])
         disc = skfem_discretization(system)
         dofs = subdomain_port_dofs(self.topo, self.skeleton, subdomain)
         skel = self.skeleton_coords()
@@ -249,7 +274,7 @@ class _Problem:
 
     def single_domain(self) -> tuple[_Np, _Np]:
         """The single-domain solution and its node points."""
-        system, mesh = self.system(self.coords(0), self.coords(1), self.essentials)
+        system, mesh = self.system(*self._whole)
         _, point = solve_galerkin_steady(
             skfem_discretization(system), RecomputeAlways(ScipySparseLU()), _newton()
         )
@@ -308,10 +333,101 @@ def _check(problem: _Problem) -> None:
     bkd.assert_allclose(balance, bkd.zeros(balance.shape), atol=1e-10)
 
 
-def test_two_subdomains_equal_the_single_domain() -> None:
-    _check(
-        _Problem((2, 1), (_no_sink, _no_sink_deriv), [("left", 1.0), ("right", 2.0)])
+def _box(
+    ncells: tuple[int, int],
+    sink: tuple[_Reaction, _Reaction],
+    essentials: Sequence[tuple[str, float]],
+) -> _Problem:
+    """A box partition of the unit square, each cell meshed on its
+    Lobatto grid."""
+    topo = TensorBoxPartition(ncells)
+    ex, ey = (np.linspace(0.0, 1.0, n + 1) for n in ncells)
+    grids: list[_Grid] = []
+    for s in range(topo.nsubdomains()):
+        ix, iy = divmod(s, ncells[1])
+        # Only the outer edges a subdomain touches carry its essentials.
+        touched = {
+            "left": ix == 0,
+            "right": ix == ncells[0] - 1,
+            "bottom": iy == 0,
+            "top": iy == ncells[1] - 1,
+        }
+        sides = [(side, v) for side, v in essentials if touched[side]]
+        grids.append(
+            (_lobatto(ex[ix], ex[ix + 1]), _lobatto(ey[iy], ey[iy + 1]), sides)
+        )
+    whole = (
+        _union(*(_lobatto(ex[i], ex[i + 1]) for i in range(ncells[0]))),
+        _union(*(_lobatto(ey[i], ey[i + 1]) for i in range(ncells[1]))),
+        essentials,
     )
+    return _Problem(topo, TensorBoxGeometry(topo, NumpyBkd()), grids, whole, sink)
+
+
+# The hanging-vertex partition: subdomain 0 is [0, 1/2] x [0, 1], 1 is
+# [1/2, 1] x [0, 1/2], 2 is [1/2, 1] x [1/2, 1]. Faces 0-2, each listed by
+# its ends (the reference -1 end first; face 1 runs downward); vertices
+# 3-6, of which 4 = (1/2, 1/2) is incident to all three subdomains.
+_HANGING_POINTS = {3: (0.5, 0.0), 4: (0.5, 0.5), 5: (0.5, 1.0), 6: (1.0, 0.5)}
+_HANGING_FACES = {0: (3, 4), 1: (5, 4), 2: (4, 6)}
+_HANGING_SUBDOMAINS = ((0, 1, 3, 4, 5), (0, 2, 3, 4, 6), (1, 2, 4, 5, 6))
+_SEGMENT = ReferenceBox(1)
+
+
+class _HangingPartition:
+    """Three subdomains of the unit square, not a box partition: the left
+    one's side is two skeleton faces meeting at a hanging vertex."""
+
+    def ndim(self) -> int:
+        return 2
+
+    def nsubdomains(self) -> int:
+        return 3
+
+    def nentities(self) -> int:
+        return 7
+
+    def entity_dim(self, entity: int) -> int:
+        return 1 if entity in _HANGING_FACES else 0
+
+    def entity_measure(self, entity: int) -> float:
+        return 0.5 if entity in _HANGING_FACES else 1.0
+
+    def on_boundary(self, entity: int) -> bool:
+        return entity in (3, 5, 6)
+
+    def face_reference(self, face: int) -> ReferenceBox:
+        return _SEGMENT
+
+    def face_closure(self, face: int) -> tuple[int, ...]:
+        # The segment's sub-entities: its -1 end, its +1 end, itself.
+        return (*_HANGING_FACES[face], face)
+
+    def subdomain_entities(self, subdomain: int) -> tuple[int, ...]:
+        return _HANGING_SUBDOMAINS[subdomain]
+
+
+class _HangingGeometry:
+    """Each face as the segment between its ends."""
+
+    def __init__(self, bkd: NumpyBkd) -> None:
+        self._bkd = bkd
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+    def ndim(self) -> int:
+        return 2
+
+    def face_points(self, face: int, points: _Np) -> _Np:
+        lo, up = (np.asarray(_HANGING_POINTS[v]) for v in _HANGING_FACES[face])
+        t = 0.5 * (points[0] + 1.0)
+        mapped: _Np = lo[:, None] + (up - lo)[:, None] * t[None, :]
+        return mapped
+
+
+def test_two_subdomains_equal_the_single_domain() -> None:
+    _check(_box((2, 1), (_no_sink, _no_sink_deriv), [("left", 1.0), ("right", 2.0)]))
 
 
 @pytest.mark.parametrize("cubic", [False, True])
@@ -319,6 +435,28 @@ def test_four_subdomains_equal_the_single_domain(cubic: bool) -> None:
     sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
         _linear_sink, _linear_sink_deriv
     )
-    problem = _Problem((2, 2), sink, [])
+    problem = _box((2, 2), sink, [])
     assert len(problem.skeleton_coords()[0]) == 4 * (_NPOINTS - 2) + 5
+    _check(problem)
+
+
+@pytest.mark.parametrize("cubic", [False, True])
+def test_hanging_vertex_partition_equals_the_single_domain(cubic: bool) -> None:
+    sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
+        _linear_sink, _linear_sink_deriv
+    )
+    low, high = _lobatto(0.0, 0.5), _lobatto(0.5, 1.0)
+    both = _union(low, high)
+    grids: list[_Grid] = [(low, both, []), (high, low, []), (high, high, [])]
+    topo = _HangingPartition()
+    geometry = _HangingGeometry(NumpyBkd())
+    problem = _Problem(topo, geometry, grids, (both, both, []), sink)
+    # 3 faces with interior nodes, 4 vertices; one DOF at the hanging
+    # vertex, read by all three subdomains.
+    assert problem.skeleton.descriptor().size == 3 * (_NPOINTS - 2) + 4
+    hanging = problem.skeleton.entity_dofs(4)
+    assert len(hanging) == 1
+    assert all(
+        hanging[0] in subdomain_port_dofs(topo, problem.skeleton, s) for s in range(3)
+    )
     _check(problem)
