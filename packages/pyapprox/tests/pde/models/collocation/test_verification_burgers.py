@@ -17,8 +17,8 @@ Cases:
   both discrete forms;
 - recovery of a cubic on [0, 1] with variable viscosity under Neumann
   and Robin ends, for both boundary fluxes and both forms;
-- spectral decay, fitted per node, of an analytic solution under mixed
-  ends;
+- spectral decay, fitted per node, of analytic solutions under Dirichlet
+  and mixed ends;
 - the steady viscous shock :math:`u = -\tanh(x/(2\nu))`, :math:`\nu =
   0.1`, zero forcing, on [-1, 1]: its poles at :math:`x = \pm i\pi\nu`
   set the decay :math:`\ln(\pi\nu + \sqrt{1 + (\pi\nu)^2}) \approx 0.31`
@@ -174,6 +174,20 @@ def test_decays(numpy_bkd: Backend[Array], total: bool, conservative: bool) -> N
     burgers = _Burgers("1 + x/2", total=total, conservative=conservative)
     problem = burgers.problem("sin(pi*x) + 2*x", _UNIT, "DN")
     decays(problem, burgers, [4, 6, 8, 10, 12], 0.6, numpy_bkd)
+
+
+@_FORMS
+def test_decays_dirichlet_sine(
+    numpy_bkd: Backend[Array], conservative: bool
+) -> None:
+    """u = sin(pi x), nu = 0.1, on [-1, 1] with zero Dirichlet ends:
+    exponential decay over 12-24 nodes (observed 1.82 per node
+    conservative, 1.67 advective, required 0.8). On 8 nodes the
+    advective form's Newton does not converge from zero (residual 0.18
+    after 30 steps)."""
+    burgers = _Burgers("0.1", total=True, conservative=conservative)
+    problem = burgers.problem("sin(pi*x)", _REFERENCE, "DD")
+    decays(problem, burgers, [12, 16, 20, 24], 0.8, numpy_bkd)
 
 
 @_FORMS
