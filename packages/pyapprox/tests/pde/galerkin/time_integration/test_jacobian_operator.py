@@ -68,6 +68,8 @@ _Dofs = NDArray[np.int64]
 _Values = NDArray[np.float64]
 _System = GalerkinSystem[_Np]
 V = TypeVar("V")
+# The stack's reduction type; unused here but in the stack's type.
+A = TypeVar("A")
 F = TypeVar("F", bound=FormatProtocol)
 
 
@@ -81,7 +83,7 @@ class _ElementBlockAssembler(Generic[V, F]):
     def __init__(
         self,
         system: _System,
-        stack: AssemblyStackProtocol[V, F, _Dofs, _Values],
+        stack: AssemblyStackProtocol[V, A, F, _Dofs, _Values],
         dof_map: ElementDofMapProtocol[_Dofs],
         descriptor: SpaceDescriptor,
     ) -> None:
@@ -135,7 +137,7 @@ def _mock_dense(fmt: MockFormat) -> _Np:
 
 def _check_against_reference(
     assembler: JacobianAssemblerProtocol[_Np, V, F],
-    stack: AssemblyStackProtocol[V, F, _Dofs, _Values],
+    stack: AssemblyStackProtocol[V, A, F, _Dofs, _Values],
     system: _System,
     descriptor: SpaceDescriptor,
     to_vec: Callable[[_Np, SpaceDescriptor], V],

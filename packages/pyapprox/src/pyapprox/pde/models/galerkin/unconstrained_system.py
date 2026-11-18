@@ -37,7 +37,6 @@ from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
-    InnerProductSpaceProtocol,
     LinearSolverProtocol,
 )
 
@@ -184,22 +183,11 @@ def galerkin_unconstrained_system(
         stack's format.
     parameters : ParameterState, optional
         The parameters, shared with the solved system.
-
-    Raises
-    ------
-    TypeError
-        If the discretization's space has no inner product.
     """
-    space = discretization.space()
-    if not isinstance(space, InnerProductSpaceProtocol):
-        raise TypeError(
-            "the discretization's space must be an inner-product space, "
-            f"got {type(space).__name__}"
-        )
     return MassFormSystem(
         rhs=GalerkinUnconstrainedRightHandSide(discretization, parameters),
         mass=discretization.assemble_mass(),
-        space=space,
+        space=discretization.space(),
         solver=solver,
         form=BackendColumnForm(discretization.system().bkd()),
     )

@@ -39,6 +39,7 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
+    InnerProductSpaceProtocol,
     RowSetProtocol,
     SpaceDescriptor,
     VectorSpaceProtocol,
@@ -57,7 +58,8 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
     States are backend arrays (``Array``) and operators act on the
     stack's vectors (``V``). A system that steps on these operators
     needs the two to coincide, as they do on the SciPy stack, whose
-    vectors are NumPy arrays; a builder pairs them.
+    vectors are NumPy arrays; a builder pairs them. The stack's
+    reductions (inner products, norms) are ``Array`` too.
 
     The essential rows come from the system's constraint set, once, as
     the stack's row set, so every consumer (the forward residual, a
@@ -91,7 +93,7 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
     def __init__(
         self,
         system: GalerkinTransientSystemProtocol[Array],
-        stack: AssemblyStackProtocol[V, F, _Dofs, _Values],
+        stack: AssemblyStackProtocol[V, Array, F, _Dofs, _Values],
         jacobian_assembler: JacobianAssemblerProtocol[Array, V, F],
         mass_assembler: MassAssemblerProtocol[V, F],
         descriptor: SpaceDescriptor,
@@ -106,7 +108,7 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
         self._descriptor = descriptor
         self._stack = stack
         self._rows: RowSetProtocol[V] = essential_rows(system, stack, descriptor)
-        self._space: VectorSpaceProtocol[V] = stack.space(descriptor)
+        self._space: InnerProductSpaceProtocol[V, Array] = stack.space(descriptor)
         if not isinstance(jacobian_assembler, JacobianAssemblerProtocol):
             raise TypeError(
                 "jacobian_assembler must satisfy JacobianAssemblerProtocol, "
@@ -127,8 +129,8 @@ class GalerkinStackDiscretization(Generic[Array, V, F]):
         """The state space's descriptor."""
         return self._descriptor
 
-    def space(self) -> VectorSpaceProtocol[V]:
-        """The state space's vector operations."""
+    def space(self) -> InnerProductSpaceProtocol[V, Array]:
+        """The state space's vector operations and inner product."""
         return self._space
 
     def parameter_space(self, nparams: int) -> VectorSpaceProtocol[V]:

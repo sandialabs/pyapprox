@@ -107,7 +107,6 @@ from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.expressions.names import Names
 from pyapprox.util.expressions.parsing import Value, parse
-from pyapprox.util.linalg.operators import InnerProductSpaceProtocol
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 
@@ -1236,15 +1235,9 @@ class GalerkinDiscretizer(Generic[_B]):
                 raise ValueError(f"GalerkinDiscretizer needs {error}") from None
             system = self._factory.system(problem, basis)
             discretization = skfem_discretization(system)
-            space = discretization.space()
-            if not isinstance(space, InnerProductSpaceProtocol):
-                raise TypeError(
-                    f"the steady solve needs an inner-product state space, got "
-                    f"{type(space).__name__}"
-                )
             steady = SteadySystem(
                 galerkin_steady_residual(discretization),
-                space,
+                discretization.space(),
                 KeepAll(ScipySparseLU()),
             )
             point = steady.solve(self._nonlinear, np.zeros((system.nstates(), 1)))

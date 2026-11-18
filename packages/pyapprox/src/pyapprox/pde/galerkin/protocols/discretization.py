@@ -18,6 +18,7 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     FormatProtocol,
+    InnerProductSpaceProtocol,
     RowSetProtocol,
     VectorSpaceProtocol,
 )
@@ -31,7 +32,8 @@ class SteadyDiscretizationProtocol(Protocol, Generic[Array, V, F_co]):
     """A steady system on a stack, without a solver.
 
     States are backend arrays (``Array``); operators act on the stack's
-    vectors (``V``).
+    vectors (``V``), and the state space's reductions (inner products,
+    norms) are ``Array``.
     """
 
     def system(self) -> GalerkinSteadySystemProtocol[Array]:
@@ -42,8 +44,9 @@ class SteadyDiscretizationProtocol(Protocol, Generic[Array, V, F_co]):
         """The number of states."""
         ...
 
-    def space(self) -> VectorSpaceProtocol[V]:
-        """The state space's vector operations."""
+    def space(self) -> InnerProductSpaceProtocol[V, Array]:
+        """The state space's vector operations and inner product: a
+        steady solve and its adjoints need one."""
         ...
 
     def parameter_space(self, nparams: int) -> VectorSpaceProtocol[V]:

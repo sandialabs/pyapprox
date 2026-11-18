@@ -30,16 +30,18 @@ from scipy.sparse import spmatrix
 from pyapprox.util.backends.protocols import Array_contra
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
+    InnerProductSpaceProtocol,
     OperatorProperties,
     RowSetProtocol,
     SpaceDescriptor,
-    VectorSpaceProtocol,
 )
 
 V = TypeVar("V")
 F = TypeVar("F")
 V_co = TypeVar("V_co", covariant=True)
 F_co = TypeVar("F_co", covariant=True)
+# The small dense array type of a space's reductions: only returned.
+A_co = TypeVar("A_co", covariant=True)
 # Element data only flows in to a sink, so its array types are
 # contravariant: I for DOF index arrays, L for element values.
 I_contra = TypeVar("I_contra", contravariant=True)
@@ -165,16 +167,18 @@ class VectorSinkProtocol(Protocol, Generic[V_co, I_contra, L_contra]):
 
 
 @runtime_checkable
-class AssemblyStackProtocol(Protocol, Generic[V, F, I_contra, L_contra]):
+class AssemblyStackProtocol(Protocol, Generic[V, A_co, F, I_contra, L_contra]):
     """Where assembled operators and vectors are built.
 
-    ``V`` is the stack's vector type, ``F`` the format of the operators
-    its sinks produce, ``I_contra`` the array type of element DOF maps and
-    ``L_contra`` that of element values.
+    ``V`` is the stack's vector type, ``A_co`` the small dense array type
+    of its spaces' reductions (inner products and norms), ``F`` the
+    format of the operators its sinks produce, ``I_contra`` the array type
+    of element DOF maps and ``L_contra`` that of element values.
     """
 
-    def space(self, descriptor: SpaceDescriptor) -> VectorSpaceProtocol[V]:
-        """The vector space of ``descriptor``."""
+    def space(self, descriptor: SpaceDescriptor) -> InnerProductSpaceProtocol[V, A_co]:
+        """The vector space of ``descriptor``, with its inner product:
+        solvers and adjoints need one."""
         ...
 
     def matrix_sink(
@@ -229,8 +233,8 @@ class BulkCapableMatrixSinkProtocol(
 
 @runtime_checkable
 class BulkCapableAssemblyStackProtocol(
-    AssemblyStackProtocol[V, F, I_contra, L_contra],
-    Protocol[V, F, I_contra, L_contra],
+    AssemblyStackProtocol[V, A_co, F, I_contra, L_contra],
+    Protocol[V, A_co, F, I_contra, L_contra],
 ):
     """A stack whose matrix sinks accept whole assembled matrices.
 

@@ -39,7 +39,7 @@ from pyapprox.pde.models.galerkin.unconstrained_system import (
 )
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.operators import FormatProtocol, InnerProductSpaceProtocol
+from pyapprox.util.linalg.operators import FormatProtocol
 from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 
 F = TypeVar("F", bound=FormatProtocol)
@@ -151,19 +151,13 @@ def solve_galerkin_steady(
     Raises
     ------
     TypeError
-        If the state space has no inner product, and as for
-        :func:`galerkin_steady_residual` and ``SteadySystem``.
+        As for :func:`galerkin_steady_residual` and ``SteadySystem``.
     ValueError
         If ``initial_guess`` is not of shape ``(nstates, 1)``, and as for
         :func:`galerkin_steady_residual`.
     """
     residual = galerkin_steady_residual(discretization, parameters, time)
     space = discretization.space()
-    if not isinstance(space, InnerProductSpaceProtocol):
-        raise TypeError(
-            "the discretization's state space must satisfy "
-            f"InnerProductSpaceProtocol, got {type(space).__name__}"
-        )
     nstates = space.descriptor().size
     if initial_guess is None:
         initial_guess = space.zeros()

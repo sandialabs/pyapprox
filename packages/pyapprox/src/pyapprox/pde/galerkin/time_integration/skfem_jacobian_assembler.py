@@ -33,6 +33,8 @@ from pyapprox.util.linalg.operators import (
 )
 
 V = TypeVar("V")
+# The stack's reduction type; unused here but in the stack's type.
+A = TypeVar("A")
 F = TypeVar("F")
 
 _Dofs = NDArray[np.int64]
@@ -100,7 +102,7 @@ class SkfemJacobianAssembler(Generic[Array, V, F]):
     def __init__(
         self,
         system: GalerkinTransientSystemProtocol[Array],
-        stack: BulkCapableAssemblyStackProtocol[V, F, _Dofs, _Values],
+        stack: BulkCapableAssemblyStackProtocol[V, A, F, _Dofs, _Values],
         dof_map: ElementDofMapProtocol[_Dofs],
         descriptor: SpaceDescriptor,
     ) -> None:

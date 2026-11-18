@@ -34,6 +34,8 @@ from pyapprox.util.linalg.operators import (
 )
 
 V = TypeVar("V")
+# The stack's reduction type; unused here but in the stack's type.
+A = TypeVar("A")
 F = TypeVar("F", bound=FormatProtocol)
 
 _Dofs = NDArray[np.int64]
@@ -66,7 +68,7 @@ def check_state_space(
 
 def essential_rows(
     system: GalerkinTransientSystemProtocol[Array],
-    stack: AssemblyStackProtocol[V, F, _Dofs, _Values],
+    stack: AssemblyStackProtocol[V, A, F, _Dofs, _Values],
     descriptor: SpaceDescriptor,
 ) -> RowSetProtocol[V]:
     """The system's essential DOFs as a row set of ``stack``.
