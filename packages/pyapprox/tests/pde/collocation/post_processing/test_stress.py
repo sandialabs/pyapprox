@@ -1,46 +1,110 @@
-"""Tests for 2D stress post-processing."""
+"""Tests for 2D stress post-processing.
+
+The fixture is the Lame pressurized quarter-annulus (Ri 1, Ro 2,
+pressure 1, E 1, nu 0.3) solved through ``CollocationSystem`` with
+traction closure rows and symmetry Dirichlet rows, by Newton (atol
+1e-10).
+"""
 
 import math
+from dataclasses import dataclass
+from typing import Generic, List, Tuple, Union
 
 import pytest
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.ode.residual_derivatives import backend_state_space
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import (
-    traction_neumann_bc,
-    zero_dirichlet_bc,
+from pyapprox.pde.collocation.boundary.closure_rows import (
+    ClosureRowsProtocol,
+    RobinPart,
+    RobinRows,
 )
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.boundary.essential_rows import (
+    DirichletPart,
+    DirichletRows,
+)
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    TractionNormalOperator,
+)
+from pyapprox.pde.collocation.mesh import BoundarySide, TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.post_processing.stress import (
     StressPostProcessor2D,
 )
-from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.pde.models.collocation.closed_system import CollocationSystem
+from pyapprox.pde.models.collocation.steady_residual import (
+    collocation_steady_residual,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 # ======================================================================
 # Helpers
 # ======================================================================
 
+_R_INNER, _R_OUTER, _PRESSURE = 1.0, 2.0, 1.0
 
-def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
+
+@dataclass(frozen=True)
+class _LameSetup(Generic[Array]):
+    """The solved Lame problem and its post-processor."""
+
+    state: Array
+    proc: StressPostProcessor2D[Array]
+    # (mu, lamda) at the nodes, the material the state was solved with
+    material: Tuple[Array, Array]
+    mesh: TransformedMesh2D[Array]
+    npts: int
+    dx: Array
+    dy: Array
+
+
+def _traction(
+    bkd: Backend[Array],
+    mesh: TransformedMesh2D[Array],
+    physics: LinearElasticityPhysics[Array],
+    side: BoundarySide,
+    component: int,
+    data: Union[float, Array],
+) -> RobinRows[Array]:
+    """Component ``component`` of the traction on ``side`` equals ``data``."""
+    indices, normals = mesh.boundary_indices(side), mesh.boundary_normals(side)
+    operator = TractionNormalOperator(bkd, indices, normals, physics, component)
+    value = data if isinstance(data, float) else NodalField(data)
+    return RobinRows(
+        bkd,
+        mesh.npts(),
+        2,
+        [RobinPart(indices, operator, 0.0, 1.0, value, component)],
+    )
+
+
+def _setup_lame_problem(
+    bkd: Backend[Array], npts_r: int = 12, npts_theta: int = 12
+) -> _LameSetup[Array]:
     """Set up and solve the Lame analytical problem on a quarter-annulus."""
-    r_inner, r_outer = 1.0, 2.0
-    pressure = 1.0
-    E_mean = 1.0
     poisson_ratio = 0.3
-
-    dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
-    mu = E_mean * dmu_dE
-    lamda = E_mean * dlam_dE
+    youngs = 1.0
+    mu = youngs / (2.0 * (1.0 + poisson_ratio))
+    lamda = (
+        youngs
+        * poisson_ratio
+        / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
+    )
 
     transform = PolarTransform(
-        (r_inner, r_outer),
+        (_R_INNER, _R_OUTER),
         (0.0, math.pi / 2.0),
         bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
+    npts = basis.npts()
 
     physics = LinearElasticityPhysics(
         basis,
@@ -49,114 +113,73 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
         mu=mu,
     )
 
-    # Apply cylinder BCs
-    D_matrices = [
-        basis.derivative_matrix(1, 0),
-        basis.derivative_matrix(1, 1),
+    # Cylinder conditions, in the order whose later closure wins at a
+    # shared corner; Dirichlet rows beat every closure.
+    inner_normals = mesh.boundary_normals(BoundarySide.LEFT)
+    closures: List[ClosureRowsProtocol[Array]] = [
+        _traction(bkd, mesh, physics, BoundarySide.RIGHT, 0, 0.0),
+        _traction(bkd, mesh, physics, BoundarySide.RIGHT, 1, 0.0),
+        _traction(bkd, mesh, physics, BoundarySide.BOTTOM, 0, 0.0),
+        _traction(bkd, mesh, physics, BoundarySide.TOP, 1, 0.0),
     ]
-    npts = basis.npts()
-    bcs = []
-
-    outer_idx = mesh.boundary_indices(1)
-    outer_normals = mesh.boundary_normals(1)
-    for comp in (0, 1):
-        bcs.append(
-            traction_neumann_bc(
-                bkd,
-                outer_idx,
-                outer_normals,
-                physics,
-                npts,
-                comp,
-                values=0.0,
-            )
-        )
-
-    bottom_idx = mesh.boundary_indices(2)
-    bottom_normals = mesh.boundary_normals(2)
-    bcs.append(
-        traction_neumann_bc(
+    closures.extend(
+        _traction(
             bkd,
-            bottom_idx,
-            bottom_normals,
+            mesh,
             physics,
-            npts,
-            component=0,
-            values=0.0,
+            BoundarySide.LEFT,
+            comp,
+            -_PRESSURE * inner_normals[:, comp],
         )
+        for comp in (0, 1)
     )
-
-    top_idx = mesh.boundary_indices(3)
-    top_normals = mesh.boundary_normals(3)
-    bcs.append(
-        traction_neumann_bc(
-            bkd,
-            top_idx,
-            top_normals,
-            physics,
-            npts,
-            component=1,
-            values=0.0,
-        )
+    essential = DirichletRows(
+        bkd,
+        npts,
+        2,
+        [
+            DirichletPart(mesh.boundary_indices(BoundarySide.BOTTOM), 0.0, 1),
+            DirichletPart(mesh.boundary_indices(BoundarySide.TOP), 0.0, 0),
+        ],
     )
-
-    inner_idx = mesh.boundary_indices(0)
-    inner_normals = mesh.boundary_normals(0)
-    for comp in (0, 1):
-        pressure_vals = -pressure * inner_normals[:, comp]
-        bcs.append(
-            traction_neumann_bc(
-                bkd,
-                inner_idx,
-                inner_normals,
-                physics,
-                npts,
-                comp,
-                values=pressure_vals,
-            )
-        )
-
-    bottom_v_idx = bottom_idx + npts
-    bcs.append(zero_dirichlet_bc(bkd, bottom_v_idx))
-    bcs.append(zero_dirichlet_bc(bkd, top_idx))
-    physics.set_boundary_conditions(bcs)
+    system = CollocationSystem(physics, essential, closures)
 
     # Solve
-    model = CollocationModel(physics, bkd)
-    init_state = bkd.zeros((2 * npts,))
-    state = model.solve_steady(init_state, tol=1e-10, maxiter=50)
+    steady = SteadySystem(
+        collocation_steady_residual(system),
+        backend_state_space(bkd, 2 * npts),
+        RecomputeAlways(BackendDenseLU(bkd)),
+    )
+    newton: Newton[Array, Array] = Newton(atol=1e-10, rtol=0.0, maxiters=50)
+    point = steady.solve(newton, bkd.zeros((2 * npts, 1)))
+    assert point.converged()
 
     # Create post-processor
+    dx, dy = basis.derivative_matrix(1, 0), basis.derivative_matrix(1, 1)
     curv_basis = transform.unit_curvilinear_basis(
         mesh.reference_points(),
     )
     proc = StressPostProcessor2D(
-        D_matrices[0],
-        D_matrices[1],
+        dx,
+        dy,
         bkd=bkd,
         curvilinear_basis=curv_basis,
     )
 
-    return {
-        "state": state,
-        "proc": proc,
-        # (mu, lamda) at the nodes, the material the state was solved with
-        "material": (bkd.full((npts,), mu), bkd.full((npts,), lamda)),
-        "mesh": mesh,
-        "basis": basis,
-        "transform": transform,
-        "r_inner": r_inner,
-        "r_outer": r_outer,
-        "pressure": pressure,
-        "lamda": lamda,
-        "mu": mu,
-        "npts": npts,
-        "bkd": bkd,
-        "D_matrices": D_matrices,
-    }
+    return _LameSetup(
+        point.state()[:, 0],
+        proc,
+        (bkd.full((npts,), mu), bkd.full((npts,), lamda)),
+        mesh,
+        npts,
+        dx,
+        dy,
+    )
 
 
-def _lame_stresses(bkd, pts, r_inner, r_outer, pressure):
+def _lame_stresses(
+    bkd: Backend[Array], pts: Array, r_inner: float, r_outer: float, pressure: float
+) -> Tuple[Array, Array]:
     """Analytical Lame stresses in polar coordinates.
 
     Returns sigma_rr, sigma_tt, each shape (npts,).
@@ -178,51 +201,49 @@ def _lame_stresses(bkd, pts, r_inner, r_outer, pressure):
 
 
 class TestStressPostProcessor2D:
-    def test_hoop_stress_lame(self, bkd):
+    def test_hoop_stress_lame(self, bkd: Backend[Array]) -> None:
         """Hoop stress matches analytical Lame solution."""
         setup = _setup_lame_problem(bkd, npts_r=14, npts_theta=14)
-        sigma_tt = setup["proc"].hoop_stress(setup["state"], *setup["material"])
-        pts = setup["mesh"].points()
+        sigma_tt = setup.proc.hoop_stress(setup.state, *setup.material)
+        pts = setup.mesh.points()
         _, sigma_tt_exact = _lame_stresses(
             bkd,
             pts,
-            setup["r_inner"],
-            setup["r_outer"],
-            setup["pressure"],
+            _R_INNER,
+            _R_OUTER,
+            _PRESSURE,
         )
         bkd.assert_allclose(sigma_tt, sigma_tt_exact, rtol=1e-6)
 
-
     @pytest.mark.slow_on("TorchBkd")
-
-    def test_radial_stress_lame(self, bkd):
+    def test_radial_stress_lame(self, bkd: Backend[Array]) -> None:
         """Radial stress matches analytical Lame solution."""
         setup = _setup_lame_problem(bkd, npts_r=16, npts_theta=16)
-        sigma_rr = setup["proc"].radial_stress(setup["state"], *setup["material"])
-        pts = setup["mesh"].points()
+        sigma_rr = setup.proc.radial_stress(setup.state, *setup.material)
+        pts = setup.mesh.points()
         sigma_rr_exact, _ = _lame_stresses(
             bkd,
             pts,
-            setup["r_inner"],
-            setup["r_outer"],
-            setup["pressure"],
+            _R_INNER,
+            _R_OUTER,
+            _PRESSURE,
         )
         bkd.assert_allclose(sigma_rr, sigma_rr_exact, atol=1e-6)
 
-    def test_strain_energy_density_positive(self, bkd):
+    def test_strain_energy_density_positive(self, bkd: Backend[Array]) -> None:
         """Strain energy density is positive for the Lame solution."""
         setup = _setup_lame_problem(bkd)
-        psi = setup["proc"].strain_energy_density(setup["state"], *setup["material"])
+        psi = setup.proc.strain_energy_density(setup.state, *setup.material)
         assert float(bkd.min(psi)) > 0.0
 
-    def test_hoop_stress_jacobian_fd(self, bkd):
+    def test_hoop_stress_jacobian_fd(self, bkd: Backend[Array]) -> None:
         """Hoop stress Jacobian matches finite differences."""
         setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
-        proc = setup["proc"]
-        state = setup["state"]
-        npts = setup["npts"]
+        proc = setup.proc
+        state = setup.state
+        npts = setup.npts
 
-        mat = setup["material"]
+        mat = setup.material
         jac = proc.hoop_stress_state_jacobian(state, *mat)  # (npts, 2*npts)
         assert jac.shape == (npts, 2 * npts)
 
@@ -240,14 +261,14 @@ class TestStressPostProcessor2D:
             ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
-    def test_strain_energy_density_jacobian_fd(self, bkd):
+    def test_strain_energy_density_jacobian_fd(self, bkd: Backend[Array]) -> None:
         """Strain energy density Jacobian matches finite differences."""
         setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
-        proc = setup["proc"]
-        state = setup["state"]
-        npts = setup["npts"]
+        proc = setup.proc
+        state = setup.state
+        npts = setup.npts
 
-        mat = setup["material"]
+        mat = setup.material
         jac = proc.strain_energy_density_state_jacobian(state, *mat)
         assert jac.shape == (npts, 2 * npts)
 
@@ -265,47 +286,47 @@ class TestStressPostProcessor2D:
             ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-4, atol=1e-8)
 
-    def test_cartesian_stress_shapes(self, bkd):
+    def test_cartesian_stress_shapes(self, bkd: Backend[Array]) -> None:
         """Cartesian stresses have correct shapes."""
         setup = _setup_lame_problem(bkd)
-        sxx, sxy, syy = setup["proc"].cartesian_stress(
-            setup["state"], *setup["material"]
+        sxx, sxy, syy = setup.proc.cartesian_stress(
+            setup.state, *setup.material
         )
-        npts = setup["npts"]
+        npts = setup.npts
         assert sxx.shape == (npts,)
         assert sxy.shape == (npts,)
         assert syy.shape == (npts,)
 
-    def test_cartesian_stress_jacobian_shapes(self, bkd):
+    def test_cartesian_stress_jacobian_shapes(self, bkd: Backend[Array]) -> None:
         """Cartesian stress Jacobians have correct shapes."""
         setup = _setup_lame_problem(bkd)
-        npts = setup["npts"]
-        dsxx, dsxy, dsyy = setup["proc"].cartesian_stress_state_jacobian(
-            *setup["material"]
+        npts = setup.npts
+        dsxx, dsxy, dsyy = setup.proc.cartesian_stress_state_jacobian(
+            *setup.material
         )
         assert dsxx.shape == (npts, 2 * npts)
         assert dsxy.shape == (npts, 2 * npts)
         assert dsyy.shape == (npts, 2 * npts)
 
-    def test_no_curvilinear_basis_raises(self, bkd):
+    def test_no_curvilinear_basis_raises(self, bkd: Backend[Array]) -> None:
         """hoop_stress raises when curvilinear_basis not provided."""
         setup = _setup_lame_problem(bkd)
         proc_no_curv = StressPostProcessor2D(
-            setup["D_matrices"][0],
-            setup["D_matrices"][1],
+            setup.dx,
+            setup.dy,
             bkd=bkd,
         )
         with pytest.raises(ValueError):
-            proc_no_curv.hoop_stress(setup["state"], *setup["material"])
+            proc_no_curv.hoop_stress(setup.state, *setup.material)
 
-    def test_lame_jacobians_fd(self, bkd):
+    def test_lame_jacobians_fd(self, bkd: Backend[Array]) -> None:
         """The pointwise Lame derivatives of the hoop stress and the strain
         energy density equal central differences in uniform mu and
         lamda shifts (each quantity is pointwise in the material)."""
         setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
-        proc = setup["proc"]
-        state = setup["state"]
-        mu, lamda = setup["material"]
+        proc = setup.proc
+        state = setup.state
+        mu, lamda = setup.material
         eps = 1e-6
         for name in ("hoop_stress", "strain_energy_density"):
             value = getattr(proc, name)
@@ -319,13 +340,13 @@ class TestStressPostProcessor2D:
             bkd.assert_allclose(dmu, fd_mu, rtol=1e-6, atol=1e-10)
             bkd.assert_allclose(dlamda, fd_lamda, rtol=1e-6, atol=1e-10)
 
-    def test_stress_scales_with_material(self, bkd):
+    def test_stress_scales_with_material(self, bkd: Backend[Array]) -> None:
         """Linear stress is homogeneous of degree one in (mu, lamda) at
         fixed strain, and the strain energy density likewise."""
         setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
-        proc = setup["proc"]
-        state = setup["state"]
-        mu, lamda = setup["material"]
+        proc = setup.proc
+        state = setup.state
+        mu, lamda = setup.material
         for name in ("hoop_stress", "strain_energy_density"):
             value = getattr(proc, name)
             bkd.assert_allclose(
