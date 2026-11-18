@@ -16,6 +16,8 @@ rank at these sizes, so they are used wherever the landmark count is
 the variable, and the precondition is asserted rather than assumed.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -24,14 +26,21 @@ from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
+from pyapprox.surrogates.kle.io import load_nystrom_kle, save_nystrom_kle
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.nystrom_kle import (
+    NystromKLE,
     create_nystrom_kle,
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg import ByteBudgetBlocking, FixedRowBlocking
+from pyapprox.util.linalg import (
+    ByteBudgetBlocking,
+    FixedRowBlocking,
+    NoBlocking,
+    RowBlockingProtocol,
+)
 
 
 def _coords(bkd: Backend[Array], npoints: int = 100) -> Array:
@@ -370,6 +379,21 @@ class TestConvergesInLandmarks:
         )
 
 
+class _CountingBlocking:
+    """Fixed-size blocks that record how often they were consulted."""
+
+    def __init__(self, nrows_per_block: int) -> None:
+        self._inner = FixedRowBlocking(nrows_per_block)
+        self._ncalls = 0
+
+    def rows_per_block(self, nrows: int, ncols: int) -> int:
+        self._ncalls += 1
+        return self._inner.rows_per_block(nrows, ncols)
+
+    def ncalls(self) -> int:
+        return self._ncalls
+
+
 class TestRowBlocking:
     """Blocking the extension's ``N x m`` work changes memory, not results."""
 
@@ -431,6 +455,94 @@ class TestRowBlocking:
             create_nystrom_kle(
                 kernel, coords, 10, bkd, nlandmarks=40,
                 row_blocking=7,  # type: ignore[arg-type]
+            )
+
+    @staticmethod
+    def _with_blocking(
+        kle: NystromKLE[Array],
+        kernel: Matern32Kernel[Array],
+        bkd: Backend[Array],
+        row_blocking: RowBlockingProtocol,
+        use_log: bool = False,
+    ) -> NystromKLE[Array]:
+        """The same basis, evaluated in blocks of points."""
+        return NystromKLE(
+            kernel, kle.landmark_coords(), kle.extension(), kle.eigenvalues(),
+            kle.eigenvectors(), sigma=kle.sigma(), mean_field=0.5,
+            use_log=use_log, bkd=bkd, row_blocking=row_blocking,
+        )
+
+    @pytest.mark.parametrize("nrows_per_block", [1, 10, 1000])
+    def test_eigenvectors_at_in_blocks(
+        self, bkd: Backend[Array], nrows_per_block: int
+    ) -> None:
+        """Blocks of points give the unblocked basis.
+
+        99 out-of-sample points: blocks of 10 leave a ragged last block,
+        1000 is a single block.
+        """
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        ref = create_nystrom_kle(kernel, coords, 10, bkd, nlandmarks=40)
+        kle = self._with_blocking(
+            ref, kernel, bkd, FixedRowBlocking(nrows_per_block)
+        )
+        query = _out_of_sample(bkd)
+        bkd.assert_allclose(
+            kle.eigenvectors_at(query), ref.eigenvectors_at(query),
+            rtol=1e-12, atol=1e-14,
+        )
+        assert kle.eigenvectors_at(query).shape == (99, 10)
+
+    @pytest.mark.parametrize("use_log", [False, True])
+    def test_evaluate_at_in_blocks(
+        self, bkd: Backend[Array], use_log: bool
+    ) -> None:
+        """Field values, plain and log-normal, are unchanged by blocking."""
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        built = create_nystrom_kle(kernel, coords, 10, bkd, nlandmarks=40)
+        ref = self._with_blocking(
+            built, kernel, bkd, NoBlocking(), use_log=use_log
+        )
+        kle = self._with_blocking(
+            built, kernel, bkd, FixedRowBlocking(7), use_log=use_log
+        )
+        query = _out_of_sample(bkd)
+        np.random.seed(3)
+        coef = bkd.asarray(np.random.normal(size=(10, 4)))
+        bkd.assert_allclose(
+            kle.evaluate_at(query, coef), ref.evaluate_at(query, coef),
+            rtol=1e-12,
+        )
+
+    def test_load_passes_blocking_to_the_basis(
+        self, bkd: Backend[Array], tmp_path: Path
+    ) -> None:
+        """A reloaded basis evaluates in blocks when asked to.
+
+        Blocking is an evaluation setting, not stored with the basis, so
+        the loader takes it; the result matches the unblocked source.
+        """
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        source = create_nystrom_kle(kernel, coords, 10, bkd, nlandmarks=40)
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source)
+        blocking = _CountingBlocking(10)
+        loaded = load_nystrom_kle(path, kernel, bkd, row_blocking=blocking)
+        query = _out_of_sample(bkd)
+        bkd.assert_allclose(
+            loaded.eigenvectors_at(query), source.eigenvectors_at(query),
+            rtol=1e-12, atol=1e-14,
+        )
+        assert blocking.ncalls() == 1
+
+    def test_constructor_rejects_a_non_blocking_object(
+        self, bkd: Backend[Array]
+    ) -> None:
+        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        kle = create_nystrom_kle(kernel, coords, 10, bkd, nlandmarks=40)
+        with pytest.raises(TypeError, match="RowBlockingProtocol"):
+            self._with_blocking(
+                kle, kernel, bkd, 7,  # type: ignore[arg-type]
             )
 
 
