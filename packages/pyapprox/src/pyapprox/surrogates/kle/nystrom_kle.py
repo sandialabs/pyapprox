@@ -84,6 +84,11 @@ class NystromKLE(Generic[Array]):
         If True the field is ``exp(mean + basis @ coef)``.
     bkd : Backend[Array]
         Computational backend.
+    row_blocking : RowBlockingProtocol
+        How many evaluation points :meth:`eigenvectors_at` processes at
+        a time. The default, :class:`NoBlocking`, forms the full
+        ``npts x m`` kernel matrix; a :class:`ByteBudgetBlocking` bounds
+        it, with the same result to round-off.
     """
 
     def __init__(
@@ -97,9 +102,15 @@ class NystromKLE(Generic[Array]):
         mean_field: Union[float, MeanFieldFn[Array]] = 0.0,
         use_log: bool = False,
         bkd: Optional[Backend[Array]] = None,
+        row_blocking: RowBlockingProtocol = NoBlocking(),
     ):
         if bkd is None:
             raise ValueError("bkd must be provided")
+        if not isinstance(row_blocking, RowBlockingProtocol):
+            raise TypeError(
+                "row_blocking must satisfy RowBlockingProtocol, got "
+                f"{type(row_blocking).__name__}"
+            )
         if not isinstance(kernel, KernelProtocol):
             raise TypeError(
                 "kernel must satisfy KernelProtocol, got "
@@ -123,6 +134,7 @@ class NystromKLE(Generic[Array]):
         self._sigma = sigma
         self._mean_field = mean_field
         self._use_log = use_log
+        self._row_blocking = row_blocking
         self._nterms = int(eigenvalues.shape[0])
         self._sqrt_eig_vals = bkd.sqrt(eigenvalues)
 
@@ -208,12 +220,25 @@ class NystromKLE(Generic[Array]):
         -------
         Array
             Shape ``(npts, nterms)``, built on demand and not stored.
+            The ``npts x m`` kernel matrix behind it is formed one block
+            of points at a time, as the stored ``row_blocking`` decides.
         """
         if coords.ndim != 2:
             raise ValueError(
                 f"coords must be 2D (ndim, npts), got ndim={coords.ndim}"
             )
-        return self._kernel(coords, self._landmark_coords) @ self._extension
+        ranges = row_block_ranges(
+            self._row_blocking, int(coords.shape[1]), self.nvars()
+        )
+        if len(ranges) <= 1:
+            return (
+                self._kernel(coords, self._landmark_coords) @ self._extension
+            )
+        return self._bkd.vstack([
+            self._kernel(coords[:, start:stop], self._landmark_coords)
+            @ self._extension
+            for start, stop in ranges
+        ])
 
     def weighted_eigenvectors_at(self, coords: Array) -> Array:
         """Basis at arbitrary points, scaled as the field uses it."""
@@ -224,9 +249,11 @@ class NystromKLE(Generic[Array]):
     def evaluate_at(self, coords: Array, coef: Array) -> Array:
         """Field values at arbitrary points.
 
-        Never stores a basis over the whole evaluation set: peak memory
-        is ``npts * nterms`` for whatever block the caller passes, so a
-        large quadrature rule can be walked a block at a time.
+        The basis over ``coords`` is built for this call and not stored.
+        Its ``npts x m`` kernel matrix is formed in the blocks the stored
+        ``row_blocking`` chooses, so with a :class:`ByteBudgetBlocking`
+        the peak is the ``npts x nterms`` basis plus one block, and a
+        large quadrature rule can be passed whole.
 
         Parameters
         ----------
@@ -387,6 +414,7 @@ def create_nystrom_kle(
         mean_field=mean_field,
         use_log=use_log,
         bkd=bkd,
+        row_blocking=row_blocking,
     )
 
 

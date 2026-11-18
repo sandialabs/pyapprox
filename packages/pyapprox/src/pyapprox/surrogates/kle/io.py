@@ -29,6 +29,7 @@ from pyapprox.surrogates.kle.nystrom_kle import NystromKLE
 from pyapprox.surrogates.kle.precomputed_kle import PrecomputedKLE
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.row_blocking import NoBlocking, RowBlockingProtocol
 
 # Bump when the set of stored arrays or their meaning changes. Stored
 # from the first release so that a later change can be detected and
@@ -341,6 +342,7 @@ def load_nystrom_kle(
     path: PathLike,
     kernel: KernelProtocol[Array],
     bkd: Backend[Array],
+    row_blocking: RowBlockingProtocol = NoBlocking(),
 ) -> NystromKLE[Array]:
     """Read a basis written by :func:`save_nystrom_kle`.
 
@@ -362,6 +364,12 @@ def load_nystrom_kle(
         Backend the returned arrays are created under. The archive is
         backend-neutral, so a basis saved from one backend loads into
         another.
+    row_blocking : RowBlockingProtocol
+        Passed to the returned basis for
+        :meth:`~pyapprox.surrogates.kle.nystrom_kle.NystromKLE.eigenvectors_at`.
+        It is an evaluation setting, not part of the basis, so it is not
+        stored; pass a :class:`~pyapprox.util.linalg.ByteBudgetBlocking`
+        to evaluate on a large point set within a memory bound.
 
     Returns
     -------
@@ -386,6 +394,7 @@ def load_nystrom_kle(
         mean_field=stored.mean_field,
         use_log=stored.use_log,
         bkd=bkd,
+        row_blocking=row_blocking,
     )
 
 
