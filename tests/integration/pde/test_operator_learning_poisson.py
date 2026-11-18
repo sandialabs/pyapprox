@@ -15,17 +15,26 @@ appears nowhere in the fitting path.
 """
 
 import math
-from typing import Any, Tuple
+from dataclasses import dataclass
+from typing import Any, Generic, Tuple
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.mesh import TransformedMesh1D
+from pyapprox.pde.collocation.boundary.essential_rows import (
+    DirichletPart,
+    DirichletRows,
+)
+from pyapprox.pde.collocation.mesh import BoundarySide, TransformedMesh1D
 from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
+)
+from pyapprox.pde.models.collocation.closed_system import CollocationSystem
+from pyapprox.pde.models.collocation.steady_residual import (
+    collocation_steady_residual,
 )
 from pyapprox.probability import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
@@ -46,8 +55,10 @@ from pyapprox.surrogates.operatorlearning import (
     bochner_error,
     sample_complexity,
 )
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.surrogates.operatorlearning.fitters import OperatorFitResult
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
+from pyapprox.util.linalg.operators import LinearizationPoint
 
 NMODES = 5
 # Clenshaw-Curtis needs 2^l + 1 points, and its nodes then coincide
@@ -55,7 +66,9 @@ NMODES = 5
 NPTS = 33
 
 
-def _poisson_solution_operator(bkd: Backend, npts: int) -> Tuple[Any, Any]:
+def _poisson_solution_operator(
+    bkd: Backend[Array], npts: int
+) -> Tuple[Array, Array]:
     """Return (nodes, solution operator) for -u'' = f on [0, 1].
 
     With constant diffusion and no advection or reaction the residual
@@ -67,30 +80,41 @@ def _poisson_solution_operator(bkd: Backend, npts: int) -> Tuple[Any, Any]:
     mesh = TransformedMesh1D(npts, bkd, AffineTransform1D((0.0, 1.0), bkd))
     basis = ChebyshevBasis1D(mesh, bkd)
     physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
-    boundary = [
-        zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
-        zero_dirichlet_bc(bkd, mesh.boundary_indices(1)),
-    ]
-    physics.set_boundary_conditions(boundary)
-
-    zero = bkd.zeros((npts,))
-    jacobian = physics.jacobian(zero, 0.0)
-    _, jacobian = physics.apply_boundary_conditions(
-        zero, jacobian, zero, 0.0
+    essential = DirichletRows(
+        bkd,
+        npts,
+        1,
+        [
+            DirichletPart(mesh.boundary_indices(BoundarySide.LEFT), 0.0),
+            DirichletPart(mesh.boundary_indices(BoundarySide.RIGHT), 0.0),
+        ],
     )
+    residual = collocation_steady_residual(
+        CollocationSystem(physics, essential, [])
+    )
+
+    # The residual with the Dirichlet rows pinned to identity rows.
+    jacobian_operator = residual.derivatives().jacobian
+    assert jacobian_operator is not None
+    jacobian = jacobian_operator(
+        bkd.zeros((npts, 1)), LinearizationPoint(0, ("poisson",))
+    ).format().matrix()
 
     # The residual is D u'' + f, so solving it against -f gives -u'' = f.
     operator = -bkd.inv(jacobian)
     # Boundary rows of the right-hand side hold the boundary value, not
     # the forcing, so the corresponding columns must not act on f.
-    np_operator = bkd.to_numpy(operator).copy()
-    for boundary_id in (0, 1):
-        index = int(bkd.to_numpy(mesh.boundary_indices(boundary_id))[0])
-        np_operator[:, index] = 0.0
-    return mesh.points()[0], bkd.asarray(np_operator)
+    boundary = {
+        bkd.to_int(mesh.boundary_indices(side)[0])
+        for side in (BoundarySide.LEFT, BoundarySide.RIGHT)
+    }
+    keep = bkd.asarray([0.0 if j in boundary else 1.0 for j in range(npts)])
+    return mesh.points()[0], operator * keep[None, :]
 
 
-def _sine_encoder(bkd: Backend, nodes: Any, nmodes: int) -> Any:
+def _sine_encoder(
+    bkd: Backend[Array], nodes: Array, nmodes: int
+) -> GramProjectionEncoder[Array]:
     """Encoder onto sine modes, orthonormal under Clenshaw-Curtis.
 
     Sines vanish at both ends, so they satisfy the boundary conditions
@@ -125,8 +149,8 @@ def _sine_encoder(bkd: Backend, nodes: Any, nmodes: int) -> Any:
 
 
 def _linear_expansion(
-    bkd: Backend, nvars: int, noutputs: int
-) -> PolynomialChaosExpansion:
+    bkd: Backend[Array], nvars: int, noutputs: int
+) -> PolynomialChaosExpansion[Array]:
     """Expansion over the first-order terms, so the fit stays linear."""
     marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
     basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
@@ -136,10 +160,20 @@ def _linear_expansion(
     return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
 
 
+@dataclass(frozen=True)
+class _Fit(Generic[Array]):
+    """A fitted surrogate and what the checks downstream need."""
+
+    nodes: Array
+    operator: Array
+    encoder: GramProjectionEncoder[Array]
+    result: OperatorFitResult[Array]
+
+
 class TestPoissonOperatorLearning:
     """T11: learn the Poisson solution operator from solves."""
 
-    def _fit(self, bkd: Backend, nsamples: int) -> Any:
+    def _fit(self, bkd: Backend[Array], nsamples: int) -> _Fit[Array]:
         """Solve, encode, sample, fit. Returns everything downstream needs."""
         nodes, operator = _poisson_solution_operator(bkd, NPTS)
         encoder = _sine_encoder(bkd, nodes, NMODES)
@@ -161,10 +195,10 @@ class TestPoissonOperatorLearning:
         result = WeightedLeastSquaresOperatorFitter(
             encoder, encoder, bkd
         ).fit(expansion, forcings, solutions, weights=drawn.weights)
-        return nodes, operator, encoder, result
+        return _Fit(nodes, operator, encoder, result)
 
     def test_recovers_the_solution_operator(
-        self, numpy_bkd: Backend
+        self, numpy_bkd: Backend[Array]
     ) -> None:
         """The surrogate reproduces solves it was never shown.
 
@@ -173,7 +207,8 @@ class TestPoissonOperatorLearning:
         """
         np.random.seed(0)
         nsamples = sample_complexity(NMODES, 0.5, 0.5)
-        nodes, operator, encoder, result = self._fit(numpy_bkd, nsamples)
+        fit = self._fit(numpy_bkd, nsamples)
+        operator, encoder, result = fit.operator, fit.encoder, fit.result
 
         np.random.seed(1)
         held_out = numpy_bkd.asarray(
@@ -186,7 +221,7 @@ class TestPoissonOperatorLearning:
         error = bochner_error(encoder, predicted, truth, numpy_bkd)
         assert error < 1e-8
 
-    def test_operator_matrix_is_diagonal(self, numpy_bkd: Backend) -> None:
+    def test_operator_matrix_is_diagonal(self, numpy_bkd: Backend[Array]) -> None:
         """Sines diagonalize the Laplacian, so the matrix must be too.
 
         The fit is told nothing about this: it sees forcing and
@@ -196,7 +231,7 @@ class TestPoissonOperatorLearning:
         """
         np.random.seed(0)
         nsamples = sample_complexity(NMODES, 0.5, 0.5)
-        _, _, _, result = self._fit(numpy_bkd, nsamples)
+        result = self._fit(numpy_bkd, nsamples).result
 
         matrix = numpy_bkd.to_numpy(result.operator_matrix())
         off_diagonal = matrix - np.diag(np.diag(matrix))
@@ -204,7 +239,7 @@ class TestPoissonOperatorLearning:
         assert relative < 1e-6
 
     def test_eigenvalues_match_the_analytic_spectrum(
-        self, numpy_bkd: Backend
+        self, numpy_bkd: Backend[Array]
     ) -> None:
         """The diagonal holds the inverse Laplacian eigenvalues.
 
@@ -214,7 +249,7 @@ class TestPoissonOperatorLearning:
         """
         np.random.seed(0)
         nsamples = sample_complexity(NMODES, 0.5, 0.5)
-        _, _, _, result = self._fit(numpy_bkd, nsamples)
+        result = self._fit(numpy_bkd, nsamples).result
 
         # Legendre degree one is sqrt(3) x, so the fitted coefficients
         # carry that factor relative to the operator's eigenvalues.
@@ -227,7 +262,9 @@ class TestPoissonOperatorLearning:
         )
 
     @staticmethod
-    def _greens_integral(nodes: Any, mode: int, nquad: int) -> Any:
+    def _greens_integral(
+        nodes: NDArray[np.floating[Any]], mode: int, nquad: int
+    ) -> NDArray[np.floating[Any]]:
         """Integrate G against a sine forcing on a uniform rule.
 
         G(x, y) = min(x, y) - x y has a kink on the diagonal, so a
@@ -241,10 +278,13 @@ class TestPoissonOperatorLearning:
             - nodes[:, None] * quad[None, :]
         )
         forcing = np.sqrt(2.0) * np.sin(mode * np.pi * quad)
-        return np.trapezoid(greens * forcing[None, :], quad, axis=1)
+        integral: NDArray[np.floating[Any]] = np.trapezoid(
+            greens * forcing[None, :], quad, axis=1
+        )
+        return integral
 
     def test_action_matches_the_greens_function(
-        self, numpy_bkd: Backend
+        self, numpy_bkd: Backend[Array]
     ) -> None:
         """The learned operator integrates against min(x, y) - x y.
 
@@ -260,8 +300,9 @@ class TestPoissonOperatorLearning:
         """
         np.random.seed(0)
         nsamples = sample_complexity(NMODES, 0.5, 0.5)
-        nodes, _, encoder, result = self._fit(numpy_bkd, nsamples)
-        np_nodes = numpy_bkd.to_numpy(nodes)
+        fit = self._fit(numpy_bkd, nsamples)
+        encoder, result = fit.encoder, fit.result
+        np_nodes = numpy_bkd.to_numpy(fit.nodes)
 
         # A single sine mode as forcing, whose coefficients are known.
         mode = 2
@@ -281,7 +322,7 @@ class TestPoissonOperatorLearning:
         assert errors[2] < errors[1] / 8.0
         assert errors[2] < 1e-6
 
-    def test_beats_a_trivial_predictor(self, numpy_bkd: Backend) -> None:
+    def test_beats_a_trivial_predictor(self, numpy_bkd: Backend[Array]) -> None:
         """Guards against an error metric that would flatter anything.
 
         Predicting zero everywhere is the null model; the fit must be
@@ -289,7 +330,8 @@ class TestPoissonOperatorLearning:
         """
         np.random.seed(0)
         nsamples = sample_complexity(NMODES, 0.5, 0.5)
-        nodes, operator, encoder, result = self._fit(numpy_bkd, nsamples)
+        fit = self._fit(numpy_bkd, nsamples)
+        operator, encoder, result = fit.operator, fit.encoder, fit.result
 
         np.random.seed(3)
         held_out = numpy_bkd.asarray(
