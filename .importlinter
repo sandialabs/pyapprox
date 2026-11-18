@@ -110,3 +110,45 @@ source_modules =
     pyapprox.inverse
 forbidden_modules =
     pyapprox.expdesign
+
+# ── pde and the statistics packages stay independent ───────────────────
+# A discretization needs polynomial, kernel and random-field building
+# blocks, not surrogates or probability distributions: those blocks move
+# out of surrogates into their own lower-level packages, and a statistics
+# object reaches a PDE model only by satisfying a protocol the model owns.
+# Each ignore below is an edge that exists today; the list only shrinks,
+# and an entry goes when the package it reaches has moved or the consumer
+# owns the protocol.
+[importlinter:contract:pde-independent-of-statistics]
+name = pde must not import surrogates or probability
+type = forbidden
+source_modules =
+    pyapprox.pde
+forbidden_modules =
+    pyapprox.surrogates
+    pyapprox.probability
+ignore_imports =
+    pyapprox.pde.collocation.functionals.point_evaluation -> pyapprox.surrogates.affine.univariate.lagrange
+    pyapprox.pde.collocation.quadrature.collocation_quadrature -> pyapprox.surrogates.affine.univariate.globalpoly.jacobi
+    pyapprox.pde.collocation.quadrature.collocation_quadrature -> pyapprox.surrogates.affine.univariate.globalpoly.quadrature
+    pyapprox.pde.collocation.quadrature.collocation_quadrature -> pyapprox.surrogates.affine.univariate.lagrange
+    pyapprox.pde.coupling.basis -> pyapprox.surrogates.affine.univariate.globalpoly.jacobi
+    pyapprox.pde.coupling.basis -> pyapprox.surrogates.affine.univariate.lagrange
+    pyapprox.pde.decomposition.interface.basis -> pyapprox.surrogates.affine.univariate.globalpoly
+    pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kernels.matern
+    pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kernels.protocols
+    pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kle.galerkin_kle
+    pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kle.mesh_kle
+    pyapprox.pde.galerkin.kle_factory -> pyapprox.surrogates.kle.spde_kle
+    pyapprox.pde.galerkin.kle_factory -> pyapprox.surrogates.kle.utils
+    pyapprox.pde.rom.trial_space -> pyapprox.surrogates.kle
+    pyapprox.pde.galerkin.noise_mass -> pyapprox.probability.protocols.covariance
+
+[importlinter:contract:statistics-independent-of-pde]
+name = surrogates and probability must not import pde
+type = forbidden
+source_modules =
+    pyapprox.surrogates
+    pyapprox.probability
+forbidden_modules =
+    pyapprox.pde
