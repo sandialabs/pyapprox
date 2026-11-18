@@ -6,9 +6,7 @@ import numpy as np
 
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    zero_dirichlet_bc,
-)
+from pyapprox.pde.collocation.boundary.essential_rows import DirichletPart
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
@@ -25,17 +23,16 @@ from pyapprox.pde.models.collocation.right_hand_side import (
     CollocationRightHandSide,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.physics_test_utils import (
-    PhysicsNewtonResidual,
     PhysicsTestBase,
+    solve_steady_dirichlet,
 )
 
 
 class TestHelmholtzPhysics(PhysicsTestBase):
     """Tests for HelmholtzPhysics."""
 
-    def test_jacobian_derivative_checker(self, bkd):
+    def test_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         """Test Jacobian matches finite differences using DerivativeChecker."""
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
@@ -49,7 +46,7 @@ class TestHelmholtzPhysics(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self, bkd):
+    def test_jacobian_with_forcing(self, bkd: Backend[Array]) -> None:
         """Test Jacobian with non-zero forcing."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -61,14 +58,14 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         forcing = bkd.cos(nodes)
 
         physics = HelmholtzPhysics(
-            basis, bkd, wave_number_sq=2.0, forcing=lambda t: forcing
+            basis, bkd, wave_number_sq=2.0, forcing=NodalField(forcing)
         )
 
         state = bkd.array(np.random.randn(physics.nstates()))
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self, bkd):
+    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
         """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
@@ -92,19 +89,18 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         forcing = (math.pi**2 + k_sq) * bkd.sin(math.pi * nodes)
 
         physics = HelmholtzPhysics(
-            basis, bkd, wave_number_sq=k_sq, forcing=lambda t: forcing
+            basis, bkd, wave_number_sq=k_sq, forcing=NodalField(forcing)
         )
 
         # Check residual is near zero at manufactured solution
         self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
 
-    def test_solve_from_wrong_initial_guess(self, bkd):
+    def test_solve_from_wrong_initial_guess(self, bkd: Backend[Array]) -> None:
         """AFTER: Verify convergence to exact solution from wrong guess."""
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Manufactured solution: u = (1 - x^2), satisfies u(-1) = u(1) = 0
         # -u'' + k^2*u = f where u = 1 - x^2
@@ -117,26 +113,28 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         forcing = 2.0 + k_sq * (1.0 - nodes**2)
 
         physics = HelmholtzPhysics(
-            basis, bkd, wave_number_sq=k_sq, forcing=lambda t: forcing
+            basis, bkd, wave_number_sq=k_sq, forcing=NodalField(forcing)
         )
 
         # Set boundary conditions: u(-1) = 0, u(1) = 0
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = zero_dirichlet_bc(bkd, left_idx)
-        bc_right = zero_dirichlet_bc(bkd, right_idx)
-        physics.set_boundary_conditions([bc_left, bc_right])
 
-        # Newton solve from wrong initial guess using NewtonSolver
+        # Newton solve from wrong initial guess
         initial_guess = bkd.zeros((npts,))
-        residual_wrapper = PhysicsNewtonResidual(physics, time=0.0)
-        solver = NewtonSolver(residual_wrapper)
-        solver.set_options(maxiters=20, atol=1e-12, rtol=1e-12)
-        solution = solver.solve(initial_guess)
+        solution = solve_steady_dirichlet(
+            physics,
+            1,
+            [DirichletPart(left_idx, 0.0), DirichletPart(right_idx, 0.0)],
+            initial_guess,
+            atol=1e-12,
+            rtol=1e-12,
+            maxiters=20,
+        )
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-10)
 
-    def test_factory_function(self, bkd):
+    def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_helmholtz factory function."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -147,7 +145,7 @@ class TestHelmholtzPhysics(PhysicsTestBase):
 
         assert physics.ncomponents() == 1
         assert physics.nstates() == npts
-        assert abs(physics.wave_number_sq() - 2.0) < 1e-7
+        assert abs(bkd.to_float(physics.wave_number_sq()) - 2.0) < 1e-7
 
 
 def _helmholtz_1d(
@@ -164,16 +162,18 @@ def _solve_unit_forcing(bkd: Backend[Array], wave_number_sq: float) -> Array:
     physics = _helmholtz_1d(bkd, wave_number_sq)
     npts = physics.npts()
     mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
-    physics.set_boundary_conditions(
+    return solve_steady_dirichlet(
+        physics,
+        1,
         [
-            zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
-            zero_dirichlet_bc(bkd, mesh.boundary_indices(1)),
-        ]
+            DirichletPart(mesh.boundary_indices(0), 0.0),
+            DirichletPart(mesh.boundary_indices(1), 0.0),
+        ],
+        bkd.zeros((npts,)),
+        atol=1e-12,
+        rtol=1e-12,
+        maxiters=20,
     )
-    solver = NewtonSolver(PhysicsNewtonResidual(physics, time=0.0))
-    solver.set_options(maxiters=20, atol=1e-12, rtol=1e-12)
-    solution: Array = solver.solve(bkd.zeros((npts,)))
-    return solution
 
 
 class TestHelmholtzSignConvention:

@@ -11,9 +11,9 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
+from pyapprox.pde.collocation.boundary.essential_rows import DirichletPart
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.coefficients import (
     CoefficientInput,
@@ -47,17 +47,17 @@ from pyapprox.pde.models.collocation.right_hand_side import (
     CollocationRightHandSide,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.physics_test_utils import (
-    PhysicsNewtonResidual,
+    ManufacturedColumn,
     PhysicsTestBase,
+    solve_steady_dirichlet,
 )
 
 
 class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
     """Tests for TwoSpeciesReactionDiffusionPhysics."""
 
-    def test_jacobian_linear_reaction(self, bkd):
+    def test_jacobian_linear_reaction(self, bkd: Backend[Array]) -> None:
         """Test Jacobian with linear reaction."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -76,7 +76,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_fhn_reaction(self, bkd):
+    def test_jacobian_fhn_reaction(self, bkd: Backend[Array]) -> None:
         """Test Jacobian with FitzHugh-Nagumo reaction."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -96,7 +96,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self, bkd):
+    def test_jacobian_with_forcing(self, bkd: Backend[Array]) -> None:
         """Test Jacobian with forcing terms."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -114,15 +114,15 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             diffusion0=0.1,
             diffusion1=0.1,
             reaction=reaction,
-            forcing0=lambda t: forcing0,
-            forcing1=lambda t: forcing1,
+            forcing0=NodalField(forcing0),
+            forcing1=NodalField(forcing1),
         )
 
         state = bkd.array(np.random.randn(physics.nstates()))
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self, bkd):
+    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
         """BEFORE: Verify residual = 0 at manufactured solution."""
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
@@ -154,19 +154,18 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             diffusion0=D0,
             diffusion1=D1,
             reaction=reaction,
-            forcing0=lambda t: forcing0,
-            forcing1=lambda t: forcing1,
+            forcing0=NodalField(forcing0),
+            forcing1=NodalField(forcing1),
         )
 
         self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
 
-    def test_solve_steady_linear_system(self, bkd):
+    def test_solve_steady_linear_system(self, bkd: Backend[Array]) -> None:
         """AFTER: Verify convergence for linear reaction-diffusion."""
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
         # Simple test: u0 = u1 = 1 - x^2 (satisfies u(-1) = u(1) = 0)
@@ -190,37 +189,37 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             diffusion0=D0,
             diffusion1=D1,
             reaction=reaction,
-            forcing0=lambda t: forcing0,
-            forcing1=lambda t: forcing1,
+            forcing0=NodalField(forcing0),
+            forcing1=NodalField(forcing1),
         )
 
         # Set BCs for both species at both boundaries
         # For vector physics with state [u0, u1], u0 uses indices 0:npts
-        # and u1 uses indices npts:2*npts
+        # and u1 uses indices npts:2*npts; each part names its component
+        # and gives node indices, and the rows offset them.
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
+        parts = [
+            DirichletPart(idx, 0.0, component)
+            for component in (0, 1)
+            for idx in (left_idx, right_idx)
+        ]
 
-        # u0 boundaries at indices left_idx and right_idx
-        bc_u0_left = zero_dirichlet_bc(bkd, bkd.array([left_idx]))
-        bc_u0_right = zero_dirichlet_bc(bkd, bkd.array([right_idx]))
-        # u1 boundaries at indices npts + left_idx and npts + right_idx
-        bc_u1_left = zero_dirichlet_bc(bkd, bkd.array([npts + left_idx]))
-        bc_u1_right = zero_dirichlet_bc(bkd, bkd.array([npts + right_idx]))
-
-        physics.set_boundary_conditions(
-            [bc_u0_left, bc_u0_right, bc_u1_left, bc_u1_right]
-        )
-
-        # Newton solve from wrong initial guess using NewtonSolver
+        # Newton solve from wrong initial guess
         initial_guess = bkd.zeros((2 * npts,))
-        residual_wrapper = PhysicsNewtonResidual(physics, time=0.0)
-        solver = NewtonSolver(residual_wrapper)
-        solver.set_options(maxiters=30, atol=1e-12, rtol=1e-12)
-        solution = solver.solve(initial_guess)
+        solution = solve_steady_dirichlet(
+            physics,
+            2,
+            parts,
+            initial_guess,
+            atol=1e-12,
+            rtol=1e-12,
+            maxiters=30,
+        )
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-8)
 
-    def test_factory_function(self, bkd):
+    def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_two_species_reaction_diffusion factory."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -240,7 +239,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         assert physics.ncomponents() == 2
         assert physics.nstates() == 2 * npts
 
-    def test_transient_diffusion_only(self, bkd):
+    def test_transient_diffusion_only(self, bkd: Backend[Array]) -> None:
         """Test transient evolution with pure diffusion (no reaction).
 
         For u0, u1 = sin(pi*x) with homogeneous Dirichlet BCs and no reaction:
@@ -251,7 +250,6 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
         D0, D1 = 0.1, 0.05
@@ -280,7 +278,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         state0 = bkd.hstack([u0_init, u1_init])
 
         final_time = 0.1
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="backward_euler",
             init_time=0.0,
             final_time=final_time,
@@ -299,7 +297,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_final, rtol=0.02, atol=1e-10)
 
-    def test_transient_diffusion_only_crank_nicolson(self, bkd):
+    def test_transient_diffusion_only_crank_nicolson(self, bkd: Backend[Array]) -> None:
         """Test transient reaction-diffusion with CN and manufactured solution.
 
         Uses polynomial-in-space (exact for Chebyshev) and quadratic-in-time
@@ -310,7 +308,6 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
         D0, D1 = 0.1, 0.05
@@ -328,13 +325,12 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             oned=True,
         )
 
-        def forcing0_fn(t):
-            forcing = man_sol.functions["forcing"](nodes[None, :], t)
-            return forcing[:, 0]
-
-        def forcing1_fn(t):
-            forcing = man_sol.functions["forcing"](nodes[None, :], t)
-            return forcing[:, 1]
+        forcing0_fn: TimeDependent[Array] = TimeDependent(
+            ManufacturedColumn(man_sol.functions["forcing"], 0)
+        )
+        forcing1_fn: TimeDependent[Array] = TimeDependent(
+            ManufacturedColumn(man_sol.functions["forcing"], 1)
+        )
 
         physics = TwoSpeciesReactionDiffusionPhysics(
             basis,
@@ -342,8 +338,8 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             diffusion0=D0,
             diffusion1=D1,
             reaction=reaction,
-            forcing0=forcing0_fn,
-            forcing1=forcing1_fn,
+            forcing0=NodalSupplier(forcing0_fn, nodes[None, :]),
+            forcing1=NodalSupplier(forcing1_fn, nodes[None, :]),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -362,7 +358,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         state0 = bkd.concatenate([u_exact_0[:, 0], u_exact_0[:, 1]])
 
         final_time = 0.1
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="crank_nicolson",
             init_time=0.0,
             final_time=final_time,
@@ -383,7 +379,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 class TestFitzHughNagumoPhysics(PhysicsTestBase):
     """Tests for FitzHughNagumoPhysics."""
 
-    def test_jacobian_derivative_checker(self, bkd):
+    def test_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         """Test Jacobian matches finite differences."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -400,7 +396,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_different_parameters(self, bkd):
+    def test_jacobian_different_parameters(self, bkd: Backend[Array]) -> None:
         """Test Jacobian with different FHN parameters."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -417,7 +413,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_parameter_accessors(self, bkd):
+    def test_parameter_accessors(self, bkd: Backend[Array]) -> None:
         """Test parameter accessor methods."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -433,7 +429,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         assert abs(physics.beta() - 0.6) < 1e-7
         assert abs(physics.gamma() - 0.9) < 1e-7
 
-    def test_set_parameters(self, bkd):
+    def test_set_parameters(self, bkd: Backend[Array]) -> None:
         """Test updating FHN parameters."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -451,7 +447,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         assert abs(physics.beta() - 0.5) < 1e-7
         assert abs(physics.gamma() - 1.0) < 1e-7
 
-    def test_factory_function(self, bkd):
+    def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_fitzhugh_nagumo factory."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -466,7 +462,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         assert physics.nstates() == 2 * npts
         assert abs(physics.alpha() - 0.1) < 1e-7
 
-    def test_no_diffusion_on_recovery(self, bkd):
+    def test_no_diffusion_on_recovery(self, bkd: Backend[Array]) -> None:
         """Verify recovery variable has zero diffusion."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -480,7 +476,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         bkd.assert_allclose(d0.values(0.0), bkd.full((npts,), 1e-3))
         assert d1 is None
 
-    def test_transient_evolution(self, bkd):
+    def test_transient_evolution(self, bkd: Backend[Array]) -> None:
         """Test FitzHugh-Nagumo transient behavior.
 
         FHN is inherently transient with excitable dynamics. We test that
@@ -504,7 +500,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         w0 = bkd.zeros((npts,))  # Recovery variable starts at rest
         state0 = bkd.hstack([v0, w0])
 
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="backward_euler",
             init_time=0.0,
             final_time=1.0,
@@ -531,7 +527,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
 class TestFitzHughNagumoReaction:
     """Unit tests for FitzHughNagumoReaction class."""
 
-    def test_reaction_values(self, bkd):
+    def test_reaction_values(self, bkd: Backend[Array]) -> None:
         """Test reaction term evaluation."""
         reaction = FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd)
 
@@ -553,7 +549,7 @@ class TestFitzHughNagumoReaction:
         expected_R1 = bkd.array([0.0, 0.0015, 0.005])
         bkd.assert_allclose(R1, expected_R1, atol=1e-10)
 
-    def test_reaction_jacobian(self, bkd):
+    def test_reaction_jacobian(self, bkd: Backend[Array]) -> None:
         """Test reaction Jacobian computation."""
         reaction = FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd)
 

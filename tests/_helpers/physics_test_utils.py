@@ -1,28 +1,43 @@
 """Test utilities for physics implementations.
 
-Provides wrappers and base classes for testing physics with DerivativeChecker
-and NewtonSolver.
+Provides wrappers and base classes for testing physics with DerivativeChecker,
+and a steady Newton solve with Dirichlet rows.
 """
 
-from typing import Generic
+from typing import Callable, Generic, Sequence
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.collocation.physics.base import AbstractPhysics
+from pyapprox.ode.residual_derivatives import backend_state_space
+from pyapprox.pde.collocation.boundary.essential_rows import (
+    DirichletPart,
+    DirichletRows,
+)
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
+)
+from pyapprox.pde.models.collocation.closed_system import CollocationSystem
+from pyapprox.pde.models.collocation.steady_residual import (
+    collocation_steady_residual,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrap physics for DerivativeChecker compatibility.
 
-    Adapts physics interface (residual/jacobian with state and time) to
-    FunctionProtocol interface (samples array).
+    Adapts the interior operator (residual/jacobian with state and time)
+    to FunctionProtocol interface (samples array).
 
     Parameters
     ----------
-    physics : AbstractPhysics[Array]
+    physics : CollocationInteriorOperatorProtocol[Array]
         Physics to wrap.
     time : float
         Time value to use in residual/jacobian calls.
@@ -38,7 +53,9 @@ class PhysicsDerivativeWrapper(Generic[Array]):
     >>> assert float(bkd.min(errors[0])) < 1e-5
     """
 
-    def __init__(self, physics: AbstractPhysics[Array], time: float = 0.0):
+    def __init__(
+        self, physics: CollocationInteriorOperatorProtocol[Array], time: float = 0.0
+    ) -> None:
         self._physics = physics
         self._time = time
 
@@ -72,10 +89,10 @@ class PhysicsDerivativeWrapper(Generic[Array]):
             state = samples
         else:
             state = samples[:, 0]
-        residual = self._physics.residual(state, self._time)
+        residual = self._physics.interior_residual(state, self._time)
         return residual[:, None]
 
-    def derivatives(self):
+    def derivatives(self) -> Derivatives[Array]:
         return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample: Array) -> Array:
@@ -95,85 +112,76 @@ class PhysicsDerivativeWrapper(Generic[Array]):
             state = sample[:, 0]
         else:
             state = sample
-        return self._physics.jacobian(state, self._time)
+        return self._physics.interior_jacobian(state, self._time)
 
 
-class PhysicsNewtonResidual(Generic[Array]):
-    """Wrap physics for NewtonSolver compatibility.
+class ManufacturedColumn(Generic[Array]):
+    """One column of a manufactured ``f(coords, time)`` function, as an
+    ``f(coords, time)`` supplier of nodal values.
 
-    Adapts physics with boundary conditions to NewtonSolverResidualProtocol.
+    Wrap it in ``TimeDependent`` or ``TimeIndependent`` to declare its
+    time dependence.
 
     Parameters
     ----------
-    physics : AbstractPhysics[Array]
-        Physics with boundary conditions set via set_boundary_conditions().
-    time : float
-        Time value to use in residual/jacobian calls.
-
-    Examples
-    --------
-    >>> bkd = NumpyBkd()
-    >>> physics = SomePhysics(basis, bkd)
-    >>> physics.set_boundary_conditions([bc1, bc2])
-    >>> wrapper = PhysicsNewtonResidual(physics, time=0.0)
-    >>> solver = NewtonSolver(wrapper)
-    >>> solver.set_options(maxiters=50, atol=1e-10)
-    >>> solution = solver.solve(initial_guess)
+    function : Callable[[Array, float], Array]
+        Returns shape (npts, ncolumns).
+    column : int
+        The column to return.
     """
 
-    def __init__(self, physics: AbstractPhysics[Array], time: float = 0.0):
-        self._physics = physics
-        self._time = time
-        self._bkd = physics.bkd()
+    def __init__(self, function: Callable[[Array, float], Array], column: int) -> None:
+        self._function = function
+        self._column = column
 
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
+    def __call__(self, coords: Array, time: float) -> Array:
+        """Shape: (npts,)"""
+        return self._function(coords, time)[:, self._column]
 
-    def __call__(self, iterate: Array) -> Array:
-        """Compute residual at iterate with boundary conditions applied.
 
-        Parameters
-        ----------
-        iterate : Array
-            Current iterate. Shape: (nstates,).
+def solve_steady_dirichlet(
+    physics: CollocationInteriorOperatorProtocol[Array],
+    ncomponents: int,
+    parts: Sequence[DirichletPart[Array]],
+    initial_state: Array,
+    atol: float,
+    rtol: float = 0.0,
+    maxiters: int = 50,
+) -> Array:
+    """The steady state of ``physics`` with the Dirichlet ``parts`` as its
+    only boundary rows, by Newton with a dense LU.
 
-        Returns
-        -------
-        Array
-            Residual with BCs. Shape: (nstates,).
-        """
-        residual = self._physics.residual(iterate, self._time)
-        jacobian = self._physics.jacobian(iterate, self._time)
-        residual_bc, _ = self._physics.apply_boundary_conditions(
-            residual, jacobian, iterate, self._time
-        )
-        return residual_bc
+    Parameters
+    ----------
+    physics : CollocationInteriorOperatorProtocol
+        The interior operator; every coefficient time-invariant.
+    ncomponents : int
+        The state's number of components.
+    parts : sequence of DirichletPart
+        The Dirichlet rows, each on one component.
+    initial_state : Array
+        Shape: (nstates,).
+    atol, rtol : float
+        Newton's residual tolerances.
+    maxiters : int, default 50
+        Newton's iteration limit.
 
-    def linsolve(self, state: Array, prev_residual: Array) -> Array:
-        """Solve linear system J @ delta = prev_residual.
-
-        Parameters
-        ----------
-        state : Array
-            Current state. Shape: (nstates,).
-        prev_residual : Array
-            Residual at current state. Shape: (nstates,).
-
-        Returns
-        -------
-        Array
-            Newton step delta. Shape: (nstates,).
-        """
-        residual = self._physics.residual(state, self._time)
-        jacobian = self._physics.jacobian(state, self._time)
-        _, jacobian_bc = self._physics.apply_boundary_conditions(
-            residual, jacobian, state, self._time
-        )
-        return self._bkd.solve(jacobian_bc, prev_residual)
-
-    def is_one_step_solvable(self) -> bool:
-        return False
+    Returns
+    -------
+    Array
+        The converged state. Shape: (nstates,).
+    """
+    bkd, nstates = physics.bkd(), physics.nstates()
+    essential = DirichletRows(bkd, nstates // ncomponents, ncomponents, list(parts))
+    steady = SteadySystem(
+        collocation_steady_residual(CollocationSystem(physics, essential, [])),
+        backend_state_space(bkd, nstates),
+        RecomputeAlways(BackendDenseLU(bkd)),
+    )
+    newton: Newton[Array, Array] = Newton(atol=atol, rtol=rtol, maxiters=maxiters)
+    point = steady.solve(newton, initial_state[:, None])
+    assert point.converged(), "Newton did not converge"
+    return point.state()[:, 0]
 
 
 class PhysicsTestBase:
@@ -187,9 +195,9 @@ class PhysicsTestBase:
 
     def check_jacobian(
         self,
-        bkd,
-        physics: AbstractPhysics,
-        state,
+        bkd: Backend[Array],
+        physics: CollocationInteriorOperatorProtocol[Array],
+        state: Array,
         time: float = 0.0,
         atol: float = 1e-5,
     ) -> None:
@@ -197,69 +205,22 @@ class PhysicsTestBase:
         wrapper = PhysicsDerivativeWrapper(physics, time)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state[:, None])
-        min_error = float(bkd.min(errors[0]))
+        min_error = bkd.to_float(bkd.min(errors[0]))
         assert min_error < atol, (
             f"Jacobian error {min_error:.2e} exceeds tolerance {atol:.2e}"
         )
 
     def check_residual_zero(
         self,
-        bkd,
-        physics: AbstractPhysics,
-        exact_state,
+        bkd: Backend[Array],
+        physics: CollocationInteriorOperatorProtocol[Array],
+        exact_state: Array,
         time: float = 0.0,
         atol: float = 1e-10,
     ) -> None:
         """Verify residual is zero at manufactured solution."""
-        residual = physics.residual(exact_state, time)
-        norm = float(bkd.norm(residual))
+        residual = physics.interior_residual(exact_state, time)
+        norm = bkd.to_float(bkd.norm(residual))
         assert norm < atol, (
             f"Residual norm {norm:.2e} exceeds tolerance {atol:.2e}"
         )
-
-    def check_jacobian_at_boundary(
-        self,
-        bkd,
-        physics: AbstractPhysics,
-        state,
-        time: float = 0.0,
-        atol: float = 1e-5,
-    ) -> None:
-        """Verify Jacobian with boundary conditions applied."""
-        nstates = physics.nstates()
-
-        # Compute analytical Jacobian with BCs
-        residual = physics.residual(state, time)
-        jacobian = physics.jacobian(state, time)
-        residual_bc, jacobian_bc = physics.apply_boundary_conditions(
-            residual, jacobian, state, time
-        )
-
-        # Compute finite difference Jacobian for residual with BCs
-        eps = 1e-7
-        jac_fd = bkd.zeros((nstates, nstates))
-
-        for j in range(nstates):
-            state_plus = bkd.copy(state)
-            state_plus[j] = state_plus[j] + eps
-            state_minus = bkd.copy(state)
-            state_minus[j] = state_minus[j] - eps
-
-            # Compute residual with BCs at perturbed states
-            res_plus = physics.residual(state_plus, time)
-            jac_plus = physics.jacobian(state_plus, time)
-            res_plus_bc, _ = physics.apply_boundary_conditions(
-                res_plus, jac_plus, state_plus, time
-            )
-
-            res_minus = physics.residual(state_minus, time)
-            jac_minus = physics.jacobian(state_minus, time)
-            res_minus_bc, _ = physics.apply_boundary_conditions(
-                res_minus, jac_minus, state_minus, time
-            )
-
-            for i in range(nstates):
-                jac_fd[i, j] = (res_plus_bc[i] - res_minus_bc[i]) / (2 * eps)
-
-        # Compare
-        bkd.assert_allclose(jacobian_bc, jac_fd, atol=atol)

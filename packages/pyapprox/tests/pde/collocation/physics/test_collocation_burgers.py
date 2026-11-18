@@ -15,14 +15,15 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
+from pyapprox.pde.collocation.boundary.essential_rows import DirichletPart
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.burgers import (
     BurgersPhysics1D,
     create_burgers_1d,
 )
+from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
@@ -30,6 +31,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
 )
@@ -37,17 +39,16 @@ from pyapprox.pde.models.collocation.right_hand_side import (
     CollocationRightHandSide,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.physics_test_utils import (
-    PhysicsNewtonResidual,
     PhysicsTestBase,
+    solve_steady_dirichlet,
 )
 
 
 class TestBurgersPhysics(PhysicsTestBase):
     """Tests for BurgersPhysics1D."""
 
-    def test_jacobian_derivative_checker(self, bkd):
+    def test_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         """Test Jacobian matches finite differences using DerivativeChecker."""
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
@@ -61,7 +62,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_non_conservative(self, bkd):
+    def test_jacobian_non_conservative(self, bkd: Backend[Array]) -> None:
         """Test Jacobian for non-conservative form."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -74,7 +75,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self, bkd):
+    def test_jacobian_with_forcing(self, bkd: Backend[Array]) -> None:
         """Test Jacobian with non-zero forcing."""
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
@@ -84,13 +85,15 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         forcing = 0.5 * bkd.sin(math.pi * nodes)
 
-        physics = BurgersPhysics1D(basis, bkd, viscosity=0.1, forcing=lambda t: forcing)
+        physics = BurgersPhysics1D(
+            basis, bkd, viscosity=0.1, forcing=NodalField(forcing)
+        )
 
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self, bkd):
+    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
         """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
         npts = 25
         mesh = TransformedMesh1D(npts, bkd)
@@ -114,7 +117,9 @@ class TestBurgersPhysics(PhysicsTestBase):
         if forcing.ndim == 2:
             forcing = forcing[:, 0]
 
-        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
+        physics = BurgersPhysics1D(
+            basis, bkd, viscosity=nu, forcing=NodalField(forcing)
+        )
 
         # Get exact solution
         exact_solution = man_sol.functions["solution"](nodes[None, :])
@@ -124,7 +129,7 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Check residual is near zero at manufactured solution
         self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
 
-    def test_residual_polynomial(self, bkd):
+    def test_residual_polynomial(self, bkd: Backend[Array]) -> None:
         """Test residual with polynomial solution.
 
         For u(x) = x^2 on [-1, 1]:
@@ -151,13 +156,12 @@ class TestBurgersPhysics(PhysicsTestBase):
         expected = 2.0 * nu - 2.0 * nodes**3
         bkd.assert_allclose(residual, expected, atol=1e-10)
 
-    def test_solve_steady_from_wrong_initial_guess(self, bkd):
+    def test_solve_steady_from_wrong_initial_guess(self, bkd: Backend[Array]) -> None:
         """AFTER: Verify convergence to exact solution from wrong guess."""
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # For steady Burgers with nu * u'' - u * u' + f = 0
         # Choose simple manufactured solution: u = sin(pi*x)
@@ -177,30 +181,34 @@ class TestBurgersPhysics(PhysicsTestBase):
         if forcing.ndim == 2:
             forcing = forcing[:, 0]
 
-        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
+        physics = BurgersPhysics1D(
+            basis, bkd, viscosity=nu, forcing=NodalField(forcing)
+        )
 
         # Set boundary conditions: u(-1) = 0, u(1) = 0
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = zero_dirichlet_bc(bkd, left_idx)
-        bc_right = zero_dirichlet_bc(bkd, right_idx)
-        physics.set_boundary_conditions([bc_left, bc_right])
 
         # Get exact solution
         exact_solution = man_sol.functions["solution"](nodes[None, :])
         if exact_solution.ndim == 2:
             exact_solution = exact_solution[:, 0]
 
-        # Newton solve from wrong initial guess using NewtonSolver
+        # Newton solve from wrong initial guess
         initial_guess = bkd.zeros((npts,))
-        residual_wrapper = PhysicsNewtonResidual(physics, time=0.0)
-        solver = NewtonSolver(residual_wrapper)
-        solver.set_options(maxiters=30, atol=1e-12, rtol=1e-12)
-        solution = solver.solve(initial_guess)
+        solution = solve_steady_dirichlet(
+            physics,
+            1,
+            [DirichletPart(left_idx, 0.0), DirichletPart(right_idx, 0.0)],
+            initial_guess,
+            atol=1e-12,
+            rtol=1e-12,
+            maxiters=30,
+        )
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-8)
 
-    def test_factory_function(self, bkd):
+    def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_burgers_1d factory function."""
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -216,7 +224,7 @@ class TestBurgersPhysics(PhysicsTestBase):
         )
         assert physics.is_conservative()
 
-    def test_transient_manufactured_solution(self, bkd):
+    def test_transient_manufactured_solution(self, bkd: Backend[Array]) -> None:
         """Test transient evolution with time-dependent manufactured solution.
 
         For Burgers: du/dt = nu*d²u/dx² - u*du/dx + f
@@ -227,7 +235,6 @@ class TestBurgersPhysics(PhysicsTestBase):
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
         nu = 0.1
@@ -241,12 +248,14 @@ class TestBurgersPhysics(PhysicsTestBase):
         )
 
         # Forcing from manufactured solution
-        def get_forcing(t):
-            # Get time-dependent forcing
-            forcing_2d = man_sol.functions["forcing"](nodes[None, :], t)
-            return forcing_2d[:, 0] if forcing_2d.ndim == 2 else forcing_2d
+        get_forcing: TimeDependent[Array] = TimeDependent(man_sol.functions["forcing"])
 
-        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=get_forcing)
+        physics = BurgersPhysics1D(
+            basis,
+            bkd,
+            viscosity=nu,
+            forcing=NodalSupplier(get_forcing, nodes[None, :]),
+        )
 
         # Set homogeneous Dirichlet BCs (sin(pi*x) = 0 at x = ±1)
         left_idx = mesh.boundary_indices(0)
@@ -262,7 +271,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         # Time integration
         final_time = 0.5
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="backward_euler",
             init_time=0.0,
             final_time=final_time,
@@ -279,7 +288,9 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Use atol for boundary points near zero
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.05, atol=1e-10)
 
-    def test_transient_manufactured_solution_crank_nicolson(self, bkd):
+    def test_transient_manufactured_solution_crank_nicolson(
+        self, bkd: Backend[Array]
+    ) -> None:
         """Test transient Burgers with Crank-Nicolson and manufactured solution.
 
         Uses polynomial-in-space (exact for Chebyshev basis) and
@@ -290,7 +301,6 @@ class TestBurgersPhysics(PhysicsTestBase):
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
         nu = 0.1
@@ -302,11 +312,14 @@ class TestBurgersPhysics(PhysicsTestBase):
             oned=True,
         )
 
-        def get_forcing(t):
-            forcing_2d = man_sol.functions["forcing"](nodes[None, :], t)
-            return forcing_2d[:, 0] if forcing_2d.ndim == 2 else forcing_2d
+        get_forcing: TimeDependent[Array] = TimeDependent(man_sol.functions["forcing"])
 
-        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=get_forcing)
+        physics = BurgersPhysics1D(
+            basis,
+            bkd,
+            viscosity=nu,
+            forcing=NodalSupplier(get_forcing, nodes[None, :]),
+        )
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
@@ -319,7 +332,7 @@ class TestBurgersPhysics(PhysicsTestBase):
         u0 = man_sol.functions["solution"](nodes[None, :], 0.0)
 
         final_time = 0.1
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="crank_nicolson",
             init_time=0.0,
             final_time=final_time,
@@ -335,7 +348,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], u_exact, atol=1e-8)
 
-    def test_transient_diffusion_dominated(self, bkd):
+    def test_transient_diffusion_dominated(self, bkd: Backend[Array]) -> None:
         """Test transient Burgers with high viscosity (diffusion dominated).
 
         When viscosity is large relative to convection, solution should
@@ -345,7 +358,6 @@ class TestBurgersPhysics(PhysicsTestBase):
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
         # High viscosity makes it diffusion-dominated
@@ -364,7 +376,7 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Initial condition: sin(pi*x)
         u0 = bkd.sin(math.pi * nodes)
 
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method="backward_euler",
             init_time=0.0,
             final_time=0.5,
