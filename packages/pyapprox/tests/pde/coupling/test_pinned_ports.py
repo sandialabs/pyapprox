@@ -15,9 +15,17 @@ r"""Port rows pinned to the port data, the data as parameters.
   - solved by Newton (atol 1e-12, dense LU, from zero) at
     :math:`\lambda = 1.7`, the state equals the single-domain solve with
     u(1) = 1.7 essential, to 1e-12: an independent reference built with
-    no port code.
-- Refusals: a port row that is an essential row, a residual with its own
-  parameters, mismatched row counts, and port rows of the wrong type.
+    no port code; the nested state Jacobian equals that reference's to
+    1e-14.
+- With the operator's modal coefficients p = (0.3, -0.2, 0.1, 0.4, -0.1,
+  0.2) beside the port data, :math:`\theta = [\lambda; p]` (λ in row 0):
+  the parameter Jacobian in :math:`\theta`, and the adjoint gradient of
+  u at node 4 after the solve (Newton, atol 1e-13), pass central finite
+  differences below 1e-6.
+- Refusals: a port row that is an essential row (alone or one of two),
+  a residual that is not pinned, the placement of p given without
+  parameters or missing with them, mismatched row counts, and port rows
+  of the wrong type.
 """
 
 from dataclasses import dataclass
@@ -27,9 +35,12 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.setups import RecomputeAlways
-from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.implicitfunction.state_functional import StateFunctional
+from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
+from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -78,6 +89,7 @@ _NCELLS = 8
 _PORT = _NCELLS
 _LAMBDA = 1.7
 _POINT = LinearizationPoint(0, ("test",))
+_PARAM = [0.3, -0.2, 0.1, 0.4, -0.1, 0.2]
 
 
 @dataclass
@@ -223,6 +235,108 @@ class TestTheGalerkinSubdomain:
         bkd.assert_allclose(state, reference.solve(reference.pinned), atol=1e-12)
 
 
+class _Theta(Generic[Array]):
+    r"""The subdomain with its modal coefficients p (6 entries) beside the
+    port data: :math:`\theta = [\lambda; p]`, :math:`\lambda` in row 0."""
+
+    def __init__(self, sub: _Subdomain[Array]) -> None:
+        bkd, disc = sub.bkd, sub.discretization
+        self.sub = sub
+        self.parameters = ParameterState(
+            ModalCoefficientParameterization(sub.operator, bkd)
+        )
+        self.parameters.set_param(bkd.asarray(_PARAM))
+        self.pinned = galerkin_steady_residual(disc, self.parameters)
+        own = self.pinned.derivatives().param_space
+        assert own is not None
+        states, theta = disc.space(), disc.parameter_space(1 + len(_PARAM))
+        nown = len(_PARAM)
+        self.ports: PortPinnedData[Array, Array] = PortPinnedData(
+            BackendRowSet(states.descriptor(), [_PORT], bkd),
+            BackendPortRows(states.descriptor(), [_PORT], bkd),
+            BackendPortRows(theta.descriptor(), [0], bkd),
+            states,
+            theta,
+        )
+        self.physical = PortPlacement(
+            BackendPortRows(theta.descriptor(), range(1, 1 + nown), bkd),
+            BackendPortRows(own.descriptor(), range(nown), bkd),
+            theta,
+            own,
+        )
+        self.residual = pin_ports(self.pinned, self.ports, self.physical)
+        self.sample = bkd.asarray([[_LAMBDA]] + [[p] for p in _PARAM])
+
+    def set(self, sample: Array) -> None:
+        self.ports.set_port_data(sample[:1])
+        self.parameters.set_param(sample[1:, 0])
+
+
+class TestThePhysicalParameters:
+    def test_theta_jacobian(self, bkd: Backend[Array]) -> None:
+        theta = _Theta(_Subdomain(bkd))
+        param = theta.residual.derivatives().param
+        assert param is not None
+        state = bkd.linspace(0.5, 1.5, theta.sub.n)[:, None]
+        nvars = int(theta.sample.shape[0])
+
+        def value(sample: Array) -> Array:
+            theta.set(sample)
+            return theta.residual(state)
+
+        def jacobian(sample: Array) -> Array:
+            theta.set(sample)
+            return param(state).apply(bkd.eye(nvars))
+
+        errors = DerivativeChecker(
+            FunctionWithJacobianFromCallable(
+                nqoi=theta.sub.n, nvars=nvars, fun=value, jacobian=jacobian, bkd=bkd
+            )
+        ).check_derivatives(theta.sample, relative=True, central=True)
+        assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+
+    def test_adjoint_gradient_of_an_interior_value(self, bkd: Backend[Array]) -> None:
+        r"""u at node 4 after the solve: its adjoint gradient in
+        :math:`[\lambda; p]` passes finite differences of the solve."""
+        theta = _Theta(_Subdomain(bkd))
+        sub, residual = theta.sub, theta.residual
+        space = sub.discretization.space()
+        system = SteadySystem(residual, space, RecomputeAlways(BackendDenseLU(bkd)))
+        derivatives = SteadyDerivatives(
+            residual,
+            space,
+            StateFunctional.from_terms(
+                bkd, 1, state_terms=(ObservedValue(StateEntries(bkd, sub.n, [4])),)
+            ),
+        )
+        nvars = int(theta.sample.shape[0])
+
+        def solve(sample: Array) -> SteadyPoint[Array, Array]:
+            theta.set(sample)
+            newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
+            point = system.solve(newton, bkd.zeros((sub.n, 1)))
+            assert point.converged()
+            return point
+
+        def value(samples: Array) -> Array:
+            return bkd.hstack(
+                [
+                    derivatives.value(solve(samples[:, k : k + 1]))
+                    for k in range(samples.shape[1])
+                ]
+            )
+
+        def gradient(sample: Array) -> Array:
+            return derivatives.gradient(derivatives.adjoint(solve(sample))).T
+
+        errors = DerivativeChecker(
+            FunctionWithJacobianFromCallable(
+                nqoi=1, nvars=nvars, fun=value, jacobian=gradient, bkd=bkd
+            )
+        ).check_derivatives(theta.sample, relative=True, central=True)
+        assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+
+
 class TestRefusals:
     def test_port_on_an_essential_row(self, bkd: Backend[Array]) -> None:
         sub = _Subdomain(bkd)
@@ -239,14 +353,13 @@ class TestRefusals:
                 sub.pinned.unpinned(), sub.ports()  # type: ignore[arg-type]
             )
 
-    def test_residual_with_parameters(self, bkd: Backend[Array]) -> None:
+    def test_physical_given_exactly_with_parameters(self, bkd: Backend[Array]) -> None:
         sub = _Subdomain(bkd)
-        parameters = ParameterState(
-            ModalCoefficientParameterization(sub.operator, bkd)
-        )
-        pinned = galerkin_steady_residual(sub.discretization, parameters)
-        with pytest.raises(ValueError, match="parameters of its own"):
-            pin_ports(pinned, sub.ports())
+        theta = _Theta(sub)
+        with pytest.raises(ValueError, match="exactly when"):
+            pin_ports(theta.pinned, theta.ports)
+        with pytest.raises(ValueError, match="exactly when"):
+            pin_ports(sub.pinned, theta.ports, theta.physical)
 
     def test_mismatched_counts_and_types(self, bkd: Backend[Array]) -> None:
         sub = _Subdomain(bkd)

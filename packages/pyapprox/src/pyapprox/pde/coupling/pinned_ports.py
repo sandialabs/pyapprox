@@ -13,11 +13,15 @@ the second derivatives are stated zero.
 essential rows are already pinned. The two row sets are disjoint, so the
 nested pin is the pin of their union: its rows read :math:`u - g` on
 both, and its Jacobian is :math:`F_u` with both sets' rows identity rows.
-The residual below gets the port data as its parameters
-(:class:`PortParameterResidual`, with :math:`F_\lambda = 0`), so the
-pinned residual's parameter Jacobian is :math:`-B` on the port rows and a
-steady solve's tangent and adjoint in :math:`\lambda` follow from the
-implicit-function machinery unchanged.
+The residual below gets the parameters :math:`\theta = [\lambda; p]`
+(:class:`PortParameterResidual`): the port data, with :math:`F_\lambda =
+0`, beside its own parameters :math:`p`, if any. One vector, because a
+residual's derivatives carry one parameter space; which rows are which
+is fixed by the caller, through the port data's rows and the placement
+of :math:`p`. The pinned residual's parameter Jacobian is then
+:math:`[-B,\, P F_p]`, and a steady solve's tangent and adjoint in both
+the port data and the coefficients follow from the implicit-function
+machinery unchanged.
 
 Port blocks are of the stack's port type ``P``; states and the port data
 held as parameters are vectors ``V`` of their spaces, reached only
@@ -35,6 +39,7 @@ from pyapprox.implicitfunction.residual_derivatives import (
     STATED_ZERO,
     DerivativeOperator,
     ResidualDerivatives,
+    ResidualParamFn,
 )
 from pyapprox.pde.coupling.ports import PortRowsProtocol
 from pyapprox.util.linalg.operators import (
@@ -46,6 +51,7 @@ from pyapprox.util.linalg.operators import (
     VectorSpaceProtocol,
     ZeroOperator,
 )
+from pyapprox.util.linalg.operators.algebra import Product, Transposed
 
 V = TypeVar("V")
 P = TypeVar("P")
@@ -120,6 +126,12 @@ class PortPinnedData(Generic[V, P]):
     PinnedValuesProtocol`. Holds the port data, zero until
     :meth:`set_port_data`; every change increments :meth:`version`.
 
+    The parameter space may be larger than the port data: with a
+    residual's own parameters :math:`p` it is the space of
+    :math:`\theta = [\lambda; p]`, ``param_ports`` selecting the rows of
+    :math:`\lambda`, and :math:`\partial g/\partial \theta = B` reads
+    those rows only.
+
     Parameters
     ----------
     rows : RowSetProtocol
@@ -127,18 +139,18 @@ class PortPinnedData(Generic[V, P]):
     state_ports : PortRowsProtocol
         The same rows, in port order, as the stack's port rows.
     param_ports : PortRowsProtocol
-        Every row of ``params``, in port order.
+        The rows of ``params`` holding the port data, in port order.
     states, params : VectorSpaceProtocol
-        The state space and the port data's space, of ``nport`` rows.
+        The state space and the parameter space.
 
     Raises
     ------
     TypeError
         If a port rows argument does not satisfy ``PortRowsProtocol``.
     ValueError
-        If ``rows`` belongs to another space than ``states``, or the row
-        counts of ``rows``, ``state_ports``, ``param_ports`` and
-        ``params`` differ.
+        If ``rows`` belongs to another space than ``states``, the row
+        counts of ``rows``, ``state_ports`` and ``param_ports`` differ,
+        or ``params`` has fewer rows.
     """
 
     def __init__(
@@ -155,16 +167,11 @@ class PortPinnedData(Generic[V, P]):
                     f"{name} must satisfy PortRowsProtocol, got {type(ports).__name__}"
                 )
         states.descriptor().require_same(rows.descriptor(), "the port rows")
-        counts = (
-            rows.count(),
-            state_ports.nrows(),
-            param_ports.nrows(),
-            params.descriptor().size,
-        )
-        if len(set(counts)) != 1:
+        counts = (rows.count(), state_ports.nrows(), param_ports.nrows())
+        if len(set(counts)) != 1 or params.descriptor().size < counts[0]:
             raise ValueError(
-                "rows, state_ports, param_ports and params must have one row "
-                f"count, got {counts}"
+                "rows, state_ports and param_ports must have one row count, "
+                f"at most params' size {params.descriptor().size}; got {counts}"
             )
         self._rows, self._param_ports = rows, param_ports
         self._states, self._params = states, params
@@ -187,7 +194,8 @@ class PortPinnedData(Generic[V, P]):
         self._version += 1
 
     def port_data(self) -> V:
-        r""":math:`\lambda`, a single vector of the parameter space."""
+        r""":math:`\lambda` on its rows of the parameter space, zero on the
+        others: their values are held by whoever owns them."""
         return self._lam
 
     def version(self) -> int:
@@ -195,7 +203,7 @@ class PortPinnedData(Generic[V, P]):
         return self._version
 
     def param_space(self) -> VectorSpaceProtocol[V]:
-        """The port data's space."""
+        """The parameter space."""
         return self._params
 
     def state_space(self) -> VectorSpaceProtocol[V]:
@@ -229,23 +237,42 @@ class _ZeroParam(Generic[V]):
         return self._op
 
 
+class _Embedded(Generic[V, P]):
+    r""":math:`F_\theta = F_p E_p^\top`: the residual's own parameter
+    Jacobian read through the rows of :math:`p` in :math:`\theta`."""
+
+    def __init__(self, fn: ResidualParamFn[V], physical: PortPlacement[V, P]) -> None:
+        self._fn, self._select = fn, Transposed(physical)
+
+    def __call__(self, state: V) -> DerivativeOperator[V]:
+        return Product([self._fn(state), self._select])
+
+
 class PortParameterResidual(Generic[V, F]):
-    r""":math:`F(u)`, its essential rows pinned, with the port data as its
-    parameters, on which it does not depend: :math:`F_\lambda = 0`.
+    r""":math:`F(u; p)`, its essential rows pinned, with parameters
+    :math:`\theta = [\lambda; p]`: the port data, on which it does not
+    depend, and its own parameters, if any, so :math:`F_\theta = [0,\,
+    F_p]`.
 
     Satisfies :class:`~pyapprox.implicitfunction.residual.
-    ResidualProtocol`. Its parameter version counts both :math:`F`'s and
-    the port data's changes. Pinning the port rows over it is the pin of
-    the union of the essential and port rows only because the two sets
-    are disjoint, which construction checks.
+    ResidualProtocol`, first order: second derivatives in :math:`\theta`
+    are not given. Its parameter version counts both :math:`F`'s and the
+    port data's changes. Pinning the port rows over it is the pin of the
+    union of the essential and port rows only because the two sets are
+    disjoint, which construction checks.
 
     Parameters
     ----------
     residual : PinnedResidual
-        :math:`F` with its essential rows pinned, without parameters of
-        its own.
+        :math:`F` with its essential rows pinned.
     ports : PortPinnedData
-        The port data.
+        The port data; its parameter space is that of :math:`\theta`.
+    physical : PortPlacement, optional
+        :math:`E_p`, placing :math:`F`'s parameters on their rows of
+        :math:`\theta`, disjoint from the port data's rows; required
+        exactly when :math:`F` has parameter derivatives. The values of
+        :math:`p` stay with :math:`F`'s owner; only the derivatives are
+        read through :math:`\theta`.
 
     Raises
     ------
@@ -253,13 +280,16 @@ class PortParameterResidual(Generic[V, F]):
         If ``residual`` is not a ``PinnedResidual``.
     ValueError
         If a port row is also an essential row, the port rows belong to
-        another space, or ``residual`` has parameter derivatives: its own
-        parameters and the port data would need one combined parameter
-        space.
+        another space, ``physical`` is given without parameter derivatives
+        or missing with them, or its spaces are not :math:`F`'s parameter
+        space and :math:`\theta`'s.
     """
 
     def __init__(
-        self, residual: PinnedResidual[V, F], ports: PortPinnedData[V, P]
+        self,
+        residual: PinnedResidual[V, F],
+        ports: PortPinnedData[V, P],
+        physical: Optional[PortPlacement[V, P]] = None,
     ) -> None:
         if not isinstance(residual, PinnedResidual):
             raise TypeError(
@@ -274,22 +304,34 @@ class PortParameterResidual(Generic[V, F]):
                 f"{ports.nport() - free.count()} port rows are also essential "
                 "rows; a port must not carry an essential condition"
             )
-        bundle = residual.derivatives()
-        if bundle.param is not None:
-            raise ValueError(
-                f"{type(residual).__name__} has parameters of its own; the port "
-                "data are the only parameters supported"
-            )
         self._residual, self._ports = residual, ports
-        params = ports.param_space()
-        self._derivatives: ResidualDerivatives[V, F] = (
-            ResidualDerivatives.none()
-            if bundle.jacobian is None
-            else ResidualDerivatives.first_order(
-                params,
-                bundle.jacobian,
-                _ZeroParam(ZeroOperator(params, ports.state_space())),
+        self._derivatives = self._theta_bundle(residual.derivatives(), physical)
+
+    def _theta_bundle(
+        self,
+        bundle: ResidualDerivatives[V, F],
+        physical: Optional[PortPlacement[V, P]],
+    ) -> ResidualDerivatives[V, F]:
+        own, own_space = bundle.param, bundle.param_space
+        if (own is None) != (physical is None):
+            raise ValueError(
+                "physical places the residual's own parameters in theta: give "
+                "it exactly when the residual has parameter derivatives"
             )
+        params = self._ports.param_space()
+        if bundle.jacobian is None:
+            return ResidualDerivatives.none()
+        if own is None or own_space is None or physical is None:
+            zero = ZeroOperator(params, self._ports.state_space())
+            return ResidualDerivatives.first_order(
+                params, bundle.jacobian, _ZeroParam(zero)
+            )
+        physical.domain().require_same(
+            own_space.descriptor(), "the residual's parameter space"
+        )
+        physical.range().require_same(params.descriptor(), "theta's space")
+        return ResidualDerivatives.first_order(
+            params, bundle.jacobian, _Embedded(own, physical)
         )
 
     def __call__(self, state: V) -> V:
@@ -306,24 +348,28 @@ class PortParameterResidual(Generic[V, F]):
 
 
 def pin_ports(
-    pinned: PinnedResidual[V, F], ports: PortPinnedData[V, P]
+    pinned: PinnedResidual[V, F],
+    ports: PortPinnedData[V, P],
+    physical: Optional[PortPlacement[V, P]] = None,
 ) -> PinnedResidual[V, F]:
-    r"""``pinned`` with the port rows also pinned to the port data, which
-    become its parameters (see the module docstring).
+    r"""``pinned`` with the port rows also pinned to the port data, its
+    parameters becoming :math:`\theta = [\lambda; p]` (see the module
+    docstring and :class:`PortParameterResidual`).
 
     Parameters
     ----------
     pinned : PinnedResidual
-        :math:`F` with its physical essential rows pinned; no parameters.
+        :math:`F` with its physical essential rows pinned.
     ports : PortPinnedData
         The port rows and data, on ``pinned``'s state space.
+    physical : PortPlacement, optional
+        :math:`E_p`, required exactly when ``pinned`` has parameters.
 
     Raises
     ------
     ValueError
-        If a port row is also a pinned row of ``pinned``, the spaces
-        differ, or ``pinned`` has parameters of its own.
+        As :class:`PortParameterResidual`.
     """
     return PinnedResidual(
-        PortParameterResidual(pinned, ports), RowPin(ports), pinned.space()
+        PortParameterResidual(pinned, ports, physical), RowPin(ports), pinned.space()
     )
