@@ -10,6 +10,7 @@ with ``DerivativeChecker``.
 
 from pyapprox.pde.boundary.classification import BCDofClassification
 from pyapprox.pde.boundary.constraint_set import DirichletConstraintSet
+from pyapprox.pde.boundary.except_dofs import ExceptDofs
 from pyapprox.pde.boundary.natural_operator import NaturalBCOperator
 from pyapprox.pde.boundary.protocols import (
     BoundaryConditionRole,
@@ -35,6 +36,7 @@ __all__ = [
     "ConstraintSetProtocol",
     "DirichletConstraintSet",
     "EssentialBCProtocol",
+    "ExceptDofs",
     "NaturalBCOperator",
     "WeakFormBCProtocol",
     "split_by_role",

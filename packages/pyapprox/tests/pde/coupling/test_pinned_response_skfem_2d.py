@@ -40,6 +40,7 @@ from skfem import MeshQuad
 from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.pde.boundary import ExceptDofs
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     ConstantDiffusion,
@@ -109,14 +110,10 @@ _F = TypeVar("_F", bound=FormatProtocol)
 
 class _TensorQuadMesh:
     """Q1 quadrilaterals on the tensor grid of ``xs`` by ``ys``, with
-    boundaries named left, right, bottom and top; the nodes at the points
-    ``free`` (shape (2, n)) belong to no named boundary."""
+    boundaries named left, right, bottom and top."""
 
-    def __init__(
-        self, xs: _Np, ys: _Np, bkd: NumpyBkd, free: Optional[_Np] = None
-    ) -> None:
+    def __init__(self, xs: _Np, ys: _Np, bkd: NumpyBkd) -> None:
         self._bkd = bkd
-        self._free = np.zeros((2, 0)) if free is None else free
         self._lower = (float(xs[0]), float(ys[0]))
         self._upper = (float(xs[-1]), float(ys[-1]))
         self._mesh = MeshQuad.init_tensor(xs, ys)
@@ -150,12 +147,7 @@ class _TensorQuadMesh:
             "bottom": (1, self._lower[1]),
             "top": (1, self._upper[1]),
         }[boundary_id]
-        on_side = np.abs(self._nodes[axis] - value) < 1e-12
-        gaps = np.linalg.norm(
-            self._nodes[:, :, None] - self._free[:, None, :], axis=0
-        )
-        freed = np.any(gaps < 1e-12, axis=1)
-        return np.where(on_side & ~freed)[0]
+        return np.where(np.abs(self._nodes[axis] - value) < 1e-12)[0]
 
 
 def _forcing(x: _Np) -> _Np:
@@ -277,8 +269,12 @@ class _Problem:
         free: Optional[_Np] = None,
     ) -> Any:
         """The system on the grid ``xs`` by ``ys``; essential rows on
-        ``sides`` except at the points ``free`` (shape (2, n))."""
-        mesh = _TensorQuadMesh(xs, ys, self.bkd, free)
+        ``sides`` except at the nodes at the points ``free`` (shape
+        (2, n))."""
+        mesh = _TensorQuadMesh(xs, ys, self.bkd)
+        exempt = set() if free is None else {
+            _node_at(mesh.nodes(), free[:, k]) for k in range(free.shape[1])
+        }
         basis = LagrangeBasis(mesh, degree=1)
         physics = AdvectionDiffusionReaction(
             basis=basis,
@@ -287,15 +283,17 @@ class _Problem:
             reaction=CallableReaction(*self.sink),
             forcing=TimeIndependent(_forcing),
         )
-        conditions = [
-            DirichletBC(
+        conditions = []
+        for side, v in sides:
+            bc = DirichletBC(
                 basis,
                 side,
                 v if isinstance(v, float) else TimeIndependent(v),
                 self.bkd,
             )
-            for side, v in sides
-        ]
+            # P1: a node's DOF is its index.
+            on_side = exempt & {int(d) for d in bc.constrained_dofs()}
+            conditions.append(ExceptDofs(bc, sorted(on_side)))
         return compose_galerkin_system(physics, conditions), mesh
 
     def piece(self, subdomain: int) -> tuple[_Piece, _Np, tuple[int, ...]]:
