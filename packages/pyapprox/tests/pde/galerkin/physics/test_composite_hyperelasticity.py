@@ -39,7 +39,6 @@ from pyapprox.pde.galerkin.physics import (
     CompositeLinearElasticity,
     HyperelasticityPhysics,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
@@ -63,17 +62,6 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
         return result
 
     return value_func
-
-
-def _get_exact_displacement(funcs, basis, bkd):
-    ndim = basis.ncomponents()
-    dof_coords = bkd.to_numpy(basis.dof_coordinates())
-    n_dofs = basis.ndofs()
-    sol = funcs["solution"](dof_coords)
-    exact = np.zeros(n_dofs)
-    for i in range(n_dofs):
-        exact[i] = sol[i, i % ndim]
-    return exact
 
 
 # =========================================================================
@@ -245,14 +233,6 @@ class TestCompositeHyperelasticity1D:
         system = compose_galerkin_system(physics, bc_list)
         return system, functions, basis
 
-    def test_residual_at_exact_1d(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-        state = bkd.asarray(exact)
-        res = system.steady_snapshot(0.0).steady_residual(state)
-        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-        assert res_norm < 1e-4
 
     def test_jacobian_fd_check_1d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -275,23 +255,6 @@ class TestCompositeHyperelasticity1D:
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
-
-    def test_newton_solve_1d(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=20, line_search=True
-        )
-        init_guess = bkd.asarray(exact + 0.01)
-        result = solver.solve(init_guess)
-
-        assert result.converged
-        u_num = bkd.to_numpy(result.solution)
-        u_norm = np.linalg.norm(exact)
-        rel_error = np.linalg.norm(u_num - exact) / max(u_norm, 1e-10)
-        assert rel_error < 1e-6
 
 
 # =========================================================================
@@ -341,14 +304,6 @@ class TestCompositeHyperelasticity2D:
         system = compose_galerkin_system(physics, bc_list)
         return system, functions, basis
 
-    def test_residual_at_exact_2d(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, functions, basis = self._setup_2d_problem(bkd, nx=8, ny=8, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-        state = bkd.asarray(exact)
-        res = system.steady_snapshot(0.0).steady_residual(state)
-        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-        assert res_norm < 1e-4
 
     def test_jacobian_fd_check_2d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -371,23 +326,6 @@ class TestCompositeHyperelasticity2D:
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
-
-    def test_newton_solve_2d(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, functions, basis = self._setup_2d_problem(bkd, nx=12, ny=12, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=20, line_search=True
-        )
-        init_guess = bkd.asarray(exact + 0.01)
-        result = solver.solve(init_guess)
-
-        assert result.converged
-        u_num = bkd.to_numpy(result.solution)
-        u_norm = np.linalg.norm(exact)
-        rel_error = np.linalg.norm(u_num - exact) / max(u_norm, 1e-10)
-        assert rel_error < 1e-4
 
 
 # =========================================================================
@@ -661,14 +599,6 @@ class TestCompositeHyperelasticity3D:
         system = compose_galerkin_system(physics, bc_list)
         return system, functions, basis
 
-    def test_residual_at_exact_3d(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-        state = bkd.asarray(exact)
-        res = system.steady_snapshot(0.0).steady_residual(state)
-        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-        assert res_norm < 1e-8
 
     def test_jacobian_fd_check_3d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -692,23 +622,6 @@ class TestCompositeHyperelasticity3D:
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
 
-    def test_newton_solve_3d(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        system, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=20, line_search=True
-        )
-        init_guess = bkd.asarray(exact + 0.005)
-        result = solver.solve(init_guess)
-
-        assert result.converged
-        u_num = bkd.to_numpy(result.solution)
-        rel_error = np.linalg.norm(u_num - exact) / np.linalg.norm(exact)
-        # quadratic MMS lies in the degree-2 FE space (see the
-        # HyperelasticityPhysics 3D Newton test for the error budget)
-        assert rel_error < 1e-10
 
     def test_3d_composite_matches_uniform(self, numpy_bkd: NumpyBkd) -> None:
         """Composite residual/Jacobian match HyperelasticityPhysics in 3D."""

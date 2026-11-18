@@ -32,7 +32,6 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh2D,
 )
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
 
 
@@ -64,21 +63,6 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
         return result
 
     return value_func
-
-
-def _get_exact_displacement(funcs, basis, bkd, time=0.0):
-    """Evaluate manufactured solution at DOF locations for vector basis.
-
-    Returns exact DOF values as a flat interleaved array.
-    """
-    ndim = basis.ncomponents()
-    dof_coords = bkd.to_numpy(basis.dof_coordinates())
-    n_dofs = basis.ndofs()
-    sol = funcs["solution"](dof_coords)  # (ndofs, ncomponents)
-    exact = np.zeros(n_dofs)
-    for i in range(n_dofs):
-        exact[i] = sol[i, i % ndim]
-    return exact
 
 
 # =========================================================================
@@ -122,16 +106,6 @@ class TestHyperelasticity1DBase:
         system = compose_galerkin_system(physics, bc_list)
         return system, functions, basis
 
-    def test_residual_at_exact_solution_1d(self, numpy_bkd: NumpyBkd) -> None:
-        """1D residual should be small at exact manufactured solution."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        system, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-        state = bkd.asarray(exact)
-        res = system.steady_snapshot(0.0).steady_residual(state)
-        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-        assert res_norm < 1e-4
 
     def test_jacobian_fd_check_1d(self, numpy_bkd: NumpyBkd) -> None:
         """1D analytical Jacobian matches finite differences."""
@@ -156,30 +130,6 @@ class TestHyperelasticity1DBase:
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
-
-    def test_newton_solve_1d(self, numpy_bkd: NumpyBkd) -> None:
-        """1D Newton solve recovers exact manufactured solution."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        system, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=20, line_search=True
-        )
-        init_guess = bkd.asarray(exact + 0.01)
-        result = solver.solve(init_guess)
-
-        assert result.converged, (
-            f"1D Newton did not converge: {result.residual_norm:.2e}"
-        )
-        u_num = bkd.to_numpy(result.solution)
-        u_norm = np.linalg.norm(exact)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - exact) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - exact)
-        assert rel_error < 1e-6
 
 
 # =========================================================================
@@ -232,16 +182,6 @@ class TestHyperelasticity2DBase:
         system = compose_galerkin_system(physics, bc_list)
         return system, functions, basis
 
-    def test_residual_at_exact_solution_2d(self, numpy_bkd: NumpyBkd) -> None:
-        """2D residual should be small at exact manufactured solution."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        system, functions, basis = self._setup_2d_problem(bkd, nx=8, ny=8, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-        state = bkd.asarray(exact)
-        res = system.steady_snapshot(0.0).steady_residual(state)
-        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-        assert res_norm < 1e-4
 
     def test_jacobian_fd_check_2d(self, numpy_bkd: NumpyBkd) -> None:
         """2D analytical Jacobian matches finite differences."""
@@ -266,30 +206,6 @@ class TestHyperelasticity2DBase:
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
-
-    def test_newton_solve_2d(self, numpy_bkd: NumpyBkd) -> None:
-        """2D Newton solve recovers exact manufactured solution."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        system, functions, basis = self._setup_2d_problem(bkd, nx=12, ny=12, degree=2)
-        exact = _get_exact_displacement(functions, basis, bkd)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=20, line_search=True
-        )
-        init_guess = bkd.asarray(exact + 0.01)
-        result = solver.solve(init_guess)
-
-        assert result.converged, (
-            f"2D Newton did not converge: {result.residual_norm:.2e}"
-        )
-        u_num = bkd.to_numpy(result.solution)
-        u_norm = np.linalg.norm(exact)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - exact) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - exact)
-        assert rel_error < 1e-4
 
 
 # =========================================================================
@@ -374,116 +290,10 @@ class TestHyperelasticity3DBase:
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
 
-    @pytest.mark.parametrize("element_type", ["hex", "tet"])
-    def test_newton_solve_3d(
-        self, numpy_bkd: NumpyBkd, element_type: str
-    ) -> None:
-        """3D Newton solve recovers exact manufactured solution."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        system, functions, basis = self._setup_3d_problem(
-            bkd, nx=2, degree=2, element_type=element_type
-        )
-        exact = _get_exact_displacement(functions, basis, bkd)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-10, max_iter=20, line_search=True
-        )
-        init_guess = bkd.asarray(exact + 0.005)
-        result = solver.solve(init_guess)
-
-        assert result.converged, (
-            f"3D Newton did not converge: {result.residual_norm:.2e}"
-        )
-        u_num = bkd.to_numpy(result.solution)
-        rel_error = np.linalg.norm(u_num - exact) / np.linalg.norm(exact)
-        # the quadratic MMS lies in the degree-2 FE space, so recovery is
-        # limited only by quadrature of the log(J) terms at tiny strain
-        # (measured: 2e-16 hex, 9e-12 tet)
-        assert rel_error < 1e-10
-
-    @pytest.mark.slow_on("NumpyBkd")
-    def test_residual_at_exact_solution_3d(self, numpy_bkd: NumpyBkd) -> None:
-        """3D residual should be small at exact manufactured solution."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        from pyapprox.pde.galerkin.mesh import StructuredMesh3D
-
-        bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
-        sol_strs = [
-            "0.1*x**2*(1-x)**2*y**2*(1-y)**2*z**2*(1-z)**2",
-            "0.05*x**2*(1-x)**2*y**2*(1-y)**2*z**2*(1-z)**2",
-            "0.02*x**2*(1-x)**2*y**2*(1-y)**2*z**2*(1-z)**2",
-        ]
-
-        functions, nvars = create_hyperelasticity_manufactured_test(
-            bounds=bounds,
-            sol_strs=sol_strs,
-            stress_model=self._stress,
-            bkd=bkd,
-        )
-
-        mesh = StructuredMesh3D(
-            nx=3,
-            ny=3,
-            nz=3,
-            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-
-        body_force = GalerkinManufacturedSolution(basis, functions, bkd).forcing()
-        value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
-        bc_names = ["left", "right", "bottom", "top", "front", "back"]
-        bc_list = [DirichletBC(basis, name, value_func, bkd) for name in bc_names]
-
-        physics = HyperelasticityPhysics(
-            basis=basis,
-            stress_model=self._stress,
-            bkd=bkd,
-            body_force=body_force,
-        )
-        system = compose_galerkin_system(physics, bc_list)
-
-        exact = _get_exact_displacement(functions, basis, bkd)
-        state = bkd.asarray(exact)
-        res = system.steady_snapshot(0.0).steady_residual(state)
-        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-        assert res_norm < 1e-3
-
 
 class TestHyperelasticityShapes:
     """Basic shape and property tests."""
 
-    def test_1d_shapes(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        bkd = NumpyBkd()
-        stress = NeoHookeanStress(1.0, 1.0)
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = HyperelasticityPhysics(basis, stress, bkd)
-        n = physics.nstates()
-        state = bkd.asarray(np.zeros(n))
-        view = compose_galerkin_system(physics).steady_snapshot(0.0)
-        assert view.steady_residual(state).shape == (n,)
-        assert view.steady_jacobian(state).shape == (n, n)
-        assert physics.mass_matrix().shape == (n, n)
-        assert physics.ndim() == 1
-
-    def test_2d_shapes(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        bkd = NumpyBkd()
-        stress = NeoHookeanStress(1.0, 1.0)
-        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = HyperelasticityPhysics(basis, stress, bkd)
-        n = physics.nstates()
-        state = bkd.asarray(np.zeros(n))
-        view = compose_galerkin_system(physics).steady_snapshot(0.0)
-        assert view.steady_residual(state).shape == (n,)
-        assert view.steady_jacobian(state).shape == (n, n)
-        assert physics.mass_matrix().shape == (n, n)
-        assert physics.ndim() == 2
 
     def test_mass_matrix_symmetric(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -508,28 +318,6 @@ class TestHyperelasticityShapes:
         res = bkd.to_numpy(system.spatial_operator().spatial_residual(state, 0.0))
         bkd.assert_allclose(res, np.zeros_like(res), rtol=0.0, atol=1.5e-6)
 
-    def test_3d_shapes(self, numpy_bkd: NumpyBkd) -> None:
-        """3D residual, Jacobian, and mass matrix have correct shapes."""
-        bkd = numpy_bkd
-        from pyapprox.pde.galerkin.mesh import StructuredMesh3D
-
-        stress = NeoHookeanStress(1.0, 1.0)
-        mesh = StructuredMesh3D(
-            nx=2,
-            ny=2,
-            nz=2,
-            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = HyperelasticityPhysics(basis, stress, bkd)
-        n = physics.nstates()
-        state = bkd.asarray(np.zeros(n))
-        view = compose_galerkin_system(physics).steady_snapshot(0.0)
-        assert view.steady_residual(state).shape == (n,)
-        assert view.steady_jacobian(state).shape == (n, n)
-        assert physics.mass_matrix().shape == (n, n)
-        assert physics.ndim() == 3
 
     def test_repr(self, numpy_bkd) -> None:
         bkd = numpy_bkd

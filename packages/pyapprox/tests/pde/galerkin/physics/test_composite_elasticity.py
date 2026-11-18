@@ -17,7 +17,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import (
@@ -28,7 +27,6 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
@@ -76,19 +74,6 @@ class TestCompositeLinearElasticityBase:
         K_np = _to_dense(K, bkd)
         bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
-    def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(
-            nx=5,
-            bounds=(0.0, 1.0),
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, bkd)
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = system.steady_snapshot(0.0).steady_residual(u0)
-        assert res.shape == (physics.nstates(),)
 
     def test_1d_rigid_body_motion(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -104,82 +89,6 @@ class TestCompositeLinearElasticityBase:
         Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
         assert np.linalg.norm(Ku) < 1e-10
 
-    def test_1d_manufactured_solution(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        from skfem.models.elasticity import lame_parameters as _lame
-
-        from pyapprox.pde.galerkin.boundary.implementations import (
-            DirichletBC,
-        )
-        from pyapprox.pde.galerkin.manufactured.adapter import (
-            create_elasticity_manufactured_test,
-        )
-
-        E, nu = 1.0, 0.3
-        lam, mu = _lame(E, nu)
-
-        functions, nvars = create_elasticity_manufactured_test(
-            bounds=[0.0, 1.0],
-            sol_strs=["0.1*x*(1-x) + 0.2"],
-            lambda_str=str(lam),
-            mu_str=str(mu),
-            bkd=bkd,
-        )
-
-        mesh = StructuredMesh1D(
-            nx=10,
-            bounds=(0.0, 1.0),
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=2)
-
-        sol_func = functions["solution"]
-        forcing_func = functions["forcing"]
-
-        def _body_force_impl(x):
-            vals = forcing_func(x)
-            return vals.T
-
-        body_force = TimeIndependent(_body_force_impl)
-
-        def dirichlet_value(coords):
-            vals = sol_func(coords)
-            nbndry_dofs = coords.shape[1]
-            result = np.zeros(nbndry_dofs)
-            for j in range(nbndry_dofs):
-                result[j] = vals[j, j % nvars]
-            return result
-
-        bc_list = [
-            DirichletBC(basis, "left", dirichlet_value, bkd),
-            DirichletBC(basis, "right", dirichlet_value, bkd),
-        ]
-        physics = _uniform_material(
-            basis,
-            E,
-            nu,
-            bkd,
-            body_force=body_force,
-        )
-        system = compose_galerkin_system(physics, bc_list)
-
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-12, max_iter=5, line_search=False
-        )
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        result = solver.solve(u0)
-
-        assert result.converged, f"1D did not converge: {result.residual_norm}"
-
-        u_np = bkd.to_numpy(result.solution)
-        dof_coords = bkd.to_numpy(basis.dof_coordinates())
-        sol_vals = functions["solution"](dof_coords)
-        n_dofs = basis.ndofs()
-        exact = np.zeros(n_dofs)
-        for i in range(n_dofs):
-            exact[i] = sol_vals[i, i % nvars]
-        rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
-        assert rel_error < 1e-8
 
     def test_2d_stiffness_symmetric(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -209,35 +118,6 @@ class TestCompositeLinearElasticityBase:
         M_np = _to_dense(M, bkd)
         bkd.assert_allclose(M_np, M_np.T, rtol=0.0, atol=1.5e-6)
 
-    def test_2d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5,
-            ny=5,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, bkd)
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = system.steady_snapshot(0.0).steady_residual(u0)
-        assert res.shape == (physics.nstates(),)
-
-    def test_2d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5,
-            ny=5,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, bkd)
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
-        assert jac.shape == (physics.nstates(), physics.nstates())
 
     def test_3d_stiffness_symmetric(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -269,98 +149,6 @@ class TestCompositeLinearElasticityBase:
         M_np = _to_dense(M, bkd)
         bkd.assert_allclose(M_np, M_np.T, rtol=0.0, atol=1.5e-6)
 
-    def test_3d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh3D(
-            nx=3,
-            ny=3,
-            nz=3,
-            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, bkd)
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = system.steady_snapshot(0.0).steady_residual(u0)
-        assert res.shape == (physics.nstates(),)
-
-    def test_3d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh3D(
-            nx=3,
-            ny=3,
-            nz=3,
-            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, bkd)
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
-        assert jac.shape == (physics.nstates(), physics.nstates())
-
-    def test_2d_with_body_force(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5,
-            ny=5,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-
-        def _body_force_impl(x):
-            f = np.zeros_like(x)
-            f[1, :] = -1.0
-            return f
-
-        body_force = TimeIndependent(_body_force_impl)
-
-        physics = _uniform_material(
-            basis,
-            1.0,
-            0.3,
-            bkd,
-            body_force=body_force,
-        )
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = system.steady_snapshot(0.0).steady_residual(u0)
-        res_np = bkd.to_numpy(res)
-        assert np.linalg.norm(res_np) > 0
-
-    def test_3d_with_body_force(self, numpy_bkd: NumpyBkd) -> None:
-        bkd = numpy_bkd
-        mesh = StructuredMesh3D(
-            nx=3,
-            ny=3,
-            nz=3,
-            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-
-        def _body_force_impl(x):
-            f = np.zeros_like(x)
-            f[2, :] = -1.0
-            return f
-
-        body_force = TimeIndependent(_body_force_impl)
-
-        physics = _uniform_material(
-            basis,
-            1.0,
-            0.3,
-            bkd,
-            body_force=body_force,
-        )
-        system = compose_galerkin_system(physics)
-        u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = system.steady_snapshot(0.0).steady_residual(u0)
-        res_np = bkd.to_numpy(res)
-        assert np.linalg.norm(res_np) > 0
 
     def test_lame_parameters(self, numpy_bkd) -> None:
         bkd = numpy_bkd

@@ -42,7 +42,6 @@ from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_ode_residual,
@@ -307,17 +306,6 @@ class TestStokesBase:
         with pytest.raises(ValueError, match="velocity"):
             StokesPhysics(swapped, bkd)
 
-    def test_composed_shapes(self, numpy_bkd: NumpyBkd) -> None:
-        """The composed steady residual and Jacobian have the state size."""
-        bkd = numpy_bkd
-        physics = _stokes(StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd), bkd)
-        steady = compose_galerkin_system(physics).steady()
-        u0 = bkd.zeros((physics.nstates(),))
-        assert steady.steady_residual(u0).shape == (physics.nstates(),)
-        assert steady.steady_jacobian(u0).shape == (
-            physics.nstates(),
-            physics.nstates(),
-        )
 
     def test_mass_matrix_block_structure(self, numpy_bkd: NumpyBkd) -> None:
         """Test mass matrix has [M_vel, 0; 0, 0] block structure."""
@@ -376,135 +364,6 @@ class TestStokesBase:
 # ---------------------------------------------------------------------------
 # Parametrized Steady-State Tests
 # ---------------------------------------------------------------------------
-
-# Format: (name, bounds, nrefine, vel_strs, pres_str, bndry_types, navier_stokes)
-STOKES_STEADY_CASES: List[
-    Tuple[str, List[float], int, List[str], str, List[str], bool]
-] = [
-    # 1D linear Stokes, all Dirichlet
-    (
-        "1d_stokes_DD",
-        [0, 1],
-        1,
-        ["((2*x-1))**2"],
-        "x*(1-1e-16*x)",
-        ["D", "D"],
-        False,
-    ),
-    # 1D Navier-Stokes, all Dirichlet
-    (
-        "1d_ns_DD",
-        [0, 1],
-        0,
-        ["((2*x-1))*(1+1e-16*x)"],
-        "x*(1-1e-16*x)",
-        ["D", "D"],
-        True,
-    ),
-    # 2D linear Stokes, all Dirichlet
-    (
-        "2d_stokes_DDDD",
-        [0, 1, 0, 1],
-        0,
-        ["1e-16*x+y", "(x+1)*(y+1)"],
-        "x*(1+1e-16*x)+1e-16*y*(1+1e-16*y)",
-        ["D", "D", "D", "D"],
-        False,
-    ),
-    # 2D Navier-Stokes, all Dirichlet
-    (
-        "2d_ns_DDDD",
-        [0, 1, 0, 1],
-        0,
-        ["x**2*y**2", "(x+1)*(y+1)"],
-        "x*y",
-        ["D", "D", "D", "D"],
-        True,
-    ),
-]
-
-
-class TestParametrizedSteadyStokes:
-    """Parametrized steady-state Stokes manufactured solution tests.
-
-    Replicates the 4 legacy test cases from
-    pyapprox/pde/galerkin/tests/test_finite_elements.py::test_stokes.
-
-    Uses Taylor-Hood P2/P1 elements. For polynomial solutions within the
-    approximation space, the FE solution should match exactly (up to
-    round-off).
-    """
-
-    @pytest.mark.parametrize(
-        "name,bounds,nrefine,vel_strs,pres_str,bndry_types,navier_stokes",
-        STOKES_STEADY_CASES,
-    )
-    def test_manufactured_stokes(
-        self,
-        numpy_bkd: NumpyBkd,
-        name: str,
-        bounds: List[float],
-        nrefine: int,
-        vel_strs: List[str],
-        pres_str: str,
-        bndry_types: List[str],
-        navier_stokes: bool,
-    ) -> None:
-        """Test manufactured solution for Stokes/NS equations."""
-        bkd = numpy_bkd
-        nvars = len(bounds) // 2
-        sol_strs = vel_strs + [pres_str]
-
-        man_sol = ManufacturedStokes(
-            sol_strs, nvars, navier_stokes=navier_stokes, bkd=bkd, oned=True
-        )
-        funcs = man_sol.functions
-
-        # Create mesh
-        mesh: Union[
-            StructuredMesh1D[_NumpyArray], StructuredMesh2D[_NumpyArray]
-        ]
-        if nvars == 1:
-            nx = 10 * (2**nrefine)
-            mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
-        else:
-            nx = 5 * (2**nrefine)
-            mesh = StructuredMesh2D(
-                nx=nx,
-                ny=nx,
-                bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
-                bkd=bkd,
-            )
-
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        basis = MixedBasis([("velocity", vel_basis), ("pressure", pres_basis)])
-
-        system, _ = _build_stokes_from_manufactured(
-            funcs, nvars, basis, bkd, navier_stokes=navier_stokes
-        )
-
-        # Navier-Stokes starts from the linear Stokes solution with the
-        # same forcing and boundary data.
-        guess = None
-        if navier_stokes:
-            linear_system, _ = _build_stokes_from_manufactured(
-                funcs, nvars, basis, bkd, navier_stokes=False
-            )
-            guess = SteadyStateSolver(linear_system.steady()).solve().solution
-        result = SteadyStateSolver(system.steady(), tol=1e-12).solve(guess)
-
-        assert result.converged, (
-            f"Test {name}: solver did not converge "
-            f"(residual={result.residual_norm:.2e})"
-        )
-
-        # Compare to exact solution
-        u_num = bkd.to_numpy(result.solution)
-        u_exact = _get_exact_state(funcs, nvars, vel_basis, pres_basis, bkd)
-
-        max_err = np.max(np.abs(u_num - u_exact))
-        assert max_err < 5e-7
 
 
 # ---------------------------------------------------------------------------

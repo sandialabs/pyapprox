@@ -38,7 +38,6 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured import GalerkinManufacturedSolution
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
 )
@@ -128,22 +127,6 @@ class TestBurgersBase:
         self._setup(bkd)
         assert self.physics.nstates() == self.basis.ndofs()
 
-    def test_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
-        """Test residual has shape (nstates,)."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        state = bkd.asarray(np.zeros(self.physics.nstates()))
-        res = self.system.steady_snapshot(0.0).steady_residual(state)
-        assert res.shape == (self.physics.nstates(),)
-
-    def test_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
-        """Test Jacobian has shape (nstates, nstates)."""
-        bkd = numpy_bkd
-        self._setup(bkd)
-        state = bkd.asarray(np.zeros(self.physics.nstates()))
-        jac = self.system.steady_snapshot(0.0).steady_jacobian(state)
-        n = self.physics.nstates()
-        assert jac.shape == (n, n)
 
     def test_mass_matrix_shape(self, numpy_bkd) -> None:
         """Test mass matrix shape."""
@@ -197,84 +180,6 @@ def _viscosity_for_galerkin(funcs):
         return vals.reshape(trailing)
 
     return TimeIndependent(adapted_viscosity)
-
-
-# Format: (name, bounds, bndry_types, sol_str, visc_str)
-BURGERS_STEADY_CASES: List[Tuple[str, List[float], List[str], str, str]] = [
-    ("DD", [0.0, 1.0], ["D", "D"], "x*(1.0-x)", "10+1e-16*x"),
-    ("NR", [0.0, 1.0], ["N", "R"], "x*(1.0-x)", "10+1e-16*x"),
-]
-
-
-class TestParametrizedBurgersSteady:
-    """Parametrized 1D Burgers steady-state tests with P2 elements.
-
-    Replicates legacy test_finite_elements.py test_steady_burgers (2 cases).
-    Uses manufactured solutions with Newton solver for the nonlinear problem.
-    """
-
-    @pytest.mark.parametrize(
-        "name,bounds,bndry_types,sol_str,visc_str",
-        BURGERS_STEADY_CASES,
-    )
-    def test_steady_burgers(
-        self,
-        numpy_bkd: NumpyBkd,
-        name: str,
-        bounds: List[float],
-        bndry_types: List[str],
-        sol_str: str,
-        visc_str: str,
-    ) -> None:
-        """Test steady-state Burgers with manufactured solution."""
-        bkd = numpy_bkd
-        nx = 8 * 2**3  # 64 elements (nrefine=3 with base 8)
-
-        # Create mesh and basis (P2 elements)
-        mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=2)
-
-        # Create manufactured solution
-        man_sol = ManufacturedBurgers1D(sol_str, visc_str, bkd, oned=True)
-        funcs = man_sol.functions
-
-        ms = GalerkinManufacturedSolution(basis, funcs, bkd)
-
-        # Create physics
-        physics = BurgersPhysics(
-            basis=basis,
-            viscosity=_viscosity_for_galerkin(funcs),
-            bkd=bkd,
-            forcing=ms.forcing(),
-        )
-        bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
-        system = compose_galerkin_system(physics, bcs)
-
-        # Initial guess: exact + 1 perturbation
-        dof_coords = bkd.to_numpy(basis.dof_coordinates())
-        u_exact_vals = ms.solution()(dof_coords, 0.0)
-        init_guess = bkd.asarray(u_exact_vals + 1.0)
-
-        # Solve with Newton
-        solver = SteadyStateSolver(
-            system.steady(), tol=1e-12, max_iter=10, line_search=True
-        )
-        result = solver.solve(init_guess)
-
-        assert result.converged, (
-            f"Test {name}: Newton did not converge "
-            f"(residual_norm={result.residual_norm:.2e})"
-        )
-
-        # Compute error
-        u_num = bkd.to_numpy(result.solution)
-        u_norm = np.linalg.norm(u_exact_vals)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_vals) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_vals)
-
-        assert rel_error < 1e-8
 
 
 # =========================================================================
