@@ -43,6 +43,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData, PortPlacement
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.ports import (
@@ -247,7 +248,9 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     skeleton and solved by Newton with matrix-free GMRES: the interface
     value is the halved single-domain one to 1e-10."""
     topo = TensorBoxPartition((2,))
-    skeleton = ContinuousSkeletonSpace(topo, TensorLagrangeBasis(0, 1, bkd))
+    basis = TensorLagrangeBasis(0, 1, bkd)
+    numbering = VertexWeightNumbering(topo, basis)
+    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
     space = skeleton.vector_space()
     pieces = [
         _Piece(bkd, True, (0, 1.0), (_NCELLS,)).response(),

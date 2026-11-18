@@ -22,6 +22,8 @@ evaluates its local response.
 import itertools
 from typing import Optional, Protocol, Sequence, runtime_checkable
 
+from pyapprox.pde.coupling.reference_faces import ReferenceBox
+
 
 @runtime_checkable
 class SkeletonTopologyProtocol(Protocol):
@@ -141,6 +143,7 @@ class TensorBoxPartition:
             )
         self._owners = tuple(owners)
         self._nsub = nsub
+        self._reference = ReferenceBox(len(self._ncells) - 1)
         self._build_entities()
 
     def _build_entities(self) -> None:
@@ -214,26 +217,46 @@ class TensorBoxPartition:
         _check_index(entity, len(self._dims), "entity")
         return self._boundary[entity]
 
-    def closure_entity(self, entity: int, signs: Sequence[int]) -> int:
-        r"""The entity a piece of ``entity``'s closure is, given the piece
-        as a sub-entity of the reference box :math:`[-1, 1]^m`.
+    def face_reference(self, face: int) -> ReferenceBox:
+        r"""The reference shape of ``face``: the box :math:`[-1, 1]^m`
+        over the directions it spans, in increasing axis order.
 
-        ``signs`` has one entry per direction ``entity`` spans, in
-        increasing axis order: 0 keeps spanning it, -1 and +1 fix it at
-        the cell's lower and upper cut. All zeros is ``entity`` itself.
+        Raises
+        ------
+        ValueError
+            If ``face`` is not of dimension ``ndim() - 1``.
         """
-        _check_index(entity, len(self._dims), "entity")
-        pattern = list(self._entities[entity])
-        spanned = [j for j, (fixed, _) in enumerate(pattern) if not fixed]
-        if len(signs) != len(spanned) or any(s not in (-1, 0, 1) for s in signs):
+        self._check_face(face)
+        return self._reference
+
+    def face_closure(self, face: int) -> tuple[int, ...]:
+        """The entity each sub-entity of ``face``'s reference box is, in
+        the reference box's sub-entity order: a fixed reference direction
+        is the cell's lower (-1) or upper (+1) cut.
+
+        Raises
+        ------
+        ValueError
+            If ``face`` is not of dimension ``ndim() - 1``.
+        """
+        self._check_face(face)
+        spanned = [j for j, (fixed, _) in enumerate(self._entities[face]) if not fixed]
+        closure = []
+        for k in range(self._reference.nsubentities()):
+            pattern = list(self._entities[face])
+            for j, sign in zip(spanned, self._reference.signs(k)):
+                if sign != 0:
+                    pattern[j] = (True, pattern[j][1] + (sign + 1) // 2)
+            closure.append(self._ids[tuple(pattern)])
+        return tuple(closure)
+
+    def _check_face(self, face: int) -> None:
+        _check_index(face, len(self._dims), "entity")
+        if self._dims[face] != len(self._ncells) - 1:
             raise ValueError(
-                f"signs must give -1, 0 or 1 for each of {len(spanned)} spanned "
-                f"directions, got {tuple(signs)}"
+                f"entity {face} has dimension {self._dims[face]}, not the face "
+                f"dimension {len(self._ncells) - 1}"
             )
-        for j, sign in zip(spanned, signs):
-            if sign != 0:
-                pattern[j] = (True, pattern[j][1] + (sign + 1) // 2)
-        return self._ids[tuple(pattern)]
 
     def entity_bounds(self, entity: int) -> tuple[tuple[float, float], ...]:
         """The ``(lower, upper)`` extent of ``entity`` along each direction;

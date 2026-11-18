@@ -5,13 +5,16 @@ of unity, the known mass of linear hat functions, and the total
 skeleton measure recovered as 1^T M 1.
 """
 
-from typing import Generic
+from typing import Generic, Sequence
 
 import numpy as np
 import pytest
 
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
+from pyapprox.pde.coupling.reference_faces import ReferenceBox
 from pyapprox.pde.coupling.spaces import (
+    ClosureNumbering,
     ContinuousSkeletonSpace,
     FacetSkeletonSpace,
     SkeletonBasisProtocol,
@@ -121,7 +124,7 @@ def test_continuous_space_is_single_valued(
     topo = TensorBoxPartition(ncells, bounds=[(0.0, 2.0)] * len(ncells))
     d = topo.ndim()
     basis = TensorLagrangeBasis(d - 1, npoints, bkd)
-    space = ContinuousSkeletonSpace(topo, basis)
+    space = ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis))
     # Lobatto nodes: (npoints - 2)^m strictly inside an m-dimensional entity.
     expected = sum((npoints - 2) ** topo.entity_dim(e) for e in range(topo.nentities()))
     assert space.descriptor().size == expected
@@ -148,7 +151,7 @@ def test_continuous_mass_integrates_linears(
     topo = TensorBoxPartition(ncells)
     d = topo.ndim()
     basis = TensorLagrangeBasis(d - 1, npoints, bkd)
-    space = ContinuousSkeletonSpace(topo, basis)
+    space = ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis))
     mass = space.mass()
     matrix = mass.format().matrix()
     bkd.assert_allclose(matrix, matrix.T, rtol=1e-12)
@@ -180,14 +183,16 @@ def test_continuous_mass_integrates_linears(
     )
 
 
-class _AnisotropicSigns(Generic[Array]):
-    """A 2-by-3 tensor basis's node signs on a basis that claims 6 terms:
+class _Anisotropic(Generic[Array]):
+    """A 2-by-3 grid of nodes on the reference square, claiming 6 terms:
     edges along its two reference directions carry 0 and 1 nodes, so
     faces oriented differently disagree on a shared edge."""
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._inner = TensorLagrangeBasis(2, 2, bkd)
         self._bkd = bkd
+        self._reference = ReferenceBox(2)
+        self._grid = [(a, b) for a in (-1, 1) for b in (-1, 0, 1)]
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -204,21 +209,66 @@ class _AnisotropicSigns(Generic[Array]):
     def quadrature(self) -> tuple[Array, Array]:
         return self._inner.quadrature()
 
-    def node_signs(self) -> tuple[tuple[int, ...], ...]:
-        return tuple((a, b) for a in (-1, 1) for b in (-1, 0, 1))
+    def reference(self) -> ReferenceBox:
+        return self._reference
+
+    def nodes(self) -> Array:
+        return self._bkd.asarray([[float(a) for a, _ in self._grid],
+                                  [float(b) for _, b in self._grid]])
+
+    def node_entities(self) -> tuple[int, ...]:
+        return tuple(self._reference.subentity(node) for node in self._grid)
 
 
 def test_continuous_space_rejects_nonconforming(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2, 2))
+    anisotropic = _Anisotropic(bkd)
     with pytest.raises(ValueError, match="disagree"):
-        ContinuousSkeletonSpace(topo, _AnisotropicSigns(bkd))
+        ContinuousSkeletonSpace(
+            topo, anisotropic, VertexWeightNumbering(topo, anisotropic)
+        )
+    square = TensorBoxPartition((2, 2))
+    with pytest.raises(ValueError, match="dimension"):
+        ContinuousSkeletonSpace(
+            square, anisotropic, VertexWeightNumbering(square, anisotropic)
+        )
+    basis = TensorLagrangeBasis(1, 2, bkd)
     space = ContinuousSkeletonSpace(
-        TensorBoxPartition((2, 2)), TensorLagrangeBasis(1, 2, bkd)
+        square, basis, VertexWeightNumbering(square, basis)
     )
     with pytest.raises(KeyError):
         space.face_dofs(space.descriptor().size + 100)
     with pytest.raises(IndexError):
         space.entity_dofs(-1)
+    with pytest.raises(TypeError, match="ClosureNumberingProtocol"):
+        ContinuousSkeletonSpace(square, basis, object())  # type: ignore[arg-type]
+
+
+class _FixedNumbering:
+    """A numbering that is not key-based: it returns a given answer."""
+
+    def __init__(self, answer: ClosureNumbering) -> None:
+        self._answer = answer
+
+    def number(self, faces: Sequence[int]) -> ClosureNumbering:
+        return self._answer
+
+
+def test_continuous_space_takes_any_numbering(bkd: Backend[Array]) -> None:
+    # Three subdomains on a line: faces 0 and 1 are points, one node each.
+    topo = TensorBoxPartition((3,))
+    basis = TensorLagrangeBasis(0, 1, bkd)
+    reversed_ranks = ClosureNumbering((((0, 0),), ((1, 0),)), {1: 1, 0: 1})
+    space = ContinuousSkeletonSpace(topo, basis, _FixedNumbering(reversed_ranks))
+    assert space.descriptor().size == 2
+    assert (space.face_dofs(0), space.face_dofs(1)) == ((0,), (1,))
+    for bad, message in (
+        (ClosureNumbering((((0, 0),),), {0: 1}), "nodes for each"),
+        (ClosureNumbering((((0, 0),), ((1, 1),)), {0: 1, 1: 1}), "outside"),
+        (ClosureNumbering((((0, 0),), ((0, 0),)), {0: 1, 1: 1}), "no face node"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            ContinuousSkeletonSpace(topo, basis, _FixedNumbering(bad))
 
 
 def test_facet_space_rejects_mismatch(bkd: Backend[Array]) -> None:

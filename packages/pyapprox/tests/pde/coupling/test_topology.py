@@ -91,13 +91,19 @@ def test_closure_entities(ncells: tuple[int, ...]) -> None:
     for face in range(topo.nentities()):
         if topo.entity_dim(face) != d - 1 or topo.on_boundary(face):
             continue
-        assert topo.closure_entity(face, (0,) * (d - 1)) == face
-        for signs in itertools.product((-1, 0, 1), repeat=d - 1):
-            piece = topo.closure_entity(face, signs)
-            assert topo.entity_dim(piece) == signs.count(0)
+        reference = topo.face_reference(face)
+        closure = topo.face_closure(face)
+        assert len(closure) == reference.nsubentities()
+        assert len(set(closure)) == len(closure)
+        assert closure[-1] == face
+        for sub, piece in enumerate(closure):
+            assert topo.entity_dim(piece) == reference.subentity_dim(sub)
             assert set(topo.incident_subdomains(face)) <= set(
                 topo.incident_subdomains(piece)
             )
+            # A sub-entity's vertices are vertices of its entity's closure.
+            for v in reference.subentity_vertices(sub):
+                assert topo.entity_dim(closure[v]) == 0
             reached.add(piece)
     # Every entity lies in the closure of some skeleton face.
     assert reached == set(range(topo.nentities()))
@@ -204,7 +210,10 @@ def test_invalid_input() -> None:
     with pytest.raises(IndexError):
         topo.on_boundary(topo.nentities())
     square = TensorBoxPartition((2, 2))
-    with pytest.raises(ValueError):
-        square.closure_entity(0, (0, 0))
-    with pytest.raises(ValueError):
-        square.closure_entity(0, (2,))
+    vertex = next(e for e in range(square.nentities()) if square.entity_dim(e) == 0)
+    with pytest.raises(ValueError, match="face dimension"):
+        square.face_closure(vertex)
+    with pytest.raises(ValueError, match="face dimension"):
+        square.face_reference(vertex)
+    with pytest.raises(IndexError):
+        square.face_closure(square.nentities())

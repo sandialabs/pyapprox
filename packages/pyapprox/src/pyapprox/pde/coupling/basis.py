@@ -9,6 +9,7 @@ so a space scales them by each face's measure.
 import itertools
 from typing import Generic
 
+from pyapprox.pde.coupling.reference_faces import ReferenceBox
 from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
     LegendrePolynomial1D,
 )
@@ -47,6 +48,7 @@ class TensorLagrangeBasis(Generic[Array]):
         self._ndim = ndim
         self._npoints = npoints
         self._bkd = bkd
+        self._reference = ReferenceBox(ndim)
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(max(npoints, 3))
         if npoints == 2:
@@ -88,13 +90,15 @@ class TensorLagrangeBasis(Generic[Array]):
         """The nodes on the reference face. Shape: (ndim, nterms)."""
         return self._nodes
 
-    def node_signs(self) -> tuple[tuple[int, ...], ...]:
-        """The reference sub-entity each node lies on, in node order.
+    def reference(self) -> ReferenceBox:
+        """The reference face the nodes lie on."""
+        return self._reference
 
-        Per direction: -1 or +1 at the lower or upper end of [-1, 1],
-        0 strictly inside. Read from integer node indices, not
-        coordinates.
-        """
+    def node_entities(self) -> tuple[int, ...]:
+        """The sub-entity of :meth:`reference` each node lies on, in node
+        order. Read from integer node indices, not coordinates: per
+        direction, the first and last of ``npoints`` nodes are at -1 and
+        +1, the others strictly inside."""
         n = self._npoints
 
         def sign(index: int) -> int:
@@ -103,7 +107,7 @@ class TensorLagrangeBasis(Generic[Array]):
             return -1 if index == 0 else 1 if index == n - 1 else 0
 
         return tuple(
-            tuple(sign(i) for i in multi)
+            self._reference.subentity([sign(i) for i in multi])
             for multi in itertools.product(range(n), repeat=self._ndim)
         )
 

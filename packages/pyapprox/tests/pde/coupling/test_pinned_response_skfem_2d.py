@@ -41,6 +41,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeIndependent,
 )
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
     SteadyPinnedPoint,
@@ -169,7 +170,9 @@ class _Problem:
         self.bkd = NumpyBkd()
         self.topo = TensorBoxPartition(ncells)
         basis = TensorLagrangeBasis(1, _NPOINTS, self.bkd)
-        self.skeleton = ContinuousSkeletonSpace(self.topo, basis)
+        self.skeleton = ContinuousSkeletonSpace(
+            self.topo, basis, VertexWeightNumbering(self.topo, basis)
+        )
         self.sink, self.essentials = sink, essentials
         self._ref_nodes = np.asarray(basis.nodes()[0])
 

@@ -14,6 +14,7 @@ import pytest
 from numpy.typing import NDArray
 
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     EntityDofsProtocol,
@@ -82,7 +83,9 @@ def _skeleton(ncells: tuple[int, ...], npoints: int) -> tuple[
 ]:
     topo = TensorBoxPartition(ncells)
     basis = TensorLagrangeBasis(topo.ndim() - 1, npoints, NumpyBkd())
-    return topo, ContinuousSkeletonSpace(topo, basis)
+    return topo, ContinuousSkeletonSpace(
+        topo, basis, VertexWeightNumbering(topo, basis)
+    )
 
 
 @pytest.mark.parametrize("ncells,npoints", [((3,), 2), ((2, 2), 3), ((2, 2, 2), 2)])
@@ -151,7 +154,7 @@ def test_both_spaces_give_entity_dofs() -> None:
     basis = TensorLagrangeBasis(1, 3, NumpyBkd())
     assert isinstance(topo, SubdomainEntitiesProtocol)
     for space in (
-        ContinuousSkeletonSpace(topo, basis),
+        ContinuousSkeletonSpace(topo, basis, VertexWeightNumbering(topo, basis)),
         FacetSkeletonSpace(topo, basis),
     ):
         assert isinstance(space, EntityDofsProtocol)

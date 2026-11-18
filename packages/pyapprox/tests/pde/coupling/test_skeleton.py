@@ -24,6 +24,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     MatchingNodalTransfer,
@@ -118,7 +119,9 @@ def _chain(
     u = 0 at both ends."""
     n = len(coefs)
     topo = TensorBoxPartition((n,))
-    skeleton = ContinuousSkeletonSpace(topo, TensorLagrangeBasis(0, 1, bkd))
+    basis = TensorLagrangeBasis(0, 1, bkd)
+    numbering = VertexWeightNumbering(topo, basis)
+    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
     space = skeleton.vector_space()
     responses, subdomains = [], []
     for s in range(n):
@@ -396,7 +399,9 @@ def _mock_chain(
     bkd, case = NumpyBkd(), mock_case()
     n = len(coefs)
     topo = TensorBoxPartition((n,))
-    skeleton = ContinuousSkeletonSpace(topo, TensorLagrangeBasis(0, 1, bkd))
+    basis = TensorLagrangeBasis(0, 1, bkd)
+    numbering = VertexWeightNumbering(topo, basis)
+    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
     descriptor = skeleton.descriptor()
     responses, subdomains = [], []
     for s in range(n):

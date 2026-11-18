@@ -39,6 +39,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeIndependent,
 )
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
     SteadyPinnedPoint,
@@ -193,7 +194,9 @@ def _single_domain(bkd: NumpyBkd, reaction: bool) -> _Np:
 
 def _solve_skeleton(bkd: NumpyBkd, pieces: Sequence[_Response]) -> _Np:
     topo = TensorBoxPartition((2,))
-    skeleton = ContinuousSkeletonSpace(topo, TensorLagrangeBasis(0, 1, bkd))
+    basis = TensorLagrangeBasis(0, 1, bkd)
+    numbering = VertexWeightNumbering(topo, basis)
+    skeleton = ContinuousSkeletonSpace(topo, basis, numbering)
     space = skeleton.vector_space()
     subdomains = [
         CoupledSubdomain(

@@ -6,8 +6,8 @@ belong to each skeleton entity, and supplies the interface mass
 vectors are those of a linear-algebra stack; nothing here indexes them.
 """
 
-import itertools
-from typing import Generic, Protocol, Sequence, runtime_checkable
+from dataclasses import dataclass
+from typing import Generic, Mapping, Protocol, Sequence, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -152,23 +152,61 @@ def _broken_mass(basis: SkeletonBasisProtocol[Array], measures: list[float]) -> 
     return bkd.kron(bkd.diag(bkd.asarray(measures)), reference)
 
 
-@runtime_checkable
-class ClosureNodalBasisProtocol(SkeletonBasisProtocol[Array], Protocol[Array]):
-    """A nodal basis that says which reference sub-entity each node is on."""
+def _check_numbering(
+    face_nodes: Sequence[Sequence[tuple[int, int]]],
+    counts: Mapping[int, int],
+    nfaces: int,
+    nterms: int,
+) -> None:
+    if len(face_nodes) != nfaces or any(len(n) != nterms for n in face_nodes):
+        raise ValueError(
+            f"the numbering must give {nterms} nodes for each of {nfaces} faces"
+        )
+    read = {(e, r) for nodes in face_nodes for e, r in nodes}
+    if any(e not in counts or not 0 <= r < counts[e] for e, r in read):
+        raise ValueError("the numbering gives a rank outside its entity's count")
+    if len(read) != sum(counts.values()):
+        raise ValueError("the numbering counts a DOF no face node reads")
 
-    def node_signs(self) -> tuple[tuple[int, ...], ...]:
-        """Per node, per reference direction: -1 or +1 on the lower or
-        upper side of [-1, 1], 0 strictly inside."""
+
+@dataclass(frozen=True)
+class ClosureNumbering:
+    """Which DOF each face node reads, before DOFs get global numbers.
+
+    Attributes
+    ----------
+    face_nodes
+        Per face, in the order the faces were given, per basis node:
+        ``(entity, rank)``, the skeleton entity the node lies on and its
+        rank among that entity's nodes.
+    entity_counts
+        The number of nodes on each entity that carries any.
+    """
+
+    face_nodes: tuple[tuple[tuple[int, int], ...], ...]
+    entity_counts: Mapping[int, int]
+
+
+@runtime_checkable
+class ClosureNumberingProtocol(Protocol):
+    """Decides which nodes of the faces' closures are the same unknown.
+
+    The whole procedure is the implementation's: what identifies a node
+    (keys, orientation tables, integer lattices), and how shared nodes
+    are found.
+    """
+
+    def number(self, faces: Sequence[int]) -> ClosureNumbering:
+        """Each node of each of ``faces`` as (entity, rank)."""
         ...
 
 
 @runtime_checkable
-class ClosureTopologyProtocol(FacetTopologyProtocol, Protocol):
-    """What a continuous space needs: faces, and their closure pieces."""
+class ContinuousTopologyProtocol(FacetTopologyProtocol, Protocol):
+    """What a continuous space needs of a partition: faces, their size,
+    and which entities lie on the physical boundary."""
 
     def on_boundary(self, entity: int) -> bool: ...
-
-    def closure_entity(self, entity: int, signs: Sequence[int]) -> int: ...
 
 
 class ContinuousSkeletonSpace(Generic[Array]):
@@ -177,53 +215,59 @@ class ContinuousSkeletonSpace(Generic[Array]):
     Each node of each skeleton face lies on one entity of the face's
     closure (the face, an edge, a vertex, or a piece on the physical
     boundary); every face touching that entity reads the same DOF, so
-    closure values are single-valued. DOFs are numbered entity by
-    entity, nodes on an entity in the order each face lists them. That
-    order agrees between faces because every face lists them by
-    increasing reference coordinate, in the same axis order. The mass
-    is :math:`G^\top M_{\text{broken}} G`, where :math:`G` copies DOFs
-    to face-by-face nodal values.
+    closure values are single-valued. Which face nodes are the same
+    unknown is the injected numbering's decision; the space numbers DOFs
+    entity by entity, nodes on an entity by the numbering's ranks. The
+    mass is :math:`G^\top M_{\text{broken}} G`, where :math:`G` copies
+    DOFs to face-by-face nodal values.
 
     Parameters
     ----------
     topology
         The partition.
     basis
-        A nodal basis on the reference face, of dimension
-        ``topology.ndim() - 1``.
+        The basis on every face, of dimension ``topology.ndim() - 1``.
+    numbering
+        Identifies the faces' closure nodes, for the same topology and
+        basis (e.g. :class:`~pyapprox.pde.coupling.closure_numbering.
+        VertexWeightNumbering`).
 
     Raises
     ------
+    TypeError
+        If an argument does not satisfy its protocol.
     ValueError
-        If two faces give a shared entity different numbers of nodes: the
-        basis is not conforming.
+        If the basis dimension is not the face dimension, or the
+        numbering's answer does not fit the faces and basis: a face or
+        node missing, a rank out of range, or a DOF no node reads.
     """
 
     def __init__(
         self,
-        topology: ClosureTopologyProtocol,
-        basis: ClosureNodalBasisProtocol[Array],
+        topology: ContinuousTopologyProtocol,
+        basis: SkeletonBasisProtocol[Array],
+        numbering: ClosureNumberingProtocol,
     ) -> None:
-        if not isinstance(topology, ClosureTopologyProtocol):
+        if not isinstance(topology, ContinuousTopologyProtocol):
             raise TypeError(
-                "topology must satisfy ClosureTopologyProtocol, got "
+                "topology must satisfy ContinuousTopologyProtocol, got "
                 f"{type(topology).__name__}"
             )
-        if not isinstance(basis, ClosureNodalBasisProtocol):
+        if not isinstance(basis, SkeletonBasisProtocol):
             raise TypeError(
-                "basis must satisfy ClosureNodalBasisProtocol, got "
+                "basis must satisfy SkeletonBasisProtocol, got "
                 f"{type(basis).__name__}"
+            )
+        if not isinstance(numbering, ClosureNumberingProtocol):
+            raise TypeError(
+                "numbering must satisfy ClosureNumberingProtocol, got "
+                f"{type(numbering).__name__}"
             )
         face_dim = topology.ndim() - 1
         if basis.ndim() != face_dim:
             raise ValueError(
                 f"basis dimension {basis.ndim()} differs from the face "
                 f"dimension {face_dim}"
-            )
-        if len(basis.node_signs()) != basis.nterms():
-            raise ValueError(
-                f"basis gives {len(basis.node_signs())} node signs for "
-                f"{basis.nterms()} basis functions"
             )
         self._bkd = basis.bkd()
         self._basis = basis
@@ -232,32 +276,13 @@ class ContinuousSkeletonSpace(Generic[Array]):
             for e in range(topology.nentities())
             if topology.entity_dim(e) == face_dim and not topology.on_boundary(e)
         ]
-        # Each face node as (entity, rank among the face's nodes on it).
-        local: list[list[tuple[int, int]]] = []
-        counts: dict[int, int] = {}
-        for face in faces:
-            # Every closure piece starts at 0, so a face with no node on
-            # a piece another face has nodes on is caught.
-            seen = {
-                topology.closure_entity(face, signs): 0
-                for signs in itertools.product((-1, 0, 1), repeat=face_dim)
-            }
-            nodes = []
-            for signs in basis.node_signs():
-                piece = topology.closure_entity(face, signs)
-                nodes.append((piece, seen[piece]))
-                seen[piece] += 1
-            for piece, count in seen.items():
-                if counts.setdefault(piece, count) != count:
-                    raise ValueError(
-                        f"faces disagree on the number of nodes on entity "
-                        f"{piece}: {counts[piece]} and {count}"
-                    )
-            local.append(nodes)
+        numbered = numbering.number(faces)
+        local, counts = numbered.face_nodes, dict(numbered.entity_counts)
+        _check_numbering(local, counts, len(faces), basis.nterms())
         offsets, size = {}, 0
-        for piece in sorted(counts):
-            offsets[piece] = size
-            size += counts[piece]
+        for entity in sorted(counts):
+            offsets[entity] = size
+            size += counts[entity]
         self._entity_dofs = [
             tuple(range(offsets[e], offsets[e] + counts[e])) if e in counts else ()
             for e in range(topology.nentities())
