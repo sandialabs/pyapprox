@@ -46,6 +46,9 @@ from tests._helpers.linalg.mock_stack import (
 from tests._helpers.linalg.stack_case import TypedStackCase
 
 STACK_NAMES = ("csr", "dense-numpy", "dense-torch", "mock")
+ARRAY_STACK_NAMES = ("csr", "dense-numpy", "dense-torch")
+"""The stacks whose vectors are backend arrays, for code that still
+takes arrays where a stack vector belongs."""
 
 
 # NumPy cases compute expected values with NumpyBkd, whose array type is
