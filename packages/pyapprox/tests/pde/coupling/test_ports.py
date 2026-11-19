@@ -14,7 +14,7 @@ import pytest
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
@@ -75,11 +75,11 @@ def stack(request: pytest.FixtureRequest) -> _AnyStack:
     return _dense_stack(request.getfixturevalue(fixture))
 
 
-def _skeleton(ncells: tuple[int, ...], npoints: int) -> tuple[
-    TensorBoxPartition, ContinuousSkeletonSpace[NDArray[Any]]
-]:
+def _skeleton(
+    ncells: tuple[int, ...], npoints: int
+) -> tuple[TensorBoxPartition, ContinuousSkeletonSpace[NDArray[Any]]]:
     topo = TensorBoxPartition(ncells)
-    bases = UniformBases(TensorLagrangeBasis(topo.ndim() - 1, npoints, NumpyBkd()))
+    bases = UniformBases(lobatto_lagrange_basis(topo.ndim() - 1, npoints, NumpyBkd()))
     return topo, ContinuousSkeletonSpace(
         topo, bases, VertexWeightNumbering(topo, bases)
     )
@@ -126,9 +126,7 @@ def test_round_trip_counts_multiplicity(
         assert isinstance(rows, PortRowsProtocol)
         transfer = MatchingNodalTransfer(rows)
         total = transfer.gather_add(transfer.scatter(lam), total)
-    case.assert_vector(
-        total, case.dense(multiplicity) * case.array(lam), rtol=1e-12
-    )
+    case.assert_vector(total, case.dense(multiplicity) * case.array(lam), rtol=1e-12)
 
 
 def test_backend_port_rows_reject_bad_input(numpy_bkd: Backend[Array]) -> None:
@@ -157,14 +155,12 @@ def test_backend_port_rows_keep_the_torch_graph(torch_bkd: TorchBkd) -> None:
     torch_bkd.assert_allclose(
         dx, torch.tensor([[0.0], [1.0], [1.0], [3.0], [1.0]], dtype=torch.float64)
     )
-    torch_bkd.assert_allclose(
-        dblock, torch.tensor([[3.0], [0.0]], dtype=torch.float64)
-    )
+    torch_bkd.assert_allclose(dblock, torch.tensor([[3.0], [0.0]], dtype=torch.float64))
 
 
 def test_both_spaces_give_entity_dofs() -> None:
     topo = TensorBoxPartition((2, 2))
-    bases = UniformBases(TensorLagrangeBasis(1, 3, NumpyBkd()))
+    bases = UniformBases(lobatto_lagrange_basis(1, 3, NumpyBkd()))
     assert isinstance(topo, SubdomainEntitiesProtocol)
     for space in (
         ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases)),

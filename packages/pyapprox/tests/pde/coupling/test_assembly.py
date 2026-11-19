@@ -11,7 +11,7 @@ from typing import Generic, Sequence
 import pytest
 
 from pyapprox.pde.coupling.assembly import DenseMassAssembler, MassBlocksProtocol
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.spaces import (
     ContinuousSkeletonSpace,
@@ -66,7 +66,7 @@ def test_overlapping_blocks_add(bkd: Backend[Array]) -> None:
 
 def test_continuous_space_mass(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2))
-    bases = UniformBases(TensorLagrangeBasis(1, 3, bkd))
+    bases = UniformBases(lobatto_lagrange_basis(1, 3, bkd))
     space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     size = space.descriptor().size
     mass = DenseMassAssembler(bkd).assemble(space)

@@ -10,7 +10,7 @@ from typing import Generic, Sequence
 
 import pytest
 
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import (
     FaceGeometryProtocol,
@@ -44,7 +44,7 @@ def test_face_corners_land_on_extent(bkd: Backend[Array]) -> None:
 def test_dof_points(bkd: Backend[Array], ncells: tuple[int, ...], npoints: int) -> None:
     d = len(ncells)
     topo = TensorBoxPartition(ncells, bounds=_BOUNDS[:d])
-    bases = UniformBases(TensorLagrangeBasis(d - 1, npoints, bkd))
+    bases = UniformBases(lobatto_lagrange_basis(d - 1, npoints, bkd))
     space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     points = skeleton_dof_points(space, TensorBoxGeometry(topo, bkd), bases)
     size = space.descriptor().size
@@ -95,7 +95,7 @@ class _Missing:
 
 def test_rejects_bad_input(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2))
-    basis = TensorLagrangeBasis(1, 2, bkd)
+    basis = lobatto_lagrange_basis(1, 2, bkd)
     bases = UniformBases(basis)
     space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     geometry = TensorBoxGeometry(topo, bkd)
@@ -106,7 +106,7 @@ def test_rejects_bad_input(bkd: Backend[Array]) -> None:
         skeleton_dof_points(
             _Missing(),
             TensorBoxGeometry(line, bkd),
-            UniformBases(TensorLagrangeBasis(0, 1, bkd)),
+            UniformBases(lobatto_lagrange_basis(0, 1, bkd)),
         )
     vertex = next(e for e in range(topo.nentities()) if topo.entity_dim(e) == 0)
     with pytest.raises(ValueError, match="not a face"):

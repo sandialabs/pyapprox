@@ -29,7 +29,7 @@ from skfem import MeshQuad
 from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import (
     FaceGeometryProtocol,
@@ -181,7 +181,7 @@ class SkeletonPins:
 
 # A subdomain's mesh coordinates along x and y, and its essential sides.
 Grid = tuple[Np, Np, Sequence[tuple[str, Value]]]
-_REFERENCE = np.asarray(TensorLagrangeBasis(1, NPOINTS, NumpyBkd()).nodes()[0])
+_REFERENCE = np.asarray(lobatto_lagrange_basis(1, NPOINTS, NumpyBkd()).nodes()[0])
 
 
 def lobatto(lo: float, up: float) -> Np:
@@ -241,7 +241,7 @@ class CoupledProblem:
         self._grids, self._whole = grids, whole
         self._build, self._pins = build, pins
         self.k = ncomponents
-        self._bases = UniformBases(TensorLagrangeBasis(1, NPOINTS, self.bkd))
+        self._bases = UniformBases(lobatto_lagrange_basis(1, NPOINTS, self.bkd))
         self.scalar = ContinuousSkeletonSpace(
             topo, self._bases, VertexWeightNumbering(topo, self._bases)
         )

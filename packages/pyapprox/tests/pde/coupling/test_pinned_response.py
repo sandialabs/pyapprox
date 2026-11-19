@@ -42,7 +42,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData, PortPlacement
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
@@ -177,9 +177,7 @@ def _single_domain(bkd: Backend[Array]) -> Array:
     disc: DenseSteadyDiscretization[Array] = DenseSteadyDiscretization(
         GalerkinSteadySystem(operator, DirichletConstraintSet(fixed, n, bkd))
     )
-    residual: PinnedResidual[Array, DenseFormat[Array]] = galerkin_steady_residual(
-        disc
-    )
+    residual: PinnedResidual[Array, DenseFormat[Array]] = galerkin_steady_residual(disc)
     system = SteadySystem(residual, disc.space(), RecomputeAlways(BackendDenseLU(bkd)))
     newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
     point = system.solve(newton, bkd.zeros((n, 1)))
@@ -249,7 +247,7 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     skeleton and solved by Newton with matrix-free GMRES: the interface
     value is the halved single-domain one to 1e-10."""
     topo = TensorBoxPartition((2,))
-    bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
+    bases = UniformBases(lobatto_lagrange_basis(0, 1, bkd))
     numbering = VertexWeightNumbering(topo, bases)
     skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
     space = BackendVectorSpace(skeleton.descriptor(), bkd)
@@ -277,9 +275,7 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     point = SteadySystem(residual, space, setups).solve(newton, space.zeros(1))
     assert point.converged() and point.info().iterations > 1
     reference = _single_domain(bkd)
-    bkd.assert_allclose(
-        point.solution(), reference[_NCELLS : _NCELLS + 1], atol=1e-10
-    )
+    bkd.assert_allclose(point.solution(), reference[_NCELLS : _NCELLS + 1], atol=1e-10)
 
 
 @pytest.mark.parametrize(

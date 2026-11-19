@@ -9,7 +9,7 @@ k = 1 reproduces the scalar space; refusals.
 import pytest
 
 from pyapprox.pde.coupling.assembly import DenseMassAssembler, MassBlocksProtocol
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.ports import EntityDofsProtocol, subdomain_port_dofs
 from pyapprox.pde.coupling.spaces import (
@@ -26,7 +26,7 @@ def _continuous(
     bkd: Backend[Array],
 ) -> tuple[TensorBoxPartition, ContinuousSkeletonSpace[Array]]:
     topo = TensorBoxPartition((2, 2))
-    bases = UniformBases(TensorLagrangeBasis(1, 3, bkd))
+    bases = UniformBases(lobatto_lagrange_basis(1, 3, bkd))
     return topo, ContinuousSkeletonSpace(
         topo, bases, VertexWeightNumbering(topo, bases)
     )
@@ -45,7 +45,7 @@ def test_continuous_mass_is_kron(bkd: Backend[Array]) -> None:
 
 def test_facet_mass_is_kron(bkd: Backend[Array]) -> None:
     topo = TensorBoxPartition((2, 2))
-    scalar = FacetSkeletonSpace(topo, UniformBases(TensorLagrangeBasis(1, 3, bkd)))
+    scalar = FacetSkeletonSpace(topo, UniformBases(lobatto_lagrange_basis(1, 3, bkd)))
     space = ComponentSkeletonSpace(scalar, 3)
     assembler = DenseMassAssembler(bkd)
     expected = bkd.kron(assembler.assemble(scalar).format().matrix(), bkd.eye(3))

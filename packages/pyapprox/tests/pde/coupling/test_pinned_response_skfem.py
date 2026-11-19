@@ -38,7 +38,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     TimeIndependent,
 )
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
@@ -112,7 +112,10 @@ def _newton() -> Newton[_Np, _Np]:
 
 
 def _skfem_system(
-    bkd: NumpyBkd, bounds: tuple[float, float], ncells: int, reaction: bool,
+    bkd: NumpyBkd,
+    bounds: tuple[float, float],
+    ncells: int,
+    reaction: bool,
     essentials: Sequence[tuple[str, float]],
 ) -> Any:
     mesh = StructuredMesh1D(nx=ncells, bounds=bounds, bkd=bkd)
@@ -198,7 +201,7 @@ def _single_domain(bkd: NumpyBkd, reaction: bool) -> _Np:
 
 def _solve_skeleton(bkd: NumpyBkd, pieces: Sequence[_Response]) -> _Np:
     topo = TensorBoxPartition((2,))
-    bases = UniformBases(TensorLagrangeBasis(0, 1, bkd))
+    bases = UniformBases(lobatto_lagrange_basis(0, 1, bkd))
     numbering = VertexWeightNumbering(topo, bases)
     skeleton = ContinuousSkeletonSpace(topo, bases, numbering)
     space = BackendVectorSpace(skeleton.descriptor(), bkd)
@@ -228,9 +231,7 @@ def _check(bkd: NumpyBkd, pieces: Sequence[_Response], reference: _Np) -> None:
     lam = _solve_skeleton(bkd, pieces)
     bkd.assert_allclose(lam, reference[_NCELLS : _NCELLS + 1], atol=1e-10)
     at = [piece.linearize(lam, bkd.zeros((0, 1)), _STEADY) for piece in pieces]
-    bkd.assert_allclose(
-        at[0].output() + at[1].output(), bkd.zeros((1, 1)), atol=1e-10
-    )
+    bkd.assert_allclose(at[0].output() + at[1].output(), bkd.zeros((1, 1)), atol=1e-10)
 
 
 @pytest.mark.parametrize("reaction", [False, True])

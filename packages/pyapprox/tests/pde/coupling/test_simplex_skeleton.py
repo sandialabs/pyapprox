@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from pyapprox.pde.coupling.assembly import DenseMassAssembler
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
+from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import skeleton_dof_points
 from pyapprox.pde.coupling.reference_faces import ReferenceSimplex
@@ -286,6 +286,6 @@ def test_nonconforming_faces_are_refused(bkd: Backend[Array]) -> None:
     shifted = _Two(face, _CubicTriangle(bkd, 0.3), _CubicTriangle(bkd))
     with pytest.raises(ValueError, match="disagree on the nodes"):
         ContinuousSkeletonSpace(topo, shifted, VertexWeightNumbering(topo, shifted))
-    boxes = UniformBases(TensorLagrangeBasis(2, 2, bkd))
+    boxes = UniformBases(lobatto_lagrange_basis(2, 2, bkd))
     with pytest.raises(ValueError, match="shape"):
         ContinuousSkeletonSpace(topo, boxes, VertexWeightNumbering(topo, boxes))
