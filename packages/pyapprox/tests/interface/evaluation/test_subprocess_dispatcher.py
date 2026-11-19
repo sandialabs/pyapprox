@@ -17,14 +17,17 @@ import os
 import subprocess
 import sys
 import textwrap
+import time
 
 import pytest
 
 from pyapprox.interface.evaluation.records import JobStatus, Resources
 from pyapprox.interface.evaluation.subprocess_dispatcher import (
     DETAIL_TAIL_BYTES,
+    ShellPayload,
     ShellTask,
     SubprocessDispatcher,
+    SubprocessJobHandle,
 )
 
 #: A child that writes to both streams and exits how it is told.
@@ -217,7 +220,16 @@ class TestTimeoutGainsADetail:
         self, tmp_path
     ) -> None:
         """A piped stderr is closed unread, so this is only possible
-        once the child is writing somewhere seekable."""
+        once the child is writing somewhere seekable.
+
+        The handle is driven directly so the deadline is checked only
+        once the child has written its line. Through the dispatcher the
+        0.3 s walltime ran from launch, and on a loaded CI runner Python
+        startup outlasted it: the child was killed before writing, and
+        the detail held nothing to report. The walltime still expires
+        long before the child's 60 s sleep ends, so the job is killed by
+        the deadline, never by finishing.
+        """
         slow = tmp_path / "slow.py"
         slow.write_text(
             textwrap.dedent(
@@ -237,7 +249,22 @@ class TestTimeoutGainsADetail:
             resources=Resources(walltime_seconds=0.3),
             stderr_path=str(err),
         )
-        outcome = _run(task)
+        handle: SubprocessJobHandle[ShellPayload] = SubprocessJobHandle(
+            task, poll_interval=0.01
+        )
+        handle.launch()
+        try:
+            written = time.perf_counter() + 30.0
+            while b"timestep 41" not in (
+                err.read_bytes() if err.exists() else b""
+            ):
+                assert time.perf_counter() < written, (
+                    "the child never wrote its line"
+                )
+                time.sleep(0.01)
+            outcome = handle.outcome(timeout=30.0)
+        finally:
+            handle.cancel()
         assert outcome.status is JobStatus.TIMED_OUT
         assert outcome.detail is not None
         assert "exceeded walltime" in outcome.detail
