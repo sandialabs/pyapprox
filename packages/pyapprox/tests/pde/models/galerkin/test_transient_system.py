@@ -30,6 +30,10 @@ from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.ode.functionals.protocols import TransientFunctionalProtocol
+from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
+    TimeIntegratedWeightedL2Functional,
+)
 from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.step_plan import FixedStep
@@ -43,8 +47,16 @@ from pyapprox.ode.tableau import (
     heun,
     implicit_midpoint,
 )
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
+from pyapprox.ode.trajectory_store import (
+    InMemoryTrajectoryStore,
+    TrajectorySinkProtocol,
+)
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.pde.galerkin.observations import (
+    nodal_outflux_functional,
+    probe_observation_functional,
+)
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
@@ -62,6 +74,11 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
     create_galerkin_physics_ode_residual,
 )
 from pyapprox.pde.models.galerkin.transient import GalerkinTransientForwardModel
+from pyapprox.pde.models.galerkin.transient_observations import (
+    nodal_outflux_observations,
+    probe_observations,
+    time_integrated_weighted_l2,
+)
 from pyapprox.pde.models.galerkin.transient_system import (
     GalerkinTransientSystem,
     galerkin_transient_derivatives,
@@ -71,6 +88,7 @@ from pyapprox.pde.models.galerkin.transient_system import (
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.linalg.symmetric_weight import DenseMatrixWeight
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.galerkin_heat import HEAT_NPARAMS, HEAT_PARAM, MovingEndHeat
 
@@ -173,6 +191,29 @@ class _Paths:
 
     def heat(self) -> MovingEndHeat:
         return self._heat
+
+    def system(self) -> GalerkinTransientSystem[_Np, Any]:
+        return self._system
+
+    def method(self) -> RungeKutta[_Np, _Np]:
+        return self._method
+
+    def store(self) -> InMemoryTrajectoryStore[_Np]:
+        return self._store
+
+    def sweeps(self) -> TrajectoryDerivatives[_Np, _Np]:
+        return self._sweeps
+
+    def resolve(self, sink: TrajectorySinkProtocol[_Np]) -> None:
+        """Solve again, into ``sink``."""
+        solve_galerkin_transient(
+            self._system,
+            self._method,
+            RecomputeAlways(self._system.solved.solver),
+            FixedStep(_DELTAT, (0.0, _FINAL_TIME)),
+            np.reshape(self._heat.init_state, (-1, 1)),
+            sink,
+        )
 
     def flux_value_and_derivatives(
         self, weights: _Np, direction: _Np
@@ -323,6 +364,16 @@ def _old_flux(
         bkd.asarray(heat.ends),
         weights,
     )
+    return _old_model(heat, old_name, functional)
+
+
+def _old_model(
+    heat: MovingEndHeat,
+    old_name: str,
+    functional: TransientFunctionalProtocol[_Np],
+) -> GalerkinTransientForwardModel[_Np]:
+    """The old forward model of ``functional`` on the heat problem."""
+    bkd = NumpyBkd()
     return GalerkinTransientForwardModel(
         skfem_discretization(heat.system),
         ScipySparseLU(),
@@ -379,6 +430,223 @@ class TestTimeIntegratedFlux:
         numpy_bkd.assert_allclose(
             hvp, derivatives.hvp(HEAT_PARAM, _DIRECTION), rtol=rtol
         )
+
+
+def _stored_value(
+    functional: TrajectoryFunctional[_Np, _Np], store: InMemoryTrajectoryStore[_Np]
+) -> _Np:
+    """``functional`` on the stored trajectory, term by term."""
+    total = functional.zero
+    last = store.ntimes() - 1
+    for term in functional.state_terms:
+        for index in range(store.ntimes()):
+            if term.reads(index, index == last):
+                member = term.at(index, store.time(index))
+                total = total + member.value(store.state(index))
+    for step_term in functional.step_terms:
+        for step in range(store.nsteps()):
+            total = total + step_term.value(step, store.window(step))
+    return total
+
+
+# The initial state, a middle one and the last of the 21 stored.
+_STORED = [0, 7, 20]
+# Two interior points and the moving end.
+_POINTS = np.array([[0.37, 0.81, 1.0]])
+
+
+def _check_observations(
+    bkd: NumpyBkd,
+    paths: _Paths,
+    functional: TrajectoryFunctional[_Np, _Np],
+    old: GalerkinTransientForwardModel[_Np],
+    rtol: float,
+) -> None:
+    """The value, the tangent along ``_DIRECTION`` and the gradient under
+    random weights against the old model's value and Jacobian."""
+    store, sweeps = paths.store(), paths.sweeps()
+    bkd.assert_allclose(_stored_value(functional, store), old(HEAT_PARAM), rtol=rtol)
+    derivatives = old.derivatives()
+    assert derivatives.jacobian is not None
+    jacobian = derivatives.jacobian(HEAT_PARAM)
+    bkd.assert_allclose(
+        sweeps.tangent(store, functional, _DIRECTION),
+        jacobian @ _DIRECTION,
+        rtol=rtol,
+        atol=1e-14,
+    )
+    weights = np.random.default_rng(11).normal(size=(functional.nqoi(), 1))
+    bkd.assert_allclose(
+        sweeps.gradient(store, functional, weights=weights),
+        jacobian.T @ weights,
+        rtol=rtol,
+    )
+
+
+@pytest.mark.parametrize("make, old_name", _METHODS, ids=[n for _, n in _METHODS])
+class TestProbes:
+    """Probes at two interior points and the moving end, at stored states
+    0, 7 and 20, against ``probe_observation_functional``: the value, the
+    tangent and the weighted gradient, to 1e-9 (5e-8 under implicit
+    midpoint). The moving end's value is data, so its derivatives are
+    zero on both paths."""
+
+    def test_value_tangent_and_gradient(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], ButcherTableau],
+        old_name: str,
+    ) -> None:
+        paths = _Paths(numpy_bkd, make, old_name)
+        heat = paths.heat()
+        points = numpy_bkd.asarray(_POINTS)
+        functional = probe_observations(heat.basis, points, _STORED)
+        assert functional.nqoi() == 9
+        old = _old_model(
+            heat,
+            old_name,
+            probe_observation_functional(heat.basis, points, _STORED, HEAT_NPARAMS),
+        )
+        _check_observations(numpy_bkd, paths, functional, old, _rtol(old_name, 1e-9))
+
+
+class TestNodalOutflux:
+    """The outflux at both ends and the DOF next to the moving end, with
+    normal velocities (1, -0.5, 2), at stored states 0, 7 and 20, against
+    ``nodal_outflux_functional`` under backward Euler, to 1e-9."""
+
+    def test_value_tangent_and_gradient(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        paths = _Paths(bkd, backward_euler, "backward_euler")
+        heat = paths.heat()
+        dofs = bkd.asarray(
+            np.append(heat.ends, heat.near_right), dtype=bkd.int64_dtype()
+        )
+        velocity = bkd.asarray([1.0, -0.5, 2.0])
+        nstates = len(heat.init_state)
+        functional = nodal_outflux_observations(bkd, nstates, dofs, velocity, _STORED)
+        old = _old_model(
+            heat,
+            "backward_euler",
+            nodal_outflux_functional(
+                dofs, velocity, _STORED, nstates, HEAT_NPARAMS, bkd
+            ),
+        )
+        _check_observations(bkd, paths, functional, old, 1e-9)
+
+
+def _weight(nstates: int) -> DenseMatrixWeight[_Np]:
+    """``I + 0.3 (E_{+1} + E_{-1})``, symmetric positive definite."""
+    matrix = np.eye(nstates) + 0.3 * (np.eye(nstates, k=1) + np.eye(nstates, k=-1))
+    return DenseMatrixWeight(matrix, NumpyBkd())
+
+
+def _weighted_l2(
+    bkd: NumpyBkd, make: Callable[[], ButcherTableau], old_name: str
+) -> tuple[_Paths, _Np, TrajectoryFunctional[_Np, _Np], _Np]:
+    """The paths, the sink's value of the integral during a solve, the
+    sweeps' functional and its value on the store."""
+    paths = _Paths(bkd, make, old_name)
+    system = paths.system()
+    integral = time_integrated_weighted_l2(
+        system,
+        paths.method(),
+        RecomputeAlways(system.solved.solver),
+        _weight(len(paths.heat().init_state)),
+    )
+    sink = integral.sink()
+    paths.resolve(sink)
+    functional = integral.trajectory_functional(paths.store())
+    return paths, sink.value(), functional, _stored_value(functional, paths.store())
+
+
+_L2_METHODS = [m for m in _METHODS if m[1] != "heun"]
+
+
+@pytest.mark.parametrize("make, old_name", _L2_METHODS, ids=[n for _, n in _L2_METHODS])
+class TestTimeIntegratedWeightedL2:
+    """The integral of ``y^T W y`` against ``TimeIntegratedWeightedL2Functional``
+    with ``W = I + 0.3 (E_{+1} + E_{-1})``: the value from the sink during
+    a solve and from the sweeps' functional on the store, the gradient and
+    the HVP, to 1e-9 (5e-8 under implicit midpoint, where the old
+    functional has no HVP; there a gradient entry of 4e-6 differs by 4e-13,
+    hence the absolute tolerance).
+
+    Heun is left out: the new integral takes Heun's predictor stage from
+    the stored step unknown, while the old functional applies the
+    trapezoid rule to the stored states (6e-5 apart, relative), so the old
+    one is no oracle. Heun's integral is checked against finite
+    differences in ``tests/ode/test_time_integral.py``."""
+
+    def test_value_gradient_and_hvp(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], ButcherTableau],
+        old_name: str,
+    ) -> None:
+        bkd = numpy_bkd
+        paths, sink_value, functional, stored_value = _weighted_l2(bkd, make, old_name)
+        store = paths.store()
+        old = _old_model(
+            paths.heat(),
+            old_name,
+            TimeIntegratedWeightedL2Functional(
+                _weight(len(paths.heat().init_state)), HEAT_NPARAMS, bkd
+            ),
+        )
+        rtol = _rtol(old_name, 1e-9)
+        expected = old(HEAT_PARAM)
+        bkd.assert_allclose(sink_value, expected, rtol=rtol)
+        bkd.assert_allclose(stored_value, expected, rtol=rtol)
+        derivatives = old.derivatives()
+        assert derivatives.jacobian is not None
+        bkd.assert_allclose(
+            paths.sweeps().gradient(store, functional),
+            derivatives.jacobian(HEAT_PARAM).T,
+            rtol=rtol,
+            atol=1e-12,
+        )
+        if derivatives.hvp is None:
+            assert old_name == "implicit_midpoint"
+            return
+        bkd.assert_allclose(
+            paths.sweeps().hvp(store, functional, _DIRECTION),
+            derivatives.hvp(HEAT_PARAM, _DIRECTION),
+            rtol=rtol,
+        )
+
+
+class TestObservationRefusals:
+    def test_refuses_no_stored_state(self, numpy_bkd: NumpyBkd) -> None:
+        heat = MovingEndHeat(numpy_bkd)
+        with pytest.raises(ValueError, match="at least one stored state"):
+            probe_observations(heat.basis, numpy_bkd.asarray(_POINTS), [])
+
+    def test_refuses_a_negative_stored_state(self, numpy_bkd: NumpyBkd) -> None:
+        heat = MovingEndHeat(numpy_bkd)
+        with pytest.raises(ValueError, match="non-negative"):
+            probe_observations(heat.basis, numpy_bkd.asarray(_POINTS), [-1])
+
+    def test_refuses_mismatched_outflux_data(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        with pytest.raises(ValueError, match="nbdofs"):
+            nodal_outflux_observations(
+                bkd,
+                11,
+                bkd.asarray(np.array([1, 2]), dtype=bkd.int64_dtype()),
+                bkd.ones((3,)),
+                [1],
+            )
+
+    def test_refuses_a_weight_of_another_size(self, numpy_bkd: NumpyBkd) -> None:
+        system, _ = _system(numpy_bkd)
+        with pytest.raises(ValueError, match="weight acts on 4 states"):
+            time_integrated_weighted_l2(
+                system,
+                RungeKutta(forward_euler()),
+                RecomputeAlways(system.solved.solver),
+                _weight(4),
+            )
 
 
 class TestTimeIntegratedFluxRefusals:
