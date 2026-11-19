@@ -195,14 +195,18 @@ def test_viscous_shock(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """The steady shock -tanh(x/(2 nu)), nu = 0.1, zero forcing, Dirichlet
     ends on [-1, 1]; Newton finds it from zero. Its poles at
     +-i pi nu set the decay ln r, r = pi nu + sqrt(1 + (pi nu)^2), 0.309
-    per node; the fit over 20-50 nodes (2.8e-3 to 7.4e-8) must reach 0.9
-    of the prediction. At 60 nodes the conservative form's Newton
-    residual stalls at 5e-12, round-off against the 1e-12 tolerance."""
+    per node; the fit over 20-40 nodes must reach 0.9 of the prediction
+    (observed 0.304 conservative, errors 3.6e-3 to 8.2e-6; 0.358
+    advective, 2.8e-3 to 2.1e-6). The sizes stop at 40 because Newton's
+    residual reaches round-off against its tolerance from about 50
+    nodes: on CI runners both forms stalled there (3.2e-12 conservative,
+    1.0e-11 advective, against 2.4e-12), and locally the conservative
+    form stalls at 60 (5e-12)."""
     nu = 0.1
     predicted = math.log(math.pi * nu + math.sqrt(1.0 + (math.pi * nu) ** 2))
     burgers = _Burgers(str(nu), total=True, conservative=conservative)
     problem = burgers.problem(f"-tanh(x/(2*{nu}))", _REFERENCE, "DD")
-    decays(problem, burgers, [20, 30, 40, 50], 0.9 * predicted, numpy_bkd)
+    decays(problem, burgers, [20, 30, 40], 0.9 * predicted, numpy_bkd)
 
 
 def test_viscous_flux_on_total_problem_stalls(numpy_bkd: Backend[Array]) -> None:
