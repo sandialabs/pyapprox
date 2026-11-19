@@ -1,5 +1,7 @@
 """A trace-receiving piece beside a flux-receiving one, coupled through
-the kind layout, split-row transfers and the fixed coupling C.
+the kind layout, split-row transfers and the fixed coupling C; and two
+flux-receiving pieces (the dual system), coupled by signed transfers
+alone.
 
 [0, 1] is split at 1/2: piece A (u(0) = g0) receives the interface trace
 lambda and returns its outward flux; piece B (u(1) = g1) receives its
@@ -10,7 +12,11 @@ Values are checked against the single-domain solution in closed form:
 K(u(x)) = K(g0) + (K(g1) - K(g0)) x + f x (1 - x) / 2, so lambda inverts
 K(u(1/2)) and mu = -(K(g1) - K(g0)). The NtD response is checked against
 the DtN response it inverts and its tangent against finite differences;
-the coupled Jacobian against central differences of the residual.
+the coupled Jacobian against central differences of the residual; Newton
+on the nonlinear mixed pair by its observed order.
+
+The dual pair keeps every flux-receiving piece beside a Dirichlet end:
+a piece with flux data at both ends floats and is refused.
 """
 
 from typing import Any, Sequence
@@ -33,7 +39,12 @@ from pyapprox.pde.coupling.analytic import (
 )
 from pyapprox.pde.coupling.kind_layout import KindLayout, kind_layout
 from pyapprox.pde.coupling.ports import BackendPortRows, SplitRowsTransfer
-from pyapprox.pde.coupling.responses import LocalResponseProtocol, TimeWindow
+from pyapprox.pde.coupling.responses import (
+    Flux,
+    LocalResponseProtocol,
+    TimeWindow,
+    Trace,
+)
 from pyapprox.pde.coupling.skeleton import (
     CoupledSubdomain,
     CouplingProtocol,
@@ -101,6 +112,34 @@ def _coupling(
     )
 
 
+def _system(
+    bkd: Backend[Array],
+    pieces: Sequence[LocalResponseProtocol[Array]],
+    signs: Sequence[float],
+) -> tuple[
+    list[CoupledSubdomain[Array, Array]],
+    BackendVectorSpace[Array],
+    KindLayout,
+    SpaceDescriptor,
+]:
+    """Two pieces sharing skeleton DOF 0, each transfer oriented by its
+    sign."""
+    layout = kind_layout(1, [(0,), (0,)], pieces)
+    descriptor = SpaceDescriptor("pair", layout.nunknowns(), backend_dtype_name(bkd))
+    subdomains = [
+        CoupledSubdomain(
+            piece,
+            SplitRowsTransfer(
+                BackendPortRows(descriptor, layout.inputs[i], bkd),
+                BackendPortRows(descriptor, layout.outputs[i], bkd),
+                signs[i],
+            ),
+        )
+        for i, piece in enumerate(pieces)
+    ]
+    return subdomains, BackendVectorSpace(descriptor, bkd), layout, descriptor
+
+
 def _mixed(
     bkd: Backend[Array], coefs: Sequence[float]
 ) -> tuple[
@@ -108,24 +147,8 @@ def _mixed(
     BackendVectorSpace[Array],
     CouplingProtocol[Array],
 ]:
-    pieces: list[LocalResponseProtocol[Array]] = list(_pair(bkd, coefs))
-    layout = kind_layout(1, [(0,), (0,)], pieces)
-    descriptor = SpaceDescriptor("mixed", layout.nunknowns(), backend_dtype_name(bkd))
-    subdomains = [
-        CoupledSubdomain(
-            piece,
-            SplitRowsTransfer(
-                BackendPortRows(descriptor, layout.inputs[i], bkd),
-                BackendPortRows(descriptor, layout.outputs[i], bkd),
-            ),
-        )
-        for i, piece in enumerate(pieces)
-    ]
-    return (
-        subdomains,
-        BackendVectorSpace(descriptor, bkd),
-        _coupling(layout, descriptor, bkd),
-    )
+    subdomains, space, layout, descriptor = _system(bkd, _pair(bkd, coefs), (1.0, 1.0))
+    return subdomains, space, _coupling(layout, descriptor, bkd)
 
 
 @pytest.mark.parametrize("coefs", [_CONSTANT, _NONLINEAR])
@@ -388,3 +411,93 @@ def test_split_rows_and_coupling_refuse_invalid_input(bkd: Backend[Array]) -> No
             schur,
             coupling=object(),  # type: ignore[arg-type]
         )
+
+
+def _dual(
+    bkd: Backend[Array], coefs: Sequence[float]
+) -> tuple[list[CoupledSubdomain[Array, Array]], BackendVectorSpace[Array], KindLayout]:
+    """Both halves receive their outward flux: A's is mu (sign +1), B's
+    is -mu (sign -1), so the row is the trace jump t_A(mu) - t_B(-mu)."""
+    a = KirchhoffNtDResponse1D(0.5, _F, coefs, _G0, None, bkd)
+    b = KirchhoffNtDResponse1D(0.5, _F, coefs, None, _G1, bkd)
+    subdomains, space, layout, _ = _system(bkd, (a, b), (1.0, -1.0))
+    return subdomains, space, layout
+
+
+def test_dual_pair_residual_is_the_trace_jump(bkd: Backend[Array]) -> None:
+    subdomains, space, layout = _dual(bkd, _NONLINEAR)
+    assert layout.unknowns == ((0, Flux()),)
+    assert layout.rows == ((0, Trace()),)
+    assert layout.coupling == ()
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    residual = SkeletonResidual(space, subdomains, schur)
+    params, window = bkd.zeros((0, 1)), TimeWindow.steady()
+    mu = bkd.asarray([[0.25]])
+    t_a = subdomains[0].response.linearize(mu, params, window).output()
+    t_b = subdomains[1].response.linearize(-mu, params, window).output()
+    bkd.assert_allclose(residual(mu), t_a - t_b, rtol=1e-12)
+
+
+@pytest.mark.parametrize("coefs", [_CONSTANT, _NONLINEAR])
+@pytest.mark.parametrize("dense", [False, True])
+def test_dual_pair_equals_single_domain(
+    bkd: Backend[Array], coefs: tuple[float, ...], dense: bool
+) -> None:
+    subdomains, space, _ = _dual(bkd, coefs)
+    exact = bkd.asarray([[-_exact(coefs)[1]]])
+    newton: Newton[Array, Array] = Newton(atol=1e-12, rtol=1e-12, maxiters=20)
+    if dense:
+        dense_residual: SkeletonResidual[Array, Array, Array, DenseFormat[Array]] = (
+            SkeletonResidual(space, subdomains, DenseSchur(bkd))
+        )
+        dense_setups: RecomputeAlways[Array, DenseFormat[Array]] = RecomputeAlways(
+            BackendDenseLU(bkd)
+        )
+        point = SteadySystem(dense_residual, space, dense_setups).solve(
+            newton, space.zeros(1)
+        )
+    else:
+        schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+        free_residual = SkeletonResidual(space, subdomains, schur)
+        free_setups: RecomputeAlways[Array, MatrixFree] = RecomputeAlways(
+            GMRES(space, bkd, tol=1e-13)
+        )
+        point = SteadySystem(free_residual, space, free_setups).solve(
+            newton, space.zeros(1)
+        )
+    assert point.converged()
+    bkd.assert_allclose(point.solution(), exact, rtol=1e-10)
+
+
+def test_all_flux_chain_refuses_a_floating_middle_piece(bkd: Backend[Array]) -> None:
+    # Three flux-receiving pieces on [0, 1]: the middle one has flux data
+    # at both ends, so its trace is fixed only up to a constant.
+    KirchhoffNtDResponse1D(1 / 3, _F, _CONSTANT, _G0, None, bkd)
+    with pytest.raises(ValueError, match="floats"):
+        KirchhoffNtDResponse1D(1 / 3, _F, _CONSTANT, None, None, bkd)
+
+
+def test_mixed_pair_newton_converges_quadratically(bkd: Backend[Array]) -> None:
+    subdomains, space, coupling = _mixed(bkd, _NONLINEAR)
+    residual: SkeletonResidual[Array, Array, Array, DenseFormat[Array]] = (
+        SkeletonResidual(space, subdomains, DenseSchur(bkd), coupling=coupling)
+    )
+    setups: RecomputeAlways[Array, DenseFormat[Array]] = RecomputeAlways(
+        BackendDenseLU(bkd)
+    )
+    system = SteadySystem(residual, space, setups)
+    exact = bkd.asarray([[v] for v in _exact(_NONLINEAR)])
+    errors = [bkd.to_float(bkd.max(bkd.abs(exact)))]
+    for steps in range(1, 5):
+        # Zero tolerances: the solve stops after ``steps`` Newton steps.
+        point = system.solve(Newton(atol=0.0, rtol=0.0, maxiters=steps), space.zeros(1))
+        errors.append(bkd.to_float(bkd.max(bkd.abs(point.state() - exact))))
+    # e_{k+1} <= C e_k^2 on every step above round-off (errors 0.77,
+    # 1.9e-3, 1.0e-6, then round-off); a linearly converging iteration
+    # would make the ratio grow without bound as e_k shrinks.
+    ratios = [
+        after / before**2 for before, after in zip(errors, errors[1:]) if after > 1e-14
+    ]
+    assert len(ratios) >= 2
+    assert max(ratios) <= 1.0
+    assert errors[-1] <= 1e-12
