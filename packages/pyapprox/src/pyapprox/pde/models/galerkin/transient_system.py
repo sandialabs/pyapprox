@@ -62,6 +62,9 @@ class GalerkinTransientSystem(Generic[Array, F]):
     unconstrained : MassFormSystem
         The system with no row treated, for quantities of the essential
         rows; not solved.
+    essential_rows : EssentialPinnedRows
+        The essential rows and their data, as the pin and quantities read
+        on those rows (the boundary flux) declare them.
     row_pinning : RowPinning
         Pins the essential rows to their data at each step's end.
     constraints : ConstraintSetProtocol
@@ -73,6 +76,7 @@ class GalerkinTransientSystem(Generic[Array, F]):
 
     solved: MassFormSystem[Array, Array, F]
     unconstrained: MassFormSystem[Array, Array, F]
+    essential_rows: EssentialPinnedRows[Array]
     row_pinning: RowPinning[Array]
     constraints: ConstraintSetProtocol[Array]
     parameters: Optional[ParameterState[Array]]
@@ -114,6 +118,7 @@ def galerkin_transient_system(
     return GalerkinTransientSystem(
         solved=differentiated_rows(unconstrained, rows, CoupledRows()),
         unconstrained=unconstrained,
+        essential_rows=rows,
         row_pinning=RowPinning(rows),
         constraints=discretization.system().constraint_set(),
         parameters=parameters,

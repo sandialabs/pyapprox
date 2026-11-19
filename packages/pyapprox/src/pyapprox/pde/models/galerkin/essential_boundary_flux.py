@@ -19,6 +19,7 @@ negative of the total applied load).
 
 from typing import Generic, List, Literal, Optional, Tuple, TypeVar
 
+from pyapprox.implicitfunction.observation_terms import RowWeights
 from pyapprox.implicitfunction.observed_residual import (
     ObservedResidual,
     pinned_rows_residual,
@@ -26,6 +27,9 @@ from pyapprox.implicitfunction.observed_residual import (
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.ode.functionals.protocols import TransientFunctionalDerivatives
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
+from pyapprox.ode.setups import MassShiftStrategy
+from pyapprox.ode.step_residual_terms import LastBlock, StepResidualTerm
+from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.ode.time_quadrature import (
     StepResidualRuleProtocol,
     TrajectoryQuadratureProtocol,
@@ -39,12 +43,13 @@ from pyapprox.pde.galerkin.time_integration.constrained_mass import (
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
 )
+from pyapprox.pde.models.galerkin.transient_system import GalerkinTransientSystem
 from pyapprox.pde.parameterizations.derivatives import (
     ParamHVPFn,
     ParamJacobianMatrixFn,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.operators import FormatProtocol
+from pyapprox.util.linalg.operators import FormatProtocol, RowSetProtocol
 
 F = TypeVar("F", bound=FormatProtocol)
 
@@ -156,12 +161,84 @@ def essential_boundary_flux(
         raise TypeError(
             f"residual must be a PinnedResidual, got {type(residual).__name__}"
         )
+    # W = -S w^T: the sign makes Q the reaction -F on the selected rows.
+    return pinned_rows_residual(
+        bkd, residual, -_essential_selection(bkd, residual.pin().rows(), dofs, weights)
+    )
+
+
+def time_integrated_essential_boundary_flux(
+    system: GalerkinTransientSystem[Array, F],
+    method: SteppingMethodProtocol[Array, Array],
+    setups: MassShiftStrategy[Array, Array, F],
+    dofs: Array,
+    weights: Array,
+) -> StepResidualTerm[Array, Array]:
+    r"""The flux through essential boundaries over each step, a step term
+    of a transient functional.
+
+    The step residual of the unconstrained system, read on selected
+    essential rows: on step :math:`n`, entry :math:`i` is
+    :math:`\sum_k w_{ik} R_n[d_k]` for the last block :math:`R_n` of the
+    unconstrained stepper's residual at the solved trajectory. Summed over
+    the steps (unit weights over the steps, the functional's own sum), it
+    is the time-integrated flux, as
+    :class:`TimeIntegratedEssentialBoundaryFluxFunctional` computes it:
+    with unit weights over every essential row, the change of the content
+    minus the integrated sources and natural fluxes, exactly as the scheme
+    computes them. The solved system's residual vanishes on those rows, so
+    it would read no flux.
+
+    Parameters
+    ----------
+    system : GalerkinTransientSystem
+        The system the trajectory was solved on; its unconstrained system
+        is stepped by ``method`` here.
+    method : SteppingMethodProtocol
+        The method the trajectory was solved with.
+    setups : MassShiftStrategy
+        Sets up the unconstrained stepper's linear solves, for the sweeps'
+        second derivatives; its solver pairs with the system's.
+    dofs : Array
+        Essential DOFs whose rows are read, unique. Shape: (ndofs,).
+    weights : Array
+        One row per entry of the term. Shape: (nqoi, ndofs).
+
+    Raises
+    ------
+    TypeError
+        If ``method`` does not satisfy ``SteppingMethodProtocol``.
+    ValueError
+        As for :func:`essential_boundary_flux`.
+    """
+    if not isinstance(method, SteppingMethodProtocol):
+        raise TypeError(
+            f"method must satisfy SteppingMethodProtocol, got {type(method).__name__}"
+        )
+    bkd = system.constraints.bkd()
+    rows = system.essential_rows.rows()
+    observation = RowWeights(bkd, rows, _essential_selection(bkd, rows, dofs, weights))
+    stepper = method.stepper(system.unconstrained, setups)
+    return StepResidualTerm(stepper, LastBlock(observation, stepper.residual_space()))
+
+
+def _essential_selection(
+    bkd: Backend[Array], rows: RowSetProtocol[Array], dofs: Array, weights: Array
+) -> Array:
+    """``S w^T``: the weights of each QoI placed on its DOFs' rows, zero
+    elsewhere. Shape: (nstates, nqoi).
+
+    Raises
+    ------
+    ValueError
+        If ``dofs`` is empty, a DOF is repeated, out of range or not in
+        ``rows``, or ``weights`` is not of shape (nqoi, ndofs).
+    """
     dof_list = [bkd.to_int(dofs[ii]) for ii in range(dofs.shape[0])]
     if not dof_list:
         raise ValueError("dofs must name at least one essential DOF")
     if len(set(dof_list)) != len(dof_list):
         raise ValueError("dofs must be unique")
-    rows = residual.pin().rows()
     nstates = rows.descriptor().size
     outside = [dof for dof in dof_list if not 0 <= dof < nstates]
     if outside:
@@ -174,8 +251,8 @@ def essential_boundary_flux(
     # The 0/1 selection S of the DOFs, from plain integers (constant data).
     selection = bkd.copy(bkd.zeros((nstates, len(dof_list))))
     selection[dof_list, list(range(len(dof_list)))] = 1.0
-    # Zeroing the pinned rows leaves a DOF's column nonzero exactly when
-    # that DOF is not pinned.
+    # Zeroing the essential rows leaves a DOF's column nonzero exactly when
+    # that DOF is not essential.
     unpinned = rows.zero_rows(selection)
     free = [
         dof
@@ -187,8 +264,8 @@ def essential_boundary_flux(
             f"dofs {free} are not essential; the flux is read from rows "
             "the constraints replace"
         )
-    # W = -S w^T: the sign makes Q the reaction -F on the selected rows.
-    return pinned_rows_residual(bkd, residual, -bkd.dot(selection, weights.T))
+    result: Array = bkd.dot(selection, weights.T)
+    return result
 
 
 class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
