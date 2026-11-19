@@ -24,8 +24,10 @@ leave it, as floats.
   on each field, on that field's component: Dirichlet as
   :class:`~pyapprox.pde.collocation.boundary.essential_rows.
   DirichletRows`; Neumann and Robin as :class:`~pyapprox.pde.collocation.
-  boundary.closure_rows.RobinRows` on the flux normal operator of the
-  flux supplied for that field; periodic sides as
+  boundary.closure_rows.RobinRows` on the normal term supplied for that
+  field: a flux provider's flux normal operator (:class:`FluxTerm`) or
+  another :class:`NormalTermProtocol`, such as the Cauchy traction
+  (:class:`TractionTerm`); periodic sides as
   :class:`~pyapprox.pde.collocation.
   boundary.periodic_rows.PeriodicRows` pairing the two sides of a
   coordinate. A node two sides share follows the system's rule: essential
@@ -47,12 +49,14 @@ n`, which is what this stack's flux normal operator computes, so Neumann
 data pass unnegated, as rows :math:`q(u)\cdot n = g`. The core's Robin
 condition :math:`q\cdot n - \alpha u = g` is the rows' :math:`\alpha' u +
 \beta\,q(u)\cdot n = g` with :math:`\alpha' = -\alpha` and
-:math:`\beta = 1`.
+:math:`\beta = 1`. A normal term whose operator is :math:`N = s\,q\cdot n`
+takes :math:`\beta = s` instead, so the data still pass unnegated.
 """
 
 import math
 from dataclasses import dataclass
 from typing import (
+    Dict,
     Generic,
     List,
     Mapping,
@@ -61,6 +65,7 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    runtime_checkable,
 )
 
 import sympy as sp
@@ -75,6 +80,7 @@ from pyapprox.pde.collocation.basis import (
 )
 from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureRowsProtocol,
+    RobinNormalTermProtocol,
     RobinPart,
     RobinRows,
 )
@@ -82,7 +88,11 @@ from pyapprox.pde.collocation.boundary.essential_rows import (
     DirichletPart,
     DirichletRows,
 )
-from pyapprox.pde.collocation.boundary.normal_operators import FluxNormalOperator
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    CauchyStressSourceProtocol,
+    FluxNormalOperator,
+    TractionNormalOperator,
+)
 from pyapprox.pde.collocation.boundary.periodic_rows import (
     PeriodicPart,
     PeriodicRows,
@@ -304,20 +314,24 @@ def _parsed(
 
 
 class _Field(Generic[Array]):
-    """``f(coords, time)``, one expression, shape ``(npts,)``; time dependent
-    exactly when the expression uses ``t``. Satisfies
-    ``TimeAwareCallableProtocol``."""
+    """``f(coords, time)`` of one or more expressions, stacked: shape
+    ``(nexpressions * npts,)``; time dependent exactly when an expression
+    uses ``t``. Satisfies ``TimeAwareCallableProtocol``."""
 
     def __init__(
-        self, expression: sp.Expr, problem: ManufacturedProblem, bkd: Backend[Array]
+        self,
+        expressions: Sequence[sp.Expr],
+        problem: ManufacturedProblem,
+        bkd: Backend[Array],
     ) -> None:
         self._points = PointExpressions(
-            [expression], problem.names(), problem.coordinates(), bkd
+            list(expressions), problem.names(), problem.coordinates(), bkd
         )
-        self._timed = time() in expression.free_symbols
+        self._bkd = bkd
+        self._timed = any(time() in e.free_symbols for e in expressions)
 
     def __call__(self, coords: Array, time: float) -> Array:
-        return self._points(coords, t=time)[0]
+        return self._bkd.reshape(self._points(coords, t=time), (-1,))
 
     def is_time_dependent(self) -> bool:
         return self._timed
@@ -408,7 +422,7 @@ def field(
     if parsed.is_number:
         return float(parsed)
     # _Field declares its own time dependence, from the expression.
-    return NodalSupplier(_Field(parsed, problem, level.bkd()), level.mesh().points())
+    return NodalSupplier(_Field([parsed], problem, level.bkd()), level.mesh().points())
 
 
 def nodal_vector(
@@ -437,7 +451,7 @@ def nodal_vector(
         if parsed.is_number:
             values.append(bkd.full((level.npts(),), float(parsed)))
         else:
-            values.append(_Field(parsed, problem, bkd)(points, 0.0))
+            values.append(_Field([parsed], problem, bkd)(points, 0.0))
     return values
 
 
@@ -446,6 +460,123 @@ def forcing(
 ) -> Union[float, NodalSupplier[Array]]:
     """The forcing of ``row`` at the level's nodes."""
     return field(problem, problem.forcing(row), level)
+
+
+def stacked_forcing(
+    problem: ManufacturedProblem, level: ChebyshevLevel[Array]
+) -> NodalSupplier[Array]:
+    """The forcing of every field at the level's nodes, stacked in the
+    problem's field order, as a vector physics takes it: shape
+    ``(nfields * npts,)``. Declared time-dependent exactly when a forcing
+    uses ``t``."""
+    expressions = [
+        _parsed(problem, problem.forcing(row), (time(),)) for row in problem.fields()
+    ]
+    supplier = _Field(expressions, problem, level.bkd())
+    return NodalSupplier(supplier, level.mesh().points())
+
+
+@runtime_checkable
+class NormalTermProtocol(Protocol[Array]):
+    r"""How a field's Neumann and Robin sides measure the outward flux
+    :math:`q(u)\cdot n` the problem prescribes: an operator :math:`N` on a
+    side's nodes, and the sign :math:`s` with :math:`N = s\,q\cdot n`."""
+
+    def operator(
+        self, bkd: Backend[Array], indices: Array, normals: Array
+    ) -> RobinNormalTermProtocol[Array]:
+        """:math:`N` on the side's mesh nodes ``indices``, shape
+        ``(nboundary,)``, with outward unit ``normals``, shape
+        ``(nboundary, ndim)``."""
+        ...
+
+    def sign(self) -> float:
+        """:math:`s`, 1 or -1."""
+        ...
+
+
+class FluxTerm(Generic[Array]):
+    r"""A flux provider's outward normal flux, :math:`N = q\cdot n`
+    (:math:`s = 1`), through
+    :class:`~pyapprox.pde.collocation.boundary.normal_operators.
+    FluxNormalOperator`.
+
+    Parameters
+    ----------
+    flux : FluxProviderProtocol
+        Maps the whole stacked state to the field's flux.
+
+    Raises
+    ------
+    TypeError
+        If ``flux`` does not satisfy ``FluxProviderProtocol``.
+    """
+
+    def __init__(self, flux: FluxProviderProtocol[Array]) -> None:
+        if not isinstance(flux, FluxProviderProtocol):
+            raise TypeError(
+                f"flux must satisfy FluxProviderProtocol, got {type(flux).__name__}"
+            )
+        self._flux = flux
+
+    def operator(
+        self, bkd: Backend[Array], indices: Array, normals: Array
+    ) -> FluxNormalOperator[Array]:
+        return FluxNormalOperator(bkd, indices, normals, self._flux)
+
+    def sign(self) -> float:
+        return 1.0
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._flux!r})"
+
+
+class TractionTerm(Generic[Array]):
+    r"""One component of the Cauchy traction :math:`t_i = \sigma_{ij}
+    n_j`, through :class:`~pyapprox.pde.collocation.boundary.
+    normal_operators.TractionNormalOperator`. A problem stating
+    :math:`-\nabla\cdot\sigma = f` row by row as the divergence of
+    :math:`q_i = -\sigma_{i\cdot}` prescribes :math:`q_i\cdot n = -t_i`, so
+    :math:`s = -1`.
+
+    Parameters
+    ----------
+    stress : CauchyStressSourceProtocol
+        The Cauchy stress, usually the physics.
+    component : int
+        The traction component :math:`i`.
+
+    Raises
+    ------
+    TypeError
+        If ``stress`` does not satisfy ``CauchyStressSourceProtocol``.
+    """
+
+    def __init__(
+        self, stress: CauchyStressSourceProtocol[Array], component: int
+    ) -> None:
+        if not isinstance(stress, CauchyStressSourceProtocol):
+            raise TypeError(
+                "stress must satisfy CauchyStressSourceProtocol, got "
+                f"{type(stress).__name__}"
+            )
+        self._stress, self._component = stress, component
+
+    def operator(
+        self, bkd: Backend[Array], indices: Array, normals: Array
+    ) -> TractionNormalOperator[Array]:
+        return TractionNormalOperator(
+            bkd, indices, normals, self._stress, self._component
+        )
+
+    def sign(self) -> float:
+        return -1.0
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(component={self._component})"
+
+
+FieldFlux = Union[FluxProviderProtocol[Array], NormalTermProtocol[Array]]
 
 
 _BuiltPart = Union[
@@ -465,10 +596,10 @@ class _CollocationCondition(Generic[Array]):
         part: str,
         row: str,
         component: int,
-        flux: Optional[FluxProviderProtocol[Array]],
+        term: Optional[NormalTermProtocol[Array]],
     ) -> None:
         self._problem, self._level = problem, level
-        self._part, self._row, self._flux = part, row, flux
+        self._part, self._row, self._term = part, row, term
         self._component = component
         self._indices, self._normals = side_nodes(level, part)
 
@@ -478,41 +609,40 @@ class _CollocationCondition(Generic[Array]):
     def _data(self) -> Union[float, _BoundaryValues[Array]]:
         return self._values(self._problem.boundary_data(self._part)[self._row])
 
-    def _flux_term(self) -> FluxNormalOperator[Array]:
-        if self._flux is None:
+    def _normal_term(self) -> NormalTermProtocol[Array]:
+        if self._term is None:
             raise ValueError(
                 f"the condition on {self._part!r} prescribes a flux of "
-                f"{self._row!r}; pass the flux provider whose normal flux it "
-                "prescribes"
+                f"{self._row!r}; pass the flux provider or normal term whose "
+                "normal flux it prescribes"
             )
-        return FluxNormalOperator(
-            self._level.bkd(), self._indices, self._normals, self._flux
+        return self._term
+
+    def _robin_part(self, alpha: Union[float, sp.Expr]) -> RobinPart[Array]:
+        """Rows :math:`\\alpha' u + s N(u) = g` for the core's
+        :math:`q\\cdot n - \\alpha u = g`: with :math:`N = s\\,q\\cdot n`,
+        :math:`s N = q\\cdot n`, and :math:`\\alpha' = -\\alpha`."""
+        term = self._normal_term()
+        operator = term.operator(self._level.bkd(), self._indices, self._normals)
+        spring = 0.0 if alpha == 0 else self._values(-alpha)
+        return RobinPart(
+            self._indices,
+            operator,
+            spring,
+            term.sign(),
+            self._data(),
+            self._component,
         )
 
     def dirichlet(self, condition: Dirichlet) -> _BuiltPart[Array]:
         return DirichletPart(self._indices, self._data(), self._component)
 
     def neumann(self, condition: Neumann) -> _BuiltPart[Array]:
-        return RobinPart(
-            self._indices,
-            self._flux_term(),
-            0.0,
-            1.0,
-            self._data(),
-            self._component,
-        )
+        return self._robin_part(0.0)
 
     def robin(self, condition: Robin) -> _BuiltPart[Array]:
         names = self._problem.names()
-        alpha = names.substitute_constants(condition.alpha(names))
-        return RobinPart(
-            self._indices,
-            self._flux_term(),
-            self._values(-alpha),
-            1.0,
-            self._data(),
-            self._component,
-        )
+        return self._robin_part(names.substitute_constants(condition.alpha(names)))
 
     def periodic(self, condition: Periodic) -> _BuiltPart[Array]:
         domain = self._level.domain()
@@ -548,10 +678,36 @@ class BoundaryDeclarations(Generic[Array]):
     closures: Tuple[ClosureRowsProtocol[Array], ...]
 
 
+def _normal_terms(
+    fields: Sequence[str], fluxes: Optional[Mapping[str, FieldFlux[Array]]]
+) -> Dict[str, NormalTermProtocol[Array]]:
+    """Each field's normal term, a flux provider wrapped as a
+    :class:`FluxTerm`."""
+    given = {} if fluxes is None else dict(fluxes)
+    unknown = set(given) - set(fields)
+    if unknown:
+        raise ValueError(
+            f"fluxes name fields {sorted(unknown)} the problem does not have; "
+            f"its fields are {list(fields)}"
+        )
+    terms: Dict[str, NormalTermProtocol[Array]] = {}
+    for row, flux in given.items():
+        if isinstance(flux, NormalTermProtocol):
+            terms[row] = flux
+        elif isinstance(flux, FluxProviderProtocol):
+            terms[row] = FluxTerm(flux)
+        else:
+            raise TypeError(
+                f"the flux of {row!r} must satisfy FluxProviderProtocol or "
+                f"NormalTermProtocol, got {type(flux).__name__}"
+            )
+    return terms
+
+
 def boundary_conditions(
     problem: ManufacturedProblem,
     level: ChebyshevLevel[Array],
-    fluxes: Optional[Mapping[str, FluxProviderProtocol[Array]]] = None,
+    fluxes: Optional[Mapping[str, FieldFlux[Array]]] = None,
 ) -> BoundaryDeclarations[Array]:
     """The rows of every side's condition on every field, with data from
     the problem's expressions.
@@ -566,13 +722,15 @@ def boundary_conditions(
         Gives the fields, the conditions and their data.
     level : ChebyshevLevel
         The mesh the rows live on.
-    fluxes : Mapping[str, FluxProviderProtocol], optional
-        By field, the flux whose outward normal component that field's
-        Neumann and Robin sides prescribe: the physics' own, or another
-        such as :class:`~pyapprox.pde.collocation.physics.
-        advection_diffusion.AdvectionDiffusionFlux`. Each maps the whole
-        stacked state to that field's flux. Needed only for a field with
-        such a side.
+    fluxes : Mapping[str, FluxProviderProtocol or NormalTermProtocol], optional
+        By field, how that field's Neumann and Robin sides measure the
+        outward flux they prescribe. A flux provider (the physics' own, or
+        another such as :class:`~pyapprox.pde.collocation.physics.
+        advection_diffusion.AdvectionDiffusionFlux`) maps the whole
+        stacked state to that field's flux and is used through
+        :class:`FluxTerm`; a normal term, such as :class:`TractionTerm`,
+        supplies the side's operator and its sign. Needed only for a field
+        with such a side.
 
     Raises
     ------
@@ -581,22 +739,11 @@ def boundary_conditions(
         prescribes a flux its field was not given, or only one side of a
         coordinate is periodic.
     TypeError
-        If a flux does not satisfy ``FluxProviderProtocol``.
+        If a flux satisfies neither ``FluxProviderProtocol`` nor
+        ``NormalTermProtocol``.
     """
     fields = problem.fields()
-    given = {} if fluxes is None else dict(fluxes)
-    unknown = set(given) - set(fields)
-    if unknown:
-        raise ValueError(
-            f"fluxes name fields {sorted(unknown)} the problem does not have; "
-            f"its fields are {list(fields)}"
-        )
-    for row, flux in given.items():
-        if not isinstance(flux, FluxProviderProtocol):
-            raise TypeError(
-                f"the flux of {row!r} must satisfy FluxProviderProtocol, got "
-                f"{type(flux).__name__}"
-            )
+    terms = _normal_terms(fields, fluxes)
     dirichlet: List[DirichletPart[Array]] = []
     robin: List[RobinPart[Array]] = []
     periodic: List[PeriodicPart[Array]] = []
@@ -605,7 +752,7 @@ def boundary_conditions(
             continue
         for part in level.domain().boundaries():
             visitor = _CollocationCondition(
-                problem, level, part, row, component, given.get(row)
+                problem, level, part, row, component, terms.get(row)
             )
             built = problem.conditions(part)[row].accept(visitor)
             if isinstance(built, DirichletPart):
@@ -634,7 +781,7 @@ def collocation_system(
     physics: CollocationInteriorOperatorProtocol[Array],
     problem: ManufacturedProblem,
     level: ChebyshevLevel[Array],
-    fluxes: Optional[Mapping[str, FluxProviderProtocol[Array]]] = None,
+    fluxes: Optional[Mapping[str, FieldFlux[Array]]] = None,
 ) -> CollocationSystem[Array]:
     """``physics`` closed by the rows of :func:`boundary_conditions`; its
     state stacks the problem's fields in the problem's order."""
