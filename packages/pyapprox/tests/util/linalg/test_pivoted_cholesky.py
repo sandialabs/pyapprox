@@ -483,7 +483,6 @@ class TestKernelColumnOperatorFused:
         )
 
 
-@pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
 class TestBlockedUpdate:
     """Blocking the generic column update leaves the factorization as is.
 
@@ -619,6 +618,7 @@ class TestBlockedUpdate:
             )
 
 
+@pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
 class TestNumbaGenericAgreement:
     """Verify numba and generic paths produce identical pivots and factors."""
 
