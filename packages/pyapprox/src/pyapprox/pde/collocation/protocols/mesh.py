@@ -3,7 +3,7 @@
 Defines interfaces for computational meshes supporting 1D, 2D, and 3D domains.
 """
 
-from typing import Generic, Protocol, Tuple, runtime_checkable
+from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -156,6 +156,23 @@ class TransformProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def gradient_factors(self, reference_pts: Array) -> Array:
+        """Compute the factors converting reference to physical derivatives.
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Points in reference space. Shape: (ndim, npts)
+
+        Returns
+        -------
+        Array
+            Gradient factors G, with
+            d/dx_phys[d] = sum_j G[:, d, j] * d/d_xi_ref[j].
+            Shape: (npts, ndim, ndim)
+        """
+        ...
+
 
 @runtime_checkable
 class MeshWithTransformProtocol(Protocol, Generic[Array]):
@@ -203,8 +220,8 @@ class MeshWithTransformProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def transform(self) -> TransformProtocol[Array]:
-        """Return the coordinate transformation."""
+    def transform(self) -> Optional[TransformProtocol[Array]]:
+        """Return the coordinate transformation; None for the identity."""
         ...
 
     def jacobian_matrix(self) -> Array:

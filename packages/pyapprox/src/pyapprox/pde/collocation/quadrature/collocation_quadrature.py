@@ -91,9 +91,9 @@ class CollocationQuadrature1D(Generic[Array]):
             # Jacobian determinant (constant for affine)
             jac_det = transform.jacobian_determinant(bkd.asarray([[0.0]]))[0]
         else:
-            xi_a = a_sub
-            xi_b = b_sub
-            jac_det = 1.0
+            xi_a = bkd.asarray(a_sub)
+            xi_b = bkd.asarray(b_sub)
+            jac_det = bkd.asarray(1.0)
 
         # Map GL points from [-1, 1] to reference subdomain [xi_a, xi_b]
         scale = (xi_b - xi_a) / 2.0
@@ -109,9 +109,7 @@ class CollocationQuadrature1D(Generic[Array]):
         # Project GL weights to collocation nodes
         weights_ref: Array = L.T @ gl_wts_scaled  # shape (npts,)
 
-        if transform is not None:
-            return jac_det * weights_ref
-        return weights_ref
+        return jac_det * weights_ref
 
     def full_domain_weights(self) -> Array:
         """Compute quadrature weights for the entire physical domain.

@@ -130,8 +130,8 @@ class TransformedMesh1D(Generic[Array]):
         """Return indices of boundary points."""
         return self._boundary_indices[boundary_id]
 
-    def transform(self) -> TransformProtocol[Array]:
-        """Return the coordinate transform."""
+    def transform(self) -> Optional[TransformProtocol[Array]]:
+        """Return the coordinate transform; None for the identity."""
         return self._transform
 
     def jacobian_matrix(self) -> Array:
@@ -270,8 +270,8 @@ class TransformedMesh2D(Generic[Array]):
         """Return indices of boundary points."""
         return self._boundary_indices[boundary_id]
 
-    def transform(self) -> TransformProtocol[Array]:
-        """Return the coordinate transform."""
+    def transform(self) -> Optional[TransformProtocol[Array]]:
+        """Return the coordinate transform; None for the identity."""
         return self._transform
 
     def jacobian_matrix(self) -> Array:
@@ -473,8 +473,8 @@ class TransformedMesh3D(Generic[Array]):
         """Return indices of boundary points."""
         return self._boundary_indices[boundary_id]
 
-    def transform(self) -> TransformProtocol[Array]:
-        """Return the coordinate transform."""
+    def transform(self) -> Optional[TransformProtocol[Array]]:
+        """Return the coordinate transform; None for the identity."""
         return self._transform
 
     def jacobian_matrix(self) -> Array:
@@ -532,7 +532,7 @@ class TransformedMesh3D(Generic[Array]):
 
             # Compute J^{-T} using adjugate/det
             # For 3x3, use explicit formula or numerical inverse
-            J_inv = self._bkd.inverse(self._bkd.reshape(J, (1, 3, 3)))[0]
+            J_inv = self._bkd.inv(J)
             J_inv_T = self._bkd.transpose(J_inv)
 
             n_phys = J_inv_T @ n_ref
