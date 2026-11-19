@@ -26,11 +26,13 @@ Cases:
   with the normal reversed; Robin ends without their spring term;
 - the adapter's own pieces: the decay check on synthetic studies, and
   the quadrature L2 error of :math:`u^* = x` in 1D, 2D and 3D boxes
-  against the closed form.
+  against the closed form, and an injected initial guess asked once per
+  level.
 
 Refusals: transient and multi-field problems, a domain that is not a
-box, one periodic side of a pair, a flux condition without a flux, and
-a row that takes no conditions.
+box, one periodic side of a pair, a flux condition without a flux, a
+row that takes no conditions, and an initial guess that is not an
+``InitialGuessProtocol`` or not a column of the states.
 """
 
 import math
@@ -58,6 +60,7 @@ from pyapprox.pde.models.collocation.verification import (
     ChebyshevLevel,
     CollocationApproximation,
     CollocationDiscretizer,
+    ConstantGuess,
     DecaysExponentially,
     NodeStudy,
     boundary_conditions,
@@ -200,9 +203,7 @@ def test_recovers_cubic_2d(bkd: Backend[Array], codes: str, conservative: bool) 
     bottom, top), D = 2 + x y, v = (1 - y, x/2), r = -1: 6 x 6 nodes
     reproduce it to 1e-10, on both backends."""
     adr = _ADR("2 + x*y", ["1 - y", "x/2"], "-1", conservative)
-    problem = _problem(
-        "x*y + y**2 - x**2*y", adr, _RECTANGLE, coded(codes, _RECTANGLE)
-    )
+    problem = _problem("x*y + y**2 - x**2*y", adr, _RECTANGLE, coded(codes, _RECTANGLE))
     recovers(problem, adr, 6, bkd)
 
 
@@ -240,9 +241,7 @@ def test_decays_periodic_1d(numpy_bkd: Backend[Array], conservative: bool) -> No
     8-20 nodes (2.1 to 3e-7 L2; observed 1.31 per node non-conservative,
     1.26 conservative, required 0.6)."""
     adr = _ADR("1 + sin(2*pi*x)/2", ["1 + cos(2*pi*x)/4"], "-1", conservative)
-    problem = _problem(
-        "sin(2*pi*x) + cos(4*pi*x)/2 + 1", adr, _UNIT, _PERIODIC_1D
-    )
+    problem = _problem("sin(2*pi*x) + cos(4*pi*x)/2 + 1", adr, _UNIT, _PERIODIC_1D)
     decays(problem, adr, [8, 12, 16, 20], 0.6, numpy_bkd)
 
 
@@ -358,9 +357,7 @@ def test_time_dependence_is_declared_per_coefficient(
 
 
 class TestAdapterPieces:
-    def test_two_fields_take_their_components(
-        self, numpy_bkd: Backend[Array]
-    ) -> None:
+    def test_two_fields_take_their_components(self, numpy_bkd: Backend[Array]) -> None:
         """Field w, second in the problem, has its rows on the second
         component (offset npts); its Neumann side gets w's flux; the
         approximation measures both fields: u* = x, w* = 2x against a
@@ -471,6 +468,26 @@ class TestRefusals:
         with pytest.raises(TypeError, match="meshes a Box"):
             ChebyshevBox([4], numpy_bkd).levels(Disk())
 
+    def test_initial_guess_not_a_guess(self, numpy_bkd: Backend[Array]) -> None:
+        """A bare value is refused at construction: the discretizer takes
+        an object that builds each level's starting state."""
+        with pytest.raises(TypeError, match="InitialGuessProtocol"):
+            CollocationDiscretizer(
+                ChebyshevBox([4], numpy_bkd),
+                _ADR("1"),
+                initial_guess=2.0,  # type: ignore[arg-type]
+            )
+
+    def test_initial_guess_shape(self, numpy_bkd: Backend[Array]) -> None:
+        """A guess that is not a column of the system's states is refused
+        before the solve."""
+        discretizer = CollocationDiscretizer(
+            ChebyshevBox([4], numpy_bkd), _ADR("1"), initial_guess=_FlatGuess()
+        )
+        problem = _problem("x", _ADR("1"), _UNIT, coded("DD", _UNIT))
+        with pytest.raises(ValueError, match=r"shape \(4, 1\); got \(4,\)"):
+            discretizer.approximations(problem)
+
     def test_half_periodic(self, numpy_bkd: Backend[Array]) -> None:
         """A periodic side needs its partner across the same coordinate
         periodic too: one alone has nothing to match."""
@@ -533,3 +550,49 @@ class TestRefusals:
             nodal_vector(problem, ["x*t"], level)
         with pytest.raises(ValueError, match="one expression per coordinate"):
             nodal_vector(problem, ["1", "2"], level)
+
+
+class _FlatGuess:
+    """A guess of the wrong shape, (nstates,)."""
+
+    def guess(
+        self,
+        problem: ManufacturedProblem,
+        level: ChebyshevLevel[Array],
+        system: CollocationSystem[Array],
+    ) -> Array:
+        return level.bkd().zeros((system.nstates(),))
+
+
+class _RecordingGuess:
+    """Starts every level from a constant and records the node counts of
+    the levels it was asked for."""
+
+    def __init__(self) -> None:
+        self._npts: List[int] = []
+
+    def npts(self) -> List[int]:
+        return self._npts
+
+    def guess(
+        self,
+        problem: ManufacturedProblem,
+        level: ChebyshevLevel[Array],
+        system: CollocationSystem[Array],
+    ) -> Array:
+        self._npts.append(level.npts())
+        return ConstantGuess(0.5).guess(problem, level, system)
+
+
+def test_initial_guess_reaches_each_solve(bkd: Backend[Array]) -> None:
+    """An injected guess is asked once per level, coarsest first, with
+    that level's system, and the solves from it recover the solution."""
+    adr = _ADR("1 + x/2")
+    problem = _problem("1 + x - x**2/2 + x**3", adr, _UNIT, coded("DN", _UNIT))
+    recording = _RecordingGuess()
+    discretizer = CollocationDiscretizer(
+        ChebyshevBox([6, 8], bkd), adr, initial_guess=recording
+    )
+    errors = [a.l2_error() for a in discretizer.approximations(problem)]
+    assert recording.npts() == [6, 8]
+    assert max(errors) < 1e-10

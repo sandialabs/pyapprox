@@ -13,6 +13,7 @@ from pyapprox.pde.models.collocation.verification import (
     ChebyshevBox,
     CollocationDiscretizer,
     DecaysExponentially,
+    InitialGuessProtocol,
     SystemFactoryProtocol,
     run_node_study,
 )
@@ -54,12 +55,12 @@ def recovers(
     factory: SystemFactoryProtocol,
     n: int,
     bkd: Backend[Array],
-    initial: float = 0.0,
+    initial_guess: Optional[InitialGuessProtocol] = None,
 ) -> None:
     """``n`` nodes per direction reproduce the solution: L2 error below
-    1e-10. Solves start from the constant ``initial``."""
+    1e-10. Solves start from ``initial_guess`` (default zero)."""
     discretizer = CollocationDiscretizer(
-        ChebyshevBox([n], bkd), factory, initial=initial
+        ChebyshevBox([n], bkd), factory, initial_guess=initial_guess
     )
     result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
     assert result.passed, result.message
@@ -72,13 +73,13 @@ def decays(
     rate: float,
     bkd: Backend[Array],
     last: Optional[int] = None,
-    initial: float = 0.0,
+    initial_guess: Optional[InitialGuessProtocol] = None,
 ) -> None:
     """The L2 error falls exponentially over ``sizes`` nodes per
-    direction, at least ``rate`` per node. Solves start from the
-    constant ``initial``."""
+    direction, at least ``rate`` per node. Solves start from
+    ``initial_guess`` (default zero)."""
     discretizer = CollocationDiscretizer(
-        ChebyshevBox(sizes, bkd), factory, initial=initial
+        ChebyshevBox(sizes, bkd), factory, initial_guess=initial_guess
     )
     study = run_node_study(problem, discretizer, L2Error())
     result = DecaysExponentially(rate, last).verify(study)
@@ -90,13 +91,13 @@ def stalls(
     factory: SystemFactoryProtocol,
     sizes: Sequence[int],
     bkd: Backend[Array],
-    initial: float = 0.0,
+    initial_guess: Optional[InitialGuessProtocol] = None,
 ) -> None:
     """Wrong-model control: the fitted algebraic L2 rate stays below 0.5,
     so the error does not fall as a correct model's would. Solves start
-    from the constant ``initial``."""
+    from ``initial_guess`` (default zero)."""
     discretizer = CollocationDiscretizer(
-        ChebyshevBox(sizes, bkd), factory, initial=initial
+        ChebyshevBox(sizes, bkd), factory, initial_guess=initial_guess
     )
     result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
     assert result.passed, result.message

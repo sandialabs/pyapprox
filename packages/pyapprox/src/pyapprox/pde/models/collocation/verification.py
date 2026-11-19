@@ -35,8 +35,9 @@ leave it, as floats.
   builds its rows by hand (a wrong-model control) takes a side's nodes
   and data from :func:`side_nodes` and :func:`side_values`.
 - :class:`CollocationDiscretizer` solves each level through
-  ``collocation_steady_residual`` + ``SteadySystem`` with a dense LU and
-  returns :class:`CollocationApproximation` objects, whose errors are
+  ``collocation_steady_residual`` + ``SteadySystem`` with a dense LU,
+  from the state an injected :class:`InitialGuessProtocol` gives
+  (:class:`ConstantGuess` zero by default), and returns :class:`CollocationApproximation` objects, whose errors are
   measured at the collocation nodes.
 - :class:`DecaysExponentially` judges a spectral study, a
   :class:`NodeStudy` of errors against node counts from
@@ -795,6 +796,47 @@ class SystemFactoryProtocol(Protocol):
         ...
 
 
+@runtime_checkable
+class InitialGuessProtocol(Protocol):
+    """Where a level's nonlinear solve starts."""
+
+    def guess(
+        self,
+        problem: ManufacturedProblem,
+        level: ChebyshevLevel[Array],
+        system: CollocationSystem[Array],
+    ) -> Array:
+        """The state the solve of ``system`` on ``level`` starts from, for
+        example the solution of a linearization of its physics. Shape:
+        (nstates, 1)"""
+        ...
+
+
+class ConstantGuess:
+    """Every state entry starts from one value.
+
+    Parameters
+    ----------
+    value : float
+        The value.
+    """
+
+    def __init__(self, value: float) -> None:
+        self._value = value
+
+    def guess(
+        self,
+        problem: ManufacturedProblem,
+        level: ChebyshevLevel[Array],
+        system: CollocationSystem[Array],
+    ) -> Array:
+        """``value`` at every state entry. Shape: (nstates, 1)"""
+        return level.bkd().full((system.nstates(), 1), self._value)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._value!r})"
+
+
 def _quadrature_weights(level: ChebyshevLevel[Array]) -> Array:
     """Weights at the level's nodes integrating over the box: tensor
     products of 1D Clenshaw-Curtis-type weights on the reference interval
@@ -893,7 +935,7 @@ class CollocationDiscretizer(Generic[Array]):
 
     Each level: the factory's system, the steady residual
     (``collocation_steady_residual``), and ``SteadySystem`` with a dense
-    LU recomputed every step, from a constant initial guess.
+    LU recomputed every step, from the initial guess's state.
 
     Parameters
     ----------
@@ -904,10 +946,15 @@ class CollocationDiscretizer(Generic[Array]):
     nonlinear : NonlinearSolverProtocol, optional
         Default: Newton, ``atol = rtol = 1e-12``, 30 steps (a linear
         system is solved in one step).
-    initial : float, optional
-        The value every state entry starts from; default 0. A physics
-        whose Jacobian degenerates at zero (shallow ice, at zero
-        thickness) starts elsewhere.
+    initial_guess : InitialGuessProtocol, optional
+        Where each level's solve starts; default ``ConstantGuess(0.0)``.
+        A physics whose Jacobian degenerates at zero (shallow ice, at
+        zero thickness) starts elsewhere.
+
+    Raises
+    ------
+    TypeError
+        If ``initial_guess`` does not satisfy ``InitialGuessProtocol``.
     """
 
     def __init__(
@@ -915,10 +962,19 @@ class CollocationDiscretizer(Generic[Array]):
         levels: LevelFamilyProtocol[Array],
         factory: SystemFactoryProtocol,
         nonlinear: Optional[NonlinearSolverProtocol[Array, Array]] = None,
-        initial: float = 0.0,
+        initial_guess: Optional[InitialGuessProtocol] = None,
     ) -> None:
+        if initial_guess is not None and not isinstance(
+            initial_guess, InitialGuessProtocol
+        ):
+            raise TypeError(
+                "initial_guess must satisfy InitialGuessProtocol, got "
+                f"{type(initial_guess).__name__}"
+            )
         self._levels, self._factory = levels, factory
-        self._initial = initial
+        self._initial_guess: InitialGuessProtocol = (
+            ConstantGuess(0.0) if initial_guess is None else initial_guess
+        )
         default: Newton[Array, Array] = Newton(atol=1e-12, rtol=1e-12, maxiters=30)
         self._nonlinear: NonlinearSolverProtocol[Array, Array] = (
             default if nonlinear is None else nonlinear
@@ -932,8 +988,9 @@ class CollocationDiscretizer(Generic[Array]):
         Raises
         ------
         ValueError
-            If ``problem`` is transient or has no domain, or a system's
-            state is not one value per node per field.
+            If ``problem`` is transient or has no domain, a system's
+            state is not one value per node per field, or an initial guess
+            does not have shape (nstates, 1).
         RuntimeError
             If a solve does not converge.
         """
@@ -959,7 +1016,13 @@ class CollocationDiscretizer(Generic[Array]):
                 backend_state_space(bkd, nstates),
                 RecomputeAlways(BackendDenseLU(bkd)),
             )
-            point = steady.solve(self._nonlinear, bkd.full((nstates, 1), self._initial))
+            initial = self._initial_guess.guess(problem, level, system)
+            if tuple(initial.shape) != (nstates, 1):
+                raise ValueError(
+                    f"the initial guess on {level!r} must have shape "
+                    f"({nstates}, 1); got {tuple(initial.shape)}"
+                )
+            point = steady.solve(self._nonlinear, initial)
             if not point.converged():
                 raise RuntimeError(
                     f"the solve on {level!r} did not converge: {point.info().message}"

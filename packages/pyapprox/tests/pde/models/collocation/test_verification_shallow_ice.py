@@ -39,6 +39,7 @@ from pyapprox.pde.collocation.physics.shallow_ice import (
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
     ChebyshevLevel,
+    ConstantGuess,
     collocation_system,
     field,
     forcing,
@@ -52,7 +53,7 @@ from tests._helpers.collocation_verification import coded, decays, recovers, sta
 _GRAVITY = 9.81
 _A = 2.5
 _RHO = 1.0 / _GRAVITY
-_START = 2.0
+_START = ConstantGuess(2.0)
 
 
 class _ShallowIce:
@@ -139,7 +140,7 @@ def test_recovers_dirichlet_profiles(
     nodes above its degree reproduce the profile to 1e-10."""
     ice = _ShallowIce(bed, friction)
     problem = ice.problem(solution, _REFERENCE, "DD")
-    recovers(problem, ice, npts, numpy_bkd, initial=_START)
+    recovers(problem, ice, npts, numpy_bkd, initial_guess=_START)
 
 
 @pytest.mark.parametrize("codes", ["DN", "ND", "RD", "NR"])
@@ -149,7 +150,7 @@ def test_recovers_flux_end(bkd: Backend[Array], codes: str) -> None:
     nodes resolve it, reproducing H to 1e-10 on both backends."""
     ice = _ShallowIce("0.1*x", "1 + x")
     problem = ice.problem("1 + x - x**2/2", _UNIT, codes)
-    recovers(problem, ice, 16, bkd, initial=_START)
+    recovers(problem, ice, 16, bkd, initial_guess=_START)
 
 
 def test_recovers_2d(numpy_bkd: Backend[Array]) -> None:
@@ -160,7 +161,7 @@ def test_recovers_2d(numpy_bkd: Backend[Array]) -> None:
     not polynomial.)"""
     ice = _ShallowIce("0.1*x + 0.05*y", "2")
     problem = ice.problem("2 + x/4 - y/4 + x*y/8", _RECTANGLE, "DRDN")
-    recovers(problem, ice, 10, numpy_bkd, initial=_START)
+    recovers(problem, ice, 10, numpy_bkd, initial_guess=_START)
 
 
 def test_decays(numpy_bkd: Backend[Array]) -> None:
@@ -169,7 +170,7 @@ def test_decays(numpy_bkd: Backend[Array]) -> None:
     (observed 0.835 per node, errors 3.7e-2 to 5.7e-5, required 0.4)."""
     ice = _ShallowIce("0.1*x", "1 + x")
     problem = ice.problem("2 + 0.3*sin(pi*x)", _UNIT, "DN")
-    decays(problem, ice, [6, 8, 10, 12, 14], 0.4, numpy_bkd, initial=_START)
+    decays(problem, ice, [6, 8, 10, 12, 14], 0.4, numpy_bkd, initial_guess=_START)
 
 
 def test_bedless_surface_stalls(numpy_bkd: Backend[Array]) -> None:
@@ -180,4 +181,4 @@ def test_bedless_surface_stalls(numpy_bkd: Backend[Array]) -> None:
     surface gradient."""
     ice = _ShallowIce("0.1*x", "1 + x", physics_bed="0")
     problem = ice.problem("2 + 0.3*sin(pi*x)", _UNIT, "DN")
-    stalls(problem, ice, [6, 8, 10, 12], numpy_bkd, initial=_START)
+    stalls(problem, ice, [6, 8, 10, 12], numpy_bkd, initial_guess=_START)
