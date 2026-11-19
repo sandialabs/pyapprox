@@ -19,6 +19,19 @@ the outward fluxes :math:`k(u)\, \partial u/\partial n` at the ends are
 with no interior solve, even for nonlinear :math:`k`. Each end is a port
 (its value is port data) or carries a fixed Dirichlet value.
 
+**Neumann-to-Dirichlet.** Given instead the outward flux :math:`\mu` at
+one end and a Dirichlet value :math:`g` at the other, either formula
+above gives the trace at the flux end,
+
+.. math::
+
+    t = K^{-1}\bigl(K(g) + L \mu + f L^2 / 2\bigr), \qquad
+    \frac{\partial t}{\partial \mu} = \frac{L}{k(t)},
+
+one scalar monotone root (:class:`KirchhoffNtDResponse1D`). A piece with
+flux data at both ends floats (its trace is fixed only up to a
+constant) and is refused.
+
 **Exact interface values of a chain.** Subdomains chained over
 :math:`[0, 1]`, with :math:`u(0) = g_0`, :math:`u(1) = g_1` and possibly
 a different conductivity :math:`k_i` on each piece, have interface values
@@ -67,6 +80,14 @@ from pyapprox.pde.coupling.responses import (
     Trace,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseLU,
+    BackendDenseOperator,
+    BackendVectorSpace,
+    backend_dtype_name,
+)
+from pyapprox.util.linalg.operators import SolverHandleProtocol, SpaceDescriptor
+from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 
 
 class KirchhoffResponse1D(Generic[Array]):
@@ -221,6 +242,172 @@ class KirchhoffPoint1D(Generic[Array]):
         r""":math:`(\partial r/\partial \lambda)` ``directions``, for a
         block of shape (nport, ncols)."""
         return self._response._jvp(self._port_data, directions)
+
+    def derivatives(self) -> ResponseDerivatives[Array]:
+        return self._derivs
+
+
+class _InverseKirchhoff(Generic[Array]):
+    r""":math:`K(u) - c = 0` for one target :math:`c`, a nonlinear system
+    for :class:`~pyapprox.util.rootfinding.nonlinear.Newton`; its
+    Jacobian is the diagonal :math:`k(u)`."""
+
+    def __init__(
+        self,
+        conductivity: KirchhoffResponse1D[Array],
+        target: Array,
+        space: BackendVectorSpace[Array],
+        affine: bool,
+    ) -> None:
+        self._k, self._target = conductivity, target
+        self._space, self._affine = space, affine
+
+    def space(self) -> BackendVectorSpace[Array]:
+        return self._space
+
+    def residual(self, x: Array) -> Array:
+        return self._k.kirchhoff(x) - self._target
+
+    def jacobian_handle(self, x: Array) -> SolverHandleProtocol[Array]:
+        bkd = self._k.bkd()
+        diagonal = BackendDenseOperator.from_diagonal(
+            self._k.conductivity(x), self._space.descriptor(), bkd
+        )
+        return BackendDenseLU(bkd).setup(diagonal)
+
+    def is_affine(self) -> bool:
+        return self._affine
+
+
+class KirchhoffNtDResponse1D(Generic[Array]):
+    r"""A 1D diffusion subdomain receiving the outward flux at its one
+    port end and returning the trace there.
+
+    Satisfies
+    :class:`~pyapprox.pde.coupling.responses.LocalResponseProtocol`.
+    The other end carries a Dirichlet value; a piece with flux data at
+    both ends floats and is refused. The trace inverts the Kirchhoff
+    transform by ``newton`` (one exact step for constant :math:`k`);
+    :meth:`KirchhoffNtDPoint1D.jvp_trace` is the closed form
+    :math:`L / k(t)`, exact at the converged root, so derivatives never
+    pass through the iterations. Steady, without parameters or
+    quantities of interest.
+
+    Parameters
+    ----------
+    length, source, conductivity
+        As for :class:`KirchhoffResponse1D`.
+    left, right
+        The Dirichlet value at one end and ``None`` at the port end.
+    bkd
+        Computational backend.
+    newton
+        Solves :math:`K(t) = K(g) + L\mu + f L^2/2`. Default:
+        ``Newton(atol=1e-13, rtol=0.0, maxiters=50)``.
+
+    Raises
+    ------
+    ValueError
+        If both ends or neither carry a Dirichlet value, or as
+        :class:`KirchhoffResponse1D`.
+    """
+
+    def __init__(
+        self,
+        length: float,
+        source: float,
+        conductivity: Sequence[float],
+        left: Optional[float],
+        right: Optional[float],
+        bkd: Backend[Array],
+        newton: Optional[NonlinearSolverProtocol[Array, Array]] = None,
+    ) -> None:
+        if (left is None) == (right is None):
+            raise ValueError(
+                "exactly one end must carry a Dirichlet value; a piece with "
+                "flux data at both ends floats"
+            )
+        self._k = KirchhoffResponse1D(length, source, conductivity, left, right, bkd)
+        self._length, self._source = length, source
+        self._dirichlet = left if right is None else right
+        self._affine = all(c == 0.0 for c in tuple(conductivity)[1:])
+        self._space = BackendVectorSpace(
+            SpaceDescriptor("kirchhoff-trace", 1, backend_dtype_name(bkd)), bkd
+        )
+        self._newton: NonlinearSolverProtocol[Array, Array] = (
+            Newton(atol=1e-13, rtol=0.0, maxiters=50) if newton is None else newton
+        )
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nport(self) -> int:
+        return 1
+
+    def receives(self) -> Flux:
+        return Flux()
+
+    def returns(self) -> Trace:
+        return Trace()
+
+    def nparams(self) -> int:
+        return 0
+
+    def nqoi(self) -> int:
+        return 0
+
+    def linearize(
+        self, port_data: Array, params: Array, window: TimeWindow
+    ) -> "KirchhoffNtDPoint1D[Array]":
+        if tuple(port_data.shape) != (1, 1):
+            raise ValueError(
+                f"port_data must have shape (1, 1), got {tuple(port_data.shape)}"
+            )
+        if tuple(params.shape) != (0, 1):
+            raise ValueError(
+                f"params must have shape (0, 1), got {tuple(params.shape)}"
+            )
+        if not window.is_steady():
+            raise ValueError("KirchhoffNtDResponse1D is steady: the window must be too")
+        length, bkd = self._length, self._bkd
+        dirichlet = bkd.asarray([[self._dirichlet]])
+        target = (
+            self._k.kirchhoff(dirichlet)
+            + length * port_data
+            + self._source * length * length / 2.0
+        )
+        system = _InverseKirchhoff(self._k, target, self._space, self._affine)
+        trace, info = self._newton.solve(system, dirichlet)
+        if not info.converged:
+            raise RuntimeError(
+                f"inverting the Kirchhoff transform failed: {info.message}"
+            )
+        return KirchhoffNtDPoint1D(trace, length / self._k.conductivity(trace), bkd)
+
+
+class KirchhoffNtDPoint1D(Generic[Array]):
+    """A :class:`KirchhoffNtDResponse1D` at one flux."""
+
+    def __init__(self, trace: Array, slope: Array, bkd: Backend[Array]) -> None:
+        self._trace, self._slope, self._bkd = trace, slope, bkd
+        self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
+
+    def output(self) -> Array:
+        """The trace at the port end, shape (1, 1)."""
+        return self._trace
+
+    def qoi(self) -> Array:
+        return self._bkd.zeros((0, 1))
+
+    def jvp_trace(self, directions: Array) -> Array:
+        r""":math:`(L / k(t))` ``directions``, for a block of shape
+        (1, ncols)."""
+        if directions.ndim != 2 or directions.shape[0] != 1:
+            raise ValueError(
+                f"directions must have shape (1, ncols), got {tuple(directions.shape)}"
+            )
+        return self._slope * directions
 
     def derivatives(self) -> ResponseDerivatives[Array]:
         return self._derivs

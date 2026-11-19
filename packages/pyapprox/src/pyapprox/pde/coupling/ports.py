@@ -81,6 +81,66 @@ class MatchingNodalTransfer(Generic[V, P]):
         return self._rows.add_to(y, block)
 
 
+class SplitRowsTransfer(Generic[V, Array]):
+    r"""Port data read from one set of rows and output added into
+    another, both oriented by a sign: :math:`E_i = s R_{\text{in}}` on
+    the way in, :math:`s R_{\text{out}}^\top` on the way out.
+
+    For a skeleton whose unknowns and residual rows are numbered apart
+    (:class:`~pyapprox.pde.coupling.kind_layout.KindLayout`'s ``inputs``
+    and ``outputs``): a piece reads the unknowns of the kind it receives
+    and adds into the rows of the kind it returns. The sign orients a
+    piece's data, as the dual condition's signed jump needs; with
+    :math:`R_{\text{in}} = R_{\text{out}}` and :math:`s = 1` it is
+    :class:`MatchingNodalTransfer`.
+
+    Parameters
+    ----------
+    inputs
+        The rows the port data are read from, in the port order.
+    outputs
+        The rows the output is added into, in the port order.
+    sign
+        :math:`s`, ``1.0`` or ``-1.0``.
+
+    Raises
+    ------
+    TypeError
+        If ``inputs`` or ``outputs`` does not satisfy
+        :class:`PortRowsProtocol`.
+    ValueError
+        If their row counts differ or ``sign`` is not ``1.0`` or ``-1.0``.
+    """
+
+    def __init__(
+        self,
+        inputs: PortRowsProtocol[V, Array],
+        outputs: PortRowsProtocol[V, Array],
+        sign: float = 1.0,
+    ) -> None:
+        for name, rows in (("inputs", inputs), ("outputs", outputs)):
+            if not isinstance(rows, PortRowsProtocol):
+                raise TypeError(
+                    f"{name} must satisfy PortRowsProtocol, got {type(rows).__name__}"
+                )
+        if inputs.nrows() != outputs.nrows():
+            raise ValueError(
+                f"inputs have {inputs.nrows()} rows, outputs {outputs.nrows()}"
+            )
+        if sign not in (1.0, -1.0):
+            raise ValueError(f"sign must be 1.0 or -1.0, got {sign}")
+        self._inputs, self._outputs, self._sign = inputs, outputs, sign
+
+    def nport(self) -> int:
+        return self._inputs.nrows()
+
+    def scatter(self, lam: V) -> Array:
+        return self._sign * self._inputs.take(lam)
+
+    def gather_add(self, block: Array, y: V) -> V:
+        return self._outputs.add_to(y, self._sign * block)
+
+
 class BackendPortRows(Generic[Array]):
     """Port rows of a skeleton stored as backend arrays.
 

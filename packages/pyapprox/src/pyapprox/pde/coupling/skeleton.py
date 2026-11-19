@@ -5,12 +5,18 @@ subdomain's ports read from:
 
 .. math::
 
-    S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda) = 0,
+    S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda) + C \lambda = 0,
 
-with :math:`r_i` subdomain :math:`i`'s local response and :math:`E_i` its
-port transfer. Its Jacobian, the Schur complement (Steklov–Poincaré
-operator) :math:`J = \sum_i E_i^\top (\partial r_i/\partial \lambda_i)
-E_i`, is formed by an injected :class:`SchurBuilderProtocol` from the
+with :math:`r_i` subdomain :math:`i`'s local response, :math:`E_i` its
+port transfer, and :math:`C` an optional fixed coupling
+(:class:`CouplingProtocol`). :math:`C` is nonzero only where pieces
+receive different kinds of data, so one piece's input is the value
+another returns (:mod:`~pyapprox.pde.coupling.kind_layout` numbers such
+a system and its entries); the residual never asks what a response
+receives or returns. Its Jacobian, the Schur complement
+(Steklov–Poincaré operator) :math:`J = \sum_i E_i^\top (\partial
+r_i/\partial \lambda_i) E_i + C`, is formed by an injected
+:class:`SchurBuilderProtocol` from the
 responses' trace directional derivatives, never by asking what a
 response is: :class:`MatrixFreeSchur` applies it (one derivative per
 subdomain per product, for a Krylov solver) and :class:`DenseSchur`
@@ -51,14 +57,11 @@ from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
     ResidualJacobian,
 )
-from pyapprox.pde.coupling.ports import PortTransferProtocol
+from pyapprox.pde.coupling.ports import PortRowsProtocol, PortTransferProtocol
 from pyapprox.pde.coupling.responses import (
-    Flux,
     LocalResponseProtocol,
-    PortQuantity,
     ResponsePointProtocol,
     TimeWindow,
-    Trace,
     TraceJVP,
 )
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
@@ -91,36 +94,62 @@ class CoupledSubdomain(Generic[V, Array]):
 
 
 @runtime_checkable
-class TransmissionProtocol(Protocol):
-    r"""The transmission condition: what every response receives on its
-    ports and what it must return.
+class CouplingProtocol(Protocol[V]):
+    r"""A fixed linear coupling :math:`C` added to the skeleton residual
+    and its Jacobian."""
 
-    The skeleton combines outputs as :math:`\sum_i E_i^\top o_i` under
-    every condition; a dual condition, whose skeleton residual is a
-    signed jump, puts its signs in its port transfers.
+    def apply_add(self, x: V, y: V) -> V:
+        r""":math:`y + C x` for a block ``x``; ``y`` is not modified."""
+        ...
+
+
+class RowCoupling(Generic[V, Array]):
+    r""":math:`C x = R^\top (s \odot U x)`: entry :math:`j` adds
+    :math:`s_j` times unknown :math:`U_j` to row :math:`R_j`.
+
+    Stack-neutral: the unknowns and rows are port rows of the skeleton's
+    stack, the signs a column on the port blocks' backend. Costs
+    O(nentries) per column.
+
+    Parameters
+    ----------
+    unknowns
+        The unknown of each entry.
+    rows
+        The residual row of each entry.
+    signs
+        The sign of each entry, shape (nentries, 1).
+
+    Raises
+    ------
+    TypeError
+        If ``unknowns`` or ``rows`` does not satisfy
+        :class:`~pyapprox.pde.coupling.ports.PortRowsProtocol`.
+    ValueError
+        If the entry counts disagree.
     """
 
-    def sends(self) -> PortQuantity:
-        """What the port data given to each response are."""
-        ...
+    def __init__(
+        self,
+        unknowns: PortRowsProtocol[V, Array],
+        rows: PortRowsProtocol[V, Array],
+        signs: Array,
+    ) -> None:
+        for name, value in (("unknowns", unknowns), ("rows", rows)):
+            if not isinstance(value, PortRowsProtocol):
+                raise TypeError(
+                    f"{name} must satisfy PortRowsProtocol, got {type(value).__name__}"
+                )
+        n = unknowns.nrows()
+        if rows.nrows() != n or tuple(signs.shape) != (n, 1):
+            raise ValueError(
+                f"{n} unknowns need {n} rows and signs of shape ({n}, 1), got "
+                f"{rows.nrows()} rows and signs of shape {tuple(signs.shape)}"
+            )
+        self._unknowns, self._rows, self._signs = unknowns, rows, signs
 
-    def expects(self) -> PortQuantity:
-        """What each response must return."""
-        ...
-
-
-class DirichletNeumann:
-    """Responses receive the trace and return the flux; the skeleton
-    residual is the flux balance and its unknown the trace."""
-
-    def sends(self) -> Trace:
-        return Trace()
-
-    def expects(self) -> Flux:
-        return Flux()
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}()"
+    def apply_add(self, x: V, y: V) -> V:
+        return self._rows.add_to(y, self._signs * self._unknowns.take(x))
 
 
 @runtime_checkable
@@ -221,7 +250,10 @@ class SchurBuilderProtocol(Protocol[V, Array, F_co]):
         subdomains: Sequence[CoupledSubdomain[V, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
         executor: SubdomainExecutorProtocol,
-    ) -> ActionOperatorProtocol[V, F_co]: ...
+        coupling: Optional[CouplingProtocol[V]],
+    ) -> ActionOperatorProtocol[V, F_co]:
+        """The Jacobian, with ``coupling`` added when it is not ``None``."""
+        ...
 
 
 def _tangents(points: Sequence[ResponsePointProtocol[Array]]) -> list[TraceJVP[Array]]:
@@ -247,17 +279,19 @@ class MatrixFreeSchur(Generic[V, Array]):
         subdomains: Sequence[CoupledSubdomain[V, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
         executor: SubdomainExecutorProtocol,
+        coupling: Optional[CouplingProtocol[V]],
     ) -> "SchurOperator[V, Array]":
-        return SchurOperator(space, subdomains, points, executor)
+        return SchurOperator(space, subdomains, points, executor, coupling)
 
 
 class DenseSchur(Generic[Array]):
     r"""Assembles the skeleton Jacobian densely on a skeleton of backend
-    arrays: :math:`J = \sum_i \tilde E_i^\top S_i \tilde E_i`, with
+    arrays: :math:`J = \sum_i \tilde E_i^\top S_i \tilde E_i + C`, with
     :math:`S_i` the trace directional derivatives applied to the port's
-    unit vectors and :math:`\tilde E_i` the transfer applied to the
-    skeleton's. Pairs with a dense direct solver. Costs ``nport`` trace
-    directional derivatives per subdomain per build.
+    unit vectors, :math:`\tilde E_i` the transfer applied to the
+    skeleton's, and :math:`C` the coupling applied to them. Pairs with a
+    dense direct solver. Costs ``nport`` trace directional derivatives
+    per subdomain per build.
 
     Parameters
     ----------
@@ -274,6 +308,7 @@ class DenseSchur(Generic[Array]):
         subdomains: Sequence[CoupledSubdomain[Array, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
         executor: SubdomainExecutorProtocol,
+        coupling: Optional[CouplingProtocol[Array]],
     ) -> BackendDenseOperator[Array]:
         bkd, descriptor = self._bkd, space.descriptor()
         identity = bkd.eye(descriptor.size)
@@ -287,12 +322,15 @@ class DenseSchur(Generic[Array]):
         matrix = bkd.zeros((descriptor.size, descriptor.size))
         for sd, local in zip(subdomains, blocks):
             matrix = sd.transfer.gather_add(local, matrix)
+        if coupling is not None:
+            matrix = coupling.apply_add(identity, matrix)
         return BackendDenseOperator(matrix, descriptor, bkd)
 
 
 class SchurOperator(Generic[V, Array]):
-    r""":math:`J = \sum_i E_i^\top (\partial r_i/\partial \lambda_i) E_i` at
-    one set of response points, applied matrix-free.
+    r""":math:`J = \sum_i E_i^\top (\partial r_i/\partial \lambda_i) E_i + C`
+    at one set of response points, applied matrix-free; :math:`C` is
+    absent when ``coupling`` is ``None``.
 
     Raises
     ------
@@ -306,11 +344,13 @@ class SchurOperator(Generic[V, Array]):
         subdomains: Sequence[CoupledSubdomain[V, Array]],
         points: Sequence[ResponsePointProtocol[Array]],
         executor: SubdomainExecutorProtocol,
+        coupling: Optional[CouplingProtocol[V]] = None,
     ) -> None:
         self._space = space
         self._transfers = [sd.transfer for sd in subdomains]
         self._tangents = _tangents(points)
         self._executor = executor
+        self._coupling = coupling
 
     def domain(self) -> SpaceDescriptor:
         return self._space.descriptor()
@@ -333,6 +373,8 @@ class SchurOperator(Generic[V, Array]):
         total = self._space.zeros(self._space.ncols(x))
         for transfer, block in zip(self._transfers, blocks):
             total = transfer.gather_add(block, total)
+        if self._coupling is not None:
+            total = self._coupling.apply_add(x, total)
         return total
 
     def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
@@ -343,7 +385,7 @@ class SchurOperator(Generic[V, Array]):
 
 
 class SkeletonResidual(Generic[V, A, Array, F]):
-    r""":math:`S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda)`.
+    r""":math:`S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda) + C \lambda`.
 
     Satisfies :class:`~pyapprox.implicitfunction.residual.ResidualProtocol`
     with a Jacobian in the format its Schur builder forms. Without
@@ -371,9 +413,13 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     executor
         Runs the per-subdomain work (linearizations, trace products).
         Default: :class:`SerialExecutor`.
-    transmission
-        What responses receive and return; each response must declare
-        the same. Default: :class:`DirichletNeumann`.
+    coupling
+        The fixed coupling :math:`C` of a system whose pieces receive
+        different kinds of data (:class:`RowCoupling` from a
+        :class:`~pyapprox.pde.coupling.kind_layout.KindLayout`'s entries),
+        or ``None`` when every piece receives the same kind. In a
+        distributed run exactly one rank holds it. The layout, not the
+        residual, checks the responses' declared kinds. Default: ``None``.
     """
 
     def __init__(
@@ -384,15 +430,11 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         points: Optional[PointStoreProtocol[V, Array]] = None,
         window: Optional[TimeWindow] = None,
         executor: Optional[SubdomainExecutorProtocol] = None,
-        transmission: Optional[TransmissionProtocol] = None,
+        coupling: Optional[CouplingProtocol[V]] = None,
     ) -> None:
-        condition: TransmissionProtocol = (
-            DirichletNeumann() if transmission is None else transmission
-        )
-        if not isinstance(condition, TransmissionProtocol):
+        if coupling is not None and not isinstance(coupling, CouplingProtocol):
             raise TypeError(
-                "transmission must satisfy TransmissionProtocol, got "
-                f"{type(condition).__name__}"
+                f"coupling must satisfy CouplingProtocol, got {type(coupling).__name__}"
             )
         if not isinstance(space, InnerProductSpaceProtocol):
             raise TypeError(
@@ -403,9 +445,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
             raise TypeError(
                 f"schur must satisfy SchurBuilderProtocol, got {type(schur).__name__}"
             )
-        if executor is not None and not isinstance(
-            executor, SubdomainExecutorProtocol
-        ):
+        if executor is not None and not isinstance(executor, SubdomainExecutorProtocol):
             raise TypeError(
                 "executor must satisfy SubdomainExecutorProtocol, got "
                 f"{type(executor).__name__}"
@@ -426,13 +466,6 @@ class SkeletonResidual(Generic[V, A, Array, F]):
                 )
             if sd.response.nparams() != 0:
                 raise ValueError(f"subdomain {i}'s response has parameters")
-            pairing = (sd.response.receives(), sd.response.returns())
-            if pairing != (condition.sends(), condition.expects()):
-                raise TypeError(
-                    f"subdomain {i}'s response receives {pairing[0]} and returns "
-                    f"{pairing[1]}; {condition!r} sends {condition.sends()} and "
-                    f"expects {condition.expects()}"
-                )
         self._space = space
         self._subdomains = tuple(subdomains)
         self._schur = schur
@@ -440,7 +473,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
             KeepCurrentPoints() if points is None else points
         )
         self._window = TimeWindow.steady() if window is None else window
-        self._transmission = condition
+        self._coupling = coupling
         self._executor: SubdomainExecutorProtocol = (
             SerialExecutor() if executor is None else executor
         )
@@ -452,9 +485,9 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         """Each subdomain's response and port transfer."""
         return self._subdomains
 
-    def transmission(self) -> TransmissionProtocol:
-        """The transmission condition every response was checked against."""
-        return self._transmission
+    def coupling(self) -> Optional[CouplingProtocol[V]]:
+        """The fixed coupling, or ``None``."""
+        return self._coupling
 
     def linearize_all(self, state: V) -> Sequence[ResponsePointProtocol[Array]]:
         def linearize(i: int) -> ResponsePointProtocol[Array]:
@@ -478,6 +511,8 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         points = self._store.points(state, self)
         for sd, point in zip(self._subdomains, points):
             total = sd.transfer.gather_add(point.output(), total)
+        if self._coupling is not None:
+            total = self._coupling.apply_add(state, total)
         return total
 
     def _jacobian(
@@ -485,7 +520,9 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     ) -> LinearizedOperator[V, F]:
         points = self._store.points(state, self)
         return LinearizedOperator(
-            self._schur.build(self._space, self._subdomains, points, self._executor),
+            self._schur.build(
+                self._space, self._subdomains, points, self._executor, self._coupling
+            ),
             label,
         )
 
