@@ -139,8 +139,6 @@ ignore_imports =
     pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kernels.protocols
     pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kle.galerkin_kle
     pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kle.mesh_kle
-    pyapprox.pde.galerkin.kle_factory -> pyapprox.surrogates.kle.spde_kle
-    pyapprox.pde.galerkin.kle_factory -> pyapprox.surrogates.kle.utils
     pyapprox.pde.rom.trial_space -> pyapprox.surrogates.kle
     pyapprox.pde.galerkin.noise_mass -> pyapprox.probability.protocols.covariance
 
