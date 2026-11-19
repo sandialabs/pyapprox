@@ -74,7 +74,8 @@ parses it. CLAUDE.md's Extensibility Requirements carry the full rule.
 
 A move is a pure rename: one commit holding `git mv` of the whole
 directory (and its test directories, so `ck tests` keeps mapping) plus one
-entry in `MOVED` in `pyapprox/_moved.py`. No file's imports change.
+entry in `MOVED` in `pyapprox/_moved.py`. No file's imports change, except
+the moved package's imports of itself.
 
 **When.** Nothing moves up front, and a directory may stay where it is
 indefinitely. A directory in the target map moves when work is about to:
@@ -91,7 +92,13 @@ work lands.
 **Recipe**, all in the one commit:
 
 1. `git mv` the directory and its tests.
-2. Add `"old.prefix": "new.prefix"` to `MOVED`.
+2. Add `"old.prefix": "new.prefix"` to `MOVED`, and rewrite the moved
+   source's absolute imports of itself to the new prefix. Left on the old
+   path, such an import loads the old parent package first; if that
+   parent imports the moved code back through the alias, the new path
+   hits a circular import when imported first. Import-linter also does
+   not see old-path imports, so the new package's contracts would miss
+   its own edges.
 3. `python -m pyapprox._moved_stubs` to write the type stubs at the old
    path.
 4. Add a `moved:<old prefix>=<count>` line to `ratchet_baselines.txt`, with
@@ -101,7 +108,10 @@ work lands.
    functions, since stale ones fail with "underlying object has vanished",
    and any tracked autosaves in the directory.
 7. Add the new package's contracts, with its remaining upward edges as
-   ignores.
+   ignores, and delete ignores that named the old paths: import-linter
+   drops an import of an old path, so those ignores no longer match.
+   Check with `lint-imports --no-cache`; its cache keeps the old edges
+   for files that did not change.
 
 Then run the full suite: old imports elsewhere now go through the alias.
 Every worktree rebases onto the move on a scratch branch and runs its

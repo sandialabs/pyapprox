@@ -128,13 +128,6 @@ forbidden_modules =
     pyapprox.surrogates
     pyapprox.probability
 ignore_imports =
-    pyapprox.pde.collocation.functionals.point_evaluation -> pyapprox.surrogates.affine.univariate.lagrange
-    pyapprox.pde.collocation.quadrature.collocation_quadrature -> pyapprox.surrogates.affine.univariate.globalpoly.jacobi
-    pyapprox.pde.collocation.quadrature.collocation_quadrature -> pyapprox.surrogates.affine.univariate.globalpoly.quadrature
-    pyapprox.pde.collocation.quadrature.collocation_quadrature -> pyapprox.surrogates.affine.univariate.lagrange
-    pyapprox.pde.coupling.basis -> pyapprox.surrogates.affine.univariate.globalpoly.jacobi
-    pyapprox.pde.coupling.basis -> pyapprox.surrogates.affine.univariate.lagrange
-    pyapprox.pde.decomposition.interface.basis -> pyapprox.surrogates.affine.univariate.globalpoly
     pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kernels.matern
     pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kernels.protocols
     pyapprox.pde.field_maps.kle_factory -> pyapprox.surrogates.kle.galerkin_kle
@@ -150,3 +143,38 @@ source_modules =
     pyapprox.probability
 forbidden_modules =
     pyapprox.pde
+
+# ── polynomials imports nothing above its level, and not probability ────
+# Univariate bases, Leja sequences and induced sampling are building
+# blocks for surrogates, quadrature and PDE discretizations alike, so
+# polynomials imports only packages at or below its own level.
+# probability shares that level but is forbidden too: a marginal supplies
+# its recurrence coefficients through a protocol polynomials owns. Each
+# ignore below is an edge that exists today; the list only shrinks, and an
+# entry goes when the code it reaches moves down or the protocol becomes
+# owned by polynomials.
+[importlinter:contract:polynomials-level]
+name = polynomials must not import probability or packages above it
+type = forbidden
+source_modules =
+    pyapprox.polynomials
+forbidden_modules =
+    pyapprox.probability
+    pyapprox.ode
+    pyapprox.statest
+    pyapprox.pde
+    pyapprox.surrogates
+    pyapprox.inverse
+    pyapprox.generative
+    pyapprox.expdesign
+    pyapprox.sensitivity
+ignore_imports =
+    pyapprox.polynomials.induced -> pyapprox.probability.joint.independent
+    pyapprox.polynomials.univariate.globalpoly.continuous_numeric -> pyapprox.probability.protocols.distribution
+    pyapprox.polynomials.univariate.piecewisepoly.measure_rule -> pyapprox.probability.protocols.distribution
+    pyapprox.polynomials.univariate.registry -> pyapprox.probability
+    pyapprox.polynomials.univariate.registry -> pyapprox.probability.protocols.distribution
+    pyapprox.polynomials.induced -> pyapprox.surrogates.affine.protocols.multivariate_basis
+    pyapprox.polynomials.leja.multivariate -> pyapprox.surrogates.affine.protocols
+    pyapprox.polynomials.leja.univariate -> pyapprox.surrogates.affine.protocols
+    pyapprox.polynomials.univariate.transformed -> pyapprox.surrogates.affine.protocols.basis1d

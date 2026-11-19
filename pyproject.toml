@@ -26,6 +26,11 @@ filterwarnings = [
     "ignore::UserWarning:scipy.optimize.*:",
     "ignore::scipy.sparse.SparseEfficiencyWarning:",
     "ignore:The balance properties of Sobol:UserWarning",
+    # Old import paths of moved modules, one per prefix in pyapprox._moved,
+    # until that prefix's old-path count is low.
+    "ignore:pyapprox.surrogates.affine.univariate moved to:DeprecationWarning",  # moved: allow
+    "ignore:pyapprox.surrogates.affine.leja moved to:DeprecationWarning",  # moved: allow
+    "ignore:pyapprox.surrogates.affine.induced moved to:DeprecationWarning",  # moved: allow
 ]
 markers = [
     "slow_on: marks tests as slow (>5s). Args: backend or stack-case ids, or '*' for all.",

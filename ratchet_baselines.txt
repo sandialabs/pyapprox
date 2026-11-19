@@ -6,3 +6,6 @@ mypy_src=328
 # signatures. Measured alone it reports a fraction of this, because the
 # unresolved pyapprox imports become Any and the errors never surface.
 mypy_benchmarks=271
+moved:pyapprox.surrogates.affine.univariate=214
+moved:pyapprox.surrogates.affine.leja=26
+moved:pyapprox.surrogates.affine.induced=2

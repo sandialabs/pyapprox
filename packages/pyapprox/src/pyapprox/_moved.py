@@ -24,7 +24,11 @@ from importlib.machinery import ModuleSpec
 from types import ModuleType
 from typing import Mapping, Optional, Sequence
 
-MOVED: dict[str, str] = {}
+MOVED: dict[str, str] = {
+    "pyapprox.surrogates.affine.univariate": "pyapprox.polynomials.univariate",
+    "pyapprox.surrogates.affine.leja": "pyapprox.polynomials.leja",
+    "pyapprox.surrogates.affine.induced": "pyapprox.polynomials.induced",
+}
 """Old prefix -> new prefix, one entry per moved directory."""
 
 
