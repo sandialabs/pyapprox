@@ -10,7 +10,7 @@ import pytest
 
 import pyapprox
 from pyapprox._moved import MOVED
-from pyapprox._moved_stubs import HEADER, check, expected_stubs, write
+from pyapprox._moved_stubs import HEADER, LINT_EXEMPT, check, expected_stubs, write
 
 _MOD = """
 from typing import Optional
@@ -73,7 +73,7 @@ def tree(tmp_path: Path) -> _Tree:
 def test_stubs_reexport_every_module_level_name(tree: _Tree) -> None:
     stubs = expected_stubs(tree.table(), tree.root)
     mod = stubs[tree.root / tree.old / "mod.pyi"]
-    assert mod.startswith(HEADER)
+    assert mod.startswith(HEADER + LINT_EXEMPT)
     for name in ("CONST", "Widget", "_helper", "LOADED", "maybe", "first", "second"):
         assert f"from {tree.new}.mod import {name} as {name}\n" in mod
     # Imported names are bound from where they come from, since a module
