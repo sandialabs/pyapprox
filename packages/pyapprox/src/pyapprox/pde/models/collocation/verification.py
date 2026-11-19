@@ -579,9 +579,7 @@ class TractionTerm(Generic[Array]):
 FieldFlux = Union[FluxProviderProtocol[Array], NormalTermProtocol[Array]]
 
 
-_BuiltPart = Union[
-    DirichletPart[Array], RobinPart[Array], PeriodicPart[Array], None
-]
+_BuiltPart = Union[DirichletPart[Array], RobinPart[Array], PeriodicPart[Array], None]
 
 
 class _CollocationCondition(Generic[Array]):
@@ -771,9 +769,7 @@ def boundary_conditions(
         # After the periodic rows, so a side's own condition wins the
         # nodes it shares with a periodic side.
         closures.append(RobinRows(bkd, npts, ncomponents, robin))
-    essential = (
-        DirichletRows(bkd, npts, ncomponents, dirichlet) if dirichlet else None
-    )
+    essential = DirichletRows(bkd, npts, ncomponents, dirichlet) if dirichlet else None
     return BoundaryDeclarations(essential, tuple(closures))
 
 
@@ -897,7 +893,7 @@ class CollocationDiscretizer(Generic[Array]):
 
     Each level: the factory's system, the steady residual
     (``collocation_steady_residual``), and ``SteadySystem`` with a dense
-    LU recomputed every step, from a zero initial guess.
+    LU recomputed every step, from a constant initial guess.
 
     Parameters
     ----------
@@ -908,6 +904,10 @@ class CollocationDiscretizer(Generic[Array]):
     nonlinear : NonlinearSolverProtocol, optional
         Default: Newton, ``atol = rtol = 1e-12``, 30 steps (a linear
         system is solved in one step).
+    initial : float, optional
+        The value every state entry starts from; default 0. A physics
+        whose Jacobian degenerates at zero (shallow ice, at zero
+        thickness) starts elsewhere.
     """
 
     def __init__(
@@ -915,8 +915,10 @@ class CollocationDiscretizer(Generic[Array]):
         levels: LevelFamilyProtocol[Array],
         factory: SystemFactoryProtocol,
         nonlinear: Optional[NonlinearSolverProtocol[Array, Array]] = None,
+        initial: float = 0.0,
     ) -> None:
         self._levels, self._factory = levels, factory
+        self._initial = initial
         default: Newton[Array, Array] = Newton(atol=1e-12, rtol=1e-12, maxiters=30)
         self._nonlinear: NonlinearSolverProtocol[Array, Array] = (
             default if nonlinear is None else nonlinear
@@ -957,7 +959,7 @@ class CollocationDiscretizer(Generic[Array]):
                 backend_state_space(bkd, nstates),
                 RecomputeAlways(BackendDenseLU(bkd)),
             )
-            point = steady.solve(self._nonlinear, bkd.zeros((nstates, 1)))
+            point = steady.solve(self._nonlinear, bkd.full((nstates, 1), self._initial))
             if not point.converged():
                 raise RuntimeError(
                     f"the solve on {level!r} did not converge: {point.info().message}"

@@ -54,10 +54,13 @@ def recovers(
     factory: SystemFactoryProtocol,
     n: int,
     bkd: Backend[Array],
+    initial: float = 0.0,
 ) -> None:
     """``n`` nodes per direction reproduce the solution: L2 error below
-    1e-10."""
-    discretizer = CollocationDiscretizer(ChebyshevBox([n], bkd), factory)
+    1e-10. Solves start from the constant ``initial``."""
+    discretizer = CollocationDiscretizer(
+        ChebyshevBox([n], bkd), factory, initial=initial
+    )
     result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
     assert result.passed, result.message
 
@@ -69,10 +72,14 @@ def decays(
     rate: float,
     bkd: Backend[Array],
     last: Optional[int] = None,
+    initial: float = 0.0,
 ) -> None:
     """The L2 error falls exponentially over ``sizes`` nodes per
-    direction, at least ``rate`` per node."""
-    discretizer = CollocationDiscretizer(ChebyshevBox(sizes, bkd), factory)
+    direction, at least ``rate`` per node. Solves start from the
+    constant ``initial``."""
+    discretizer = CollocationDiscretizer(
+        ChebyshevBox(sizes, bkd), factory, initial=initial
+    )
     study = run_node_study(problem, discretizer, L2Error())
     result = DecaysExponentially(rate, last).verify(study)
     assert result.passed, result.message
@@ -83,9 +90,13 @@ def stalls(
     factory: SystemFactoryProtocol,
     sizes: Sequence[int],
     bkd: Backend[Array],
+    initial: float = 0.0,
 ) -> None:
     """Wrong-model control: the fitted algebraic L2 rate stays below 0.5,
-    so the error does not fall as a correct model's would."""
-    discretizer = CollocationDiscretizer(ChebyshevBox(sizes, bkd), factory)
+    so the error does not fall as a correct model's would. Solves start
+    from the constant ``initial``."""
+    discretizer = CollocationDiscretizer(
+        ChebyshevBox(sizes, bkd), factory, initial=initial
+    )
     result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
     assert result.passed, result.message
