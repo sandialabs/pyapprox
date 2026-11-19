@@ -110,13 +110,70 @@ class _ShelfMomentum(Generic[Array]):
 
         Returns (mu, mu_q), each shape (npts,).
         """
-        strain_sq = (
-            ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + self._eps
-        )
+        strain_sq = ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + self._eps
         power = (1.0 - self._n) / (2.0 * self._n)
         mu = self._visc_const * strain_sq**power
         mu_q = power * mu / strain_sq
         return mu, mu_q
+
+    def stress(self, velocity: Array, depth: Array) -> Tuple[Array, Array, Array]:
+        """The membrane stresses (tau_xx, tau_yy, tau_xy), tau = 2 mu H a
+        with a_xx = 2 u_x + v_y, a_yy = u_x + 2 v_y, a_xy = (u_y + v_x)/2.
+        Each shape: (npts,)"""
+        ux, uy, vx, vy = self._gradients(velocity)
+        mu, _ = self._viscosity_derivatives(ux, uy, vx, vy)
+        coef = 2.0 * mu * depth
+        tau_xx = coef * (2.0 * ux + vy)
+        tau_yy = coef * (ux + 2.0 * vy)
+        tau_xy = coef * 0.5 * (uy + vx)
+        return tau_xx, tau_yy, tau_xy
+
+    def stress_jacobian(
+        self, velocity: Array, depth: Array
+    ) -> Tuple[Array, Array, Array]:
+        """The velocity Jacobians of (tau_xx, tau_yy, tau_xy).
+
+        With :math:`c = 2\\mu H` and :math:`h = 2 H \\mu_Q`, each stress
+        :math:`\\tau_{ab} = c\\,a_{ab}` varies as
+        :math:`d\\tau_{ab} = \\mathrm{diag}(c)\\,da_{ab}
+        + \\mathrm{diag}(h\\,a_{ab}) [G_u, G_v]`, where
+        :math:`G_u = \\mathrm{diag}(a_{xx}) D_x + \\mathrm{diag}(a_{xy}) D_y`
+        and :math:`G_v = \\mathrm{diag}(a_{xy}) D_x + \\mathrm{diag}(a_{yy})
+        D_y` map a velocity change to :math:`dQ` (since
+        :math:`\\partial Q/\\partial u_x = a_{xx}` etc.).
+
+        Returns
+        -------
+        Tuple[Array, Array, Array]
+            Each shape: (npts, 2*npts), columns [u, v].
+        """
+        bkd = self._bkd
+        Dx, Dy = self._Dx, self._Dy
+        ux, uy, vx, vy = self._gradients(velocity)
+        a_xx = 2.0 * ux + vy
+        a_yy = ux + 2.0 * vy
+        a_xy = 0.5 * (uy + vx)
+        mu, mu_q = self._viscosity_derivatives(ux, uy, vx, vy)
+        coef = (2.0 * mu * depth)[:, None]
+        h2 = 2.0 * depth * mu_q
+        # dQ = G_u du + G_v dv; products with diagonals by row scaling
+        g = bkd.concatenate(
+            [
+                a_xx[:, None] * Dx + a_xy[:, None] * Dy,
+                a_xy[:, None] * Dx + a_yy[:, None] * Dy,
+            ],
+            axis=1,
+        )
+
+        def variation(a: Array, da_u: Array, da_v: Array) -> Array:
+            frozen = bkd.concatenate([coef * da_u, coef * da_v], axis=1)
+            return frozen + (h2 * a)[:, None] * g
+
+        return (
+            variation(a_xx, 2.0 * Dx, Dy),
+            variation(a_yy, Dx, 2.0 * Dy),
+            variation(a_xy, 0.5 * Dy, 0.5 * Dx),
+        )
 
     def residual(
         self,
@@ -132,15 +189,7 @@ class _ShelfMomentum(Generic[Array]):
         """
         npts = depth.shape[0]
         u, v = velocity[:npts], velocity[npts:]
-        ux, uy, vx, vy = self._gradients(velocity)
-        mu, _ = self._viscosity_derivatives(ux, uy, vx, vy)
-
-        # Membrane stresses: tau = 2*mu*H*a with
-        # a_xx = 2*ux + vy, a_yy = ux + 2*vy, a_xy = 0.5*(uy + vx)
-        coef = 2.0 * mu * depth
-        tau_xx = coef * (2.0 * ux + vy)
-        tau_yy = coef * (ux + 2.0 * vy)
-        tau_xy = coef * 0.5 * (uy + vx)
+        tau_xx, tau_yy, tau_xy = self.stress(velocity, depth)
         div_tau_x = self._Dx @ tau_xx + self._Dy @ tau_xy
         div_tau_y = self._Dx @ tau_xy + self._Dy @ tau_yy
 
@@ -157,24 +206,11 @@ class _ShelfMomentum(Generic[Array]):
     def jacobian(self, velocity: Array, depth: Array, friction: Array) -> Array:
         """Compute the exact velocity Jacobian of the momentum residual.
 
-        With membrane coefficients :math:`a_{xx} = 2u_x + v_y`,
-        :math:`a_{yy} = u_x + 2v_y`, :math:`a_{xy} = (u_y + v_x)/2`
-        the stresses are :math:`\\tau_{ab} = 2\\mu H a_{ab}` and the
-        Jacobian splits into frozen-viscosity blocks (built from
-        :math:`c = 2\\mu H`) plus the viscosity-variation term
-
-        .. math:: L\\,G, \\quad
-            G_u = \\mathrm{diag}(a_{xx}) D_x
-                + \\mathrm{diag}(a_{xy}) D_y
-
-        (the row map of :math:`dQ/du`; note
-        :math:`\\partial Q/\\partial u_x = a_{xx}` etc., so the same
-        coefficient vectors appear on both sides), with
-        :math:`L_u = D_x \\mathrm{diag}(2 H \\mu_Q a_{xx})
-        + D_y \\mathrm{diag}(2 H \\mu_Q a_{xy})` and similarly for
-        :math:`v`. Driving stress and forcing are velocity
-        independent; friction contributes diagonals. The result is
-        nonsymmetric.
+        The membrane part is the divergence of the stress Jacobians of
+        :meth:`stress_jacobian`: rows u are :math:`D_x J_{xx} + D_y
+        J_{xy}`, rows v :math:`D_x J_{xy} + D_y J_{yy}`. Driving stress
+        and forcing are velocity independent; friction contributes
+        diagonals. The result is nonsymmetric.
 
         Returns
         -------
@@ -183,34 +219,20 @@ class _ShelfMomentum(Generic[Array]):
         """
         bkd = self._bkd
         Dx, Dy = self._Dx, self._Dy
-        ux, uy, vx, vy = self._gradients(velocity)
-        a_xx = 2.0 * ux + vy
-        a_yy = ux + 2.0 * vy
-        a_xy = 0.5 * (uy + vx)
-        mu, mu_q = self._viscosity_derivatives(ux, uy, vx, vy)
-        coef = 2.0 * mu * depth
-        h2 = 2.0 * depth * mu_q
-
-        diag_coef = bkd.diag(coef)
-        diag_2coef = bkd.diag(2.0 * coef)
-        diag_half_coef = bkd.diag(0.5 * coef)
+        j_xx, j_yy, j_xy = self.stress_jacobian(velocity, depth)
+        zeros = bkd.zeros((friction.shape[0], friction.shape[0]))
         diag_friction = bkd.diag(friction)
-
-        # Frozen-viscosity blocks of tau = 2*mu*H*a
-        j_uu = Dx @ diag_2coef @ Dx + Dy @ diag_half_coef @ Dy - diag_friction
-        j_uv = Dx @ diag_coef @ Dy + Dy @ diag_half_coef @ Dx
-        j_vu = Dy @ diag_coef @ Dx + Dx @ diag_half_coef @ Dy
-        j_vv = Dy @ diag_2coef @ Dy + Dx @ diag_half_coef @ Dx - diag_friction
-
-        # Viscosity variation: dmu = mu_Q * dQ
-        g_u = bkd.diag(a_xx) @ Dx + bkd.diag(a_xy) @ Dy
-        g_v = bkd.diag(a_xy) @ Dx + bkd.diag(a_yy) @ Dy
-        l_u = Dx @ bkd.diag(h2 * a_xx) + Dy @ bkd.diag(h2 * a_xy)
-        l_v = Dx @ bkd.diag(h2 * a_xy) + Dy @ bkd.diag(h2 * a_yy)
-
-        top = bkd.concatenate([j_uu + l_u @ g_u, j_uv + l_u @ g_v], axis=1)
-        bottom = bkd.concatenate([j_vu + l_v @ g_u, j_vv + l_v @ g_v], axis=1)
-        return bkd.concatenate([top, bottom], axis=0)
+        sliding = bkd.concatenate(
+            [
+                bkd.concatenate([diag_friction, zeros], axis=1),
+                bkd.concatenate([zeros, diag_friction], axis=1),
+            ],
+            axis=0,
+        )
+        membrane = bkd.concatenate(
+            [Dx @ j_xx + Dy @ j_xy, Dx @ j_xy + Dy @ j_yy], axis=0
+        )
+        return membrane - sliding
 
     def depth_jacobian(self, velocity: Array, depth: Array, bed: Array) -> Array:
         """Compute d(R_vel)/dH holding the velocities fixed.
@@ -407,6 +429,19 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
             state, self._depth.values(time), self._friction.values(time)
         )
 
+    def membrane_stress(self, state: Array, time: float) -> Tuple[Array, Array, Array]:
+        """The membrane stresses (tau_xx, tau_yy, tau_xy) of the velocity
+        ``state`` [u, v], at the depth read at ``time``. The membrane part
+        of the residual is div(tau) row by row. Each shape: (npts,)"""
+        return self._momentum.stress(state, self._depth.values(time))
+
+    def membrane_stress_jacobian(
+        self, state: Array, time: float
+    ) -> Tuple[Array, Array, Array]:
+        """The velocity Jacobians of :meth:`membrane_stress`. Each shape:
+        (npts, 2*npts)"""
+        return self._momentum.stress_jacobian(state, self._depth.values(time))
+
     def residual_depth_jacobian(self, state: Array, time: float) -> Array:
         """Compute d(R_vel)/dH holding the velocities fixed, at the depth
         and bed read at ``time``.
@@ -452,6 +487,60 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
         return declared_time_invariant(
             self._depth, self._bed, self._friction, self._forcing
         )
+
+
+class ShallowShelfStressFlux(Generic[Array]):
+    r"""The flux of one velocity component of a shallow shelf physics, as
+    a boundary condition prescribes it: minus that row of the membrane
+    stress, :math:`q_u = -(\tau_{xx}, \tau_{xy})` or :math:`q_v =
+    -(\tau_{xy}, \tau_{yy})`, so the membrane part of the residual is
+    :math:`-\nabla\cdot q` and :math:`q\cdot n` is minus the membrane
+    traction.
+
+    Reads the physics' current depth at each call. Satisfies
+    ``FluxProviderProtocol``.
+
+    Parameters
+    ----------
+    physics : ShallowShelfVelocityPhysics
+        Supplies the stress and its Jacobian.
+    component : int
+        0 for u, 1 for v.
+
+    Raises
+    ------
+    ValueError
+        If ``component`` is not 0 or 1.
+    """
+
+    def __init__(
+        self, physics: ShallowShelfVelocityPhysics[Array], component: int
+    ) -> None:
+        if component not in (0, 1):
+            raise ValueError(f"component must be 0 or 1, got {component}")
+        self._physics, self._component = physics, component
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """The flux at all mesh points, (q_x, q_y). Each shape: (npts,)"""
+        tau_xx, tau_yy, tau_xy = self._physics.membrane_stress(state, time)
+        if self._component == 0:
+            return [-tau_xx, -tau_xy]
+        return [-tau_xy, -tau_yy]
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        """The velocity Jacobian of each flux direction. Each shape:
+        (npts, 2*npts)"""
+        j_xx, j_yy, j_xy = self._physics.membrane_stress_jacobian(state, time)
+        if self._component == 0:
+            return [-j_xx, -j_xy]
+        return [-j_xy, -j_yy]
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the depth is declared time-dependent."""
+        return not declared_time_invariant(self._physics.depth_function())
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(component={self._component})"
 
 
 class ShallowShelfDepthPhysics(AbstractPhysics[Array]):
@@ -665,9 +754,7 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         """
         H, velocity = self._split_state(state)
         depth_forcing = (
-            None
-            if self._depth_forcing is None
-            else self._depth_forcing.values(time)
+            None if self._depth_forcing is None else self._depth_forcing.values(time)
         )
         velocity_forcing = (
             None
@@ -712,9 +799,7 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         bottom = bkd.concatenate(
             [
                 self._momentum.depth_jacobian(velocity, H, self._bed.values(time)),
-                self._momentum.jacobian(
-                    velocity, H, self._friction.values(time)
-                ),
+                self._momentum.jacobian(velocity, H, self._friction.values(time)),
             ],
             axis=1,
         )
