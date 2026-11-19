@@ -18,7 +18,7 @@ where:
     C = friction coefficient
 """
 
-from typing import Optional
+from typing import Generic, List, Optional
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
@@ -248,10 +248,59 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             self._gamma * (n + 2) * state ** (n + 1) * reg ** ((n - 1) / 2)
             + 2.0 * friction_frac * state
         )
-        kappa_g = (
-            self._gamma * ((n - 1) / 2) * state ** (n + 2) * reg ** ((n - 3) / 2)
-        )
+        kappa_g = self._gamma * ((n - 1) / 2) * state ** (n + 2) * reg ** ((n - 3) / 2)
         return kappa_h, kappa_g
+
+    def ice_flux(self, state: Array, time: float) -> List[Array]:
+        r"""The ice flux :math:`q = -D \nabla s`, one component per
+        dimension, each shape (npts,). The residual is
+        :math:`-\nabla\cdot q + f`."""
+        grad_s, grad_s_sq = self._compute_surface_gradient(state, time)
+        D = self._compute_diffusion(state, grad_s_sq, self._friction_fraction(time))
+        return [-D * gs for gs in grad_s]
+
+    def ice_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        r"""The state Jacobian of each component of :meth:`ice_flux`.
+
+        With :math:`g_d = D_d (H + b)` and :math:`G = |\nabla s|^2 +
+        \epsilon`, component d is
+
+        .. math::
+
+            -\left[ \mathrm{diag}(\kappa_H g_d)
+            + \mathrm{diag}(\kappa) D_d
+            + \mathrm{diag}(2 \kappa_G g_d)
+              \sum_e \mathrm{diag}(g_e) D_e \right]
+
+        where :math:`\kappa_H, \kappa_G` come from
+        ``_compute_diffusion_derivatives``. Each shape (npts, npts).
+        """
+        bkd = self._bkd
+        npts = self.npts()
+        ndim = self._basis.ndim()
+
+        grad_s, grad_s_sq = self._compute_surface_gradient(state, time)
+        friction_frac = self._friction_fraction(time)
+        kappa = self._compute_diffusion(state, grad_s_sq, friction_frac)
+        kappa_h, kappa_g = self._compute_diffusion_derivatives(
+            state, grad_s_sq, friction_frac
+        )
+
+        # grad_dot_mat @ delta = grad(s) . grad(delta); shared across d.
+        # Products with diagonal matrices are formed by row scaling.
+        grad_dot_mat = bkd.zeros((npts, npts))
+        for dim in range(ndim):
+            grad_dot_mat = grad_dot_mat + grad_s[dim][:, None] * self._D_matrices[dim]
+
+        jacobians = []
+        for dim in range(ndim):
+            inner = (
+                bkd.diag(kappa_h * grad_s[dim])
+                + kappa[:, None] * self._D_matrices[dim]
+                + (2.0 * kappa_g * grad_s[dim])[:, None] * grad_dot_mat
+            )
+            jacobians.append(-inner)
+        return jacobians
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
@@ -272,20 +321,14 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         """
         ndim = self._basis.ndim()
 
-        # Compute surface gradient and its squared magnitude
-        grad_s, grad_s_sq = self._compute_surface_gradient(state, time)
+        # Flux q = -D * grad(s)
+        flux = self.ice_flux(state, time)
 
-        # Compute nonlinear diffusion
-        D = self._compute_diffusion(state, grad_s_sq, self._friction_fraction(time))
-
-        # Flux = D * grad(s)
-        flux = [D * gs for gs in grad_s]
-
-        # Divergence of flux: div(D*grad(s)) = sum_i d/dx_i(D * ds/dx_i)
+        # Divergence of flux: div(q) = sum_i d/dx_i(q_i)
         div_flux = sum(self._D_matrices[dim] @ flux[dim] for dim in range(ndim))
 
-        # Residual = div(D*grad(s)) + f
-        residual = div_flux + self._get_forcing(time)
+        # Residual = div(D*grad(s)) + f = -div(q) + f
+        residual = -div_flux + self._get_forcing(time)
 
         return residual
 
@@ -304,7 +347,8 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
               \\sum_e \\mathrm{diag}(g_e) D_e \\right]
 
         where :math:`\\kappa_H, \\kappa_G` come from
-        ``_compute_diffusion_derivatives``. The forcing is
+        ``_compute_diffusion_derivatives``: the bracket is minus the
+        Jacobian of :meth:`ice_flux`'s component d. The forcing is
         state-independent. The result is nonsymmetric.
 
         Parameters
@@ -319,32 +363,11 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         Array
             Jacobian matrix. Shape: (npts, npts)
         """
-        bkd = self._bkd
         npts = self.npts()
-        ndim = self._basis.ndim()
-
-        grad_s, grad_s_sq = self._compute_surface_gradient(state, time)
-        friction_frac = self._friction_fraction(time)
-        kappa = self._compute_diffusion(state, grad_s_sq, friction_frac)
-        kappa_h, kappa_g = self._compute_diffusion_derivatives(
-            state, grad_s_sq, friction_frac
-        )
-
-        # grad_dot_mat @ delta = grad(s) . grad(delta); shared across d.
-        # Products with diagonal matrices are formed by row scaling.
-        grad_dot_mat = bkd.zeros((npts, npts))
-        for dim in range(ndim):
-            grad_dot_mat = grad_dot_mat + grad_s[dim][:, None] * self._D_matrices[dim]
-
-        jacobian = bkd.zeros((npts, npts))
-        for dim in range(ndim):
-            inner = (
-                bkd.diag(kappa_h * grad_s[dim])
-                + kappa[:, None] * self._D_matrices[dim]
-                + (2.0 * kappa_g * grad_s[dim])[:, None] * grad_dot_mat
-            )
-            jacobian = jacobian + self._D_matrices[dim] @ inner
-
+        flux_jacobians = self.ice_flux_jacobian(state, time)
+        jacobian = self._bkd.zeros((npts, npts))
+        for dim, flux_jacobian in enumerate(flux_jacobians):
+            jacobian = jacobian - self._D_matrices[dim] @ flux_jacobian
         return jacobian
 
     # -- the interior operator (CollocationInteriorOperatorProtocol)
@@ -369,6 +392,44 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         """Whether, besides the bed and friction, the forcing is declared
         time-invariant."""
         return declared_time_invariant(self._bed, self._friction, self._forcing)
+
+
+class ShallowIceFlux(Generic[Array]):
+    r"""The ice flux :math:`q = -D \nabla s` of a shallow ice physics, as a
+    boundary condition prescribes it.
+
+    A Neumann or Robin side built on it prescribes :math:`q\cdot n`. Reads
+    the physics' current bed and friction at each call.
+
+    Satisfies ``FluxProviderProtocol``.
+
+    Parameters
+    ----------
+    physics : ShallowIcePhysics
+        Supplies the flux and its Jacobian.
+    """
+
+    def __init__(self, physics: ShallowIcePhysics[Array]) -> None:
+        self._physics = physics
+
+    def compute_flux(self, state: Array, time: float) -> List[Array]:
+        """The flux at all mesh points, one component per dimension. Each
+        shape: (npts,)"""
+        return self._physics.ice_flux(state, time)
+
+    def compute_flux_jacobian(self, state: Array, time: float) -> List[Array]:
+        """The state Jacobian of each flux component. Each shape:
+        (npts, npts)"""
+        return self._physics.ice_flux_jacobian(state, time)
+
+    def flux_is_time_dependent(self) -> bool:
+        """Whether the bed or the friction is declared time-dependent."""
+        return not declared_time_invariant(
+            self._physics.bed_function(), self._physics.friction_function()
+        )
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
 
 def create_shallow_ice(
