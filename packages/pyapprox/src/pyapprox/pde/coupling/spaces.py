@@ -378,3 +378,99 @@ class ContinuousSkeletonSpace(Generic[Array]):
         faces sharing a closure entity overlap on its DOFs, where their
         blocks add."""
         return _face_blocks(self._face_dofs, self._bases, self._measures)
+
+
+@runtime_checkable
+class ScalarSpaceProtocol(Protocol, Generic[Array]):
+    """What :class:`ComponentSkeletonSpace` reads of a scalar skeleton
+    space: its size, its DOFs by entity and its mass blocks."""
+
+    def descriptor(self) -> SpaceDescriptor: ...
+
+    def entity_dofs(self, entity: int) -> tuple[int, ...]: ...
+
+    def mass_blocks(self) -> Sequence[MassBlock[Array]]: ...
+
+
+class ComponentSkeletonSpace(Generic[Array]):
+    r"""A vector field with ``k`` components on a scalar skeleton space:
+    the scalar space crossed with :math:`\mathbb{R}^k`.
+
+    DOFs are interleaved (node-major): component ``c`` at scalar DOF
+    ``d`` is DOF ``k * d + c``, so a node's components are contiguous and
+    increasing DOFs list the nodes in the scalar order. The mass is the
+    scalar mass :math:`\otimes I_k`; on interleaved DOFs that is each
+    scalar block placed once per component, at that component's DOFs, so
+    the blocks are reused unchanged and no array is formed.
+
+    Parameters
+    ----------
+    scalar
+        The scalar skeleton space, e.g.
+        :class:`ContinuousSkeletonSpace` or :class:`FacetSkeletonSpace`.
+    ncomponents
+        The number of components per node, at least 1.
+
+    Raises
+    ------
+    TypeError
+        If ``scalar`` does not satisfy :class:`ScalarSpaceProtocol`.
+    ValueError
+        If ``ncomponents`` is less than 1.
+    """
+
+    def __init__(self, scalar: ScalarSpaceProtocol[Array], ncomponents: int) -> None:
+        if not isinstance(scalar, ScalarSpaceProtocol):
+            raise TypeError(
+                f"scalar must satisfy ScalarSpaceProtocol, got {type(scalar).__name__}"
+            )
+        if ncomponents < 1:
+            raise ValueError(f"ncomponents must be at least 1, got {ncomponents}")
+        self._scalar = scalar
+        self._ncomponents = ncomponents
+        inner = scalar.descriptor()
+        self._descriptor = SpaceDescriptor(
+            inner.name, ncomponents * inner.size, inner.dtype
+        )
+
+    def descriptor(self) -> SpaceDescriptor:
+        """The space's descriptor: ``ncomponents`` times the scalar size,
+        the scalar space's name and dtype."""
+        return self._descriptor
+
+    def ncomponents(self) -> int:
+        """The number of components per node."""
+        return self._ncomponents
+
+    def node_dofs(self, dof: int) -> tuple[int, ...]:
+        """The DOFs of the components at scalar DOF ``dof``, in component
+        order.
+
+        Raises
+        ------
+        IndexError
+            If ``dof`` is not a scalar DOF.
+        """
+        nscalar = self._scalar.descriptor().size
+        if not 0 <= dof < nscalar:
+            raise IndexError(f"scalar DOF {dof} is out of range [0, {nscalar})")
+        k = self._ncomponents
+        return tuple(range(k * dof, k * dof + k))
+
+    def entity_dofs(self, entity: int) -> tuple[int, ...]:
+        """The DOFs on ``entity`` itself: each scalar DOF's components, in
+        the scalar order."""
+        k = self._ncomponents
+        return tuple(
+            k * d + c for d in self._scalar.entity_dofs(entity) for c in range(k)
+        )
+
+    def mass_blocks(self) -> tuple[MassBlock[Array], ...]:
+        r"""The mass :math:`M \otimes I_k` as blocks: each scalar block
+        once per component, on that component's DOFs."""
+        k = self._ncomponents
+        return tuple(
+            MassBlock(tuple(k * d + c for d in block.dofs), block.matrix)
+            for block in self._scalar.mass_blocks()
+            for c in range(k)
+        )
