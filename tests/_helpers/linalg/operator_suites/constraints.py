@@ -1,5 +1,7 @@
-"""Stack-generic operator suites: ``RowSetSuite``, ``RowReplacedOperatorSuite``, ``RowsZeroedOperatorSuite``, ``SymmetricEliminatedOperatorSuite``.
+"""Stack-generic operator suites for row constraints.
 
+``RowSetSuite``, ``RowReplacedOperatorSuite``,
+``RowsZeroedOperatorSuite`` and ``SymmetricEliminatedOperatorSuite``.
 Each runs on the stack its ``case`` fixture supplies
 (``TypedStackCase``); a stack's test directory subclasses it and
 defines the fixture.
