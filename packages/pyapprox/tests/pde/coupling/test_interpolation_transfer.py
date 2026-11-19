@@ -7,7 +7,7 @@ the matching one; at a cross point the rules average or refuse; the
 torch graph survives through both directions.
 """
 
-from typing import Sequence
+from typing import Generic, Sequence
 
 import numpy as np
 import pytest
@@ -23,8 +23,8 @@ from pyapprox.pde.coupling.geometry import (
 from pyapprox.pde.coupling.ports import (
     AverageIncidentFaces,
     BackendPortRows,
-    InterpolationTransfer,
     MatchingNodalTransfer,
+    PortMatrixTransfer,
     PortTransferProtocol,
     RefuseCrossPoints,
     port_interpolation,
@@ -39,9 +39,16 @@ from pyapprox.pde.coupling.spaces import (
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, backend_dtype_name
+from pyapprox.util.linalg.operators import SpaceDescriptor
 
 _BOUNDS = [(0.0, 2.0), (-1.0, 1.0), (1.0, 4.0)]
 _NPOINTS = 3
+
+
+def _matrix(local: BackendDenseOperator[Array]) -> Array:
+    """The stored matrix of a dense port map."""
+    return local.format().matrix()
 
 
 def _poly(bkd: Backend[Array], x: Array) -> Array:
@@ -99,7 +106,7 @@ def test_continuous_reproduces_polynomials(
         matrix = port_interpolation(
             space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
         )
-        transfer = InterpolationTransfer(
+        transfer = PortMatrixTransfer(
             BackendPortRows(space.descriptor(), dofs, bkd), matrix
         )
         assert isinstance(transfer, PortTransferProtocol)
@@ -128,7 +135,7 @@ def test_gauss_facet_reproduces_polynomials(bkd: Backend[Array]) -> None:
         matrix = port_interpolation(
             space, geometry.locate(points, faces), dofs, RefuseCrossPoints()
         )
-        transfer = InterpolationTransfer(
+        transfer = PortMatrixTransfer(
             BackendPortRows(space.descriptor(), dofs, bkd), matrix
         )
         bkd.assert_allclose(
@@ -148,7 +155,7 @@ def test_scatter_and_gather_are_transposes(bkd: Backend[Array]) -> None:
     matrix = port_interpolation(
         space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
     )
-    transfer = InterpolationTransfer(
+    transfer = PortMatrixTransfer(
         BackendPortRows(space.descriptor(), dofs, bkd), matrix
     )
     rng = np.random.default_rng(13)
@@ -171,7 +178,7 @@ def test_at_skeleton_nodes_equals_matching(bkd: Backend[Array]) -> None:
         space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
     )
     descriptor = space.descriptor()
-    transfer = InterpolationTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
+    transfer = PortMatrixTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
     matching = MatchingNodalTransfer(BackendPortRows(descriptor, dofs, bkd))
     lam = bkd.asarray(np.random.default_rng(17).normal(size=(descriptor.size, 1)))
     bkd.assert_allclose(transfer.scatter(lam), matching.scatter(lam), atol=1e-13)
@@ -194,9 +201,13 @@ def test_cross_point_rules(bkd: Backend[Array]) -> None:
     _, continuous, _ = _continuous(bkd, (2, 2))
     located, _, dofs = _center_rows(bkd, continuous)
     assert len(located) == 2
-    average = port_interpolation(continuous, [located], dofs, AverageIncidentFaces())
+    average = _matrix(
+        port_interpolation(continuous, [located], dofs, AverageIncidentFaces())
+    )
     for fp in located:
-        single = port_interpolation(continuous, [[fp]], dofs, AverageIncidentFaces())
+        single = _matrix(
+            port_interpolation(continuous, [[fp]], dofs, AverageIncidentFaces())
+        )
         bkd.assert_allclose(average, single, atol=1e-14)
     with pytest.raises(ValueError, match="several faces"):
         port_interpolation(continuous, [located], dofs, RefuseCrossPoints())
@@ -207,9 +218,12 @@ def test_cross_point_rules(bkd: Backend[Array]) -> None:
     )
     located, _, dofs = _center_rows(bkd, facet)
     rows = [
-        port_interpolation(facet, [[fp]], dofs, RefuseCrossPoints()) for fp in located
+        _matrix(port_interpolation(facet, [[fp]], dofs, RefuseCrossPoints()))
+        for fp in located
     ]
-    average = port_interpolation(facet, [located], dofs, AverageIncidentFaces())
+    average = _matrix(
+        port_interpolation(facet, [located], dofs, AverageIncidentFaces())
+    )
     bkd.assert_allclose(average, 0.5 * (rows[0] + rows[1]), atol=1e-14)
     assert bkd.to_float(bkd.max(bkd.abs(rows[0] - rows[1]))) > 0.5
 
@@ -229,10 +243,80 @@ def test_rejects_bad_input(bkd: Backend[Array]) -> None:
     with pytest.raises(TypeError):
         port_interpolation(space, [located], dofs, object())  # type: ignore[arg-type]
     rows = BackendPortRows(space.descriptor(), dofs, bkd)
-    with pytest.raises(ValueError, match="shape"):
-        InterpolationTransfer(rows, bkd.zeros((2, len(dofs) + 1)))
-    with pytest.raises(TypeError):
-        InterpolationTransfer(object(), bkd.zeros((2, 2)))  # type: ignore[arg-type]
+    wide = _Blocked([bkd.zeros((2, len(dofs) + 1))], bkd)
+    with pytest.raises(ValueError, match="domain has size"):
+        PortMatrixTransfer(rows, wide)
+    with pytest.raises(TypeError, match="PortRowsProtocol"):
+        PortMatrixTransfer(object(), wide)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="PortMapProtocol"):
+        PortMatrixTransfer(rows, bkd.zeros((2, len(dofs))))  # type: ignore[arg-type]
+
+
+class _Blocked(Generic[Array]):
+    """A port map stored as diagonal blocks, never as one matrix: a
+    stand-in for a face-blocked map."""
+
+    def __init__(self, blocks: Sequence[Array], bkd: Backend[Array]) -> None:
+        self._blocks, self._bkd = list(blocks), bkd
+        self._rows = [int(b.shape[0]) for b in blocks]
+        self._cols = [int(b.shape[1]) for b in blocks]
+
+    def domain(self) -> SpaceDescriptor:
+        return SpaceDescriptor("port-rows", sum(self._cols))
+
+    def range(self) -> SpaceDescriptor:
+        return SpaceDescriptor("port", sum(self._rows))
+
+    def _split(self, x: Array, sizes: Sequence[int]) -> list[Array]:
+        starts = [sum(sizes[:i]) for i in range(len(sizes))]
+        return [x[s : s + n] for s, n in zip(starts, sizes)]
+
+    def apply(self, x: Array) -> Array:
+        parts = self._split(x, self._cols)
+        out = [b @ p for b, p in zip(self._blocks, parts)]
+        return self._bkd.concatenate(out, axis=0)
+
+    def apply_transpose(self, y: Array) -> Array:
+        parts = self._split(y, self._rows)
+        out = [b.T @ p for b, p in zip(self._blocks, parts)]
+        return self._bkd.concatenate(out, axis=0)
+
+
+def test_any_port_map_gives_the_same_transfer(bkd: Backend[Array]) -> None:
+    # A two-block map agrees with the same map stored dense.
+    topo, space, _ = _continuous(bkd, (2, 2))
+    dofs = subdomain_port_dofs(topo, space, 0)
+    n = len(dofs)
+    rng = np.random.default_rng(19)
+    top = bkd.asarray(rng.normal(size=(3, 2)))
+    bottom = bkd.asarray(rng.normal(size=(4, n - 2)))
+    dense = bkd.concatenate(
+        [
+            bkd.concatenate([top, bkd.zeros((3, n - 2))], axis=1),
+            bkd.concatenate([bkd.zeros((4, 2)), bottom], axis=1),
+        ],
+        axis=0,
+    )
+    descriptor = space.descriptor()
+    blocked = PortMatrixTransfer(
+        BackendPortRows(descriptor, dofs, bkd), _Blocked([top, bottom], bkd)
+    )
+    stored = PortMatrixTransfer(
+        BackendPortRows(descriptor, dofs, bkd),
+        BackendDenseOperator(
+            dense,
+            SpaceDescriptor("port-rows", n, backend_dtype_name(bkd)),
+            bkd,
+            range=SpaceDescriptor("port", 7, backend_dtype_name(bkd)),
+        ),
+    )
+    assert blocked.nport() == stored.nport() == 7
+    lam = bkd.asarray(rng.normal(size=(descriptor.size, 2)))
+    block = bkd.asarray(rng.normal(size=(7, 2)))
+    bkd.assert_allclose(blocked.scatter(lam), stored.scatter(lam), rtol=1e-14)
+    bkd.assert_allclose(
+        blocked.gather_add(block, lam), stored.gather_add(block, lam), rtol=1e-14
+    )
 
 
 def test_transfer_keeps_the_torch_graph(torch_bkd: TorchBkd) -> None:
@@ -240,7 +324,7 @@ def test_transfer_keeps_the_torch_graph(torch_bkd: TorchBkd) -> None:
     _, space, _ = _continuous(bkd, (2, 2))
     located, _, dofs = _center_rows(bkd, space)
     matrix = port_interpolation(space, [located], dofs, AverageIncidentFaces())
-    transfer = InterpolationTransfer(
+    transfer = PortMatrixTransfer(
         BackendPortRows(space.descriptor(), dofs, bkd), matrix
     )
     n = space.descriptor().size

@@ -16,6 +16,7 @@ from typing import Generic, Protocol, Sequence, TypeVar, runtime_checkable
 from pyapprox.pde.coupling.geometry import FacePoint
 from pyapprox.pde.coupling.spaces import FaceValues
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseOperator, backend_dtype_name
 from pyapprox.util.linalg.operators import SpaceDescriptor
 
 V = TypeVar("V")
@@ -143,51 +144,81 @@ class SplitRowsTransfer(Generic[V, Array]):
         return self._outputs.add_to(y, self._sign * block)
 
 
-class InterpolationTransfer(Generic[V, Array]):
-    r"""Port nodes that are not skeleton DOFs: :math:`E_i = I R`, the
-    skeleton function evaluated at the subdomain's port nodes.
+@runtime_checkable
+class PortMapProtocol(Protocol, Generic[P]):
+    """What :class:`PortMatrixTransfer` asks of its local factor: a
+    linear map between port blocks, known by its action and transpose."""
 
-    :math:`R` takes the skeleton DOFs the port reads; :math:`I`, a small
-    dense backend array, evaluates their functions at the port nodes
-    (:func:`port_interpolation`). The transpose adds a tested flux back as
-    :math:`R^\top I^\top`, so fluxes stay conservative. The skeleton
-    vector type ``V`` stays opaque: only port blocks are backend arrays.
+    def domain(self) -> SpaceDescriptor:
+        """The space of the input of :meth:`apply`: the port's rows."""
+        ...
+
+    def range(self) -> SpaceDescriptor:
+        """The space of the output of :meth:`apply`: the port data."""
+        ...
+
+    def apply(self, x: P) -> P:
+        """:math:`L x` for a block ``x`` in the domain."""
+        ...
+
+    def apply_transpose(self, y: P) -> P:
+        r""":math:`L^\top y` for a block ``y`` in the range."""
+        ...
+
+
+class PortMatrixTransfer(Generic[V, P]):
+    r"""A port transfer :math:`E_i = L R`: the skeleton rows the port
+    reads, then a local linear map to the port data.
+
+    :math:`R` takes the skeleton DOFs the port reads; :math:`L` maps them
+    to the subdomain's port data, e.g. the skeleton function at port nodes
+    that are not skeleton DOFs (:func:`port_interpolation`). The transpose
+    adds a tested flux back as :math:`R^\top L^\top`, so fluxes stay
+    conservative. Neither the skeleton vector type ``V`` nor how
+    :math:`L` is stored (dense, face-blocked, low-rank) is inspected:
+    which transfer a port uses is the choice of the builder of
+    :math:`L`. Ports at skeleton nodes need no map:
+    :class:`MatchingNodalTransfer`.
 
     Parameters
     ----------
     rows
         The skeleton rows the port reads, :math:`R`.
-    matrix
-        :math:`I`. Shape: (nport, rows.nrows()).
+    local
+        :math:`L`, with domain size ``rows.nrows()``.
 
     Raises
     ------
     TypeError
-        If ``rows`` does not satisfy :class:`PortRowsProtocol`.
+        If ``rows`` or ``local`` does not satisfy its protocol.
     ValueError
-        If ``matrix`` is not 2D with ``rows.nrows()`` columns.
+        If ``local``'s domain size differs from ``rows.nrows()``.
     """
 
-    def __init__(self, rows: PortRowsProtocol[V, Array], matrix: Array) -> None:
+    def __init__(self, rows: PortRowsProtocol[V, P], local: PortMapProtocol[P]) -> None:
         if not isinstance(rows, PortRowsProtocol):
             raise TypeError(
                 f"rows must satisfy PortRowsProtocol, got {type(rows).__name__}"
             )
-        if matrix.ndim != 2 or matrix.shape[1] != rows.nrows():
-            raise ValueError(
-                f"matrix must have shape (nport, {rows.nrows()}), "
-                f"got {tuple(matrix.shape)}"
+        if not isinstance(local, PortMapProtocol):
+            raise TypeError(
+                f"local must satisfy PortMapProtocol, got {type(local).__name__}"
             )
-        self._rows, self._matrix = rows, matrix
+        if local.domain().size != rows.nrows():
+            raise ValueError(
+                f"local's domain has size {local.domain().size}, the rows "
+                f"{rows.nrows()}"
+            )
+        self._rows, self._local = rows, local
 
     def nport(self) -> int:
-        return int(self._matrix.shape[0])
+        return self._local.range().size
 
-    def scatter(self, lam: V) -> Array:
-        return self._matrix @ self._rows.take(lam)
+    def scatter(self, lam: V) -> P:
+        return self._local.apply(self._rows.take(lam))
 
-    def gather_add(self, block: Array, y: V) -> V:
-        return self._rows.add_to(y, self._matrix.T @ block)
+    def gather_add(self, block: P, y: V) -> V:
+        return self._rows.add_to(y, self._local.apply_transpose(block))
 
 
 @runtime_checkable
@@ -238,15 +269,18 @@ def port_interpolation(
     located: Sequence[Sequence[FacePoint[Array]]],
     dofs: Sequence[int],
     cross_points: CrossPointRuleProtocol[Array],
-) -> Array:
-    r"""The matrix :math:`I` of an :class:`InterpolationTransfer`: the
-    skeleton functions of ``dofs`` at each port node.
+) -> BackendDenseOperator[Array]:
+    r"""The local map :math:`L` of a :class:`PortMatrixTransfer` that
+    interpolates: the skeleton functions of ``dofs`` at each port node,
+    stored dense.
 
     Rows are node-major: node ``n``, component ``c`` is row ``k n + c``,
     as interleaved field DOFs are numbered. A node on one face reads that
     face's values; a node on several asks ``cross_points``. The values
     enter by products with constant 0/1 placement arrays, so a graph
-    through them survives.
+    through them survives. Dense storage grows as rows times ``dofs``
+    although each row reads one face's DOFs; a face-blocked map is the
+    remedy for large ports.
 
     Parameters
     ----------
@@ -264,8 +298,9 @@ def port_interpolation(
 
     Returns
     -------
-    Array
-        Shape: (k * nnodes, len(dofs)).
+    BackendDenseOperator
+        From the ``"port-rows"`` space of size ``len(dofs)`` to the
+        ``"port"`` space of size ``k * nnodes``.
 
     Raises
     ------
@@ -310,7 +345,14 @@ def port_interpolation(
             node_rows.append(rows[0])
         else:
             node_rows.append(cross_points.row(node, [fp.face for fp in faces], rows))
-    return bkd.concatenate(node_rows, axis=0)
+    matrix = bkd.concatenate(node_rows, axis=0)
+    dtype = backend_dtype_name(bkd)
+    return BackendDenseOperator(
+        matrix,
+        SpaceDescriptor("port-rows", len(dofs), dtype),
+        bkd,
+        range=SpaceDescriptor("port", int(matrix.shape[0]), dtype),
+    )
 
 
 class BackendPortRows(Generic[Array]):

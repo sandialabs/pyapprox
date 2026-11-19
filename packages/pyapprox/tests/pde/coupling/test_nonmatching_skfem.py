@@ -48,7 +48,7 @@ from pyapprox.pde.coupling.pinning import PinnedSkeletonResidual
 from pyapprox.pde.coupling.ports import (
     AverageIncidentFaces,
     BackendPortRows,
-    InterpolationTransfer,
+    PortMatrixTransfer,
     port_interpolation,
     subdomain_port_dofs,
 )
@@ -137,7 +137,7 @@ def _solve(
     space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     descriptor = space.descriptor()
     edges = np.linspace(0.0, 1.0, 3)
-    pieces: list[tuple[_Piece, InterpolationTransfer[Np, Np], Np]] = []
+    pieces: list[tuple[_Piece, PortMatrixTransfer[Np, Np], Np]] = []
     subdomains: list[CoupledSubdomain[Np, Np]] = []
     for s in range(topo.nsubdomains()):
         ix, iy = divmod(s, 2)
@@ -188,7 +188,7 @@ def _solve(
             dofs,
             AverageIncidentFaces(),
         )
-        transfer = InterpolationTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
+        transfer = PortMatrixTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
         pieces.append((piece, transfer, nodes))
         subdomains.append(CoupledSubdomain(piece, transfer))
 
