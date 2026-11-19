@@ -51,6 +51,22 @@ def _coords(bkd: Backend[Array], npoints: int = 100) -> Array:
     return bkd.array(np.linspace(0.0, 1.0, npoints)[None, :])
 
 
+def _untied_coords(bkd: Backend[Array], npoints: int = 100) -> Array:
+    """The unit grid, interior points jittered by up to 0.3 of a spacing.
+
+    On the uniform grid a stationary kernel leaves neighboring candidates
+    nearly tied for a pivot, and round-off picks between them: measured,
+    the Torch blocked and unblocked selections differed in one of 40
+    landmarks (0.3838 against 0.3939), giving eigenvalues 2.4e-6 apart.
+    Jittered, eight block sizes agree to 2.7e-15 on both backends.
+    """
+    grid = np.linspace(0.0, 1.0, npoints)
+    jitter = np.random.default_rng(0).uniform(-0.3, 0.3, npoints)
+    points = np.sort(grid + jitter / (npoints - 1))
+    points[0], points[-1] = 0.0, 1.0
+    return bkd.array(points[None, :])
+
+
 def _out_of_sample(bkd: Backend[Array], npoints: int = 100) -> Array:
     """Midpoints: in neither the collocation set nor any subset of it."""
     grid = np.linspace(0.0, 1.0, npoints)
@@ -413,8 +429,11 @@ class TestRowBlocking:
         extension matrix itself is not compared entry by entry: in
         directions the kernel columns barely reach it is determined only
         to about 1e-6 relative, and nothing computed from it sees that.
+        The points are jittered: blocking also reaches the landmark
+        selection, and on a uniform grid a near-tie lets round-off pick a
+        different, equally valid landmark set (see ``_untied_coords``).
         """
-        coords, kernel = _coords(bkd), _full_rank_kernel(bkd)
+        coords, kernel = _untied_coords(bkd), _full_rank_kernel(bkd)
         weights = _weights(bkd) if weighted else None
         ref = create_nystrom_kle(
             kernel, coords, 10, bkd, nlandmarks=40, quad_weights=weights,

@@ -362,7 +362,13 @@ def create_nystrom_kle(
         :meth:`NystromKLE.eigenvectors_at`. The default,
         :class:`NoBlocking`, holds full ``N x m`` arrays; at large ``N``
         pass a :class:`ByteBudgetBlocking`, which bounds them by its
-        budget at the same result to round-off.
+        budget. The extension it forms from given landmarks matches the
+        unblocked one to round-off; the landmark selection does too
+        unless candidates are nearly tied for a pivot (a uniform grid
+        under a stationary kernel), where round-off can choose another,
+        equally valid landmark and the result moves by the Nystrom
+        truncation error instead (measured 2.4e-6 relative in the
+        eigenvalues, 40 landmarks of 100 grid points, Matern-3/2).
 
     Raises
     ------
