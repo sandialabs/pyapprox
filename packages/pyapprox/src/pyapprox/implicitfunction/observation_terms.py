@@ -7,7 +7,7 @@ misfit :class:`ObservationMisfit` and the observed values
 generic in the state's stack, and serve as terms of any functional of one
 state: a steady solution's, or each member a trajectory's stored-state
 term builds at a stored state. :class:`StateEntries` observes entries of
-a backend state column.
+a backend state column, :class:`WeightedEntries` weighted sums of them.
 """
 
 from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
@@ -82,6 +82,76 @@ class StateEntries(Generic[Array]):
                 for row in rows
             ]
         )
+
+    def nobs(self) -> int:
+        return int(self._matrix.shape[0])
+
+    def domain(self) -> SpaceDescriptor:
+        """The backend state space of ``nstates`` entries."""
+        return self._domain
+
+    def apply(self, state: Array) -> Array:
+        return self._bkd.dot(self._matrix, state)
+
+    def apply_transpose(self, values: Array) -> Array:
+        return self._bkd.dot(self._matrix.T, values)
+
+
+class WeightedEntries(Generic[Array]):
+    r"""The observation of weighted sums of entries of a backend state
+    column: entry :math:`i` is :math:`\sum_k w_{ik}\, y_{d_{ik}}`, a point
+    value of a field interpolated from its nodes, or a nodal value scaled
+    by a coefficient. A pair with weight zero contributes nothing, so
+    rows of different lengths are padded with zero weights.
+
+    Parameters
+    ----------
+    bkd : Backend
+        The backend.
+    nstates : int
+        The length of a state.
+    indices : Array
+        :math:`d`, integer entries of the state, each in ``[0, nstates)``.
+        Shape: (nobs, k).
+    weights : Array
+        :math:`w`. Shape: (nobs, k).
+
+    Raises
+    ------
+    ValueError
+        If ``indices`` and ``weights`` are not of one shape ``(nobs, k)``
+        with ``nobs >= 1``, or an index is out of range.
+    """
+
+    def __init__(
+        self, bkd: Backend[Array], nstates: int, indices: Array, weights: Array
+    ) -> None:
+        if (
+            indices.ndim != 2
+            or tuple(indices.shape) != tuple(weights.shape)
+            or indices.shape[0] < 1
+        ):
+            raise ValueError(
+                "indices and weights must have one shape (nobs, k) with "
+                f"nobs >= 1, got {tuple(indices.shape)} and {tuple(weights.shape)}"
+            )
+        nobs, nterms = int(indices.shape[0]), int(indices.shape[1])
+        entries = [
+            [bkd.to_int(indices[ii, kk]) for kk in range(nterms)] for ii in range(nobs)
+        ]
+        outside = sorted(
+            {entry for row in entries for entry in row if not 0 <= entry < nstates}
+        )
+        if outside:
+            raise ValueError(f"indices {outside} are not in [0, {nstates})")
+        self._bkd = bkd
+        self._domain = SpaceDescriptor("state", nstates, backend_dtype_name(bkd))
+        # H, accumulated pair by pair so a repeated index sums its weights.
+        matrix = bkd.copy(bkd.zeros((nobs, nstates)))
+        for ii, row in enumerate(entries):
+            for kk, entry in enumerate(row):
+                matrix[ii, entry] = matrix[ii, entry] + weights[ii, kk]
+        self._matrix = matrix
 
     def nobs(self) -> int:
         return int(self._matrix.shape[0])
