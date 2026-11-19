@@ -1,13 +1,9 @@
 r"""Two-dimensional skfem subdomains coupled through the skeleton, against
 the single-domain skfem solve. NumPy only: skfem is.
 
-Matching nodal transfer needs each subdomain mesh's interface nodes on
-the skeleton's face nodes, which are Gauss-Lobatto points. Every
-subdomain is meshed by Q1 quadrilaterals on the tensor grid of
-:data:`_NPOINTS` Lobatto points per direction of its partition cell, so
-the single-domain mesh on the union of those grids has the same
-elements: the coupled solve and the single-domain solve are the same
-discrete equations, equal to solver tolerance.
+The meshes match the skeleton's Lobatto nodes, so the coupled and
+single-domain solves are the same discrete equations
+(:mod:`tests._helpers.coupling_skfem`).
 
 - Two subdomains (cut at x = 1/2), :math:`-\Delta u = f`, u = 1 on the
   left edge, u = 2 on the right, natural on top and bottom.
@@ -19,9 +15,10 @@ discrete equations, equal to solver tolerance.
   three subdomains, with one skeleton DOF. Same PDE as the four.
 
 Interface ends lie on natural boundaries, where they are unknowns of
-the skeleton like any interface node. Checks: the skeleton solution and
-every subdomain's state equal the single-domain solve at the same
-points (1e-10), and the gathered interface fluxes balance (1e-10).
+the skeleton like any interface node, except in the Dirichlet case,
+where the skeleton pins them. Checks: the skeleton solution and every
+subdomain's state equal the single-domain solve at the same points
+(1e-10), and the gathered interface fluxes balance (1e-10).
 """
 
 import pytest
@@ -31,420 +28,102 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Optional, Protocol, Sequence, TypeVar, Union
+from typing import Any, Callable, Sequence
 
 import numpy as np
-from numpy.typing import NDArray
-from skfem import MeshQuad
 
-from pyapprox.implicitfunction.residual import ResidualProtocol
-from pyapprox.implicitfunction.setups import RecomputeAlways
-from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.boundary import ExceptDofs
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     ConstantDiffusion,
     TimeIndependent,
 )
-from pyapprox.pde.coupling.basis import TensorLagrangeBasis
-from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
-from pyapprox.pde.coupling.geometry import (
-    FaceGeometryProtocol,
-    TensorBoxGeometry,
-    skeleton_dof_points,
-)
-from pyapprox.pde.coupling.pinned_ports import PortPinnedData
-from pyapprox.pde.coupling.pinned_response import (
-    SteadyPinnedPoint,
-    SteadyPinnedResponse,
-)
-from pyapprox.pde.coupling.pinning import PinnedSkeletonResidual
-from pyapprox.pde.coupling.ports import (
-    BackendPortRows,
-    MatchingNodalTransfer,
-    subdomain_port_dofs,
-)
+from pyapprox.pde.coupling.ports import subdomain_port_dofs
 from pyapprox.pde.coupling.reference_faces import ReferenceBox
-from pyapprox.pde.coupling.responses import TimeWindow
-from pyapprox.pde.coupling.skeleton import (
-    CoupledSubdomain,
-    DenseSchur,
-    MatrixFreeSchur,
-    SkeletonResidual,
-)
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
-from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.time_integration import skfem_discretization
-from pyapprox.pde.models.galerkin.steady_residual import (
-    galerkin_steady_residual,
-    solve_galerkin_steady,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.linalg.backend_dense import (
-    BackendDenseLU,
-    BackendRowSet,
-    BackendVectorSpace,
-    DenseFormat,
+from tests._helpers.coupling_skfem import (
+    NPOINTS,
+    CoupledProblem,
+    Grid,
+    Np,
+    SkeletonPins,
+    SystemBuilder,
+    TensorQuadMesh,
+    Value,
+    box_problem,
+    check_coupled,
+    lobatto,
+    union,
 )
-from pyapprox.util.linalg.operators import (
-    FormatProtocol,
-    InnerProductSpaceProtocol,
-    MatrixFree,
-)
-from pyapprox.util.linalg.operators.krylov import GMRES
-from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipySparseLU
-from pyapprox.util.rootfinding.nonlinear import Newton
 
-_Np = NDArray[Any]
-_NPOINTS = 5
-_STEADY = TimeWindow.steady()
-_Reaction = Callable[[_Np, _Np], _Np]
-# Essential data on a side: a constant or g(points).
-_Value = Union[float, Callable[[_Np], _Np]]
-_Piece = SteadyPinnedResponse[_Np, _Np, Any]
-_F = TypeVar("_F", bound=FormatProtocol)
+_Reaction = Callable[[Np, Np], Np]
 
 
-class _TensorQuadMesh:
-    """Q1 quadrilaterals on the tensor grid of ``xs`` by ``ys``, with
-    boundaries named left, right, bottom and top."""
-
-    def __init__(self, xs: _Np, ys: _Np, bkd: NumpyBkd) -> None:
-        self._bkd = bkd
-        self._lower = (float(xs[0]), float(ys[0]))
-        self._upper = (float(xs[-1]), float(ys[-1]))
-        self._mesh = MeshQuad.init_tensor(xs, ys)
-        self._nodes: _Np = np.asarray(self._mesh.p, dtype=np.float64)
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-    def ndim(self) -> int:
-        return 2
-
-    def nelements(self) -> int:
-        return int(self._mesh.nelements)
-
-    def nnodes(self) -> int:
-        return int(self._mesh.nvertices)
-
-    def nodes(self) -> _Np:
-        return self._nodes
-
-    def elements(self) -> _Np:
-        return np.asarray(self._mesh.t, dtype=np.int64)
-
-    def skfem_mesh(self) -> MeshQuad:
-        return self._mesh
-
-    def boundary_nodes(self, boundary_id: str) -> _Np:
-        axis, value = {
-            "left": (0, self._lower[0]),
-            "right": (0, self._upper[0]),
-            "bottom": (1, self._lower[1]),
-            "top": (1, self._upper[1]),
-        }[boundary_id]
-        return np.where(np.abs(self._nodes[axis] - value) < 1e-12)[0]
-
-
-def _forcing(x: _Np) -> _Np:
+def _forcing(x: Np) -> Np:
     return np.asarray(1.0 + x[0] + 2.0 * x[1])
 
 
-def _no_sink(x: _Np, u: _Np) -> _Np:
+def _no_sink(x: Np, u: Np) -> Np:
     return np.zeros_like(u)
 
 
-def _no_sink_deriv(x: _Np, u: _Np) -> _Np:
+def _no_sink_deriv(x: Np, u: Np) -> Np:
     return np.zeros_like(u)
 
 
 # The skfem physics adds R(u) as a source, so a sink is negative.
-def _linear_sink(x: _Np, u: _Np) -> _Np:
+def _linear_sink(x: Np, u: Np) -> Np:
     return -u
 
 
-def _linear_sink_deriv(x: _Np, u: _Np) -> _Np:
+def _linear_sink_deriv(x: Np, u: Np) -> Np:
     return -np.ones_like(u)
 
 
-def _cubic_sink(x: _Np, u: _Np) -> _Np:
-    sink: _Np = -(u + u**3)
+def _cubic_sink(x: Np, u: Np) -> Np:
+    sink: Np = -(u + u**3)
     return sink
 
 
-def _cubic_sink_deriv(x: _Np, u: _Np) -> _Np:
+def _cubic_sink_deriv(x: Np, u: Np) -> Np:
     return -(1.0 + 3.0 * u**2)
 
 
-def _newton() -> Newton[_Np, _Np]:
-    return Newton(atol=1e-13, rtol=0.0, maxiters=30)
+def _sink(cubic: bool) -> tuple[_Reaction, _Reaction]:
+    if cubic:
+        return _cubic_sink, _cubic_sink_deriv
+    return _linear_sink, _linear_sink_deriv
 
 
-class _Partition(Protocol):
-    """What the harness asks of a partition of the square."""
+def _poisson(sink: tuple[_Reaction, _Reaction]) -> SystemBuilder:
+    """Diffusion-reaction systems with the sink ``sink``."""
 
-    def ndim(self) -> int: ...
-
-    def nsubdomains(self) -> int: ...
-
-    def nentities(self) -> int: ...
-
-    def entity_dim(self, entity: int) -> int: ...
-
-    def entity_measure(self, entity: int) -> float: ...
-
-    def on_boundary(self, entity: int) -> bool: ...
-
-    def face_reference(self, face: int) -> ReferenceBox: ...
-
-    def face_closure(self, face: int) -> tuple[int, ...]: ...
-
-    def subdomain_entities(self, subdomain: int) -> tuple[int, ...]: ...
-
-
-# A subdomain's mesh coordinates along x and y, and its essential sides.
-_Grid = tuple[_Np, _Np, Sequence[tuple[str, "_Value"]]]
-_REFERENCE = np.asarray(TensorLagrangeBasis(1, _NPOINTS, NumpyBkd()).nodes()[0])
-
-
-def _lobatto(lo: float, up: float) -> _Np:
-    """The skeleton's face nodes on [lo, up]."""
-    points: _Np = lo + 0.5 * (_REFERENCE + 1.0) * (up - lo)
-    return points
-
-
-def _union(*pieces: _Np) -> _Np:
-    """Consecutive pieces' points, each shared end once."""
-    return np.concatenate([pieces[0]] + [p[1:] for p in pieces[1:]])
-
-
-class _Problem:
-    """A partition of the unit square, its skeleton, the subdomain and
-    single-domain meshes, and the PDE data."""
-
-    def __init__(
-        self,
-        topo: _Partition,
-        geometry: FaceGeometryProtocol[_Np],
-        grids: Sequence[_Grid],
-        whole: _Grid,
-        sink: tuple[_Reaction, _Reaction],
-        boundary: Optional[Callable[[_Np], _Np]] = None,
-    ) -> None:
-        self.bkd = NumpyBkd()
-        self._boundary = boundary
-        self.topo, self._geometry = topo, geometry
-        self._grids, self._whole = grids, whole
-        self._bases = UniformBases(TensorLagrangeBasis(1, _NPOINTS, self.bkd))
-        self.skeleton = ContinuousSkeletonSpace(
-            topo, self._bases, VertexWeightNumbering(topo, self._bases)
-        )
-        self.sink = sink
-
-    def skeleton_coords(self) -> _Np:
-        """The point of each skeleton DOF. Shape: (2, ndofs)."""
-        return skeleton_dof_points(self.skeleton, self._geometry, self._bases)
-
-    def pinned(self) -> list[int]:
-        """The skeleton DOFs pinned to the boundary data: every DOF on the
-        physical boundary when there is boundary data, else none."""
-        if self._boundary is None:
-            return []
-        return [
-            dof
-            for e in range(self.topo.nentities())
-            if self.topo.on_boundary(e)
-            for dof in self.skeleton.entity_dofs(e)
-        ]
-
-    def system(
-        self,
-        xs: _Np,
-        ys: _Np,
-        sides: Sequence[tuple[str, _Value]],
-        free: Optional[_Np] = None,
+    def build(
+        mesh: TensorQuadMesh, sides: Sequence[tuple[str, Value]], exempt: set[int]
     ) -> Any:
-        """The system on the grid ``xs`` by ``ys``; essential rows on
-        ``sides`` except at the nodes at the points ``free`` (shape
-        (2, n))."""
-        mesh = _TensorQuadMesh(xs, ys, self.bkd)
-        exempt = set() if free is None else {
-            _node_at(mesh.nodes(), free[:, k]) for k in range(free.shape[1])
-        }
+        bkd = mesh.bkd()
         basis = LagrangeBasis(mesh, degree=1)
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=ConstantDiffusion(1.0),
-            bkd=self.bkd,
-            reaction=CallableReaction(*self.sink),
+            bkd=bkd,
+            reaction=CallableReaction(*sink),
             forcing=TimeIndependent(_forcing),
         )
         conditions = []
         for side, v in sides:
             bc = DirichletBC(
-                basis,
-                side,
-                v if isinstance(v, float) else TimeIndependent(v),
-                self.bkd,
+                basis, side, v if isinstance(v, float) else TimeIndependent(v), bkd
             )
-            # P1: a node's DOF is its index.
             on_side = exempt & {int(d) for d in bc.constrained_dofs()}
             conditions.append(ExceptDofs(bc, sorted(on_side)))
-        return compose_galerkin_system(physics, conditions), mesh
+        return compose_galerkin_system(physics, conditions)
 
-    def piece(self, subdomain: int) -> tuple[_Piece, _Np, tuple[int, ...]]:
-        """Subdomain ``subdomain``'s response, its node points and its
-        skeleton DOFs."""
-        dofs = subdomain_port_dofs(self.topo, self.skeleton, subdomain)
-        skel = self.skeleton_coords()
-        # Pinned port nodes take g through the skeleton, not as essentials.
-        system, mesh = self.system(*self._grids[subdomain], skel[:, list(dofs)])
-        disc = skfem_discretization(system)
-        ports = [_node_at(mesh.nodes(), skel[:, d]) for d in dofs]
-        states, theta = disc.space(), disc.parameter_space(len(ports))
-        # The stack's space has an inner product; its declared type does not.
-        assert isinstance(states, InnerProductSpaceProtocol)
-        data: PortPinnedData[_Np, _Np] = PortPinnedData(
-            NumpyRowSet(states.descriptor(), ports),
-            BackendPortRows(states.descriptor(), ports, self.bkd),
-            BackendPortRows(theta.descriptor(), list(range(len(ports))), self.bkd),
-            states,
-            theta,
-        )
-        response: _Piece = SteadyPinnedResponse(
-            galerkin_steady_residual(disc),
-            data,
-            states,
-            RecomputeAlways(ScipySparseLU()),
-            _newton(),
-            self.bkd,
-        )
-        return response, mesh.nodes(), dofs
-
-    def single_domain(self) -> tuple[_Np, _Np]:
-        """The single-domain solution and its node points."""
-        system, mesh = self.system(*self._whole)
-        _, point = solve_galerkin_steady(
-            skfem_discretization(system), RecomputeAlways(ScipySparseLU()), _newton()
-        )
-        assert point.converged()
-        return point.state(), mesh.nodes()
-
-    def _pin(self, residual: ResidualProtocol[_Np, _F]) -> ResidualProtocol[_Np, _F]:
-        """``residual`` with the boundary DOFs pinned, if there is boundary
-        data."""
-        if self._boundary is None:
-            return residual
-        bkd, pinned = self.bkd, self.pinned()
-        values = bkd.zeros((self.skeleton.descriptor().size, 1))
-        values[pinned, 0] = self._boundary(self.skeleton_coords()[:, pinned])
-        return PinnedSkeletonResidual(
-            residual,
-            BackendVectorSpace(self.skeleton.descriptor(), bkd),
-            BackendRowSet(self.skeleton.descriptor(), pinned, bkd),
-            values,
-        )
-
-    def solve_skeleton(self, pieces: Sequence[_Piece], dense: bool = False) -> _Np:
-        """The skeleton solution: matrix-free Schur and GMRES, or with
-        ``dense`` the assembled Schur complement and dense LU."""
-        bkd = self.bkd
-        space = BackendVectorSpace(self.skeleton.descriptor(), bkd)
-        subdomains = [
-            CoupledSubdomain(
-                piece,
-                MatchingNodalTransfer(
-                    BackendPortRows(
-                        self.skeleton.descriptor(),
-                        subdomain_port_dofs(self.topo, self.skeleton, s),
-                        bkd,
-                    )
-                ),
-            )
-            for s, piece in enumerate(pieces)
-        ]
-        newton: Newton[_Np, _Np] = Newton(atol=1e-11, rtol=1e-11, maxiters=20)
-        if dense:
-            assembled = self._pin(SkeletonResidual(space, subdomains, DenseSchur(bkd)))
-            lu: RecomputeAlways[_Np, DenseFormat[_Np]] = RecomputeAlways(
-                BackendDenseLU(bkd)
-            )
-            point = SteadySystem(assembled, space, lu).solve(newton, space.zeros(1))
-        else:
-            schur: MatrixFreeSchur[_Np, _Np] = MatrixFreeSchur()
-            applied = self._pin(SkeletonResidual(space, subdomains, schur))
-            krylov: RecomputeAlways[_Np, MatrixFree] = RecomputeAlways(
-                GMRES(space, bkd, tol=1e-13)
-            )
-            point = SteadySystem(applied, space, krylov).solve(newton, space.zeros(1))
-        assert point.converged()
-        return point.solution()
-
-
-def _node_at(nodes: _Np, point: _Np) -> int:
-    distances = np.linalg.norm(nodes - point[:, None], axis=0)
-    node = int(np.argmin(distances))
-    if distances[node] > 1e-12:
-        raise ValueError(f"no mesh node at {point}")
-    return node
-
-
-def _check(problem: _Problem, dense: bool = False) -> None:
-    bkd = problem.bkd
-    reference, ref_nodes = problem.single_domain()
-    built = [problem.piece(s) for s in range(problem.topo.nsubdomains())]
-    lam = problem.solve_skeleton([piece for piece, _, _ in built], dense)
-    skel = problem.skeleton_coords()
-    at_skeleton = [_node_at(ref_nodes, skel[:, d]) for d in range(skel.shape[1])]
-    bkd.assert_allclose(lam, reference[at_skeleton], atol=1e-10)
-    balance = np.zeros_like(lam)
-    for piece, nodes, dofs in built:
-        point = piece.linearize(lam[list(dofs)], bkd.zeros((0, 1)), _STEADY)
-        assert isinstance(point, SteadyPinnedPoint)
-        np.add.at(balance, list(dofs), point.output())
-        rows = [_node_at(ref_nodes, nodes[:, k]) for k in range(nodes.shape[1])]
-        bkd.assert_allclose(point.state(), reference[rows], atol=1e-10)
-    # Pinned DOFs carry the boundary's reaction, not a balance.
-    balance[problem.pinned()] = 0.0
-    bkd.assert_allclose(balance, bkd.zeros(balance.shape), atol=1e-10)
-
-
-def _box(
-    ncells: tuple[int, int],
-    sink: tuple[_Reaction, _Reaction],
-    essentials: Sequence[tuple[str, _Value]],
-    boundary: Optional[Callable[[_Np], _Np]] = None,
-) -> _Problem:
-    """A box partition of the unit square, each cell meshed on its
-    Lobatto grid; ``boundary`` pins the skeleton's boundary DOFs."""
-    topo = TensorBoxPartition(ncells)
-    ex, ey = (np.linspace(0.0, 1.0, n + 1) for n in ncells)
-    grids: list[_Grid] = []
-    for s in range(topo.nsubdomains()):
-        ix, iy = divmod(s, ncells[1])
-        # Only the outer edges a subdomain touches carry its essentials.
-        touched = {
-            "left": ix == 0,
-            "right": ix == ncells[0] - 1,
-            "bottom": iy == 0,
-            "top": iy == ncells[1] - 1,
-        }
-        sides = [(side, v) for side, v in essentials if touched[side]]
-        grids.append(
-            (_lobatto(ex[ix], ex[ix + 1]), _lobatto(ey[iy], ey[iy + 1]), sides)
-        )
-    whole = (
-        _union(*(_lobatto(ex[i], ex[i + 1]) for i in range(ncells[0]))),
-        _union(*(_lobatto(ey[i], ey[i + 1]) for i in range(ncells[1]))),
-        essentials,
-    )
-    geometry = TensorBoxGeometry(topo, NumpyBkd())
-    return _Problem(topo, geometry, grids, whole, sink, boundary)
+    return build
 
 
 # The hanging-vertex partition: subdomain 0 is [0, 1/2] x [0, 1], 1 is
@@ -502,62 +181,61 @@ class _HangingGeometry:
     def ndim(self) -> int:
         return 2
 
-    def face_points(self, face: int, points: _Np) -> _Np:
+    def face_points(self, face: int, points: Np) -> Np:
         lo, up = (np.asarray(_HANGING_POINTS[v]) for v in _HANGING_FACES[face])
         t = 0.5 * (points[0] + 1.0)
-        mapped: _Np = lo[:, None] + (up - lo)[:, None] * t[None, :]
+        mapped: Np = lo[:, None] + (up - lo)[:, None] * t[None, :]
         return mapped
 
 
 def test_two_subdomains_equal_the_single_domain() -> None:
-    _check(_box((2, 1), (_no_sink, _no_sink_deriv), [("left", 1.0), ("right", 2.0)]))
+    build = _poisson((_no_sink, _no_sink_deriv))
+    check_coupled(box_problem((2, 1), build, [("left", 1.0), ("right", 2.0)]))
 
 
 @pytest.mark.parametrize("cubic", [False, True])
 def test_four_subdomains_equal_the_single_domain(cubic: bool) -> None:
-    sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
-        _linear_sink, _linear_sink_deriv
-    )
-    problem = _box((2, 2), sink, [])
-    assert len(problem.skeleton_coords()[0]) == 4 * (_NPOINTS - 2) + 5
-    _check(problem)
+    problem = box_problem((2, 2), _poisson(_sink(cubic)), [])
+    assert len(problem.skeleton_coords()[0]) == 4 * (NPOINTS - 2) + 5
+    check_coupled(problem)
 
 
-def _boundary_data(x: _Np) -> _Np:
-    data: _Np = 1.0 + x[0] * x[1] + 0.5 * x[1] ** 2
+def _boundary_data(x: Np) -> Np:
+    data: Np = 1.0 + x[0] * x[1] + 0.5 * x[1] ** 2
     return data
+
+
+def _everywhere(x: Np) -> Np:
+    return np.ones(x.shape[1], dtype=bool)
 
 
 @pytest.mark.parametrize("dense", [False, True])
 @pytest.mark.parametrize("cubic", [False, True])
 def test_dirichlet_closure_dofs_are_pinned(cubic: bool, dense: bool) -> None:
-    sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
-        _linear_sink, _linear_sink_deriv
-    )
     sides = [(s, _boundary_data) for s in ("left", "right", "bottom", "top")]
-    problem = _box((2, 2), sink, sides, boundary=_boundary_data)
+    pins = SkeletonPins(_everywhere, lambda x: _boundary_data(x)[None, :])
+    problem = box_problem((2, 2), _poisson(_sink(cubic)), sides, pins=pins)
     # The four interface ends, one on each outer edge.
     assert len(problem.pinned()) == 4
-    _check(problem, dense)
+    check_coupled(problem, dense)
 
 
 @pytest.mark.parametrize("cubic", [False, True])
 def test_hanging_vertex_partition_equals_the_single_domain(cubic: bool) -> None:
-    sink = (_cubic_sink, _cubic_sink_deriv) if cubic else (
-        _linear_sink, _linear_sink_deriv
-    )
-    low, high = _lobatto(0.0, 0.5), _lobatto(0.5, 1.0)
-    both = _union(low, high)
-    grids: list[_Grid] = [(low, both, []), (high, low, []), (high, high, [])]
+    low, high = lobatto(0.0, 0.5), lobatto(0.5, 1.0)
+    both = union(low, high)
+    grids: list[Grid] = [(low, both, []), (high, low, []), (high, high, [])]
     topo = _HangingPartition()
     geometry = _HangingGeometry(NumpyBkd())
-    problem = _Problem(topo, geometry, grids, (both, both, []), sink)
+    problem = CoupledProblem(
+        topo, geometry, grids, (both, both, []), _poisson(_sink(cubic))
+    )
     # 3 faces with interior nodes, 4 vertices; one DOF at the hanging
     # vertex, read by all three subdomains.
-    assert problem.skeleton.descriptor().size == 3 * (_NPOINTS - 2) + 4
-    hanging = problem.skeleton.entity_dofs(4)
+    assert problem.space.descriptor().size == 3 * (NPOINTS - 2) + 4
+    hanging = problem.space.entity_dofs(4)
     assert len(hanging) == 1
     assert all(
-        hanging[0] in subdomain_port_dofs(topo, problem.skeleton, s) for s in range(3)
+        hanging[0] in subdomain_port_dofs(topo, problem.space, s) for s in range(3)
     )
-    _check(problem)
+    check_coupled(problem)
