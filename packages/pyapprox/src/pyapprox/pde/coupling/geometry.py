@@ -7,6 +7,7 @@ points land. Curved or mesh-derived faces are new geometries, with the
 same topology and space.
 """
 
+from dataclasses import dataclass
 from typing import Generic, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.pde.coupling.topology import TensorBoxPartition
@@ -30,6 +31,15 @@ class FaceGeometryProtocol(Protocol[Array]):
         """The physical points of reference ``points`` of ``face``,
         shape (ndim - 1, npoints). Shape: (ndim, npoints)."""
         ...
+
+
+@dataclass(frozen=True)
+class FacePoint(Generic[Array]):
+    """A physical point located on a skeleton face: the face and the
+    point's reference coordinates on it, shape (ndim - 1, 1)."""
+
+    face: int
+    point: Array
 
 
 class TensorBoxGeometry(Generic[Array]):
@@ -79,6 +89,73 @@ class TensorBoxGeometry(Generic[Array]):
             else:
                 rows.append(bkd.full((npoints,), lo))
         return bkd.stack(rows, axis=0)
+
+    def locate(
+        self, points: Array, faces: Sequence[int], tol: float = 1e-12
+    ) -> tuple[tuple[FacePoint[Array], ...], ...]:
+        r"""Which of ``faces`` each physical point lies on, and where on
+        their reference faces: the inverse of :meth:`face_points`.
+
+        A point on the closure of several faces (an edge or vertex of the
+        skeleton) lies on each of them. The reference coordinate along a
+        spanned direction is :math:`2(x - l)/(u - l) - 1`, computed from
+        the point's array entries, so it keeps their computation graph.
+
+        Parameters
+        ----------
+        points
+            Physical points. Shape: (ndim, npoints).
+        faces
+            The faces to search, e.g. a skeleton space's faces.
+        tol
+            How far outside a face, in physical distance per direction, a
+            point may lie and still count as on it.
+
+        Returns
+        -------
+        tuple[tuple[FacePoint, ...], ...]
+            Per point, its faces in the order of ``faces``.
+
+        Raises
+        ------
+        ValueError
+            If ``points`` has the wrong shape, an entry of ``faces`` is not
+            a face, or a point lies on none of ``faces``.
+        """
+        bkd, partition = self._bkd, self._partition
+        ndim = partition.ndim()
+        if points.ndim != 2 or points.shape[0] != ndim:
+            raise ValueError(
+                f"points must have shape ({ndim}, npoints), got {tuple(points.shape)}"
+            )
+        for face in faces:
+            if partition.entity_dim(face) != ndim - 1:
+                raise ValueError(f"entity {face} is not a face")
+        bounds = [partition.entity_bounds(face) for face in faces]
+        located = []
+        for j in range(int(points.shape[1])):
+            coords = [bkd.to_float(points[i, j]) for i in range(ndim)]
+            found = []
+            for face, extent in zip(faces, bounds):
+                if not all(
+                    lo - tol <= x <= up + tol for x, (lo, up) in zip(coords, extent)
+                ):
+                    continue
+                reference = [
+                    2.0 * (points[i, j] - lo) / (up - lo) - 1.0
+                    for i, (lo, up) in enumerate(extent)
+                    if up > lo
+                ]
+                point = (
+                    bkd.reshape(bkd.stack(reference, axis=0), (ndim - 1, 1))
+                    if reference
+                    else bkd.zeros((0, 1))
+                )
+                found.append(FacePoint(face, point))
+            if not found:
+                raise ValueError(f"point {j} at {coords} lies on none of the faces")
+            located.append(tuple(found))
+        return tuple(located)
 
 
 @runtime_checkable
@@ -146,8 +223,7 @@ def skeleton_dof_points(
         )
     if not isinstance(geometry, FaceGeometryProtocol):
         raise TypeError(
-            "geometry must satisfy FaceGeometryProtocol, got "
-            f"{type(geometry).__name__}"
+            f"geometry must satisfy FaceGeometryProtocol, got {type(geometry).__name__}"
         )
     bkd = geometry.bkd()
     columns: dict[int, Array] = {}

@@ -115,6 +115,30 @@ class MassBlock(Generic[Array]):
     matrix: Array
 
 
+@dataclass(frozen=True)
+class FaceValues(Generic[Array]):
+    r"""A field space's functions on one face at given points: the
+    face's DOFs ``dofs`` and ``values`` of shape (npoints, ndofs, k), the
+    :math:`k`-vector value of the function of each DOF at each point,
+    DOFs in the order of ``dofs``. A function :math:`\sum_j c_j \psi_j`
+    takes the value ``values[q] ^T c[dofs]`` at point ``q``."""
+
+    dofs: tuple[int, ...]
+    values: Array
+
+
+def _scalar_face_values(
+    face_dofs: Mapping[int, tuple[int, ...]],
+    bases: FaceBasesProtocol[Array],
+    face: int,
+    points: Array,
+) -> FaceValues[Array]:
+    if face not in face_dofs:
+        raise KeyError(f"entity {face} is not a skeleton face")
+    phi = bases.face_basis(face).evaluate(points)
+    return FaceValues(face_dofs[face], phi[:, :, None])
+
+
 def _face_blocks(
     face_dofs: Mapping[int, Sequence[int]],
     bases: FaceBasesProtocol[Array],
@@ -206,6 +230,25 @@ class FacetSkeletonSpace(Generic[Array]):
                 f"entity {entity} is out of range [0, {len(self._entity_dofs)})"
             )
         return self._entity_dofs[entity]
+
+    def faces(self) -> tuple[int, ...]:
+        """The skeleton faces, increasing: the entities carrying DOFs."""
+        return tuple(self._face_dofs)
+
+    def bkd(self) -> Backend[Array]:
+        """The backend of the bases' reference data."""
+        return self._bkd
+
+    def face_values(self, face: int, points: Array) -> FaceValues[Array]:
+        """The face's basis at reference ``points`` of shape
+        (ndim - 1, npoints), on its block of DOFs; ``k`` is 1.
+
+        Raises
+        ------
+        KeyError
+            If ``face`` is not a skeleton face.
+        """
+        return _scalar_face_values(self._face_dofs, self._bases, face, points)
 
     def mass_blocks(self) -> tuple[MassBlock[Array], ...]:
         r"""The interface mass by face; the blocks do not overlap, so the
@@ -373,6 +416,23 @@ class ContinuousSkeletonSpace(Generic[Array]):
             raise KeyError(f"entity {face} is not a skeleton face")
         return self._face_dofs[face]
 
+    def bkd(self) -> Backend[Array]:
+        """The backend of the bases' reference data."""
+        return self._bkd
+
+    def face_values(self, face: int, points: Array) -> FaceValues[Array]:
+        """The face's basis at reference ``points`` of shape
+        (ndim - 1, npoints), on the DOFs its nodes read (the gluing
+        :math:`G_f`); ``k`` is 1. Faces sharing a closure entity share
+        its DOFs, so values there agree between them.
+
+        Raises
+        ------
+        KeyError
+            If ``face`` is not a skeleton face.
+        """
+        return _scalar_face_values(self._face_dofs, self._bases, face, points)
+
     def mass_blocks(self) -> tuple[MassBlock[Array], ...]:
         r"""The interface mass :math:`G^\top M_{\text{broken}} G` by face:
         faces sharing a closure entity overlap on its DOFs, where their
@@ -383,13 +443,20 @@ class ContinuousSkeletonSpace(Generic[Array]):
 @runtime_checkable
 class ScalarSpaceProtocol(Protocol, Generic[Array]):
     """What :class:`ComponentSkeletonSpace` reads of a scalar skeleton
-    space: its size, its DOFs by entity and its mass blocks."""
+    space: its size, its DOFs by entity, its mass blocks, and its faces
+    with their values."""
 
     def descriptor(self) -> SpaceDescriptor: ...
 
     def entity_dofs(self, entity: int) -> tuple[int, ...]: ...
 
     def mass_blocks(self) -> Sequence[MassBlock[Array]]: ...
+
+    def faces(self) -> tuple[int, ...]: ...
+
+    def face_values(self, face: int, points: Array) -> FaceValues[Array]: ...
+
+    def bkd(self) -> Backend[Array]: ...
 
 
 class ComponentSkeletonSpace(Generic[Array]):
@@ -463,6 +530,31 @@ class ComponentSkeletonSpace(Generic[Array]):
         k = self._ncomponents
         return tuple(
             k * d + c for d in self._scalar.entity_dofs(entity) for c in range(k)
+        )
+
+    def faces(self) -> tuple[int, ...]:
+        """The scalar space's faces."""
+        return self._scalar.faces()
+
+    def face_values(self, face: int, points: Array) -> FaceValues[Array]:
+        r"""The scalar values times each unit vector :math:`e_c`: on the
+        face's interleaved DOFs ``k * d + c``, the function of DOF
+        ``k * d + c`` takes the scalar value of ``d`` in component ``c``
+        and 0 in the others.
+
+        Raises
+        ------
+        KeyError
+            If ``face`` is not a skeleton face.
+        """
+        scalar = self._scalar.face_values(face, points)
+        phi = scalar.values[:, :, 0]
+        npoints, nscalar, k = phi.shape[0], phi.shape[1], self._ncomponents
+        bkd = self._scalar.bkd()
+        values = phi[:, :, None, None] * bkd.eye(k)[None, None, :, :]
+        return FaceValues(
+            tuple(k * d + c for d in scalar.dofs for c in range(k)),
+            bkd.reshape(values, (npoints, nscalar * k, k)),
         )
 
     def mass_blocks(self) -> tuple[MassBlock[Array], ...]:
