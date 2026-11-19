@@ -81,6 +81,39 @@ class GalerkinTransientSystem(Generic[Array, F]):
     constraints: ConstraintSetProtocol[Array]
     parameters: Optional[ParameterState[Array]]
 
+    # The transient-discretization and parameter-setter protocols of
+    # :mod:`pyapprox.ode.transient_implicit_map`.
+
+    def system(self) -> MassFormSystem[Array, Array, F]:
+        """The solved system."""
+        return self.solved
+
+    def pinning(self) -> RowPinning[Array]:
+        """The essential rows' pin."""
+        return self.row_pinning
+
+    def initial_state(self, state: Array, time: float) -> Array:
+        """``state``, shape ``(nstates, 1)``, with its essential entries
+        set to their data at ``time``."""
+        bkd = self.constraints.bkd()
+        return bkd.reshape(self.constraints.inject(state[:, 0], time), (-1, 1))
+
+    def nparams(self) -> int:
+        """The number of parameters; 0 without them."""
+        return 0 if self.parameters is None else self.parameters.nparams()
+
+    def set_param(self, param: Array) -> None:
+        """Set the parameters from a column of shape ``(nparams, 1)``.
+
+        Raises
+        ------
+        ValueError
+            If the system has no parameters.
+        """
+        if self.parameters is None:
+            raise ValueError("this system has no parameters to set")
+        self.parameters.set_param(param[:, 0])
+
 
 def galerkin_transient_system(
     discretization: GalerkinStackDiscretization[Array, Array, F],
@@ -178,10 +211,7 @@ def solve_galerkin_transient(
         raise ValueError(
             f"init_state must have shape ({nstates}, 1), got {tuple(init_state.shape)}"
         )
-    bkd = system.constraints.bkd()
-    start = bkd.reshape(
-        system.constraints.inject(init_state[:, 0], steps.origin()), (-1, 1)
-    )
+    start = system.initial_state(init_state, steps.origin())
     stepper = method.stepper(system.solved, setups, system.row_pinning)
     Integrator(stepper).solve(start, steps, sink)
     return stepper

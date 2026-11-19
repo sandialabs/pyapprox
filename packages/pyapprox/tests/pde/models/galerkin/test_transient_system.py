@@ -12,6 +12,12 @@ adjoint: the trajectory to 1e-10 and the gradient and Hessian-vector
 product of the value next to the moving end to 1e-9, relative. Implicit
 midpoint is the exception, a different discretization of the step-end pin
 (5e-8; its order is checked in ``test_new_time_integration.py``).
+
+``TransientImplicitMap`` over the same system reproduces those numbers
+for the endpoint value, and the old weighted-L2 forward model for a time
+integral as its functional (backward Euler, Crank-Nicolson). The quantity
+factories (flux, probes, outflux, weighted L2) are each checked against
+their old functionals.
 """
 
 import pytest
@@ -53,6 +59,11 @@ from pyapprox.ode.trajectory_store import (
     TrajectorySinkProtocol,
 )
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.transient_implicit_map import (
+    FixedTrajectoryFunctional,
+    TrajectoryFunctionalSourceProtocol,
+    TransientImplicitMap,
+)
 from pyapprox.pde.galerkin.observations import (
     nodal_outflux_functional,
     probe_observation_functional,
@@ -163,6 +174,10 @@ class _Paths:
 
     def old_states(self) -> _Np:
         return self._old_states
+
+    def endpoint_functional(self) -> TrajectoryFunctional[_Np, _Np]:
+        """The value next to the moving end at the last stored state."""
+        return self._endpoint()
 
     def _endpoint(self) -> TrajectoryFunctional[_Np, _Np]:
         bkd = NumpyBkd()
@@ -613,6 +628,93 @@ class TestTimeIntegratedWeightedL2:
             paths.sweeps().hvp(store, functional, _DIRECTION),
             derivatives.hvp(HEAT_PARAM, _DIRECTION),
             rtol=rtol,
+        )
+
+
+def _implicit_map(
+    paths: _Paths, functional: TrajectoryFunctionalSourceProtocol[_Np, _Np]
+) -> TransientImplicitMap[_Np, _Np, Any]:
+    """The transient map of the heat problem, the system its own
+    discretization and parameter setter."""
+    system = paths.system()
+    return TransientImplicitMap(
+        system,
+        system,
+        paths.method(),
+        RecomputeAlways(system.solved.solver),
+        FixedStep(_DELTAT, (0.0, _FINAL_TIME)),
+        np.reshape(paths.heat().init_state, (-1, 1)),
+        functional,
+    )
+
+
+@pytest.mark.parametrize("make, old_name", _METHODS, ids=[n for _, n in _METHODS])
+class TestTransientImplicitMapOnGalerkin:
+    """``TransientImplicitMap`` over ``GalerkinTransientSystem`` (as both
+    the discretization and the parameter setter): the value next to the
+    moving end against the old model's trajectory, and its gradient and
+    HVP against the old adjoint, as for the driver (1e-10 for the value,
+    1e-9 for the derivatives; 5e-8 under implicit midpoint)."""
+
+    def test_endpoint_value_gradient_and_hvp(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], ButcherTableau],
+        old_name: str,
+    ) -> None:
+        bkd = numpy_bkd
+        paths = _Paths(bkd, make, old_name)
+        implicit = _implicit_map(
+            paths, FixedTrajectoryFunctional(paths.endpoint_functional())
+        )
+        assert implicit.nparams() == HEAT_NPARAMS and implicit.nqoi() == 1
+        param = bkd.asarray(HEAT_PARAM)
+        point = implicit.point(param)
+        expected = paths.old_states()[paths.heat().near_right, -1:]
+        bkd.assert_allclose(point.value()[0], expected, rtol=_rtol(old_name, 1e-10))
+        rtol = _rtol(old_name, 1e-9)
+        bkd.assert_allclose(point.gradient(), paths.old_gradient(), rtol=rtol)
+        bkd.assert_allclose(point.hvp(_DIRECTION), paths.old_hvp(), rtol=rtol)
+
+
+@pytest.mark.parametrize(
+    "make, old_name",
+    [m for m in _METHODS if m[1] in ("backward_euler", "crank_nicolson")],
+    ids=["backward_euler", "crank_nicolson"],
+)
+class TestTransientImplicitMapWithATimeIntegral:
+    """The weighted L2 integral as the map's functional source, its value
+    during the solve, gradient and HVP against
+    ``TimeIntegratedWeightedL2Functional`` through the old model, to
+    1e-9."""
+
+    def test_value_gradient_and_hvp(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], ButcherTableau],
+        old_name: str,
+    ) -> None:
+        bkd = numpy_bkd
+        paths = _Paths(bkd, make, old_name)
+        system = paths.system()
+        weight = _weight(len(paths.heat().init_state))
+        integral = time_integrated_weighted_l2(
+            system, paths.method(), RecomputeAlways(system.solved.solver), weight
+        )
+        implicit = _implicit_map(paths, integral)
+        old = _old_model(
+            paths.heat(),
+            old_name,
+            TimeIntegratedWeightedL2Functional(weight, HEAT_NPARAMS, bkd),
+        )
+        param = bkd.asarray(HEAT_PARAM)
+        bkd.assert_allclose(implicit.value(param), old(param), rtol=1e-9)
+        point = implicit.point(param)
+        derivatives = old.derivatives()
+        assert derivatives.jacobian is not None and derivatives.hvp is not None
+        bkd.assert_allclose(point.gradient(), derivatives.jacobian(param).T, rtol=1e-9)
+        bkd.assert_allclose(
+            point.hvp(_DIRECTION), derivatives.hvp(param, _DIRECTION), rtol=1e-9
         )
 
 

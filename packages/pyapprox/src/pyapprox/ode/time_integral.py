@@ -133,8 +133,7 @@ class IntegrandDerivatives(Generic[V, A]):
         given = [field is not None for field in mixed]
         if self.param is None and any(given):
             raise ValueError(
-                "a q independent of the parameters has no parameter second "
-                "derivatives"
+                "a q independent of the parameters has no parameter second derivatives"
             )
         if self.param is not None and not all(given):
             raise ValueError(
@@ -269,6 +268,10 @@ class TimeIntegral(Generic[V, A]):
     def integrand(self) -> IntegrandProtocol[V, A]:
         """:math:`q`."""
         return self._integrand
+
+    def nqoi(self) -> int:
+        """The number of entries of the integral, those of :math:`q`."""
+        return self._integrand.nqoi()
 
     def quadrature(self) -> StepQuadratureProtocol:
         """The stepper's method applied to :math:`\\dot z = q`."""
@@ -501,8 +504,7 @@ class QuadratureStepTerm(Generic[V, A]):
     def _state_derivative(self) -> LinearizationFn[V, A]:
         if self._state is None:
             raise RuntimeError(
-                "the integrand has no derivatives; check derivatives() before "
-                "calling"
+                "the integrand has no derivatives; check derivatives() before calling"
             )
         return self._state
 
@@ -656,5 +658,3 @@ def node_state(window: StepWindow[V], node: QuadratureNode) -> V:
     if node.lag == 0:
         return window.unknown.blocks[node.block]
     return window.past_state(node.lag)
-
-
