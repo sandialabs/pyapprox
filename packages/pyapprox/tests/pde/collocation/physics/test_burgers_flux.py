@@ -102,7 +102,9 @@ def test_jacobian(bkd: Backend[Array], total: bool) -> None:
     assert isinstance(flux, FluxProviderProtocol)
     checker = DerivativeChecker(_FluxFunction(flux, bkd))
     state = bkd.asarray(np.random.default_rng(3).normal(0.0, 1.0, (10, 1)))
-    errors = checker.check_derivatives(state)
+    # Central differences: the one-sided error curve is too shallow for the
+    # 1e-6 ratio to hold across platform BLAS (CI measured up to 2.4e-6).
+    errors = checker.check_derivatives(state, central=True)
     assert checker.error_ratio(errors[0]) <= 1e-6
 
 
