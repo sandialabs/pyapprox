@@ -50,6 +50,15 @@ def test_weights_reproduce_points(ndim: int) -> None:
         assert box.vertex_weights(v, box.signs(v)) == (1.0,)
 
 
+def _assert_keys_match(
+    key: list[tuple[int, float]], other: list[tuple[int, float]]
+) -> None:
+    # Entity ids must agree exactly and weights to round-off; pytest.approx
+    # does not accept the nested (id, weight) pairs directly.
+    assert [e for e, _ in key] == [e for e, _ in other]
+    assert [w for _, w in key] == pytest.approx([w for _, w in other])
+
+
 def test_edge_key_is_orientation_free() -> None:
     # Two squares sharing an edge, numbered in opposite directions: the
     # edge's vertices are entities 7 and 12 on one, 12 and 7 on the other.
@@ -62,7 +71,7 @@ def test_edge_key_is_orientation_free() -> None:
         keys.append(
             sorted((ends[v], w) for v, w in zip(box.subentity_vertices(edge), weights))
         )
-    assert keys[0] == pytest.approx(keys[1])
+    _assert_keys_match(keys[0], keys[1])
 
 
 @pytest.mark.parametrize("ndim", [0, 1, 2, 3])
@@ -106,7 +115,7 @@ def test_simplex_edge_key_is_orientation_free() -> None:
     for ends, point in (({1: 4, 2: 9}, [0.7, 0.3]), ({1: 9, 2: 4}, [0.3, 0.7])):
         weights = simplex.vertex_weights(edge, point)
         keys.append(sorted((ends[v], w) for v, w in zip((1, 2), weights)))
-    assert keys[0] == pytest.approx(keys[1])
+    _assert_keys_match(keys[0], keys[1])
 
 
 def test_rejects_bad_input() -> None:
