@@ -13,6 +13,8 @@ vector, which keeps the flux sum conservative.
 
 from typing import Generic, Protocol, Sequence, TypeVar, runtime_checkable
 
+from pyapprox.pde.coupling.geometry import FacePoint
+from pyapprox.pde.coupling.spaces import FaceValues
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import SpaceDescriptor
 
@@ -139,6 +141,176 @@ class SplitRowsTransfer(Generic[V, Array]):
 
     def gather_add(self, block: Array, y: V) -> V:
         return self._outputs.add_to(y, self._sign * block)
+
+
+class InterpolationTransfer(Generic[V, Array]):
+    r"""Port nodes that are not skeleton DOFs: :math:`E_i = I R`, the
+    skeleton function evaluated at the subdomain's port nodes.
+
+    :math:`R` takes the skeleton DOFs the port reads; :math:`I`, a small
+    dense backend array, evaluates their functions at the port nodes
+    (:func:`port_interpolation`). The transpose adds a tested flux back as
+    :math:`R^\top I^\top`, so fluxes stay conservative. The skeleton
+    vector type ``V`` stays opaque: only port blocks are backend arrays.
+
+    Parameters
+    ----------
+    rows
+        The skeleton rows the port reads, :math:`R`.
+    matrix
+        :math:`I`. Shape: (nport, rows.nrows()).
+
+    Raises
+    ------
+    TypeError
+        If ``rows`` does not satisfy :class:`PortRowsProtocol`.
+    ValueError
+        If ``matrix`` is not 2D with ``rows.nrows()`` columns.
+    """
+
+    def __init__(self, rows: PortRowsProtocol[V, Array], matrix: Array) -> None:
+        if not isinstance(rows, PortRowsProtocol):
+            raise TypeError(
+                f"rows must satisfy PortRowsProtocol, got {type(rows).__name__}"
+            )
+        if matrix.ndim != 2 or matrix.shape[1] != rows.nrows():
+            raise ValueError(
+                f"matrix must have shape (nport, {rows.nrows()}), "
+                f"got {tuple(matrix.shape)}"
+            )
+        self._rows, self._matrix = rows, matrix
+
+    def nport(self) -> int:
+        return int(self._matrix.shape[0])
+
+    def scatter(self, lam: V) -> Array:
+        return self._matrix @ self._rows.take(lam)
+
+    def gather_add(self, block: Array, y: V) -> V:
+        return self._rows.add_to(y, self._matrix.T @ block)
+
+
+@runtime_checkable
+class FaceValuesProtocol(Protocol, Generic[Array]):
+    """What :func:`port_interpolation` asks of a skeleton field space: its
+    functions on a face at reference points, and the backend of their
+    reference data."""
+
+    def face_values(self, face: int, points: Array) -> FaceValues[Array]: ...
+
+    def bkd(self) -> Backend[Array]: ...
+
+
+@runtime_checkable
+class CrossPointRuleProtocol(Protocol, Generic[Array]):
+    """How a port node lying on several faces' closure reads the skeleton.
+
+    Each incident face gives the node a row: the values, shape
+    (k, ndofs), of the port's skeleton functions there through that
+    face. On a continuous space the rows agree; on a facet space they
+    differ, and the rule decides.
+    """
+
+    def row(self, node: int, faces: Sequence[int], rows: Sequence[Array]) -> Array:
+        """The node's row from its incident faces' rows (at least two)."""
+        ...
+
+
+class AverageIncidentFaces(Generic[Array]):
+    """A cross-point node reads the mean of its incident faces' values."""
+
+    def row(self, node: int, faces: Sequence[int], rows: Sequence[Array]) -> Array:
+        total = rows[0]
+        for r in rows[1:]:
+            total = total + r
+        return total / float(len(rows))
+
+
+class RefuseCrossPoints(Generic[Array]):
+    """A port node on several faces' closure is an error."""
+
+    def row(self, node: int, faces: Sequence[int], rows: Sequence[Array]) -> Array:
+        raise ValueError(f"port node {node} lies on several faces {tuple(faces)}")
+
+
+def port_interpolation(
+    space: FaceValuesProtocol[Array],
+    located: Sequence[Sequence[FacePoint[Array]]],
+    dofs: Sequence[int],
+    cross_points: CrossPointRuleProtocol[Array],
+) -> Array:
+    r"""The matrix :math:`I` of an :class:`InterpolationTransfer`: the
+    skeleton functions of ``dofs`` at each port node.
+
+    Rows are node-major: node ``n``, component ``c`` is row ``k n + c``,
+    as interleaved field DOFs are numbered. A node on one face reads that
+    face's values; a node on several asks ``cross_points``. The values
+    enter by products with constant 0/1 placement arrays, so a graph
+    through them survives.
+
+    Parameters
+    ----------
+    space
+        The skeleton field space.
+    located
+        Each port node's faces and reference points, e.g. from
+        :meth:`~pyapprox.pde.coupling.geometry.TensorBoxGeometry.locate`
+        over the subdomain's faces.
+    dofs
+        The skeleton DOFs the port reads, in the order of the transfer's
+        rows :math:`R`.
+    cross_points
+        The rule for nodes on several faces.
+
+    Returns
+    -------
+    Array
+        Shape: (k * nnodes, len(dofs)).
+
+    Raises
+    ------
+    TypeError
+        If ``space`` or ``cross_points`` does not satisfy its protocol.
+    ValueError
+        If ``located`` is empty or holds a node on no face, or a face's
+        DOFs are not all in ``dofs``.
+    """
+    if not isinstance(space, FaceValuesProtocol):
+        raise TypeError(
+            f"space must satisfy FaceValuesProtocol, got {type(space).__name__}"
+        )
+    if not isinstance(cross_points, CrossPointRuleProtocol):
+        raise TypeError(
+            "cross_points must satisfy CrossPointRuleProtocol, got "
+            f"{type(cross_points).__name__}"
+        )
+    if not located:
+        raise ValueError("located must hold at least one port node")
+    bkd = space.bkd()
+    column = {dof: j for j, dof in enumerate(dofs)}
+    node_rows = []
+    for node, faces in enumerate(located):
+        if not faces:
+            raise ValueError(f"port node {node} lies on no face")
+        rows = []
+        for fp in faces:
+            fv = space.face_values(fp.face, fp.point)
+            missing = [d for d in fv.dofs if d not in column]
+            if missing:
+                raise ValueError(
+                    f"face {fp.face} reads DOFs {missing} outside the port's DOFs"
+                )
+            # (ndofs_face, len(dofs)) placement of the face's DOFs.
+            placement = [
+                [1.0 if column[d] == j else 0.0 for j in range(len(dofs))]
+                for d in fv.dofs
+            ]
+            rows.append(fv.values[0].T @ bkd.asarray(placement))
+        if len(rows) == 1:
+            node_rows.append(rows[0])
+        else:
+            node_rows.append(cross_points.row(node, [fp.face for fp in faces], rows))
+    return bkd.concatenate(node_rows, axis=0)
 
 
 class BackendPortRows(Generic[Array]):

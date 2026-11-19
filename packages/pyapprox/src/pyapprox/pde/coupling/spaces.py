@@ -536,6 +536,10 @@ class ComponentSkeletonSpace(Generic[Array]):
         """The scalar space's faces."""
         return self._scalar.faces()
 
+    def bkd(self) -> Backend[Array]:
+        """The scalar space's backend."""
+        return self._scalar.bkd()
+
     def face_values(self, face: int, points: Array) -> FaceValues[Array]:
         r"""The scalar values times each unit vector :math:`e_c`: on the
         face's interleaved DOFs ``k * d + c``, the function of DOF
