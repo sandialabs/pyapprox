@@ -58,13 +58,9 @@ def point_interpolation_weights(
     slack = 1e-12 * (upper - lower)
     outside = [x for x in points if x < lower - slack or x > upper + slack]
     if outside:
-        raise ValueError(
-            f"points {outside} lie outside the domain [{lower}, {upper}]"
-        )
+        raise ValueError(f"points {outside} lie outside the domain [{lower}, {upper}]")
     targets = bkd.asarray([points])  # shape (1, npoints)
-    transform = basis.mesh().transform()
-    if transform is not None:
-        targets = transform.map_to_reference(targets)
+    targets = basis.mesh().transform().map_to_reference(targets)
     rows = univariate_lagrange_polynomial(basis.nodes(), targets[0], bkd)
     return rows.T
 
@@ -100,9 +96,7 @@ class PointEvaluationFunctional(Generic[Array]):
 
         self._nstates = basis.nodes().shape[0]
         # Interpolation row: L_j(x*) for j = 0..npts-1, shape (1, npts)
-        self._interp_row = point_interpolation_weights(
-            basis, [eval_point], bkd
-        ).T
+        self._interp_row = point_interpolation_weights(basis, [eval_point], bkd).T
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

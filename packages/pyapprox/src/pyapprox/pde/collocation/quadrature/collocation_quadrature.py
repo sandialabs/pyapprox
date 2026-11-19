@@ -83,17 +83,10 @@ class CollocationQuadrature1D(Generic[Array]):
         transform = self._basis.mesh().transform()
 
         # Map physical bounds to reference coordinates
-        if transform is not None:
-            xi_a_arr = transform.map_to_reference(bkd.asarray([[a_sub]]))
-            xi_b_arr = transform.map_to_reference(bkd.asarray([[b_sub]]))
-            xi_a = xi_a_arr[0, 0]
-            xi_b = xi_b_arr[0, 0]
-            # Jacobian determinant (constant for affine)
-            jac_det = transform.jacobian_determinant(bkd.asarray([[0.0]]))[0]
-        else:
-            xi_a = bkd.asarray(a_sub)
-            xi_b = bkd.asarray(b_sub)
-            jac_det = bkd.asarray(1.0)
+        xi_a = transform.map_to_reference(bkd.asarray([[a_sub]]))[0, 0]
+        xi_b = transform.map_to_reference(bkd.asarray([[b_sub]]))[0, 0]
+        # Jacobian determinant (constant for affine)
+        jac_det = transform.jacobian_determinant(bkd.asarray([[0.0]]))[0]
 
         # Map GL points from [-1, 1] to reference subdomain [xi_a, xi_b]
         scale = (xi_b - xi_a) / 2.0

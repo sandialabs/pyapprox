@@ -17,6 +17,11 @@ from pyapprox.pde.collocation.mesh.base import (
     compute_boundary_indices_3d,
     compute_cartesian_product,
 )
+from pyapprox.pde.collocation.mesh.transforms.affine import (
+    AffineTransform1D,
+    AffineTransform2D,
+    AffineTransform3D,
+)
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -56,7 +61,8 @@ class TransformedMesh1D(Generic[Array]):
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
-        Coordinate transform. If None, uses identity (no scaling).
+        Coordinate transform. If None, the reference interval itself:
+        ``AffineTransform1D((-1.0, 1.0), bkd)``.
     """
 
     def __init__(
@@ -67,7 +73,9 @@ class TransformedMesh1D(Generic[Array]):
     ):
         self._bkd = bkd
         self._npts = npts
-        self._transform = transform
+        if transform is None:
+            transform = AffineTransform1D((-1.0, 1.0), bkd)
+        self._transform: TransformProtocol[Array] = transform
 
         # Generate Chebyshev-Gauss-Lobatto points on [-1, 1]
         self._reference_nodes_1d_arr = _chebyshev_gauss_lobatto_points(npts, bkd)
@@ -77,17 +85,10 @@ class TransformedMesh1D(Generic[Array]):
         self._reference_points = ref_nodes_2d
 
         # Compute physical nodes, gradient factors, and Jacobians
-        if transform is not None:
-            self._points = transform.map_to_physical(ref_nodes_2d)
-            self._gradient_factors = transform.gradient_factors(ref_nodes_2d)
-            self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_2d)
-            self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_2d)
-        else:
-            # Identity transform
-            self._points = ref_nodes_2d
-            self._gradient_factors = bkd.ones((npts, 1, 1))
-            self._jacobian_matrix = bkd.ones((npts, 1, 1))
-            self._jacobian_determinant = bkd.ones((npts,))
+        self._points = transform.map_to_physical(ref_nodes_2d)
+        self._gradient_factors = transform.gradient_factors(ref_nodes_2d)
+        self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_2d)
+        self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_2d)
 
         # Compute boundary indices
         self._boundary_indices = compute_boundary_indices_1d(npts, bkd)
@@ -130,8 +131,8 @@ class TransformedMesh1D(Generic[Array]):
         """Return indices of boundary points."""
         return self._boundary_indices[boundary_id]
 
-    def transform(self) -> Optional[TransformProtocol[Array]]:
-        """Return the coordinate transform; None for the identity."""
+    def transform(self) -> TransformProtocol[Array]:
+        """Return the coordinate transform."""
         return self._transform
 
     def jacobian_matrix(self) -> Array:
@@ -185,7 +186,8 @@ class TransformedMesh2D(Generic[Array]):
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
-        Coordinate transform. If None, uses identity.
+        Coordinate transform. If None, the reference square itself:
+        ``AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)``.
     """
 
     def __init__(
@@ -199,7 +201,9 @@ class TransformedMesh2D(Generic[Array]):
         self._npts_x = npts_x
         self._npts_y = npts_y
         self._npts = npts_x * npts_y
-        self._transform = transform
+        if transform is None:
+            transform = AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)
+        self._transform: TransformProtocol[Array] = transform
 
         # Generate Chebyshev points for each dimension
         self._reference_nodes_x = _chebyshev_gauss_lobatto_points(npts_x, bkd)
@@ -212,20 +216,10 @@ class TransformedMesh2D(Generic[Array]):
         self._reference_points = ref_nodes_2d
 
         # Compute physical nodes, gradient factors, and Jacobians
-        if transform is not None:
-            self._points = transform.map_to_physical(ref_nodes_2d)
-            self._gradient_factors = transform.gradient_factors(ref_nodes_2d)
-            self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_2d)
-            self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_2d)
-        else:
-            self._points = ref_nodes_2d
-            self._gradient_factors = bkd.zeros((self._npts, 2, 2))
-            self._gradient_factors[:, 0, 0] = 1.0
-            self._gradient_factors[:, 1, 1] = 1.0
-            self._jacobian_matrix = bkd.zeros((self._npts, 2, 2))
-            self._jacobian_matrix[:, 0, 0] = 1.0
-            self._jacobian_matrix[:, 1, 1] = 1.0
-            self._jacobian_determinant = bkd.ones((self._npts,))
+        self._points = transform.map_to_physical(ref_nodes_2d)
+        self._gradient_factors = transform.gradient_factors(ref_nodes_2d)
+        self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_2d)
+        self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_2d)
 
         # Compute boundary indices
         self._boundary_indices = compute_boundary_indices_2d(npts_x, npts_y, bkd)
@@ -270,8 +264,8 @@ class TransformedMesh2D(Generic[Array]):
         """Return indices of boundary points."""
         return self._boundary_indices[boundary_id]
 
-    def transform(self) -> Optional[TransformProtocol[Array]]:
-        """Return the coordinate transform; None for the identity."""
+    def transform(self) -> TransformProtocol[Array]:
+        """Return the coordinate transform."""
         return self._transform
 
     def jacobian_matrix(self) -> Array:
@@ -322,11 +316,7 @@ class TransformedMesh2D(Generic[Array]):
         boundary_idx = self._boundary_indices[boundary_id]
         nboundary = boundary_idx.shape[0]
 
-        if self._transform is None:
-            # Identity transform: normals are constant
-            return self._bkd.tile(self._bkd.reshape(n_ref, (1, 2)), (nboundary, 1))
-
-        # For curvilinear transforms, compute n = J^{-T} @ n_ref / |...|
+        # Compute n = J^{-T} @ n_ref / |...|
         # at each boundary point
         # J^{-T} = (J^{-1})^T
         # For 2x2 matrix J, J^{-1} = (1/det(J)) * [[d, -b], [-c, a]]
@@ -374,7 +364,8 @@ class TransformedMesh3D(Generic[Array]):
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
-        Coordinate transform. If None, uses identity.
+        Coordinate transform. If None, the reference cube itself:
+        ``AffineTransform3D((-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)``.
     """
 
     def __init__(
@@ -390,7 +381,9 @@ class TransformedMesh3D(Generic[Array]):
         self._npts_y = npts_y
         self._npts_z = npts_z
         self._npts = npts_x * npts_y * npts_z
-        self._transform = transform
+        if transform is None:
+            transform = AffineTransform3D((-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
+        self._transform: TransformProtocol[Array] = transform
 
         # Generate Chebyshev points for each dimension
         self._reference_nodes_x = _chebyshev_gauss_lobatto_points(npts_x, bkd)
@@ -409,22 +402,10 @@ class TransformedMesh3D(Generic[Array]):
         self._reference_points = ref_nodes_3d
 
         # Compute physical nodes, gradient factors, and Jacobians
-        if transform is not None:
-            self._points = transform.map_to_physical(ref_nodes_3d)
-            self._gradient_factors = transform.gradient_factors(ref_nodes_3d)
-            self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_3d)
-            self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_3d)
-        else:
-            self._points = ref_nodes_3d
-            self._gradient_factors = bkd.zeros((self._npts, 3, 3))
-            self._gradient_factors[:, 0, 0] = 1.0
-            self._gradient_factors[:, 1, 1] = 1.0
-            self._gradient_factors[:, 2, 2] = 1.0
-            self._jacobian_matrix = bkd.zeros((self._npts, 3, 3))
-            self._jacobian_matrix[:, 0, 0] = 1.0
-            self._jacobian_matrix[:, 1, 1] = 1.0
-            self._jacobian_matrix[:, 2, 2] = 1.0
-            self._jacobian_determinant = bkd.ones((self._npts,))
+        self._points = transform.map_to_physical(ref_nodes_3d)
+        self._gradient_factors = transform.gradient_factors(ref_nodes_3d)
+        self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_3d)
+        self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_3d)
 
         # Compute boundary indices
         self._boundary_indices = compute_boundary_indices_3d(
@@ -473,8 +454,8 @@ class TransformedMesh3D(Generic[Array]):
         """Return indices of boundary points."""
         return self._boundary_indices[boundary_id]
 
-    def transform(self) -> Optional[TransformProtocol[Array]]:
-        """Return the coordinate transform; None for the identity."""
+    def transform(self) -> TransformProtocol[Array]:
+        """Return the coordinate transform."""
         return self._transform
 
     def jacobian_matrix(self) -> Array:
@@ -521,10 +502,7 @@ class TransformedMesh3D(Generic[Array]):
         boundary_idx = self._boundary_indices[boundary_id]
         nboundary = boundary_idx.shape[0]
 
-        if self._transform is None:
-            return self._bkd.tile(self._bkd.reshape(n_ref, (1, 3)), (nboundary, 1))
-
-        # For curvilinear: n = J^{-T} @ n_ref / |...|
+        # n = J^{-T} @ n_ref / |...|
         normals = self._bkd.zeros((nboundary, 3))
         for i in range(nboundary):
             idx = self._bkd.to_int(boundary_idx[i])

@@ -145,7 +145,7 @@ class SympyField2D(Generic[Array]):
 
             # Check if mesh has curvilinear transform
             transform = self._mesh.transform()
-            if transform is None or isinstance(transform, AffineTransform2D):
+            if isinstance(transform, AffineTransform2D):
                 # Affine case: simple scaling
                 # dxn/dx_phys = 1 / Lx, dyn/dy_phys = 1 / Ly
                 bounds = self._get_physical_bounds()
@@ -172,7 +172,7 @@ class SympyField2D(Generic[Array]):
             result = []
             for f in self._grad_funcs:
                 val = f(coords[0], coords[1])
-                if np.isscalar(val):
+                if np.ndim(val) == 0:
                     val = np.full(npts, float(val))
                 result.append(self._bkd.asarray(val))
             return result
@@ -180,7 +180,7 @@ class SympyField2D(Generic[Array]):
     def _get_physical_bounds(self) -> Tuple[float, float, float, float]:
         """Get physical domain bounds from mesh or transform."""
         transform = self._mesh.transform()
-        if transform is not None and hasattr(transform, "physical_bounds"):
+        if isinstance(transform, AffineTransform2D):
             return transform.physical_bounds()
         else:
             # Fall back to computing from mesh points

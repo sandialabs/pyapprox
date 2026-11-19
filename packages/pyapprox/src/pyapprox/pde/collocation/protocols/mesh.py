@@ -3,7 +3,7 @@
 Defines interfaces for computational meshes supporting 1D, 2D, and 3D domains.
 """
 
-from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -220,8 +220,8 @@ class MeshWithTransformProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def transform(self) -> Optional[TransformProtocol[Array]]:
-        """Return the coordinate transformation; None for the identity."""
+    def transform(self) -> TransformProtocol[Array]:
+        """Return the coordinate transformation."""
         ...
 
     def jacobian_matrix(self) -> Array:
