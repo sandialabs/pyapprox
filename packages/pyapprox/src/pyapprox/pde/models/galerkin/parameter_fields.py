@@ -10,9 +10,10 @@ makes that conversion, for every system built over one
 essential rows treated, and the unconstrained one, whose functions are
 raw, convert the same way and read the same parameters.
 
-The parameter Jacobian arrives as an action and the initial-state
-Jacobian as a dense matrix; both become dense operators here, the one
-place they are converted.
+The parameter Jacobian arrives as an action and becomes a matrix-free
+operator applying it; the initial-state Jacobian arrives as a dense
+matrix and becomes a dense operator. This is the one place they are
+converted.
 """
 
 from typing import Generic, Optional, TypeVar, Union
@@ -35,24 +36,82 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamDerivatives,
     ParamHVPFn,
     ParamJacobianFn,
+    ParamJacobianProtocol,
 )
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.operators import FormatProtocol, VectorSpaceProtocol
+from pyapprox.util.linalg.operators import (
+    FormatProtocol,
+    MatrixFree,
+    OperatorProperties,
+    SpaceDescriptor,
+    VectorSpaceProtocol,
+)
 
 F = TypeVar("F", bound=FormatProtocol)
 
 
-class _ParamJacobianAt(Generic[Array]):
-    """``(state, time) -> dF/dp`` at the current parameters, as a matrix."""
+class _ParamJacobianOperator(Generic[Array]):
+    """A parameter Jacobian's actions between the parameter and state
+    spaces; ``MatrixFree``. ``out`` is ignored."""
 
     def __init__(
-        self, fn: ParamJacobianFn[Array], parameters: ParameterState[Array]
+        self,
+        jacobian: ParamJacobianProtocol[Array],
+        params: SpaceDescriptor,
+        states: SpaceDescriptor,
+    ) -> None:
+        self._jacobian = jacobian
+        self._params, self._states = params, states
+
+    def domain(self) -> SpaceDescriptor:
+        return self._params
+
+    def range(self) -> SpaceDescriptor:
+        return self._states
+
+    def properties(self) -> OperatorProperties:
+        return OperatorProperties()
+
+    def format(self) -> MatrixFree:
+        return MatrixFree()
+
+    @staticmethod
+    def _check(block: Array, size: int) -> None:
+        if block.ndim != 2 or block.shape[0] != size:
+            raise ValueError(
+                f"input must have shape ({size}, ncols), got {tuple(block.shape)}"
+            )
+
+    def apply(self, x: Array, out: Optional[Array] = None) -> Array:
+        self._check(x, self._params.size)
+        return self._jacobian.apply(x)
+
+    def apply_transpose(self, y: Array, out: Optional[Array] = None) -> Array:
+        self._check(y, self._states.size)
+        return self._jacobian.apply_transpose(y)
+
+
+class _ParamJacobianAt(Generic[Array]):
+    """``(state, time) -> dF/dp`` at the current parameters, as an
+    operator applying the parameterization's actions."""
+
+    def __init__(
+        self,
+        fn: ParamJacobianFn[Array],
+        parameters: ParameterState[Array],
+        params: VectorSpaceProtocol[Array],
+        states: VectorSpaceProtocol[Array],
     ) -> None:
         self._fn, self._parameters = fn, parameters
+        self._params, self._states = params.descriptor(), states.descriptor()
 
-    def __call__(self, state: Array, time: float) -> Array:
-        return self._fn(state, time, self._parameters.current()).matrix()
+    def __call__(self, state: Array, time: float) -> _ParamJacobianOperator[Array]:
+        return _ParamJacobianOperator(
+            self._fn(state, time, self._parameters.current()),
+            self._params,
+            self._states,
+        )
 
 
 class _InitialParamJacobianAt(Generic[Array]):
@@ -161,9 +220,7 @@ def residual_derivatives(
     param_jacobian = param_derivatives.param_jacobian
     if param_jacobian is None:
         return ODEResidualDerivatives.state_only(jacobian)
-    param = dense_operator(
-        _ParamJacobianAt(param_jacobian, parameters), params, states, bkd
-    )
+    param = _ParamJacobianAt(param_jacobian, parameters, params, states)
     initial: Union[InitialStateFn[Array], StatedZero] = STATED_ZERO
     curvature: Union[CurvatureFn[Array], StatedZero, None] = STATED_ZERO
     if not isinstance(initial_state, StatedZero):

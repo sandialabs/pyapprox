@@ -57,10 +57,7 @@ from pyapprox.pde.field_maps.protocol import (
     LinearFieldMapProtocol,
     field_map_has_hvp,
 )
-from pyapprox.pde.parameterizations.derivatives import (
-    ParamDerivatives,
-    dense_param_jacobian,
-)
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -96,9 +93,7 @@ StateShapedHVPFn = Callable[[Array, float, Array, Array], Array]
 # (state, time, bc_indices, normals) -> (n_bc, nfield): the boundary
 # rows' normal-flux derivative w.r.t. the coefficient field (only BCs
 # whose normal operator has coefficient dependence supply one).
-BCFluxFieldJacobianFn = Callable[
-    [Array, float, Array, Array], Union[spmatrix, Array]
-]
+BCFluxFieldJacobianFn = Callable[[Array, float, Array, Array], Union[spmatrix, Array]]
 
 _FieldStateSlot = Union[Zero, FromLinearity, FieldShapedHVPFn[Array]]
 _StateFieldSlot = Union[Zero, FromLinearity, StateShapedHVPFn[Array]]
@@ -120,9 +115,7 @@ def _is_linear_map(field_map: FieldMapProtocol[Array]) -> bool:
     would describe a field the forward solve never evaluates. Linearity
     cannot be detected from a callable, so it is declared.
     """
-    return isinstance(field_map, LinearFieldMapProtocol) and (
-        field_map.is_linear()
-    )
+    return isinstance(field_map, LinearFieldMapProtocol) and (field_map.is_linear())
 
 
 def _validate_time_modulation(
@@ -256,14 +249,10 @@ class ParamSetter(Generic[Array]):
 class StateJacobianAdapter(Generic[Array]):
     """Adapts ``residual_<field>_jacobian(state)`` to ``(state, time)``."""
 
-    def __init__(
-        self, fn: Callable[[Array], Union[spmatrix, Array]]
-    ) -> None:
+    def __init__(self, fn: Callable[[Array], Union[spmatrix, Array]]) -> None:
         self._fn = fn
 
-    def __call__(
-        self, state: Array, time: float
-    ) -> Union[spmatrix, Array]:
+    def __call__(self, state: Array, time: float) -> Union[spmatrix, Array]:
         return self._fn(state)
 
 
@@ -271,14 +260,10 @@ class ConstantJacobianAdapter(Generic[Array]):
     """Adapts a no-argument assembly (state-independent field jacobian,
     e.g. ``residual_forcing_jacobian()``) to ``(state, time)``."""
 
-    def __init__(
-        self, fn: Callable[[], Union[spmatrix, Array]]
-    ) -> None:
+    def __init__(self, fn: Callable[[], Union[spmatrix, Array]]) -> None:
         self._fn = fn
 
-    def __call__(
-        self, state: Array, time: float
-    ) -> Union[spmatrix, Array]:
+    def __call__(self, state: Array, time: float) -> Union[spmatrix, Array]:
         return self._fn()
 
 
@@ -286,9 +271,7 @@ class FieldStateJacobianAdapter(Generic[Array]):
     """Adapts ``residual_<field>_state_jacobian(delta, state)`` to
     ``(delta, state, time)``."""
 
-    def __init__(
-        self, fn: Callable[[Array, Array], Union[spmatrix, Array]]
-    ) -> None:
+    def __init__(self, fn: Callable[[Array, Array], Union[spmatrix, Array]]) -> None:
         self._fn = fn
 
     def __call__(
@@ -308,6 +291,97 @@ class MixedHVPAdapter(Generic[Array]):
         self, state: Array, time: float, adj_state: Array, vec: Array
     ) -> Array:
         return self._fn(state, adj_state, vec)
+
+
+def _assembly_product(
+    bkd: Backend[Array],
+    mat: Union[spmatrix, Array],
+    operand: Array,
+    transpose: bool = False,
+) -> Array:
+    """``mat @ operand`` (or ``mat.T @ operand``) respecting spaces.
+
+    The chain rule is backend-generic; numpy is a property of the sparse
+    operand, not of the engine. Scipy sparse assemblies can only multiply
+    numpy operands, so that branch crosses to numpy and ingests the
+    (inherently dense) product back --- the engine's only torch-to-numpy
+    seam; the sparse matrix itself is never densified. Dense assemblies
+    stay in backend space end-to-end: no silent device/dtype round trip,
+    autograd preserved.
+    """
+    if transpose:
+        mat = mat.T
+    if isinstance(mat, spmatrix):
+        return bkd.asarray(mat @ bkd.to_numpy(operand))
+    result: Array = mat @ operand
+    return result
+
+
+class FieldParamJacobian(Generic[Array]):
+    r""":math:`\partial R/\partial p = S\,G'` at one ``(state, time,
+    params)``, kept as its two factors.
+
+    Satisfies :class:`~pyapprox.pde.parameterizations.derivatives.
+    ParamJacobianProtocol`. The actions apply the factors in turn,
+    :math:`S (G' V)` and :math:`G'^\top (S^\top W)`, so neither forms the
+    ``(nstates, nparams)`` product; :meth:`matrix` forms it, for a
+    consumer that needs the entries. Through a sparse ``S`` the result is
+    not differentiable by torch autograd (see :func:`_assembly_product`).
+
+    Parameters
+    ----------
+    field_jacobian : spmatrix or Array
+        :math:`S`. Shape: (nstates, nfield).
+    map_jacobian : Array
+        :math:`G'`, modulated when the term is. Shape: (nfield, nparams).
+    bkd : Backend
+        The backend of the blocks.
+    """
+
+    def __init__(
+        self,
+        field_jacobian: Union[spmatrix, Array],
+        map_jacobian: Array,
+        bkd: Backend[Array],
+    ) -> None:
+        if field_jacobian.shape[1] != map_jacobian.shape[0]:
+            raise ValueError(
+                f"field Jacobian of shape {tuple(field_jacobian.shape)} "
+                "does not compose with a field-map Jacobian of shape "
+                f"{tuple(map_jacobian.shape)}"
+            )
+        self._field_jacobian = field_jacobian
+        self._map_jacobian = map_jacobian
+        self._bkd = bkd
+
+    def apply(self, vecs: Array) -> Array:
+        """:math:`S (G' V)`. Shape: (nparams, ncols) -> (nstates, ncols)."""
+        result: Array = _assembly_product(
+            self._bkd, self._field_jacobian, self._map_jacobian @ vecs
+        )
+        return result
+
+    def apply_transpose(self, vecs: Array) -> Array:
+        r""":math:`G'^\top (S^\top W)`. Shape: (nstates, ncols) ->
+        (nparams, ncols)."""
+        result: Array = self._map_jacobian.T @ _assembly_product(
+            self._bkd, self._field_jacobian, vecs, transpose=True
+        )
+        return result
+
+    def matrix(self) -> Array:
+        """:math:`S G'`. Shape: (nstates, nparams)."""
+        result: Array = _assembly_product(
+            self._bkd, self._field_jacobian, self._map_jacobian
+        )
+        return result
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(nstates={self._field_jacobian.shape[0]}, "
+            f"nfield={self._map_jacobian.shape[0]}, "
+            f"nparams={self._map_jacobian.shape[1]})"
+        )
 
 
 class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
@@ -384,9 +458,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nfield_dofs: int,
         owned_coefficients: Tuple[str, ...],
         field_state_jacobian: Optional[FieldStateJacobianFn[Array]] = None,
-        bc_flux_field_jacobian: Optional[
-            BCFluxFieldJacobianFn[Array]
-        ] = None,
+        bc_flux_field_jacobian: Optional[BCFluxFieldJacobianFn[Array]] = None,
         time_modulation: Optional[TimeModulationProtocol[Array]] = None,
     ) -> None:
         if not owned_coefficients:
@@ -406,9 +478,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             ("field_state_hvp", field_state_hvp),
             ("state_field_hvp", state_field_hvp),
         ):
-            if not isinstance(slot, (Zero, FromLinearity)) and not callable(
-                slot
-            ):
+            if not isinstance(slot, (Zero, FromLinearity)) and not callable(slot):
                 raise TypeError(
                     f"{name} must be Zero(), FromLinearity(), or a "
                     f"callable, got {type(slot).__name__}"
@@ -418,26 +488,19 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                 "field_field_hvp cannot be FromLinearity(): linearity "
                 "in the field makes it exactly Zero()"
             )
-        if not isinstance(field_field_hvp, Zero) and not callable(
-            field_field_hvp
-        ):
+        if not isinstance(field_field_hvp, Zero) and not callable(field_field_hvp):
             raise TypeError(
                 "field_field_hvp must be Zero() or a callable, got "
                 f"{type(field_field_hvp).__name__}"
             )
-        if (
-            isinstance(state_field_hvp, FromLinearity)
-            and field_state_jacobian is None
-        ):
+        if isinstance(state_field_hvp, FromLinearity) and field_state_jacobian is None:
             raise TypeError(
                 "state_field_hvp=FromLinearity() requires "
                 "field_state_jacobian (the mixed assembly A(delta_g, u)) "
                 "— the state-shaped contraction cannot be derived from "
                 "field_jacobian alone without symmetry assumptions"
             )
-        if bc_flux_field_jacobian is not None and not callable(
-            bc_flux_field_jacobian
-        ):
+        if bc_flux_field_jacobian is not None and not callable(bc_flux_field_jacobian):
             raise TypeError(
                 "bc_flux_field_jacobian must be a callable "
                 "(state, time, bc_indices, normals) -> (n_bc, nfield) "
@@ -482,20 +545,18 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             field_map, FieldMapWithHVPProtocol
         ):
             self._hvp_field_map = field_map
-            self._derivs: ParamDerivatives[Array] = (
-                ParamDerivatives.second_order(
-                    dense_param_jacobian(self.param_jacobian),
-                    self.initial_param_jacobian,
-                    self.param_param_hvp,
-                    self.state_param_hvp,
-                    self.param_state_hvp,
-                    self.initial_param_hvp,
-                    bc_flux_param_sensitivity=bc_flux_fn,
-                )
+            self._derivs: ParamDerivatives[Array] = ParamDerivatives.second_order(
+                self.param_jacobian,
+                self.initial_param_jacobian,
+                self.param_param_hvp,
+                self.state_param_hvp,
+                self.param_state_hvp,
+                self.initial_param_hvp,
+                bc_flux_param_sensitivity=bc_flux_fn,
             )
         else:
             self._derivs = ParamDerivatives.first_order(
-                dense_param_jacobian(self.param_jacobian),
+                self.param_jacobian,
                 self.initial_param_jacobian,
                 bc_flux_param_sensitivity=bc_flux_fn,
             )
@@ -513,9 +574,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nstates: int,
         nfield_dofs: int,
         owned_coefficients: Tuple[str, ...],
-        bc_flux_field_jacobian: Optional[
-            BCFluxFieldJacobianFn[Array]
-        ] = None,
+        bc_flux_field_jacobian: Optional[BCFluxFieldJacobianFn[Array]] = None,
         time_modulation: Optional[TimeModulationProtocol[Array]] = None,
     ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term linear in the field AND the state (e.g. kappa grad u,
@@ -615,15 +674,10 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         and realizes its values per assembly time; evaluating a map for
         it here would pick one time and freeze the result.
         """
-        values = (
-            params_1d
-            if self._setter_writes_params
-            else self._field_map(params_1d)
-        )
+        values = params_1d if self._setter_writes_params else self._field_map(params_1d)
         if values.shape[0] != self._nfield_dofs:
             raise ValueError(
-                f"setter expects {self._nfield_dofs} values but got "
-                f"{values.shape[0]}"
+                f"setter expects {self._nfield_dofs} values but got {values.shape[0]}"
             )
         self._setter(values)
 
@@ -654,9 +708,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         modulated: Array = jacobian * profiles[None, :]
         return modulated
 
-    def _field_direction(
-        self, params_1d: Array, vvec: Array, time: float
-    ) -> Array:
+    def _field_direction(self, params_1d: Array, vvec: Array, time: float) -> Array:
         """delta_g = G'(p, t) v. Shape: (nfield,)."""
         return self._modulated_jacobian(params_1d, time) @ vvec
 
@@ -666,38 +718,31 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         operand: Array,
         transpose: bool = False,
     ) -> Array:
-        """``mat @ operand`` (or ``mat.T @ operand``) respecting spaces.
-
-        The chain rule is backend-generic; numpy is a property of the
-        sparse operand, not of the engine. Scipy sparse assemblies can
-        only multiply numpy operands, so that branch crosses to numpy
-        and ingests the (inherently dense) product back — the engine's
-        only torch-to-numpy seam; the sparse matrix itself is never
-        densified. Dense assemblies stay in backend space end-to-end:
-        no silent device/dtype round trip, autograd preserved.
-        """
-        if transpose:
-            mat = mat.T
-        if isinstance(mat, spmatrix):
-            return self._bkd.asarray(mat @ self._bkd.to_numpy(operand))
-        return mat @ operand
+        """``mat @ operand`` (or ``mat.T @ operand``); see
+        :func:`_assembly_product`."""
+        result: Array = _assembly_product(self._bkd, mat, operand, transpose)
+        return result
 
     def param_jacobian(
         self, state: Array, time: float, params_1d: Array
-    ) -> Array:
-        """dR/dp = S(u, t) @ G'(p, t). Shape: (nstates, nparams)."""
-        return self._assembly_apply(
+    ) -> "FieldParamJacobian[Array]":
+        """dR/dp = S(u, t) G'(p, t), as the product of its two factors.
+
+        S is assembled once here and kept in its assembled (sparse)
+        format; the ``(nstates, nparams)`` product is formed only by
+        :meth:`FieldParamJacobian.matrix`.
+        """
+        return FieldParamJacobian(
             self._field_jacobian(state, time),
             self._modulated_jacobian(params_1d, time),
+            self._bkd,
         )
 
     def initial_param_jacobian(self, params_1d: Array) -> Array:
         """d(u_0)/dp = 0 (coefficient fields do not set the IC)."""
         return self._bkd.zeros((self._nstates, self.nparams()))
 
-    def initial_param_hvp(
-        self, params_1d: Array, weight: Array, vvec: Array
-    ) -> Array:
+    def initial_param_hvp(self, params_1d: Array, weight: Array, vvec: Array) -> Array:
         """sum_i weight_i (d^2 u_0,i/dp^2) v = 0: the IC is independent
         of p. Shape: (nparams,)."""
         return self._bkd.zeros((self.nparams(),))
@@ -753,9 +798,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         # already assembles, and what it guards is silent: a future
         # construction path that skipped the validation would produce a
         # plausible wrong Hessian rather than an error.
-        if self._time_modulation is not None and not _is_linear_map(
-            field_map
-        ):
+        if self._time_modulation is not None and not _is_linear_map(field_map):
             raise RuntimeError(
                 "a temporal modulation is attached to a nonlinear field "
                 f"map ({type(field_map).__name__}); its curvature term "
@@ -817,17 +860,14 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             )
         else:
             weights = slot(state, time, adj_state, wvec)
-        result: Array = (
-            self._modulated_jacobian(params_1d, time).T @ weights
-        )
+        result: Array = self._modulated_jacobian(params_1d, time).T @ weights
         return result
 
     def _require_hvp_field_map(self) -> FieldMapWithHVPProtocol[Array]:
         field_map = self._hvp_field_map
         if field_map is None:
             raise RuntimeError(
-                "HVP methods are unavailable; check param_derivatives() "
-                "before calling"
+                "HVP methods are unavailable; check param_derivatives() before calling"
             )
         return field_map
 

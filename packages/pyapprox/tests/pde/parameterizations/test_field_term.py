@@ -44,7 +44,9 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.parameterizations.derivatives import ParamJacobianProtocol
 from pyapprox.pde.parameterizations.field_term import (
+    FieldParamJacobian,
     FromLinearity,
     MixedHVPAdapter,
     StateJacobianAdapter,
@@ -163,10 +165,7 @@ def _build_physics_and_map(
     )
     coords = bkd.to_numpy(basis.dof_coordinates())[0]
     modes = np.stack(
-        [
-            0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
-            for k in range(_NPARAMS)
-        ],
+        [0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1) for k in range(_NPARAMS)],
         axis=1,
     )
     kle = MeshKLEFieldMap(
@@ -181,9 +180,7 @@ def _build_engine_term(
     bkd: NumpyBkd,
     physics: AdvectionDiffusionReaction[NumpyArray],
     field_map: TransformedFieldMap[NumpyArray],
-) -> _FieldParameterizationTerm[
-    NumpyArray, AdvectionDiffusionReaction[NumpyArray]
-]:
+) -> _FieldParameterizationTerm[NumpyArray, AdvectionDiffusionReaction[NumpyArray]]:
     diffusion = physics.diffusion_function()
     assert isinstance(diffusion, NodalFieldDiffusion)
     return _FieldParameterizationTerm.linear_field_state(
@@ -233,9 +230,7 @@ def _passes_steady_checks(
 
 
 class TestFieldParameterizationTerm:
-    def test_mixed_assembly_linearity_identity(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_mixed_assembly_linearity_identity(self, numpy_bkd: NumpyBkd) -> None:
         """A(delta) w == S(w) delta — both contractions of the constant
         mixed tensor agree (validates the new mixed assembly against
         the sensitivity assembly)."""
@@ -245,15 +240,11 @@ class TestFieldParameterizationTerm:
         rng = np.random.default_rng(11)
         delta = bkd.asarray(rng.normal(0.0, 1.0, nstates))
         wvec = bkd.asarray(rng.normal(0.0, 1.0, nstates))
-        lhs = physics.residual_diffusivity_state_jacobian(
-            delta, wvec
-        ) @ bkd.to_numpy(wvec)
-        rhs = physics.residual_diffusivity_jacobian(wvec) @ bkd.to_numpy(
-            delta
+        lhs = physics.residual_diffusivity_state_jacobian(delta, wvec) @ bkd.to_numpy(
+            wvec
         )
-        bkd.assert_allclose(
-            bkd.asarray(lhs), bkd.asarray(rhs), rtol=1e-12
-        )
+        rhs = physics.residual_diffusivity_jacobian(wvec) @ bkd.to_numpy(delta)
+        bkd.assert_allclose(bkd.asarray(lhs), bkd.asarray(rhs), rtol=1e-12)
 
     @pytest.mark.parametrize("nonlinear_reaction", [False, True])
     def test_engine_term_passes_the_steady_checks(
@@ -263,15 +254,11 @@ class TestFieldParameterizationTerm:
         and without u^2) passes the residual bundle checker and gives a
         solved gradient and HVP that pass finite differences."""
         bkd = numpy_bkd
-        physics, system, field_map = _build_physics_and_map(
-            bkd, nonlinear_reaction
-        )
+        physics, system, field_map = _build_physics_and_map(bkd, nonlinear_reaction)
         term = _build_engine_term(bkd, physics, field_map)
         _passes_steady_checks(bkd, system, term)
 
-    def test_forcing_term_passes_the_steady_checks(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_forcing_term_passes_the_steady_checks(self, numpy_bkd: NumpyBkd) -> None:
         """A state-independent (forcing) term through the engine passes
         the steady checks — validating the Zero() slot paths (the mixed
         and field-curvature contractions are certified zero and the
@@ -295,10 +282,7 @@ class TestFieldParameterizationTerm:
         )
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         modes = np.stack(
-            [
-                0.6 * np.sin((k + 1) * np.pi * coords) / (k + 1)
-                for k in range(_NPARAMS)
-            ],
+            [0.6 * np.sin((k + 1) * np.pi * coords) / (k + 1) for k in range(_NPARAMS)],
             axis=1,
         )
         kle = MeshKLEFieldMap(
@@ -307,15 +291,11 @@ class TestFieldParameterizationTerm:
             bkd.asarray(modes),
         )
         exp = _ExpTransform(bkd)
-        forcing_map = TransformedFieldMap(
-            kle, exp, exp, bkd, transform_deriv2=exp
-        )
+        forcing_map = TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
         term = _FieldParameterizationTerm.state_independent(
             setter=ToNumpySetter(nodal_forcing.set_dofs, bkd),
             physics=physics,
-            field_jacobian=lambda state, time: (
-                physics.residual_forcing_jacobian()
-            ),
+            field_jacobian=lambda state, time: (physics.residual_forcing_jacobian()),
             field_map=forcing_map,
             bkd=bkd,
             nstates=physics.nstates(),
@@ -324,9 +304,7 @@ class TestFieldParameterizationTerm:
         )
         _passes_steady_checks(bkd, system, term)
 
-    def test_reaction_term_passes_the_steady_checks(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_reaction_term_passes_the_steady_checks(self, numpy_bkd: NumpyBkd) -> None:
         """A linear_field_state reaction term (r(x)*u through an exp
         map) through the engine passes the steady checks — the second
         FromLinearity instance, with a mass-structured mixed tensor
@@ -351,10 +329,7 @@ class TestFieldParameterizationTerm:
         )
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         modes = np.stack(
-            [
-                0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
-                for k in range(_NPARAMS)
-            ],
+            [0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1) for k in range(_NPARAMS)],
             axis=1,
         )
         kle = MeshKLEFieldMap(
@@ -364,9 +339,7 @@ class TestFieldParameterizationTerm:
         )
         exp = _ExpTransform(bkd)
         # r = -exp(...) (damping) keeps the steady operator coercive.
-        reaction_map = TransformedFieldMap(
-            kle, exp, exp, bkd, transform_deriv2=exp
-        )
+        reaction_map = TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
         term = _FieldParameterizationTerm.linear_field_state(
             setter=_NegatedSetter(nodal_reaction.set_dofs, bkd),
             physics=physics,
@@ -384,9 +357,7 @@ class TestFieldParameterizationTerm:
         )
         _passes_steady_checks(bkd, system, term)
 
-    def test_velocity_term_passes_the_steady_checks(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_velocity_term_passes_the_steady_checks(self, numpy_bkd: NumpyBkd) -> None:
         """A linear_field_state velocity term through the engine passes
         the steady checks — the rectangular-S instance with the
         NON-symmetric advection mixed tensor (the case FromLinearity's
@@ -395,9 +366,7 @@ class TestFieldParameterizationTerm:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         vel_basis = VectorLagrangeBasis(mesh, degree=1)
-        nodal_velocity = NodalFieldVelocity(
-            vel_basis, np.zeros(vel_basis.ndofs())
-        )
+        nodal_velocity = NodalFieldVelocity(vel_basis, np.zeros(vel_basis.ndofs()))
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=NodalFieldDiffusion(basis),
@@ -415,19 +384,12 @@ class TestFieldParameterizationTerm:
         nvel = vel_basis.ndofs()
         coords = np.linspace(0.0, 1.0, nvel)
         modes = np.stack(
-            [
-                0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
-                for k in range(_NPARAMS)
-            ],
+            [0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1) for k in range(_NPARAMS)],
             axis=1,
         )
-        kle = MeshKLEFieldMap(
-            bkd, bkd.asarray(np.zeros(nvel)), bkd.asarray(modes)
-        )
+        kle = MeshKLEFieldMap(bkd, bkd.asarray(np.zeros(nvel)), bkd.asarray(modes))
         exp = _ExpTransform(bkd)
-        velocity_map = TransformedFieldMap(
-            kle, exp, exp, bkd, transform_deriv2=exp
-        )
+        velocity_map = TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
         term = _FieldParameterizationTerm.linear_field_state(
             setter=ToNumpySetter(nodal_velocity.set_dofs, bkd),
             physics=physics,
@@ -445,9 +407,7 @@ class TestFieldParameterizationTerm:
         )
         _passes_steady_checks(bkd, system, term)
 
-    def test_field_field_hvp_slot_matches_fd(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_field_field_hvp_slot_matches_fd(self, numpy_bkd: NumpyBkd) -> None:
         """The field-field curvature slot's contribution to
         param_param_hvp is FD-validated on an analytic quadratic-field
         toy (the slot the galerkin physics never populate; the
@@ -492,7 +452,7 @@ class TestFieldParameterizationTerm:
                 term.apply(samples[:, ii])
                 results.append(
                     bkd.to_numpy(
-                        term.param_jacobian(state, 0.0, samples[:, ii])
+                        term.param_jacobian(state, 0.0, samples[:, ii]).matrix()
                     ).T
                     @ adj_np
                 )
@@ -536,9 +496,7 @@ class TestFieldParameterizationTerm:
             _FieldParameterizationTerm(
                 setter=ToNumpySetter(diffusion.set_dofs, bkd),
                 physics=physics,
-                field_jacobian=lambda s, t: (
-                    physics.residual_diffusivity_jacobian(s)
-                ),
+                field_jacobian=lambda s, t: (physics.residual_diffusivity_jacobian(s)),
                 field_state_hvp=FromLinearity(),
                 state_field_hvp=FromLinearity(),
                 field_field_hvp=Zero(),
@@ -552,9 +510,7 @@ class TestFieldParameterizationTerm:
             _FieldParameterizationTerm(
                 setter=ToNumpySetter(diffusion.set_dofs, bkd),
                 physics=physics,
-                field_jacobian=lambda s, t: (
-                    physics.residual_diffusivity_jacobian(s)
-                ),
+                field_jacobian=lambda s, t: (physics.residual_diffusivity_jacobian(s)),
                 field_state_hvp=FromLinearity(),
                 state_field_hvp=Zero(),
                 field_field_hvp=FromLinearity(),  # type: ignore[arg-type]
@@ -565,9 +521,7 @@ class TestFieldParameterizationTerm:
                 owned_coefficients=("field",),
             )
 
-    def test_apply_rejects_a_wrong_length_field(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_apply_rejects_a_wrong_length_field(self, numpy_bkd: NumpyBkd) -> None:
         """A shape mismatch is this layer's own concern.
 
         Whether the resulting VALUES are admissible is not: positivity
@@ -593,9 +547,7 @@ class TestFieldParameterizationTerm:
         wrong_term = _FieldParameterizationTerm.linear_field_state(
             setter=ToNumpySetter(diffusion.set_dofs, bkd),
             physics=physics,
-            field_jacobian=lambda s, t: (
-                physics.residual_diffusivity_jacobian(s)
-            ),
+            field_jacobian=lambda s, t: (physics.residual_diffusivity_jacobian(s)),
             field_state_jacobian=lambda d, s, t: (
                 physics.residual_diffusivity_state_jacobian(d, s)
             ),
@@ -700,7 +652,7 @@ class TestDenseBackendAssemblies:
 
     def test_param_jacobian_dense_backend(self, bkd):
         term, amat, phi, state, _, params = self._build(bkd)
-        out = term.param_jacobian(state, 0.0, params)
+        out = term.param_jacobian(state, 0.0, params).matrix()
         assert isinstance(out, type(state))
         assert out.dtype == state.dtype
         expected = bkd.diag(amat @ state) @ phi
@@ -738,8 +690,46 @@ class TestDenseBackendAssemblies:
         term = self._build(torch_bkd)[0]
         params = torch_bkd.asarray(np.random.normal(0.0, 1.0, (_NPARAMS,)))
         state = torch.randn(6, dtype=torch.float64, requires_grad=True)
-        out = term.param_jacobian(state, 0.0, params)
-        assert out.grad_fn is not None
+        jacobian = term.param_jacobian(state, 0.0, params)
+        assert jacobian.matrix().grad_fn is not None
+        vecs = torch_bkd.asarray(np.random.normal(0.0, 1.0, (_NPARAMS, 2)))
+        assert jacobian.apply(vecs).grad_fn is not None
+        assert jacobian.apply_transpose(torch_bkd.ones((6, 2))).grad_fn is not None
+
+
+class TestFieldParamJacobian:
+    """The S G' product applies its factors in turn and agrees with the
+    dense product, for a sparse S (the Galerkin assembly) on both
+    backends."""
+
+    def _build(self, bkd):
+        from scipy.sparse import random as sparse_random
+
+        rng = np.random.default_rng(7)
+        smat = sparse_random(9, 5, density=0.4, format="csr", random_state=rng)
+        gprime = bkd.asarray(rng.normal(0.0, 1.0, (5, _NPARAMS)))
+        expected = bkd.asarray(smat.toarray()) @ gprime
+        return FieldParamJacobian(smat, gprime, bkd), expected, rng
+
+    def test_satisfies_protocol(self, bkd):
+        assert isinstance(self._build(bkd)[0], ParamJacobianProtocol)
+
+    def test_matrix_and_actions_match_dense_product(self, bkd):
+        jacobian, expected, rng = self._build(bkd)
+        vecs = bkd.asarray(rng.normal(0.0, 1.0, (_NPARAMS, 2)))
+        wvecs = bkd.asarray(rng.normal(0.0, 1.0, (9, 4)))
+        bkd.assert_allclose(jacobian.matrix(), expected, rtol=1e-12)
+        bkd.assert_allclose(jacobian.apply(vecs), expected @ vecs, rtol=1e-12)
+        bkd.assert_allclose(
+            jacobian.apply_transpose(wvecs), expected.T @ wvecs, rtol=1e-12
+        )
+        assert isinstance(jacobian.apply(vecs), type(expected))
+
+    def test_refuses_factors_that_do_not_compose(self, bkd):
+        from scipy.sparse import eye
+
+        with pytest.raises(ValueError, match="does not compose"):
+            FieldParamJacobian(eye(4, 5), bkd.zeros((4, _NPARAMS)), bkd)
 
 
 class TestTimeModulationValidation:
@@ -781,15 +771,11 @@ class TestTimeModulationValidation:
             time_modulation=modulation,
         )
 
-    def test_accepts_a_matching_nonnegative_modulation(
-        self, numpy_bkd
-    ) -> None:
+    def test_accepts_a_matching_nonnegative_modulation(self, numpy_bkd) -> None:
         from pyapprox.pde.field_maps.modulation import ConstantModulation
 
         field_map = self._linear_map(numpy_bkd, nvars=2)
-        term = self._term(
-            numpy_bkd, field_map, ConstantModulation(numpy_bkd, 2)
-        )
+        term = self._term(numpy_bkd, field_map, ConstantModulation(numpy_bkd, 2))
         assert term.nparams() == 2
 
     def test_rejects_mismatched_mode_count(self, numpy_bkd) -> None:
@@ -798,9 +784,7 @@ class TestTimeModulationValidation:
 
         field_map = self._linear_map(numpy_bkd, nvars=2)
         with pytest.raises(ValueError, match="3 modes but"):
-            self._term(
-                numpy_bkd, field_map, ConstantModulation(numpy_bkd, 3)
-            )
+            self._term(numpy_bkd, field_map, ConstantModulation(numpy_bkd, 3))
 
     def test_rejects_a_nonlinear_map(self, numpy_bkd) -> None:
         """Modulation and a pointwise nonlinearity do not commute, so
@@ -820,13 +804,9 @@ class TestTimeModulationValidation:
             sigma=0.5,
         )
         with pytest.raises(TypeError, match="is_linear"):
-            self._term(
-                numpy_bkd, lognormal, ConstantModulation(numpy_bkd, 2)
-            )
+            self._term(numpy_bkd, lognormal, ConstantModulation(numpy_bkd, 2))
 
-    def test_sign_changing_basis_is_accepted(
-        self, numpy_bkd
-    ) -> None:
+    def test_sign_changing_basis_is_accepted(self, numpy_bkd) -> None:
         """This layer takes no view on the sign of the field it builds.
 
         Whether a coefficient may go negative is a property of the
@@ -849,17 +829,14 @@ class TestTimeModulationValidation:
 
             def values(self, time):
                 return self._bkd.asarray(
-                    [np.cos((k + 1) * np.pi * time)
-                     for k in range(self._nmodes)]
+                    [np.cos((k + 1) * np.pi * time) for k in range(self._nmodes)]
                 )
 
             def is_time_dependent(self):
                 return True
 
         field_map = self._linear_map(numpy_bkd, nvars=2)
-        term = self._term(
-            numpy_bkd, field_map, _SignChanging(numpy_bkd, 2)
-        )
+        term = self._term(numpy_bkd, field_map, _SignChanging(numpy_bkd, 2))
         assert term.nparams() == 2
 
     def test_no_modulation_is_still_the_default(self, numpy_bkd) -> None:

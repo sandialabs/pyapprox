@@ -80,9 +80,7 @@ def _forcing(x: _Np) -> _Np:
 
 def _build_physics_and_map(
     bkd: NumpyBkd,
-) -> Tuple[
-    QuasilinearDiffusion[_Np], GalerkinSystem[_Np], TransformedFieldMap[_Np]
-]:
+) -> Tuple[QuasilinearDiffusion[_Np], GalerkinSystem[_Np], TransformedFieldMap[_Np]]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     physics = QuasilinearDiffusion(
@@ -103,10 +101,7 @@ def _build_physics_and_map(
     )
     coords = bkd.to_numpy(basis.dof_coordinates())[0]
     modes = np.stack(
-        [
-            0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
-            for k in range(_NPARAMS)
-        ],
+        [0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1) for k in range(_NPARAMS)],
         axis=1,
     )
     kle = MeshKLEFieldMap(
@@ -206,8 +201,8 @@ class TestQuasilinearDiffusivityParameterization:
         param_obj.apply(params)
         clone.apply(params)
         bkd.assert_allclose(
-            param_obj.param_jacobian(state, 0.0, params),
-            clone.param_jacobian(state, 0.0, params),
+            param_obj.param_jacobian(state, 0.0, params).matrix(),
+            clone.param_jacobian(state, 0.0, params).matrix(),
             rtol=1e-14,
         )
         bkd.assert_allclose(
