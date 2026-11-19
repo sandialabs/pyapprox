@@ -44,11 +44,21 @@ class Trace(PortQuantity):
     """The field's values on the ports, as skeleton coefficients
     (Dirichlet data)."""
 
+    def matching_sign(self) -> int:
+        """-1: the traces ``a``, ``b`` two pieces hold on a shared port
+        match when ``a - b = 0`` (continuity)."""
+        return -1
+
 
 @dataclass(frozen=True)
 class Flux(PortQuantity):
     """The outward normal flux on the ports, tested against the skeleton
     basis (Neumann data)."""
+
+    def matching_sign(self) -> int:
+        """+1: the outward fluxes ``a``, ``b`` two pieces hold on a shared
+        port match when ``a + b = 0`` (conservation)."""
+        return 1
 
 
 @dataclass(frozen=True)
@@ -66,9 +76,7 @@ class TimeWindow:
 
     def __post_init__(self) -> None:
         if self.end < self.start:
-            raise ValueError(
-                f"window end {self.end} precedes its start {self.start}"
-            )
+            raise ValueError(f"window end {self.end} precedes its start {self.start}")
 
     @staticmethod
     def steady() -> "TimeWindow":
