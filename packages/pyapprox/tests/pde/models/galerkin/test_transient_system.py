@@ -32,6 +32,12 @@ from typing import Any, Callable, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.implicit_map import (
+    AdjointRows,
+    ArrayParameters,
+    ImplicitMapFunction,
+    TangentColumns,
+)
 from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.config import TimeIntegrationConfig
@@ -716,6 +722,46 @@ class TestTransientImplicitMapWithATimeIntegral:
         bkd.assert_allclose(
             point.hvp(_DIRECTION), derivatives.hvp(param, _DIRECTION), rtol=1e-9
         )
+
+    def test_as_a_function(
+        self,
+        numpy_bkd: NumpyBkd,
+        make: Callable[[], ButcherTableau],
+        old_name: str,
+    ) -> None:
+        """Through ``ImplicitMapFunction``: values at three samples, the
+        Jacobian by both strategies and the HVP, against the old model, to
+        1e-9."""
+        bkd = numpy_bkd
+        paths = _Paths(bkd, make, old_name)
+        system = paths.system()
+        weight = _weight(len(paths.heat().init_state))
+        integral = time_integrated_weighted_l2(
+            system, paths.method(), RecomputeAlways(system.solved.solver), weight
+        )
+        implicit = _implicit_map(paths, integral)
+        old = _old_model(
+            paths.heat(),
+            old_name,
+            TimeIntegratedWeightedL2Functional(weight, HEAT_NPARAMS, bkd),
+        )
+        param = bkd.asarray(HEAT_PARAM)
+        samples = bkd.hstack([param, 1.1 * param, 0.9 * param])
+        expected = old.derivatives()
+        assert expected.jacobian is not None and expected.hvp is not None
+        for strategy in (AdjointRows(), TangentColumns()):
+            function = ImplicitMapFunction(implicit, ArrayParameters(bkd), strategy)
+            bkd.assert_allclose(function(samples), old(samples), rtol=1e-9)
+            derivatives = function.derivatives()
+            assert derivatives.jacobian is not None
+            bkd.assert_allclose(
+                derivatives.jacobian(param), expected.jacobian(param), rtol=1e-9
+            )
+            hvp = derivatives.resolved_hvp(1, bkd)
+            assert hvp is not None
+            bkd.assert_allclose(
+                hvp(param, _DIRECTION), expected.hvp(param, _DIRECTION), rtol=1e-9
+            )
 
 
 class TestObservationRefusals:

@@ -35,7 +35,14 @@ from pyapprox.implicitfunction.functional_terms import (
     ParameterTermDerivatives,
     ParameterTermProtocol,
 )
-from pyapprox.implicitfunction.implicit_map import ImplicitMapDerivatives
+from pyapprox.implicitfunction.implicit_map import (
+    AdjointRows,
+    ArrayParameters,
+    ImplicitJacobianProtocol,
+    ImplicitMapDerivatives,
+    ImplicitMapFunction,
+    TangentColumns,
+)
 from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
@@ -468,9 +475,194 @@ class TestDeclaredDerivatives:
 
     def test_the_bundle_refuses_hvp_alone(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="needs tangent and gradient"):
-            ImplicitMapDerivatives(hvp=TransientPoint.hvp)
+            refused: ImplicitMapDerivatives[
+                TransientPoint[Array, Array], Array, Array
+            ] = ImplicitMapDerivatives(hvp=TransientPoint.hvp)
+            del refused
         with pytest.raises(TypeError, match="must be callable"):
             ImplicitMapDerivatives(tangent=1.0)  # type: ignore[arg-type]
+
+
+def _two_entries(
+    bkd: Backend[Array], model: Optional[LotkaVolterra[Array]] = None
+) -> TransientImplicitMap[Array, Array, DenseFormat[Array]]:
+    """BDF2 on Lotka-Volterra (``model``, default with the mass) with two
+    stacked Tikhonov MSEs observing different stored states."""
+    first, first_tikhonov = native_tikhonov_mse(bkd)
+    second, second_tikhonov = native_tikhonov_mse(bkd, prey=(1, 4, 9), predator=(6, 10))
+    return _map(
+        bkd,
+        _bdf2(),
+        lotka_volterra_with_mass(bkd) if model is None else model,
+        FixedTrajectoryFunctional(TrajectoryFunctional.stack(bkd, [first, second])),
+        first_tikhonov.set_param,
+        second_tikhonov.set_param,
+    )
+
+
+class _TangentOnly(Generic[Array]):
+    """A map declaring only its tangent, as one whose solver had no
+    transpose would."""
+
+    def __init__(
+        self, inner: TransientImplicitMap[Array, Array, DenseFormat[Array]]
+    ) -> None:
+        self._inner = inner
+        self._derivatives: ImplicitMapDerivatives[
+            TransientPoint[Array, Array], Array, Array
+        ] = ImplicitMapDerivatives(tangent=inner.derivatives().tangent)
+
+    def nparams(self) -> int:
+        return self._inner.nparams()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def derivatives(
+        self,
+    ) -> ImplicitMapDerivatives[TransientPoint[Array, Array], Array, Array]:
+        return self._derivatives
+
+    def value(self, param: Array) -> Array:
+        return self._inner.value(param)
+
+    def point(self, param: Array) -> TransientPoint[Array, Array]:
+        return self._inner.point(param)
+
+
+_WEIGHTS = [[0.7], [-0.4]]
+
+
+class TestAsAFunction:
+    """:class:`ImplicitMapFunction` over the map: values per sample
+    column; the Jacobian by both strategies and the weighted HVP pass
+    central differences (minimum ratio below 1e-6) for a value of two
+    entries; the strategies agree to 1e-10 and the Jacobian's rows are the
+    point's gradients."""
+
+    @pytest.mark.parametrize(
+        "strategy", [AdjointRows(), TangentColumns()], ids=["rows", "columns"]
+    )
+    def test_jacobian_and_whvp_pass_finite_differences(
+        self, bkd: Backend[Array], strategy: ImplicitJacobianProtocol
+    ) -> None:
+        function = ImplicitMapFunction(
+            _two_entries(bkd), ArrayParameters(bkd), strategy
+        )
+        derivatives = function.derivatives()
+        assert derivatives.jacobian is not None and derivatives.whvp is not None
+        assert derivatives.hvp is None
+        errors = DerivativeChecker(function).check_derivatives(
+            bkd.asarray(LV_PARAM),
+            relative=True,
+            central=True,
+            weights=bkd.asarray(_WEIGHTS),
+        )
+        assert len(errors) == 2
+        for error in errors:
+            assert bkd.to_float(bkd.min(error)) < 1e-6
+
+    def test_values_and_the_strategies_agree(self, bkd: Backend[Array]) -> None:
+        implicit = _two_entries(bkd)
+        rows = ImplicitMapFunction(implicit, ArrayParameters(bkd), AdjointRows())
+        columns = ImplicitMapFunction(implicit, ArrayParameters(bkd), TangentColumns())
+        param = bkd.asarray(LV_PARAM)
+        samples = bkd.hstack([param, 1.05 * param, 0.95 * param])
+        values = rows(samples)
+        assert values.shape == (2, 3)
+        for ii in range(3):
+            bkd.assert_allclose(
+                values[:, ii : ii + 1], implicit.value(samples[:, ii : ii + 1])
+            )
+        by_rows, by_columns = (
+            rows.derivatives().jacobian,
+            columns.derivatives().jacobian,
+        )
+        assert by_rows is not None and by_columns is not None
+        jacobian = by_rows(param)
+        assert jacobian.shape == (2, 4)
+        bkd.assert_allclose(by_columns(param), jacobian, rtol=1e-10)
+        point = implicit.point(param)
+        bkd.assert_allclose(
+            jacobian[1:2, :], point.gradient(bkd.asarray([[0.0], [1.0]])).T, rtol=1e-12
+        )
+
+    def test_the_default_strategy(self, bkd: Backend[Array]) -> None:
+        """Rows with no more entries than parameters; columns when the map
+        has no gradient, and rows refused there."""
+        implicit = _two_entries(bkd)
+        assert isinstance(
+            ImplicitMapFunction(implicit, ArrayParameters(bkd))._strategy, AdjointRows
+        )
+        tangent_only = _TangentOnly(implicit)
+        function = ImplicitMapFunction(tangent_only, ArrayParameters(bkd))
+        assert isinstance(function._strategy, TangentColumns)
+        derivatives = function.derivatives()
+        assert derivatives.jacobian is not None and derivatives.whvp is None
+        with pytest.raises(TypeError, match="does not declare"):
+            ImplicitMapFunction(tangent_only, ArrayParameters(bkd), AdjointRows())
+
+    def test_capability_follows_the_map(self, bkd: Backend[Array]) -> None:
+        """A first-order map gives the Jacobian alone, a map without
+        derivatives none; a single entry resolves the plain HVP."""
+        first = ImplicitMapFunction(
+            _two_entries(bkd, ReducedLotkaVolterra(bkd, 1)), ArrayParameters(bkd)
+        ).derivatives()
+        assert first.jacobian is not None and first.whvp is None
+        endpoint = EndpointTerm(StateEntries(bkd, 2, [0]))
+        none = ImplicitMapFunction(
+            _map(
+                bkd,
+                _bdf2(),
+                lotka_volterra_with_mass(bkd),
+                FixedTrajectoryFunctional(
+                    TrajectoryFunctional.from_terms(
+                        bkd, 1, state_terms=(EachTruncated(endpoint, 0),)
+                    )
+                ),
+            ),
+            ArrayParameters(bkd),
+        ).derivatives()
+        assert none.jacobian is None and none.whvp is None
+        functional, tikhonov = native_tikhonov_mse(bkd)
+        implicit = _map(
+            bkd,
+            _bdf2(),
+            lotka_volterra_with_mass(bkd),
+            FixedTrajectoryFunctional(functional),
+            tikhonov.set_param,
+        )
+        function = ImplicitMapFunction(implicit, ArrayParameters(bkd))
+        hvp = function.derivatives().resolved_hvp(1, bkd)
+        assert hvp is not None
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        bkd.assert_allclose(
+            hvp(param, direction), implicit.point(param).hvp(direction), rtol=1e-12
+        )
+
+    def test_refusals(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        implicit = _two_entries(bkd)
+        function = ImplicitMapFunction(implicit, ArrayParameters(bkd))
+        param = bkd.asarray(LV_PARAM)
+        with pytest.raises(ValueError):
+            function(param[:, 0])
+        with pytest.raises(ValueError):
+            function(param[:3])
+        whvp = function.derivatives().whvp
+        assert whvp is not None
+        with pytest.raises(ValueError, match="weights must have shape"):
+            whvp(param, param, bkd.ones((3, 1)))
+        with pytest.raises(TypeError, match="implicit"):
+            ImplicitMapFunction(object(), ArrayParameters(bkd))  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="parameters"):
+            ImplicitMapFunction(implicit, object())  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="ImplicitJacobianProtocol"):
+            ImplicitMapFunction(
+                implicit,
+                ArrayParameters(bkd),
+                object(),  # type: ignore[arg-type]
+            )
 
 
 class TestRefusals:
