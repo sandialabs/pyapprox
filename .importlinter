@@ -196,6 +196,7 @@ forbidden_modules =
     skfem
 ignore_imports =
     pyapprox.pde.coupling.stacks.** -> pyapprox.pde.collocation.**
+    pyapprox.pde.coupling.stacks.** -> pyapprox.pde.galerkin.**
     pyapprox.pde.coupling.stacks.** -> pyapprox.pde.models.**
 
 # The stacks know nothing of the coupling.

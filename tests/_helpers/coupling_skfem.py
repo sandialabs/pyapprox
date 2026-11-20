@@ -41,9 +41,7 @@ from pyapprox.pde.coupling.geometry import (
     TensorBoxGeometry,
     skeleton_dof_points,
 )
-from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
-    PinnedReactionFlux,
     SteadyPinnedPoint,
     SteadyPinnedResponse,
 )
@@ -67,6 +65,7 @@ from pyapprox.pde.coupling.spaces import (
     ContinuousSkeletonSpace,
     UniformBases,
 )
+from pyapprox.pde.coupling.stacks.galerkin import skfem_pinned_response
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC, NeumannBC
@@ -74,7 +73,6 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.steady_residual import (
-    galerkin_steady_residual,
     solve_galerkin_steady,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -86,12 +84,11 @@ from pyapprox.util.linalg.backend_dense import (
 )
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
-    InnerProductSpaceProtocol,
     MatrixFree,
     SpaceDescriptor,
 )
 from pyapprox.util.linalg.operators.krylov import GMRES
-from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipySparseLU
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
 
 Np = NDArray[Any]
@@ -220,29 +217,12 @@ def newton() -> Newton[Np, Np]:
     return Newton(atol=1e-13, rtol=0.0, maxiters=30)
 
 
-def pinned_piece(system: Any, ports: Sequence[int], bkd: NumpyBkd) -> Piece:
+def pinned_piece(system: Any, ports: Sequence[int]) -> Piece:
     """The steady response of a composed skfem ``system`` whose field
-    DOFs ``ports`` are pinned to the port data, in that order."""
-    disc = skfem_discretization(system)
-    states, theta = disc.space(), disc.parameter_space(len(ports))
-    # The stack's space has an inner product; its declared type does not.
-    assert isinstance(states, InnerProductSpaceProtocol)
-    data: PortPinnedData[Np, Np] = PortPinnedData(
-        NumpyRowSet(states.descriptor(), ports),
-        BackendPortRows(states.descriptor(), ports, bkd),
-        BackendPortRows(theta.descriptor(), list(range(len(ports))), bkd),
-        states,
-        theta,
-    )
-    residual = galerkin_steady_residual(disc)
-    return SteadyPinnedResponse(
-        residual,
-        data,
-        PinnedReactionFlux(residual, data),
-        states,
-        RecomputeAlways(ScipySparseLU()),
-        newton(),
-        bkd,
+    DOFs ``ports`` are pinned to the port data, in that order, solved by
+    Newton with a sparse LU."""
+    return skfem_pinned_response(
+        system, ports, RecomputeAlways(ScipySparseLU()), newton()
     )
 
 
@@ -418,7 +398,7 @@ class CoupledProblem:
         ports = self.mesh_dofs([node_at(mesh.nodes(), skel[:, d]) for d in nodes])
         if len(ports) != len(dofs):
             raise ValueError("port DOFs and mesh DOFs differ in number")
-        return pinned_piece(system, ports, self.bkd), mesh.nodes(), dofs
+        return pinned_piece(system, ports), mesh.nodes(), dofs
 
     def single_domain(self) -> tuple[Np, Np]:
         """The single-domain solution and its node points."""

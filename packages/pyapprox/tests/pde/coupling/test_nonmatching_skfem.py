@@ -125,7 +125,7 @@ def _solve(
             BackendDenseMatrixAssembly(bkd),
         )
         transfer = PortMatrixTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
-        piece = pinned_piece(poisson_system(mesh, sides), ports, bkd)
+        piece = pinned_piece(poisson_system(mesh, sides), ports)
         pieces.append((piece, transfer, nodes))
 
     coords = skeleton_dof_points(space, geometry, bases)

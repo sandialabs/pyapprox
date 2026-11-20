@@ -156,7 +156,7 @@ def _solve(counts: Sequence[tuple[int, int]], local_map: _LocalMap) -> float:
         dofs = subdomain_port_dofs(topo, space, s)
         local = local_map(space, geometry, faces, dofs, nodes[:, ports])
         transfer = PortMatrixTransfer(BackendPortRows(descriptor, dofs, bkd), local)
-        pieces.append((pinned_piece(system, ports, bkd), transfer, nodes))
+        pieces.append((pinned_piece(system, ports), transfer, nodes))
     lam = solve_dense_skeleton(
         descriptor, [CoupledSubdomain(piece, t) for piece, t, _ in pieces]
     )
