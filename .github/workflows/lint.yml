@@ -49,26 +49,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      # Pin the type-relevant toolchain to the versions the local dev envs
-      # run, so the ratchet counts in ratchet_baselines.txt mean the same
-      # thing in CI and locally. Full runtime extras + benchmarks WITH
-      # deps: optional packages (skfem, numba, ...) must be visible to
-      # mypy or their typed code is silently unchecked (Any).
+      # Every package whose types move the ratchet counts in
+      # ratchet_baselines.txt is pinned in requirements/ci-pins.txt, the
+      # constraints the dev envs install under too (make dev-env), so the
+      # counts mean the same thing in CI and locally. Full runtime extras
+      # + benchmarks WITH deps: optional packages (skfem, numba, ...) must
+      # be visible to mypy or their typed code is silently unchecked
+      # (Any). torch comes first from the CPU-only index, at its pin.
       - run: |
-          pip install "mypy==1.19.1" "numpy==2.3.5"
-          pip install "torch==2.7.1" --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e "packages/pyapprox[lint,runtime-extras]"
-      - run: pip install -e packages/pyapprox-benchmarks
-      # Re-pin EVERY package whose type stubs or inline types influence
-      # the error count: the editable installs above resolve unpinned
-      # (latest) versions, and stub changes between releases move the
-      # ratchet counts (observed: matplotlib, mpire). Bump these pins
-      # together with the local conda envs, adjusting the baselines in
-      # the same commit when the count moves.
-      - run: >
-          pip install "numpy==2.3.5" "scipy==1.16.3" "matplotlib==3.10.8"
-          "sympy==1.14.0" "scikit-fem==11.0.0" "numba==0.62.1"
-          "joblib==1.5.2" "mpire==2.10.2"
+          pip install -c requirements/ci-pins.txt torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -c requirements/ci-pins.txt -e "packages/pyapprox[lint,runtime-extras]"
+          pip install -c requirements/ci-pins.txt -e packages/pyapprox-benchmarks
       - name: mypy ratchet (must not exceed baseline)
         run: bash scripts/mypy_diff.sh "$(sed -n 's/^mypy_src=//p' ratchet_baselines.txt)" packages/pyapprox/src/pyapprox/
       - name: mypy ratchet for pyapprox-benchmarks

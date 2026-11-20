@@ -54,13 +54,12 @@ on:
           - macos-latest
       python:
         # Same reasoning for the interpreter. A failure that only appears
-        # on 3.11 needs 3.11, not three versions of the same answer.
+        # on 3.12 needs 3.12, not two versions of the same answer.
         description: "Fast-job Python versions"
         type: choice
         default: all
         options:
           - all
-          - "3.11"
           - "3.12"
           - "3.13"
 
@@ -99,7 +98,7 @@ jobs:
         python-version: >-
           ${{ fromJSON((inputs.python && inputs.python != 'all')
           && format('["{0}"]', inputs.python)
-          || '["3.11","3.12","3.13"]') }}
+          || '["3.12","3.13"]') }}
         os: >-
           ${{ fromJSON((inputs.os && inputs.os != 'both')
           && format('["{0}"]', inputs.os)
