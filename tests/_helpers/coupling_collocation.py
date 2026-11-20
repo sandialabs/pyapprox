@@ -429,7 +429,8 @@ class CoupledCollocation(Generic[Array]):
             )
             for d, upper in interface
         ]
-        ports = [node for side in port_sides for node in side.nodes]
+        # Each node once, first appearance first: the response's port order.
+        ports = list(dict.fromkeys(node for side in port_sides for node in side.nodes))
         dofs = self._dofs(subdomain)
         faces = [
             f
@@ -462,8 +463,8 @@ class CoupledCollocation(Generic[Array]):
         by_side: dict[Side, list[tuple[int, int]]] = {side: [] for side in interface}
         for dof in self._dofs(subdomain):
             node = node_at(box.parameters(), self._coords[:, dof], bkd)
-            # A node on two interface sides goes to both; the builder
-            # refuses the cross point.
+            # A node on two interface sides (a cross point) goes to both;
+            # the response tests it on each.
             for side in interface:
                 if node in on_side[side]:
                     by_side[side].append((dof, node))
@@ -473,7 +474,10 @@ class CoupledCollocation(Generic[Array]):
             if pairs
         ]
         ports = {node for side in port_sides for node in side.nodes}
-        order = [dof for pairs in by_side.values() for dof, _ in pairs]
+        # Each node once, first appearance first: the response's port order.
+        order = list(
+            dict.fromkeys(dof for pairs in by_side.values() for dof, _ in pairs)
+        )
         transfer = MatchingNodalTransfer(
             BackendPortRows(self._space.descriptor(), order, bkd)
         )

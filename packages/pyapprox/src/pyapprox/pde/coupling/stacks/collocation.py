@@ -8,8 +8,8 @@ on each port side from its nodes and tested against the side's Lagrange
 polynomials by an injected rule (:func:`~pyapprox.pde.collocation.
 quadrature.boundary_quadrature.boundary_side_quadrature`).
 
-Scalar fluxes only. A port node on two port sides (a cross point, where
-the normal is ambiguous) is refused.
+Scalar fluxes only. A port node on several port sides is tested on each
+with that side's normal.
 """
 
 from dataclasses import dataclass
@@ -64,18 +64,21 @@ class PortSide:
     nodes: Sequence[int]
 
 
-def _block_diagonal(blocks: Sequence[Array], bkd: Backend[Array]) -> Array:
-    """The blocks along the diagonal, zero elsewhere, by concatenation."""
-    ncols = [int(block.shape[1]) for block in blocks]
+def _placed(
+    blocks: Sequence[Array],
+    columns: Sequence[Sequence[int]],
+    ncols: int,
+    bkd: Backend[Array],
+) -> Array:
+    """Each side's block in the port columns of its nodes, the sides'
+    rows stacked: a node on two sides has entries in both blocks' rows.
+    Placed by a constant 0/1 product, so a torch graph survives."""
     rows = []
-    for k, block in enumerate(blocks):
-        before, after = sum(ncols[:k]), sum(ncols[k + 1 :])
-        nrows = int(block.shape[0])
-        rows.append(
-            bkd.concatenate(
-                [bkd.zeros((nrows, before)), block, bkd.zeros((nrows, after))], axis=1
-            )
+    for block, cols in zip(blocks, columns):
+        placement = bkd.asarray(
+            [[1.0 if c == j else 0.0 for j in range(ncols)] for c in cols]
         )
+        rows.append(block @ placement)
     return bkd.concatenate(rows, axis=0)
 
 
@@ -95,10 +98,14 @@ def collocation_pinned_response(
     ``sides``, returning the outward flux there, tested against the
     port's trace functions.
 
-    The ports are the sides' nodes in order, the first side's first. Port
-    node ``a``'s trace function is its side's Lagrange polynomial; the
-    flux's nodal interpolant on the side (every side node, ports or not)
-    is tested against it by the tensor product of ``rule``.
+    The ports are the sides' nodes in order, the first side's first, each
+    node once. Port node ``a``'s trace function on a side is that side's
+    Lagrange polynomial; the flux's nodal interpolant on the side (every
+    side node, ports or not), with the side's normal, is tested against it
+    by the tensor product of ``rule``. A node on several port sides (a
+    cross point, or an edge in 3D) has a trace function on each, and
+    returns the sum of their moments: the flux tested against a skeleton
+    function supported on all of them.
 
     Parameters
     ----------
@@ -137,23 +144,25 @@ def collocation_pinned_response(
     TypeError
         If ``mesh`` does not satisfy :class:`PortMeshProtocol`.
     ValueError
-        If there are no port nodes, a node is not on its side, or a node
-        is on two port sides.
+        If there are no port nodes, a node is not on its side, a side
+        appears twice, or a side repeats a node.
     """
     if not isinstance(mesh, PortMeshProtocol):
         raise TypeError(
             f"mesh must satisfy PortMeshProtocol, got {type(mesh).__name__}"
         )
     bkd = mesh.bkd()
-    ports = [node for side in sides for node in side.nodes]
+    # Each node once, in order of first appearance.
+    ports = list(dict.fromkeys(node for side in sides for node in side.nodes))
     if not ports:
         raise ValueError("a collocation response needs at least one port node")
-    repeated = sorted({node for node in ports if ports.count(node) > 1})
-    if repeated:
-        raise ValueError(
-            f"nodes {repeated} lie on more than one port side: a cross point "
-            "has no single normal"
-        )
+    ids = [side.boundary_id for side in sides]
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"a side appears more than once among {ids}")
+    for side in sides:
+        if len(set(side.nodes)) != len(side.nodes):
+            raise ValueError(f"side {side.boundary_id} repeats a node")
+    column = {node: k for k, node in enumerate(ports)}
     parts, points, weights, blocks = [], [], [], []
     for side in sides:
         indices = mesh.boundary_indices(side.boundary_id)
@@ -176,7 +185,12 @@ def collocation_pinned_response(
     trace = TabulatedTrace(
         bkd.concatenate(points, axis=1),
         bkd.concatenate(weights, axis=0),
-        _block_diagonal(blocks, bkd),
+        _placed(
+            blocks,
+            [[column[node] for node in side.nodes] for side in sides],
+            len(ports),
+            bkd,
+        ),
         bkd,
     )
     moments = NormalFluxMoments(parts, trace, 0.0 if time is None else time)

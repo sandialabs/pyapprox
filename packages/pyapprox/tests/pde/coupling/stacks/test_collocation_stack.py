@@ -13,8 +13,11 @@ NumPy and Torch.
   exact flux integral, -8; its trace tangent passes central differences.
   With a Gauss side rule it returns the flux tested against each node's
   Lagrange polynomial in y, against a 20-point rule (1e-10).
-- Refusals: no port node; a node off its side; a corner node on two port
-  sides; a mesh outside the protocol.
+- A corner on two port sides (right and top) is one port node, tested on
+  both: the outputs sum to the exact flux over both sides, -17, under
+  either rule (1e-10).
+- Refusals: no port node; a node off its side; a side given twice; a
+  side repeating a node; a mesh outside the protocol.
 """
 
 from typing import Generic, Optional
@@ -133,7 +136,9 @@ class _Rectangle(Generic[Array]):
     def port(self) -> list[int]:
         return self._port
 
-    def system(self) -> CollocationSystem[Array]:
+    def system(self, free: Optional[set[int]] = None) -> CollocationSystem[Array]:
+        """Dirichlet on the left, bottom and top sides, except at the
+        nodes ``free`` (default: the right side's)."""
         bkd = self._bkd
         fixed = sorted(
             {
@@ -141,7 +146,7 @@ class _Rectangle(Generic[Array]):
                 for side in (_LEFT, _BOTTOM, _TOP)
                 for node in _nodes(bkd, self._mesh.boundary_indices(side))
             }
-            - set(self._port)
+            - (set(self._port) if free is None else free)
         )
         index = bkd.asarray(fixed, dtype=bkd.int64_dtype())
         part = DirichletPart(index, NodalField(_exact(self._mesh.points()[:, index])))
@@ -154,8 +159,9 @@ class _Rectangle(Generic[Array]):
         sides: list[PortSide],
         rule: Optional[SideRuleProtocol] = None,
     ) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
+        free = {node for side in sides for node in side.nodes} | set(self._port)
         return collocation_pinned_response(
-            self.system(),
+            self.system(free),
             self._physics,
             self._mesh,
             sides,
@@ -201,6 +207,26 @@ def test_a_gauss_rule_tests_the_flux_against_the_lagrange_polynomials(
     )
 
 
+@pytest.mark.parametrize("rule", [CollocationNodeRule(), GaussLegendreSideRule()])
+def test_a_corner_on_two_port_sides_is_tested_on_both(
+    bkd: Backend[Array], rule: SideRuleProtocol
+) -> None:
+    """The right and top sides as ports, sharing the corner (1, 2): one
+    port node there, and the outputs sum to the exact outward flux over
+    both sides, -8 - 9."""
+    rect = _Rectangle(bkd)
+    top = _nodes(bkd, rect.mesh().boundary_indices(_TOP))
+    sides = [PortSide(_RIGHT, rect.port()), PortSide(_TOP, top)]
+    response = rect.response(sides, rule)
+    ports = list(dict.fromkeys(rect.port() + top))
+    assert response.nport() == len(ports) == len(rect.port()) + len(top) - 1
+    trace = bkd.reshape(_exact(rect.mesh().points()[:, ports]), (-1, 1))
+    point = response.linearize(trace, _no_params(bkd), _STEADY)
+    bkd.assert_allclose(
+        bkd.reshape(bkd.sum(point.output()), (1,)), bkd.asarray([-17.0]), rtol=1e-10
+    )
+
+
 def test_the_2d_trace_tangent_passes_finite_differences(bkd: Backend[Array]) -> None:
     rect = _Rectangle(bkd)
     response = rect.response([PortSide(_RIGHT, rect.port())])
@@ -226,9 +252,10 @@ def test_refusals(bkd: Backend[Array]) -> None:
     interior = sorted(set(range(rect.mesh().npts())) - set(rect.port()) - set(top))
     with pytest.raises(ValueError, match="not on side 1"):
         rect.response([PortSide(_RIGHT, interior[:1])])
-    corner = sorted(set(rect.port()) & set(top))
-    with pytest.raises(ValueError, match="more than one port side"):
-        rect.response([PortSide(_RIGHT, rect.port()), PortSide(_TOP, corner)])
+    with pytest.raises(ValueError, match="appears more than once"):
+        rect.response([PortSide(_RIGHT, rect.port()), PortSide(_RIGHT, rect.port())])
+    with pytest.raises(ValueError, match="repeats a node"):
+        rect.response([PortSide(_RIGHT, rect.port() + rect.port()[:1])])
     with pytest.raises(TypeError, match="PortMeshProtocol"):
         collocation_pinned_response(
             rect.system(),
