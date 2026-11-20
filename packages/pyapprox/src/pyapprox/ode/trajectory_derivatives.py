@@ -237,21 +237,75 @@ class _FirstOrder(Generic[V, A]):
         return self._states_at.get(index, [])
 
 
+InitialParamDerivativeFn = Callable[[], DerivativeOperator[V]]
+InitialCurvatureFn = Callable[[V], DerivativeOperator[V]]
+
+
+@dataclass(frozen=True)
+class InitialStateDerivatives(Generic[V]):
+    r"""The optional derivatives of an initial state :math:`\hat y_0(p)`.
+
+    - ``param_derivative()``: :math:`\partial \hat y_0/\partial p`,
+      parameters to state, valid for the parameters currently set; a zero
+      operator declares ``zero`` and is skipped.
+    - ``curvature(weight)``: :math:`\sum_i w_i\, \partial^2 \hat
+      y_{0,i}/\partial p^2`, parameters to parameters, for a state column
+      ``weight``; a zero operator declares ``zero`` and is skipped.
+
+    Build with :meth:`none`, :meth:`first_order` or :meth:`second_order`.
+
+    Raises
+    ------
+    TypeError
+        If a field is neither callable nor None.
+    ValueError
+        If ``curvature`` is given without ``param_derivative``.
+    """
+
+    param_derivative: Optional[InitialParamDerivativeFn[V]] = None
+    curvature: Optional[InitialCurvatureFn[V]] = None
+
+    def __post_init__(self) -> None:
+        for name in ("param_derivative", "curvature"):
+            value = getattr(self, name)
+            if value is not None and not callable(value):
+                raise TypeError(
+                    f"InitialStateDerivatives field '{name}' must be callable or "
+                    f"None; got {type(value).__name__}"
+                )
+        if self.curvature is not None and self.param_derivative is None:
+            raise ValueError("curvature requires param_derivative")
+
+    @staticmethod
+    def none() -> "InitialStateDerivatives[W]":
+        """No derivatives: the initial state is only evaluated."""
+        return InitialStateDerivatives()
+
+    @staticmethod
+    def first_order(
+        param_derivative: InitialParamDerivativeFn[W],
+    ) -> "InitialStateDerivatives[W]":
+        """The parameter derivative: gradients."""
+        return InitialStateDerivatives(param_derivative)
+
+    @staticmethod
+    def second_order(
+        param_derivative: InitialParamDerivativeFn[W],
+        curvature: InitialCurvatureFn[W],
+    ) -> "InitialStateDerivatives[W]":
+        """The parameter derivative and its curvature: Hessian-vector
+        products."""
+        return InitialStateDerivatives(param_derivative, curvature)
+
+
 @runtime_checkable
 class InitialStateDerivativeProtocol(Protocol[V]):
-    r""":math:`\partial \hat y_0/\partial p`, for an initial state that
-    depends on the parameters."""
+    r"""An initial state that depends on the parameters, as the sweeps
+    differentiate it."""
 
-    def param_derivative(self) -> DerivativeOperator[V]:
-        """Parameters to state, valid for the parameters currently set;
-        a zero operator declares ``zero`` and is skipped."""
-        ...
-
-    def curvature(self, weight: V) -> Optional[DerivativeOperator[V]]:
-        r""":math:`\sum_i w_i\, \partial^2 \hat y_{0,i}/\partial p^2`,
-        parameters to parameters, for a state column ``weight``; None when
-        it is not available (no Hessian-vector products), and a zero
-        operator declares ``zero`` and is skipped."""
+    def derivatives(self) -> InitialStateDerivatives[V]:
+        """The optional derivatives, fixed when the initial state is
+        built."""
         ...
 
 
@@ -260,11 +314,15 @@ class ResidualInitialState(Generic[V]):
     residual's derivatives bundle (its ``initial_state`` and
     ``initial_state_curvature`` fields).
 
+    Which derivatives exist is read from the residual's bundle here: a
+    bundle's fields do not change with the parameters. Each derivative
+    fetches the bundle when called, so it is valid for the parameters
+    currently set.
+
     Parameters
     ----------
     rhs : RightHandSideProtocol
-        The residual; its bundle is fetched on every call, so it is valid
-        for the parameters currently set.
+        The residual.
     form : ResidualFormProtocol
         Converts a stack vector to the residual's form for the
         curvature's weight.
@@ -276,27 +334,37 @@ class ResidualInitialState(Generic[V]):
         form: ResidualFormProtocol[V, V],
     ) -> None:
         self._rhs, self._form = rhs, form
+        bundle = rhs.derivatives()
+        self._derivatives: InitialStateDerivatives[V] = (
+            InitialStateDerivatives.none()
+            if bundle.initial_state is None
+            else InitialStateDerivatives.first_order(self._param_derivative)
+            if bundle.initial_state_curvature is None
+            else InitialStateDerivatives.second_order(
+                self._param_derivative, self._curvature
+            )
+        )
 
-    def curvature(self, weight: V) -> Optional[DerivativeOperator[V]]:
-        """The bundle's ``initial_state_curvature`` at ``weight``; None
-        when the bundle has none."""
-        field = self._rhs.derivatives().initial_state_curvature
-        return None if field is None else field(self._form.to_residual(weight))
+    def derivatives(self) -> InitialStateDerivatives[V]:
+        return self._derivatives
 
-    def param_derivative(self) -> DerivativeOperator[V]:
-        """The bundle's ``initial_state()``.
-
-        Raises
-        ------
-        TypeError
-            If the bundle has no ``initial_state``.
-        """
+    def _param_derivative(self) -> DerivativeOperator[V]:
+        """The bundle's ``initial_state()``."""
         field = self._rhs.derivatives().initial_state
         if field is None:
-            raise TypeError(
-                f"{type(self._rhs).__name__}'s derivatives() has no initial_state"
+            raise RuntimeError(
+                "param_derivative is unavailable; check derivatives() before calling"
             )
         return field()
+
+    def _curvature(self, weight: V) -> DerivativeOperator[V]:
+        """The bundle's ``initial_state_curvature`` at ``weight``."""
+        field = self._rhs.derivatives().initial_state_curvature
+        if field is None:
+            raise RuntimeError(
+                "curvature is unavailable; check derivatives() before calling"
+            )
+        return field(self._form.to_residual(weight))
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._rhs!r})"
@@ -443,7 +511,9 @@ class TrajectoryDerivatives(Generic[V, A]):
             )
         self._stepper = stepper
         self._constraint = constraint
-        self._initial_state = initial_state
+        self._initial: Optional[InitialStateDerivatives[V]] = (
+            None if initial_state is None else initial_state.derivatives()
+        )
 
     # ------------------------------------------------------------------
     # What both sweeps read
@@ -705,10 +775,11 @@ class TrajectoryDerivatives(Generic[V, A]):
         direction : V
             :math:`v`, a single column of the parameter space.
         """
+        derivative = self.initial_param_derivative()
         dx0 = (
             self._state_space().zeros()
-            if self._initial_state is None
-            else self._initial_state.param_derivative().apply(direction)
+            if derivative is None
+            else derivative.apply(direction)
         )
         return TangentState(
             dx0, self._constrained_tangent(store, 0, dx0, direction), None
@@ -788,9 +859,45 @@ class TrajectoryDerivatives(Generic[V, A]):
         """The stepper."""
         return self._stepper
 
-    def initial_state(self) -> Optional[InitialStateDerivativeProtocol[V]]:
-        r""":math:`\partial \hat y_0/\partial p`, or None."""
-        return self._initial_state
+    def initial_param_derivative(self) -> Optional[DerivativeOperator[V]]:
+        r""":math:`\partial \hat y_0/\partial p` for the parameters
+        currently set; None for an initial state independent of the
+        parameters.
+
+        Raises
+        ------
+        TypeError
+            If the initial state's bundle has no ``param_derivative``.
+        """
+        if self._initial is None:
+            return None
+        field = self._initial.param_derivative
+        if field is None:
+            raise TypeError(
+                "the initial state's derivatives() has no param_derivative, so "
+                "it has no parameter gradients"
+            )
+        return field()
+
+    def initial_curvature(self, weight: V) -> Optional[DerivativeOperator[V]]:
+        r""":math:`\sum_i w_i\, \partial^2 \hat y_{0,i}/\partial p^2` for a
+        state column ``weight``; None for an initial state independent of
+        the parameters.
+
+        Raises
+        ------
+        TypeError
+            If the initial state's bundle has no ``curvature``.
+        """
+        if self._initial is None:
+            return None
+        field = self._initial.curvature
+        if field is None:
+            raise TypeError(
+                "the initial state's derivatives() has no curvature, so it has "
+                "no Hessian-vector products"
+            )
+        return field(weight)
 
     def _step_second_order(self) -> StepSecondOrder[V]:
         """The stepper bundle's second-order fields.
@@ -1261,11 +1368,9 @@ class _AdjointSweep(Generic[V, A]):
         r"""Pull :math:`\bar\nu_0` back to the parameters; returns the
         accumulated total (the gradient, or the Hessian-vector product)."""
         pulled = self._pull_constraint(0)
-        initial = self._owner.initial_state()
-        if initial is not None:
-            derivative = initial.param_derivative()
-            if not derivative.properties().zero:
-                self._add(derivative.apply_transpose(pulled))
+        derivative = self._owner.initial_param_derivative()
+        if derivative is not None and not derivative.properties().zero:
+            self._add(derivative.apply_transpose(pulled))
         self._add(self._sources.initial())
         return self._total
 
@@ -1655,15 +1760,10 @@ class _SecondOrderSources(Generic[V, A]):
 
     def initial(self) -> Optional[V]:
         # (sum_i z_0,i d^2 y0_i/dp^2) v, with z_0 the first order's pull.
-        initial = self._owner.initial_state()
-        if initial is None or initial.param_derivative().properties().zero:
+        derivative = self._owner.initial_param_derivative()
+        if derivative is None or derivative.properties().zero:
             return None
-        curvature = initial.curvature(self._adjoint.pulled(0))
-        if curvature is None:
-            raise TypeError(
-                f"{type(initial).__name__} has no curvature, so its initial "
-                "state has no Hessian-vector products"
-            )
-        if curvature.properties().zero:
+        curvature = self._owner.initial_curvature(self._adjoint.pulled(0))
+        if curvature is None or curvature.properties().zero:
             return None
         return curvature.apply(self._direction)

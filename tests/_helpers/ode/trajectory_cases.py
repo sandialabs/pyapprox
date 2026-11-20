@@ -33,7 +33,6 @@ from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
-    DerivativeOperator,
     backend_spaces,
     dense_operator,
 )
@@ -47,7 +46,10 @@ from pyapprox.ode.tableau import (
     heun,
 )
 from pyapprox.ode.time_integral import IntegrandDerivatives
-from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
+from pyapprox.ode.trajectory_derivatives import (
+    InitialStateDerivatives,
+    TrajectoryDerivatives,
+)
 from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
@@ -363,11 +365,8 @@ class ScaledStart(Generic[Array]):
         matrix[1, 1] = a * a * scaled
         return matrix
 
-    def param_derivative(self) -> DerivativeOperator[Array]:
-        return self._derivative()
-
-    def curvature(self, weight: Array) -> Optional[DerivativeOperator[Array]]:
-        return self._curvature(weight)
+    def derivatives(self) -> InitialStateDerivatives[Array]:
+        return InitialStateDerivatives.second_order(self._derivative, self._curvature)
 
 
 class TrajectoryProblem(Generic[Array]):

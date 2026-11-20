@@ -79,6 +79,7 @@ from pyapprox.ode.tableau import (
 )
 from pyapprox.ode.trajectory_derivatives import (
     InitialStateDerivativeProtocol,
+    InitialStateDerivatives,
     ResidualInitialState,
     TrajectoryDerivatives,
 )
@@ -252,9 +253,31 @@ class TestConstraintAndInitialState:
             lotka_volterra_with_mass(bkd), BackendColumnForm(bkd)
         )
         assert isinstance(initial, InitialStateDerivativeProtocol)
-        assert initial.param_derivative().properties().zero
-        curvature = initial.curvature(bkd.ones((2, 1)))
-        assert curvature is not None and curvature.properties().zero
+        bundle = initial.derivatives()
+        assert bundle.param_derivative is not None and bundle.curvature is not None
+        assert bundle.param_derivative().properties().zero
+        assert bundle.curvature(bkd.ones((2, 1))).properties().zero
+
+    @pytest.mark.parametrize("order", [0, 1, 2])
+    def test_the_residual_initial_state_has_the_residuals_order(
+        self, bkd: Backend[Array], order: int
+    ) -> None:
+        """Which derivatives the initial state has is read from the
+        residual's bundle when it is built."""
+        initial: ResidualInitialState[Array] = ResidualInitialState(
+            _ReducedLotkaVolterra(bkd, order), BackendColumnForm(bkd)
+        )
+        bundle = initial.derivatives()
+        assert (bundle.param_derivative is not None) == (order >= 1)
+        assert (bundle.curvature is not None) == (order == 2)
+
+    def test_the_bundle_refuses_curvature_alone(self, bkd: Backend[Array]) -> None:
+        start = ScaledStart(bkd).derivatives()
+        assert start.curvature is not None
+        with pytest.raises(ValueError, match="curvature requires param_derivative"):
+            InitialStateDerivatives(curvature=start.curvature)
+        with pytest.raises(TypeError, match="must be callable"):
+            InitialStateDerivatives(param_derivative=1.0)  # type: ignore[arg-type]
 
 
 class TestHessianVectorProduct:
@@ -399,8 +422,42 @@ class TestHessianVectorProductConstraintAndInitialState:
 class _FlatStart(ScaledStart[Array]):
     """:class:`ScaledStart` without its curvature."""
 
-    def curvature(self, weight: Array) -> Optional[DerivativeOperator[Array]]:
-        return None
+    def derivatives(self) -> InitialStateDerivatives[Array]:
+        derivative = super().derivatives().param_derivative
+        if derivative is None:
+            raise ValueError("ScaledStart has its parameter derivative")
+        return InitialStateDerivatives.first_order(derivative)
+
+
+class _FixedStart(ScaledStart[Array]):
+    """:class:`ScaledStart` declaring no derivatives."""
+
+    def derivatives(self) -> InitialStateDerivatives[Array]:
+        return InitialStateDerivatives.none()
+
+
+class _ReducedLotkaVolterra(LotkaVolterra[Array]):
+    """Lotka-Volterra with its derivatives cut to ``order``: 0 the state
+    Jacobian only, 1 the parameter derivatives too, 2 all of them."""
+
+    def __init__(self, bkd: Backend[Array], order: int) -> None:
+        super().__init__(bkd)
+        full = super().derivatives()
+        self._reduced: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+            ODEResidualDerivatives(jacobian=full.jacobian)
+            if order == 0
+            else ODEResidualDerivatives(
+                jacobian=full.jacobian,
+                param=full.param,
+                initial_state=full.initial_state,
+                param_space=full.param_space,
+            )
+            if order == 1
+            else full
+        )
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        return self._reduced
 
 
 class _Truncated(Generic[Array]):
@@ -482,8 +539,18 @@ class TestHessianVectorProductRefusals:
 
     def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:
         problem = TrajectoryProblem(bkd, heun(), start=_FlatStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        problem.gradient(param)
         with pytest.raises(TypeError, match="no curvature"):
-            problem.hvp(bkd.asarray(LV_PARAM), random_direction(bkd))
+            problem.hvp(param, direction)
+
+    def test_an_initial_state_without_derivatives(self, bkd: Backend[Array]) -> None:
+        problem = TrajectoryProblem(bkd, heun(), start=_FixedStart(bkd))
+        param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        with pytest.raises(TypeError, match="no param_derivative"):
+            problem.gradient(param)
+        with pytest.raises(TypeError, match="no param_derivative"):
+            problem.tangent(param, direction)
 
 
 class _OneColumn(Generic[Array]):
