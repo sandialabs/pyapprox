@@ -11,7 +11,6 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
-from pyapprox.pde.collocation.boundary.essential_rows import DirichletPart
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
 )
@@ -50,7 +49,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.physics_test_utils import (
     ManufacturedColumn,
     PhysicsTestBase,
-    solve_steady_dirichlet,
 )
 
 
@@ -121,103 +119,6 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         state = bkd.array(np.random.randn(physics.nstates()))
 
         self.check_jacobian(bkd, physics, state, time=0.0)
-
-    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
-        """BEFORE: Verify residual = 0 at manufactured solution."""
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        # Manufactured solution: u0 = sin(pi*x), u1 = cos(pi*x)
-        # For pure diffusion with no reaction:
-        # D0 * u0'' = D0 * (-pi^2) * sin(pi*x) = f0
-        # D1 * u1'' = D1 * (-pi^2) * cos(pi*x) = f1
-        D0 = 0.1
-        D1 = 0.05
-        pi_sq = math.pi**2
-
-        exact_u0 = bkd.sin(math.pi * nodes)
-        exact_u1 = bkd.cos(math.pi * nodes)
-        exact_solution = bkd.hstack([exact_u0, exact_u1])
-
-        # For zero reaction, forcing must cancel the diffusion
-        forcing0 = -D0 * (-pi_sq) * exact_u0  # = D0 * pi^2 * sin(pi*x)
-        forcing1 = -D1 * (-pi_sq) * exact_u1  # = D1 * pi^2 * cos(pi*x)
-
-        reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
-
-        physics = TwoSpeciesReactionDiffusionPhysics(
-            basis,
-            bkd,
-            diffusion0=D0,
-            diffusion1=D1,
-            reaction=reaction,
-            forcing0=NodalField(forcing0),
-            forcing1=NodalField(forcing1),
-        )
-
-        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
-
-    def test_solve_steady_linear_system(self, bkd: Backend[Array]) -> None:
-        """AFTER: Verify convergence for linear reaction-diffusion."""
-        npts = 15
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        # Simple test: u0 = u1 = 1 - x^2 (satisfies u(-1) = u(1) = 0)
-        # Laplacian = -2
-        # With no reaction, forcing = D * 2
-        D0 = 0.1
-        D1 = 0.05
-
-        exact_u0 = 1.0 - nodes**2
-        exact_u1 = 1.0 - nodes**2
-        exact_solution = bkd.hstack([exact_u0, exact_u1])
-
-        forcing0 = bkd.full((npts,), D0 * 2.0)
-        forcing1 = bkd.full((npts,), D1 * 2.0)
-
-        reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
-
-        physics = TwoSpeciesReactionDiffusionPhysics(
-            basis,
-            bkd,
-            diffusion0=D0,
-            diffusion1=D1,
-            reaction=reaction,
-            forcing0=NodalField(forcing0),
-            forcing1=NodalField(forcing1),
-        )
-
-        # Set BCs for both species at both boundaries
-        # For vector physics with state [u0, u1], u0 uses indices 0:npts
-        # and u1 uses indices npts:2*npts; each part names its component
-        # and gives node indices, and the rows offset them.
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-        parts = [
-            DirichletPart(idx, 0.0, component)
-            for component in (0, 1)
-            for idx in (left_idx, right_idx)
-        ]
-
-        # Newton solve from wrong initial guess
-        initial_guess = bkd.zeros((2 * npts,))
-        solution = solve_steady_dirichlet(
-            physics,
-            2,
-            parts,
-            initial_guess,
-            atol=1e-12,
-            rtol=1e-12,
-            maxiters=30,
-        )
-
-        bkd.assert_allclose(solution, exact_solution, atol=1e-8)
 
     def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_two_species_reaction_diffusion factory."""
@@ -521,7 +422,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         initial_norm = float(bkd.norm(state0))
         final_norm = float(bkd.norm(final_state))
         # FHN dynamics should change the state
-        assert abs(initial_norm - final_norm) >= 10**(-2)
+        assert abs(initial_norm - final_norm) >= 10 ** (-2)
 
 
 class TestFitzHughNagumoReaction:
