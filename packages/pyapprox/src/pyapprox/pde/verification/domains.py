@@ -197,3 +197,132 @@ class Disk:
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(center={self._center}, radius={self._radius})"
+
+
+class Annulus:
+    """The region between two concentric circles in two dimensions, with
+    boundary parts ``inner`` and ``outer``.
+
+    Parameters
+    ----------
+    center : Tuple[float, float]
+        The common center.
+    r_inner, r_outer : float
+        The radii.
+
+    Raises
+    ------
+    ValueError
+        If ``r_inner`` is not positive or not below ``r_outer``.
+    """
+
+    def __init__(
+        self,
+        center: Tuple[float, float] = (0.0, 0.0),
+        r_inner: float = 1.0,
+        r_outer: float = 2.0,
+    ) -> None:
+        if not 0.0 < r_inner < r_outer:
+            raise ValueError(
+                f"radii must satisfy 0 < r_inner < r_outer, got {r_inner}, {r_outer}"
+            )
+        self._center = (float(center[0]), float(center[1]))
+        self._radii = (float(r_inner), float(r_outer))
+
+    def ndim(self) -> int:
+        """The spatial dimension, two."""
+        return 2
+
+    def coordinates(self) -> Tuple[str, ...]:
+        """``x, y``."""
+        return _STANDARD[:2]
+
+    def interval(self, coordinate: str) -> Optional[Tuple[float, float]]:
+        """``None``: an annulus is not a product over either coordinate."""
+        return None
+
+    def center(self) -> Tuple[float, float]:
+        """The common center."""
+        return self._center
+
+    def radii(self) -> Tuple[float, float]:
+        """``(r_inner, r_outer)``."""
+        return self._radii
+
+    def boundaries(self) -> Tuple[str, ...]:
+        """``inner``, ``outer``."""
+        return ("inner", "outer")
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(center={self._center}, "
+            f"r_inner={self._radii[0]}, r_outer={self._radii[1]})"
+        )
+
+
+class EllipticalAnnulus:
+    r"""The region between two confocal ellipses centered at the origin,
+    foci :math:`(\pm a, 0)`, with boundary parts ``inner`` and ``outer``.
+
+    In elliptical coordinates :math:`x = a\cosh u \cos v`,
+    :math:`y = a\sinh u \sin v`, the ellipse :math:`u = c` has semi-axes
+    :math:`a\cosh c` and :math:`a\sinh c`; the region is
+    :math:`u_{inner} \le u \le u_{outer}`. A filled ellipse would contain
+    the focal segment, where these coordinates are singular.
+
+    Parameters
+    ----------
+    focal : float
+        :math:`a`, the distance from the center to each focus.
+    u_inner, u_outer : float
+        The elliptical radii of the two ellipses.
+
+    Raises
+    ------
+    ValueError
+        If ``focal`` is not positive, or ``u_inner`` is not positive or
+        not below ``u_outer``.
+    """
+
+    def __init__(
+        self, focal: float = 1.0, u_inner: float = 0.5, u_outer: float = 1.0
+    ) -> None:
+        if not focal > 0.0:
+            raise ValueError(f"focal must be positive, got {focal}")
+        if not 0.0 < u_inner < u_outer:
+            raise ValueError(
+                f"elliptical radii must satisfy 0 < u_inner < u_outer, got "
+                f"{u_inner}, {u_outer}"
+            )
+        self._focal = float(focal)
+        self._radii = (float(u_inner), float(u_outer))
+
+    def ndim(self) -> int:
+        """The spatial dimension, two."""
+        return 2
+
+    def coordinates(self) -> Tuple[str, ...]:
+        """``x, y``."""
+        return _STANDARD[:2]
+
+    def interval(self, coordinate: str) -> Optional[Tuple[float, float]]:
+        """``None``: the region is not a product over either coordinate."""
+        return None
+
+    def focal(self) -> float:
+        """:math:`a`, the distance from the center to each focus."""
+        return self._focal
+
+    def radii(self) -> Tuple[float, float]:
+        """``(u_inner, u_outer)``."""
+        return self._radii
+
+    def boundaries(self) -> Tuple[str, ...]:
+        """``inner``, ``outer``."""
+        return ("inner", "outer")
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(focal={self._focal}, "
+            f"u_inner={self._radii[0]}, u_outer={self._radii[1]})"
+        )

@@ -40,7 +40,13 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Robin,
 )
-from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
+from pyapprox.pde.verification.domains import (
+    Annulus,
+    Box,
+    Disk,
+    DomainProtocol,
+    EllipticalAnnulus,
+)
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import (
     Divergence,
@@ -104,6 +110,24 @@ class TestDomains:
         assert disk.ndim() == 2 and disk.boundaries() == ("circle",)
         assert disk.center() == (1.0, 2.0) and disk.radius() == 0.5
 
+    def test_annulus(self) -> None:
+        annulus = Annulus((1.0, 2.0), 0.5, 1.5)
+        assert isinstance(annulus, DomainProtocol)
+        assert annulus.ndim() == 2 and annulus.coordinates() == ("x", "y")
+        assert annulus.boundaries() == ("inner", "outer")
+        assert annulus.center() == (1.0, 2.0) and annulus.radii() == (0.5, 1.5)
+        assert annulus.interval("x") is None
+        assert repr(annulus) == "Annulus(center=(1.0, 2.0), r_inner=0.5, r_outer=1.5)"
+
+    def test_elliptical_annulus(self) -> None:
+        ring = EllipticalAnnulus(2.0, 0.5, 1.0)
+        assert isinstance(ring, DomainProtocol)
+        assert ring.ndim() == 2 and ring.coordinates() == ("x", "y")
+        assert ring.boundaries() == ("inner", "outer")
+        assert ring.focal() == 2.0 and ring.radii() == (0.5, 1.0)
+        assert ring.interval("y") is None
+        assert repr(ring) == "EllipticalAnnulus(focal=2.0, u_inner=0.5, u_outer=1.0)"
+
     def test_refusals(self) -> None:
         with pytest.raises(ValueError, match="one to three"):
             Box([(0.0, 1.0)] * 4)
@@ -111,6 +135,14 @@ class TestDomains:
             Box([(1.0, 0.0)])
         with pytest.raises(ValueError, match="positive"):
             Disk(radius=0.0)
+        for r_inner, r_outer in ((0.0, 1.0), (2.0, 1.0)):
+            with pytest.raises(ValueError, match="0 < r_inner < r_outer"):
+                Annulus(r_inner=r_inner, r_outer=r_outer)
+        with pytest.raises(ValueError, match="focal must be positive"):
+            EllipticalAnnulus(focal=0.0)
+        for u_inner, u_outer in ((0.0, 1.0), (1.0, 1.0)):
+            with pytest.raises(ValueError, match="0 < u_inner < u_outer"):
+                EllipticalAnnulus(u_inner=u_inner, u_outer=u_outer)
 
 
 class TestAdvectionDiffusionReaction:
