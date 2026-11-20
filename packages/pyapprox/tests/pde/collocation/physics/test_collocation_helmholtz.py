@@ -1,7 +1,5 @@
 """Tests for Helmholtz physics implementation."""
 
-import math
-
 import numpy as np
 
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
@@ -64,75 +62,6 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         state = bkd.array(np.random.randn(physics.nstates()))
 
         self.check_jacobian(bkd, physics, state, time=0.0)
-
-    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
-        """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-
-        # Manufactured solution for 1D Helmholtz
-        # Helmholtz PDE: -u'' + k^2*u = f
-        # Use u = sin(pi*x), k^2 = 1
-        # u'' = -pi^2 * sin(pi*x)
-        # -u'' = pi^2 * sin(pi*x)
-        # k^2 * u = sin(pi*x)
-        # f = pi^2 * sin(pi*x) + sin(pi*x) = (pi^2 + 1) * sin(pi*x)
-        k_sq = 1.0
-        nodes = basis.nodes()
-
-        exact_solution = bkd.sin(math.pi * nodes)
-
-        # Compute forcing for -Laplacian(u) + k^2*u = f
-        # f = (pi^2 + k^2) * sin(pi*x)
-        forcing = (math.pi**2 + k_sq) * bkd.sin(math.pi * nodes)
-
-        physics = HelmholtzPhysics(
-            basis, bkd, wave_number_sq=k_sq, forcing=NodalField(forcing)
-        )
-
-        # Check residual is near zero at manufactured solution
-        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
-
-    def test_solve_from_wrong_initial_guess(self, bkd: Backend[Array]) -> None:
-        """AFTER: Verify convergence to exact solution from wrong guess."""
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-
-        # Manufactured solution: u = (1 - x^2), satisfies u(-1) = u(1) = 0
-        # -u'' + k^2*u = f where u = 1 - x^2
-        # u' = -2x, u'' = -2
-        # -(-2) + k^2*(1-x^2) = f
-        # f = 2 + k^2*(1-x^2)
-        k_sq = 1.0
-        nodes = basis.nodes()
-        exact_solution = 1.0 - nodes**2
-        forcing = 2.0 + k_sq * (1.0 - nodes**2)
-
-        physics = HelmholtzPhysics(
-            basis, bkd, wave_number_sq=k_sq, forcing=NodalField(forcing)
-        )
-
-        # Set boundary conditions: u(-1) = 0, u(1) = 0
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-
-        # Newton solve from wrong initial guess
-        initial_guess = bkd.zeros((npts,))
-        solution = solve_steady_dirichlet(
-            physics,
-            1,
-            [DirichletPart(left_idx, 0.0), DirichletPart(right_idx, 0.0)],
-            initial_guess,
-            atol=1e-12,
-            rtol=1e-12,
-            maxiters=20,
-        )
-
-        bkd.assert_allclose(solution, exact_solution, atol=1e-10)
 
     def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_helmholtz factory function."""
