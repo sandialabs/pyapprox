@@ -1,28 +1,24 @@
 name: pyapprox
+# Conda supplies Python and the native libraries pip cannot install;
+# every Python package then comes from pip, from the packages'
+# pyproject.toml, so no package is installed twice by two tools.
+# llvm-openmp is for torch.compile on CPU, which TorchBkd's compiled
+# paths use: it generates C++ with OpenMP pragmas and builds it
+# with the system compiler, so the compiler must find omp.h. Apple's
+# clang ships no OpenMP, so on macOS this is required. It is not needed
+# on Linux, where gcc brings its own OpenMP (libgomp); on a GPU, where
+# torch.compile generates Triton kernels instead; or if you use only the
+# NumPy backend, or never call torch.compile.
+#
+#   conda env create -f environment.yml
+#   conda activate pyapprox
+#   make install-dev
+#
+# conda-forge only: it carries native builds for every platform and has
+# no usage terms beyond each package's own license.
 channels:
-  - pytorch
   - conda-forge
-  - defaults
 dependencies:
   - python>=3.11
-  - numpy>=2.0
-  - scipy>=1.11
-  - matplotlib>=3.7
-  - sympy>=1.12
-  - pytorch>=2.0
-  - networkx>=3.0
-  - pytest>=7.4
-  - pytest-cov>=4.1
-  - mypy>=1.8
   - pip
-  - pip:
-    - scikit-fem>=9.0
-    - umbridge>=0.7
-    - pytest-timeout>=2.2
-    - ruff>=0.3
-    - hatch
-    - hatch-vcs
-    - jupyter-cache>=1.0
-    - quartodoc>=0.6
-    # Heavy optional deps not included here (compile from source):
-    #   pip install -e "packages/pyapprox[rol]"    # ROL optimizer (rol-python)
+  - llvm-openmp

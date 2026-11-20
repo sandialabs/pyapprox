@@ -127,11 +127,49 @@ pip install -e "packages/pyapprox[runtime-extras]"  # All the above
 
 ### Using conda
 
+Conda supplies Python and OpenMP (`llvm-openmp`); pip then installs
+every Python package, so no package is installed by both tools. Use the
+conda-forge channel (Miniforge's default).
+
+OpenMP is needed only for `torch.compile` on CPU, which the PyTorch
+backend's compiled paths use: it builds generated C++ with the system
+compiler, which must find `omp.h`. Apple's clang has no OpenMP, so on
+macOS it is required. It is not needed on Linux (gcc ships its own), on
+a GPU, or with only the NumPy backend. Homebrew's `libomp`
+(`brew install libomp`) works instead; torch finds either, the conda one
+only when the env is activated.
+
 ```bash
 conda env create -f environment.yml
 conda activate pyapprox
-make install-dev
+pip install -e "packages/pyapprox[dev]" \
+            -e packages/pyapprox-benchmarks \
+            -e packages/pyapprox-tutorials
 ```
+
+`make install-dev` runs the same `pip install`.
+
+Without conda, any Python 3.11+ virtual environment works with the same
+`pip install` commands. On macOS, `torch.compile` then needs OpenMP from
+Homebrew (`brew install libomp`).
+
+To type-check against the same package versions as CI, create the env
+with Python 3.13 and install under the pinned versions in
+`requirements/ci-pins.txt`:
+
+```bash
+conda create -n pyapprox-dev -c conda-forge --override-channels \
+    python=3.13 pip llvm-openmp
+conda activate pyapprox-dev
+pip install -c requirements/ci-pins.txt \
+    -e "packages/pyapprox[dev,rol]" \
+    -e packages/pyapprox-benchmarks \
+    -e packages/pyapprox-tutorials \
+    jax ipykernel
+```
+
+`make dev-env DEV_ENV=pyapprox-dev` does both steps; without `DEV_ENV`
+it names the env after the checkout directory.
 
 ## Running Tests
 
