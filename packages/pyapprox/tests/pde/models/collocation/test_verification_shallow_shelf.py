@@ -28,7 +28,7 @@ Cases:
   thickness, flat and sloped beds and two frictions, under Dirichlet,
   Neumann and Robin sides, on both backends;
 - spectral decay, fitted per node, of the old residual tests' quadratic
-  velocity on [-1, 1]^2;
+  velocity on [-1, 1]^2, with unit and with variable thickness;
 - wrong-model control: each component's flux sides given the other
   component's flux stall.
 """
@@ -189,6 +189,19 @@ def test_decays(numpy_bkd: Backend[Array], codes: str) -> None:
     shelf = _ShallowShelf("1", "0.1*x", "1")
     problem = shelf.problem(["x**2 + y", "x + y**2"], _SQUARE, codes)
     decays(problem, shelf, [6, 8, 10, 12, 14], 0.35, numpy_bkd, initial_guess=_START)
+
+
+@pytest.mark.parametrize("codes", ["DDDD", "DNDR"])
+def test_decays_variable_depth(numpy_bkd: Backend[Array], codes: str) -> None:
+    """The quadratic velocity with the old residual tests' other
+    settings combined: H = 1 + x/4 + y/8, bed 0.1 x, friction 10. A
+    varying thickness multiplying a varying viscosity is the case that
+    exercises both terms of the stress Jacobian, diag(2 mu H) and
+    2 H mu_Q. Over 6-14 nodes per direction, DDDD 1.9e-2 to 9.2e-5,
+    DNDR 2.0e-2 to 9.6e-5 (observed 0.67 per node, required 0.33)."""
+    shelf = _ShallowShelf("1 + x/4 + y/8", "0.1*x", "10")
+    problem = shelf.problem(["x**2 + y", "x + y**2"], _SQUARE, codes)
+    decays(problem, shelf, [6, 8, 10, 12, 14], 0.33, numpy_bkd, initial_guess=_START)
 
 
 def test_swapped_fluxes_stall(numpy_bkd: Backend[Array]) -> None:

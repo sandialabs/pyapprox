@@ -20,10 +20,11 @@ Cases:
 
 - recovery (L2 error below 1e-10) of affine displacements, whose
   deformation gradient and so stress are constant, under Dirichlet,
-  traction and Robin sides in 1D, 2D and 3D, on both backends;
+  traction and Robin sides in 1D, 2D and 3D, on both backends, and of
+  the old 3D residual case's polynomial bubble;
 - spectral decay, fitted per node, of the comparison suite's 1D and 2D
   displacements (clamped, all sides Dirichlet), and of the Galerkin
-  catalog's 1D and 2D solutions with traction and Robin sides;
+  catalog's 1D, 2D and 3D solutions with traction and Robin sides;
 - wrong-model controls, which stall: the problem stated with the
   small-strain law, the physics given :math:`\lambda` and :math:`\mu`
   swapped, and traction sides given the traction with the wrong sign.
@@ -51,6 +52,7 @@ from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import Divergence, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.collocation_verification import coded, decays, recovers, stalls
+from tests._helpers.markers import slow_test
 
 _FIELDS = ("u", "v", "w")
 _COORDS = ("x", "y", "z")
@@ -259,6 +261,40 @@ def test_decays_varying_lame(numpy_bkd: Backend[Array]) -> None:
     physics = _Hyperelasticity("1 + x", "1 + y/2")
     problem = physics.problem(_SOLUTION_2D, _SQUARE, "DNDR")
     decays(problem, physics, [6, 8, 10, 12], 0.9, numpy_bkd)
+
+
+@slow_test
+def test_recovers_3d_bubble(numpy_bkd: Backend[Array]) -> None:
+    """The old 3D residual case: u, v, w = 0.1 b, 0.05 b, 0.03 b with
+    b = x^2 (1 - x)^2 y^2 (1 - y)^2 z^2 (1 - z)^2 on the unit cube,
+    lambda = mu = 1, all faces Dirichlet. b has degree 4 per direction,
+    so it lies in the space from 5 nodes; 7 nodes reproduce it to 1e-10
+    (observed 9.4e-12; 6.6e-11 at 6, the Newton floor). Its forcing is
+    slow to generate (about 5 s), not its solve."""
+    physics = _Hyperelasticity("1", "1")
+    bubble = "x**2*(1 - x)**2*y**2*(1 - y)**2*z**2*(1 - z)**2"
+    solution = (f"0.1*{bubble}", f"0.05*{bubble}", f"0.03*{bubble}")
+    problem = physics.problem(solution, _CUBE, "DDDDDD")
+    recovers(problem, physics, 7, numpy_bkd)
+
+
+@pytest.mark.parametrize("codes", ["DNDDDD", "DNDDRD"])
+def test_decays_3d(numpy_bkd: Backend[Array], codes: str) -> None:
+    """The Galerkin catalog's 3D solution on the unit cube, displacement
+    gradients up to about 0.15, lambda = mu = 1, a traction right face
+    and then also a Robin back face (faces left, right, bottom, top,
+    back, front): over 4-7 nodes per direction, DNDDDD 9.5e-5 to 5.9e-9,
+    DNDDRD 9.9e-5 to 6.3e-9 (observed about 3.2 per node, required
+    1.5). It checks what the affine 3D recovery cannot: the divergence of
+    a varying stress and Newton through a varying deformation in 3D."""
+    physics = _Hyperelasticity("1", "1")
+    solution = (
+        "0.1*sin(x + y)*z + 0.05*x",
+        "0.1*cos(y - z) - 0.05*x*y",
+        "0.1*x*z + 0.05*sin(y)",
+    )
+    problem = physics.problem(solution, _CUBE, codes)
+    decays(problem, physics, [4, 5, 6, 7], 1.5, numpy_bkd)
 
 
 @pytest.mark.parametrize(
