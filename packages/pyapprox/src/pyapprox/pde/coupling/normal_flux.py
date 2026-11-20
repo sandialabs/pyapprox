@@ -7,8 +7,9 @@ against that row's basis function. A discretization whose rows are the
 PDE evaluated pointwise (spectral collocation, any physics) integrates
 nothing by parts: what remains on a pinned row is the PDE's pointwise
 error at that node, not a flux. Its port flux is instead the normal flux
-:math:`q = \mathbf{F}(u) \cdot n`, evaluated at the trace's quadrature
-points by operators the discretization supplies, and integrated against
+:math:`q = \mathbf{F}(u) \cdot n`, evaluated at the operators' boundary
+nodes, sampled at the trace's quadrature points (selected, or
+interpolated from the nodes), and integrated against
 each of the port's trace functions, :math:`r_n = \int q\, \phi_n`, by the
 trace's quadrature (:func:`~pyapprox.pde.coupling.pointwise_flux.
 flux_moments`). Its tangent is the operators' Jacobian applied to the
@@ -21,7 +22,7 @@ from typing import Generic, Protocol, Sequence, runtime_checkable
 from pyapprox.implicitfunction.steady_system import SteadyPoint
 from pyapprox.pde.coupling.pointwise_flux import flux_moments
 from pyapprox.pde.coupling.ports import PortTraceProtocol, trace_shape
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -42,11 +43,23 @@ class NormalFluxOperatorProtocol(Protocol[Array]):
 
 @dataclass(frozen=True)
 class NormalFluxPart(Generic[Array]):
-    """One operator's contribution to a port: which of its boundary nodes
-    are trace quadrature points, in the trace's point order."""
+    """One operator's contribution to a port: ``sampling`` maps the flux
+    at the operator's boundary nodes to the trace quadrature points it
+    supplies, in the trace's point order. Shape: (npoints, nboundary).
+
+    Rows of the identity select nodes that are quadrature points
+    (:func:`selecting`); interpolation rows sample the flux's nodal
+    interpolant elsewhere."""
 
     operator: NormalFluxOperatorProtocol[Array]
-    positions: Sequence[int]
+    sampling: Array
+
+
+def selecting(positions: Sequence[int], nboundary: int, bkd: Backend[Array]) -> Array:
+    """The sampling matrix of a :class:`NormalFluxPart` whose quadrature
+    points are the boundary nodes ``positions``, of ``nboundary``. Shape:
+    (len(positions), nboundary)."""
+    return bkd.eye(nboundary)[bkd.asarray(list(positions), dtype=bkd.int64_dtype())]
 
 
 class NormalFluxMoments(Generic[Array]):
@@ -54,8 +67,8 @@ class NormalFluxMoments(Generic[Array]):
     trace functions.
 
     Satisfies :class:`~pyapprox.pde.coupling.pinned_response.
-    PortFluxProtocol` with backend columns as states. The parts' selected
-    nodes, concatenated in order, are the trace's quadrature points: for a
+    PortFluxProtocol` with backend columns as states. The parts' sampled
+    points, concatenated in order, are the trace's quadrature points: for a
     :class:`~pyapprox.pde.coupling.traces.LumpedNodalTrace`, the port
     nodes. Scalar fluxes only (one component).
 
@@ -73,8 +86,9 @@ class NormalFluxMoments(Generic[Array]):
     TypeError
         If an operator or ``trace`` does not satisfy its protocol.
     ValueError
-        If there are no parts, or the parts select a different number of
-        nodes than the trace has quadrature points.
+        If there are no parts, a sampling matrix is not 2D, or the parts
+        sample a different number of points than the trace has quadrature
+        points.
     """
 
     def __init__(
@@ -92,24 +106,26 @@ class NormalFluxMoments(Generic[Array]):
                     "operators must satisfy NormalFluxOperatorProtocol, got "
                     f"{type(part.operator).__name__}"
                 )
-        nselected = sum(len(part.positions) for part in parts)
-        if nselected != nelems * nquad:
+            if part.sampling.ndim != 2:
+                raise ValueError(
+                    "a sampling matrix must have shape (npoints, nboundary), "
+                    f"got {tuple(part.sampling.shape)}"
+                )
+        nsampled = sum(int(part.sampling.shape[0]) for part in parts)
+        if nsampled != nelems * nquad:
             raise ValueError(
-                f"the parts select {nselected} nodes, the trace has "
+                f"the parts sample {nsampled} points, the trace has "
                 f"{nelems * nquad} quadrature points"
             )
-        bkd = trace.bkd()
-        self._parts = [
-            (part.operator, bkd.asarray(list(part.positions), dtype=bkd.int64_dtype()))
-            for part in parts
-        ]
-        self._trace, self._time, self._bkd = trace, time, bkd
+        self._parts = [(part.operator, part.sampling) for part in parts]
+        self._trace, self._time, self._bkd = trace, time, trace.bkd()
 
     def flux(self, state: Array) -> Array:
         """The tested outward flux at ``state``, shape (nstates, 1).
         Shape: (nport, 1)."""
         values = self._bkd.concatenate(
-            [op(state[:, 0], self._time)[rows] for op, rows in self._parts], axis=0
+            [sampling @ op(state[:, 0], self._time) for op, sampling in self._parts],
+            axis=0,
         )
         return flux_moments(self._trace, self._bkd.reshape(values, (-1, 1)))
 
@@ -121,7 +137,10 @@ class NormalFluxMoments(Generic[Array]):
         read: the operators carry no linearization label. Shape: (nport,
         ncols)."""
         jacobian = self._bkd.concatenate(
-            [op.jacobian(state[:, 0], self._time)[rows] for op, rows in self._parts],
+            [
+                sampling @ op.jacobian(state[:, 0], self._time)
+                for op, sampling in self._parts
+            ],
             axis=0,
         )
         return flux_moments(self._trace, jacobian @ delta)

@@ -71,6 +71,78 @@ class LumpedNodalTrace(Generic[Array]):
         return self._bkd.ones((self._nnodes, 1, 1))
 
 
+class TabulatedTrace(Generic[Array]):
+    r"""Trace functions given by their values at the port's quadrature
+    points, as one element holding every port node.
+
+    Suits a spectral subdomain whose trace functions are global on each of
+    its sides: the side's Lagrange polynomials, tabulated at a side rule's
+    points, the blocks of several sides placed side by side (a function is
+    zero on a side it does not belong to). With a rule exact for products
+    of two of them, the moments are the flux's nodal interpolant tested
+    exactly; with the nodes as the points, the values are 0/1 and the
+    moments those of :class:`LumpedNodalTrace`.
+
+    The single element is dense, points times nodes.
+
+    Parameters
+    ----------
+    points
+        The physical quadrature points. Shape: (ndim, npoints).
+    weights
+        Their weights in the physical measure. Shape: (npoints,).
+    values
+        Each trace function at each point, columns in port order. Shape:
+        (npoints, nnodes), at least one node.
+    bkd
+        Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If the shapes disagree or there is no node.
+    """
+
+    def __init__(
+        self, points: Array, weights: Array, values: Array, bkd: Backend[Array]
+    ) -> None:
+        if values.ndim != 2 or values.shape[1] < 1:
+            raise ValueError(
+                f"values must have shape (npoints, nnodes), got {tuple(values.shape)}"
+            )
+        npoints, nnodes = int(values.shape[0]), int(values.shape[1])
+        if points.ndim != 2 or points.shape[1] != npoints:
+            raise ValueError(
+                f"points must have shape (ndim, {npoints}), got {tuple(points.shape)}"
+            )
+        if tuple(weights.shape) != (npoints,):
+            raise ValueError(
+                f"weights must have shape ({npoints},), got {tuple(weights.shape)}"
+            )
+        self._points, self._nnodes, self._bkd = points, nnodes, bkd
+        self._weights = bkd.reshape(weights, (1, npoints))
+        self._values = bkd.reshape(values, (1, npoints, nnodes))
+        self._nodes = bkd.asarray([list(range(nnodes))], dtype=bkd.int64_dtype())
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nnodes(self) -> int:
+        return self._nnodes
+
+    def element_nodes(self) -> Array:
+        return self._nodes
+
+    def points(self) -> Array:
+        return self._points
+
+    def weights(self) -> Array:
+        return self._weights
+
+    def values(self) -> Array:
+        return self._values
+
+
 class LinearSegmentTrace(Generic[Array]):
     r"""Linear hat trace functions on port nodes joined by straight
     segments: the trace of a P1 or Q1 mesh on a port that is a curve, as

@@ -42,7 +42,11 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
-from pyapprox.pde.coupling.normal_flux import NormalFluxMoments, NormalFluxPart
+from pyapprox.pde.coupling.normal_flux import (
+    NormalFluxMoments,
+    NormalFluxPart,
+    selecting,
+)
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.ports import BackendPortRows
@@ -95,7 +99,9 @@ class _Piece(Generic[Array]):
     def flux(self, operator: FluxNormalOperator[Array]) -> NormalFluxMoments[Array]:
         bkd = self._bkd
         trace = LumpedNodalTrace(self.points()[:, self._port], bkd.ones((1,)), bkd)
-        return NormalFluxMoments([NormalFluxPart(operator, [0])], trace, 0.0)
+        return NormalFluxMoments(
+            [NormalFluxPart(operator, selecting([0], 1, bkd))], trace, 0.0
+        )
 
     def response(
         self, normal: float = 1.0
@@ -170,11 +176,15 @@ def test_refusals(bkd: Backend[Array]) -> None:
     trace = LumpedNodalTrace(piece.points()[:, :1], bkd.ones((1,)), bkd)
     with pytest.raises(ValueError, match="at least one part"):
         NormalFluxMoments([], trace, 0.0)
-    with pytest.raises(ValueError, match="select 2 nodes"):
-        NormalFluxMoments([NormalFluxPart(operator, [0, 0])], trace, 0.0)
+    with pytest.raises(ValueError, match="sample 2 points"):
+        NormalFluxMoments(
+            [NormalFluxPart(operator, selecting([0, 0], 1, bkd))], trace, 0.0
+        )
+    with pytest.raises(ValueError, match="sampling matrix must have shape"):
+        NormalFluxMoments([NormalFluxPart(operator, bkd.ones((1,)))], trace, 0.0)
     with pytest.raises(TypeError, match="NormalFluxOperatorProtocol"):
         NormalFluxMoments(
-            [NormalFluxPart(object(), [0])],  # type: ignore[arg-type]
+            [NormalFluxPart(object(), selecting([0], 1, bkd))],  # type: ignore[arg-type]
             trace,
             0.0,
         )

@@ -11,11 +11,13 @@ NumPy and Torch.
   the exact trace, the response returns the side's weights times the
   exact outward flux :math:`-2(1 + y)` (1e-10), and these sum to the
   exact flux integral, -8; its trace tangent passes central differences.
+  With a Gauss side rule it returns the flux tested against each node's
+  Lagrange polynomial in y, against a 20-point rule (1e-10).
 - Refusals: no port node; a node off its side; a corner node on two port
   sides; a mesh outside the protocol.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 import pytest
 
@@ -41,6 +43,9 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
+    CollocationNodeRule,
+    GaussLegendreSideRule,
+    SideRuleProtocol,
     boundary_quadrature_weights,
 )
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
@@ -50,6 +55,7 @@ from pyapprox.pde.coupling.stacks.collocation import (
     collocation_pinned_response,
 )
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
+from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.rootfinding.nonlinear import Newton
@@ -85,6 +91,7 @@ def test_a_1d_end_returns_the_exact_flux(bkd: Backend[Array]) -> None:
         physics,
         mesh,
         [PortSide(_RIGHT, _nodes(bkd, mesh.boundary_indices(_RIGHT)))],
+        CollocationNodeRule(),
         RecomputeAlways(BackendDenseLU(bkd)),
         _newton(),
     )
@@ -143,13 +150,16 @@ class _Rectangle(Generic[Array]):
         )
 
     def response(
-        self, sides: list[PortSide]
+        self,
+        sides: list[PortSide],
+        rule: Optional[SideRuleProtocol] = None,
     ) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
         return collocation_pinned_response(
             self.system(),
             self._physics,
             self._mesh,
             sides,
+            CollocationNodeRule() if rule is None else rule,
             RecomputeAlways(BackendDenseLU(self._bkd)),
             _newton(),
         )
@@ -172,6 +182,22 @@ def test_a_2d_side_returns_the_weighted_exact_flux(bkd: Backend[Array]) -> None:
         bkd.reshape(bkd.sum(point.output()), (1,)),
         bkd.asarray([-8.0]),
         rtol=1e-10,
+    )
+
+
+def test_a_gauss_rule_tests_the_flux_against_the_lagrange_polynomials(
+    bkd: Backend[Array],
+) -> None:
+    rect = _Rectangle(bkd)
+    response = rect.response([PortSide(_RIGHT, rect.port())], GaussLegendreSideRule())
+    point = response.linearize(rect.trace(), _no_params(bkd), _STEADY)
+    # int_0^2 -2 (1 + y) l_a(y) dy by a 20-point rule on y = 1 + t.
+    t, w = GaussLegendreSideRule(13).rule(bkd.zeros((7,)), bkd)
+    nodes = rect.mesh().reference_nodes_1d(1)
+    expected = (w * (-_D * (2.0 + t))) @ univariate_lagrange_polynomial(nodes, t, bkd)
+    bkd.assert_allclose(point.output()[:, 0], expected, rtol=1e-10, atol=1e-12)
+    bkd.assert_allclose(
+        bkd.reshape(bkd.sum(point.output()), (1,)), bkd.asarray([-8.0]), rtol=1e-10
     )
 
 
@@ -209,6 +235,7 @@ def test_refusals(bkd: Backend[Array]) -> None:
             rect.physics(),
             object(),  # type: ignore[arg-type]
             [PortSide(_RIGHT, rect.port())],
+            CollocationNodeRule(),
             RecomputeAlways(BackendDenseLU(bkd)),
             _newton(),
         )

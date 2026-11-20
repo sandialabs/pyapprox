@@ -3,12 +3,10 @@ r"""A spectral collocation subdomain as a Dirichlet-to-Neumann response.
 The subdomain's port nodes lie on sides of its mesh. Its rows are the PDE
 evaluated pointwise, so the residual left on a pinned port row is not a
 flux (:mod:`~pyapprox.pde.coupling.normal_flux`); the response instead
-returns the outward normal flux :math:`\mathbf{F}(u)\cdot n` at the port
-nodes, each weighted by its side's collocation quadrature weight
-(:func:`~pyapprox.pde.collocation.quadrature.boundary_quadrature.
-boundary_quadrature_weights`): the flux tested against lumped nodal trace
-functions. Summed over the subdomains sharing an interface node, the
-weighted fluxes vanish exactly when the pointwise fluxes balance there.
+returns the outward normal flux :math:`\mathbf{F}(u)\cdot n`, interpolated
+on each port side from its nodes and tested against the side's Lagrange
+polynomials by an injected rule (:func:`~pyapprox.pde.collocation.
+quadrature.boundary_quadrature.boundary_side_quadrature`).
 
 Scalar fluxes only. A port node on two port sides (a cross point, where
 the normal is ambiguous) is refused.
@@ -23,18 +21,19 @@ from pyapprox.pde.collocation.boundary.normal_operators import FluxNormalOperato
 from pyapprox.pde.collocation.protocols.boundary import FluxProviderProtocol
 from pyapprox.pde.collocation.protocols.mesh import MeshWithTransformProtocol
 from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
-    boundary_quadrature_weights,
+    SideRuleProtocol,
+    boundary_side_quadrature,
 )
 from pyapprox.pde.coupling.normal_flux import NormalFluxMoments, NormalFluxPart
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.ports import BackendPortRows
-from pyapprox.pde.coupling.traces import LumpedNodalTrace
+from pyapprox.pde.coupling.traces import TabulatedTrace
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
     collocation_steady_residual,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendRowSet,
     BackendVectorSpace,
@@ -65,11 +64,27 @@ class PortSide:
     nodes: Sequence[int]
 
 
+def _block_diagonal(blocks: Sequence[Array], bkd: Backend[Array]) -> Array:
+    """The blocks along the diagonal, zero elsewhere, by concatenation."""
+    ncols = [int(block.shape[1]) for block in blocks]
+    rows = []
+    for k, block in enumerate(blocks):
+        before, after = sum(ncols[:k]), sum(ncols[k + 1 :])
+        nrows = int(block.shape[0])
+        rows.append(
+            bkd.concatenate(
+                [bkd.zeros((nrows, before)), block, bkd.zeros((nrows, after))], axis=1
+            )
+        )
+    return bkd.concatenate(rows, axis=0)
+
+
 def collocation_pinned_response(
     system: CollocationSystem[Array],
     flux: FluxProviderProtocol[Array],
     mesh: PortMeshProtocol[Array],
     sides: Sequence[PortSide],
+    rule: SideRuleProtocol,
     setups: SetupStrategyProtocol[
         SteadyRequest[Array, DenseFormat[Array]], Array, DenseFormat[Array]
     ],
@@ -78,9 +93,12 @@ def collocation_pinned_response(
 ) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
     r"""A collocation subdomain pinned to the port data at the nodes of
     ``sides``, returning the outward flux there, tested against the
-    port's lumped trace functions.
+    port's trace functions.
 
-    The ports are the sides' nodes in order, the first side's first.
+    The ports are the sides' nodes in order, the first side's first. Port
+    node ``a``'s trace function is its side's Lagrange polynomial; the
+    flux's nodal interpolant on the side (every side node, ports or not)
+    is tested against it by the tensor product of ``rule``.
 
     Parameters
     ----------
@@ -95,6 +113,15 @@ def collocation_pinned_response(
         The subdomain's mesh.
     sides
         The port nodes, by side.
+    rule
+        The 1D rule per tangent direction of a side.
+        :class:`~pyapprox.pde.collocation.quadrature.boundary_quadrature.
+        CollocationNodeRule` lumps: where every subdomain sharing an
+        interface has the same nodes there, the coupled solve is then the
+        single-domain collocation solve. :class:`~pyapprox.pde.collocation.
+        quadrature.boundary_quadrature.GaussLegendreSideRule` tests the
+        interpolant exactly, which subdomains of different nodes need: a
+        lumped rule's errors cancel only between equal node sets.
     setups
         Sets up the Jacobian of the port-pinned residual.
     nonlinear
@@ -127,22 +154,30 @@ def collocation_pinned_response(
             f"nodes {repeated} lie on more than one port side: a cross point "
             "has no single normal"
         )
-    parts, weights = [], []
+    parts, points, weights, blocks = [], [], [], []
     for side in sides:
         indices = mesh.boundary_indices(side.boundary_id)
         position = {bkd.to_int(indices[k]): k for k in range(indices.shape[0])}
         outside = sorted(set(side.nodes) - position.keys())
         if outside:
             raise ValueError(f"nodes {outside} are not on side {side.boundary_id}")
-        selected = [position[node] for node in side.nodes]
+        quadrature = boundary_side_quadrature(mesh, side.boundary_id, rule)
         operator = FluxNormalOperator(
             bkd, indices, mesh.boundary_normals(side.boundary_id), flux
         )
-        parts.append(NormalFluxPart(operator, selected))
-        rows = bkd.asarray(selected, dtype=bkd.int64_dtype())
-        weights.append(boundary_quadrature_weights(mesh, side.boundary_id)[rows])
-    trace = LumpedNodalTrace(
-        mesh.points()[:, ports], bkd.concatenate(weights, axis=0), bkd
+        parts.append(NormalFluxPart(operator, quadrature.interpolation))
+        points.append(quadrature.points)
+        weights.append(quadrature.weights)
+        # The side's port nodes' Lagrange polynomials at the rule's points.
+        selected = bkd.asarray(
+            [position[node] for node in side.nodes], dtype=bkd.int64_dtype()
+        )
+        blocks.append(quadrature.interpolation[:, selected])
+    trace = TabulatedTrace(
+        bkd.concatenate(points, axis=1),
+        bkd.concatenate(weights, axis=0),
+        _block_diagonal(blocks, bkd),
+        bkd,
     )
     moments = NormalFluxMoments(parts, trace, 0.0 if time is None else time)
     states = backend_state_space(bkd, mesh.npts())

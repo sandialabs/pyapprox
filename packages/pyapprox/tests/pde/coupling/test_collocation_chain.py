@@ -43,7 +43,11 @@ from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.constitutive.advection import ConservativeAdvection
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
-from pyapprox.pde.coupling.normal_flux import NormalFluxMoments, NormalFluxPart
+from pyapprox.pde.coupling.normal_flux import (
+    NormalFluxMoments,
+    NormalFluxPart,
+    selecting,
+)
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.ports import (
@@ -188,7 +192,7 @@ class _Piece(Generic[Array]):
             operator = FluxNormalOperator(
                 bkd, index, bkd.asarray([[normal]]), self._interval.physics()
             )
-            parts.append(NormalFluxPart(operator, [0]))
+            parts.append(NormalFluxPart(operator, selecting([0], 1, bkd)))
             self._port.append(int(index[0]))
             self._normals.append(normal)
         self._physical = physical
