@@ -185,9 +185,7 @@ class TestForwardWrapper:
             bkd.asarray(state_np[dofs] - values),
         )
 
-    def test_jacobian_identity_rows_stay_sparse(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_jacobian_identity_rows_stay_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         wrapper, system = _wrapped_backward_euler(bkd)
         n = system.nstates()
@@ -215,14 +213,10 @@ class TestForwardWrapper:
         delta = wrapper.linsolve(state, rhs)
 
         dense = wrapper.jacobian(state).toarray()
-        expected: NDArray[np.floating[Any]] = np.linalg.solve(
-            dense, bkd.to_numpy(rhs)
-        )
+        expected: NDArray[np.floating[Any]] = np.linalg.solve(dense, bkd.to_numpy(rhs))
         bkd.assert_allclose(delta, bkd.asarray(expected), rtol=1e-10)
 
-    def test_sensitivity_off_diag_rows_zeroed(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_sensitivity_off_diag_rows_zeroed(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         wrapper, system = _wrapped_backward_euler(bkd)
         n = system.nstates()
@@ -246,9 +240,7 @@ class TestForwardWrapper:
         out = wrapper.zero_adjoint_rhs(dqdu)
         dofs = bkd.to_numpy(system.constraint_set().dofs())
         out_np = bkd.to_numpy(out)
-        bkd.assert_allclose(
-            bkd.asarray(out_np[dofs]), bkd.asarray(np.zeros(len(dofs)))
-        )
+        bkd.assert_allclose(bkd.asarray(out_np[dofs]), bkd.asarray(np.zeros(len(dofs))))
         # flag disables zeroing (BC-parameter gradients)
         assert wrapper.zero_adjoint_rhs(dqdu, zero_essential=False) is dqdu
 
@@ -268,9 +260,7 @@ class TestForwardWrapper:
         fake = _FakeExplicitStepper(bkd, n)
         wrapper = GalerkinBCEnforcingForwardResidual(fake, system.constraint_set(), bkd)
         wrapper.bind(
-            StepContext(
-                t_prev=0.0, deltat=0.5, y_prev=bkd.asarray(np.zeros(n))
-            )
+            StepContext(t_prev=0.0, deltat=0.5, y_prev=bkd.asarray(np.zeros(n)))
         )
         rhs = bkd.asarray(np.random.RandomState(6).randn(n))
         out1 = wrapper.linsolve(bkd.asarray(np.zeros(n)), rhs)
@@ -312,9 +302,7 @@ class TestStageBCRequirement:
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         derivatives = [_ramp_rate] if with_derivative else []
-        bc = CallableDirichletBC(
-            [0], DofSignal(_dof_ramp, derivatives), bkd
-        )
+        bc = CallableDirichletBC([0], DofSignal(_dof_ramp, derivatives), bkd)
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1.0,
@@ -326,9 +314,7 @@ class TestStageBCRequirement:
     def test_multistage_consistent_mass_missing_gdot_raises(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        system = self._system_with_callable_bc(
-            numpy_bkd, with_derivative=False
-        )
+        system = self._system_with_callable_bc(numpy_bkd, with_derivative=False)
         adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         with pytest.raises(TypeError, match="analytic boundary velocity"):
@@ -337,9 +323,7 @@ class TestStageBCRequirement:
             )
 
     def test_one_step_stepper_exempt(self, numpy_bkd: NumpyBkd) -> None:
-        system = self._system_with_callable_bc(
-            numpy_bkd, with_derivative=False
-        )
+        system = self._system_with_callable_bc(numpy_bkd, with_derivative=False)
         adapter = skfem_ode_residual(system)
         stepper = create_stepper("backward_euler", adapter)
         create_galerkin_bc_enforcing_residual(
@@ -347,20 +331,14 @@ class TestStageBCRequirement:
         )
 
     def test_lumped_mass_exempt(self, numpy_bkd: NumpyBkd) -> None:
-        system = self._system_with_callable_bc(
-            numpy_bkd, with_derivative=False
-        )
-        adapter = skfem_ode_residual(
-            system, lumped_mass=True
-        )
+        system = self._system_with_callable_bc(numpy_bkd, with_derivative=False)
+        adapter = skfem_ode_residual(system, lumped_mass=True)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), numpy_bkd
         )
 
-    def test_static_bcs_pass_with_multistage(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_static_bcs_pass_with_multistage(self, numpy_bkd: NumpyBkd) -> None:
         system, _ = _setup_adr(numpy_bkd)  # static + manufactured g_dot
         adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
@@ -369,9 +347,7 @@ class TestStageBCRequirement:
         )
 
     def test_supplied_gdot_passes(self, numpy_bkd: NumpyBkd) -> None:
-        system = self._system_with_callable_bc(
-            numpy_bkd, with_derivative=True
-        )
+        system = self._system_with_callable_bc(numpy_bkd, with_derivative=True)
         adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(
@@ -392,14 +368,10 @@ class TestStageBCRequirement:
         )
         return compose_galerkin_system(physics, [bc])
 
-    def test_declared_steady_callable_passes(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_declared_steady_callable_passes(self, numpy_bkd: NumpyBkd) -> None:
         """A callable declared TimeIndependent needs no g_dot: its
         derivative is exactly zero."""
-        system = self._system_with_dirichlet(
-            numpy_bkd, TimeIndependent(_left_value)
-        )
+        system = self._system_with_dirichlet(numpy_bkd, TimeIndependent(_left_value))
         adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(
@@ -409,9 +381,7 @@ class TestStageBCRequirement:
     def test_time_dependent_dirichlet_missing_gdot_names_bc(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        system = self._system_with_dirichlet(
-            numpy_bkd, TimeDependent(_left_ramp)
-        )
+        system = self._system_with_dirichlet(numpy_bkd, TimeDependent(_left_ramp))
         adapter = skfem_ode_residual(system)
         stepper = create_stepper("heun", adapter)
         with pytest.raises(TypeError, match="DirichletBC\\(boundary='left'"):
@@ -430,9 +400,7 @@ class TestOffDiagonalOperator:
         block whose constrained entries are zeroed."""
         bkd = numpy_bkd
         system, _ = _setup_adr(bkd)
-        stepper = create_stepper(
-            "crank_nicolson", skfem_ode_residual(system)
-        )
+        stepper = create_stepper("crank_nicolson", skfem_ode_residual(system))
         wrapper = create_galerkin_bc_enforcing_residual(
             stepper, system.constraint_set(), bkd
         )
