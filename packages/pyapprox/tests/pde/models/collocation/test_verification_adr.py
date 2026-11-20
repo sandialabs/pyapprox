@@ -45,6 +45,7 @@ from typing import Dict, Generic, List, Optional, Sequence
 import pytest
 import sympy as sp
 
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary.closure_rows import RobinPart, RobinRows
 from pyapprox.pde.collocation.boundary.essential_rows import (
     DirichletPart,
@@ -54,6 +55,8 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     GradientNormalOperator,
 )
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -86,7 +89,7 @@ from pyapprox.pde.verification.conditions import (
     Periodic,
     Robin,
 )
-from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
+from pyapprox.pde.verification.domains import Annulus, Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import (
     Divergence,
@@ -564,6 +567,41 @@ class TestAdapterPieces:
         assert approximation.nodal_error() < 1e-14
         assert abs(approximation.l2_error() - math.sqrt(expected)) < 1e-13
 
+    def test_h_on_a_box(self, bkd: Backend[Array]) -> None:
+        """On [0, 1] x [-1, 1] with 5 Chebyshev-Gauss-Lobatto nodes per
+        direction, the widest physical gap is the longer side's central
+        one: the reference gap cos(pi/4) - cos(pi/2) times half the side's
+        length 2, sqrt(2)/2."""
+        (level,) = ChebyshevBox([5], bkd).levels(_RECTANGLE)
+        assert abs(level.h() - math.sqrt(2.0) / 2.0) < 1e-14
+
+    def test_mapped_level(self, bkd: Backend[Array]) -> None:
+        """An annulus 1 <= r <= 2 meshed by a polar map over theta in
+        [0, 2 pi], 8 nodes per direction: the L2 error of u* = 1 and of
+        u* = x against a zero state is the root of the area, 3 pi, and of
+        the integral of x^2, 15 pi / 4, so the quadrature carries |det J|
+        = r; h is the widest chord, between the outer circle's central
+        theta nodes."""
+        annulus = Annulus((0.0, 0.0), 1.0, 2.0)
+        polar = PolarTransform((1.0, 2.0), (0.0, 2.0 * math.pi), bkd)
+        mesh = TransformedMesh2D(8, 8, bkd, polar)
+        level = ChebyshevLevel(
+            annulus, mesh, ChebyshevBasis2D(mesh, bkd), {"inner": 0, "outer": 1}
+        )
+        conditions: Dict[str, ConditionProtocol] = {
+            "inner": Dirichlet(),
+            "outer": Dirichlet(),
+        }
+        zero = bkd.zeros((level.npts(),))
+        for solution, integral in (("1", 3.0 * math.pi), ("x", 3.75 * math.pi)):
+            problem = _problem(solution, _ADR("1"), annulus, conditions)
+            approximation = CollocationApproximation(problem, level, zero)
+            assert abs(approximation.l2_error() - math.sqrt(integral)) < 1e-12
+        # Central gap of 8 nodes on [-1, 1]: cos(3 pi/7) - cos(4 pi/7).
+        dtheta = math.pi * (math.cos(3 * math.pi / 7) - math.cos(4 * math.pi / 7))
+        assert abs(level.h() - 4.0 * math.sin(dtheta / 2.0)) < 1e-13
+        assert level.boundary_id("outer") == 1
+
 
 class TestRefusals:
     def test_transient(self, numpy_bkd: Backend[Array]) -> None:
@@ -632,6 +670,37 @@ class TestRefusals:
         problem = _problem("sin(2*pi*x)", adr, _UNIT, conditions)
         (level,) = ChebyshevBox([5], numpy_bkd).levels(_UNIT)
         with pytest.raises(ValueError, match="'right', across x, is not"):
+            boundary_conditions(problem, level)
+
+    def test_level_parts(self, numpy_bkd: Backend[Array]) -> None:
+        """A level names the mesh boundary of every boundary part of its
+        domain, and of no other."""
+        mesh = TransformedMesh2D(4, 4, numpy_bkd)
+        basis = ChebyshevBasis2D(mesh, numpy_bkd)
+        with pytest.raises(ValueError, match="must name the domain's boundary"):
+            ChebyshevLevel(Annulus(), mesh, basis, {"inner": 0})
+        level = ChebyshevLevel(Annulus(), mesh, basis, {"inner": 0, "outer": 1})
+        with pytest.raises(ValueError, match="no boundary part 'left'"):
+            level.boundary_id("left")
+
+    def test_periodic_off_a_box(self, numpy_bkd: Backend[Array]) -> None:
+        """Periodic conditions pair a box's opposite sides; an annulus'
+        circles have no partner."""
+        annulus = Annulus()
+        polar = PolarTransform((1.0, 2.0), (0.0, 2.0 * math.pi), numpy_bkd)
+        mesh = TransformedMesh2D(4, 4, numpy_bkd, polar)
+        level = ChebyshevLevel(
+            annulus,
+            mesh,
+            ChebyshevBasis2D(mesh, numpy_bkd),
+            {"inner": 0, "outer": 1},
+        )
+        conditions: Dict[str, ConditionProtocol] = {
+            "inner": Periodic(),
+            "outer": Dirichlet(),
+        }
+        problem = _problem("x", _ADR("1"), annulus, conditions)
+        with pytest.raises(TypeError, match="opposite sides of a Box"):
             boundary_conditions(problem, level)
 
     def test_flux_condition_needs_a_flux(self, numpy_bkd: Backend[Array]) -> None:

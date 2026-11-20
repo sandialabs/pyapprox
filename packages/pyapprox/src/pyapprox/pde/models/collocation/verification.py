@@ -5,11 +5,12 @@ repository's spectral collocation stack. Backend-generic: the levels,
 coefficients and rows live on the family's backend, and only the errors
 leave it, as floats.
 
-- :class:`ChebyshevBox` gives a study's levels: Chebyshev-Gauss-Lobatto
-  tensor meshes of a :class:`~pyapprox.pde.verification.domains.Box`
-  (affine maps of the reference cube), one per point count, each a
-  :class:`ChebyshevLevel` holding its mesh and basis. A side of the box
-  is the mesh boundary at the same position in
+- A level family gives a study's levels, each a :class:`ChebyshevLevel`:
+  a Chebyshev-Gauss-Lobatto tensor mesh of the reference cube mapped onto
+  the domain, its basis, and the mesh boundary of each boundary part.
+  :class:`ChebyshevBox` meshes a :class:`~pyapprox.pde.verification.
+  domains.Box` (affine maps), one level per point count; a side of the
+  box is the mesh boundary at the same position in
   :meth:`~pyapprox.pde.verification.domains.Box.boundaries` (left,
   right, bottom, top, back, front), so named boxes work unchanged.
 - A system factory, supplied by the case, builds the physics under test
@@ -39,8 +40,9 @@ leave it, as floats.
   ``collocation_steady_residual`` + ``SteadySystem`` with a dense LU,
   from the state an injected :class:`InitialGuessProtocol` gives
   (:class:`ConstantGuess` zero by default), and returns
-  :class:`CollocationApproximation` objects, whose errors are measured
-  at the collocation nodes.
+  :class:`CollocationApproximation` objects, whose L2 errors are measured
+  by Gauss quadrature mapped onto the domain and nodal errors at the
+  collocation nodes.
 - :class:`DecaysExponentially` judges a spectral study, a
   :class:`NodeStudy` of errors against node counts from
   :func:`run_node_study`: the error falls exponentially in the number of
@@ -138,14 +140,29 @@ from pyapprox.pde.verification.study import CheckResult, ErrorMeasureProtocol
 from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
 from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
-from pyapprox.util.backends.protocols import Array, Array_co, Backend
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.expressions.parsing import Value, parse
 from pyapprox.util.linalg.backend_dense import BackendDenseLU
 from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 
 
-class BoxMeshProtocol(Protocol[Array_co]):
-    """What the adapter reads from a level's mesh."""
+class LevelMapProtocol(Protocol[Array]):
+    """What the adapter reads from a level mesh's map of the reference
+    cube :math:`[-1, 1]^d` onto the domain."""
+
+    def map_to_physical(self, reference_pts: Array) -> Array:
+        """Shape: (ndim, npts) to (ndim, npts)"""
+        ...
+
+    def jacobian_determinant(self, reference_pts: Array) -> Array:
+        """Shape: (ndim, npts) to (npts,)"""
+        ...
+
+
+class LevelMeshProtocol(Protocol[Array]):
+    """What the adapter reads from a level's mesh: a tensor
+    Chebyshev-Gauss-Lobatto mesh of the reference cube, first dimension
+    fastest, mapped onto the domain."""
 
     def ndim(self) -> int: ...
 
@@ -153,59 +170,78 @@ class BoxMeshProtocol(Protocol[Array_co]):
 
     def npts_per_dim(self) -> Tuple[int, ...]: ...
 
-    def points(self) -> Array_co:
+    def points(self) -> Array:
         """Physical coordinates. Shape: (ndim, npts)"""
         ...
 
-    def reference_points(self) -> Array_co:
+    def reference_points(self) -> Array:
         """Reference coordinates. Shape: (ndim, npts)"""
         ...
 
-    def reference_nodes_1d(self, dim: int) -> Array_co:
+    def reference_nodes_1d(self, dim: int) -> Array:
         """Reference nodes of dimension ``dim``. Shape: (npts_dim,)"""
         ...
 
-    def boundary_indices(self, boundary_id: int) -> Array_co:
+    def boundary_indices(self, boundary_id: int) -> Array:
         """Node indices of a boundary. Shape: (nboundary,)"""
         ...
 
-    def boundary_normals(self, boundary_id: int) -> Array_co:
+    def boundary_normals(self, boundary_id: int) -> Array:
         """Outward unit normals of a boundary. Shape: (nboundary, ndim)"""
         ...
 
-    def jacobian_determinant(self) -> Array_co:
+    def jacobian_determinant(self) -> Array:
         """The map's Jacobian determinant at the nodes. Shape: (npts,)"""
+        ...
+
+    def transform(self) -> LevelMapProtocol[Array]:
+        """The map of the reference cube onto the domain."""
         ...
 
 
 class ChebyshevLevel(Generic[Array]):
-    """One level of a study: a Chebyshev mesh of a box and its basis.
+    """One level of a study: a mapped Chebyshev mesh of a domain and its
+    basis.
 
     Parameters
     ----------
-    domain : Box
-        The box meshed.
-    mesh : BoxMeshProtocol
-        The mesh, its boundaries in the box's side order.
+    domain : DomainProtocol
+        The domain meshed.
+    mesh : LevelMeshProtocol
+        The mesh.
     basis : TensorProductBasisProtocol
         The collocation basis on ``mesh``.
+    parts : Mapping[str, int]
+        The mesh boundary of each of the domain's boundary parts.
+
+    Raises
+    ------
+    ValueError
+        If ``parts`` does not name exactly the domain's boundary parts.
     """
 
     def __init__(
         self,
-        domain: Box,
-        mesh: BoxMeshProtocol[Array],
+        domain: DomainProtocol,
+        mesh: LevelMeshProtocol[Array],
         basis: TensorProductBasisProtocol[Array],
+        parts: Mapping[str, int],
     ) -> None:
+        if set(parts) != set(domain.boundaries()):
+            raise ValueError(
+                f"parts must name the domain's boundary parts "
+                f"{list(domain.boundaries())}, got {sorted(parts)}"
+            )
         self._domain, self._mesh, self._basis = domain, mesh, basis
+        self._parts = dict(parts)
 
     def bkd(self) -> Backend[Array]:
         return self._basis.bkd()
 
-    def domain(self) -> Box:
+    def domain(self) -> DomainProtocol:
         return self._domain
 
-    def mesh(self) -> BoxMeshProtocol[Array]:
+    def mesh(self) -> LevelMeshProtocol[Array]:
         return self._mesh
 
     def basis(self) -> TensorProductBasisProtocol[Array]:
@@ -215,30 +251,40 @@ class ChebyshevLevel(Generic[Array]):
         return self._mesh.npts()
 
     def h(self) -> float:
-        """The largest gap between neighboring nodes along any coordinate.
-        On Chebyshev-Gauss-Lobatto nodes it is the central gap, about
-        :math:`\\pi L / (2 (N - 1))` on a side of length :math:`L` with
-        :math:`N` nodes, so :math:`1/h` grows linearly in :math:`N`."""
-        bkd = self.bkd()
+        """The largest physical distance between neighboring nodes along
+        a mesh line. On a box's Chebyshev-Gauss-Lobatto nodes it is the
+        central gap, about :math:`\\pi L / (2 (N - 1))` on a side of length
+        :math:`L` with :math:`N` nodes, so :math:`1/h` grows linearly in
+        :math:`N`."""
+        bkd, mesh = self.bkd(), self._mesh
+        ndim = mesh.ndim()
+        # Nodes run first dimension fastest, so dimension d is array axis
+        # ndim - 1 - d of the C-ordered grid.
+        shape = tuple(reversed(mesh.npts_per_dim()))
+        grids = [bkd.reshape(mesh.points()[k], shape) for k in range(ndim)]
         gaps = []
-        for dim, (lower, upper) in enumerate(self._domain.bounds()):
-            nodes = self._mesh.reference_nodes_1d(dim)
-            widest = bkd.to_float(bkd.max(bkd.abs(nodes[1:] - nodes[:-1])))
-            gaps.append(widest * (upper - lower) / 2.0)
+        for dim in range(ndim):
+            axis = ndim - 1 - dim
+            squared = bkd.diff(grids[0], axis=axis) ** 2
+            for grid in grids[1:]:
+                squared = squared + bkd.diff(grid, axis=axis) ** 2
+            gaps.append(bkd.to_float(bkd.max(bkd.sqrt(squared))))
         return max(gaps)
 
     def boundary_id(self, part: str) -> int:
-        """The mesh boundary of side ``part``.
+        """The mesh boundary of boundary part ``part``.
 
         Raises
         ------
         ValueError
-            If the box has no such side.
+            If the domain has no such part.
         """
-        sides = self._domain.boundaries()
-        if part not in sides:
-            raise ValueError(f"no side {part!r}; the box has {list(sides)}")
-        return sides.index(part)
+        if part not in self._parts:
+            raise ValueError(
+                f"no boundary part {part!r}; the domain has "
+                f"{list(self._domain.boundaries())}"
+            )
+        return self._parts[part]
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(npts_per_dim={self._mesh.npts_per_dim()})"
@@ -279,24 +325,27 @@ class ChebyshevBox(Generic[Array]):
             raise TypeError(f"ChebyshevBox meshes a Box, got {type(domain).__name__}")
         bkd, bounds = self._bkd, domain.bounds()
         flat = tuple(value for pair in bounds for value in pair)
+        # A side is the mesh boundary at its position in the box's side
+        # order, lower side first in each direction.
+        parts = {part: i for i, part in enumerate(domain.boundaries())}
         levels: List[ChebyshevLevel[Array]] = []
         for n in self._sizes:
             if domain.ndim() == 1:
                 mesh1 = TransformedMesh1D(n, bkd, AffineTransform1D(bounds[0], bkd))
                 basis1 = ChebyshevBasis1D(mesh1, bkd)
-                levels.append(ChebyshevLevel(domain, mesh1, basis1))
+                levels.append(ChebyshevLevel(domain, mesh1, basis1, parts))
             elif domain.ndim() == 2:
                 square = AffineTransform2D((flat[0], flat[1], flat[2], flat[3]), bkd)
                 mesh2 = TransformedMesh2D(n, n, bkd, square)
                 basis2 = ChebyshevBasis2D(mesh2, bkd)
-                levels.append(ChebyshevLevel(domain, mesh2, basis2))
+                levels.append(ChebyshevLevel(domain, mesh2, basis2, parts))
             else:
                 cube = AffineTransform3D(
                     (flat[0], flat[1], flat[2], flat[3], flat[4], flat[5]), bkd
                 )
                 mesh3 = TransformedMesh3D(n, n, n, bkd, cube)
                 basis3 = ChebyshevBasis3D(mesh3, bkd)
-                levels.append(ChebyshevLevel(domain, mesh3, basis3))
+                levels.append(ChebyshevLevel(domain, mesh3, basis3, parts))
         return levels
 
     def __repr__(self) -> str:
@@ -695,6 +744,11 @@ class _CollocationCondition(Generic[Array]):
 
     def periodic(self, condition: Periodic) -> _BuiltPart[Array]:
         domain = self._level.domain()
+        if not isinstance(domain, Box):
+            raise TypeError(
+                f"periodic conditions pair opposite sides of a Box; "
+                f"{self._part!r} is a boundary part of {domain!r}"
+            )
         coordinate, sign = domain.side(self._part)
         sides = domain.boundaries()
         index = sides.index(self._part)
@@ -889,16 +943,19 @@ class ConstantGuess:
 
 @dataclass(frozen=True)
 class _ErrorGrid(Generic[Array]):
-    """A tensor Gauss-Legendre grid of the level's box with twice the
-    level's nodes per direction, first dimension fastest.
+    """A tensor Gauss-Legendre grid of the reference cube with twice the
+    level's nodes per direction, first dimension fastest, mapped onto the
+    domain by the level mesh's map.
 
     ``points`` are physical, shape (ndim, nquad); ``weights`` integrate
-    over the box, shape (nquad,); ``interpolation`` maps nodal values to
-    the nodes' Lagrange interpolant at the points, shape (nquad, npts).
-    With :math:`2N` points per direction the rule is exact to degree
-    :math:`4N - 1`, so the squared interpolant (degree :math:`2N - 2`) is
+    over the domain (the reference weights times the map's
+    :math:`|\\det J|`), shape (nquad,); ``interpolation`` maps nodal
+    values to the nodes' Lagrange interpolant at the points, shape
+    (nquad, npts). With :math:`2N` points per direction the rule is exact
+    to degree :math:`4N - 1` in the reference coordinates, so on a box
+    (an affine map) the squared interpolant (degree :math:`2N - 2`) is
     integrated exactly and :math:`u^*` far more accurately than the
-    error being measured.
+    error being measured; a curved map adds its own smooth factors.
     """
 
     points: Array
@@ -907,32 +964,36 @@ class _ErrorGrid(Generic[Array]):
 
 
 def _error_grid(level: ChebyshevLevel[Array]) -> _ErrorGrid[Array]:
-    bkd = level.bkd()
+    bkd, mesh = level.bkd(), level.mesh()
     coords: List[Array] = []
     weights: Optional[Array] = None
     interpolation: Optional[Array] = None
-    for dim, (lower, upper) in enumerate(level.domain().bounds()):
-        nodes = level.mesh().reference_nodes_1d(dim)
+    for dim in range(mesh.ndim()):
+        nodes = mesh.reference_nodes_1d(dim)
         nquad = 2 * nodes.shape[0]
         legendre = LegendrePolynomial1D(bkd)
         legendre.set_nterms(nquad)
         reference, probability = GaussQuadratureRule(legendre)(nquad)
         xi = reference[0, :]
-        # Probability weights sum to 1; the box side has length upper - lower.
-        w = probability[:, 0] * (upper - lower)
+        # Probability weights sum to 1; the reference interval has length 2.
+        w = 2.0 * probability[:, 0]
         lagrange = univariate_lagrange_polynomial(nodes, xi, bkd)
-        x = lower + (upper - lower) * (xi + 1.0) / 2.0
         if weights is None or interpolation is None:
-            coords, weights, interpolation = [x], w, lagrange
+            coords, weights, interpolation = [xi], w, lagrange
             continue
         previous = weights.shape[0]
         coords = [bkd.kron(bkd.ones((nquad,)), c) for c in coords]
-        coords.append(bkd.kron(x, bkd.ones((previous,))))
+        coords.append(bkd.kron(xi, bkd.ones((previous,))))
         weights = bkd.kron(w, weights)
         interpolation = bkd.kron(lagrange, interpolation)
     if weights is None or interpolation is None:
         raise ValueError("a level has at least one dimension")
-    return _ErrorGrid(bkd.stack(coords, axis=0), weights, interpolation)
+    reference_grid = bkd.stack(coords, axis=0)
+    transform = mesh.transform()
+    volume = bkd.abs(transform.jacobian_determinant(reference_grid))
+    return _ErrorGrid(
+        transform.map_to_physical(reference_grid), weights * volume, interpolation
+    )
 
 
 class CollocationApproximation(Generic[Array]):
