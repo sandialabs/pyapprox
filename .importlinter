@@ -177,6 +177,7 @@ ignore_imports =
     pyapprox.polynomials.induced -> pyapprox.surrogates.affine.protocols.multivariate_basis
     pyapprox.polynomials.leja.multivariate -> pyapprox.surrogates.affine.protocols
     pyapprox.polynomials.leja.univariate -> pyapprox.surrogates.affine.protocols
+    pyapprox.polynomials.univariate.transformed -> pyapprox.surrogates.affine.protocols.basis1d
 
 # ── Contract: the coupling is stack-neutral ──────────────────────────────
 # Subdomain responses reach the coupling through protocols it owns; only
@@ -209,4 +210,3 @@ source_modules =
     pyapprox.pde.models
 forbidden_modules =
     pyapprox.pde.coupling
-    pyapprox.polynomials.univariate.transformed -> pyapprox.surrogates.affine.protocols.basis1d
