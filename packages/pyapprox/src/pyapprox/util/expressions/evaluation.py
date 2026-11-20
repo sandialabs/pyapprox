@@ -41,7 +41,9 @@ _BACKEND_METHODS = {
 _PRINTED = {"Abs": "abs"}
 
 
-def _namespace(bkd: Backend[Any], names: Names) -> Dict[str, Any]:
+def backend_namespace(bkd: Backend[Any], names: Names) -> Dict[str, Any]:
+    """The ``lambdify`` namespace binding sympy's functions, and the
+    custom functions of ``names``, to ``bkd``'s methods."""
     namespace: Dict[str, Any] = {
         _PRINTED.get(cls, cls): getattr(bkd, method)
         for cls, method in _BACKEND_METHODS.items()
@@ -51,6 +53,26 @@ def _namespace(bkd: Backend[Any], names: Names) -> Dict[str, Any]:
     for function in names.functions().values():
         namespace[function.symbolic.__name__] = functools.partial(function.numeric, bkd)
     return namespace
+
+
+def check_backend_functions(expression: sp.Expr, names: Names) -> None:
+    """Refuse an expression using a function with neither a backend
+    method nor a custom definition in ``names``.
+
+    Raises
+    ------
+    ValueError
+        If such a function is used.
+    """
+    supported = set(_BACKEND_METHODS) | {
+        f.symbolic.__name__ for f in names.functions().values()
+    }
+    used = {type(f).__name__ for f in expression.atoms(sp.Function)}
+    if not used <= supported:
+        raise ValueError(
+            f"no backend method for {sorted(used - supported)}; "
+            "declare them as CustomFunction"
+        )
 
 
 class ExpressionEvaluator(Generic[Array]):
@@ -76,9 +98,6 @@ class ExpressionEvaluator(Generic[Array]):
         self, expressions: Sequence[Value], names: Names, bkd: Backend[Array]
     ) -> None:
         self._names, self._bkd = names, bkd
-        supported = set(_BACKEND_METHODS) | {
-            f.symbolic.__name__ for f in names.functions().values()
-        }
         numeric: List[sp.Expr] = []
         for value in expressions:
             expression = names.substitute_constants(parse(value, names))
@@ -87,17 +106,12 @@ class ExpressionEvaluator(Generic[Array]):
             expression = expression.xreplace(
                 {c: sp.Float(c.evalf(17)) for c in expression.atoms(sp.NumberSymbol)}
             )
-            used = {type(f).__name__ for f in expression.atoms(sp.Function)}
-            if not used <= supported:
-                raise ValueError(
-                    f"no backend method for {sorted(used - supported)}; "
-                    "declare them as CustomFunction"
-                )
+            check_backend_functions(expression, names)
             numeric.append(expression)
         self._used: "set[sp.Basic]" = set()
         for expression in numeric:
             self._used |= expression.free_symbols
-        namespace = _namespace(bkd, names)
+        namespace = backend_namespace(bkd, names)
         self._functions: List[Callable[..., Any]] = [
             sp.lambdify(names.variables(), expression, modules=[namespace])
             for expression in numeric
