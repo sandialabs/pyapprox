@@ -67,13 +67,16 @@ from pyapprox.pde.constitutive.advection import (
 )
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
+    ChebyshevAnnulus,
     ChebyshevBox,
+    ChebyshevEllipticalAnnulus,
     ChebyshevLevel,
     CollocationApproximation,
     CollocationDiscretizer,
     ConstantGuess,
     DecaysExponentially,
     NodeStudy,
+    PeriodicSeam,
     boundary_conditions,
     collocation_system,
     field,
@@ -89,7 +92,13 @@ from pyapprox.pde.verification.conditions import (
     Periodic,
     Robin,
 )
-from pyapprox.pde.verification.domains import Annulus, Box, Disk, DomainProtocol
+from pyapprox.pde.verification.domains import (
+    Annulus,
+    Box,
+    Disk,
+    DomainProtocol,
+    EllipticalAnnulus,
+)
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import (
     Divergence,
@@ -98,6 +107,7 @@ from pyapprox.pde.verification.terms import (
     TimeDerivative,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.collocation_verification import coded, decays, recovers, stalls
 
 
@@ -377,6 +387,121 @@ def test_decays_periodic_both_2d(numpy_bkd: Backend[Array], conservative: bool) 
     decays(problem, adr, [8, 10, 12, 14, 16], 0.7, numpy_bkd)
 
 
+_RING = Annulus((0.0, 0.0), 1.0, 2.0)
+_ELLIPTICAL_RING = EllipticalAnnulus(1.0, 0.5, 1.0)
+_RING_SIZES = [8, 12, 16, 20, 24]
+
+
+def _ring_newton() -> Newton[Array, Array]:
+    """Newton for the rings' linear solves, which take one step: on 20-24
+    nodes per direction their residual's round-off floor (3e-11 to 8e-11)
+    is above the discretizer's default 1e-12."""
+    return Newton(atol=1e-9, rtol=1e-12, maxiters=30)
+
+
+@pytest.mark.parametrize(
+    "adr, codes",
+    [
+        (_ADR("1 + x**2/4"), "DD"),
+        (_ADR("1 + x**2/4"), "DR"),
+        (_ADR("1", ["y", "x"]), "DN"),
+    ],
+    ids=["variable-D-DD", "variable-D-DR", "advection-DN"],
+)
+def test_decays_annulus(numpy_bkd: Backend[Array], adr: _ADR, codes: str) -> None:
+    """u* = exp(x/2) sin(y) on the annulus 1 <= r <= 2, meshed over the
+    full angle with its seam closed, inner circle first: errors 2.6e-1 to
+    9.5e-6 (DD), 3.5e-1 to 1.1e-5 (DR), 1.0 to 1.4e-5 (advection by
+    (y, x), DN) over 8-24 nodes per direction (observed 0.64, 0.65, 0.70
+    per node, required 0.45). Slower than on a box: Chebyshev nodes in the
+    angle cluster at the seam and are coarsest opposite it."""
+    problem = _problem("exp(x/2)*sin(y)", adr, _RING, coded(codes, _RING))
+    decays(
+        problem,
+        adr,
+        _RING_SIZES,
+        0.45,
+        numpy_bkd,
+        nonlinear=_ring_newton(),
+        family=ChebyshevAnnulus,
+    )
+
+
+def test_decays_annulus_old_periodic_case(bkd: Backend[Array]) -> None:
+    """The old periodic-theta case: u* = x on 1 <= r <= 2, D = 1,
+    absorption 1, both circles Dirichlet. Errors 9.7e-3, 5.5e-6, 8.5e-10
+    over 8, 12, 16 nodes per direction (observed 2.03 per node, required
+    1.5; round-off near 2e-11 from 20 nodes); the old test needed 1e-4 at
+    20 x 30 nodes. Both backends."""
+    adr = _ADR("1", reaction="-1")
+    problem = _problem("x", adr, _RING, coded("DD", _RING))
+    decays(
+        problem,
+        adr,
+        [8, 12, 16],
+        1.5,
+        bkd,
+        nonlinear=_ring_newton(),
+        family=ChebyshevAnnulus,
+    )
+
+
+@pytest.mark.parametrize("codes", ["DD", "RD"])
+def test_decays_elliptical_annulus(numpy_bkd: Backend[Array], codes: str) -> None:
+    """u* = sin(x) cos(y) between the confocal ellipses u = 0.5 and
+    u = 1 (foci (+-1, 0)), D = 1: errors 8.0e-2 to 7.2e-6 (DD) and
+    8.0e-2 to 7.6e-6 (Robin inner, Dirichlet outer) over 8-24 nodes per
+    direction (observed 0.545 and 0.544 per node, required 0.4)."""
+    adr = _ADR("1")
+    problem = _problem(
+        "sin(x)*cos(y)", adr, _ELLIPTICAL_RING, coded(codes, _ELLIPTICAL_RING)
+    )
+    decays(
+        problem,
+        adr,
+        _RING_SIZES,
+        0.4,
+        numpy_bkd,
+        nonlinear=_ring_newton(),
+        family=ChebyshevEllipticalAnnulus,
+    )
+
+
+class _Seamless(Generic[Array]):
+    """Annulus levels without their seam closure (a wrong-model control):
+    the angle's two ends stay two independent copies of one line."""
+
+    def __init__(self, sizes: Sequence[int], bkd: Backend[Array]) -> None:
+        self._rings = ChebyshevAnnulus(sizes, bkd)
+
+    def levels(self, domain: DomainProtocol) -> List[ChebyshevLevel[Array]]:
+        return [
+            ChebyshevLevel(
+                domain,
+                level.mesh(),
+                level.basis(),
+                {part: level.boundary_ids(part) for part in domain.boundaries()},
+            )
+            for level in self._rings.levels(domain)
+        ]
+
+
+def test_annulus_without_seam_stalls(numpy_bkd: Backend[Array]) -> None:
+    """Wrong-model control: the first annulus case without the seam rows
+    diverges, errors 3.5e-1, 5.6e-1, 2.8, 1.0e3 over 8-20 nodes, where
+    the seam gives 2.6e-1 to 1.2e-4."""
+    adr = _ADR("1 + x**2/4")
+    problem = _problem("exp(x/2)*sin(y)", adr, _RING, coded("DD", _RING))
+    stalls(
+        problem,
+        adr,
+        [8, 12, 16, 20],
+        numpy_bkd,
+        nonlinear=_ring_newton(),
+        family=_Seamless,
+    )
+
+
 class _NoSpring(_ADR):
     """Robin ends built with the spring term alpha u dropped (alpha = 0)
     but the problem's data kept."""
@@ -602,6 +727,24 @@ class TestAdapterPieces:
         assert abs(level.h() - 4.0 * math.sin(dtheta / 2.0)) < 1e-13
         assert level.boundary_ids("outer") == (1,)
 
+    def test_seam_rows(self, bkd: Backend[Array]) -> None:
+        """An annulus level's seam joins the angle's two ends on every
+        field: with 5 nodes per direction and two fields, 2 x 5 value
+        rows and 2 x 5 derivative rows, and its rows are among those
+        boundary_conditions builds."""
+        (level,) = ChebyshevAnnulus([5], bkd).levels(_RING)
+        assert [repr(c) for c in level.closures()] == ["PeriodicSeam(1)"]
+        seam = level.closures()[0].rows(level, 2)
+        assert seam.rows().count() == 20
+        two = ManufacturedProblem(
+            {"u": "x", "w": "y"},
+            [Divergence("u", ["-u_x", "-u_y"]), Divergence("w", ["-w_x", "-w_y"])],
+            _RING,
+            {"inner": Dirichlet(), "outer": Dirichlet()},
+        )
+        declarations = boundary_conditions(two, level)
+        assert len(declarations.closures) == 1
+
     def test_part_over_several_boundaries(self, bkd: Backend[Array]) -> None:
         """A part may cover several mesh boundaries (a disk's circle, all
         four sides of a square mapped onto it): on a 4 x 4 reference
@@ -710,6 +853,20 @@ class TestRefusals:
         level = ChebyshevLevel(Annulus(), mesh, basis, {"inner": (0,), "outer": (1,)})
         with pytest.raises(ValueError, match="no boundary part 'left'"):
             level.boundary_ids("left")
+
+    def test_ring_families(self, numpy_bkd: Backend[Array]) -> None:
+        """Each ring family meshes its own domain only, the annulus about
+        the origin; a seam names one of the mesh's reference
+        directions."""
+        with pytest.raises(TypeError, match="meshes an Annulus"):
+            ChebyshevAnnulus([4], numpy_bkd).levels(_UNIT)
+        with pytest.raises(ValueError, match="about the origin"):
+            ChebyshevAnnulus([4], numpy_bkd).levels(Annulus((1.0, 0.0), 1.0, 2.0))
+        with pytest.raises(TypeError, match="meshes an EllipticalAnnulus"):
+            ChebyshevEllipticalAnnulus([4], numpy_bkd).levels(_RING)
+        (level,) = ChebyshevAnnulus([4], numpy_bkd).levels(_RING)
+        with pytest.raises(ValueError, match="direction 2 is not"):
+            PeriodicSeam[Array](2).rows(level, 1)
 
     def test_periodic_off_a_box(self, numpy_bkd: Backend[Array]) -> None:
         """Periodic conditions pair a box's opposite sides; an annulus'

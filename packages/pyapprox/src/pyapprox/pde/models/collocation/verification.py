@@ -13,6 +13,9 @@ leave it, as floats.
   box is the mesh boundary at the same position in
   :meth:`~pyapprox.pde.verification.domains.Box.boundaries` (left,
   right, bottom, top, back, front), so named boxes work unchanged.
+  :class:`ChebyshevAnnulus` and :class:`ChebyshevEllipticalAnnulus` mesh
+  the two rings through the polar and elliptical maps over the full
+  angle, the angle's two ends joined by a :class:`PeriodicSeam`.
 - A system factory, supplied by the case, builds the physics under test
   on a level and closes it with :func:`collocation_system`. Nothing here
   knows any physics: a factory builds its physics class from the generic
@@ -119,9 +122,14 @@ from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
     AffineTransform3D,
 )
+from pyapprox.pde.collocation.mesh.transforms.elliptical import (
+    EllipticalTransform,
+)
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics.coefficients import NodalSupplier
 from pyapprox.pde.collocation.protocols.basis import TensorProductBasisProtocol
 from pyapprox.pde.collocation.protocols.boundary import FluxProviderProtocol
+from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
@@ -137,7 +145,12 @@ from pyapprox.pde.verification.conditions import (
     Periodic,
     Robin,
 )
-from pyapprox.pde.verification.domains import Box, DomainProtocol
+from pyapprox.pde.verification.domains import (
+    Annulus,
+    Box,
+    DomainProtocol,
+    EllipticalAnnulus,
+)
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.study import CheckResult, ErrorMeasureProtocol
 from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
@@ -393,6 +406,176 @@ class ChebyshevBox(Generic[Array]):
                 basis3 = ChebyshevBasis3D(mesh3, bkd)
                 levels.append(ChebyshevLevel(domain, mesh3, basis3, parts))
         return levels
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({list(self._sizes)})"
+
+
+def _reference_derivative(level: ChebyshevLevel[Array], direction: int) -> Array:
+    """:math:`\\partial / \\partial \\xi_d` on the level's tensor nodes,
+    first direction fastest. Shape: (npts, npts)"""
+    bkd, sizes = level.bkd(), level.mesh().npts_per_dim()
+    factors = [bkd.eye(n) for n in sizes]
+    factors[direction] = level.basis().derivative_matrix_1d(direction)
+    # Node index i_0 + n_0 i_1 + ...: the last direction is the outer factor.
+    matrix = factors[-1]
+    for factor in factors[-2::-1]:
+        matrix = bkd.kron(matrix, factor)
+    return matrix
+
+
+class PeriodicSeam(Generic[Array]):
+    """The seam where a map closes reference direction ``d`` on itself
+    (a ring's angle): mesh boundaries ``2 d`` and ``2 d + 1`` are one
+    physical line inside the domain. Every field's value matches across
+    it on the lower boundary's rows, and its derivative along the
+    direction, :math:`\\partial u / \\partial \\xi_d`, on the upper's, so the
+    solution and its gradient are continuous there. The reference
+    derivative, not a physical one, because it is the same quantity on
+    both sides for any map that closes on itself.
+
+    Satisfies :class:`InteriorClosureProtocol`.
+
+    Parameters
+    ----------
+    direction : int
+        The reference direction the map closes.
+    """
+
+    def __init__(self, direction: int) -> None:
+        self._direction = direction
+
+    def rows(
+        self, level: ChebyshevLevel[Array], ncomponents: int
+    ) -> PeriodicRows[Array]:
+        """The seam's rows on every one of ``ncomponents`` components.
+
+        Raises
+        ------
+        ValueError
+            If the direction is not one of the level's reference
+            directions.
+        """
+        mesh, direction = level.mesh(), self._direction
+        if not 0 <= direction < len(mesh.npts_per_dim()):
+            raise ValueError(
+                f"the seam's direction {direction} is not a reference direction "
+                f"of a mesh with {len(mesh.npts_per_dim())}"
+            )
+        derivative = _reference_derivative(level, direction)
+        lower = mesh.boundary_indices(2 * direction)
+        upper = mesh.boundary_indices(2 * direction + 1)
+        parts = [
+            PeriodicPart(lower, upper, derivative, component)
+            for component in range(ncomponents)
+        ]
+        return PeriodicRows(level.bkd(), mesh.reference_points(), ncomponents, parts)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._direction})"
+
+
+def _ring_levels(
+    domain: DomainProtocol,
+    transform: TransformProtocol[Array],
+    sizes: Sequence[int],
+    bkd: Backend[Array],
+) -> List[ChebyshevLevel[Array]]:
+    """Levels of a ring meshed by ``transform`` from (radius, angle): the
+    inner and outer curves are reference boundaries 0 and 1, the angle's
+    two ends a seam."""
+    parts = {"inner": (0,), "outer": (1,)}
+    closures = (PeriodicSeam[Array](1),)
+    levels: List[ChebyshevLevel[Array]] = []
+    for n in sizes:
+        mesh = TransformedMesh2D(n, n, bkd, transform)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        levels.append(ChebyshevLevel(domain, mesh, basis, parts, closures))
+    return levels
+
+
+class ChebyshevAnnulus(Generic[Array]):
+    """Chebyshev-Gauss-Lobatto meshes of an :class:`~pyapprox.pde.
+    verification.domains.Annulus` through the polar map, ``n`` nodes in
+    the radius and in the angle :math:`\\theta \\in [0, 2\\pi]` at each
+    level; the angle's two ends, the segment :math:`y = 0`, :math:`x > 0`,
+    are joined by a :class:`PeriodicSeam`.
+
+    The nodes cluster at both ends of each direction: at the two circles,
+    and in the angle at the seam, coarsest opposite it.
+
+    Parameters
+    ----------
+    sizes : Sequence[int]
+        Nodes per direction, one entry per level.
+    bkd : Backend
+        The backend of the meshes, coefficients and states.
+    """
+
+    def __init__(self, sizes: Sequence[int], bkd: Backend[Array]) -> None:
+        self._sizes, self._bkd = tuple(sizes), bkd
+
+    def levels(self, domain: DomainProtocol) -> List[ChebyshevLevel[Array]]:
+        """One level per size.
+
+        Raises
+        ------
+        TypeError
+            If ``domain`` is not an ``Annulus``.
+        ValueError
+            If its center is not the origin (the polar map is about it).
+        """
+        if not isinstance(domain, Annulus):
+            raise TypeError(
+                f"ChebyshevAnnulus meshes an Annulus, got {type(domain).__name__}"
+            )
+        if domain.center() != (0.0, 0.0):
+            raise ValueError(
+                f"ChebyshevAnnulus meshes annuli about the origin, got center "
+                f"{domain.center()}"
+            )
+        polar = PolarTransform(domain.radii(), (0.0, 2.0 * math.pi), self._bkd)
+        return _ring_levels(domain, polar, self._sizes, self._bkd)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({list(self._sizes)})"
+
+
+class ChebyshevEllipticalAnnulus(Generic[Array]):
+    """Chebyshev-Gauss-Lobatto meshes of an :class:`~pyapprox.pde.
+    verification.domains.EllipticalAnnulus` through the elliptical map
+    :math:`x = a\\cosh u \\cos v`, :math:`y = a\\sinh u \\sin v`, ``n``
+    nodes in :math:`u` and in :math:`v \\in [0, 2\\pi]` at each level; the
+    two ends of :math:`v` are joined by a :class:`PeriodicSeam`.
+
+    Parameters
+    ----------
+    sizes : Sequence[int]
+        Nodes per direction, one entry per level.
+    bkd : Backend
+        The backend of the meshes, coefficients and states.
+    """
+
+    def __init__(self, sizes: Sequence[int], bkd: Backend[Array]) -> None:
+        self._sizes, self._bkd = tuple(sizes), bkd
+
+    def levels(self, domain: DomainProtocol) -> List[ChebyshevLevel[Array]]:
+        """One level per size.
+
+        Raises
+        ------
+        TypeError
+            If ``domain`` is not an ``EllipticalAnnulus``.
+        """
+        if not isinstance(domain, EllipticalAnnulus):
+            raise TypeError(
+                "ChebyshevEllipticalAnnulus meshes an EllipticalAnnulus, got "
+                f"{type(domain).__name__}"
+            )
+        elliptical = EllipticalTransform(
+            domain.radii(), (0.0, 2.0 * math.pi), domain.focal(), self._bkd
+        )
+        return _ring_levels(domain, elliptical, self._sizes, self._bkd)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self._sizes)})"
