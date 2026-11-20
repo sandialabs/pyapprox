@@ -11,3 +11,8 @@ moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
 superseded:pyapprox.pde.manufactured=35
 superseded:pyapprox.pde.galerkin.manufactured=18
+# Calls to superseded backend methods (pyapprox._superseded_ratchet).
+superseded:any_bool=24
+superseded:all_bool=215
+superseded:any_array=3
+superseded:all_array=3
