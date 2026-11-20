@@ -1,15 +1,12 @@
-"""Parameterized tests for Linear Elasticity manufactured solutions with physics.
+"""Linear elasticity: the collocation physics' Jacobian, and the sympy
+manufactured-solution pipeline checked by hand in 3D.
 
-Verifies:
-1. Residual = 0 at exact solution (using polynomial solutions)
-2. Jacobian correctness via DerivativeChecker
-3. Multiple test cases via parameterization
-4. Dual backend support (NumPy and PyTorch)
-
-Note: Linear elasticity is tested with polynomial solutions that can be exactly
-represented by the tensor product Chebyshev basis, giving machine precision
-residuals for interior points.
+Solves against manufactured solutions are verified by the collocation
+linear-elasticity catalog
+(``tests/pde/models/collocation/test_verification_linear_elasticity.py``).
 """
+
+from typing import Generic
 
 import pytest
 
@@ -17,457 +14,71 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D, ChebyshevBasis3D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh2D,
-    TransformedMesh3D,
-    create_uniform_mesh_2d,
-)
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.manufactured import (
     ManufacturedLinearElasticityEquations,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
-class PhysicsDerivativeWrapper:
-    """Wrapper to adapt physics interface for DerivativeChecker.
+class _Residual(Generic[Array]):
+    """The physics residual at time 0 as a function of the state, for
+    DerivativeChecker: samples ``(nstates, 1)``, values ``(nstates, 1)``."""
 
-    DerivativeChecker expects:
-    - bkd() method
-    - nvars() method
-    - nqoi() method
-    - __call__(samples) for batch evaluation returning (nqoi, nsamples)
-    - jacobian(sample) for single sample returning (nqoi, nvars)
-    """
-
-    def __init__(self, physics, time=0.0):
+    def __init__(self, physics: LinearElasticityPhysics[Array]) -> None:
         self._physics = physics
-        self._time = time
-        self._backend = physics._bkd
 
-    def bkd(self):
-        return self._backend
+    def bkd(self) -> Backend[Array]:
+        return self._physics.bkd()
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._physics.nstates()
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._physics.nstates()
 
-    def __call__(self, samples):
-        # samples shape: (nvars, nsamples), return (nqoi, nsamples)
-        if samples.ndim == 2:
-            return self._backend.stack(
-                [
-                    self._physics.residual(samples[:, i], self._time)
-                    for i in range(samples.shape[1])
-                ],
-                axis=1,
-            )
-        # Single sample: return (nqoi, 1)
-        return self._physics.residual(samples, self._time).reshape(-1, 1)
+    def __call__(self, sample: Array) -> Array:
+        return self._physics.residual(sample[:, 0], 0.0)[:, None]
 
-    def derivatives(self):
+    def jacobian(self, sample: Array) -> Array:
+        return self._physics.jacobian(sample[:, 0], 0.0)
+
+    def derivatives(self) -> Derivatives[Array]:
         return Derivatives.first_order(jacobian=self.jacobian)
 
-    def jacobian(self, sample):
-        # sample shape: (nvars, 1), return (nqoi, nvars)
-        if sample.ndim == 2:
-            sample = sample[:, 0]
-        return self._physics.jacobian(sample, self._time)
 
-
-class TestManufacturedLinearElasticity2D:
-    """Test 2D Linear Elasticity physics with manufactured solutions."""
-
-    def test_residual_polynomial(self, bkd):
-        """Test residual = 0 at exact polynomial solution."""
-        npts_x, npts_y = 10, 10
-        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
-
-        # Polynomial manufactured solution
-        man_sol = ManufacturedLinearElasticityEquations(
-            sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x"],
-            nvars=2,
-            lambda_str="1.0",
-            mu_str="1.0",
-            bkd=bkd,
-            oned=True,
-        )
-
-        # Construct mesh nodes
-        nodes_x = basis.nodes_x()
-        nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
-        nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
-
-        # Get exact solution and forcing
-        u_exact = man_sol.functions["solution"](nodes)
-        forcing = man_sol.functions["forcing"](nodes)
-
-        # Flatten for physics
-        npts = basis.npts()
-        u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
-        forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
-
-        # Create physics
-        physics = LinearElasticityPhysics(
-            basis, bkd, lamda=1.0, mu=1.0, forcing=lambda t: forcing_flat
-        )
-
-        # Set BCs on all boundaries
-        bcs = []
-        for side in range(4):
-            boundary_idx = mesh.boundary_indices(side)
-            bc_u = zero_dirichlet_bc(bkd, boundary_idx)
-            bcs.append(bc_u)
-            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
-            bc_v = zero_dirichlet_bc(bkd, boundary_idx_v)
-            bcs.append(bc_v)
-        physics.set_boundary_conditions(bcs)
-
-        # Compute residual
-        residual = physics.residual(u_exact_flat, 0.0)
-        jacobian = physics.jacobian(u_exact_flat, 0.0)
-        residual_with_bc, _ = physics.apply_boundary_conditions(
-            residual, jacobian, u_exact_flat, 0.0
-        )
-
-        # Get interior indices
-        boundary_indices = set()
-        for side in range(4):
-            for idx in mesh.boundary_indices(side):
-                boundary_indices.add(idx)
-                boundary_indices.add(idx + npts)
-
-        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
-        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
-
-        bkd.assert_allclose(
-            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
-        )
-
-    def test_jacobian_derivative_checker(self, bkd):
-        """Test Jacobian correctness via DerivativeChecker."""
-        npts_x, npts_y = 6, 6
-        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-
-        physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
-
-        wrapper = PhysicsDerivativeWrapper(physics)
-        nstates = physics.nstates()
-        sample = bkd.asarray([[0.1 * float(i) for i in range(nstates)]]).T
-
-        checker = DerivativeChecker(wrapper)
-        errors = checker.check_derivatives(sample, verbosity=0)
-        assert checker.error_ratio(errors[0]) <= 1e-5
-
-    def test_different_lame_parameters(self, bkd):
-        """Test with different Lamé parameters."""
-        npts_x, npts_y = 10, 10
-        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
-
-        # Different Lamé parameters
-        lamda, mu = 2.5, 0.5
-
-        man_sol = ManufacturedLinearElasticityEquations(
-            sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x"],
-            nvars=2,
-            lambda_str=str(lamda),
-            mu_str=str(mu),
-            bkd=bkd,
-            oned=True,
-        )
-
-        nodes_x = basis.nodes_x()
-        nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
-        nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
-
-        u_exact = man_sol.functions["solution"](nodes)
-        forcing = man_sol.functions["forcing"](nodes)
-
-        npts = basis.npts()
-        u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
-        forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
-
-        physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda, mu=mu, forcing=lambda t: forcing_flat
-        )
-
-        bcs = []
-        for side in range(4):
-            boundary_idx = mesh.boundary_indices(side)
-            bc_u = zero_dirichlet_bc(bkd, boundary_idx)
-            bcs.append(bc_u)
-            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
-            bc_v = zero_dirichlet_bc(bkd, boundary_idx_v)
-            bcs.append(bc_v)
-        physics.set_boundary_conditions(bcs)
-
-        residual = physics.residual(u_exact_flat, 0.0)
-        jacobian = physics.jacobian(u_exact_flat, 0.0)
-        residual_with_bc, _ = physics.apply_boundary_conditions(
-            residual, jacobian, u_exact_flat, 0.0
-        )
-
-        boundary_indices = set()
-        for side in range(4):
-            for idx in mesh.boundary_indices(side):
-                boundary_indices.add(idx)
-                boundary_indices.add(idx + npts)
-
-        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
-        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
-
-        bkd.assert_allclose(
-            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
-        )
-
-    def test_numerical_solve(self, bkd):
-        """Test numerical solution matches manufactured solution."""
-        npts_x, npts_y = 10, 10
-        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
-
-        man_sol = ManufacturedLinearElasticityEquations(
-            sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x"],
-            nvars=2,
-            lambda_str="1.0",
-            mu_str="1.0",
-            bkd=bkd,
-            oned=True,
-        )
-
-        nodes_x = basis.nodes_x()
-        nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
-        nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
-
-        u_exact = man_sol.functions["solution"](nodes)
-        forcing = man_sol.functions["forcing"](nodes)
-
-        npts = basis.npts()
-        u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
-        forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
-
-        physics = LinearElasticityPhysics(
-            basis, bkd, lamda=1.0, mu=1.0, forcing=lambda t: forcing_flat
-        )
-
-        bcs = []
-        for side in range(4):
-            boundary_idx = mesh.boundary_indices(side)
-            bc_u = zero_dirichlet_bc(bkd, boundary_idx)
-            bcs.append(bc_u)
-            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
-            bc_v = zero_dirichlet_bc(bkd, boundary_idx_v)
-            bcs.append(bc_v)
-        physics.set_boundary_conditions(bcs)
-
-        model = CollocationModel(physics, bkd)
-        initial_guess = bkd.zeros((2 * npts,))
-        u_numerical = model.solve_steady(initial_guess, tol=1e-10, maxiter=50)
-
-        bkd.assert_allclose(u_numerical, u_exact_flat, atol=1e-8)
-
-
-_RESIDUAL_CASES = [
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "1.0",
-        "1.0",
-        10,
-        id="poly_basic",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)*x*y",
-        "(1 - x**2)*(1 - y**2)*x*y",
-        "1.0",
-        "1.0",
-        12,
-        id="poly_symmetric",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)*x**2",
-        "(1 - x**2)*(1 - y**2)*y**2",
-        "1.0",
-        "1.0",
-        14,
-        id="poly_higher_degree",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "10.0",
-        "1.0",
-        10,
-        id="high_lambda",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "1.0",
-        "10.0",
-        10,
-        id="high_mu",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "100.0",
-        "1.0",
-        10,
-        id="incompressible_like",
-    ),
-]
-
-_JACOBIAN_CASES = [
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "1.0",
-        "1.0",
-        6,
-        id="jacobian_basic",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "2.5",
-        "0.5",
-        6,
-        id="jacobian_high_lambda",
-    ),
-    pytest.param(
-        "(1 - x**2)*(1 - y**2)",
-        "(1 - x**2)*(1 - y**2)*x",
-        "0.5",
-        "2.5",
-        6,
-        id="jacobian_high_mu",
-    ),
-]
-
-
-class TestLinearElasticity2DParameterized:
-    """Parameterized 2D Linear Elasticity residual and Jacobian tests."""
-
-    @pytest.mark.parametrize("u_str,v_str,lambda_str,mu_str,npts_1d", _RESIDUAL_CASES)
-    def test_linear_elasticity_2d_residual(
-        self, bkd, u_str, v_str, lambda_str, mu_str, npts_1d
-    ):
-        """Test 2D Linear Elasticity residual for parameterized cases."""
-        npts_x, npts_y = npts_1d, npts_1d
-        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d(
-            (npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd
-        )
-
-        man_sol = ManufacturedLinearElasticityEquations(
-            sol_strs=[u_str, v_str],
-            nvars=2,
-            lambda_str=lambda_str,
-            mu_str=mu_str,
-            bkd=bkd,
-            oned=True,
-        )
-
-        nodes_x = basis.nodes_x()
-        nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
-        nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
-
-        u_exact = man_sol.functions["solution"](nodes)
-        forcing = man_sol.functions["forcing"](nodes)
-
-        npts = basis.npts()
-        u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
-        forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
-
-        lamda = float(lambda_str)
-        mu = float(mu_str)
-
-        physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda, mu=mu, forcing=lambda t: forcing_flat
-        )
-
-        bcs = []
-        for side in range(4):
-            boundary_idx = mesh.boundary_indices(side)
-            bc_u = zero_dirichlet_bc(bkd, boundary_idx)
-            bcs.append(bc_u)
-            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
-            bc_v = zero_dirichlet_bc(bkd, boundary_idx_v)
-            bcs.append(bc_v)
-        physics.set_boundary_conditions(bcs)
-
-        residual = physics.residual(u_exact_flat, 0.0)
-        jacobian = physics.jacobian(u_exact_flat, 0.0)
-        residual_with_bc, _ = physics.apply_boundary_conditions(
-            residual, jacobian, u_exact_flat, 0.0
-        )
-
-        boundary_indices = set()
-        for side in range(4):
-            for idx in mesh.boundary_indices(side):
-                boundary_indices.add(idx)
-                boundary_indices.add(idx + npts)
-
-        interior_indices = [
-            i for i in range(2 * npts) if i not in boundary_indices
-        ]
-        interior_residual = bkd.asarray(
-            [residual_with_bc[i] for i in interior_indices]
-        )
-
-        bkd.assert_allclose(
-            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-9
-        )
-
-    @pytest.mark.parametrize("u_str,v_str,lambda_str,mu_str,npts_1d", _JACOBIAN_CASES)
-    def test_linear_elasticity_2d_jacobian(
-        self, bkd, u_str, v_str, lambda_str, mu_str, npts_1d
-    ):
-        """Test 2D Linear Elasticity Jacobian via DerivativeChecker."""
-        npts_x, npts_y = npts_1d, npts_1d
-        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-
-        lamda = float(lambda_str)
-        mu = float(mu_str)
-
-        physics = LinearElasticityPhysics(basis, bkd, lamda=lamda, mu=mu)
-
-        wrapper = PhysicsDerivativeWrapper(physics)
-        nstates = physics.nstates()
-        sample = bkd.asarray([[0.1 * float(i) for i in range(nstates)]]).T
-
-        checker = DerivativeChecker(wrapper)
-        errors = checker.check_derivatives(sample, verbosity=0)
-        assert checker.error_ratio(errors[0]) <= 1e-5
+@pytest.mark.parametrize(
+    "lamda, mu",
+    [(1.0, 1.0), (2.5, 0.5), (0.5, 2.5)],
+    ids=["equal", "high_lambda", "high_mu"],
+)
+def test_jacobian_2d(bkd: Backend[Array], lamda: float, mu: float) -> None:
+    """The 2D state Jacobian on 6 x 6 nodes against finite differences:
+    error ratio at most 1e-5."""
+    mesh = TransformedMesh2D(6, 6, bkd)
+    basis = ChebyshevBasis2D(mesh, bkd)
+    physics = LinearElasticityPhysics(basis, bkd, lamda=lamda, mu=mu)
+    nstates = physics.nstates()
+    sample = bkd.asarray([[0.1 * float(i) for i in range(nstates)]]).T
+    checker = DerivativeChecker(_Residual(physics))
+    errors = checker.check_derivatives(sample, verbosity=0)
+    assert checker.error_ratio(errors[0]) <= 1e-5
+
+
+def test_ncomponents(bkd: Backend[Array]) -> None:
+    """The 2D physics has two displacement components, stacked."""
+    basis = ChebyshevBasis2D(TransformedMesh2D(5, 5, bkd), bkd)
+    physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
+    assert physics.ncomponents() == 2
+    assert physics.nstates() == 2 * basis.npts()
 
 
 class TestManufacturedLinearElasticity3DSympy:
     """Hand-checkable verification of the 3D sympy pipeline."""
 
-    def test_uniaxial_quadratic_forcing(self, bkd):
+    def test_uniaxial_quadratic_forcing(self, bkd: Backend[Array]) -> None:
         """u = (x**2, 0, 0): sigma_xx = (lam+2mu)*2x, sigma_yy = sigma_zz
         = 2*lam*x, so f = -div(sigma) = (-(2lam+4mu), 0, 0)."""
         lam, mu = 2.0, 3.0
@@ -479,18 +90,14 @@ class TestManufacturedLinearElasticity3DSympy:
             bkd=bkd,
             oned=True,
         )
-        pts = bkd.asarray(
-            [[0.1, 0.5, 0.9], [0.2, 0.4, 0.8], [0.3, 0.6, 0.7]]
-        )
+        pts = bkd.asarray([[0.1, 0.5, 0.9], [0.2, 0.4, 0.8], [0.3, 0.6, 0.7]])
         forcing = man_sol.functions["forcing"](pts)  # (npts, 3)
         expected_fx = -(2.0 * lam + 4.0 * mu)
-        bkd.assert_allclose(
-            forcing[:, 0], bkd.full((3,), expected_fx), rtol=1e-12
-        )
+        bkd.assert_allclose(forcing[:, 0], bkd.full((3,), expected_fx), rtol=1e-12)
         bkd.assert_allclose(forcing[:, 1], bkd.zeros((3,)), atol=1e-14)
         bkd.assert_allclose(forcing[:, 2], bkd.zeros((3,)), atol=1e-14)
 
-    def test_cross_coupled_solution_zero_forcing(self, bkd):
+    def test_cross_coupled_solution_zero_forcing(self, bkd: Backend[Array]) -> None:
         """u = (y*z, x*z, x*y): all diagonal strains vanish and the shear
         stresses 2mu*(z, y, x) are divergence-free, so f = 0."""
         man_sol = ManufacturedLinearElasticityEquations(
@@ -501,13 +108,11 @@ class TestManufacturedLinearElasticity3DSympy:
             bkd=bkd,
             oned=True,
         )
-        pts = bkd.asarray(
-            [[0.1, 0.5, 0.9], [0.2, 0.4, 0.8], [0.3, 0.6, 0.7]]
-        )
+        pts = bkd.asarray([[0.1, 0.5, 0.9], [0.2, 0.4, 0.8], [0.3, 0.6, 0.7]])
         forcing = man_sol.functions["forcing"](pts)
         bkd.assert_allclose(forcing, bkd.zeros((3, 3)), atol=1e-14)
 
-    def test_traction_3d(self, bkd):
+    def test_traction_3d(self, bkd: Backend[Array]) -> None:
         """Traction on an x-normal face for u = (x**2, 0, 0) is
         ((lam+2mu)*2x, 0, 0)."""
         lam, mu = 2.0, 3.0
@@ -519,18 +124,14 @@ class TestManufacturedLinearElasticity3DSympy:
             bkd=bkd,
             oned=True,
         )
-        pts = bkd.asarray(
-            [[0.1, 0.5, 0.9], [0.2, 0.4, 0.8], [0.3, 0.6, 0.7]]
-        )
-        normals = bkd.asarray(
-            [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
-        )
+        pts = bkd.asarray([[0.1, 0.5, 0.9], [0.2, 0.4, 0.8], [0.3, 0.6, 0.7]])
+        normals = bkd.asarray([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         traction = man_sol.traction_values(pts, normals)  # (npts, 3)
         expected_tx = (lam + 2.0 * mu) * 2.0 * pts[0, :]
         bkd.assert_allclose(traction[:, 0], expected_tx, rtol=1e-12)
         bkd.assert_allclose(traction[:, 1:], bkd.zeros((3, 2)), atol=1e-14)
 
-    def test_invalid_nvars_raises(self, bkd):
+    def test_invalid_nvars_raises(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="nvars in"):
             ManufacturedLinearElasticityEquations(
                 sol_strs=["x", "y", "z", "x"],
@@ -539,131 +140,3 @@ class TestManufacturedLinearElasticity3DSympy:
                 mu_str="1.0",
                 bkd=bkd,
             )
-
-
-class TestManufacturedLinearElasticity3D:
-    """3D collocation physics against manufactured solutions."""
-
-    _POLY_SOLS = [
-        "(1 - x**2)*(1 - y**2)*(1 - z**2)",
-        "(1 - x**2)*(1 - y**2)*(1 - z**2)*x",
-        "(1 - x**2)*(1 - y**2)*(1 - z**2)*y",
-    ]
-
-    @staticmethod
-    def _setup(bkd, npts_1d, sol_strs, lamda=1.0, mu=1.0):
-        """Build 3D physics with manufactured forcing and zero
-        Dirichlet BCs on all six faces for every component."""
-        mesh = TransformedMesh3D(npts_1d, npts_1d, npts_1d, bkd)
-        basis = ChebyshevBasis3D(mesh, bkd)
-        nodes = mesh.points()
-        npts = basis.npts()
-
-        man_sol = ManufacturedLinearElasticityEquations(
-            sol_strs=sol_strs,
-            nvars=3,
-            lambda_str=str(lamda),
-            mu_str=str(mu),
-            bkd=bkd,
-            oned=True,
-        )
-        u_exact = man_sol.functions["solution"](nodes)  # (npts, 3)
-        forcing = man_sol.functions["forcing"](nodes)
-        u_exact_flat = bkd.concatenate(
-            [u_exact[:, i] for i in range(3)]
-        )
-        forcing_flat = bkd.concatenate(
-            [forcing[:, i] for i in range(3)]
-        )
-
-        physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda, mu=mu,
-            forcing=lambda t: forcing_flat,
-        )
-        bcs = []
-        boundary_state_rows = set()
-        for face in range(6):
-            face_idx = mesh.boundary_indices(face)
-            for comp in range(3):
-                comp_idx = bkd.asarray(
-                    [idx + comp * npts for idx in face_idx]
-                )
-                bcs.append(zero_dirichlet_bc(bkd, comp_idx))
-                for idx in face_idx:
-                    boundary_state_rows.add(
-                        int(bkd.to_int(idx)) + comp * npts
-                    )
-        physics.set_boundary_conditions(bcs)
-        return physics, u_exact_flat, npts, boundary_state_rows
-
-    def test_residual_at_exact_solution_3d(self, bkd):
-        """Interior residual vanishes for polynomial solutions that the
-        Chebyshev basis represents exactly.
-
-        The solutions are degree 3 per dimension so npts_1d=5
-        (degree 4) is exact; larger meshes only inflate the cost of
-        the per-DOF Dirichlet row replacement, which is slow on torch.
-        """
-        physics, u_exact, npts, bnd_rows = self._setup(
-            bkd, 5, self._POLY_SOLS, lamda=2.5, mu=0.5
-        )
-        residual = physics.residual(u_exact, 0.0)
-        jacobian = physics.jacobian(u_exact, 0.0)
-        residual_bc, _ = physics.apply_boundary_conditions(
-            residual, jacobian, u_exact, 0.0
-        )
-        interior = [
-            i for i in range(3 * npts) if i not in bnd_rows
-        ]
-        interior_residual = bkd.asarray(
-            [residual_bc[i] for i in interior]
-        )
-        bkd.assert_allclose(
-            interior_residual,
-            bkd.zeros(interior_residual.shape),
-            atol=1e-9,
-        )
-
-    def test_numerical_solve_3d(self, bkd):
-        """Steady solve reproduces the exact polynomial solution
-        (degree 3 per dimension, exact at npts_1d=5)."""
-        physics, u_exact, npts, _ = self._setup(
-            bkd, 5, self._POLY_SOLS
-        )
-        model = CollocationModel(physics, bkd)
-        u_numerical = model.solve_steady(
-            bkd.zeros((3 * npts,)), tol=1e-10, maxiter=50
-        )
-        bkd.assert_allclose(u_numerical, u_exact, atol=1e-7)
-
-    @pytest.mark.slow_on("TorchBkd")
-    def test_spectral_convergence_3d(self, bkd):
-        """Trigonometric solution: error decays spectrally with the
-        per-dimension degree.
-
-        Measured curve: 3.5e-1 (npts_1d=4), 4.7e-2 (6), 1.2e-3 (8) —
-        the first step is preasymptotic (ratio 0.13), the second is
-        deep in the spectral regime (0.027). Torch-only slow: the
-        per-DOF Dirichlet row replacement in the BC infrastructure
-        dominates the npts_1d=8 solve on torch (~50s vs ~2s numpy).
-        """
-        sol_strs = [
-            "sin(pi*x)*sin(pi*y)*sin(pi*z)",
-            "sin(pi*x)*sin(pi*y)*sin(pi*z)",
-            "sin(pi*x)*sin(pi*y)*sin(pi*z)",
-        ]
-        errors = []
-        for npts_1d in (4, 6, 8):
-            physics, u_exact, npts, _ = self._setup(
-                bkd, npts_1d, sol_strs
-            )
-            model = CollocationModel(physics, bkd)
-            u_numerical = model.solve_steady(
-                bkd.zeros((3 * npts,)), tol=1e-10, maxiter=50
-            )
-            errors.append(
-                float(bkd.max(bkd.abs(u_numerical - u_exact)))
-            )
-        assert errors[1] < 0.2 * errors[0]
-        assert errors[2] < 0.1 * errors[1]
-        assert errors[-1] < 5e-3

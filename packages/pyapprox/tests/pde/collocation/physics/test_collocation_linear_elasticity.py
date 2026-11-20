@@ -8,7 +8,7 @@ both ``LinearElasticityPhysics`` and ``HyperelasticityPhysics``. Steady
 solves and the physics' mass matrix stay available.
 """
 
-from typing import Any, Callable, Generic, List, Union
+from typing import Any, Callable, Generic, List, Tuple, Union
 
 import numpy as np
 import pytest
@@ -41,13 +41,16 @@ from pyapprox.pde.collocation.time_integration import (
 )
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
-from pyapprox.pde.manufactured import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.pde.models.collocation.right_hand_side import (
     CollocationRightHandSide,
 )
 from pyapprox.pde.models.collocation.transient import TransientForwardModel
+from pyapprox.pde.models.collocation.verification import (
+    ChebyshevBox,
+    ChebyshevLevel,
+    field,
+    stacked_forcing,
+)
 from pyapprox.pde.parameterizations.collocation_elasticity import (
     CollocationElasticityParameterization,
 )
@@ -55,6 +58,10 @@ from pyapprox.pde.parameterizations.collocation_hyperelasticity import (
     CollocationHyperelasticityParameterization,
 )
 from pyapprox.pde.time_order import SecondOrderInTimeProtocol
+from pyapprox.pde.verification.conditions import Dirichlet
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import Divergence
 from pyapprox.util.backends.protocols import Array, Backend
 
 _NPTS_1D = 8
@@ -99,32 +106,37 @@ def _set_zero_dirichlet(physics: _Physics, bkd: Backend[Array]) -> None:
     physics.set_boundary_conditions(bcs)
 
 
+_SQUARE = Box([(-1.0, 1.0), (-1.0, 1.0)])
+_DISPLACEMENT = ("(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x")
+
+
 def _manufactured(
     bkd: Backend[Array],
-) -> ManufacturedLinearElasticityEquations[Array]:
-    """A steady displacement vanishing on the boundary."""
-    return ManufacturedLinearElasticityEquations(
-        sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x"],
-        nvars=2,
-        lambda_str="1.0",
-        mu_str="1.0",
-        bkd=bkd,
-        oned=True,
+) -> Tuple[ManufacturedProblem, ChebyshevLevel[Array]]:
+    """A steady displacement vanishing on the boundary of [-1, 1]^2, for
+    -div(sigma) = f with lambda = mu = 1, and the level on ``_basis``'s
+    nodes."""
+    trace = "u_x + v_y"
+    problem = ManufacturedProblem(
+        dict(zip(("u", "v"), _DISPLACEMENT)),
+        [
+            Divergence("u", [f"-({trace} + 2*u_x)", "-(u_y + v_x)"]),
+            Divergence("v", ["-(v_x + u_y)", f"-({trace} + 2*v_y)"]),
+        ],
+        _SQUARE,
+        {side: Dirichlet() for side in _SQUARE.boundaries()},
     )
+    (level,) = ChebyshevBox([_NPTS_1D], bkd).levels(_SQUARE)
+    return problem, level
 
 
 def _physics(bkd: Backend[Array], physics_name: str) -> _Physics:
     basis = _basis(bkd)
     physics: _Physics
     if physics_name == "LinearElasticityPhysics":
-        values = _manufactured(bkd).functions["forcing"](_nodes(bkd))
-        stacked = bkd.concatenate([values[:, 0], values[:, 1]])
-
-        def forcing(time: float) -> Array:
-            return stacked
-
+        problem, level = _manufactured(bkd)
         physics = LinearElasticityPhysics(
-            basis, bkd, lamda=1.0, mu=1.0, forcing=forcing
+            basis, bkd, lamda=1.0, mu=1.0, forcing=stacked_forcing(problem, level)
         )
     else:
         physics = HyperelasticityPhysics(
@@ -198,15 +210,16 @@ class TestCollocationElasticityTimeOrder:
 
     def test_steady_solve_still_works(self, bkd: Backend[Array]) -> None:
         physics = _physics(bkd, "LinearElasticityPhysics")
-        exact = _manufactured(bkd).functions["solution"](_nodes(bkd))
+        problem, level = _manufactured(bkd)
+        exact = []
+        for component in _DISPLACEMENT:
+            values = field(problem, component, level)
+            assert not isinstance(values, float)
+            exact.append(values.values(0.0))
         solution = CollocationModel(physics, bkd).solve_steady(
             bkd.zeros((physics.nstates(),)), tol=1e-10
         )
-        bkd.assert_allclose(
-            solution,
-            bkd.concatenate([exact[:, 0], exact[:, 1]]),
-            atol=1e-8,
-        )
+        bkd.assert_allclose(solution, bkd.concatenate(exact), atol=1e-8)
 
     @pytest.mark.parametrize("physics_name", _PHYSICS_NAMES)
     def test_mass_matrix_still_available(
