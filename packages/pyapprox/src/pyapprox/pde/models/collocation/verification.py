@@ -27,7 +27,8 @@ leave it, as floats.
   boundary.closure_rows.RobinRows` on the normal term supplied for that
   field: a flux provider's flux normal operator (:class:`FluxTerm`) or
   another :class:`NormalTermProtocol`, such as the Cauchy traction
-  (:class:`TractionTerm`); periodic sides as
+  (:class:`TractionTerm`) or the nominal (first Piola) traction
+  (:class:`PiolaTractionTerm`); periodic sides as
   :class:`~pyapprox.pde.collocation.
   boundary.periodic_rows.PeriodicRows` pairing the two sides of a
   coordinate. A node two sides share follows the system's rule: essential
@@ -37,8 +38,9 @@ leave it, as floats.
 - :class:`CollocationDiscretizer` solves each level through
   ``collocation_steady_residual`` + ``SteadySystem`` with a dense LU,
   from the state an injected :class:`InitialGuessProtocol` gives
-  (:class:`ConstantGuess` zero by default), and returns :class:`CollocationApproximation` objects, whose errors are
-  measured at the collocation nodes.
+  (:class:`ConstantGuess` zero by default), and returns
+  :class:`CollocationApproximation` objects, whose errors are measured
+  at the collocation nodes.
 - :class:`DecaysExponentially` judges a spectral study, a
   :class:`NodeStudy` of errors against node counts from
   :func:`run_node_study`: the error falls exponentially in the number of
@@ -88,6 +90,10 @@ from pyapprox.pde.collocation.boundary.closure_rows import (
 from pyapprox.pde.collocation.boundary.essential_rows import (
     DirichletPart,
     DirichletRows,
+)
+from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
+    HyperelasticTractionNormalOperator,
+    PK1StressSourceProtocol,
 )
 from pyapprox.pde.collocation.boundary.normal_operators import (
     CauchyStressSourceProtocol,
@@ -567,6 +573,50 @@ class TractionTerm(Generic[Array]):
         self, bkd: Backend[Array], indices: Array, normals: Array
     ) -> TractionNormalOperator[Array]:
         return TractionNormalOperator(
+            bkd, indices, normals, self._stress, self._component
+        )
+
+    def sign(self) -> float:
+        return -1.0
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(component={self._component})"
+
+
+class PiolaTractionTerm(Generic[Array]):
+    r"""One component of the nominal traction :math:`t_i = P_{iJ} N_J`,
+    :math:`P` the first Piola-Kirchhoff stress, through
+    :class:`~pyapprox.pde.collocation.boundary.hyperelastic_traction.
+    HyperelasticTractionNormalOperator`. A problem stating
+    :math:`-\nabla\cdot P = f` row by row as the divergence of
+    :math:`q_i = -P_{i\cdot}` prescribes :math:`q_i\cdot N = -t_i`, so
+    :math:`s = -1`.
+
+    Parameters
+    ----------
+    stress : PK1StressSourceProtocol
+        The first Piola-Kirchhoff stress, usually the physics.
+    component : int
+        The traction component :math:`i`.
+
+    Raises
+    ------
+    TypeError
+        If ``stress`` does not satisfy ``PK1StressSourceProtocol``.
+    """
+
+    def __init__(self, stress: PK1StressSourceProtocol[Array], component: int) -> None:
+        if not isinstance(stress, PK1StressSourceProtocol):
+            raise TypeError(
+                "stress must satisfy PK1StressSourceProtocol, got "
+                f"{type(stress).__name__}"
+            )
+        self._stress, self._component = stress, component
+
+    def operator(
+        self, bkd: Backend[Array], indices: Array, normals: Array
+    ) -> HyperelasticTractionNormalOperator[Array]:
+        return HyperelasticTractionNormalOperator(
             bkd, indices, normals, self._stress, self._component
         )
 

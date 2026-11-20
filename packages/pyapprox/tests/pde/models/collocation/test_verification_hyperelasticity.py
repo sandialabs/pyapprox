@@ -1,0 +1,309 @@
+r"""Collocation neo-Hookean hyperelasticity verified by manufactured solutions.
+
+:class:`~pyapprox.pde.collocation.physics.hyperelasticity.
+HyperelasticityPhysics`, given a :class:`~pyapprox.pde.collocation.physics.
+neo_hookean_law.NeoHookeanLaw`, solves :math:`-\nabla\cdot P(F) = f`, total
+Lagrangian, with the first Piola stress
+
+.. math:: P = \mu F + (\lambda \ln J - \mu) F^{-T}, \quad F = I + \nabla u,
+   \quad J = \det F.
+
+The problem states it row by row (fields :math:`u, v, w`):
+:math:`\nabla\cdot(-P_{i\cdot}) = f_i`, with :math:`P` written here from the
+formula above, not taken from the law, so the two are independent. Its
+natural data are :math:`-P N`; traction and Robin sides close on the
+physics' nominal traction through :class:`~pyapprox.pde.models.collocation.
+verification.PiolaTractionTerm`, which takes that sign. Every solve starts
+from zero.
+
+Cases:
+
+- recovery (L2 error below 1e-10) of affine displacements, whose
+  deformation gradient and so stress are constant, under Dirichlet,
+  traction and Robin sides in 1D, 2D and 3D, on both backends;
+- spectral decay, fitted per node, of the comparison suite's 1D and 2D
+  displacements (clamped, all sides Dirichlet), and of the Galerkin
+  catalog's 1D and 2D solutions with traction and Robin sides;
+- wrong-model controls, which stall: the problem stated with the
+  small-strain law, the physics given :math:`\lambda` and :math:`\mu`
+  swapped, and traction sides given the traction with the wrong sign.
+"""
+
+from typing import List, Sequence
+
+import pytest
+import sympy as sp
+
+from pyapprox.pde.collocation.physics.hyperelasticity import (
+    HyperelasticityPhysics,
+)
+from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
+from pyapprox.pde.models.collocation.closed_system import CollocationSystem
+from pyapprox.pde.models.collocation.verification import (
+    ChebyshevLevel,
+    PiolaTractionTerm,
+    collocation_system,
+    field,
+    stacked_forcing,
+)
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import Divergence, TermProtocol
+from pyapprox.util.backends.protocols import Array, Backend
+from tests._helpers.collocation_verification import coded, decays, recovers, stalls
+
+_FIELDS = ("u", "v", "w")
+_COORDS = ("x", "y", "z")
+
+
+def _gradient(ndim: int) -> sp.Matrix:
+    """:math:`\\nabla u` in the problem's names: entry (i, j) is the
+    derivative of field i in coordinate j."""
+    return sp.Matrix(ndim, ndim, lambda i, j: sp.Symbol(f"{_FIELDS[i]}_{_COORDS[j]}"))
+
+
+def _neo_hookean(ndim: int, lam: str, mu: str) -> sp.Matrix:
+    """:math:`P = \\mu F + (\\lambda \\ln J - \\mu) F^{-T}`, with
+    :math:`F^{-T} = \\mathrm{adj}(F)^T / J`."""
+    deformation = sp.eye(ndim) + _gradient(ndim)
+    jacobian = deformation.det()
+    lam_value, mu_value = sp.sympify(lam), sp.sympify(mu)
+    stress: sp.Matrix = (
+        mu_value * deformation
+        + (lam_value * sp.log(jacobian) - mu_value)
+        * deformation.adjugate().T
+        / jacobian
+    )
+    return stress
+
+
+def _linear(ndim: int, lam: str, mu: str) -> sp.Matrix:
+    """:math:`\\sigma = \\lambda\\,\\mathrm{tr}(\\varepsilon) I + 2\\mu
+    \\varepsilon`, the small-strain law (a wrong-model control)."""
+    gradient = _gradient(ndim)
+    strain = (gradient + gradient.T) / 2
+    stress: sp.Matrix = (
+        sp.sympify(lam) * strain.trace() * sp.eye(ndim) + 2 * sp.sympify(mu) * strain
+    )
+    return stress
+
+
+class _ReversedTraction(PiolaTractionTerm[Array]):
+    """The traction with the wrong sign: :math:`t_i` read as the outward
+    flux :math:`q_i\\cdot N` (a wrong-model control)."""
+
+    def sign(self) -> float:
+        return 1.0
+
+
+class _Hyperelasticity:
+    """The physics under test and its strong form, from one pair of Lamé
+    values.
+
+    Parameters
+    ----------
+    lam, mu : str
+        :math:`\\lambda(x)` and :math:`\\mu(x)`.
+    linear_problem : bool
+        State the problem with the small-strain law while the physics
+        stays neo-Hookean (a wrong-model control).
+    swapped : bool
+        Give the physics :math:`\\mu` for :math:`\\lambda` and the reverse
+        (a wrong-model control).
+    reversed_traction : bool
+        Close traction sides with the traction's sign reversed (a
+        wrong-model control).
+    """
+
+    def __init__(
+        self,
+        lam: str,
+        mu: str,
+        linear_problem: bool = False,
+        swapped: bool = False,
+        reversed_traction: bool = False,
+    ) -> None:
+        self._lam, self._mu = lam, mu
+        self._linear_problem, self._swapped = linear_problem, swapped
+        self._reversed = reversed_traction
+
+    def terms(self, ndim: int) -> List[TermProtocol]:
+        """The strong form as terms on the displacement rows."""
+        law = _linear if self._linear_problem else _neo_hookean
+        stress = law(ndim, self._lam, self._mu)
+        return [
+            Divergence(_FIELDS[i], [str(-stress[i, j]) for j in range(ndim)])
+            for i in range(ndim)
+        ]
+
+    def problem(
+        self, solution: Sequence[str], box: Box, codes: str
+    ) -> ManufacturedProblem:
+        """The problem on ``box``, one code per side for every component."""
+        ndim = box.ndim()
+        return ManufacturedProblem(
+            dict(zip(_FIELDS[:ndim], solution)),
+            self.terms(ndim),
+            box,
+            coded(codes, box),
+        )
+
+    def system(
+        self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
+    ) -> CollocationSystem[Array]:
+        lam, mu = (self._mu, self._lam) if self._swapped else (self._lam, self._mu)
+        bkd = level.bkd()
+        physics = HyperelasticityPhysics(
+            level.basis(),
+            bkd,
+            NeoHookeanLaw(bkd),
+            mu=field(problem, mu, level),
+            lamda=field(problem, lam, level),
+            forcing=stacked_forcing(problem, level),
+        )
+        term = _ReversedTraction if self._reversed else PiolaTractionTerm
+        fluxes = {row: term(physics, i) for i, row in enumerate(problem.fields())}
+        return collocation_system(physics, problem, level, fluxes)
+
+    def __repr__(self) -> str:
+        return (
+            f"_Hyperelasticity({self._lam!r}, {self._mu!r}, "
+            f"linear_problem={self._linear_problem}, swapped={self._swapped}, "
+            f"reversed_traction={self._reversed})"
+        )
+
+
+_LINE = Box([(0.0, 1.0)])
+_SQUARE = Box([(0.0, 1.0)] * 2)
+_CUBE = Box([(0.0, 1.0)] * 3)
+_SOLUTION_1D = ("0.3*x**2*(1 - x) + 0.15*x + 0.1*sin(3*x)",)
+_SOLUTION_2D = ("0.1*sin(x + 2*y) + 0.1*x*y", "0.15*cos(2*x - y) - 0.1*y")
+
+
+@pytest.mark.parametrize(
+    "solution, box, codes, npts",
+    [
+        (("0.2*x + 0.1",), _LINE, "DN", 4),
+        (("0.2*x + 0.1",), _LINE, "RD", 4),
+        (("0.1*x + 0.05*y", "-0.05*x + 0.15*y + 0.1"), _SQUARE, "DNDR", 4),
+        (("0.1*x + 0.05*y", "-0.05*x + 0.15*y + 0.1"), _SQUARE, "NRDN", 4),
+        (
+            ("0.1*x + 0.02*z", "0.05*y - 0.03*x", "0.04*z + 0.01*y"),
+            _CUBE,
+            "DNRDND",
+            3,
+        ),
+    ],
+    ids=["1d-DN", "1d-RD", "2d-DNDR", "2d-NRDN", "3d"],
+)
+def test_recovers_affine(
+    bkd: Backend[Array], solution: Sequence[str], box: Box, codes: str, npts: int
+) -> None:
+    """An affine displacement has a constant F, so a constant stress and
+    zero forcing, with traction and Robin data polynomial on each side:
+    a few nodes per direction reproduce it to 1e-10 with lambda = 1.5,
+    mu = 0.8."""
+    physics = _Hyperelasticity("1.5", "0.8")
+    recovers(physics.problem(solution, box, codes), physics, npts, bkd)
+
+
+def test_decays_clamped_1d(numpy_bkd: Backend[Array]) -> None:
+    """The comparison suite's bar, u = 0.1 x^2 (1 - x)^2 on [0, 1],
+    lambda = mu = 1, both ends Dirichlet: errors 1.6e-5 to 1.3e-12 over
+    6-14 nodes (observed 1.93 per node, required 0.9); the old test
+    needed a relative error below 1e-6 at 20 nodes."""
+    physics = _Hyperelasticity("1", "1")
+    problem = physics.problem(("0.1*x**2*(1 - x)**2",), _LINE, "DD")
+    decays(problem, physics, [6, 8, 10, 12, 14], 0.9, numpy_bkd)
+
+
+def test_decays_clamped_2d(numpy_bkd: Backend[Array]) -> None:
+    """The comparison suite's 2D case, u = 0.1 b, v = 0.05 b with
+    b = x^2 (1 - x)^2 y^2 (1 - y)^2 on the unit square, lambda = mu = 1,
+    all sides Dirichlet: errors 3.5e-8 to 4.3e-14 over 6-12 nodes per
+    direction (observed 2.37 per node, required 1.1); the old test needed
+    a relative error below 1e-6 at 10 x 10 nodes."""
+    physics = _Hyperelasticity("1", "1")
+    bubble = "x**2*(1 - x)**2*y**2*(1 - y)**2"
+    problem = physics.problem((f"0.1*{bubble}", f"0.05*{bubble}"), _SQUARE, "DDDD")
+    decays(problem, physics, [6, 8, 10, 12], 1.1, numpy_bkd)
+
+
+@pytest.mark.parametrize("codes", ["DN", "DR", "RD"])
+def test_decays_1d(numpy_bkd: Backend[Array], codes: str) -> None:
+    """The Galerkin catalog's bar, strains up to 0.45, lambda = mu = 1,
+    with its end pairs: over 6-14 nodes, DN 5.5e-3 to 1.6e-7 (observed
+    1.30 per node), DR 3.9e-3 to 1.1e-7 (1.30), RD 1.7e-4 to 2.0e-8
+    (1.16); required 0.55."""
+    physics = _Hyperelasticity("1", "1")
+    problem = physics.problem(_SOLUTION_1D, _LINE, codes)
+    decays(problem, physics, [6, 8, 10, 12, 14], 0.55, numpy_bkd)
+
+
+@pytest.mark.parametrize("codes", ["DNDN", "DRDR", "DNDR"])
+def test_decays_2d(numpy_bkd: Backend[Array], codes: str) -> None:
+    """The Galerkin catalog's 2D solution on the unit square,
+    lambda = 1.5, mu = 0.8, with its side sets: over 6-12 nodes per
+    direction, DNDN 5.9e-5 to 9.2e-10 (observed 1.86 per node), DRDR
+    2.8e-5 to 6.2e-10 (1.80), DNDR 3.9e-5 to 6.4e-10 (1.85); required
+    0.9."""
+    physics = _Hyperelasticity("1.5", "0.8")
+    problem = physics.problem(_SOLUTION_2D, _SQUARE, codes)
+    decays(problem, physics, [6, 8, 10, 12], 0.9, numpy_bkd)
+
+
+def test_decays_varying_lame(numpy_bkd: Backend[Array]) -> None:
+    """Lambda = 1 + x, mu = 1 + y/2, sides D, N, D, R: errors 3.7e-5 to
+    6.4e-10 over 6-12 nodes per direction (observed 1.83 per node,
+    required 0.9)."""
+    physics = _Hyperelasticity("1 + x", "1 + y/2")
+    problem = physics.problem(_SOLUTION_2D, _SQUARE, "DNDR")
+    decays(problem, physics, [6, 8, 10, 12], 0.9, numpy_bkd)
+
+
+@pytest.mark.parametrize(
+    "physics",
+    [
+        _Hyperelasticity("1.5", "0.8", linear_problem=True),
+        _Hyperelasticity("1.5", "0.8", swapped=True),
+    ],
+    ids=["linear-law", "swapped-lame"],
+)
+def test_wrong_models_stall(
+    numpy_bkd: Backend[Array], physics: _Hyperelasticity
+) -> None:
+    """Wrong-model controls on the 2D solution with sides D, N, D, R: the
+    error stops falling (small-strain law about 8e-3, swapped Lamé values
+    about 1.4e-2, over 6-12 nodes per direction), so the decay cases check
+    the nonlinear law, not a linearization of it."""
+    problem = physics.problem(_SOLUTION_2D, _SQUARE, "DNDR")
+    stalls(problem, physics, [6, 8, 10, 12], numpy_bkd)
+
+
+def test_reversed_traction_stalls_1d(numpy_bkd: Backend[Array]) -> None:
+    """Wrong-model control: the bar's traction end reads the traction as
+    the outward flux, the sign reversed; the error stays at 2.2 over 6-14
+    nodes, so the traction cases check the sign."""
+    physics = _Hyperelasticity("1", "1", reversed_traction=True)
+    problem = physics.problem(_SOLUTION_1D, _LINE, "DN")
+    stalls(problem, physics, [6, 8, 10, 12, 14], numpy_bkd)
+
+
+def test_reversed_traction_stalls_2d(numpy_bkd: Backend[Array]) -> None:
+    """The same control in 2D, sides D, N, D, R, on the 2D solution scaled
+    by 0.1: the error stays near 3.5e-2 over 6-12 nodes per direction,
+    while the correctly signed model reaches 2e-13. At full scale the
+    reversed load is large enough to drive J below zero, and the solves
+    fail rather than stall (the correctly signed model still decays at
+    1.85 per node there)."""
+    physics = _Hyperelasticity("1.5", "0.8", reversed_traction=True)
+    solution = tuple(f"0.1*({s})" for s in _SOLUTION_2D)
+    problem = physics.problem(solution, _SQUARE, "DNDR")
+    stalls(problem, physics, [6, 8, 10, 12], numpy_bkd)
+
+
+def test_piola_traction_term_refuses_non_stress() -> None:
+    """A stress that does not satisfy PK1StressSourceProtocol is refused
+    at construction."""
+    with pytest.raises(TypeError, match="PK1StressSourceProtocol"):
+        PiolaTractionTerm(object(), 0)  # type: ignore[arg-type]
