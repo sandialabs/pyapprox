@@ -8,7 +8,7 @@ problem is solved, and the output is the outward flux on the ports,
 tested against the port's trace functions, as an injected
 :class:`PortFluxProtocol` reads it from the solved state.
 
-:class:`ReactionFlux` reads the reaction. The residual is in
+:class:`PinnedReactionFlux` reads the reaction. The residual is in
 right-hand-side form, :math:`M \dot u = F(u)`, as the Galerkin steady
 residual is: :math:`F = f - K u` for diffusion. On a pinned row :math:`F`
 does not vanish at a solution; what remains is the boundary term the
@@ -93,7 +93,7 @@ class PortFluxProtocol(Protocol[V, A]):
         ...
 
 
-class ReactionFlux(Generic[V, A, F]):
+class PinnedReactionFlux(Generic[V, A, F]):
     r"""The reaction on the port rows as the tested outward flux:
     :math:`-B^\top F(u)` and its tangent :math:`-B^\top F_u\, \delta u`
     (see the module docstring).
@@ -236,7 +236,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         Its port rows; port blocks are backend arrays.
     flux : PortFluxProtocol
         Reads the tested outward flux from the solved state, e.g.
-        :class:`ReactionFlux` over ``pinned`` and ``ports``.
+        :class:`PinnedReactionFlux` over ``pinned`` and ``ports``.
     space : InnerProductSpaceProtocol
         The state space.
     setups : SetupStrategyProtocol

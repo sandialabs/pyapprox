@@ -41,7 +41,10 @@ from pyapprox.implicitfunction.residual_derivatives import (
 )
 from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
-from pyapprox.pde.coupling.pinned_response import ReactionFlux, SteadyPinnedResponse
+from pyapprox.pde.coupling.pinned_response import (
+    PinnedReactionFlux,
+    SteadyPinnedResponse,
+)
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import (
     FormatProtocol,
@@ -263,5 +266,5 @@ def skeleton_group_response(
         )
     pinned = PinnedResidual(_RightHandSide(residual, space), RowPin(essential), space)
     return SteadyPinnedResponse(
-        pinned, ports, ReactionFlux(pinned, ports), space, setups, nonlinear, bkd
+        pinned, ports, PinnedReactionFlux(pinned, ports), space, setups, nonlinear, bkd
     )

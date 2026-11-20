@@ -43,7 +43,7 @@ from pyapprox.pde.coupling.geometry import (
 )
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
-    ReactionFlux,
+    PinnedReactionFlux,
     SteadyPinnedPoint,
     SteadyPinnedResponse,
 )
@@ -238,7 +238,7 @@ def pinned_piece(system: Any, ports: Sequence[int], bkd: NumpyBkd) -> Piece:
     return SteadyPinnedResponse(
         residual,
         data,
-        ReactionFlux(residual, data),
+        PinnedReactionFlux(residual, data),
         states,
         RecomputeAlways(ScipySparseLU()),
         newton(),

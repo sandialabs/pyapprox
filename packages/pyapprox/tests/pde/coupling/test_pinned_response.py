@@ -45,7 +45,10 @@ from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData, PortPlacement
-from pyapprox.pde.coupling.pinned_response import ReactionFlux, SteadyPinnedResponse
+from pyapprox.pde.coupling.pinned_response import (
+    PinnedReactionFlux,
+    SteadyPinnedResponse,
+)
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     MatchingNodalTransfer,
@@ -144,7 +147,7 @@ class _Piece(Generic[Array]):
         return SteadyPinnedResponse(
             pinned,
             ports,
-            ReactionFlux(pinned, ports),
+            PinnedReactionFlux(pinned, ports),
             disc.space(),
             RecomputeAlways(BackendDenseLU(bkd)),
             newton,
@@ -306,7 +309,7 @@ def test_parameters_need_their_placement(bkd: Backend[Array]) -> None:
         SteadyPinnedResponse(
             pinned,
             ports,
-            ReactionFlux(pinned, ports),
+            PinnedReactionFlux(pinned, ports),
             disc.space(),
             RecomputeAlways(BackendDenseLU(bkd)),
             Newton(atol=1e-13, rtol=0.0, maxiters=30),
