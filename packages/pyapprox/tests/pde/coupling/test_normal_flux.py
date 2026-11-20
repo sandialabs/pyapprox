@@ -100,7 +100,7 @@ class _Piece(Generic[Array]):
         bkd = self._bkd
         trace = LumpedNodalTrace(self.points()[:, self._port], bkd.ones((1,)), bkd)
         return NormalFluxMoments(
-            [NormalFluxPart(operator, selecting([0], 1, bkd))], trace, 0.0
+            [NormalFluxPart([operator], selecting([0], 1, bkd))], trace, 0.0
         )
 
     def response(
@@ -178,13 +178,19 @@ def test_refusals(bkd: Backend[Array]) -> None:
         NormalFluxMoments([], trace, 0.0)
     with pytest.raises(ValueError, match="sample 2 points"):
         NormalFluxMoments(
-            [NormalFluxPart(operator, selecting([0, 0], 1, bkd))], trace, 0.0
+            [NormalFluxPart([operator], selecting([0, 0], 1, bkd))], trace, 0.0
         )
     with pytest.raises(ValueError, match="sampling matrix must have shape"):
-        NormalFluxMoments([NormalFluxPart(operator, bkd.ones((1,)))], trace, 0.0)
+        NormalFluxMoments([NormalFluxPart([operator], bkd.ones((1,)))], trace, 0.0)
     with pytest.raises(TypeError, match="NormalFluxOperatorProtocol"):
         NormalFluxMoments(
-            [NormalFluxPart(object(), selecting([0], 1, bkd))],  # type: ignore[arg-type]
+            [NormalFluxPart([object()], selecting([0], 1, bkd))],  # type: ignore[list-item]
             trace,
             0.0,
         )
+    with pytest.raises(ValueError, match="at least one operator"):
+        NormalFluxMoments([NormalFluxPart([], selecting([0], 1, bkd))], trace, 0.0)
+    one = NormalFluxPart([operator], selecting([0], 1, bkd))
+    two = NormalFluxPart([operator, operator], selecting([0], 1, bkd))
+    with pytest.raises(ValueError, match="every part needs 1 operators"):
+        NormalFluxMoments([one, two], trace, 0.0)

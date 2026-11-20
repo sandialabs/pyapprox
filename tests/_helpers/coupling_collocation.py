@@ -81,6 +81,7 @@ from pyapprox.pde.coupling.skeleton import (
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.stacks.collocation import (
+    ComponentFluxes,
     PortSide,
     collocation_pinned_response,
 )
@@ -388,7 +389,7 @@ class CoupledCollocation(Generic[Array]):
         on its ``outer`` sides except at the nodes ``ports``."""
         return collocation_pinned_response(
             CollocationSystem(box.physics(), box.essential(outer, ports)),
-            box.physics(),
+            ComponentFluxes([box.physics()]),
             box.mesh(),
             port_sides,
             self._rule,

@@ -16,11 +16,20 @@ NumPy and Torch.
 - A corner on two port sides (right and top) is one port node, tested on
   both: the outputs sum to the exact flux over both sides, -17, under
   either rule (1e-10).
+- Two components on the same rectangle, the right side a port, given the
+  exact linear fields: elasticity (lambda 1, mu 2, u = (0.1 + 0.2x +
+  0.3y, -0.1 + 0.4x - 0.5y)) returns the traction, integrating to
+  (sigma_00, sigma_10) times 2 = (1.0, 2.8); two species (D = 2, 3,
+  linear reaction, u = (1 + x + y, 2 - x + 0.5y)) return the fluxes
+  -D_k du_k/dx, integrating to (-4, 6); each state exact (1e-12), the
+  port data node-major.
 - Refusals: no port node; a node off its side; a side given twice; a
-  side repeating a node; a mesh outside the protocol.
+  side repeating a node; a mesh outside the protocol; fluxes outside
+  their protocol; no flux provider; a traction source outside its
+  protocol or of 1 dimension.
 """
 
-from typing import Generic, Optional
+from typing import Generic, Optional, Union
 
 import pytest
 
@@ -45,6 +54,12 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.linear_elasticity import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.reaction_diffusion import (
+    LinearReaction,
+    SpeciesDiffusiveFlux,
+    TwoSpeciesReactionDiffusionPhysics,
+)
 from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
     CollocationNodeRule,
     GaussLegendreSideRule,
@@ -54,7 +69,10 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.stacks.collocation import (
+    ComponentFluxes,
+    NormalFluxesProtocol,
     PortSide,
+    TractionComponents,
     collocation_pinned_response,
 )
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
@@ -91,7 +109,7 @@ def test_a_1d_end_returns_the_exact_flux(bkd: Backend[Array]) -> None:
     essential = DirichletRows(bkd, 8, 1, [DirichletPart(mesh.boundary_indices(0), 1.0)])
     response = collocation_pinned_response(
         CollocationSystem(physics, essential),
-        physics,
+        ComponentFluxes([physics]),
         mesh,
         [PortSide(_RIGHT, _nodes(bkd, mesh.boundary_indices(_RIGHT)))],
         CollocationNodeRule(),
@@ -162,7 +180,7 @@ class _Rectangle(Generic[Array]):
         free = {node for side in sides for node in side.nodes} | set(self._port)
         return collocation_pinned_response(
             self.system(free),
-            self._physics,
+            ComponentFluxes([self._physics]),
             self._mesh,
             sides,
             CollocationNodeRule() if rule is None else rule,
@@ -227,6 +245,118 @@ def test_a_corner_on_two_port_sides_is_tested_on_both(
     )
 
 
+def _two_component_response(
+    bkd: Backend[Array],
+    physics: Union[
+        LinearElasticityPhysics[Array], TwoSpeciesReactionDiffusionPhysics[Array]
+    ],
+    fluxes: NormalFluxesProtocol[Array],
+    mesh: TransformedMesh2D[Array],
+    exact: Array,
+) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
+    """The right side a port, both components Dirichlet on the other sides
+    except there; ``exact`` has shape (2, npts)."""
+    port = set(_nodes(bkd, mesh.boundary_indices(_RIGHT)))
+    fixed = sorted(
+        {
+            n
+            for s in (_LEFT, _BOTTOM, _TOP)
+            for n in _nodes(bkd, mesh.boundary_indices(s))
+        }
+        - port
+    )
+    index = bkd.asarray(fixed, dtype=bkd.int64_dtype())
+    parts = [DirichletPart(index, NodalField(exact[c, index]), c) for c in range(2)]
+    return collocation_pinned_response(
+        CollocationSystem(physics, DirichletRows(bkd, mesh.npts(), 2, parts)),
+        fluxes,
+        mesh,
+        [PortSide(_RIGHT, _nodes(bkd, mesh.boundary_indices(_RIGHT)))],
+        GaussLegendreSideRule(),
+        RecomputeAlways(BackendDenseLU(bkd)),
+        # Linear; the coupled residual's roundoff sits near 1e-12 here.
+        Newton(atol=1e-11, rtol=0.0, maxiters=30),
+    )
+
+
+def _port_data(bkd: Backend[Array], exact: Array, ports: list[int]) -> Array:
+    """``exact`` at the port nodes, node-major. Shape: (2 * nport, 1)"""
+    return bkd.reshape(bkd.transpose(exact[:, ports]), (-1, 1))
+
+
+def _component_sums(bkd: Backend[Array], output: Array) -> Array:
+    return bkd.sum(bkd.reshape(output[:, 0], (-1, 2)), axis=0)
+
+
+def test_traction_ports_return_both_components(bkd: Backend[Array]) -> None:
+    mesh = TransformedMesh2D(6, 7, bkd, AffineTransform2D((0.0, 1.0, 0.0, 2.0), bkd))
+    physics = LinearElasticityPhysics(ChebyshevBasis2D(mesh, bkd), bkd, 1.0, 2.0)
+    x, y = mesh.points()[0], mesh.points()[1]
+    exact = bkd.stack([0.1 + 0.2 * x + 0.3 * y, -0.1 + 0.4 * x - 0.5 * y], axis=0)
+    response = _two_component_response(
+        bkd, physics, TractionComponents(physics, 2), mesh, exact
+    )
+    ports = _nodes(bkd, mesh.boundary_indices(_RIGHT))
+    assert response.nport() == 2 * len(ports)
+    point = response.linearize(_port_data(bkd, exact, ports), _no_params(bkd), _STEADY)
+    bkd.assert_allclose(point.state()[:, 0], bkd.reshape(exact, (-1,)), atol=1e-12)
+    bkd.assert_allclose(
+        _component_sums(bkd, point.output()), bkd.asarray([1.0, 2.8]), rtol=1e-10
+    )
+
+
+def test_species_ports_return_both_fluxes(bkd: Backend[Array]) -> None:
+    mesh = TransformedMesh2D(6, 7, bkd, AffineTransform2D((0.0, 1.0, 0.0, 2.0), bkd))
+    x, y = mesh.points()[0], mesh.points()[1]
+    u0, u1 = 1.0 + x + y, 2.0 - x + 0.5 * y
+    reaction = LinearReaction(-1.0, 0.5, 0.3, -2.0, bkd)
+    r0, r1 = reaction(u0, u1)
+    # Linear fields: D Laplacian u = 0, so f = -R(u).
+    physics = TwoSpeciesReactionDiffusionPhysics(
+        ChebyshevBasis2D(mesh, bkd),
+        bkd,
+        2.0,
+        3.0,
+        reaction,
+        forcing0=NodalField(-r0),
+        forcing1=NodalField(-r1),
+    )
+    fluxes = ComponentFluxes(
+        [SpeciesDiffusiveFlux(physics, 0), SpeciesDiffusiveFlux(physics, 1)]
+    )
+    exact = bkd.stack([u0, u1], axis=0)
+    response = _two_component_response(bkd, physics, fluxes, mesh, exact)
+    ports = _nodes(bkd, mesh.boundary_indices(_RIGHT))
+    point = response.linearize(_port_data(bkd, exact, ports), _no_params(bkd), _STEADY)
+    bkd.assert_allclose(point.state()[:, 0], bkd.reshape(exact, (-1,)), atol=1e-12)
+    bkd.assert_allclose(
+        _component_sums(bkd, point.output()), bkd.asarray([-4.0, 6.0]), rtol=1e-10
+    )
+
+
+def test_flux_refusals(bkd: Backend[Array]) -> None:
+    rect = _Rectangle(bkd)
+    with pytest.raises(TypeError, match="NormalFluxesProtocol"):
+        collocation_pinned_response(
+            rect.system(),
+            object(),  # type: ignore[arg-type]
+            rect.mesh(),
+            [PortSide(_RIGHT, rect.port())],
+            CollocationNodeRule(),
+            RecomputeAlways(BackendDenseLU(bkd)),
+            _newton(),
+        )
+    with pytest.raises(ValueError, match="at least one flux provider"):
+        ComponentFluxes([])
+    with pytest.raises(TypeError, match="CauchyStressSourceProtocol"):
+        TractionComponents(object(), 2)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="2 or 3 dimensions"):
+        TractionComponents(
+            LinearElasticityPhysics(ChebyshevBasis2D(rect.mesh(), bkd), bkd, 1.0, 2.0),
+            1,
+        )
+
+
 def test_the_2d_trace_tangent_passes_finite_differences(bkd: Backend[Array]) -> None:
     rect = _Rectangle(bkd)
     response = rect.response([PortSide(_RIGHT, rect.port())])
@@ -259,7 +389,7 @@ def test_refusals(bkd: Backend[Array]) -> None:
     with pytest.raises(TypeError, match="PortMeshProtocol"):
         collocation_pinned_response(
             rect.system(),
-            rect.physics(),
+            ComponentFluxes([rect.physics()]),
             object(),  # type: ignore[arg-type]
             [PortSide(_RIGHT, rect.port())],
             CollocationNodeRule(),

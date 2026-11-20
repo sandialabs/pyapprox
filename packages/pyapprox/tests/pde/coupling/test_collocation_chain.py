@@ -192,7 +192,7 @@ class _Piece(Generic[Array]):
             operator = FluxNormalOperator(
                 bkd, index, bkd.asarray([[normal]]), self._interval.physics()
             )
-            parts.append(NormalFluxPart(operator, selecting([0], 1, bkd)))
+            parts.append(NormalFluxPart([operator], selecting([0], 1, bkd)))
             self._port.append(int(index[0]))
             self._normals.append(normal)
         self._physical = physical

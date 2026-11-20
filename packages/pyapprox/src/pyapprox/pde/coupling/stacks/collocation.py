@@ -8,23 +8,32 @@ on each port side from its nodes and tested against the side's Lagrange
 polynomials by an injected rule (:func:`~pyapprox.pde.collocation.
 quadrature.boundary_quadrature.boundary_side_quadrature`).
 
-Scalar fluxes only. A port node on several port sides is tested on each
-with that side's normal.
+A flux of several components (species, traction) is tested
+componentwise. A port node on several port sides is tested on each with
+that side's normal.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Protocol, Sequence, runtime_checkable
+from typing import Generic, Optional, Protocol, Sequence, runtime_checkable
 
 from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
 from pyapprox.ode.residual_derivatives import backend_state_space
-from pyapprox.pde.collocation.boundary.normal_operators import FluxNormalOperator
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    CauchyStressSourceProtocol,
+    FluxNormalOperator,
+    TractionNormalOperator,
+)
 from pyapprox.pde.collocation.protocols.boundary import FluxProviderProtocol
 from pyapprox.pde.collocation.protocols.mesh import MeshWithTransformProtocol
 from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
     SideRuleProtocol,
     boundary_side_quadrature,
 )
-from pyapprox.pde.coupling.normal_flux import NormalFluxMoments, NormalFluxPart
+from pyapprox.pde.coupling.normal_flux import (
+    NormalFluxMoments,
+    NormalFluxOperatorProtocol,
+    NormalFluxPart,
+)
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.ports import BackendPortRows
@@ -53,6 +62,88 @@ class PortMeshProtocol(MeshWithTransformProtocol[Array], Protocol[Array]):
         """The outward unit normals at the side's nodes, in
         ``boundary_indices`` order. Shape: (nboundary, ndim)"""
         ...
+
+
+@runtime_checkable
+class NormalFluxesProtocol(Protocol[Array]):
+    """What :func:`collocation_pinned_response` asks for the flux its
+    ports return: per side, one normal-flux operator per component."""
+
+    def ncomponents(self) -> int:
+        """The number of flux components :math:`k`, which is also the
+        number of port values per node."""
+        ...
+
+    def operators(
+        self, indices: Array, normals: Array, bkd: Backend[Array]
+    ) -> Sequence[NormalFluxOperatorProtocol[Array]]:
+        """The operators at the side's mesh nodes ``indices`` with outward
+        unit ``normals``, shape (nboundary, ndim), in component order."""
+        ...
+
+
+class ComponentFluxes(Generic[Array]):
+    r"""Component :math:`c` of the port flux is :math:`\mathbf{F}_c(u)
+    \cdot n` for the ``c``-th flux provider: the physics itself for a
+    scalar flux, or e.g. one
+    :class:`~pyapprox.pde.collocation.physics.reaction_diffusion.
+    SpeciesDiffusiveFlux` per species.
+
+    Raises
+    ------
+    ValueError
+        If there is no provider.
+    """
+
+    def __init__(self, providers: Sequence[FluxProviderProtocol[Array]]) -> None:
+        if not providers:
+            raise ValueError("ComponentFluxes needs at least one flux provider")
+        self._providers = list(providers)
+
+    def ncomponents(self) -> int:
+        return len(self._providers)
+
+    def operators(
+        self, indices: Array, normals: Array, bkd: Backend[Array]
+    ) -> Sequence[NormalFluxOperatorProtocol[Array]]:
+        return [
+            FluxNormalOperator(bkd, indices, normals, provider)
+            for provider in self._providers
+        ]
+
+
+class TractionComponents(Generic[Array]):
+    r"""The traction :math:`t = \sigma n` of a stress source, one
+    component per dimension.
+
+    Raises
+    ------
+    TypeError
+        If ``stress`` does not satisfy ``CauchyStressSourceProtocol``.
+    ValueError
+        If ``ndim`` is not 2 or 3.
+    """
+
+    def __init__(self, stress: CauchyStressSourceProtocol[Array], ndim: int) -> None:
+        if not isinstance(stress, CauchyStressSourceProtocol):
+            raise TypeError(
+                "stress must satisfy CauchyStressSourceProtocol, got "
+                f"{type(stress).__name__}"
+            )
+        if ndim not in (2, 3):
+            raise ValueError(f"traction needs 2 or 3 dimensions, got {ndim}")
+        self._stress, self._ndim = stress, ndim
+
+    def ncomponents(self) -> int:
+        return self._ndim
+
+    def operators(
+        self, indices: Array, normals: Array, bkd: Backend[Array]
+    ) -> Sequence[NormalFluxOperatorProtocol[Array]]:
+        return [
+            TractionNormalOperator(bkd, indices, normals, self._stress, c)
+            for c in range(self._ndim)
+        ]
 
 
 @dataclass(frozen=True)
@@ -84,7 +175,7 @@ def _placed(
 
 def collocation_pinned_response(
     system: CollocationSystem[Array],
-    flux: FluxProviderProtocol[Array],
+    fluxes: NormalFluxesProtocol[Array],
     mesh: PortMeshProtocol[Array],
     sides: Sequence[PortSide],
     rule: SideRuleProtocol,
@@ -113,9 +204,12 @@ def collocation_pinned_response(
         The subdomain's physics and essential rows. A port node must not
         be an essential row: on a side carrying both, leave the port nodes
         out of the essential declaration.
-    flux
-        The flux whose normal component the ports return, e.g. the
-        physics itself or an ``AdvectionDiffusionFlux``; scalar.
+    fluxes
+        The flux the ports return, of :math:`k` components:
+        :class:`ComponentFluxes` (a scalar physics, or one provider per
+        species) or :class:`TractionComponents`. The port data are
+        node-major: row :math:`k a + c` is the state's component
+        :math:`c` at port node :math:`a`.
     mesh
         The subdomain's mesh.
     sides
@@ -142,7 +236,7 @@ def collocation_pinned_response(
     Raises
     ------
     TypeError
-        If ``mesh`` does not satisfy :class:`PortMeshProtocol`.
+        If ``mesh`` or ``fluxes`` does not satisfy its protocol.
     ValueError
         If there are no port nodes, a node is not on its side, a side
         appears twice, or a side repeats a node.
@@ -150,6 +244,10 @@ def collocation_pinned_response(
     if not isinstance(mesh, PortMeshProtocol):
         raise TypeError(
             f"mesh must satisfy PortMeshProtocol, got {type(mesh).__name__}"
+        )
+    if not isinstance(fluxes, NormalFluxesProtocol):
+        raise TypeError(
+            f"fluxes must satisfy NormalFluxesProtocol, got {type(fluxes).__name__}"
         )
     bkd = mesh.bkd()
     # Each node once, in order of first appearance.
@@ -171,10 +269,10 @@ def collocation_pinned_response(
         if outside:
             raise ValueError(f"nodes {outside} are not on side {side.boundary_id}")
         quadrature = boundary_side_quadrature(mesh, side.boundary_id, rule)
-        operator = FluxNormalOperator(
-            bkd, indices, mesh.boundary_normals(side.boundary_id), flux
+        operators = fluxes.operators(
+            indices, mesh.boundary_normals(side.boundary_id), bkd
         )
-        parts.append(NormalFluxPart(operator, quadrature.interpolation))
+        parts.append(NormalFluxPart(operators, quadrature.interpolation))
         points.append(quadrature.points)
         weights.append(quadrature.weights)
         # The side's port nodes' Lagrange polynomials at the rule's points.
@@ -194,14 +292,18 @@ def collocation_pinned_response(
         bkd,
     )
     moments = NormalFluxMoments(parts, trace, 0.0 if time is None else time)
-    states = backend_state_space(bkd, mesh.npts())
+    k, npts = fluxes.ncomponents(), mesh.npts()
+    # The state stacks components (component c of node n is c npts + n);
+    # the port data are node-major.
+    rows = [c * npts + node for node in ports for c in range(k)]
+    states = backend_state_space(bkd, k * npts)
     theta = BackendVectorSpace(
-        SpaceDescriptor("params", len(ports), backend_dtype_name(bkd)), bkd
+        SpaceDescriptor("params", len(rows), backend_dtype_name(bkd)), bkd
     )
     data: PortPinnedData[Array, Array] = PortPinnedData(
-        BackendRowSet(states.descriptor(), ports, bkd),
-        BackendPortRows(states.descriptor(), ports, bkd),
-        BackendPortRows(theta.descriptor(), list(range(len(ports))), bkd),
+        BackendRowSet(states.descriptor(), rows, bkd),
+        BackendPortRows(states.descriptor(), rows, bkd),
+        BackendPortRows(theta.descriptor(), list(range(len(rows))), bkd),
         states,
         theta,
     )

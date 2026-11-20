@@ -43,15 +43,17 @@ class NormalFluxOperatorProtocol(Protocol[Array]):
 
 @dataclass(frozen=True)
 class NormalFluxPart(Generic[Array]):
-    """One operator's contribution to a port: ``sampling`` maps the flux
-    at the operator's boundary nodes to the trace quadrature points it
-    supplies, in the trace's point order. Shape: (npoints, nboundary).
+    """One boundary's contribution to a port: ``operators`` give each
+    flux component at the boundary's nodes (one operator for a scalar
+    flux, e.g. one per traction component), and ``sampling`` maps those
+    nodes to the trace quadrature points the part supplies, in the
+    trace's point order. Shape of ``sampling``: (npoints, nboundary).
 
     Rows of the identity select nodes that are quadrature points
     (:func:`selecting`); interpolation rows sample the flux's nodal
     interpolant elsewhere."""
 
-    operator: NormalFluxOperatorProtocol[Array]
+    operators: Sequence[NormalFluxOperatorProtocol[Array]]
     sampling: Array
 
 
@@ -70,12 +72,14 @@ class NormalFluxMoments(Generic[Array]):
     PortFluxProtocol` with backend columns as states. The parts' sampled
     points, concatenated in order, are the trace's quadrature points: for a
     :class:`~pyapprox.pde.coupling.traces.LumpedNodalTrace`, the port
-    nodes. Scalar fluxes only (one component).
+    nodes. A flux of :math:`k` components (every part's operator count)
+    is tested componentwise, the output node-major (row :math:`k a + c`).
 
     Parameters
     ----------
     parts
-        The operators and their selected boundary nodes.
+        The operators and their sampling, each with the same number of
+        operators.
     trace
         The port's trace functions and quadrature.
     time
@@ -86,9 +90,9 @@ class NormalFluxMoments(Generic[Array]):
     TypeError
         If an operator or ``trace`` does not satisfy its protocol.
     ValueError
-        If there are no parts, a sampling matrix is not 2D, or the parts
-        sample a different number of points than the trace has quadrature
-        points.
+        If there are no parts, a part has no operator or another count
+        than the first, a sampling matrix is not 2D, or the parts sample a
+        different number of points than the trace has quadrature points.
     """
 
     def __init__(
@@ -100,12 +104,20 @@ class NormalFluxMoments(Generic[Array]):
         nelems, nquad, _ = trace_shape(trace)
         if not parts:
             raise ValueError("a port flux needs at least one part")
+        k = len(parts[0].operators)
+        if k == 0:
+            raise ValueError("a part needs at least one operator")
         for part in parts:
-            if not isinstance(part.operator, NormalFluxOperatorProtocol):
-                raise TypeError(
-                    "operators must satisfy NormalFluxOperatorProtocol, got "
-                    f"{type(part.operator).__name__}"
+            if len(part.operators) != k:
+                raise ValueError(
+                    f"every part needs {k} operators, got {len(part.operators)}"
                 )
+            for operator in part.operators:
+                if not isinstance(operator, NormalFluxOperatorProtocol):
+                    raise TypeError(
+                        "operators must satisfy NormalFluxOperatorProtocol, got "
+                        f"{type(operator).__name__}"
+                    )
             if part.sampling.ndim != 2:
                 raise ValueError(
                     "a sampling matrix must have shape (npoints, nboundary), "
@@ -117,33 +129,47 @@ class NormalFluxMoments(Generic[Array]):
                 f"the parts sample {nsampled} points, the trace has "
                 f"{nelems * nquad} quadrature points"
             )
-        self._parts = [(part.operator, part.sampling) for part in parts]
+        self._parts = [(list(part.operators), part.sampling) for part in parts]
+        self._k = k
         self._trace, self._time, self._bkd = trace, time, trace.bkd()
 
     def flux(self, state: Array) -> Array:
         """The tested outward flux at ``state``, shape (nstates, 1).
-        Shape: (nport, 1)."""
-        values = self._bkd.concatenate(
-            [sampling @ op(state[:, 0], self._time) for op, sampling in self._parts],
+        Shape: (k * nport, 1)."""
+        bkd = self._bkd
+        # Per part (npoints, k), flattened point-major: row k p + c.
+        values = bkd.concatenate(
+            [
+                bkd.reshape(
+                    bkd.stack(
+                        [sampling @ op(state[:, 0], self._time) for op in ops], axis=1
+                    ),
+                    (-1,),
+                )
+                for ops, sampling in self._parts
+            ],
             axis=0,
         )
-        return flux_moments(self._trace, self._bkd.reshape(values, (-1, 1)))
+        return flux_moments(self._trace, bkd.reshape(values, (-1, 1)), self._k)
 
     def flux_tangent(
         self, state: Array, delta: Array, point: SteadyPoint[Array, Array]
     ) -> Array:
         """The tested flux's change for ``delta``, shape (nstates, ncols):
         the operators' Jacobian at ``state`` applied to it. ``point`` is not
-        read: the operators carry no linearization label. Shape: (nport,
-        ncols)."""
-        jacobian = self._bkd.concatenate(
-            [
-                sampling @ op.jacobian(state[:, 0], self._time)
-                for op, sampling in self._parts
-            ],
-            axis=0,
-        )
-        return flux_moments(self._trace, jacobian @ delta)
+        read: the operators carry no linearization label. Shape: (k *
+        nport, ncols)."""
+        bkd = self._bkd
+        blocks = []
+        for ops, sampling in self._parts:
+            # (npoints, k, nstates), flattened point-major.
+            stacked = bkd.stack(
+                [sampling @ op.jacobian(state[:, 0], self._time) for op in ops],
+                axis=1,
+            )
+            blocks.append(bkd.reshape(stacked, (-1, int(stacked.shape[2]))))
+        jacobian = bkd.concatenate(blocks, axis=0)
+        return flux_moments(self._trace, jacobian @ delta, self._k)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(nparts={len(self._parts)})"
+        return f"{type(self).__name__}(nparts={len(self._parts)}, k={self._k})"
