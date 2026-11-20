@@ -7,21 +7,25 @@ The problem is stated as terms, its strong form
 :class:`~pyapprox.pde.collocation.physics.advection_diffusion.
 AdvectionDiffusionReaction`, is built from the same coefficient strings
 by a system factory. Its reaction is linear, :math:`r(x) u`. Errors are
-measured at the Chebyshev-Gauss-Lobatto nodes (L2 by the collocation
-quadrature).
+the L2 norm of the collocation interpolant's error, by Gauss-Legendre
+quadrature.
 
 Cases:
 
 - recovery (L2 error below 1e-10) of polynomial solutions of degree
   below the node count, where collocation is exact: 1D cubics on [0, 1]
   (8 nodes) under every pairing of Dirichlet, Neumann and Robin ends,
-  and 2D cubics on [0, 1] x [-1, 1] (6 x 6 nodes) with all three kinds
-  on its sides; variable D, v and r, both advection forms, so the
+  2D cubics on [0, 1] x [-1, 1] (6 x 6 nodes) and 3D cubics on
+  [0, 1] x [-1, 1] x [0, 2] (6 nodes per direction) with all three kinds
+  on their sides; variable D, v and r, both advection forms, so the
   Neumann and Robin data carry the advective flux exactly when the form
-  is conservative;
+  is conservative; and Neumann and Robin sides that measure the normal
+  gradient :math:`\nabla u\cdot n` rather than the physics' flux, in 1D
+  and 2D;
 - spectral decay (fitted decay of log error per node) of analytic
-  solutions: 1D and 2D under mixed conditions, and periodic ends in 1D
-  and a 2D box periodic in x, in both advection forms;
+  solutions: 1D and 2D under mixed conditions, and periodic ends in 1D,
+  a 2D box periodic in x, and one periodic in both directions, in both
+  advection forms;
 - wrong-model controls, fitted algebraic rate below 0.5: Neumann data
   with the normal reversed; Robin ends without their spring term;
 - the adapter's own pieces: the decay check on synthetic studies, and
@@ -36,7 +40,7 @@ row that takes no conditions, and an initial guess that is not an
 """
 
 import math
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, Generic, List, Optional, Sequence
 
 import pytest
 import sympy as sp
@@ -46,7 +50,10 @@ from pyapprox.pde.collocation.boundary.essential_rows import (
     DirichletPart,
     DirichletRows,
 )
-from pyapprox.pde.collocation.boundary.normal_operators import FluxNormalOperator
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    FluxNormalOperator,
+    GradientNormalOperator,
+)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -201,9 +208,87 @@ def test_recovers_cubic_1d(
 @pytest.mark.parametrize("codes", ["DDDD", "DRDN", "NRDR", "RRRR"])
 def test_recovers_cubic_2d(bkd: Backend[Array], codes: str, conservative: bool) -> None:
     """u = x y + y^2 - x^2 y on [0, 1] x [-1, 1] (sides left, right,
-    bottom, top), D = 2 + x y, v = (1 - y, x/2), r = -1: 6 x 6 nodes
-    reproduce it to 1e-10, on both backends."""
-    adr = _ADR("2 + x*y", ["1 - y", "x/2"], "-1", conservative)
+    bottom, top), D = 2 + x y, v = (1 + x, y/2) (divergence 3/2, so the
+    two forms differ), r = -1: 6 x 6 nodes reproduce it to 1e-10, on
+    both backends."""
+    adr = _ADR("2 + x*y", ["1 + x", "y/2"], "-1", conservative)
+    problem = _problem("x*y + y**2 - x**2*y", adr, _RECTANGLE, coded(codes, _RECTANGLE))
+    recovers(problem, adr, 6, bkd)
+
+
+_BRICK = Box([(0.0, 1.0), (-1.0, 1.0), (0.0, 2.0)])
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+@pytest.mark.parametrize("codes", ["DDDDDD", "DNRDRN"])
+def test_recovers_cubic_3d(bkd: Backend[Array], codes: str, conservative: bool) -> None:
+    """u = x y z + y^2 - x^2 z on [0, 1] x [-1, 1] x [0, 2] (sides left,
+    right, bottom, top, back, front), D = 1 + x z/2, v = (1 + x, z/2,
+    y/2 + z/2) (divergence 3/2), r = -1: 6 nodes per direction reproduce
+    it to 1e-10, on both backends."""
+    adr = _ADR("1 + x*z/2", ["1 + x", "z/2", "y/2 + z/2"], "-1", conservative)
+    problem = _problem("x*y*z + y**2 - x**2*z", adr, _BRICK, coded(codes, _BRICK))
+    recovers(problem, adr, 6, bkd)
+
+
+class _GradientTerm(Generic[Array]):
+    r"""Neumann and Robin sides that measure :math:`N = \nabla u\cdot n`,
+    through :class:`~pyapprox.pde.collocation.boundary.normal_operators.
+    GradientNormalOperator`. Against the problem's flux
+    :math:`q = -\nabla u` of a unit diffusivity, :math:`N = -q\cdot n`
+    (:math:`s = -1`).
+
+    Parameters
+    ----------
+    level : ChebyshevLevel
+        The level whose derivative matrices measure the gradient.
+    """
+
+    def __init__(self, level: ChebyshevLevel[Array]) -> None:
+        basis = level.basis()
+        self._derivatives = [
+            basis.derivative_matrix(1, dim) for dim in range(basis.ndim())
+        ]
+
+    def operator(
+        self, bkd: Backend[Array], indices: Array, normals: Array
+    ) -> GradientNormalOperator[Array]:
+        return GradientNormalOperator(bkd, indices, normals, self._derivatives)
+
+    def sign(self) -> float:
+        return -1.0
+
+
+class _GradientADR(_ADR):
+    r"""Unit diffusivity and non-conservative advection, so the problem's
+    flux is :math:`-\nabla u`; Neumann and Robin sides measure the normal
+    gradient instead of the physics' flux."""
+
+    def __init__(self, velocity: Sequence[str], reaction: str) -> None:
+        super().__init__("1", velocity, reaction, conservative=False)
+
+    def system(
+        self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
+    ) -> CollocationSystem[Array]:
+        physics = self.physics(problem, level)
+        return collocation_system(physics, problem, level, {"u": _GradientTerm(level)})
+
+
+@pytest.mark.parametrize("codes", ["ND", "DN", "RD", "NR"])
+def test_recovers_cubic_gradient_1d(numpy_bkd: Backend[Array], codes: str) -> None:
+    """Gradient-measured ends: u = 1 + x - x^2/2 + x^3 on [0, 1], D = 1,
+    v = 1 + x, r = -1; 8 nodes reproduce it to 1e-10."""
+    adr = _GradientADR(["1 + x"], "-1")
+    problem = _problem("1 + x - x**2/2 + x**3", adr, _UNIT, coded(codes, _UNIT))
+    recovers(problem, adr, 8, numpy_bkd)
+
+
+@pytest.mark.parametrize("codes", ["NDDD", "DRDN", "RRRR"])
+def test_recovers_cubic_gradient_2d(bkd: Backend[Array], codes: str) -> None:
+    """Gradient-measured sides: u = x y + y^2 - x^2 y on [0, 1] x [-1, 1],
+    D = 1, v = (1 - y, x/2), r = -1; 6 x 6 nodes reproduce it to 1e-10, on
+    both backends."""
+    adr = _GradientADR(["1 - y", "x/2"], "-1")
     problem = _problem("x*y + y**2 - x**2*y", adr, _RECTANGLE, coded(codes, _RECTANGLE))
     recovers(problem, adr, 6, bkd)
 
@@ -222,10 +307,11 @@ def test_decays_1d(numpy_bkd: Backend[Array], conservative: bool) -> None:
 @pytest.mark.parametrize("conservative", [False, True])
 def test_decays_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """u = exp(x/2) sin(2 y) + x y on [0, 1] x [-1, 1], Dirichlet,
-    Robin and Neumann sides, rotating v: exponential decay over 4-12
-    nodes per direction (observed 2.17 per node in both forms, required
-    1)."""
-    adr = _ADR("1 + x*y/4", ["1 - y", "x/2"], "-1", conservative)
+    Robin and Neumann sides, v = (1 + x/2, y/2) with divergence 1:
+    exponential decay over 4-12 nodes per direction (0.15 to 4e-9 L2
+    non-conservative, 0.3 to 1e-8 conservative; observed 2.18 and 2.11
+    per node, required 1)."""
+    adr = _ADR("1 + x*y/4", ["1 + x/2", "y/2"], "-1", conservative)
     problem = _problem(
         "exp(x/2)*sin(2*y) + x*y", adr, _RECTANGLE, coded("DRDN", _RECTANGLE)
     )
@@ -249,10 +335,13 @@ def test_decays_periodic_1d(numpy_bkd: Backend[Array], conservative: bool) -> No
 @pytest.mark.parametrize("conservative", [False, True])
 def test_decays_periodic_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """[0, 1] x [-1, 1] periodic in x, Dirichlet bottom and Robin top:
-    exponential decay over 8-16 nodes per direction (1e-3 to 4e-11 L2;
-    observed 2.16 per node in both forms, required 1); the bottom Dirichlet values
-    agree on the paired corners."""
-    adr = _ADR("1", ["1", "x/4 + 1/2"], "-1", conservative)
+    v = (1 + sin(2 pi x)/4, x/4 + 1/2), not divergence-free: exponential
+    decay over 8-16 nodes per direction (1e-3 to 4e-11 L2
+    non-conservative, 3e-3 to 5e-8 conservative; observed 2.16 and 1.39
+    per node, required 0.7: the conservative form differentiates the
+    interpolant of v u, whose frequencies reach twice those of u); the
+    bottom Dirichlet values agree on the paired corners."""
+    adr = _ADR("1", ["1 + sin(2*pi*x)/4", "x/4 + 1/2"], "-1", conservative)
     conditions: Dict[str, ConditionProtocol] = {
         "left": Periodic(),
         "right": Periodic(),
@@ -260,7 +349,29 @@ def test_decays_periodic_2d(numpy_bkd: Backend[Array], conservative: bool) -> No
         "top": Robin(1.0),
     }
     problem = _problem("sin(2*pi*x)*exp(y/2) + y", adr, _RECTANGLE, conditions)
-    decays(problem, adr, [8, 10, 12, 14, 16], 1.0, numpy_bkd)
+    decays(problem, adr, [8, 10, 12, 14, 16], 0.7, numpy_bkd)
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+def test_decays_periodic_both_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
+    """[0, 1] x [-1, 1] periodic in x and y, periodic D and v, absorption
+    r = -1, v not divergence-free: both pairs share the corners, and the
+    error falls exponentially over 8-16 nodes per direction (7e-3 to 8e-10
+    L2 non-conservative, 5e-2 to 6e-7 conservative; observed 1.99 and
+    1.42 per node, required 0.7)."""
+    adr = _ADR(
+        "1 + sin(2*pi*x)*cos(pi*y)/4",
+        ["1 + sin(2*pi*x)/4", "cos(pi*y)/2"],
+        "-1",
+        conservative,
+    )
+    conditions: Dict[str, ConditionProtocol] = {
+        side: Periodic() for side in _RECTANGLE.boundaries()
+    }
+    problem = _problem(
+        "sin(2*pi*x)*cos(pi*y) + sin(pi*y) + 1", adr, _RECTANGLE, conditions
+    )
+    decays(problem, adr, [8, 10, 12, 14, 16], 0.7, numpy_bkd)
 
 
 class _NoSpring(_ADR):

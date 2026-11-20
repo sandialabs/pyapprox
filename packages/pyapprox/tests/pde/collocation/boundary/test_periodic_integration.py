@@ -1,8 +1,8 @@
-"""Integration tests for periodic BCs on curvilinear meshes.
+"""Integration test for periodic BCs on a curvilinear mesh: an annulus
+periodic in θ, through PolarTransform.
 
-Tests PeriodicBC with:
-1. Rectangular periodic domain via AffineTransform2D
-2. Annular θ-periodic domain via PolarTransform
+Periodic boxes are verified by the collocation ADR catalog
+(``tests/pde/models/collocation/test_verification_adr.py``).
 """
 
 import math
@@ -10,67 +10,19 @@ import math
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import DirichletBC, PeriodicBC
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform2D
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
 from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestPeriodicBCTransforms:
     """Integration tests for periodic BCs on transformed domains."""
 
-    def test_rectangular_periodic_adr(self, bkd):
-        """Full periodic ADR on [0, 2π]².
-
-        u = cos(x)*cos(y), D = 1, reaction = 3*u
-        Solution is naturally 2π-periodic in both x and y.
-        Forcing f = -u (non-trivial), so u=0 is not a solution.
-        """
-        npts = 20
-        transform = AffineTransform2D((0.0, 2 * math.pi, 0.0, 2 * math.pi), bkd)
-        mesh = TransformedMesh2D(npts, npts, bkd, transform)
-        basis = ChebyshevBasis2D(mesh, bkd)
-
-        man_sol = ManufacturedAdvectionDiffusionReaction(
-            sol_str="cos(x)*cos(y)",
-            nvars=2,
-            diff_str="1.0",
-            react_str="3*u",
-            vel_strs=["0", "0"],
-            bkd=bkd,
-            oned=True,
-        )
-
-        pts = mesh.points()
-        u_exact = man_sol.functions["solution"](pts)
-        forcing = man_sol.functions["forcing"](pts)
-
-        physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, reaction=3.0, forcing=lambda t: forcing
-        )
-
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-        bottom_idx = mesh.boundary_indices(2)
-        top_idx = mesh.boundary_indices(3)
-
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
-
-        bc_x = PeriodicBC(bkd, left_idx, right_idx, Dx)
-        bc_y = PeriodicBC(bkd, bottom_idx, top_idx, Dy)
-        physics.set_boundary_conditions([bc_x, bc_y])
-
-        model = CollocationModel(physics, bkd)
-        initial_guess = bkd.zeros((npts * npts,))
-        u_numerical = model.solve_steady(initial_guess, tol=1e-10, maxiter=50)
-
-        bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)
-
-    def test_annular_periodic_theta(self, bkd):
+    def test_annular_periodic_theta(self, bkd: Backend[Array]) -> None:
         """θ-periodic annular domain, r ∈ [1, 2], θ ∈ [0, 2π].
 
         u = x = r*cos(θ), D = 1, reaction = u
@@ -122,7 +74,3 @@ class TestPeriodicBCTransforms:
         u_numerical = model.solve_steady(initial_guess, tol=1e-8, maxiter=50)
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-4)
-
-
-# NumPy backend
-# Torch backend
