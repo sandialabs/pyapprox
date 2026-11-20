@@ -437,9 +437,70 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
-    def any_bool(array: Array) -> bool:
+    def any(
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Array:
+        """Test whether any element along the given axes is nonzero.
+
+        The Array API ``any``: the result is always a boolean array, 0-d
+        when every axis is reduced, so it stays on the backend's device
+        and inside a compiled graph. Convert it with ``to_bool`` only
+        where Python control flow needs a ``bool``.
+
+        Parameters
+        ----------
+        array : Array
+            Input of any dtype; nonzero entries count as True.
+        axis : int, tuple of int, or None
+            Axes to reduce. None reduces all axes; ``()`` reduces none.
+            Negative axes count from the end.
+        keepdims : bool
+            If True, reduced axes are kept with length one.
+
+        Returns
+        -------
+        Array
+            Boolean array. An empty reduction is False.
         """
-        Overload for any when `axis` is None. Returns a scalar boolean.
+        ...
+
+    @staticmethod
+    def all(
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Array:
+        """Test whether every element along the given axes is nonzero.
+
+        The Array API ``all``; see ``any`` for the arguments and the
+        result. An empty reduction is True.
+        """
+        ...
+
+    @staticmethod
+    def to_bool(array: Array) -> bool:
+        """Convert a one-element array to a Python ``bool``.
+
+        This is where a value leaves the array world: on a GPU it waits
+        for the device, and under ``torch.compile`` it breaks the graph.
+        Call it only at a Python control-flow decision, after reducing
+        with ``any`` or ``all``.
+
+        Raises
+        ------
+        ValueError
+            If the array does not hold exactly one element.
+        """
+        ...
+
+    @staticmethod
+    def any_bool(array: Array) -> bool:
+        """Whether any element is nonzero, as a Python ``bool``.
+
+        Superseded by ``to_bool(any(array))``, which keeps the reduction
+        on the backend; do not use in new code.
         """
         ...
 
@@ -449,15 +510,18 @@ class Backend(Protocol, Generic[Array]):
         axis: int,
         keepdims: bool = False,
     ) -> Array:
-        """
-        Overload for any when `axis` is specified. Returns an array.
+        """``any`` along one axis.
+
+        Superseded by ``any(array, axis, keepdims)``; do not use in new
+        code.
         """
         ...
 
     @staticmethod
     def all_bool(array: Array) -> bool:
-        """
-        Overload for all when `axis` is None. Returns a scalar boolean.
+        """Whether every element is nonzero, as a Python ``bool``.
+
+        Superseded by ``to_bool(all(array))``; do not use in new code.
         """
         ...
 
@@ -467,8 +531,10 @@ class Backend(Protocol, Generic[Array]):
         axis: int,
         keepdims: bool = False,
     ) -> Array:
-        """
-        Overload for all when `axis` is specified. Returns an array.
+        """``all`` along one axis.
+
+        Superseded by ``all(array, axis, keepdims)``; do not use in new
+        code.
         """
         ...
 

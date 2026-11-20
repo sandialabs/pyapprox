@@ -17,11 +17,37 @@ from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
-from pyapprox.util.backends.validation import check_index_add_shapes
+from pyapprox.util.backends.validation import (
+    check_index_add_shapes,
+    check_to_bool_shape,
+)
 
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs
 _set_default_dtype: Callable[["torch.dtype"], None] = torch.set_default_dtype
+
+
+def _bool_reduction(
+    array: torch.Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]],
+    keepdims: bool,
+    every: bool,
+) -> torch.Tensor:
+    """``any`` (``every=False``) or ``all`` with NumPy's axis semantics.
+
+    torch.any/all return uint8 for uint8 input and have no keepdim when
+    every axis is reduced, and an empty dim tuple does not mean "reduce
+    nothing" as it does in NumPy; each case is handled here.
+    """
+    if array.dtype != torch.bool:
+        array = array != 0
+    if axis == ():
+        return array
+    reduce = torch.all if every else torch.any
+    if axis is None:
+        result = reduce(array)
+        return result.reshape((1,) * array.ndim) if keepdims else result
+    return reduce(array, dim=axis, keepdim=keepdims)
 
 
 # Implement the PyTorch backend
@@ -358,6 +384,27 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             # torch.prod has no dim=None overload; emulate keepdims
             return torch.prod(array).reshape((1,) * array.ndim)
         return torch.prod(array, dim=axis, keepdim=keepdims)
+
+    @staticmethod
+    def any(
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> torch.Tensor:
+        return _bool_reduction(array, axis, keepdims, every=False)
+
+    @staticmethod
+    def all(
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> torch.Tensor:
+        return _bool_reduction(array, axis, keepdims, every=True)
+
+    @staticmethod
+    def to_bool(array: torch.Tensor) -> bool:
+        check_to_bool_shape(tuple(array.shape))
+        return bool(array.reshape(()))
 
     @staticmethod
     def any_bool(array: torch.Tensor) -> bool:

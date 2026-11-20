@@ -7,7 +7,10 @@ from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
-from pyapprox.util.backends.validation import check_index_add_shapes
+from pyapprox.util.backends.validation import (
+    check_index_add_shapes,
+    check_to_bool_shape,
+)
 
 
 def _swap_rows(
@@ -357,6 +360,32 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         if keepdims:
             return np.asarray(np.prod(array, axis=axis, keepdims=True))
         return np.asarray(np.prod(array, axis=axis))
+
+    @staticmethod
+    def any(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.any(array, axis=axis, keepdims=True))
+        return np.asarray(np.any(array, axis=axis))
+
+    @staticmethod
+    def all(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        if keepdims:
+            return np.asarray(np.all(array, axis=axis, keepdims=True))
+        return np.asarray(np.all(array, axis=axis))
+
+    @staticmethod
+    def to_bool(array: NDArray[Any]) -> bool:
+        check_to_bool_shape(array.shape)
+        return bool(array.reshape(()))
 
     @staticmethod
     def any_bool(array: NDArray[Any]) -> bool:

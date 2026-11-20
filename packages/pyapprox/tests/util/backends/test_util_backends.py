@@ -3,7 +3,7 @@ from typing import Union
 import numpy as np
 import pytest
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, ArrayLike, Backend
 
 
 # Example function using the backend
@@ -357,3 +357,82 @@ class TestIndexAdd:
         index = bkd.asarray([0, 1], dtype=bkd.int64_dtype())
         with pytest.raises(ValueError, match="one per index"):
             bkd.index_add(bkd.zeros((2,)), index, bkd.ones((3,)))
+
+
+def _assert_bool_equal(bkd: Backend[Array], result: Array, expected: ArrayLike) -> None:
+    # A comparison is the backend-neutral way to get a boolean array:
+    # asarray of Python bools gives the default float dtype on torch.
+    # ``>`` and ``^`` rather than ``!=`` and ``==``, which the array
+    # protocol types as bool-or-array.
+    desired = bkd.asarray(expected) > 0
+    assert result.shape == desired.shape, (result.shape, desired.shape)
+    assert result.dtype == desired.dtype, (result.dtype, desired.dtype)
+    assert bkd.to_bool(bkd.all(~(result ^ desired)))
+
+
+class TestAnyAll:
+    """``any`` and ``all`` follow the Array API: a boolean array whatever
+    the input dtype, NumPy's axis semantics, and keepdims."""
+
+    def _array(self, bkd: Backend[Array]) -> Array:
+        # (2, 3): row 0 has a nonzero, row 1 is all nonzero.
+        return bkd.asarray([[0.0, 2.0, 0.0], [1.0, -3.0, 0.5]])
+
+    def test_axis_none_reduces_to_0d(self, bkd: Backend[Array]) -> None:
+        array = self._array(bkd)
+        _assert_bool_equal(bkd, bkd.any(array), True)
+        _assert_bool_equal(bkd, bkd.all(array), False)
+
+    def test_axis_int_and_negative(self, bkd: Backend[Array]) -> None:
+        array = self._array(bkd)
+        _assert_bool_equal(bkd, bkd.all(array, axis=1), [False, True])
+        _assert_bool_equal(bkd, bkd.all(array, axis=-1), [False, True])
+        _assert_bool_equal(bkd, bkd.any(array, axis=0), [True, True, True])
+        _assert_bool_equal(bkd, bkd.all(array, axis=-2), [False, True, False])
+
+    def test_axis_tuple(self, bkd: Backend[Array]) -> None:
+        array = bkd.reshape(bkd.arange(12.0), (2, 3, 2))
+        # Only element [0, 0, 0] is zero.
+        _assert_bool_equal(bkd, bkd.all(array, axis=(1, 2)), [False, True])
+        _assert_bool_equal(bkd, bkd.all(array, axis=(-1, 0)), [False, True, True])
+
+    def test_empty_axis_tuple_reduces_nothing(self, bkd: Backend[Array]) -> None:
+        result = bkd.any(self._array(bkd), axis=())
+        _assert_bool_equal(bkd, result, [[False, True, False], [True, True, True]])
+
+    def test_keepdims(self, bkd: Backend[Array]) -> None:
+        array = self._array(bkd)
+        _assert_bool_equal(bkd, bkd.all(array, keepdims=True), [[False]])
+        _assert_bool_equal(bkd, bkd.any(array, axis=1, keepdims=True), [[True], [True]])
+
+    def test_empty_input(self, bkd: Backend[Array]) -> None:
+        empty = bkd.zeros((0, 3))
+        _assert_bool_equal(bkd, bkd.any(empty), False)
+        _assert_bool_equal(bkd, bkd.all(empty), True)
+        _assert_bool_equal(bkd, bkd.any(empty, axis=0), [False, False, False])
+
+    def test_0d_input(self, bkd: Backend[Array]) -> None:
+        _assert_bool_equal(bkd, bkd.any(bkd.asarray(0.0)), False)
+        _assert_bool_equal(bkd, bkd.all(bkd.asarray(-2.0)), True)
+
+    def test_integer_input_gives_boolean(self, bkd: Backend[Array]) -> None:
+        array = bkd.asarray([0, 3, 0], dtype=bkd.int64_dtype())
+        _assert_bool_equal(bkd, bkd.any(array), True)
+        _assert_bool_equal(bkd, bkd.all(array, axis=0), False)
+
+
+class TestToBool:
+    """``to_bool`` converts exactly one element and refuses anything else."""
+
+    def test_one_element_of_any_shape(self, bkd: Backend[Array]) -> None:
+        assert bkd.to_bool(bkd.asarray(1.0)) is True
+        assert bkd.to_bool(bkd.asarray([[0.0]])) is False
+        assert bkd.to_bool(bkd.any(bkd.asarray([0.0, 4.0]))) is True
+
+    def test_rejects_several_elements(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="one element"):
+            bkd.to_bool(bkd.asarray([True, False]))
+
+    def test_rejects_an_empty_array(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="one element"):
+            bkd.to_bool(bkd.zeros((0,)))

@@ -3,6 +3,29 @@ from typing import Any, Sequence, Tuple
 from pyapprox.util.backends.protocols import Backend
 
 
+def check_to_bool_shape(shape: Tuple[int, ...]) -> None:
+    """Check that ``Backend.to_bool`` was given a single element.
+
+    Parameters
+    ----------
+    shape : Tuple[int, ...]
+        Shape of the array to convert; must hold exactly one element.
+
+    Raises
+    ------
+    ValueError
+        If the array holds no element or more than one.
+    """
+    size = 1
+    for n in shape:
+        size *= n
+    if size != 1:
+        raise ValueError(
+            f"to_bool needs an array with one element, got shape {shape}; "
+            "reduce it first with any or all"
+        )
+
+
 def check_index_add_shapes(
     index_shape: Tuple[int, ...], values_shape: Tuple[int, ...]
 ) -> None:
