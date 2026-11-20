@@ -8,8 +8,9 @@ condition number bounded in the port size; :math:`L^\top` keeps the sum
 of a tested flux (the hats and the skeleton functions both sum to 1);
 the composed map equals the dense :math:`M_p^{-1} B`; k = 2 components
 act componentwise; the opaque mock stack, reached through its adapter,
-gives the same transfer as the SciPy stack. NumPy only: the port
-stacks assembling M_p and B are NumPy-based.
+and the dense backend stack, on either backend, give the same transfer
+as the SciPy stack. The SciPy and mock stacks are NumPy-based, so only
+the dense-stack test runs on both backends.
 """
 
 from typing import Any, Sequence
@@ -18,6 +19,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.pde.assembly.backend_dense_sink import BackendDenseMatrixAssembly
 from pyapprox.pde.assembly.scipy_stack import ScipyAssemblyStack
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
@@ -43,6 +45,8 @@ from pyapprox.pde.coupling.spaces import (
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.coupling.traces import LinearSegmentTrace
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseLU
 from pyapprox.util.linalg.operators import SpaceDescriptor
 from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
 from tests._helpers.coupling import MockPortAdapter
@@ -115,9 +119,11 @@ def test_equals_interpolation_when_the_trace_holds_the_skeleton() -> None:
     _, _, local = _scipy_map(space, trace)
     points = np.vstack([np.full(len(_YS), 0.5), np.asarray(_YS)])
     interpolant = port_interpolation(
-        space, _GEOMETRY.locate(points, _FACES), dofs, RefuseCrossPoints()
+        space, points, _GEOMETRY, _FACES, dofs, RefuseCrossPoints(), _SCIPY
     )
-    np.testing.assert_allclose(_dense(local), interpolant.format().matrix(), atol=1e-13)
+    np.testing.assert_allclose(
+        _dense(local), interpolant.format().matrix().toarray(), atol=1e-13
+    )
 
 
 @pytest.mark.parametrize("nsegments", [4, 16, 64])
@@ -194,6 +200,34 @@ def test_mock_stack_through_its_adapter_matches_scipy() -> None:
         mock_transfer.gather_add(wrap(block, mock_local.range()), zeros),
         scipy_transfer.gather_add(block, zeros),
         rtol=1e-12,
+    )
+
+
+def test_dense_backend_stack_matches_scipy(bkd: Backend[Array]) -> None:
+    topo = TensorBoxPartition((2, 1))
+    bases = UniformBases(lobatto_lagrange_basis(1, 5, bkd))
+    space = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
+    points = bkd.stack([bkd.full((len(_YS),), 0.5), bkd.asarray(_YS)], axis=0)
+    trace = LinearSegmentTrace(points, [int(i) for i in np.argsort(_YS)], 3, bkd)
+    dofs = subdomain_port_dofs(topo, space, 0)
+    dense = BackendDenseMatrixAssembly(bkd)
+    mass = port_trace_mass(trace, 1, dense)
+    coupling = port_trace_coupling(
+        space,
+        trace,
+        TensorBoxGeometry(topo, bkd),
+        _FACES,
+        dofs,
+        RefuseCrossPoints(),
+        dense,
+    )
+    local = port_projection(mass, coupling, BackendDenseLU(bkd))
+    _, _, reference = _scipy_map(_space(5), _trace(_YS))
+    bkd.assert_allclose(
+        local.apply(bkd.eye(len(dofs), dtype=bkd.default_dtype())),
+        bkd.asarray(_dense(reference)),
+        rtol=1e-12,
+        atol=1e-13,
     )
 
 

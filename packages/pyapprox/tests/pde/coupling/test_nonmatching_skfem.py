@@ -29,6 +29,7 @@ from typing import Callable, Sequence
 
 import numpy as np
 
+from pyapprox.pde.assembly.backend_dense_sink import BackendDenseMatrixAssembly
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import TensorBoxGeometry, skeleton_dof_points
@@ -116,9 +117,12 @@ def _solve(
         dofs = subdomain_port_dofs(topo, space, s)
         matrix = port_interpolation(
             space,
-            geometry.locate(nodes[:, ports], faces),
+            nodes[:, ports],
+            geometry,
+            faces,
             dofs,
             AverageIncidentFaces(),
+            BackendDenseMatrixAssembly(bkd),
         )
         transfer = PortMatrixTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
         piece = pinned_piece(poisson_system(mesh, sides), ports, bkd)

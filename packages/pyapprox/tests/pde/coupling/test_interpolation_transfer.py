@@ -4,26 +4,31 @@ Checks are derivation-free: a skeleton function that is a polynomial of
 the basis degree is reproduced at arbitrary port points; scatter and
 gather are transposes; at points that are skeleton nodes the transfer is
 the matching one; at a cross point the rules average or refuse; the
-torch graph survives through both directions.
+torch graph survives through both directions; the SciPy and the opaque
+mock port stacks assemble the same map as the dense backend one.
 """
 
-from typing import Generic, Sequence
+from dataclasses import dataclass
+from typing import Any, Generic, Sequence
 
 import numpy as np
 import pytest
 import torch
+from numpy.typing import NDArray
 
+from pyapprox.pde.assembly.backend_dense_sink import BackendDenseMatrixAssembly
+from pyapprox.pde.assembly.scipy_stack import ScipyAssemblyStack
 from pyapprox.pde.coupling.basis import gauss_lagrange_basis, lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
-from pyapprox.pde.coupling.geometry import (
-    FacePoint,
-    TensorBoxGeometry,
-    skeleton_dof_points,
-)
+from pyapprox.pde.coupling.geometry import TensorBoxGeometry, skeleton_dof_points
 from pyapprox.pde.coupling.ports import (
+    AdaptedPortRows,
     AverageIncidentFaces,
     BackendPortRows,
+    CrossPointRuleProtocol,
+    FaceValuesProtocol,
     MatchingNodalTransfer,
+    PortAssemblyProtocol,
     PortMatrixTransfer,
     PortTransferProtocol,
     RefuseCrossPoints,
@@ -37,16 +42,44 @@ from pyapprox.pde.coupling.spaces import (
     UniformBases,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.linalg.backend_dense import BackendDenseOperator, backend_dtype_name
-from pyapprox.util.linalg.operators import SpaceDescriptor
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseOperator,
+    DenseFormat,
+    backend_dtype_name,
+)
+from pyapprox.util.linalg.operators import ActionOperatorProtocol, SpaceDescriptor
+from pyapprox.util.linalg.scipy_stack import CSRFormat
+from tests._helpers.coupling import MockPortAdapter
+from tests._helpers.linalg.mock_stack import (
+    MockAssemblyStack,
+    MockFormat,
+    MockVector,
+    peek,
+    wrap,
+)
 
+Np = NDArray[Any]
 _BOUNDS = [(0.0, 2.0), (-1.0, 1.0), (1.0, 4.0)]
 _NPOINTS = 3
 
 
-def _matrix(local: BackendDenseOperator[Array]) -> Array:
+def _interpolation(
+    space: FaceValuesProtocol[Array],
+    points: Array,
+    geometry: TensorBoxGeometry[Array],
+    faces: Sequence[int],
+    dofs: Sequence[int],
+    rule: CrossPointRuleProtocol[Array],
+) -> ActionOperatorProtocol[Array, DenseFormat[Array]]:
+    """The interpolation map assembled densely on the space's backend."""
+    assembly = BackendDenseMatrixAssembly(space.bkd())
+    return port_interpolation(space, points, geometry, faces, dofs, rule, assembly)
+
+
+def _matrix(local: ActionOperatorProtocol[Array, DenseFormat[Array]]) -> Array:
     """The stored matrix of a dense port map."""
     return local.format().matrix()
 
@@ -103,8 +136,8 @@ def test_continuous_reproduces_polynomials(
         faces = _subdomain_faces(topo, scalar.faces(), s)
         points = _port_points(bkd, topo, geometry, faces)
         dofs = subdomain_port_dofs(topo, space, s)
-        matrix = port_interpolation(
-            space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
+        matrix = _interpolation(
+            space, points, geometry, faces, dofs, AverageIncidentFaces()
         )
         transfer = PortMatrixTransfer(
             BackendPortRows(space.descriptor(), dofs, bkd), matrix
@@ -132,8 +165,8 @@ def test_gauss_facet_reproduces_polynomials(bkd: Backend[Array]) -> None:
         faces = _subdomain_faces(topo, space.faces(), s)
         points = _port_points(bkd, topo, geometry, faces)
         dofs = subdomain_port_dofs(topo, space, s)
-        matrix = port_interpolation(
-            space, geometry.locate(points, faces), dofs, RefuseCrossPoints()
+        matrix = _interpolation(
+            space, points, geometry, faces, dofs, RefuseCrossPoints()
         )
         transfer = PortMatrixTransfer(
             BackendPortRows(space.descriptor(), dofs, bkd), matrix
@@ -152,8 +185,8 @@ def test_scatter_and_gather_are_transposes(bkd: Backend[Array]) -> None:
     faces = _subdomain_faces(topo, space.faces(), 3)
     points = _port_points(bkd, topo, geometry, faces)
     dofs = subdomain_port_dofs(topo, space, 3)
-    matrix = port_interpolation(
-        space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
+    matrix = _interpolation(
+        space, points, geometry, faces, dofs, AverageIncidentFaces()
     )
     transfer = PortMatrixTransfer(
         BackendPortRows(space.descriptor(), dofs, bkd), matrix
@@ -174,8 +207,8 @@ def test_at_skeleton_nodes_equals_matching(bkd: Backend[Array]) -> None:
     faces = _subdomain_faces(topo, space.faces(), s)
     dofs = subdomain_port_dofs(topo, space, s)
     points = coords[:, list(dofs)]
-    matrix = port_interpolation(
-        space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
+    matrix = _interpolation(
+        space, points, geometry, faces, dofs, AverageIncidentFaces()
     )
     descriptor = space.descriptor()
     transfer = PortMatrixTransfer(BackendPortRows(descriptor, dofs, bkd), matrix)
@@ -184,45 +217,69 @@ def test_at_skeleton_nodes_equals_matching(bkd: Backend[Array]) -> None:
     bkd.assert_allclose(transfer.scatter(lam), matching.scatter(lam), atol=1e-13)
 
 
-def _center_rows(
+@dataclass(frozen=True)
+class _Center(Generic[Array]):
+    """The 2x2 partition's center as a port node of subdomain 0."""
+
+    geometry: TensorBoxGeometry[Array]
+    point: Array
+    # Subdomain 0's faces, the faces through the center, its port DOFs.
+    faces: list[int]
+    incident: list[int]
+    dofs: list[int]
+
+
+def _center(
     bkd: Backend[Array],
     space: ContinuousSkeletonSpace[Array] | FacetSkeletonSpace[Array],
-) -> tuple[list[FacePoint[Array]], list[int], list[int]]:
-    """The 2x2 partition's center located on subdomain 0's faces, those
-    faces and subdomain 0's port DOFs."""
+) -> _Center[Array]:
     topo = TensorBoxPartition((2, 2), bounds=_BOUNDS[:2])
+    geometry = TensorBoxGeometry(topo, bkd)
+    point = bkd.asarray([[1.0], [0.0]])
     faces = _subdomain_faces(topo, space.faces(), 0)
-    center = bkd.asarray([[1.0], [0.0]])
-    located = TensorBoxGeometry(topo, bkd).locate(center, faces)[0]
-    return list(located), faces, list(subdomain_port_dofs(topo, space, 0))
+    incident = [fp.face for fp in geometry.locate(point, faces)[0]]
+    dofs = list(subdomain_port_dofs(topo, space, 0))
+    return _Center(geometry, point, faces, incident, dofs)
 
 
 def test_cross_point_rules(bkd: Backend[Array]) -> None:
     _, continuous, _ = _continuous(bkd, (2, 2))
-    located, _, dofs = _center_rows(bkd, continuous)
-    assert len(located) == 2
+    c = _center(bkd, continuous)
+    assert len(c.incident) == 2
     average = _matrix(
-        port_interpolation(continuous, [located], dofs, AverageIncidentFaces())
+        _interpolation(
+            continuous, c.point, c.geometry, c.faces, c.dofs, AverageIncidentFaces()
+        )
     )
-    for fp in located:
+    for face in c.incident:
         single = _matrix(
-            port_interpolation(continuous, [[fp]], dofs, AverageIncidentFaces())
+            _interpolation(
+                continuous, c.point, c.geometry, [face], c.dofs, AverageIncidentFaces()
+            )
         )
         bkd.assert_allclose(average, single, atol=1e-14)
     with pytest.raises(ValueError, match="several faces"):
-        port_interpolation(continuous, [located], dofs, RefuseCrossPoints())
+        _interpolation(
+            continuous, c.point, c.geometry, c.faces, c.dofs, RefuseCrossPoints()
+        )
 
     topo = TensorBoxPartition((2, 2), bounds=_BOUNDS[:2])
     facet = FacetSkeletonSpace(
         topo, UniformBases(lobatto_lagrange_basis(1, _NPOINTS, bkd))
     )
-    located, _, dofs = _center_rows(bkd, facet)
+    c = _center(bkd, facet)
     rows = [
-        _matrix(port_interpolation(facet, [[fp]], dofs, RefuseCrossPoints()))
-        for fp in located
+        _matrix(
+            _interpolation(
+                facet, c.point, c.geometry, [face], c.dofs, RefuseCrossPoints()
+            )
+        )
+        for face in c.incident
     ]
     average = _matrix(
-        port_interpolation(facet, [located], dofs, AverageIncidentFaces())
+        _interpolation(
+            facet, c.point, c.geometry, c.faces, c.dofs, AverageIncidentFaces()
+        )
     )
     bkd.assert_allclose(average, 0.5 * (rows[0] + rows[1]), atol=1e-14)
     assert bkd.to_float(bkd.max(bkd.abs(rows[0] - rows[1]))) > 0.5
@@ -230,18 +287,60 @@ def test_cross_point_rules(bkd: Backend[Array]) -> None:
 
 def test_rejects_bad_input(bkd: Backend[Array]) -> None:
     topo, space, _ = _continuous(bkd, (2, 2))
-    located, _, dofs = _center_rows(bkd, space)
+    c = _center(bkd, space)
+    dofs = c.dofs
     rule = AverageIncidentFaces[Array]()
-    with pytest.raises(ValueError, match="no face"):
-        port_interpolation(space, [[]], dofs, rule)
+    dense = BackendDenseMatrixAssembly(bkd)
+    # Inside subdomain 0, on none of its faces.
+    inside = bkd.asarray([[0.5], [-0.5]])
+    with pytest.raises(ValueError, match="none of the faces"):
+        port_interpolation(space, inside, c.geometry, c.faces, dofs, rule, dense)
     with pytest.raises(ValueError, match="at least one"):
-        port_interpolation(space, [], dofs, rule)
+        port_interpolation(
+            space, bkd.zeros((2, 0)), c.geometry, c.faces, dofs, rule, dense
+        )
     with pytest.raises(ValueError, match="outside"):
-        port_interpolation(space, [located], dofs[1:], rule)
-    with pytest.raises(TypeError):
-        port_interpolation(object(), [located], dofs, rule)  # type: ignore[arg-type]
-    with pytest.raises(TypeError):
-        port_interpolation(space, [located], dofs, object())  # type: ignore[arg-type]
+        port_interpolation(space, c.point, c.geometry, c.faces, dofs[1:], rule, dense)
+    with pytest.raises(TypeError, match="FaceValuesProtocol"):
+        port_interpolation(
+            object(),  # type: ignore[arg-type]
+            c.point,
+            c.geometry,
+            c.faces,
+            dofs,
+            rule,
+            dense,
+        )
+    with pytest.raises(TypeError, match="CrossPointRuleProtocol"):
+        port_interpolation(
+            space,
+            c.point,
+            c.geometry,
+            c.faces,
+            dofs,
+            object(),  # type: ignore[arg-type]
+            dense,
+        )
+    with pytest.raises(TypeError, match="PointLocatorProtocol"):
+        port_interpolation(
+            space,
+            c.point,
+            object(),  # type: ignore[arg-type]
+            c.faces,
+            dofs,
+            rule,
+            dense,
+        )
+    with pytest.raises(TypeError, match="PortAssemblyProtocol"):
+        port_interpolation(
+            space,
+            c.point,
+            c.geometry,
+            c.faces,
+            dofs,
+            rule,
+            object(),  # type: ignore[arg-type]
+        )
     rows = BackendPortRows(space.descriptor(), dofs, bkd)
     wide = _Blocked([bkd.zeros((2, len(dofs) + 1))], bkd)
     with pytest.raises(ValueError, match="domain has size"):
@@ -322,10 +421,12 @@ def test_any_port_map_gives_the_same_transfer(bkd: Backend[Array]) -> None:
 def test_transfer_keeps_the_torch_graph(torch_bkd: TorchBkd) -> None:
     bkd = torch_bkd
     _, space, _ = _continuous(bkd, (2, 2))
-    located, _, dofs = _center_rows(bkd, space)
-    matrix = port_interpolation(space, [located], dofs, AverageIncidentFaces())
+    c = _center(bkd, space)
+    matrix = _interpolation(
+        space, c.point, c.geometry, c.faces, c.dofs, AverageIncidentFaces()
+    )
     transfer = PortMatrixTransfer(
-        BackendPortRows(space.descriptor(), dofs, bkd), matrix
+        BackendPortRows(space.descriptor(), c.dofs, bkd), matrix
     )
     n = space.descriptor().size
     lam = torch.linspace(0.0, 1.0, n, dtype=torch.float64).reshape(n, 1)
@@ -339,4 +440,63 @@ def test_transfer_keeps_the_torch_graph(torch_bkd: TorchBkd) -> None:
     bkd.assert_allclose(dlam, expected, rtol=1e-12)
     bkd.assert_allclose(
         dblock.reshape(1), (transfer.scatter(lam) * e_full.sum()).detach().reshape(1)
+    )
+
+
+def test_assembly_keeps_the_graph_through_the_port_nodes(torch_bkd: TorchBkd) -> None:
+    # The interpolant reproduces _poly, so its derivative along the face
+    # at a port node is the polynomial's.
+    bkd = torch_bkd
+    topo, space, coords = _continuous(bkd, (2, 2))
+    geometry = TensorBoxGeometry(topo, bkd)
+    faces = _subdomain_faces(topo, space.faces(), 0)
+    dofs = subdomain_port_dofs(topo, space, 0)
+    y = torch.tensor([[-0.3]], dtype=torch.float64, requires_grad=True)
+    point = torch.cat([torch.ones((1, 1), dtype=torch.float64), y], dim=0)
+    matrix = _interpolation(space, point, geometry, faces, dofs, RefuseCrossPoints())
+    lam = bkd.reshape(_poly(bkd, coords), (-1, 1))
+    value = PortMatrixTransfer(
+        BackendPortRows(space.descriptor(), dofs, bkd), matrix
+    ).scatter(lam)
+    (dy,) = torch.autograd.grad(value.sum(), [y])
+    # d/dy of (0.5 + x - x^2/4)(0.5 + y - y^2/4) at x = 1.
+    bkd.assert_allclose(dy, 1.25 * (1.0 - 0.5 * y.detach()), rtol=1e-12)
+
+
+def test_port_stacks_assemble_the_same_map() -> None:
+    bkd = NumpyBkd()
+    topo, scalar, _ = _continuous(bkd, (2, 2))
+    space = ComponentSkeletonSpace(scalar, 2)
+    geometry = TensorBoxGeometry(topo, bkd)
+    faces = _subdomain_faces(topo, scalar.faces(), 0)
+    points = _port_points(bkd, topo, geometry, faces)
+    dofs = list(subdomain_port_dofs(topo, space, 0))
+    rule = AverageIncidentFaces[Np]()
+    dense = _matrix(_interpolation(space, points, geometry, faces, dofs, rule))
+
+    scipy: PortAssemblyProtocol[Np, CSRFormat, Np, Np] = ScipyAssemblyStack(np.float64)
+    sparse = port_interpolation(space, points, geometry, faces, dofs, rule, scipy)
+    np.testing.assert_allclose(
+        sparse.format().matrix().toarray(), dense, rtol=1e-14, atol=1e-15
+    )
+
+    mock: PortAssemblyProtocol[MockVector, MockFormat, Np, Np] = MockAssemblyStack()
+    mock_local = port_interpolation(space, points, geometry, faces, dofs, rule, mock)
+    descriptor = space.descriptor()
+    rows = BackendPortRows(descriptor, dofs, bkd)
+    port_rows = SpaceDescriptor("port-rows", len(dofs), "float64")
+    mock_transfer = PortMatrixTransfer(
+        AdaptedPortRows(rows, MockPortAdapter(), port_rows), mock_local
+    )
+    rng = np.random.default_rng(23)
+    lam = rng.normal(size=(descriptor.size, 2))
+    np.testing.assert_allclose(peek(mock_transfer.scatter(lam)), dense @ lam[dofs])
+    block = rng.normal(size=(dense.shape[0], 2))
+    expected = np.zeros((descriptor.size, 2))
+    expected[dofs] = dense.T @ block
+    np.testing.assert_allclose(
+        mock_transfer.gather_add(wrap(block, mock_local.range()), np.zeros_like(lam)),
+        expected,
+        rtol=1e-12,
+        atol=1e-14,
     )

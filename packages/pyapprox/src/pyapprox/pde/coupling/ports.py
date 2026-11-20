@@ -16,7 +16,7 @@ from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_check
 from pyapprox.pde.coupling.geometry import FacePoint
 from pyapprox.pde.coupling.spaces import FaceValues
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendDenseOperator, backend_dtype_name
+from pyapprox.util.linalg.backend_dense import backend_dtype_name
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
     LinearSolverProtocol,
@@ -275,50 +275,27 @@ class RefuseCrossPoints(Generic[Array]):
         raise ValueError(f"port node {node} lies on several faces {tuple(faces)}")
 
 
-def port_interpolation(
+def _interpolation_rows(
     space: FaceValuesProtocol[Array],
     located: Sequence[Sequence[FacePoint[Array]]],
     dofs: Sequence[int],
     cross_points: CrossPointRuleProtocol[Array],
-) -> BackendDenseOperator[Array]:
-    r"""The local map :math:`L` of a :class:`PortMatrixTransfer` that
-    interpolates: the skeleton functions of ``dofs`` at each port node,
-    stored dense.
+) -> Array:
+    """The skeleton functions of ``dofs`` at each located point, as exchange
+    data: shape (k * npoints, len(dofs)), node-major (point ``n``,
+    component ``c`` is row ``k n + c``, as interleaved field DOFs are
+    numbered).
 
-    Rows are node-major: node ``n``, component ``c`` is row ``k n + c``,
-    as interleaved field DOFs are numbered. A node on one face reads that
-    face's values; a node on several asks ``cross_points``. The values
-    enter by products with constant 0/1 placement arrays, so a graph
-    through them survives. Dense storage grows as rows times ``dofs``
-    although each row reads one face's DOFs; a face-blocked map is the
-    remedy for large ports.
-
-    Parameters
-    ----------
-    space
-        The skeleton field space.
-    located
-        Each port node's faces and reference points, e.g. from
-        :meth:`~pyapprox.pde.coupling.geometry.TensorBoxGeometry.locate`
-        over the subdomain's faces.
-    dofs
-        The skeleton DOFs the port reads, in the order of the transfer's
-        rows :math:`R`.
-    cross_points
-        The rule for nodes on several faces.
-
-    Returns
-    -------
-    BackendDenseOperator
-        From the ``"port-rows"`` space of size ``len(dofs)`` to the
-        ``"port"`` space of size ``k * nnodes``.
+    A point on one face reads that face's values; a point on several asks
+    ``cross_points``. The values enter by products with constant 0/1
+    placement arrays, so a graph through them survives.
 
     Raises
     ------
     TypeError
         If ``space`` or ``cross_points`` does not satisfy its protocol.
     ValueError
-        If ``located`` is empty or holds a node on no face, or a face's
+        If ``located`` is empty or holds a point on no face, or a face's
         DOFs are not all in ``dofs``.
     """
     if not isinstance(space, FaceValuesProtocol):
@@ -331,7 +308,7 @@ def port_interpolation(
             f"{type(cross_points).__name__}"
         )
     if not located:
-        raise ValueError("located must hold at least one port node")
+        raise ValueError("the port must hold at least one point")
     bkd = space.bkd()
     column = {dof: j for j, dof in enumerate(dofs)}
     node_rows = []
@@ -356,14 +333,7 @@ def port_interpolation(
             node_rows.append(rows[0])
         else:
             node_rows.append(cross_points.row(node, [fp.face for fp in faces], rows))
-    matrix = bkd.concatenate(node_rows, axis=0)
-    dtype = backend_dtype_name(bkd)
-    return BackendDenseOperator(
-        matrix,
-        SpaceDescriptor("port-rows", len(dofs), dtype),
-        bkd,
-        range=SpaceDescriptor("port", int(matrix.shape[0]), dtype),
-    )
+    return bkd.concatenate(node_rows, axis=0)
 
 
 @runtime_checkable
@@ -479,8 +449,8 @@ class PortTraceProtocol(Protocol, Generic[Array]):
 
 @runtime_checkable
 class PointLocatorProtocol(Protocol, Generic[Array]):
-    """What :func:`port_trace_coupling` asks of a geometry: where physical
-    points lie on the skeleton's faces."""
+    """What :func:`port_interpolation` and :func:`port_trace_coupling` ask
+    of a geometry: where physical points lie on the skeleton's faces."""
 
     def locate(
         self, points: Array, faces: Sequence[int], tol: float = 1e-12
@@ -489,7 +459,7 @@ class PointLocatorProtocol(Protocol, Generic[Array]):
 
 @runtime_checkable
 class PortMatrixSinkProtocol(Protocol, Generic[P, F_co, I_contra, E_contra]):
-    """What the projection builders ask of a port stack's matrix sink:
+    """What the port builders ask of a port stack's matrix sink:
     element blocks in, the stack's operator out. ``I_contra`` is the
     array type of DOF maps, ``E_contra`` that of element values."""
 
@@ -508,9 +478,12 @@ class PortMatrixSinkProtocol(Protocol, Generic[P, F_co, I_contra, E_contra]):
 
 @runtime_checkable
 class PortAssemblyProtocol(Protocol, Generic[P, F_co, I_contra, E_contra]):
-    """What the projection builders ask of a port stack: a matrix sink
-    for a pattern of element blocks, e.g. an assembly stack of
-    :mod:`pyapprox.pde.assembly`."""
+    """What the port builders (:func:`port_interpolation`,
+    :func:`port_trace_mass`, :func:`port_trace_coupling`) ask of a port
+    stack: a matrix sink for a pattern of element blocks, e.g. an
+    assembly stack of :mod:`pyapprox.pde.assembly` or, for a torch graph
+    through the port, a
+    :class:`~pyapprox.pde.assembly.backend_dense_sink.BackendDenseMatrixAssembly`."""
 
     def matrix_sink(
         self,
@@ -619,6 +592,90 @@ def port_trace_mass(
     return sink.assemble(OperatorProperties(symmetric=True, spd=True))
 
 
+def port_interpolation(
+    space: FaceValuesProtocol[Array],
+    points: Array,
+    geometry: PointLocatorProtocol[Array],
+    faces: Sequence[int],
+    dofs: Sequence[int],
+    cross_points: CrossPointRuleProtocol[Array],
+    assembly: PortAssemblyProtocol[P, F, Array, Array],
+) -> ActionOperatorProtocol[P, F]:
+    r"""The local map :math:`L` of a :class:`PortMatrixTransfer` that
+    interpolates: the skeleton functions of ``dofs`` at each port node,
+    assembled by the port stack.
+
+    The port nodes are located on ``faces``; node ``n``'s rows (node-major,
+    component ``c`` is row ``k n + c``) are one element block. A node on
+    one face reads that face's values; a node on several asks
+    ``cross_points``. Each block spans every column, so the pattern is
+    dense, rows times ``dofs``, as in :func:`port_trace_coupling`; a
+    face-blocked pattern is the remedy for large ports.
+
+    Parameters
+    ----------
+    space
+        The skeleton field space, of :math:`k` components.
+    points
+        The port nodes, in the order of the port data. Shape: (ndim,
+        nnodes).
+    geometry
+        Locates the port nodes on the skeleton's faces.
+    faces
+        The faces the port lies on.
+    dofs
+        The skeleton DOFs the port reads, in the order of the transfer's
+        rows :math:`R`.
+    cross_points
+        The rule for nodes on several faces.
+    assembly
+        The port stack's assembly.
+
+    Returns
+    -------
+    ActionOperatorProtocol
+        From the ``"port-rows"`` space of size ``len(dofs)`` to the
+        ``"port"`` space of size ``k * nnodes``.
+
+    Raises
+    ------
+    TypeError
+        If an argument does not satisfy its protocol.
+    ValueError
+        If there are no port nodes, a node lies on none of ``faces``, or a
+        face's DOFs are not all in ``dofs``.
+    """
+    if not isinstance(geometry, PointLocatorProtocol):
+        raise TypeError(
+            f"geometry must satisfy PointLocatorProtocol, got {type(geometry).__name__}"
+        )
+    if not isinstance(assembly, PortAssemblyProtocol):
+        raise TypeError(
+            f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
+        )
+    matrix = _interpolation_rows(
+        space, geometry.locate(points, faces), dofs, cross_points
+    )
+    bkd = space.bkd()
+    nnodes, ncols = int(points.shape[1]), len(dofs)
+    k = int(matrix.shape[0]) // nnodes
+    blocks = bkd.reshape(matrix, (nnodes, k, ncols))
+    rows = bkd.asarray(
+        [[k * n + c for c in range(k)] for n in range(nnodes)],
+        dtype=bkd.int64_dtype(),
+    )
+    columns = bkd.asarray([list(range(ncols))] * nnodes, dtype=bkd.int64_dtype())
+    dtype = backend_dtype_name(bkd)
+    sink = assembly.matrix_sink(
+        SpaceDescriptor("port", k * nnodes, dtype),
+        SpaceDescriptor("port-rows", ncols, dtype),
+        rows,
+        columns,
+    )
+    sink.add_element_matrices(rows, columns, blocks)
+    return sink.assemble()
+
+
 def port_trace_coupling(
     space: FaceValuesProtocol[Array],
     trace: PortTraceProtocol[Array],
@@ -682,12 +739,8 @@ def port_trace_coupling(
             f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
         )
     bkd = trace.bkd()
-    psi = (
-        port_interpolation(
-            space, geometry.locate(trace.points(), faces), dofs, cross_points
-        )
-        .format()
-        .matrix()
+    psi = _interpolation_rows(
+        space, geometry.locate(trace.points(), faces), dofs, cross_points
     )
     ncols = len(dofs)
     k = int(psi.shape[0]) // (nelems * nquad)

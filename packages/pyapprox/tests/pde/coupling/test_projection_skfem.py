@@ -124,8 +124,9 @@ def _interpolation(
     dofs: Sequence[int],
     points: Np,
 ) -> PortMapProtocol[Np]:
+    stack: PortAssemblyProtocol[Np, CSRFormat, Np, Np] = ScipyAssemblyStack(np.float64)
     return port_interpolation(
-        space, geometry.locate(points, faces), dofs, AverageIncidentFaces()
+        space, points, geometry, faces, dofs, AverageIncidentFaces(), stack
     )
 
 
