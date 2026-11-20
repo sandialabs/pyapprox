@@ -128,8 +128,16 @@ pip install -e "packages/pyapprox[runtime-extras]"  # All the above
 ### Using conda
 
 Conda supplies Python and OpenMP (`llvm-openmp`); pip then installs
-every Python package, so no package is installed by both tools. Use the
-conda-forge channel (Miniforge's default).
+every Python package, so no package is installed by both tools.
+
+Any conda installation works: `environment.yml` names only the
+conda-forge channel, so the env's packages come from there whichever
+installer provided conda. Installers include
+[Miniforge](https://github.com/conda-forge/miniforge), which is set up
+for conda-forge alone, and Miniconda and Anaconda, which also configure
+Anaconda's `defaults` channel; that channel has its own terms of
+service. On Apple silicon, use an installer built for arm64: an x86_64
+one runs under Rosetta, and JAX's x86_64 wheels then do not load.
 
 OpenMP is needed only for `torch.compile` on CPU, which the PyTorch
 backend's compiled paths use: it builds generated C++ with the system
