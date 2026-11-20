@@ -16,11 +16,18 @@ coefficients, f manufactured from an exact solution, which also gives the
 Dirichlet data on the whole outer boundary.
 
 Skeleton DOFs on the outer boundary are held at the exact data.
+
+The partition and the skeleton live in the parameter box; a
+:class:`Domain` maps it to the physical domain, the box itself
+(:class:`UnitBox`) or a curved one (:class:`QuarterAnnulus`). Skeleton
+nodes are matched and interpolated in parameter coordinates; physics,
+normals and quadrature weights are physical.
 """
 
 import itertools
+import math
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, Sequence, Union
+from typing import Callable, Generic, Optional, Protocol, Sequence, Union
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
@@ -35,6 +42,7 @@ from pyapprox.pde.collocation.mesh.transformed import (
     TransformedMesh2D,
     TransformedMesh3D,
 )
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
     AffineTransform3D,
@@ -124,6 +132,49 @@ def _mesh(bounds: Bounds, n: int, bkd: Backend[Array]) -> Mesh[Array]:
     raise ValueError(f"the harness covers 2D and 3D, got {len(bounds)}D")
 
 
+class Domain(Protocol[Array]):
+    """The physical domain over the parameter box :math:`[0, 1]^d` that
+    the partition and the skeleton live in."""
+
+    def mesh(self, bounds: Bounds, n: int, bkd: Backend[Array]) -> Mesh[Array]:
+        """The collocation mesh of the parameter box ``bounds``."""
+        ...
+
+    def to_physical(self, params: Array, bkd: Backend[Array]) -> Array:
+        """Physical points of parameter points. Shape: (d, n)"""
+        ...
+
+
+class UnitBox(Generic[Array]):
+    """The parameter box itself."""
+
+    def mesh(self, bounds: Bounds, n: int, bkd: Backend[Array]) -> Mesh[Array]:
+        return _mesh(bounds, n, bkd)
+
+    def to_physical(self, params: Array, bkd: Backend[Array]) -> Array:
+        return params
+
+
+class QuarterAnnulus(Generic[Array]):
+    r"""The quarter annulus :math:`1 \le r \le 2`, :math:`0 \le \theta \le
+    \pi/2`: parameter s maps to r = 1 + s and t to theta = t pi / 2, so a
+    cut at constant s is an arc."""
+
+    def mesh(self, bounds: Bounds, n: int, bkd: Backend[Array]) -> Mesh[Array]:
+        if len(bounds) != 2:
+            raise ValueError(f"the quarter annulus is 2D, got {len(bounds)}D")
+        (s0, s1), (t0, t1) = bounds
+        quarter = math.pi / 2.0
+        transform = PolarTransform(
+            (1.0 + s0, 1.0 + s1), (quarter * t0, quarter * t1), bkd
+        )
+        return TransformedMesh2D(n, n, bkd, transform)
+
+    def to_physical(self, params: Array, bkd: Backend[Array]) -> Array:
+        r, theta = 1.0 + params[0], (math.pi / 2.0) * params[1]
+        return bkd.stack([r * bkd.cos(theta), r * bkd.sin(theta)], axis=0)
+
+
 def reference_nodes(n: int, bkd: Backend[Array]) -> Array:
     """The ``n`` Chebyshev-Gauss-Lobatto nodes on [-1, 1], increasing."""
     return _mesh([(-1.0, 1.0)] * 2, n, bkd).reference_nodes_1d(0)
@@ -134,8 +185,8 @@ def _indices(bkd: Backend[Array], array: Array) -> list[int]:
 
 
 class Box(Generic[Array]):
-    """The physics on a box with ``n`` nodes per direction, its forcing
-    manufactured from ``exact``."""
+    """The physics on the image of a parameter box with ``n`` nodes per
+    direction, its forcing manufactured from ``exact``."""
 
     def __init__(
         self,
@@ -144,9 +195,10 @@ class Box(Generic[Array]):
         n: int,
         coefs: Coefficients,
         exact: Exact[Array],
+        domain: Optional[Domain[Array]] = None,
     ) -> None:
-        self._bkd, self._exact = bkd, exact
-        self._mesh = _mesh(bounds, n, bkd)
+        self._bkd, self._exact, self._bounds = bkd, exact, bounds
+        self._mesh = (UnitBox() if domain is None else domain).mesh(bounds, n, bkd)
         ndim = len(bounds)
         basis = (
             ChebyshevBasis2D(self._mesh, bkd)
@@ -184,6 +236,16 @@ class Box(Generic[Array]):
     def points(self) -> Array:
         """Shape: (d, npts)"""
         return self._mesh.points()
+
+    def parameters(self) -> Array:
+        """The nodes' parameter points, from the mesh's reference points.
+        Shape: (d, npts)"""
+        reference = self._mesh.reference_points()
+        rows = [
+            lo + 0.5 * (reference[d] + 1.0) * (hi - lo)
+            for d, (lo, hi) in enumerate(self._bounds)
+        ]
+        return self._bkd.stack(rows, axis=0)
 
     def side(self, side: Side) -> list[int]:
         """The node indices of ``side``."""
@@ -274,7 +336,9 @@ class CoupledCollocation(Generic[Array]):
         exact: Exact[Array],
         interpolate: bool = False,
         rule: Optional[SideRuleProtocol] = None,
+        domain: Optional[Domain[Array]] = None,
     ) -> None:
+        self._domain: Domain[Array] = UnitBox() if domain is None else domain
         self._topo = TensorBoxPartition(ncells)
         if len(ns) != self._topo.nsubdomains():
             raise ValueError(f"ns needs one count per subdomain, got {len(ns)}")
@@ -336,7 +400,9 @@ class CoupledCollocation(Generic[Array]):
         bkd, ncells = self._bkd, self._ncells
         cell = self._cell(subdomain)
         bounds = [(c / m, (c + 1) / m) for c, m in zip(cell, ncells)]
-        box = Box(bkd, bounds, self._ns[subdomain], self._coefs, self._exact)
+        box = Box(
+            bkd, bounds, self._ns[subdomain], self._coefs, self._exact, self._domain
+        )
         sides: list[Side] = list(itertools.product(range(len(ncells)), (False, True)))
         interface = [
             (d, upper)
@@ -372,7 +438,7 @@ class CoupledCollocation(Generic[Array]):
         ]
         matrix = port_interpolation(
             self._space,
-            box.points()[:, ports],
+            box.parameters()[:, ports],
             self._geometry,
             faces,
             dofs,
@@ -395,7 +461,7 @@ class CoupledCollocation(Generic[Array]):
         on_side = {side: set(box.side(side)) for side in interface}
         by_side: dict[Side, list[tuple[int, int]]] = {side: [] for side in interface}
         for dof in self._dofs(subdomain):
-            node = node_at(box.points(), self._coords[:, dof], bkd)
+            node = node_at(box.parameters(), self._coords[:, dof], bkd)
             # A node on two interface sides goes to both; the builder
             # refuses the cross point.
             for side in interface:
@@ -424,8 +490,8 @@ class CoupledCollocation(Generic[Array]):
         return self._pieces
 
     def skeleton_coords(self) -> Array:
-        """Shape: (d, ndofs)"""
-        return self._coords
+        """The skeleton DOFs' physical points. Shape: (d, ndofs)"""
+        return self._domain.to_physical(self._coords, self._bkd)
 
     def pinned(self) -> list[int]:
         """The skeleton DOFs on the outer boundary."""
@@ -454,7 +520,8 @@ class CoupledCollocation(Generic[Array]):
         pinned = self.pinned()
         mask = bkd.zeros((descriptor.size,))
         mask[pinned] = 1.0
-        values = bkd.reshape(mask * self._exact(self._coords, bkd)[0], (-1, 1))
+        exact = self._exact(self.skeleton_coords(), bkd)[0]
+        values = bkd.reshape(mask * exact, (-1, 1))
         residual: PinnedSkeletonResidual[Array, DenseFormat[Array]] = (
             PinnedSkeletonResidual(
                 self.residual(), space, BackendRowSet(descriptor, pinned, bkd), values
@@ -473,7 +540,7 @@ class CoupledCollocation(Generic[Array]):
         """The single-domain solution with ``n`` nodes per direction: its
         box and nodal values. Shape of the values: (npts,)"""
         bkd, ndim = self._bkd, len(self._ncells)
-        box = Box(bkd, [(0.0, 1.0)] * ndim, n, self._coefs, self._exact)
+        box = Box(bkd, [(0.0, 1.0)] * ndim, n, self._coefs, self._exact, self._domain)
         sides = list(itertools.product(range(ndim), (False, True)))
         part = box.dirichlet(sides, set())
         if part is None:
