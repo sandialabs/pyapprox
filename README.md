@@ -3,7 +3,7 @@
 [![Docs](https://github.com/sandialabs/pyapprox/actions/workflows/docs.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/docs.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/pyapprox.svg)](https://pypi.org/project/pyapprox/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
 # PyApprox
 
@@ -63,7 +63,7 @@ approx_values = surrogate(test_pts)
 
 ## Requirements
 
-- Python >= 3.11
+- Python >= 3.12
 - NumPy >= 2.0, SciPy >= 1.11, PyTorch >= 2.0
 - matplotlib, sympy, networkx
 
@@ -149,7 +149,7 @@ pip install -e "packages/pyapprox[dev]" \
 
 `make install-dev` runs the same `pip install`.
 
-Without conda, any Python 3.11+ virtual environment works with the same
+Without conda, any Python 3.12+ virtual environment works with the same
 `pip install` commands. On macOS, `torch.compile` then needs OpenMP from
 Homebrew (`brew install libomp`).
 

@@ -1,7 +1,7 @@
 # PyApprox Tutorials
 
 [![PyPI](https://img.shields.io/pypi/v/pyapprox-tutorials.svg)](https://pypi.org/project/pyapprox-tutorials/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/sandialabs/pyapprox/blob/main/LICENSE)
 
 Tutorials and tutorial figure helpers for the
