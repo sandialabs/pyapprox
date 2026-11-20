@@ -11,15 +11,9 @@ from typing import Generic
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
-from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
-    LegendrePolynomial1D,
-)
-from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
-    GaussQuadratureRule,
-)
-from pyapprox.surrogates.affine.univariate.lagrange import (
-    univariate_lagrange_polynomial,
-)
+from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
+from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule
+from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
 from pyapprox.util.backends.protocols import Array, Backend
 
 
