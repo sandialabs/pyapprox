@@ -117,13 +117,11 @@ from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
     StateCurvature,
     StateFirst,
-    StateTermProtocol,
     accumulate,
     no_first_derivatives,
+    no_second_derivatives,
     parameter_first_derivatives,
     parameter_second_derivatives,
-    state_first_derivatives,
-    state_second_derivatives,
 )
 from pyapprox.ode.integration import DifferentiableStackConstraintProtocol
 from pyapprox.ode.mass_form_system import RightHandSideProtocol
@@ -147,6 +145,9 @@ from pyapprox.ode.trajectory_terms import (
     StepParamLinearizationFn,
     StepUnknownCurvatureFn,
     StepUnknownLinearizationFn,
+    StoredStateCurvatureFn,
+    StoredStateFirstFn,
+    StoredStateTermDerivatives,
     TrajectoryFunctional,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol
@@ -161,20 +162,47 @@ from pyapprox.util.linalg.operators import (
 
 V = TypeVar("V")
 W = TypeVar("W")
+T = TypeVar("T")
 A = TypeVar("A", bound=ArrayProtocol)
 
 
-def _members(
-    functional: TrajectoryFunctional[V, A], store: TrajectoryStoreProtocol[V]
-) -> Dict[int, List[StateTermProtocol[V, A]]]:
-    """The state terms' members by the stored state each reads, each built
-    once for its state and time."""
+def _first_field(
+    bundle: StoredStateTermDerivatives[V, A],
+) -> Optional[StoredStateFirstFn[V, A]]:
+    return bundle.first
+
+
+def _second_field(
+    bundle: StoredStateTermDerivatives[V, A],
+) -> Optional[StoredStateCurvatureFn[V, A]]:
+    return bundle.second
+
+
+def _by_stored_state(
+    functional: TrajectoryFunctional[V, A],
+    store: TrajectoryStoreProtocol[V],
+    field: Callable[
+        [StoredStateTermDerivatives[V, A]], Optional[Callable[[int, float], T]]
+    ],
+    refusal: Callable[[object], TypeError],
+) -> Dict[int, List[T]]:
+    """For each stored state, what ``field`` of each state term's bundle
+    gives there, for the terms reading it; each bundle read once.
+
+    Raises
+    ------
+    TypeError
+        ``refusal`` of the first term whose bundle lacks ``field``.
+    """
     ntimes = store.ntimes()
-    found: Dict[int, List[StateTermProtocol[V, A]]] = {}
+    found: Dict[int, List[T]] = {}
     for term in functional.state_terms:
+        read = field(term.derivatives())
+        if read is None:
+            raise refusal(term)
         for index in range(ntimes):
             if term.reads(index, index == ntimes - 1):
-                found.setdefault(index, []).append(term.at(index, store.time(index)))
+                found.setdefault(index, []).append(read(index, store.time(index)))
     return found
 
 
@@ -189,21 +217,21 @@ class _StepFirst(Generic[V, A]):
 
 class _FirstOrder(Generic[V, A]):
     """Every term's first derivatives, read once from the bundles, the
-    state terms' from their members by the stored state each reads.
+    state terms' by the stored state each reads.
 
     Parameters
     ----------
     functional : TrajectoryFunctional
         The terms.
     store : TrajectoryStoreProtocol
-        The trajectory, for the stored states and times the members are
-        built at.
+        The trajectory, for the stored states the state terms read and
+        their times.
 
     Raises
     ------
     TypeError
-        If a term's bundle, or a state term's member's, has no first
-        derivatives (it is only evaluated).
+        If a term's bundle has no first derivatives (it is only
+        evaluated).
     """
 
     def __init__(
@@ -212,10 +240,9 @@ class _FirstOrder(Generic[V, A]):
         self.parameters: List[Callable[[], LinearizationProtocol[V, A]]] = (
             parameter_first_derivatives(functional.parameter_terms)
         )
-        self._states_at: Dict[int, List[StateFirst[V, A]]] = {
-            index: state_first_derivatives(members)
-            for index, members in _members(functional, store).items()
-        }
+        self._states_at: Dict[int, List[StateFirst[V, A]]] = _by_stored_state(
+            functional, store, _first_field, no_first_derivatives
+        )
         self.steps: List[_StepFirst[V, A]] = []
         for step_term in functional.step_terms:
             step_bundle = step_term.derivatives()
@@ -1390,7 +1417,7 @@ class _FunctionalCurvatures(Generic[V, A]):
     """Every term's second derivatives, read once from the bundles."""
 
     parameters: Tuple[Callable[[A, V], Optional[V]], ...]
-    # The state terms' members' second derivatives, by the stored state
+    # The state terms' second derivatives, by the stored state
     # each reads.
     states: Dict[int, List[StateCurvature[V, A]]]
     steps: Tuple[_StepCurvature[V, A], ...]
@@ -1399,20 +1426,18 @@ class _FunctionalCurvatures(Generic[V, A]):
     def of(
         functional: TrajectoryFunctional[V, A], store: TrajectoryStoreProtocol[V]
     ) -> "_FunctionalCurvatures[V, A]":
-        """Read the terms' bundles, the state terms' from their members on
-        the trajectory in ``store``.
+        """Read the terms' bundles, the state terms' at the stored states
+        of the trajectory in ``store`` they read.
 
         Raises
         ------
         TypeError
-            If a term's bundle, or a state term's member's, has no second
-            derivatives.
+            If a term's bundle has no second derivatives.
         """
         parameters = parameter_second_derivatives(functional.parameter_terms)
-        states = {
-            index: state_second_derivatives(members)
-            for index, members in _members(functional, store).items()
-        }
+        states = _by_stored_state(
+            functional, store, _second_field, no_second_derivatives
+        )
         steps = []
         for step_term in functional.step_terms:
             step_bundle = step_term.derivatives()

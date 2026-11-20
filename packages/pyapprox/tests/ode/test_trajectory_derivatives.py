@@ -551,7 +551,7 @@ class TestHessianVectorProductRefusals:
         functional = TrajectoryFunctional.from_terms(
             bkd, 1, state_terms=(_EachTruncated(misfit, 1),)
         )
-        with pytest.raises(TypeError, match="_Truncated.*no second derivatives"):
+        with pytest.raises(TypeError, match="_EachTruncated.*no second derivatives"):
             sweeps.hvp(store, functional, random_direction(bkd))
 
     def test_a_term_only_evaluated(self, bkd: Backend[Array]) -> None:
@@ -568,11 +568,11 @@ class TestHessianVectorProductRefusals:
             bkd, 1, state_terms=(_EachTruncated(misfit, 0),)
         )
         direction = random_direction(bkd)
-        with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
+        with pytest.raises(TypeError, match="_EachTruncated.*only evaluated"):
             sweeps.gradient(store, functional)
-        with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
+        with pytest.raises(TypeError, match="_EachTruncated.*only evaluated"):
             sweeps.tangent(store, functional, direction)
-        with pytest.raises(TypeError, match="_Truncated.*only evaluated"):
+        with pytest.raises(TypeError, match="_EachTruncated.*only evaluated"):
             sweeps.hvp(store, functional, direction)
 
     def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:

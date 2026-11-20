@@ -25,6 +25,8 @@ invariants.
 | `ParameterTermDerivatives` | `implicitfunction.functional_terms` | `derivatives()` | parameter terms of any functional, steady or of a trajectory (second order weighted by the value weights) |
 | `StateTermDerivatives` | `implicitfunction.functional_terms` | `derivatives()` | one-state terms of any functional: a `StateFunctional`'s, and each member a `TrajectoryFunctional`'s stored-state term builds by `at(index, time)` (second order weighted by the value weights) |
 | `StepTermDerivatives` | `ode.trajectory_terms` | `derivatives()` | the step terms of a `TrajectoryFunctional` the sweeps differentiate (second order, weighted by the value weights) |
+| `StoredStateTermDerivatives` | `ode.trajectory_terms` | `derivatives()` | the stored-state terms of a `TrajectoryFunctional`: each stored state's member's first and second derivatives, by index and time |
+| `InitialStateDerivatives` | `ode.trajectory_derivatives` | `derivatives()` | a parameter-dependent initial state the sweeps differentiate |
 | `IntegrandDerivatives` | `ode.time_integral` | `derivatives()` | integrands of time integrals |
 | `ContinuousExtensionDerivatives` | `ode.continuous_extension` | `derivatives()` | a stepping method's continuous extension, y(t) inside a step (second order weighted by a state weight) |
 | `SteadyStateEquationDerivatives` | `implicitfunction.state_equations.derivatives` | `derivatives()` | steady state equations |
@@ -115,18 +117,29 @@ fields, an `InexactSuite` alongside other fields).
   provide theirs. Steady and transient objects satisfy overlapping
   protocols, so consumers that need one kind check `time_dependence()` at
   runtime as well as the protocol.
-- **A family is as capable as its weakest member.** Some objects carry no
-  bundle of their own but build members that do: a trajectory's
-  stored-state term (`StoredStateTermProtocol`) builds one core state term
-  per stored state by `at(index, time)`. The member binds the context (the
-  index and time) once, so its bundle's fields keep the context-free
-  arities of its family, and the family has no `derivatives()`. A consumer
-  builds every member it will read before any solve and reads each
-  member's bundle once: a sweep refuses, naming the member, if one lacks
-  what it needs (`state_first_derivatives`, `state_second_derivatives`);
-  a consumer whose own capability is optional (`TermAtTimes`) offers a
-  level only when every member it read has it. Members are built for one
-  trajectory and not reused on another, whose times may differ.
+- **Capability is declared when the owner is built; context is an
+  argument.** An object declares what it can differentiate at its own
+  construction, never once the data it is applied to exists: an index, a
+  time, a state or a step window is an argument of the declared callables,
+  never a reason to defer the declaration. A consumer that must answer
+  before any solve (a forward model's `derivatives()`, read at bind) then
+  takes the meet of its parts' bundles, whatever step plan, fixed or
+  adaptive, produces the trajectory.
+- **A family declares the capability of its weakest member.** A
+  trajectory's stored-state term (`StoredStateTermProtocol`) builds one
+  core state term per stored state by `at(index, time)`, the value path;
+  its own bundle (`StoredStateTermDerivatives`) holds `first(index, time)`
+  and `second(index, time)`, which return that member's `StateFirst` and
+  `StateCurvature`. It is fixed when the family is built, as the weakest of
+  its members (`of_members`), or mirrors a wrapped family's (`mirroring`).
+  The sweeps read each family's bundle once and refuse, naming the family,
+  when it lacks what they need; the term checker checks each member
+  through its family's bundle, as the sweeps read it. A member's
+  `wrt_param` of None means it reads no parameters, not a missing
+  derivative, so it stays inside `StateFirst` rather than becoming a
+  family field. A consumer that knows its times when it is built
+  (`TermAtTimes`) may still build its members there and take their
+  weakest.
 - **Use the resolvers.** Never read `Derivatives`' raw hvp/whvp pair; call
   `d.resolved_hvp(obj.nqoi(), obj.bkd())` / `d.resolved_whvp(obj.nqoi())`
   with the owning object's nqoi (a constraint's own, never the

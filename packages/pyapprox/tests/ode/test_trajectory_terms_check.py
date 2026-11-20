@@ -25,6 +25,9 @@ judged by the report with its default tolerances.
   any state or window later than the last read serves the gradient of
   the integral plus the native terms (backward Euler, BDF2), equal to the
   gradient over an unrestricted store to 1e-12.
+- A stored-state family is checked as its bundle declares: second-order
+  members under a first-order family get only their first derivatives
+  checked.
 - A value-only term is checked for nothing. Refusals: a non-stepper, a
   non-term, curvatures without parameters, parameters without
   ``set_param``.
@@ -54,9 +57,12 @@ from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
     AtStoredStates,
+    MemberFirst,
     StepTermDerivatives,
     StepTermProtocol,
     StoredStates,
+    StoredStateTermDerivatives,
+    StoredStateTermProtocol,
     TrajectoryFunctional,
 )
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
@@ -121,9 +127,7 @@ class _Observation(Generic[Array]):
     def _param_state(self, state: Array, weights: Array, w: Array) -> Array:
         return self._c * 2.0 * self._bkd.dot(state.T, w) / 10.0 * weights
 
-    def _param_param(
-        self, state: Array, weights: Array, v: Array
-    ) -> Optional[Array]:
+    def _param_param(self, state: Array, weights: Array, v: Array) -> Optional[Array]:
         return None
 
     def derivatives(self) -> StateTermDerivatives[Array, Array]:
@@ -167,9 +171,7 @@ class _Tikhonov(Generic[Array]):
         return 0.3 * v * weights
 
     def derivatives(self) -> ParameterTermDerivatives[Array, Array]:
-        return ParameterTermDerivatives.second_order(
-            self._wrt_param, self._param_param
-        )
+        return ParameterTermDerivatives.second_order(self._wrt_param, self._param_param)
 
 
 class _Case(Generic[Array]):
@@ -246,6 +248,20 @@ class TestEveryTermPasses:
         )
         assert report.failures() == []
 
+    def test_a_family_is_checked_as_it_declares(self, bkd: Backend[Array]) -> None:
+        """Members with second derivatives under a family declaring only
+        the first: only the first are checked, since only they reach the
+        sweeps."""
+        case = _Case(bkd, heun())
+        functional = TrajectoryFunctional.from_terms(
+            bkd, 1, state_terms=(_FirstOrderFamily(_at_observed(case.observation)),)
+        )
+        report = case.checker.check(functional, case.store, param=case.param)
+        assert report.failures() == []
+        assert "state_terms[0]@2.wrt_state" in report.fd_checks
+        assert "state_terms[0]@2.wrt_param" in report.fd_checks
+        assert not any("state_state" in name for name in report.fd_checks)
+
     def test_a_value_only_term_is_checked_for_nothing(
         self, bkd: Backend[Array]
     ) -> None:
@@ -254,6 +270,28 @@ class TestEveryTermPasses:
             _ValueOnly(case.observation), case.store.state(2), case.ones(), case.param
         )
         assert dict(report.fd_checks) == {} and report.failures() == []
+
+
+class _FirstOrderFamily(Generic[Array]):
+    """A stored-state term declaring only its members' first derivatives."""
+
+    def __init__(self, inner: StoredStateTermProtocol[Array, Array]) -> None:
+        self._inner = inner
+        self._derivatives: StoredStateTermDerivatives[Array, Array] = (
+            StoredStateTermDerivatives.first_order(MemberFirst(inner.at))
+        )
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def reads(self, index: int, last: bool) -> bool:
+        return self._inner.reads(index, last)
+
+    def at(self, index: int, time: float) -> StateTermProtocol[Array, Array]:
+        return self._inner.at(index, time)
+
+    def derivatives(self) -> StoredStateTermDerivatives[Array, Array]:
+        return self._derivatives
 
 
 class _ValueOnly(Generic[Array]):
@@ -428,9 +466,7 @@ class TestPlantedFaults:
     def test_a_scaled_mixed_second_derivative(self, bkd: Backend[Array]) -> None:
         assert self._state_failures(bkd, _scale_state_param) == ["state_param"]
 
-    def test_a_wrong_transpose_reaches_the_dot_test(
-        self, bkd: Backend[Array]
-    ) -> None:
+    def test_a_wrong_transpose_reaches_the_dot_test(self, bkd: Backend[Array]) -> None:
         """The forward action is right, so its finite differences pass;
         the dot test does not."""
         case = _Case(bkd, backward_euler())

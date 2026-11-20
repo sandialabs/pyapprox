@@ -9,7 +9,8 @@ compares a declared derivative with finite differences of a quantity:
 - a parameter term :math:`r(p)`: ``wrt_param``, the value in the
   parameters; ``param_param``, :math:`(\partial r/\partial p)^\top
   \omega` in the parameters;
-- a state term :math:`g(y)` at one stored state: ``wrt_state`` and
+- a state term :math:`g(y)` at one stored state, with the derivatives
+  its family's bundle gives for that state: ``wrt_state`` and
   ``wrt_param``, the value in the state and in the parameters;
   ``state_state`` and ``state_param``, :math:`(\partial g/\partial
   y)^\top \omega` in the state and in the parameters; ``param_state``
@@ -68,6 +69,7 @@ from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import (
     StepTermProtocol,
+    StoredStateTermProtocol,
     TrajectoryFunctional,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
@@ -88,6 +90,42 @@ T = TypeVar("T")
 
 def _one(vector: W) -> BlockVector[W]:
     return BlockVector((vector,))
+
+
+class _AsDeclared(Generic[V, A]):
+    """A stored-state term's member for one stored state, its value the
+    member's and its derivatives those the term's bundle gives there,
+    fetched anew on each call as the sweeps fetch them: what the sweeps
+    differentiate."""
+
+    def __init__(
+        self, term: StoredStateTermProtocol[V, A], index: int, time: float
+    ) -> None:
+        self._term, self._index, self._time = term, index, time
+        self._member = term.at(index, time)
+
+    def nqoi(self) -> int:
+        return self._member.nqoi()
+
+    def value(self, state: V) -> A:
+        return self._member.value(state)
+
+    def derivatives(self) -> StateTermDerivatives[V, A]:
+        bundle = self._term.derivatives()
+        if bundle.first is None:
+            return StateTermDerivatives.none()
+        first = bundle.first(self._index, self._time)
+        if bundle.second is None:
+            return StateTermDerivatives.first_order(first.wrt_state, first.wrt_param)
+        second = bundle.second(self._index, self._time)
+        return StateTermDerivatives.second_order(
+            first.wrt_state,
+            first.wrt_param,
+            second.state_state,
+            second.state_param,
+            second.param_state,
+            second.param_param,
+        )
 
 
 class _Results:
@@ -211,7 +249,7 @@ class TrajectoryTermChecker(Generic[V, A]):
                     if not state_term.reads(index, index == ntimes - 1):
                         continue
                     self._state_term(
-                        state_term.at(index, store.time(index)),
+                        _AsDeclared(state_term, index, store.time(index)),
                         store.state(index),
                         omega,
                         param,
@@ -250,8 +288,7 @@ class TrajectoryTermChecker(Generic[V, A]):
         """
         if not isinstance(term, ParameterTermProtocol):
             raise TypeError(
-                "term must satisfy ParameterTermProtocol, got "
-                f"{type(term).__name__}"
+                f"term must satisfy ParameterTermProtocol, got {type(term).__name__}"
             )
         self._sampler = SpaceSampler(self._sample, self._seed)
         try:
@@ -796,9 +833,7 @@ class TrajectoryTermChecker(Generic[V, A]):
             lin = field(step, at)
             return unknowns.zeros() if lin is None else lin.apply_transpose(weights)
 
-        def unknown_curvature(
-            x: BlockVector[V], d: BlockVector[V]
-        ) -> BlockVector[V]:
+        def unknown_curvature(x: BlockVector[V], d: BlockVector[V]) -> BlockVector[V]:
             at = placed(x)
             field = refetched(
                 term.derivatives().curvature_wrt_unknown, "curvature_wrt_unknown"
