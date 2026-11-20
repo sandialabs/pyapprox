@@ -15,6 +15,8 @@ Cases:
 - recovery (L2 error below 1e-10) of polynomials vanishing at both ends
   of [-1, 1] under zero Dirichlet ends, for viscosities 0.1 to 2, in
   both discrete forms;
+- the interior residual at :math:`u = 1 - x^2`, :math:`\nu = 0.05`,
+  which Newton from zero does not reach;
 - recovery of a cubic on [0, 1] with variable viscosity under Neumann
   and Robin ends, for both boundary fluxes and both forms;
 - spectral decay, fitted per node, of analytic solutions under Dirichlet
@@ -39,6 +41,7 @@ from pyapprox.pde.collocation.physics.burgers import (
 )
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
+    ChebyshevBox,
     ChebyshevLevel,
     collocation_system,
     field,
@@ -94,16 +97,21 @@ class _Burgers:
         conditions = coded(codes, box)
         return ManufacturedProblem({"u": solution}, self.terms(), box, conditions)
 
-    def system(
+    def physics(
         self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
-    ) -> CollocationSystem[Array]:
-        physics = BurgersPhysics1D(
+    ) -> BurgersPhysics1D[Array]:
+        return BurgersPhysics1D(
             level.basis(),
             level.bkd(),
             viscosity=field(problem, self._viscosity, level),
             forcing=forcing(problem, "u", level),
             conservative=self._conservative,
         )
+
+    def system(
+        self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
+    ) -> CollocationSystem[Array]:
+        physics = self.physics(problem, level)
         flux = (
             BurgersTotalFlux(physics)
             if self._total_at_boundary
@@ -149,6 +157,24 @@ def test_recovers_dirichlet_polynomials(
     ends: reproduced to 1e-10."""
     burgers = _Burgers(viscosity, total=True, conservative=conservative)
     recovers(burgers.problem(solution, _REFERENCE, "DD"), burgers, npts, numpy_bkd)
+
+
+@_FORMS
+def test_residual_vanishes_low_viscosity(
+    numpy_bkd: Backend[Array], conservative: bool
+) -> None:
+    """u = 1 - x^2, nu = 0.05, on 15 nodes: Newton from zero does not
+    reach it (another solution in the advective form, no convergence in
+    the conservative one), so the interior residual is checked at the
+    exact nodal values instead: below 1e-9."""
+    bkd = numpy_bkd
+    burgers = _Burgers("0.05", total=True, conservative=conservative)
+    problem = burgers.problem("1 - x**2", _REFERENCE, "DD")
+    (level,) = ChebyshevBox([15], bkd).levels(_REFERENCE)
+    exact = field(problem, "1 - x**2", level)
+    assert not isinstance(exact, float)
+    residual = burgers.physics(problem, level).residual(exact.values(0.0), 0.0)
+    bkd.assert_allclose(residual[1:-1], bkd.zeros((13,)), atol=1e-9)
 
 
 @_FORMS

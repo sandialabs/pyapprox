@@ -15,7 +15,6 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
-from pyapprox.pde.collocation.boundary.essential_rows import DirichletPart
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
 )
@@ -39,10 +38,7 @@ from pyapprox.pde.models.collocation.right_hand_side import (
     CollocationRightHandSide,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from tests._helpers.physics_test_utils import (
-    PhysicsTestBase,
-    solve_steady_dirichlet,
-)
+from tests._helpers.physics_test_utils import PhysicsTestBase
 
 
 class TestBurgersPhysics(PhysicsTestBase):
@@ -93,42 +89,6 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
-        """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
-        npts = 25
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-
-        # Manufactured solution for 1D Burgers
-        # Use smooth solution that vanishes at boundaries
-        nu = 0.1
-        man_sol = ManufacturedBurgers1D(
-            sol_str="sin(pi*x)",
-            visc_str=str(nu),
-            bkd=bkd,
-            oned=True,
-        )
-
-        nodes = basis.nodes()
-
-        # Get forcing from manufactured solution
-        forcing = man_sol.functions["forcing"](nodes[None, :])
-        if forcing.ndim == 2:
-            forcing = forcing[:, 0]
-
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=NodalField(forcing)
-        )
-
-        # Get exact solution
-        exact_solution = man_sol.functions["solution"](nodes[None, :])
-        if exact_solution.ndim == 2:
-            exact_solution = exact_solution[:, 0]
-
-        # Check residual is near zero at manufactured solution
-        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
-
     def test_residual_polynomial(self, bkd: Backend[Array]) -> None:
         """Test residual with polynomial solution.
 
@@ -155,58 +115,6 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Expected: nu * d²(x²)/dx² - x² * d(x²)/dx = nu*2 - x²*2x = 2*nu - 2*x³
         expected = 2.0 * nu - 2.0 * nodes**3
         bkd.assert_allclose(residual, expected, atol=1e-10)
-
-    def test_solve_steady_from_wrong_initial_guess(self, bkd: Backend[Array]) -> None:
-        """AFTER: Verify convergence to exact solution from wrong guess."""
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-
-        # For steady Burgers with nu * u'' - u * u' + f = 0
-        # Choose simple manufactured solution: u = sin(pi*x)
-        # with homogeneous Dirichlet BCs
-        nu = 0.1
-        man_sol = ManufacturedBurgers1D(
-            sol_str="sin(pi*x)",
-            visc_str=str(nu),
-            bkd=bkd,
-            oned=True,
-        )
-
-        nodes = basis.nodes()
-
-        # Get forcing from manufactured solution
-        forcing = man_sol.functions["forcing"](nodes[None, :])
-        if forcing.ndim == 2:
-            forcing = forcing[:, 0]
-
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=NodalField(forcing)
-        )
-
-        # Set boundary conditions: u(-1) = 0, u(1) = 0
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-
-        # Get exact solution
-        exact_solution = man_sol.functions["solution"](nodes[None, :])
-        if exact_solution.ndim == 2:
-            exact_solution = exact_solution[:, 0]
-
-        # Newton solve from wrong initial guess
-        initial_guess = bkd.zeros((npts,))
-        solution = solve_steady_dirichlet(
-            physics,
-            1,
-            [DirichletPart(left_idx, 0.0), DirichletPart(right_idx, 0.0)],
-            initial_guess,
-            atol=1e-12,
-            rtol=1e-12,
-            maxiters=30,
-        )
-
-        bkd.assert_allclose(solution, exact_solution, atol=1e-8)
 
     def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_burgers_1d factory function."""
@@ -408,9 +316,7 @@ def _basis(bkd: Backend[Array]) -> ChebyshevBasis1D[Array]:
 
 
 def _burgers_1d(bkd: Backend[Array], conservative: bool) -> BurgersPhysics1D[Array]:
-    return BurgersPhysics1D(
-        _basis(bkd), bkd, viscosity=_NU, conservative=conservative
-    )
+    return BurgersPhysics1D(_basis(bkd), bkd, viscosity=_NU, conservative=conservative)
 
 
 def _interpolatory_weights(bkd: Backend[Array], nodes: Array) -> Array:
@@ -418,9 +324,7 @@ def _interpolatory_weights(bkd: Backend[Array], nodes: Array) -> Array:
     nodes exactly, from Chebyshev moments."""
     x = bkd.to_numpy(nodes)
     npts = x.shape[0]
-    moments = np.array(
-        [2.0 / (1.0 - k**2) if k % 2 == 0 else 0.0 for k in range(npts)]
-    )
+    moments = np.array([2.0 / (1.0 - k**2) if k % 2 == 0 else 0.0 for k in range(npts)])
     vandermonde = np.polynomial.chebyshev.chebvander(x, npts - 1)
     return bkd.asarray(np.linalg.solve(vandermonde.T, moments))
 
