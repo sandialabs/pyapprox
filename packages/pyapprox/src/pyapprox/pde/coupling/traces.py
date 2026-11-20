@@ -9,6 +9,53 @@ from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+class PointPortTrace(Generic[Array]):
+    r"""The trace of ports that are points, as the ends of a 1D domain
+    are: each port node is an element with one trace function,
+    :math:`\phi = 1`, and one quadrature point of unit weight there.
+
+    Parameters
+    ----------
+    points
+        The physical point of each port node, in port order. Shape:
+        (ndim, nnodes), at least one node.
+    bkd
+        Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If ``points`` is not 2D with at least one column.
+    """
+
+    def __init__(self, points: Array, bkd: Backend[Array]) -> None:
+        if points.ndim != 2 or points.shape[1] < 1:
+            raise ValueError(
+                f"points must have shape (ndim, nnodes), got {tuple(points.shape)}"
+            )
+        n = int(points.shape[1])
+        self._points, self._nnodes, self._bkd = points, n, bkd
+        self._nodes = bkd.asarray([[i] for i in range(n)], dtype=bkd.int64_dtype())
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nnodes(self) -> int:
+        return self._nnodes
+
+    def element_nodes(self) -> Array:
+        return self._nodes
+
+    def points(self) -> Array:
+        return self._points
+
+    def weights(self) -> Array:
+        return self._bkd.ones((self._nnodes, 1))
+
+    def values(self) -> Array:
+        return self._bkd.ones((self._nnodes, 1, 1))
+
+
 class LinearSegmentTrace(Generic[Array]):
     r"""Linear hat trace functions on port nodes joined by straight
     segments: the trace of a P1 or Q1 mesh on a port that is a curve, as

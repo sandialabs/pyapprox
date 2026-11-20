@@ -521,7 +521,16 @@ class PortAssemblyProtocol(Protocol, Generic[P, F_co, I_contra, E_contra]):
     ) -> PortMatrixSinkProtocol[P, F_co, I_contra, E_contra]: ...
 
 
-def _check_trace(trace: PortTraceProtocol[Array]) -> tuple[int, int, int]:
+def trace_shape(trace: PortTraceProtocol[Array]) -> tuple[int, int, int]:
+    """A trace's ``(nelems, nquad, nlocal)``, checked across its arrays.
+
+    Raises
+    ------
+    TypeError
+        If ``trace`` does not satisfy :class:`PortTraceProtocol`.
+    ValueError
+        If its arrays disagree in shape or it has no elements.
+    """
     if not isinstance(trace, PortTraceProtocol):
         raise TypeError(
             f"trace must satisfy PortTraceProtocol, got {type(trace).__name__}"
@@ -589,7 +598,7 @@ def port_trace_mass(
         If ``ncomponents`` is not positive or the trace's arrays disagree
         in shape.
     """
-    nelems, _, nlocal = _check_trace(trace)
+    nelems, _, nlocal = trace_shape(trace)
     if not isinstance(assembly, PortAssemblyProtocol):
         raise TypeError(
             f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
@@ -663,7 +672,7 @@ def port_trace_coupling(
         If the trace's arrays disagree in shape, a point lies on none of
         ``faces``, or a face's DOFs are not all in ``dofs``.
     """
-    nelems, nquad, nlocal = _check_trace(trace)
+    nelems, nquad, nlocal = trace_shape(trace)
     if not isinstance(geometry, PointLocatorProtocol):
         raise TypeError(
             f"geometry must satisfy PointLocatorProtocol, got {type(geometry).__name__}"
