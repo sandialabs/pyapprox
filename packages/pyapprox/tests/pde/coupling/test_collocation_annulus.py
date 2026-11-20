@@ -29,6 +29,7 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    Adr,
     Coefficients,
     CoupledCollocation,
     QuarterAnnulus,
@@ -47,7 +48,7 @@ def _problem(
     rule: SideRuleProtocol,
 ) -> CoupledCollocation[Array]:
     return CoupledCollocation(
-        bkd, (2, 1), ns, nskel, _ADR, smooth, interpolate, rule, QuarterAnnulus()
+        bkd, (2, 1), ns, nskel, Adr(_ADR, smooth), interpolate, rule, QuarterAnnulus()
     )
 
 

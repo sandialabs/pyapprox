@@ -23,6 +23,7 @@ import pytest
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    Adr,
     Coefficients,
     CoupledCollocation,
     cubic,
@@ -50,7 +51,7 @@ _ADR_3D = Coefficients(2.0, (0.7, -0.4, 0.3), -1.5)
 def test_a_cubic_equals_the_single_domain_solve(
     bkd: Backend[Array], ncells: tuple[int, ...], coefs: Coefficients
 ) -> None:
-    problem = CoupledCollocation(bkd, ncells, [5] * 3, 5, coefs, cubic)
+    problem = CoupledCollocation(bkd, ncells, [5] * 3, 5, Adr(coefs, cubic))
     lam = problem.solve_skeleton()
     coords = problem.skeleton_coords()
     bkd.assert_allclose(lam[:, 0], cubic(coords, bkd)[0], rtol=1e-10, atol=1e-10)
@@ -70,7 +71,7 @@ def test_a_smooth_solution_converges_spectrally(
     # Measured: 4.4e-3, 3.7e-5, 1.3e-7, 2.8e-10, 4.2e-13 (diffusion).
     errors = []
     for n in (4, 6, 8, 10, 12):
-        problem = CoupledCollocation(bkd, (3, 1), [n] * 3, n, coefs, smooth)
+        problem = CoupledCollocation(bkd, (3, 1), [n] * 3, n, Adr(coefs, smooth))
         errors.append(max_state_error(problem, problem.solve_skeleton()))
     for coarse, fine in zip(errors[:-1], errors[1:]):
         assert fine < coarse / 100.0
@@ -86,7 +87,7 @@ def test_the_interface_fluxes_balance(
     bkd: Backend[Array], ncells: tuple[int, ...], coefs: Coefficients, n: int
 ) -> None:
     exact = smooth if len(ncells) == 2 else cubic
-    problem = CoupledCollocation(bkd, ncells, [n] * 3, n, coefs, exact)
+    problem = CoupledCollocation(bkd, ncells, [n] * 3, n, Adr(coefs, exact))
     lam = problem.solve_skeleton()
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))

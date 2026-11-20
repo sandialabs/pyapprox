@@ -29,6 +29,7 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    Adr,
     Coefficients,
     CoupledCollocation,
     Exact,
@@ -52,7 +53,7 @@ def _solve(
 ) -> tuple[CoupledCollocation[Array], Array]:
     coefs = _ADR_2D if len(ncells) == 2 else _ADR_3D
     problem = CoupledCollocation(
-        bkd, ncells, ns, nskel, coefs, exact, interpolate, rule
+        bkd, ncells, ns, nskel, Adr(coefs, exact), interpolate, rule
     )
     return problem, problem.solve_skeleton()
 

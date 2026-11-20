@@ -51,6 +51,9 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.protocols.physics import (
+    CollocationInteriorOperatorProtocol,
+)
 from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
     CollocationNodeRule,
     GaussLegendreSideRule,
@@ -79,9 +82,14 @@ from pyapprox.pde.coupling.skeleton import (
     DenseSchur,
     SkeletonResidual,
 )
-from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
+from pyapprox.pde.coupling.spaces import (
+    ComponentSkeletonSpace,
+    ContinuousSkeletonSpace,
+    UniformBases,
+)
 from pyapprox.pde.coupling.stacks.collocation import (
     ComponentFluxes,
+    NormalFluxesProtocol,
     PortSide,
     collocation_pinned_response,
 )
@@ -185,29 +193,52 @@ def _indices(bkd: Backend[Array], array: Array) -> list[int]:
     return [bkd.to_int(array[k]) for k in range(array.shape[0])]
 
 
-class Box(Generic[Array]):
-    """The physics on the image of a parameter box with ``n`` nodes per
-    direction, its forcing manufactured from ``exact``."""
+def basis(
+    mesh: Mesh[Array], bkd: Backend[Array]
+) -> Union[ChebyshevBasis2D[Array], ChebyshevBasis3D[Array]]:
+    """The Chebyshev collocation basis of a 2D or 3D mesh."""
+    if isinstance(mesh, TransformedMesh2D):
+        return ChebyshevBasis2D(mesh, bkd)
+    return ChebyshevBasis3D(mesh, bkd)
 
-    def __init__(
-        self,
-        bkd: Backend[Array],
-        bounds: Bounds,
-        n: int,
-        coefs: Coefficients,
-        exact: Exact[Array],
-        domain: Optional[Domain[Array]] = None,
-    ) -> None:
-        self._bkd, self._exact, self._bounds = bkd, exact, bounds
-        self._mesh = (UnitBox() if domain is None else domain).mesh(bounds, n, bkd)
-        ndim = len(bounds)
-        basis = (
-            ChebyshevBasis2D(self._mesh, bkd)
-            if ndim == 2
-            else ChebyshevBasis3D(self._mesh, bkd)
-        )
-        npts = self._mesh.npts()
-        u, grad, lap = exact(self.points(), bkd)
+
+class Model(Protocol[Array]):
+    """A physics of ``k`` components with a manufactured exact solution:
+    what a subdomain solves and what its ports return."""
+
+    def ncomponents(self) -> int: ...
+
+    def exact(self, points: Array, bkd: Backend[Array]) -> Array:
+        """The exact solution at physical ``points``. Shape: (k, n)"""
+        ...
+
+    def build(
+        self, mesh: Mesh[Array], bkd: Backend[Array]
+    ) -> tuple[CollocationInteriorOperatorProtocol[Array], NormalFluxesProtocol[Array]]:
+        """The physics on ``mesh``, its forcing manufactured from the
+        exact solution, and the fluxes its ports return."""
+        ...
+
+
+class Adr(Generic[Array]):
+    """Scalar advection-diffusion-reaction with constant ``coefs``,
+    :math:`D \\Delta u - \\nabla\\cdot(v u) + r u + f = 0`, f manufactured
+    from ``exact``; the ports return the total flux."""
+
+    def __init__(self, coefs: Coefficients, exact: Exact[Array]) -> None:
+        self._coefs, self._exact = coefs, exact
+
+    def ncomponents(self) -> int:
+        return 1
+
+    def exact(self, points: Array, bkd: Backend[Array]) -> Array:
+        return self._exact(points, bkd)[0][None, :]
+
+    def build(
+        self, mesh: Mesh[Array], bkd: Backend[Array]
+    ) -> tuple[AdvectionDiffusionReaction[Array], ComponentFluxes[Array]]:
+        coefs, ndim, npts = self._coefs, mesh.ndim(), mesh.npts()
+        u, grad, lap = self._exact(mesh.points(), bkd)
         forcing = -coefs.diffusion * lap
         velocity = None
         if coefs.velocity is not None:
@@ -218,8 +249,8 @@ class Box(Generic[Array]):
             velocity = [bkd.full((npts,), v) for v in coefs.velocity]
         if coefs.reaction is not None:
             forcing = forcing - coefs.reaction * u
-        self._physics = AdvectionDiffusionReaction(
-            basis,
+        physics = AdvectionDiffusionReaction(
+            basis(mesh, bkd),
             bkd,
             diffusion=coefs.diffusion,
             velocity=velocity,
@@ -227,12 +258,36 @@ class Box(Generic[Array]):
             forcing=NodalField(forcing),
             advection_form=ConservativeAdvection(),
         )
+        return physics, ComponentFluxes([physics])
+
+
+class Box(Generic[Array]):
+    """A model's physics on the image of a parameter box with ``n`` nodes
+    per direction."""
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        bounds: Bounds,
+        n: int,
+        model: Model[Array],
+        domain: Optional[Domain[Array]] = None,
+    ) -> None:
+        self._bkd, self._model, self._bounds = bkd, model, bounds
+        self._mesh = (UnitBox() if domain is None else domain).mesh(bounds, n, bkd)
+        self._physics, self._fluxes = model.build(self._mesh, bkd)
 
     def mesh(self) -> Mesh[Array]:
         return self._mesh
 
-    def physics(self) -> AdvectionDiffusionReaction[Array]:
+    def physics(self) -> CollocationInteriorOperatorProtocol[Array]:
         return self._physics
+
+    def fluxes(self) -> NormalFluxesProtocol[Array]:
+        return self._fluxes
+
+    def ncomponents(self) -> int:
+        return self._model.ncomponents()
 
     def points(self) -> Array:
         """Shape: (d, npts)"""
@@ -255,26 +310,28 @@ class Box(Generic[Array]):
 
     def dirichlet(
         self, sides: Sequence[Side], free: set[int]
-    ) -> Optional[DirichletPart[Array]]:
-        """The exact data on ``sides``, except at the nodes ``free``; None
-        when no node remains."""
+    ) -> list[DirichletPart[Array]]:
+        """The exact data on ``sides``, every component, except at the
+        nodes ``free``; empty when no node remains."""
         bkd = self._bkd
         nodes = sorted({i for side in sides for i in self.side(side)} - free)
         if not nodes:
-            return None
+            return []
         index = bkd.asarray(nodes, dtype=bkd.int64_dtype())
-        return DirichletPart(
-            index, NodalField(self._exact(self.points()[:, index], bkd)[0])
-        )
+        values = self._model.exact(self.points()[:, index], bkd)
+        return [
+            DirichletPart(index, NodalField(values[c]), c)
+            for c in range(self.ncomponents())
+        ]
 
     def essential(
         self, sides: Sequence[Side], free: set[int]
     ) -> Optional[DirichletRows[Array]]:
         """:meth:`dirichlet` as essential rows; None without any."""
-        part = self.dirichlet(sides, free)
-        if part is None:
+        parts = self.dirichlet(sides, free)
+        if not parts:
             return None
-        return DirichletRows(self._bkd, self._mesh.npts(), 1, [part])
+        return DirichletRows(self._bkd, self._mesh.npts(), self.ncomponents(), parts)
 
 
 def node_at(points: Array, point: Array, bkd: Backend[Array]) -> int:
@@ -296,8 +353,8 @@ class Piece(Generic[Array]):
     transfer: PortTransferProtocol[Array, Array]
 
     def state(self, lam: Array) -> Array:
-        """The subdomain's state for the skeleton values ``lam``. Shape:
-        (npts,)"""
+        """The subdomain's state for the skeleton values ``lam``, its
+        components stacked. Shape: (k * npts,)"""
         bkd = self.box.mesh().bkd()
         port_data = self.transfer.scatter(lam)
         point = self.response.linearize(port_data, bkd.zeros((0, 1)), STEADY)
@@ -325,6 +382,10 @@ class CoupledCollocation(Generic[Array]):
     ``rule`` tests each side's flux; omitted, lumped
     (``CollocationNodeRule``) when matching and exact
     (``GaussLegendreSideRule``) when interpolating.
+
+    A ``model`` of k components has a skeleton of k components per node
+    (:class:`~pyapprox.pde.coupling.spaces.ComponentSkeletonSpace`, DOF
+    ``k d + c``).
     """
 
     def __init__(
@@ -333,8 +394,7 @@ class CoupledCollocation(Generic[Array]):
         ncells: Sequence[int],
         ns: Sequence[int],
         nskel: int,
-        coefs: Coefficients,
-        exact: Exact[Array],
+        model: Model[Array],
         interpolate: bool = False,
         rule: Optional[SideRuleProtocol] = None,
         domain: Optional[Domain[Array]] = None,
@@ -346,7 +406,7 @@ class CoupledCollocation(Generic[Array]):
         if not interpolate and any(n != nskel for n in ns):
             raise ValueError("a matching transfer needs every count equal to nskel")
         self._bkd, self._ncells, self._ns = bkd, tuple(ncells), tuple(ns)
-        self._coefs, self._exact = coefs, exact
+        self._model, self._k = model, model.ncomponents()
         self._interpolate = interpolate
         default: SideRuleProtocol = (
             GaussLegendreSideRule() if interpolate else CollocationNodeRule()
@@ -358,9 +418,15 @@ class CoupledCollocation(Generic[Array]):
         self._space = ContinuousSkeletonSpace(
             self._topo, bases, VertexWeightNumbering(self._topo, bases)
         )
+        # The scalar space locates nodes; the field space numbers DOFs.
+        self._fields = ComponentSkeletonSpace(self._space, self._k)
         self._geometry = TensorBoxGeometry(self._topo, bkd)
         self._coords = skeleton_dof_points(self._space, self._geometry, bases)
         self._pieces = [self._piece(s) for s in range(self._topo.nsubdomains())]
+
+    def _field_dofs(self, scalar: Sequence[int]) -> list[int]:
+        """The field DOFs of scalar DOFs, node-major."""
+        return [self._k * d + c for d in scalar for c in range(self._k)]
 
     def _cell(self, subdomain: int) -> tuple[int, ...]:
         """The subdomain's cell multi-index, the last direction fastest."""
@@ -371,7 +437,7 @@ class CoupledCollocation(Generic[Array]):
         return tuple(reversed(index))
 
     def _dofs(self, subdomain: int) -> list[int]:
-        """The skeleton DOFs on the subdomain's closure, increasing."""
+        """The scalar skeleton DOFs on the subdomain's closure, increasing."""
         return sorted(
             dof
             for entity in self._topo.subdomain_entities(subdomain)
@@ -389,7 +455,7 @@ class CoupledCollocation(Generic[Array]):
         on its ``outer`` sides except at the nodes ``ports``."""
         return collocation_pinned_response(
             CollocationSystem(box.physics(), box.essential(outer, ports)),
-            ComponentFluxes([box.physics()]),
+            box.fluxes(),
             box.mesh(),
             port_sides,
             self._rule,
@@ -401,9 +467,7 @@ class CoupledCollocation(Generic[Array]):
         bkd, ncells = self._bkd, self._ncells
         cell = self._cell(subdomain)
         bounds = [(c / m, (c + 1) / m) for c, m in zip(cell, ncells)]
-        box = Box(
-            bkd, bounds, self._ns[subdomain], self._coefs, self._exact, self._domain
-        )
+        box = Box(bkd, bounds, self._ns[subdomain], self._model, self._domain)
         sides: list[Side] = list(itertools.product(range(len(ncells)), (False, True)))
         interface = [
             (d, upper)
@@ -432,14 +496,14 @@ class CoupledCollocation(Generic[Array]):
         ]
         # Each node once, first appearance first: the response's port order.
         ports = list(dict.fromkeys(node for side in port_sides for node in side.nodes))
-        dofs = self._dofs(subdomain)
+        dofs = self._field_dofs(self._dofs(subdomain))
         faces = [
             f
             for f in self._topo.subdomain_entities(subdomain)
             if f in self._space.faces()
         ]
         matrix = port_interpolation(
-            self._space,
+            self._fields,
             box.parameters()[:, ports],
             self._geometry,
             faces,
@@ -448,7 +512,7 @@ class CoupledCollocation(Generic[Array]):
             BackendDenseMatrixAssembly(bkd),
         )
         transfer = PortMatrixTransfer(
-            BackendPortRows(self._space.descriptor(), dofs, bkd), matrix
+            BackendPortRows(self._fields.descriptor(), dofs, bkd), matrix
         )
         return Piece(box, self._response(box, port_sides, outer, set()), transfer)
 
@@ -480,36 +544,41 @@ class CoupledCollocation(Generic[Array]):
             dict.fromkeys(dof for pairs in by_side.values() for dof, _ in pairs)
         )
         transfer = MatchingNodalTransfer(
-            BackendPortRows(self._space.descriptor(), order, bkd)
+            BackendPortRows(self._fields.descriptor(), self._field_dofs(order), bkd)
         )
         return Piece(box, self._response(box, port_sides, outer, ports), transfer)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def exact(self) -> Exact[Array]:
-        """The exact solution."""
-        return self._exact
+    def model(self) -> Model[Array]:
+        return self._model
 
     def pieces(self) -> list[Piece[Array]]:
         return self._pieces
 
     def skeleton_coords(self) -> Array:
-        """The skeleton DOFs' physical points. Shape: (d, ndofs)"""
+        """The scalar skeleton DOFs' physical points. Shape: (d, nscalar)"""
         return self._domain.to_physical(self._coords, self._bkd)
 
+    def skeleton_exact(self) -> Array:
+        """The exact solution at the skeleton's field DOFs, node-major.
+        Shape: (k * nscalar,)"""
+        exact = self._model.exact(self.skeleton_coords(), self._bkd)
+        return self._bkd.reshape(self._bkd.transpose(exact), (-1,))
+
     def pinned(self) -> list[int]:
-        """The skeleton DOFs on the outer boundary."""
+        """The skeleton field DOFs on the outer boundary."""
         return sorted(
             dof
             for entity in range(self._topo.nentities())
             if self._topo.on_boundary(entity)
-            for dof in self._space.entity_dofs(entity)
+            for dof in self._fields.entity_dofs(entity)
         )
 
     def residual(self) -> SkeletonResidual[Array, Array, Array, DenseFormat[Array]]:
         """The unpinned skeleton residual: the gathered tested fluxes."""
-        bkd, descriptor = self._bkd, self._space.descriptor()
+        bkd, descriptor = self._bkd, self._fields.descriptor()
         subdomains = [
             CoupledSubdomain(piece.response, piece.transfer) for piece in self._pieces
         ]
@@ -520,13 +589,14 @@ class CoupledCollocation(Generic[Array]):
     def solve_skeleton(self) -> Array:
         """The skeleton values, the outer-boundary DOFs held at the exact
         data. Shape: (ndofs, 1)"""
-        bkd, descriptor = self._bkd, self._space.descriptor()
+        bkd, descriptor = self._bkd, self._fields.descriptor()
         space = BackendVectorSpace(descriptor, bkd)
         pinned = self.pinned()
-        mask = bkd.zeros((descriptor.size,))
-        mask[pinned] = 1.0
-        exact = self._exact(self.skeleton_coords(), bkd)[0]
-        values = bkd.reshape(mask * exact, (-1, 1))
+        index = bkd.asarray(pinned, dtype=bkd.int64_dtype())
+        mask = bkd.index_update(
+            bkd.zeros((descriptor.size,)), index, bkd.ones((len(pinned),))
+        )
+        values = bkd.reshape(mask * self.skeleton_exact(), (-1, 1))
         residual: PinnedSkeletonResidual[Array, DenseFormat[Array]] = (
             PinnedSkeletonResidual(
                 self.residual(), space, BackendRowSet(descriptor, pinned, bkd), values
@@ -543,15 +613,20 @@ class CoupledCollocation(Generic[Array]):
 
     def single_domain(self, n: int) -> tuple[Box[Array], Array]:
         """The single-domain solution with ``n`` nodes per direction: its
-        box and nodal values. Shape of the values: (npts,)"""
+        box and nodal values, components stacked. Shape of the values:
+        (k * npts,)"""
         bkd, ndim = self._bkd, len(self._ncells)
-        box = Box(bkd, [(0.0, 1.0)] * ndim, n, self._coefs, self._exact, self._domain)
+        box = Box(bkd, [(0.0, 1.0)] * ndim, n, self._model, self._domain)
         sides = list(itertools.product(range(ndim), (False, True)))
-        part = box.dirichlet(sides, set())
-        if part is None:
+        parts = box.dirichlet(sides, set())
+        if not parts:
             raise ValueError("the single domain has boundary nodes")
         state = solve_steady_dirichlet(
-            box.physics(), 1, [part], bkd.zeros((box.mesh().npts(),)), atol=ATOL
+            box.physics(),
+            self._k,
+            parts,
+            bkd.zeros((self._k * box.mesh().npts(),)),
+            atol=ATOL,
         )
         return box, state
 
@@ -582,11 +657,17 @@ def smooth(points: Array, bkd: Backend[Array]) -> tuple[Array, Array, Array]:
 
 def max_state_error(problem: CoupledCollocation[Array], lam: Array) -> float:
     """The largest nodal error of the subdomains' states for the skeleton
-    values ``lam``, against the problem's exact solution."""
-    bkd, exact = problem.bkd(), problem.exact()
+    values ``lam``, against the problem's exact solution, over every
+    component."""
+    bkd, model = problem.bkd(), problem.model()
     return max(
         bkd.to_float(
-            bkd.max(bkd.abs(piece.state(lam) - exact(piece.box.points(), bkd)[0]))
+            bkd.max(
+                bkd.abs(
+                    piece.state(lam)
+                    - bkd.reshape(model.exact(piece.box.points(), bkd), (-1,))
+                )
+            )
         )
         for piece in problem.pieces()
     )
