@@ -29,6 +29,11 @@ from skfem import MeshQuad
 from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.pde.constitutive.coefficient_functions import (
+    CallableReaction,
+    ConstantDiffusion,
+    TimeIndependent,
+)
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import (
@@ -45,6 +50,7 @@ from pyapprox.pde.coupling.pinning import PinnedSkeletonResidual
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     MatchingNodalTransfer,
+    PortTransferProtocol,
     subdomain_port_dofs,
 )
 from pyapprox.pde.coupling.reference_faces import ReferenceBox
@@ -61,6 +67,10 @@ from pyapprox.pde.coupling.spaces import (
     UniformBases,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC, NeumannBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import skfem_discretization
 from pyapprox.pde.models.galerkin.steady_residual import (
     galerkin_steady_residual,
@@ -77,6 +87,7 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     InnerProductSpaceProtocol,
     MatrixFree,
+    SpaceDescriptor,
 )
 from pyapprox.util.linalg.operators.krylov import GMRES
 from pyapprox.util.linalg.scipy_stack import NumpyRowSet, ScipySparseLU
@@ -208,6 +219,109 @@ def newton() -> Newton[Np, Np]:
     return Newton(atol=1e-13, rtol=0.0, maxiters=30)
 
 
+def pinned_piece(system: Any, ports: Sequence[int], bkd: NumpyBkd) -> Piece:
+    """The steady response of a composed skfem ``system`` whose field
+    DOFs ``ports`` are pinned to the port data, in that order."""
+    disc = skfem_discretization(system)
+    states, theta = disc.space(), disc.parameter_space(len(ports))
+    # The stack's space has an inner product; its declared type does not.
+    assert isinstance(states, InnerProductSpaceProtocol)
+    data: PortPinnedData[Np, Np] = PortPinnedData(
+        NumpyRowSet(states.descriptor(), ports),
+        BackendPortRows(states.descriptor(), ports, bkd),
+        BackendPortRows(theta.descriptor(), list(range(len(ports))), bkd),
+        states,
+        theta,
+    )
+    return SteadyPinnedResponse(
+        galerkin_steady_residual(disc),
+        data,
+        states,
+        RecomputeAlways(ScipySparseLU()),
+        newton(),
+        bkd,
+    )
+
+
+def _zero(x: Np) -> Np:
+    return np.zeros(x.shape[1])
+
+
+def _no_sink(x: Np, u: Np) -> Np:
+    return np.zeros_like(u)
+
+
+def poisson_system(
+    mesh: TensorQuadMesh,
+    dirichlet: Sequence[tuple[str, Callable[[Np], Np]]],
+    neumann: Sequence[tuple[str, float]] = (),
+) -> Any:
+    r""":math:`-\Delta u = 0` on ``mesh`` with Q1 elements: u = g on each
+    Dirichlet side, the outward normal derivative on each Neumann side."""
+    bkd = mesh.bkd()
+    basis = LagrangeBasis(mesh, degree=1)
+    physics = AdvectionDiffusionReaction(
+        basis=basis,
+        diffusivity=ConstantDiffusion(1.0),
+        bkd=bkd,
+        reaction=CallableReaction(_no_sink, _no_sink),
+        forcing=TimeIndependent(_zero),
+    )
+    conditions: list[Any] = [
+        DirichletBC(basis, side, TimeIndependent(g), bkd) for side, g in dirichlet
+    ]
+    conditions += [NeumannBC(basis, side, value, bkd) for side, value in neumann]
+    return compose_galerkin_system(physics, conditions)
+
+
+def solve_dense_skeleton(
+    descriptor: SpaceDescriptor,
+    subdomains: Sequence[CoupledSubdomain[Np, Np]],
+    pinned: Sequence[int] = (),
+    values: Optional[Np] = None,
+) -> Np:
+    """The skeleton solution by the assembled Schur complement and dense
+    LU, with the DOFs ``pinned`` held at ``values`` (a full skeleton
+    column) when there are any."""
+    bkd = NumpyBkd()
+    vectors = BackendVectorSpace(descriptor, bkd)
+    skeleton: SkeletonResidual[Np, Np, Np, DenseFormat[Np]] = SkeletonResidual(
+        vectors, subdomains, DenseSchur(bkd)
+    )
+    residual: ResidualProtocol[Np, DenseFormat[Np]] = skeleton
+    if pinned:
+        if values is None:
+            raise ValueError("pinned DOFs need values")
+        residual = PinnedSkeletonResidual(
+            skeleton, vectors, BackendRowSet(descriptor, list(pinned), bkd), values
+        )
+    lu: RecomputeAlways[Np, DenseFormat[Np]] = RecomputeAlways(BackendDenseLU(bkd))
+    outer: Newton[Np, Np] = Newton(atol=1e-11, rtol=1e-11, maxiters=20)
+    solved = SteadySystem(residual, vectors, lu).solve(outer, vectors.zeros(1))
+    assert solved.converged()
+    return solved.solution()
+
+
+def max_state_error(
+    pieces: Sequence[tuple[Piece, PortTransferProtocol[Np, Np], Np]],
+    lam: Np,
+    exact: Callable[[Np], Np],
+    where: Optional[Callable[[Np], Np]] = None,
+) -> float:
+    """The largest nodal error of the pieces' states, given each piece's
+    transfer and node points, against ``exact``; only at the nodes
+    ``where`` selects (a bool mask over the points) when given."""
+    bkd, error = NumpyBkd(), 0.0
+    for piece, transfer, nodes in pieces:
+        point = piece.linearize(transfer.scatter(lam), bkd.zeros((0, 1)), STEADY)
+        assert isinstance(point, SteadyPinnedPoint)
+        diff = np.abs(point.state()[:, 0] - exact(nodes))
+        if where is not None:
+            diff = diff[where(nodes)]
+        error = max(error, float(diff.max()))
+    return error
+
+
 class CoupledProblem:
     """A partition of the unit square, its skeleton, the subdomain and
     single-domain meshes, and the physics.
@@ -297,30 +411,11 @@ class CoupledProblem:
         skel = self.skeleton_coords()
         # Pinned port nodes take g through the skeleton, not as essentials.
         system, mesh = self.system(self._grids[subdomain], skel[:, list(nodes)])
-        disc = skfem_discretization(system)
         # Skeleton port DOFs are node-major, as are the mesh DOFs.
         ports = self.mesh_dofs([node_at(mesh.nodes(), skel[:, d]) for d in nodes])
         if len(ports) != len(dofs):
             raise ValueError("port DOFs and mesh DOFs differ in number")
-        states, theta = disc.space(), disc.parameter_space(len(ports))
-        # The stack's space has an inner product; its declared type does not.
-        assert isinstance(states, InnerProductSpaceProtocol)
-        data: PortPinnedData[Np, Np] = PortPinnedData(
-            NumpyRowSet(states.descriptor(), ports),
-            BackendPortRows(states.descriptor(), ports, self.bkd),
-            BackendPortRows(theta.descriptor(), list(range(len(ports))), self.bkd),
-            states,
-            theta,
-        )
-        response: Piece = SteadyPinnedResponse(
-            galerkin_steady_residual(disc),
-            data,
-            states,
-            RecomputeAlways(ScipySparseLU()),
-            newton(),
-            self.bkd,
-        )
-        return response, mesh.nodes(), dofs
+        return pinned_piece(system, ports, self.bkd), mesh.nodes(), dofs
 
     def single_domain(self) -> tuple[Np, Np]:
         """The single-domain solution and its node points."""
