@@ -43,6 +43,7 @@ from pyapprox.pde.coupling.geometry import (
 )
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
+    ReactionFlux,
     SteadyPinnedPoint,
     SteadyPinnedResponse,
 )
@@ -233,9 +234,11 @@ def pinned_piece(system: Any, ports: Sequence[int], bkd: NumpyBkd) -> Piece:
         states,
         theta,
     )
+    residual = galerkin_steady_residual(disc)
     return SteadyPinnedResponse(
-        galerkin_steady_residual(disc),
+        residual,
         data,
+        ReactionFlux(residual, data),
         states,
         RecomputeAlways(ScipySparseLU()),
         newton(),

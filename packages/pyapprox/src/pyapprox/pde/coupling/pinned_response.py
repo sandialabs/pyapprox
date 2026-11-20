@@ -1,28 +1,33 @@
 r"""A subdomain response from a steady residual with pinned rows.
 
-A mesh subdomain (Galerkin, or any discretization giving a steady
-residual with its essential rows pinned) becomes a Dirichlet-to-Neumann
-response: its port rows are pinned to the port data
+A mesh subdomain (Galerkin, collocation, or any discretization giving a
+steady residual with its essential rows pinned) becomes a
+Dirichlet-to-Neumann response: its port rows are pinned to the port data
 (:func:`~pyapprox.pde.coupling.pinned_ports.pin_ports`), the steady
-problem is solved, and the output is the reaction on the port rows.
+problem is solved, and the output is the outward flux on the ports,
+tested against the port's trace functions, as an injected
+:class:`PortFluxProtocol` reads it from the solved state.
 
-The residual is in right-hand-side form, :math:`M \dot u = F(u)`, as the
-Galerkin steady residual is: :math:`F = f - K u` for diffusion. On a
-pinned row :math:`F` does not vanish at a solution; what remains is the
-boundary term the pinning left out, :math:`-\kappa\, \partial u/\partial
-n` tested against the row's basis function. The output is its negative,
-the outward flux tested against the port basis, which is what
+:class:`ReactionFlux` reads the reaction. The residual is in
+right-hand-side form, :math:`M \dot u = F(u)`, as the Galerkin steady
+residual is: :math:`F = f - K u` for diffusion. On a pinned row :math:`F`
+does not vanish at a solution; what remains is the boundary term the
+pinning left out, :math:`-\kappa\, \partial u/\partial n` tested against
+the row's basis function. The output is its negative, the outward flux
+tested against the port basis, which is what
 :class:`~pyapprox.pde.coupling.responses.Flux` holds. Summed over the
 subdomains at an interface, it is the single-domain residual of the
 interface rows, so a skeleton solve reproduces the single-domain
-discrete solution and the flux balance holds to solver tolerance.
+discrete solution and the flux balance holds to solver tolerance. A
+discretization whose pinned rows are pointwise equations (collocation)
+has no such reaction and injects a flux computed from the state instead.
 
 The trace tangent, what a skeleton Newton step needs, is one tangent
 solve at the subdomain's solution: the port data are the residual's
 parameters, so :math:`R_u\, \delta u = -R_\theta [d; 0]` gives the
-state's change, and the flux changes by :math:`-B^\top F_u\, \delta u`.
-With a setup strategy keeping the Jacobian's setup at the solution, each
-skeleton Krylov product costs one back-substitution per subdomain.
+state's change, which the flux maps to its own change. With a setup
+strategy keeping the Jacobian's setup at the solution, each skeleton
+Krylov product costs one back-substitution per subdomain.
 """
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
@@ -72,29 +77,78 @@ class ResponseParametersProtocol(Protocol[A_contra]):
         ...
 
 
-class _TraceTangent(Generic[V, A, F]):
-    r"""What a point's trace tangent reads: the port-pinned residual
-    :math:`R`, the essentially pinned :math:`F` below it, and the port
-    data."""
+@runtime_checkable
+class PortFluxProtocol(Protocol[V, A]):
+    """How a :class:`SteadyPinnedResponse` reads its output from a solved
+    state: the outward flux on the ports, tested against the port's trace
+    functions, and its change with the state."""
+
+    def flux(self, state: V) -> A:
+        """The tested outward flux at ``state``. Shape: (nport, 1)."""
+        ...
+
+    def flux_tangent(self, state: V, delta: V, point: SteadyPoint[V, A]) -> A:
+        """The flux's change for state changes ``delta`` (ncols columns)
+        at the solve ``point`` of ``state``. Shape: (nport, ncols)."""
+        ...
+
+
+class ReactionFlux(Generic[V, A, F]):
+    r"""The reaction on the port rows as the tested outward flux:
+    :math:`-B^\top F(u)` and its tangent :math:`-B^\top F_u\, \delta u`
+    (see the module docstring).
+
+    Satisfies :class:`PortFluxProtocol`. Conservative for a
+    discretization whose rows are tested equations (Galerkin, a nested
+    skeleton); not for one whose pinned rows are pointwise equations.
+
+    Parameters
+    ----------
+    pinned : PinnedResidual
+        The subdomain's steady residual in right-hand-side form, with its
+        essential rows pinned and its port rows not: :math:`F` keeps its
+        value on them.
+    ports : PortPinnedData
+        Its port rows.
+
+    Raises
+    ------
+    ValueError
+        If ``pinned`` has no state Jacobian.
+    """
+
+    def __init__(
+        self, pinned: PinnedResidual[V, F], ports: PortPinnedData[V, A]
+    ) -> None:
+        jacobian = pinned.derivatives().jacobian
+        if jacobian is None:
+            raise ValueError("a reaction flux needs the residual's state Jacobian")
+        self._pinned, self._ports = pinned, ports
+        self._jacobian: ResidualJacobian[V, F] = jacobian
+
+    def flux(self, state: V) -> A:
+        return -self._ports.state_ports().take(self._pinned(state))
+
+    def flux_tangent(self, state: V, delta: V, point: SteadyPoint[V, A]) -> A:
+        label = LinearizationPoint(self._pinned.parameters_version(), point)
+        change = self._jacobian(state, label).apply(delta)
+        return -self._ports.state_ports().take(change)
+
+
+class _TraceTangent(Generic[V, A]):
+    r"""What a point's trace tangent reads: the port-pinned residual's
+    parameter Jacobian :math:`R_\theta`, the port data and the flux."""
 
     def __init__(
         self,
-        residual: PinnedResidual[V, F],
-        pinned: PinnedResidual[V, F],
+        param: ResidualParamFn[V],
         ports: PortPinnedData[V, A],
+        flux: PortFluxProtocol[V, A],
     ) -> None:
-        self.pinned, self.ports = pinned, ports
-        param, jacobian = residual.derivatives().param, pinned.derivatives().jacobian
-        if param is None or jacobian is None:
-            raise ValueError(
-                "a trace tangent needs the port-pinned residual's parameter "
-                "Jacobian and the essentially pinned residual's Jacobian"
-            )
-        self.param: ResidualParamFn[V] = param
-        self.jacobian: ResidualJacobian[V, F] = jacobian
+        self.param, self.ports, self.flux = param, ports, flux
 
 
-class SteadyPinnedPoint(Generic[V, A, F]):
+class SteadyPinnedPoint(Generic[V, A]):
     r"""A :class:`SteadyPinnedResponse` solved at one set of port data and
     parameters.
 
@@ -108,7 +162,7 @@ class SteadyPinnedPoint(Generic[V, A, F]):
         point: SteadyPoint[V, A],
         output: A,
         bkd: Backend[A],
-        tangent: _TraceTangent[V, A, F],
+        tangent: _TraceTangent[V, A],
     ) -> None:
         self._point, self._output, self._bkd = point, output, bkd
         self._tangent = tangent
@@ -127,8 +181,8 @@ class SteadyPinnedPoint(Generic[V, A, F]):
     def jvp_trace(self, directions: A) -> A:
         r""":math:`(\partial r/\partial \lambda)` ``directions``, for a
         block of shape (nport, ncols): one tangent solve :math:`R_u\,
-        \delta u = -R_\theta [d; 0]` for all columns, then the flux
-        tangent :math:`-B^\top F_u\, \delta u`.
+        \delta u = -R_\theta [d; 0]` for all columns, then the flux's
+        tangent at :math:`\delta u`.
 
         Raises
         ------
@@ -154,9 +208,7 @@ class SteadyPinnedPoint(Generic[V, A, F]):
         delta, info = self._point.jacobian_handle().solve(rhs)
         if not info.converged:
             raise ValueError("the tangent solve did not converge")
-        label = LinearizationPoint(t.pinned.parameters_version(), self._point)
-        change = t.jacobian(state, label).apply(delta)
-        return -t.ports.state_ports().take(change)
+        return t.flux.flux_tangent(state, delta, self._point)
 
     def state(self) -> V:
         """The subdomain's solved state."""
@@ -182,6 +234,9 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         essential rows pinned.
     ports : PortPinnedData
         Its port rows; port blocks are backend arrays.
+    flux : PortFluxProtocol
+        Reads the tested outward flux from the solved state, e.g.
+        :class:`ReactionFlux` over ``pinned`` and ``ports``.
     space : InnerProductSpaceProtocol
         The state space.
     setups : SetupStrategyProtocol
@@ -201,9 +256,10 @@ class SteadyPinnedResponse(Generic[V, A, F]):
     Raises
     ------
     TypeError
-        If ``parameters`` does not satisfy its protocol.
+        If ``flux`` or ``parameters`` does not satisfy its protocol.
     ValueError
-        If ``parameters`` and ``physical`` are not given together, or as
+        If ``parameters`` and ``physical`` are not given together, the
+        port-pinned residual has no parameter Jacobian, or as
         :func:`~pyapprox.pde.coupling.pinned_ports.pin_ports`.
     """
 
@@ -211,6 +267,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         self,
         pinned: PinnedResidual[V, F],
         ports: PortPinnedData[V, A],
+        flux: PortFluxProtocol[V, A],
         space: InnerProductSpaceProtocol[V, A],
         setups: SetupStrategyProtocol[SteadyRequest[V, F], V, F],
         nonlinear: NonlinearSolverProtocol[V, A],
@@ -218,6 +275,10 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         parameters: Optional[ResponseParametersProtocol[A]] = None,
         physical: Optional[PortPlacement[V, A]] = None,
     ) -> None:
+        if not isinstance(flux, PortFluxProtocol):
+            raise TypeError(
+                f"flux must satisfy PortFluxProtocol, got {type(flux).__name__}"
+            )
         if (parameters is None) != (physical is None):
             raise ValueError("parameters and physical come together")
         if parameters is not None and not isinstance(
@@ -227,10 +288,15 @@ class SteadyPinnedResponse(Generic[V, A, F]):
                 "parameters must satisfy ResponseParametersProtocol, got "
                 f"{type(parameters).__name__}"
             )
-        self._pinned, self._ports = pinned, ports
+        self._ports, self._flux = ports, flux
         self._residual = pin_ports(pinned, ports, physical)
+        param = self._residual.derivatives().param
+        if param is None:
+            raise ValueError(
+                "a trace tangent needs the port-pinned residual's parameter Jacobian"
+            )
         self._system = SteadySystem(self._residual, space, setups)
-        self._tangent = _TraceTangent(self._residual, pinned, ports)
+        self._tangent = _TraceTangent(param, ports, flux)
         self._nonlinear, self._bkd = nonlinear, bkd
         self._parameters = parameters
         self._guess = space.zeros(1)
@@ -259,7 +325,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
 
     def linearize(
         self, port_data: A, params: A, window: TimeWindow
-    ) -> SteadyPinnedPoint[V, A, F]:
+    ) -> SteadyPinnedPoint[V, A]:
         """Solve with ``port_data`` (nport, 1) and ``params`` (nparams,
         1).
 
@@ -288,9 +354,8 @@ class SteadyPinnedResponse(Generic[V, A, F]):
                 f"the subdomain solve did not converge ({point.info().message})"
             )
         self._guess = point.state()
-        # The essentially pinned residual keeps F on the port rows.
-        reaction = self._ports.state_ports().take(self._pinned(point.state()))
-        return SteadyPinnedPoint(point, -reaction, self._bkd, self._tangent)
+        output = self._flux.flux(point.state())
+        return SteadyPinnedPoint(point, output, self._bkd, self._tangent)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nport={self.nport()})"

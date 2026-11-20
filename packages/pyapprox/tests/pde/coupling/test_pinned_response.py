@@ -45,7 +45,7 @@ from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData, PortPlacement
-from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
+from pyapprox.pde.coupling.pinned_response import ReactionFlux, SteadyPinnedResponse
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     MatchingNodalTransfer,
@@ -144,6 +144,7 @@ class _Piece(Generic[Array]):
         return SteadyPinnedResponse(
             pinned,
             ports,
+            ReactionFlux(pinned, ports),
             disc.space(),
             RecomputeAlways(BackendDenseLU(bkd)),
             newton,
@@ -299,13 +300,31 @@ def test_parameters_need_their_placement(bkd: Backend[Array]) -> None:
     piece = _Piece(bkd, True, (0, 1.0), (_NCELLS,))
     parameters = ParameterState(ModalCoefficientParameterization(piece.operator, bkd))
     disc = piece.discretization
+    pinned = galerkin_steady_residual(disc, parameters)
+    ports = piece.ports(len(_PARAM))
     with pytest.raises(ValueError, match="come together"):
         SteadyPinnedResponse(
-            galerkin_steady_residual(disc, parameters),
-            piece.ports(len(_PARAM)),
+            pinned,
+            ports,
+            ReactionFlux(pinned, ports),
             disc.space(),
             RecomputeAlways(BackendDenseLU(bkd)),
             Newton(atol=1e-13, rtol=0.0, maxiters=30),
             bkd,
             parameters,
+        )
+
+
+def test_flux_must_satisfy_its_protocol(bkd: Backend[Array]) -> None:
+    piece = _Piece(bkd, False, (0, 0.3), (_NCELLS,))
+    disc = piece.discretization
+    with pytest.raises(TypeError, match="PortFluxProtocol"):
+        SteadyPinnedResponse(
+            galerkin_steady_residual(disc),
+            piece.ports(0),
+            object(),  # type: ignore[arg-type]
+            disc.space(),
+            RecomputeAlways(BackendDenseLU(bkd)),
+            Newton(atol=1e-13, rtol=0.0, maxiters=30),
+            bkd,
         )

@@ -42,6 +42,7 @@ from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
+    ReactionFlux,
     SteadyPinnedPoint,
     SteadyPinnedResponse,
 )
@@ -150,9 +151,11 @@ def _skfem_piece(bkd: NumpyBkd, left: bool, reaction: bool) -> _Response:
         states,
         theta,
     )
+    residual = galerkin_steady_residual(disc)
     return SteadyPinnedResponse(
-        galerkin_steady_residual(disc),
+        residual,
         ports,
+        ReactionFlux(residual, ports),
         states,
         RecomputeAlways(ScipySparseLU()),
         _newton(),
@@ -179,9 +182,11 @@ def _closed_form_piece(bkd: NumpyBkd, left: bool) -> _Response:
         states,
         theta,
     )
+    residual = galerkin_steady_residual(disc)
     return SteadyPinnedResponse(
-        galerkin_steady_residual(disc),
+        residual,
         ports,
+        ReactionFlux(residual, ports),
         states,
         RecomputeAlways(BackendDenseLU(bkd)),
         _newton(),
