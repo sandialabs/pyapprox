@@ -66,17 +66,17 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def inv(matrix: torch.Tensor) -> torch.Tensor:
         result = torch.linalg.inv(matrix)
-        assert isinstance(
-            result, torch.Tensor
-        ), "Expected torch.linalg.inv to return a torch.Tensor"
+        assert isinstance(result, torch.Tensor), (
+            "Expected torch.linalg.inv to return a torch.Tensor"
+        )
         return result
 
     @staticmethod
     def pinv(matrix: torch.Tensor) -> torch.Tensor:
         result = torch.linalg.pinv(matrix)
-        assert isinstance(
-            result, torch.Tensor
-        ), "Expected torch.linalg.pinv to return a torch.Tensor"
+        assert isinstance(result, torch.Tensor), (
+            "Expected torch.linalg.pinv to return a torch.Tensor"
+        )
         return result
 
     def array(
@@ -85,8 +85,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
         if isinstance(array, torch.Tensor):
-            return array.detach().clone().to(
-                dtype=dtype or array.dtype, device=self._device
+            return (
+                array.detach()
+                .clone()
+                .to(dtype=dtype or array.dtype, device=self._device)
             )
         arr_np = np.asarray(array)
         result = torch.from_numpy(arr_np.copy())
@@ -180,14 +182,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.vstack(arrays)
 
     def linspace(self, start: float, stop: float, num: int) -> torch.Tensor:
-        return torch.linspace(
-            start, stop, num, dtype=self._dtype, device=self._device
-        )
+        return torch.linspace(start, stop, num, dtype=self._dtype, device=self._device)
 
     def logspace(self, start: float, stop: float, num: int) -> torch.Tensor:
-        return torch.logspace(
-            start, stop, num, dtype=self._dtype, device=self._device
-        )
+        return torch.logspace(start, stop, num, dtype=self._dtype, device=self._device)
 
     @staticmethod
     def to_numpy(array: Union[torch.Tensor, np.ndarray, float, int]) -> NDArray[Any]:
@@ -212,7 +210,6 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         if hasattr(array, "item"):
             return int(array.item())
         return int(array)
-
 
     @staticmethod
     def flatten(array: torch.Tensor) -> torch.Tensor:
@@ -329,9 +326,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             device=self._device,
         )
 
-    def ones(
-        self, shape: Tuple[int, ...], dtype: Optional[Any] = None
-    ) -> torch.Tensor:
+    def ones(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> torch.Tensor:
         return torch.ones(
             shape,
             dtype=dtype if dtype is not None else self._dtype,
@@ -451,9 +446,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         axis: Optional[Union[int, Tuple[int, int]]] = None,
         keepdims: bool = False,
     ) -> torch.Tensor:
-        return cast(
-            torch.Tensor, torch.linalg.norm(array, ord, axis, keepdims)
-        )
+        return cast(torch.Tensor, torch.linalg.norm(array, ord, axis, keepdims))
 
     @staticmethod
     def sign(array: torch.Tensor) -> torch.Tensor:
@@ -525,9 +518,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return cast(torch.Tensor, result.solution)
 
     @staticmethod
-    def flip(
-        array: torch.Tensor, axis: Optional[Tuple[int]] = None
-    ) -> torch.Tensor:
+    def flip(array: torch.Tensor, axis: Optional[Tuple[int]] = None) -> torch.Tensor:
         if axis is None:
             dims = (0,)
         elif isinstance(axis, int):
@@ -537,23 +528,17 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.flip(array, dims=dims)
 
     @staticmethod
-    def sort(
-        array: torch.Tensor, axis: int = -1
-    ) -> torch.Tensor:
+    def sort(array: torch.Tensor, axis: int = -1) -> torch.Tensor:
         return torch.sort(array, dim=axis).values
 
     @staticmethod
-    def quantile(
-        array: torch.Tensor, level: float, axis: int = 0
-    ) -> torch.Tensor:
+    def quantile(array: torch.Tensor, level: float, axis: int = 0) -> torch.Tensor:
         return torch.quantile(
             array, torch.as_tensor(level, dtype=array.dtype), dim=axis
         )
 
     @staticmethod
-    def argsort(
-        array: torch.Tensor, axis: int = -1
-    ) -> torch.Tensor:
+    def argsort(array: torch.Tensor, axis: int = -1) -> torch.Tensor:
         return torch.argsort(array, dim=axis)
 
     @staticmethod
@@ -567,9 +552,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.searchsorted(sorted_array, values, side=side)
 
     @staticmethod
-    def clip(
-        array: torch.Tensor, a_min: Any, a_max: Any
-    ) -> torch.Tensor:
+    def clip(array: torch.Tensor, a_min: Any, a_max: Any) -> torch.Tensor:
         return torch.clamp(array, a_min, a_max)
 
     @staticmethod
@@ -630,9 +613,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         atol: float = 1e-08,
         equal_nan: bool = False,
     ) -> bool:
-        return torch.allclose(
-            array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
-        )
+        return torch.allclose(array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan)
 
     @staticmethod
     def jacobian(
@@ -640,8 +621,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         _jacobian = cast(
             Callable[
-                [Callable[[torch.Tensor], torch.Tensor],
-                 torch.Tensor],
+                [Callable[[torch.Tensor], torch.Tensor], torch.Tensor],
                 torch.Tensor,
             ],
             torch.autograd.functional.jacobian,
@@ -657,8 +637,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         _hvp = cast(
             Callable[
-                [Callable[[torch.Tensor], torch.Tensor],
-                 torch.Tensor, torch.Tensor],
+                [Callable[[torch.Tensor], torch.Tensor], torch.Tensor, torch.Tensor],
                 Tuple[torch.Tensor, torch.Tensor],
             ],
             torch.autograd.functional.hvp,
@@ -674,9 +653,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         # set create_graph=True so that result is differentiable.
         _jvp = cast(
-            Callable[
-                ..., Tuple[torch.Tensor, torch.Tensor]
-            ],
+            Callable[..., Tuple[torch.Tensor, torch.Tensor]],
             torch.autograd.functional.jvp,
         )
         result: torch.Tensor = _jvp(fun, params, vec, create_graph=True)[1]
@@ -688,8 +665,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         _hessian = cast(
             Callable[
-                [Callable[[torch.Tensor], torch.Tensor],
-                 torch.Tensor],
+                [Callable[[torch.Tensor], torch.Tensor], torch.Tensor],
                 torch.Tensor,
             ],
             torch.autograd.functional.hessian,
@@ -767,17 +743,13 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return cast(torch.Tensor, torch.unique(array))
 
     @staticmethod
-    def argmin(
-        array: torch.Tensor, axis: Optional[int] = None
-    ) -> torch.Tensor:
+    def argmin(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
         if axis is None:
             return torch.argmin(array)
         return torch.argmin(array, dim=axis)
 
     @staticmethod
-    def argmax(
-        array: torch.Tensor, axis: Optional[int] = None
-    ) -> torch.Tensor:
+    def argmax(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
         if axis is None:
             return torch.argmax(array)
         return torch.argmax(array, dim=axis)
@@ -789,9 +761,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.diagonal(array, offset, dim1=axis1, dim2=axis2)
 
     @staticmethod
-    def cdist(
-        XA: torch.Tensor, XB: torch.Tensor, p: float = 2.0
-    ) -> torch.Tensor:
+    def cdist(XA: torch.Tensor, XB: torch.Tensor, p: float = 2.0) -> torch.Tensor:
         if p != 2.0:
             return torch.cdist(XA, XB, p)
         # torch defaults to use_mm_for_euclid_dist_if_necessary, which
@@ -817,9 +787,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         # n=500 in 10D and parity by n=5000. The mm identity needs a
         # high enough dimension for its GEMM to repay the extra norm
         # passes, and spatial coordinates are 1-3D.
-        return torch.cdist(
-            XA, XB, p, compute_mode="donot_use_mm_for_euclid_dist"
-        )
+        return torch.cdist(XA, XB, p, compute_mode="donot_use_mm_for_euclid_dist")
 
     @staticmethod
     def tril(array: torch.Tensor, k: int = 0) -> torch.Tensor:
@@ -962,15 +930,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         raise ValueError("Must provide both x and y or neither.")
 
     @staticmethod
-    def ones_like(
-        array: torch.Tensor, dtype: Optional[Any] = None
-    ) -> torch.Tensor:
+    def ones_like(array: torch.Tensor, dtype: Optional[Any] = None) -> torch.Tensor:
         return torch.ones_like(array, dtype=dtype)
 
     @staticmethod
-    def zeros_like(
-        array: torch.Tensor, dtype: Optional[Any] = None
-    ) -> torch.Tensor:
+    def zeros_like(array: torch.Tensor, dtype: Optional[Any] = None) -> torch.Tensor:
         return torch.zeros_like(array, dtype=dtype)
 
     def default_dtype(self) -> Any:
@@ -987,9 +951,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def qr(
         array: torch.Tensor,
-        mode: Literal[
-            "reduced", "complete", "r", "raw"
-        ] = "reduced",
+        mode: Literal["reduced", "complete", "r", "raw"] = "reduced",
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         result = torch.linalg.qr(array, mode=mode)
         return cast(torch.Tensor, result.Q), cast(torch.Tensor, result.R)

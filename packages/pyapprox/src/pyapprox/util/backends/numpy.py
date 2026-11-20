@@ -332,21 +332,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.full_like(a, fill_value)
 
     @staticmethod
-    def zeros(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
-    ) -> NDArray[Any]:
+    def zeros(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
         return np.zeros(shape, dtype=dtype)
 
     @staticmethod
-    def ones(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
-    ) -> NDArray[Any]:
+    def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
         return np.ones(shape, dtype=dtype)
 
     @staticmethod
-    def empty(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
-    ) -> NDArray[Any]:
+    def empty(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
         return np.empty(shape, dtype=dtype)
 
     @staticmethod
@@ -455,9 +449,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[Union[int, Tuple[int, int]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.asarray(
-            np.linalg.norm(array, ord=ord, axis=axis, keepdims=keepdims)
-        )
+        return np.asarray(np.linalg.norm(array, ord=ord, axis=axis, keepdims=keepdims))
 
     @staticmethod
     def sign(array: NDArray[Any]) -> NDArray[Any]:
@@ -525,29 +517,21 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return result
 
     @staticmethod
-    def flip(
-        array: NDArray[Any], axis: Optional[Tuple[int]] = None
-    ) -> NDArray[Any]:
+    def flip(array: NDArray[Any], axis: Optional[Tuple[int]] = None) -> NDArray[Any]:
         return np.flip(array, axis=axis)
 
     @staticmethod
-    def sort(
-        array: NDArray[Any], axis: int = -1
-    ) -> NDArray[Any]:
+    def sort(array: NDArray[Any], axis: int = -1) -> NDArray[Any]:
         return np.sort(array, axis=axis)
 
     @staticmethod
-    def quantile(
-        array: NDArray[Any], level: float, axis: int = 0
-    ) -> NDArray[Any]:
+    def quantile(array: NDArray[Any], level: float, axis: int = 0) -> NDArray[Any]:
         # numpy's stubs type a quantile along an axis as Any.
         result: NDArray[Any] = np.quantile(array, level, axis=axis)
         return result
 
     @staticmethod
-    def argsort(
-        array: NDArray[Any], axis: int = -1
-    ) -> NDArray[Any]:
+    def argsort(array: NDArray[Any], axis: int = -1) -> NDArray[Any]:
         return np.argsort(array, axis=axis)
 
     @staticmethod
@@ -560,9 +544,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return result
 
     @staticmethod
-    def clip(
-        array: NDArray[Any], a_min: Any, a_max: Any
-    ) -> NDArray[Any]:
+    def clip(array: NDArray[Any], a_min: Any, a_max: Any) -> NDArray[Any]:
         return np.asarray(np.clip(array, a_min, a_max))
 
     @staticmethod
@@ -625,9 +607,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         atol: float = 1e-08,
         equal_nan: bool = False,
     ) -> bool:
-        return np.allclose(
-            array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
-        )
+        return np.allclose(array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan)
 
     @staticmethod
     def cholesky(array: NDArray[Any]) -> NDArray[Any]:
@@ -700,9 +680,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.diagonal(array, offset, axis1=axis1, axis2=axis2)
 
     @staticmethod
-    def cdist(
-        XA: NDArray[Any], XB: NDArray[Any], p: float = 2.0
-    ) -> NDArray[Any]:
+    def cdist(XA: NDArray[Any], XB: NDArray[Any], p: float = 2.0) -> NDArray[Any]:
         if p == 1.0:
             metric = "manhattan"
         elif p == 2.0:
@@ -741,9 +719,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
         # unpack: newer stubs return an SVDResult named tuple that mypy
         # does not accept as a plain Tuple
-        U, S, Vh = np.linalg.svd(
-            array, compute_uv=True, full_matrices=full_matrices
-        )
+        U, S, Vh = np.linalg.svd(array, compute_uv=True, full_matrices=full_matrices)
         return U, S, Vh
 
     @staticmethod
@@ -761,15 +737,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return result
 
     @staticmethod
-    def argmin(
-        array: NDArray[Any], axis: Optional[int] = None
-    ) -> NDArray[Any]:
+    def argmin(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
         return np.asarray(np.argmin(array, axis=axis))
 
     @staticmethod
-    def argmax(
-        array: NDArray[Any], axis: Optional[int] = None
-    ) -> NDArray[Any]:
+    def argmax(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
         return np.asarray(np.argmax(array, axis=axis))
 
     @overload
@@ -807,15 +779,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return result
 
     @staticmethod
-    def ones_like(
-        array: NDArray[Any], dtype: Optional[Any] = None
-    ) -> NDArray[Any]:
+    def ones_like(array: NDArray[Any], dtype: Optional[Any] = None) -> NDArray[Any]:
         return np.ones_like(array, dtype=dtype)
 
     @staticmethod
-    def zeros_like(
-        array: NDArray[Any], dtype: Optional[Any] = None
-    ) -> NDArray[Any]:
+    def zeros_like(array: NDArray[Any], dtype: Optional[Any] = None) -> NDArray[Any]:
         return np.zeros_like(array, dtype=dtype)
 
     @staticmethod
@@ -852,9 +820,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> NDArray[Any]:
         # keepdims as a literal per branch: the stubs overload on it
         if keepdims:
-            return np.asarray(
-                np.var(array, axis=axis, keepdims=True, ddof=ddof)
-            )
+            return np.asarray(np.var(array, axis=axis, keepdims=True, ddof=ddof))
         return np.asarray(np.var(array, axis=axis, ddof=ddof))
 
     @staticmethod
@@ -866,9 +832,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> NDArray[Any]:
         # keepdims as a literal per branch: the stubs overload on it
         if keepdims:
-            return np.asarray(
-                np.std(array, axis=axis, keepdims=True, ddof=ddof)
-            )
+            return np.asarray(np.std(array, axis=axis, keepdims=True, ddof=ddof))
         return np.asarray(np.std(array, axis=axis, ddof=ddof))
 
     @staticmethod
@@ -894,9 +858,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def qr(
         array: NDArray[Any],
-        mode: Literal[
-            "reduced", "complete", "r", "raw"
-        ] = "reduced",
+        mode: Literal["reduced", "complete", "r", "raw"] = "reduced",
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         result: Tuple[NDArray[Any], NDArray[Any]] = np.linalg.qr(array, mode=mode)
         return result
@@ -931,9 +893,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         U : NDArray
             Upper triangular matrix.
         """
-        result: Tuple[NDArray[Any], NDArray[Any], NDArray[Any]] = scipy.linalg.lu(
-            array
-        )
+        result: Tuple[NDArray[Any], NDArray[Any], NDArray[Any]] = scipy.linalg.lu(array)
         return result
 
     @staticmethod

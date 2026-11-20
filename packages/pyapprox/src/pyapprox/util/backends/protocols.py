@@ -388,9 +388,7 @@ class Backend(Protocol, Generic[Array]):
 
     # Overload 2: arange(start, stop)
     @overload
-    def arange(
-        self, start: Union[int, float], stop: Union[int, float], /
-    ) -> Array:
+    def arange(self, start: Union[int, float], stop: Union[int, float], /) -> Array:
         """
         Overload for when `start` and `stop` are provided.
         """

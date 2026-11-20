@@ -76,11 +76,7 @@ def validate_backends(backends: Sequence[Any]) -> None:
 
     # Extract class names for comparison
     class_names = [
-        (
-            type(backend).__name__
-            if not isinstance(backend, type)
-            else backend.__name__
-        )
+        (type(backend).__name__ if not isinstance(backend, type) else backend.__name__)
         for backend in backends
     ]
 

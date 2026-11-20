@@ -29,7 +29,6 @@ def foo(x: Array, backend: Backend[Array]) -> Union[Array]:
 
 # Base test class
 class TestBackend:
-
     def test_2d_array(self, bkd: Backend[Array]) -> None:
         """
         Test the foo function with a 2D array.
@@ -184,9 +183,7 @@ class TestDtypePredicates:
         assert not bkd.is_floating_dtype(bkd.array([True, False]))
 
     def test_complex_is_not_floating(self, bkd: Backend[Array]) -> None:
-        complex_array = bkd.asarray(
-            bkd.array([1.0, 2.0]), dtype=bkd.complex_dtype()
-        )
+        complex_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.complex_dtype())
         assert not bkd.is_floating_dtype(complex_array)
 
 
@@ -250,9 +247,7 @@ class TestCdistShapeConsistency:
         pts = bkd.array(np.random.uniform(0.0, 1.0, (37, 2)))
         dists = bkd.cdist(pts, pts)
         bkd.assert_allclose(dists, dists.T, rtol=1e-14)
-        bkd.assert_allclose(
-            bkd.diag(dists), bkd.full((37,), 0.0), atol=1e-15, rtol=0.0
-        )
+        bkd.assert_allclose(bkd.diag(dists), bkd.full((37,), 0.0), atol=1e-15, rtol=0.0)
 
 
 class TestConj:
