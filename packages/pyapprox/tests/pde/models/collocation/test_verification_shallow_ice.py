@@ -48,6 +48,7 @@ from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import Divergence, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.collocation_verification import coded, decays, recovers, stalls
 
 _GRAVITY = 9.81
@@ -158,10 +159,13 @@ def test_recovers_2d(numpy_bkd: Backend[Array]) -> None:
     friction 2, Dirichlet, Robin, Dirichlet, Neumann sides: the flux has
     degree 7 per direction, so 10 nodes per direction reproduce H to
     1e-10. (Friction 1 + x leaves 2.3e-9 at 10 nodes: its sliding term is
-    not polynomial.)"""
+    not polynomial.) Newton stops at a residual of 1e-10: the default
+    1e-12 sits at the round-off floor, which on some BLAS builds is
+    4.6e-11 here."""
     ice = _ShallowIce("0.1*x + 0.05*y", "2")
     problem = ice.problem("2 + x/4 - y/4 + x*y/8", _RECTANGLE, "DRDN")
-    recovers(problem, ice, 10, numpy_bkd, initial_guess=_START)
+    newton: Newton[Array, Array] = Newton(atol=1e-10, rtol=1e-12, maxiters=30)
+    recovers(problem, ice, 10, numpy_bkd, initial_guess=_START, nonlinear=newton)
 
 
 def test_decays(numpy_bkd: Backend[Array]) -> None:

@@ -33,6 +33,7 @@ from pyapprox.pde.verification.study import (
     verify,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 
 _KINDS: Dict[str, ConditionProtocol] = {
     "D": Dirichlet(),
@@ -56,11 +57,16 @@ def recovers(
     n: int,
     bkd: Backend[Array],
     initial_guess: Optional[InitialGuessProtocol] = None,
+    nonlinear: Optional[NonlinearSolverProtocol[Array, Array]] = None,
 ) -> None:
     """``n`` nodes per direction reproduce the solution: L2 error below
-    1e-10. Solves start from ``initial_guess`` (default zero)."""
+    1e-10. Solves start from ``initial_guess`` (default zero), with
+    ``nonlinear`` (default the discretizer's Newton)."""
     discretizer = CollocationDiscretizer(
-        ChebyshevBox([n], bkd), factory, initial_guess=initial_guess
+        ChebyshevBox([n], bkd),
+        factory,
+        nonlinear=nonlinear,
+        initial_guess=initial_guess,
     )
     result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
     assert result.passed, result.message
