@@ -33,6 +33,11 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.functional_terms import (
+    has_first_derivatives,
+    has_second_derivatives,
+)
+from pyapprox.implicitfunction.implicit_map import ImplicitMapDerivatives
 from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.functional_sink import FunctionalSink, PlainSum
 from pyapprox.ode.integration import Integrator
@@ -41,8 +46,10 @@ from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.step_plan import StepPlanProtocol
+from pyapprox.ode.stepper_derivatives import StepperDerivatives
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.ode.trajectory_derivatives import (
+    InitialStateDerivatives,
     ResidualInitialState,
     TrajectoryDerivatives,
 )
@@ -123,7 +130,10 @@ class TrajectoryFunctionalSourceProtocol(Protocol[V, A]):
     def trajectory_functional(
         self, store: TrajectoryStoreProtocol[V]
     ) -> TrajectoryFunctional[V, A]:
-        """The functional on the trajectory ``store`` recorded."""
+        """The functional on the trajectory ``store`` recorded. Its terms
+        are the same for every store, only their data (a time integral's
+        recursion weights) depending on it, so their derivative bundles
+        may be read from the functional on an empty store."""
         ...
 
 
@@ -221,6 +231,43 @@ class TransientPoint(Generic[V, A]):
         )
 
 
+def _stepper_order(param_space: bool, derivs: StepperDerivatives[V]) -> int:
+    """The derivative order of a stepper's bundle the sweeps can use: 1
+    with parameter derivatives, 2 with second derivatives too."""
+    if not param_space or derivs.param is None:
+        return 0
+    # The three second-order fields come together.
+    return 2 if derivs.param_param is not None else 1
+
+
+def _initial_order(derivs: InitialStateDerivatives[V]) -> int:
+    """The derivative order of an initial state's bundle."""
+    if derivs.param_derivative is None:
+        return 0
+    return 2 if derivs.curvature is not None else 1
+
+
+def _functional_order(functional: TrajectoryFunctional[V, A]) -> int:
+    """The derivative order of a functional: that of its weakest term."""
+    families = [term.derivatives() for term in functional.state_terms]
+    # A step term's first derivatives come all three or none, and so do
+    # its curvatures.
+    steps = [term.derivatives() for term in functional.step_terms]
+    if not (
+        has_first_derivatives(functional.parameter_terms, ())
+        and all(family.first is not None for family in families)
+        and all(step.wrt_unknown is not None for step in steps)
+    ):
+        return 0
+    if not (
+        has_second_derivatives(functional.parameter_terms, ())
+        and all(family.second is not None for family in families)
+        and all(step.curvature_wrt_unknown is not None for step in steps)
+    ):
+        return 1
+    return 2
+
+
 class TransientImplicitMap(Generic[V, A, F]):
     r""":math:`p \mapsto Q(y(p);\, p)` for the trajectory :math:`y(p)` of a
     discretization stepped by a method (see the module docstring).
@@ -228,6 +275,12 @@ class TransientImplicitMap(Generic[V, A, F]):
     Each evaluation sets the parameters, clears ``setups``, sets the
     initial state's essential entries to their data at the plan's origin,
     and steps through ``steps``.
+
+    Which derivatives the map has (:meth:`derivatives`) is fixed here, as
+    the weakest of its parts' bundles: a stepper built for the
+    discretization's system, the initial state, and the functional's
+    terms. The steps contribute nothing, so a plan that chooses its steps
+    during the solve differentiates as a fixed one does.
 
     Parameters
     ----------
@@ -252,6 +305,8 @@ class TransientImplicitMap(Generic[V, A, F]):
     TypeError
         If an argument does not satisfy its protocol.
     """
+
+    _derivatives: ImplicitMapDerivatives[TransientPoint[V, A], V, A]
 
     def __init__(
         self,
@@ -278,6 +333,33 @@ class TransientImplicitMap(Generic[V, A, F]):
         self._discretization, self._parameters = discretization, parameters
         self._method, self._setups, self._steps = method, setups, steps
         self._init_state, self._functional = init_state, functional
+        # A stepper built only to read its bundle: building one solves
+        # nothing, and a bundle's fields do not change with the parameters.
+        system = discretization.system()
+        stepper = method.stepper(system, setups, discretization.pinning())
+        order = min(
+            _stepper_order(stepper.param_space() is not None, stepper.derivatives()),
+            _initial_order(ResidualInitialState(system.rhs, system.form).derivatives()),
+            _functional_order(
+                functional.trajectory_functional(InMemoryTrajectoryStore())
+            ),
+        )
+        self._derivatives = (
+            ImplicitMapDerivatives.none()
+            if order == 0
+            else ImplicitMapDerivatives.first_order(
+                TransientPoint.tangent, TransientPoint.gradient
+            )
+            if order == 1
+            else ImplicitMapDerivatives.second_order(
+                TransientPoint.tangent, TransientPoint.gradient, TransientPoint.hvp
+            )
+        )
+
+    def derivatives(self) -> ImplicitMapDerivatives[TransientPoint[V, A], V, A]:
+        """Which derivatives a point has, as callables over it; fixed when
+        the map is built."""
+        return self._derivatives
 
     def nparams(self) -> int:
         """The number of parameters."""

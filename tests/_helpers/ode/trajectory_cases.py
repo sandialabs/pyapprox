@@ -8,7 +8,11 @@ from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
 
-from pyapprox.implicitfunction.functional_terms import BackendScalarGradient
+from pyapprox.implicitfunction.functional_terms import (
+    BackendScalarGradient,
+    StateTermDerivatives,
+    StateTermProtocol,
+)
 from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -33,6 +37,7 @@ from pyapprox.ode.observation_terms import MisfitTerm
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
+    ODEResidualDerivatives,
     backend_spaces,
     dense_operator,
 )
@@ -54,7 +59,12 @@ from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
 )
-from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.trajectory_terms import (
+    MemberFirst,
+    StoredStateTermDerivatives,
+    StoredStateTermProtocol,
+    TrajectoryFunctional,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendRowSet, DenseFormat
 from tests._helpers.ode.multistep_cases import METHOD_IDS, METHODS, lm_stepper
@@ -558,3 +568,77 @@ def min_gradient_fd_error(
         bkd.asarray(LV_PARAM), relative=True, central=True
     )[0]
     return bkd.to_float(bkd.min(errors))
+
+
+class ReducedLotkaVolterra(LotkaVolterra[Array]):
+    """Lotka-Volterra with its derivatives cut to ``order``: 0 the state
+    Jacobian only, 1 the parameter derivatives too, 2 all of them."""
+
+    def __init__(self, bkd: Backend[Array], order: int) -> None:
+        super().__init__(bkd)
+        full = super().derivatives()
+        self._reduced: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
+            ODEResidualDerivatives(jacobian=full.jacobian)
+            if order == 0
+            else ODEResidualDerivatives(
+                jacobian=full.jacobian,
+                param=full.param,
+                initial_state=full.initial_state,
+                param_space=full.param_space,
+            )
+            if order == 1
+            else full
+        )
+
+    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
+        return self._reduced
+
+
+class TruncatedStateTerm(Generic[Array]):
+    """A one-state term keeping its value and only the derivatives up to
+    ``order`` (0: none, 1: the first)."""
+
+    def __init__(self, inner: StateTermProtocol[Array, Array], order: int) -> None:
+        self._inner = inner
+        bundle = inner.derivatives()
+        self._derivatives: StateTermDerivatives[Array, Array] = (
+            StateTermDerivatives.none()
+            if order == 0
+            else StateTermDerivatives(bundle.wrt_state, bundle.wrt_param)
+        )
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def value(self, state: Array) -> Array:
+        return self._inner.value(state)
+
+    def derivatives(self) -> StateTermDerivatives[Array, Array]:
+        return self._derivatives
+
+
+class EachTruncated(Generic[Array]):
+    """A stored-state term whose every member is
+    :class:`TruncatedStateTerm`."""
+
+    def __init__(
+        self, inner: StoredStateTermProtocol[Array, Array], order: int
+    ) -> None:
+        self._inner, self._order = inner, order
+        self._derivatives: StoredStateTermDerivatives[Array, Array] = (
+            StoredStateTermDerivatives.none()
+            if order == 0
+            else StoredStateTermDerivatives.first_order(MemberFirst(self.at))
+        )
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def reads(self, index: int, last: bool) -> bool:
+        return self._inner.reads(index, last)
+
+    def at(self, index: int, time: float) -> StateTermProtocol[Array, Array]:
+        return TruncatedStateTerm(self._inner.at(index, time), self._order)
+
+    def derivatives(self) -> StoredStateTermDerivatives[Array, Array]:
+        return self._derivatives

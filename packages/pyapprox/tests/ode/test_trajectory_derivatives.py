@@ -88,10 +88,8 @@ from pyapprox.ode.trajectory_derivatives import (
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
     AtStoredStates,
-    MemberFirst,
     StoredStates,
     StoredStateTermDerivatives,
-    StoredStateTermProtocol,
     TrajectoryFunctional,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -131,7 +129,9 @@ from tests._helpers.ode.trajectory_cases import (
     SOME_METHODS,
     STEPS,
     CurvedPin,
+    EachTruncated,
     Method,
+    ReducedLotkaVolterra,
     ScaledStart,
     TrajectoryProblem,
     hvp_symmetry_error,
@@ -269,7 +269,7 @@ class TestConstraintAndInitialState:
         """Which derivatives the initial state has is read from the
         residual's bundle when it is built."""
         initial: ResidualInitialState[Array] = ResidualInitialState(
-            _ReducedLotkaVolterra(bkd, order), BackendColumnForm(bkd)
+            ReducedLotkaVolterra(bkd, order), BackendColumnForm(bkd)
         )
         bundle = initial.derivatives()
         assert (bundle.param_derivative is not None) == (order >= 1)
@@ -440,86 +440,13 @@ class _FixedStart(ScaledStart[Array]):
         return InitialStateDerivatives.none()
 
 
-class _ReducedLotkaVolterra(LotkaVolterra[Array]):
-    """Lotka-Volterra with its derivatives cut to ``order``: 0 the state
-    Jacobian only, 1 the parameter derivatives too, 2 all of them."""
-
-    def __init__(self, bkd: Backend[Array], order: int) -> None:
-        super().__init__(bkd)
-        full = super().derivatives()
-        self._reduced: ODEResidualDerivatives[Array, DenseFormat[Array]] = (
-            ODEResidualDerivatives(jacobian=full.jacobian)
-            if order == 0
-            else ODEResidualDerivatives(
-                jacobian=full.jacobian,
-                param=full.param,
-                initial_state=full.initial_state,
-                param_space=full.param_space,
-            )
-            if order == 1
-            else full
-        )
-
-    def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
-        return self._reduced
-
-
-class _Truncated(Generic[Array]):
-    """A one-state term keeping its value and only the derivatives up to
-    ``order`` (0: none, 1: the first)."""
-
-    def __init__(self, inner: StateTermProtocol[Array, Array], order: int) -> None:
-        self._inner = inner
-        bundle = inner.derivatives()
-        self._derivatives: StateTermDerivatives[Array, Array] = (
-            StateTermDerivatives.none()
-            if order == 0
-            else StateTermDerivatives(bundle.wrt_state, bundle.wrt_param)
-        )
-
-    def nqoi(self) -> int:
-        return self._inner.nqoi()
-
-    def value(self, state: Array) -> Array:
-        return self._inner.value(state)
-
-    def derivatives(self) -> StateTermDerivatives[Array, Array]:
-        return self._derivatives
-
-
-class _EachTruncated(Generic[Array]):
-    """A stored-state term whose every member is :class:`_Truncated`."""
-
-    def __init__(
-        self, inner: StoredStateTermProtocol[Array, Array], order: int
-    ) -> None:
-        self._inner, self._order = inner, order
-        self._derivatives: StoredStateTermDerivatives[Array, Array] = (
-            StoredStateTermDerivatives.none()
-            if order == 0
-            else StoredStateTermDerivatives.first_order(MemberFirst(self.at))
-        )
-
-    def nqoi(self) -> int:
-        return self._inner.nqoi()
-
-    def reads(self, index: int, last: bool) -> bool:
-        return self._inner.reads(index, last)
-
-    def at(self, index: int, time: float) -> StateTermProtocol[Array, Array]:
-        return _Truncated(self._inner.at(index, time), self._order)
-
-    def derivatives(self) -> StoredStateTermDerivatives[Array, Array]:
-        return self._derivatives
-
-
 class TestStoredStateTermDerivatives:
     def test_a_family_declares_its_weakest_members(self, bkd: Backend[Array]) -> None:
         """Truncated members give a family of their order; stacking it
         keeps that order."""
         endpoint = EndpointTerm(StateEntries(bkd, 2, [0]))
         for order in (0, 1):
-            family = _EachTruncated(endpoint, order)
+            family = EachTruncated(endpoint, order)
             # The stack of one functional holds one state term, the
             # family's mapped copy.
             (stacked,) = TrajectoryFunctional.stack(
@@ -549,9 +476,9 @@ class TestHessianVectorProductRefusals:
         )
         misfit = problem.coupling(store, param).state_terms[0]
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_EachTruncated(misfit, 1),)
+            bkd, 1, state_terms=(EachTruncated(misfit, 1),)
         )
-        with pytest.raises(TypeError, match="_EachTruncated.*no second derivatives"):
+        with pytest.raises(TypeError, match="EachTruncated.*no second derivatives"):
             sweeps.hvp(store, functional, random_direction(bkd))
 
     def test_a_term_only_evaluated(self, bkd: Backend[Array]) -> None:
@@ -565,14 +492,14 @@ class TestHessianVectorProductRefusals:
         )
         misfit = problem.coupling(store, param).state_terms[0]
         functional = TrajectoryFunctional.from_terms(
-            bkd, 1, state_terms=(_EachTruncated(misfit, 0),)
+            bkd, 1, state_terms=(EachTruncated(misfit, 0),)
         )
         direction = random_direction(bkd)
-        with pytest.raises(TypeError, match="_EachTruncated.*only evaluated"):
+        with pytest.raises(TypeError, match="EachTruncated.*only evaluated"):
             sweeps.gradient(store, functional)
-        with pytest.raises(TypeError, match="_EachTruncated.*only evaluated"):
+        with pytest.raises(TypeError, match="EachTruncated.*only evaluated"):
             sweeps.tangent(store, functional, direction)
-        with pytest.raises(TypeError, match="_EachTruncated.*only evaluated"):
+        with pytest.raises(TypeError, match="EachTruncated.*only evaluated"):
             sweeps.hvp(store, functional, direction)
 
     def test_an_initial_state_without_curvature(self, bkd: Backend[Array]) -> None:

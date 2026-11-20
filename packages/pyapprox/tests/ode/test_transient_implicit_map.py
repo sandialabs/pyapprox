@@ -26,11 +26,19 @@ ten steps of 0.05, under backward Euler, Heun and BDF2 (Newton to
   parameters.
 """
 
-from typing import Callable, Generic, Optional, Union
+import dataclasses
+from typing import Any, Callable, Generic, List, Optional, Tuple, Union
 
 import pytest
 
+from pyapprox.implicitfunction.functional_terms import (
+    ParameterTermDerivatives,
+    ParameterTermProtocol,
+)
+from pyapprox.implicitfunction.implicit_map import ImplicitMapDerivatives
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -40,7 +48,9 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.multistep_methods import bdf2
+from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.pinned_rows import RowPinningProtocol
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.stepping_methods import (
     LinearMultistep,
     RungeKutta,
@@ -48,11 +58,18 @@ from pyapprox.ode.stepping_methods import (
 )
 from pyapprox.ode.tableau import backward_euler, heun
 from pyapprox.ode.time_integral import TimeIntegral
-from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
+from pyapprox.ode.trajectory_terms import (
+    StepTermDerivatives,
+    StepTermProtocol,
+    TrajectoryFunctional,
+)
 from pyapprox.ode.transient_implicit_map import (
     FixedTrajectoryFunctional,
     TrajectoryFunctionalSourceProtocol,
     TransientImplicitMap,
+    TransientPoint,
+    ValueSinkProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -62,8 +79,10 @@ from tests._helpers.ode.runge_kutta_cases import LV_PARAM, lotka_volterra_with_m
 from tests._helpers.ode.trajectory_cases import (
     START,
     STEPS,
+    EachTruncated,
     EnergyIntegrand,
     Method,
+    ReducedLotkaVolterra,
     TrajectoryProblem,
     native_tikhonov_mse,
     random_direction,
@@ -283,6 +302,175 @@ class TestTwoEntries:
             ).point(param)
             bkd.assert_allclose(point.value()[entry], single.value()[0], rtol=1e-12)
             bkd.assert_allclose(gradients[entry], single.gradient(), rtol=1e-12)
+
+
+class _ParameterTermOfOrder(Generic[Array]):
+    """A parameter term keeping its value and its derivatives up to
+    ``order`` (0: none, 1: the first)."""
+
+    def __init__(self, inner: ParameterTermProtocol[Array, Array], order: int) -> None:
+        self._inner = inner
+        wrt_param = inner.derivatives().wrt_param
+        if wrt_param is None:
+            raise ValueError("the inner term has its first derivative")
+        self._derivatives: ParameterTermDerivatives[Array, Array] = (
+            ParameterTermDerivatives.none()
+            if order == 0
+            else ParameterTermDerivatives.first_order(wrt_param)
+        )
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def value(self) -> Array:
+        return self._inner.value()
+
+    def derivatives(self) -> ParameterTermDerivatives[Array, Array]:
+        return self._derivatives
+
+
+class _StepTermOfOrder(Generic[Array]):
+    """A step term keeping its value and its derivatives up to ``order``
+    (0: none, 1: the first)."""
+
+    def __init__(self, inner: StepTermProtocol[Array, Array], order: int) -> None:
+        self._inner = inner
+        bundle = inner.derivatives()
+        self._derivatives: StepTermDerivatives[Array, Array] = (
+            StepTermDerivatives.none()
+            if order == 0
+            else StepTermDerivatives(
+                bundle.wrt_unknown, bundle.wrt_lag, bundle.wrt_param
+            )
+        )
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def value(self, step: int, window: StepWindow[Array]) -> Array:
+        return self._inner.value(step, window)
+
+    def derivatives(self) -> StepTermDerivatives[Array, Array]:
+        return self._derivatives
+
+
+class _StepTermsOfOrder(Generic[Array]):
+    """A functional source whose step terms keep their derivatives up to
+    ``order``."""
+
+    def __init__(
+        self, inner: TrajectoryFunctionalSourceProtocol[Array, Array], order: int
+    ) -> None:
+        self._inner, self._order = inner, order
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def sink(self) -> ValueSinkProtocol[Array, Array]:
+        return self._inner.sink()
+
+    def trajectory_functional(
+        self, store: TrajectoryStoreProtocol[Array]
+    ) -> TrajectoryFunctional[Array, Array]:
+        functional = self._inner.trajectory_functional(store)
+        return dataclasses.replace(
+            functional,
+            step_terms=tuple(
+                _StepTermOfOrder(term, self._order) for term in functional.step_terms
+            ),
+        )
+
+
+def _orders(bundle: ImplicitMapDerivatives[Any, Array, Array]) -> Tuple[bool, ...]:
+    return (
+        bundle.tangent is not None,
+        bundle.gradient is not None,
+        bundle.hvp is not None,
+    )
+
+
+_NONE, _FIRST, _SECOND = (False,) * 3, (True, True, False), (True,) * 3
+
+
+class TestDeclaredDerivatives:
+    """The map's bundle is the weakest of its parts', fixed when it is
+    built; each declared field is the point's own derivative."""
+
+    def test_the_stepper_and_initial_state_cut_the_map(
+        self, bkd: Backend[Array]
+    ) -> None:
+        for order, expected in ((0, _NONE), (1, _FIRST), (2, _SECOND)):
+            model = ReducedLotkaVolterra(bkd, order)
+            functional, tikhonov = native_tikhonov_mse(bkd)
+            implicit = _map(
+                bkd,
+                _bdf2(),
+                model,
+                FixedTrajectoryFunctional(functional),
+                tikhonov.set_param,
+            )
+            assert _orders(implicit.derivatives()) == expected
+
+    def test_the_declared_fields_are_the_points(self, bkd: Backend[Array]) -> None:
+        functional, tikhonov = native_tikhonov_mse(bkd)
+        implicit = _map(
+            bkd,
+            _bdf2(),
+            lotka_volterra_with_mass(bkd),
+            FixedTrajectoryFunctional(functional),
+            tikhonov.set_param,
+        )
+        bundle = implicit.derivatives()
+        assert (
+            bundle.tangent is not None
+            and bundle.gradient is not None
+            and bundle.hvp is not None
+        )
+        point = implicit.point(bkd.asarray(LV_PARAM))
+        direction = random_direction(bkd)
+        bkd.assert_allclose(
+            bundle.tangent(point, direction), point.tangent(direction), rtol=1e-14
+        )
+        bkd.assert_allclose(bundle.gradient(point, None), point.gradient(), rtol=1e-14)
+        bkd.assert_allclose(
+            bundle.hvp(point, direction, None), point.hvp(direction), rtol=1e-14
+        )
+
+    def test_each_kind_of_term_cuts_the_map(self, bkd: Backend[Array]) -> None:
+        endpoint = EndpointTerm(StateEntries(bkd, 2, [0]))
+        for order, expected in ((0, _NONE), (1, _FIRST)):
+            tikhonov = TikhonovTerm(bkd, 0.3)
+            sources: List[TrajectoryFunctionalSourceProtocol[Array, Array]] = [
+                FixedTrajectoryFunctional(
+                    TrajectoryFunctional.from_terms(
+                        bkd, 1, state_terms=(EachTruncated(endpoint, order),)
+                    )
+                ),
+                FixedTrajectoryFunctional(
+                    TrajectoryFunctional.from_terms(
+                        bkd,
+                        1,
+                        parameter_terms=(_ParameterTermOfOrder(tikhonov, order),),
+                    )
+                ),
+            ]
+            method: _Method[Array] = _bdf2()
+            model = lotka_volterra_with_mass(bkd)
+            integrand = EnergyIntegrand(bkd)
+            sources.append(
+                _StepTermsOfOrder(_integral(bkd, method, model, integrand), order)
+            )
+            for source in sources:
+                implicit = _map(
+                    bkd, method, model, source, tikhonov.set_param, integrand.set_param
+                )
+                assert _orders(implicit.derivatives()) == expected, source
+
+    def test_the_bundle_refuses_hvp_alone(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="needs tangent and gradient"):
+            ImplicitMapDerivatives(hvp=TransientPoint.hvp)
+        with pytest.raises(TypeError, match="must be callable"):
+            ImplicitMapDerivatives(tangent=1.0)  # type: ignore[arg-type]
 
 
 class TestRefusals:
