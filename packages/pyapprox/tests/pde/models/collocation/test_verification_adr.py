@@ -586,7 +586,7 @@ class TestAdapterPieces:
         polar = PolarTransform((1.0, 2.0), (0.0, 2.0 * math.pi), bkd)
         mesh = TransformedMesh2D(8, 8, bkd, polar)
         level = ChebyshevLevel(
-            annulus, mesh, ChebyshevBasis2D(mesh, bkd), {"inner": 0, "outer": 1}
+            annulus, mesh, ChebyshevBasis2D(mesh, bkd), {"inner": (0,), "outer": (1,)}
         )
         conditions: Dict[str, ConditionProtocol] = {
             "inner": Dirichlet(),
@@ -600,7 +600,25 @@ class TestAdapterPieces:
         # Central gap of 8 nodes on [-1, 1]: cos(3 pi/7) - cos(4 pi/7).
         dtheta = math.pi * (math.cos(3 * math.pi / 7) - math.cos(4 * math.pi / 7))
         assert abs(level.h() - 4.0 * math.sin(dtheta / 2.0)) < 1e-13
-        assert level.boundary_id("outer") == 1
+        assert level.boundary_ids("outer") == (1,)
+
+    def test_part_over_several_boundaries(self, bkd: Backend[Array]) -> None:
+        """A part may cover several mesh boundaries (a disk's circle, all
+        four sides of a square mapped onto it): on a 4 x 4 reference
+        square read as one part of a disk, the left and bottom sides have
+        7 nodes, the shared corner once, with the left side's normal."""
+        mesh = TransformedMesh2D(4, 4, bkd)
+        level = ChebyshevLevel(
+            Disk(),
+            mesh,
+            ChebyshevBasis2D(mesh, bkd),
+            {"circle": (0, 2)},
+        )
+        indices, normals = side_nodes(level, "circle")
+        expected = bkd.asarray([0, 4, 8, 12, 1, 2, 3], dtype=bkd.int64_dtype())
+        bkd.assert_allclose(indices, expected)
+        bkd.assert_allclose(normals[0], bkd.asarray([-1.0, 0.0]))
+        bkd.assert_allclose(normals[-1], bkd.asarray([0.0, -1.0]))
 
 
 class TestRefusals:
@@ -678,10 +696,20 @@ class TestRefusals:
         mesh = TransformedMesh2D(4, 4, numpy_bkd)
         basis = ChebyshevBasis2D(mesh, numpy_bkd)
         with pytest.raises(ValueError, match="must name the domain's boundary"):
-            ChebyshevLevel(Annulus(), mesh, basis, {"inner": 0})
-        level = ChebyshevLevel(Annulus(), mesh, basis, {"inner": 0, "outer": 1})
+            ChebyshevLevel(Annulus(), mesh, basis, {"inner": (0,)})
+        with pytest.raises(ValueError, match="'outer' covers no mesh boundary"):
+            ChebyshevLevel(Annulus(), mesh, basis, {"inner": (0,), "outer": ()})
+        with pytest.raises(TypeError, match="InteriorClosureProtocol"):
+            ChebyshevLevel(
+                Annulus(),
+                mesh,
+                basis,
+                {"inner": (0,), "outer": (1,)},
+                closures=[2],  # type: ignore[list-item]
+            )
+        level = ChebyshevLevel(Annulus(), mesh, basis, {"inner": (0,), "outer": (1,)})
         with pytest.raises(ValueError, match="no boundary part 'left'"):
-            level.boundary_id("left")
+            level.boundary_ids("left")
 
     def test_periodic_off_a_box(self, numpy_bkd: Backend[Array]) -> None:
         """Periodic conditions pair a box's opposite sides; an annulus'
@@ -693,7 +721,7 @@ class TestRefusals:
             annulus,
             mesh,
             ChebyshevBasis2D(mesh, numpy_bkd),
-            {"inner": 0, "outer": 1},
+            {"inner": (0,), "outer": (1,)},
         )
         conditions: Dict[str, ConditionProtocol] = {
             "inner": Periodic(),

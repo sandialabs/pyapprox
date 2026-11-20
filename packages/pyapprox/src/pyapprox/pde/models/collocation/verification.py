@@ -32,8 +32,11 @@ leave it, as floats.
   (:class:`PiolaTractionTerm`); periodic sides as
   :class:`~pyapprox.pde.collocation.
   boundary.periodic_rows.PeriodicRows` pairing the two sides of a
-  coordinate. A node two sides share follows the system's rule: essential
-  rows win it, then the Robin rows, then the periodic rows. A case that
+  coordinate. It adds the level's interior closures
+  (:class:`InteriorClosureProtocol`), rows for mesh boundaries inside the
+  domain such as a ring's seam, on every field. A node two sets of rows
+  share follows the system's rule: essential rows win it, then the Robin
+  rows, then the periodic rows, then the interior closures. A case that
   builds its rows by hand (a wrong-model control) takes a side's nodes
   and data from :func:`side_nodes` and :func:`side_values`.
 - :class:`CollocationDiscretizer` solves each level through
@@ -148,21 +151,26 @@ from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 
 class LevelMapProtocol(Protocol[Array]):
     """What the adapter reads from a level mesh's map of the reference
-    cube :math:`[-1, 1]^d` onto the domain."""
+    cube :math:`[-1, 1]^d` onto the domain. The adapter keeps the
+    reference directions (``d``, the mesh's ``npts_per_dim``) apart from
+    the physical coordinates (the rows of ``points``), so a map into a
+    space of more coordinates than directions fits too."""
 
     def map_to_physical(self, reference_pts: Array) -> Array:
-        """Shape: (ndim, npts) to (ndim, npts)"""
+        """Shape: (d, npts) to (ncoords, npts)"""
         ...
 
     def jacobian_determinant(self, reference_pts: Array) -> Array:
-        """Shape: (ndim, npts) to (npts,)"""
+        """The map's volume element, the factor that turns a reference
+        integral into a physical one. Shape: (d, npts) to (npts,)"""
         ...
 
 
 class LevelMeshProtocol(Protocol[Array]):
     """What the adapter reads from a level's mesh: a tensor
     Chebyshev-Gauss-Lobatto mesh of the reference cube, first dimension
-    fastest, mapped onto the domain."""
+    fastest, mapped onto the domain. Boundaries ``2 d`` and ``2 d + 1``
+    are the lower and upper ends of reference direction ``d``."""
 
     def ndim(self) -> int: ...
 
@@ -171,11 +179,11 @@ class LevelMeshProtocol(Protocol[Array]):
     def npts_per_dim(self) -> Tuple[int, ...]: ...
 
     def points(self) -> Array:
-        """Physical coordinates. Shape: (ndim, npts)"""
+        """Physical coordinates. Shape: (ncoords, npts)"""
         ...
 
     def reference_points(self) -> Array:
-        """Reference coordinates. Shape: (ndim, npts)"""
+        """Reference coordinates. Shape: (d, npts)"""
         ...
 
     def reference_nodes_1d(self, dim: int) -> Array:
@@ -187,15 +195,29 @@ class LevelMeshProtocol(Protocol[Array]):
         ...
 
     def boundary_normals(self, boundary_id: int) -> Array:
-        """Outward unit normals of a boundary. Shape: (nboundary, ndim)"""
+        """Outward unit normals of a boundary. Shape: (nboundary, ncoords)"""
         ...
 
     def jacobian_determinant(self) -> Array:
-        """The map's Jacobian determinant at the nodes. Shape: (npts,)"""
+        """The map's volume element at the nodes. Shape: (npts,)"""
         ...
 
     def transform(self) -> LevelMapProtocol[Array]:
         """The map of the reference cube onto the domain."""
+        ...
+
+
+@runtime_checkable
+class InteriorClosureProtocol(Protocol[Array]):
+    """Rows that join a level's mesh to itself inside the domain, on every
+    field: mesh boundaries that are not boundary of the domain, such as
+    the two ends of a ring's angle (one physical line, a seam)."""
+
+    def rows(
+        self, level: "ChebyshevLevel[Array]", ncomponents: int
+    ) -> ClosureRowsProtocol[Array]:
+        """The rows on ``level``'s mesh, for a state of ``ncomponents``
+        components."""
         ...
 
 
@@ -211,13 +233,21 @@ class ChebyshevLevel(Generic[Array]):
         The mesh.
     basis : TensorProductBasisProtocol
         The collocation basis on ``mesh``.
-    parts : Mapping[str, int]
-        The mesh boundary of each of the domain's boundary parts.
+    parts : Mapping[str, Sequence[int]]
+        The mesh boundaries of each of the domain's boundary parts; a part
+        may cover several (a disk's circle, all four sides of a square
+        mapped onto it).
+    closures : Sequence[InteriorClosureProtocol], optional
+        Rows for the mesh boundaries no part covers, which lie inside the
+        domain. Default none.
 
     Raises
     ------
     ValueError
-        If ``parts`` does not name exactly the domain's boundary parts.
+        If ``parts`` does not name exactly the domain's boundary parts, or
+        gives a part no mesh boundary.
+    TypeError
+        If a closure does not satisfy ``InteriorClosureProtocol``.
     """
 
     def __init__(
@@ -225,15 +255,26 @@ class ChebyshevLevel(Generic[Array]):
         domain: DomainProtocol,
         mesh: LevelMeshProtocol[Array],
         basis: TensorProductBasisProtocol[Array],
-        parts: Mapping[str, int],
+        parts: Mapping[str, Sequence[int]],
+        closures: Sequence[InteriorClosureProtocol[Array]] = (),
     ) -> None:
         if set(parts) != set(domain.boundaries()):
             raise ValueError(
                 f"parts must name the domain's boundary parts "
                 f"{list(domain.boundaries())}, got {sorted(parts)}"
             )
+        for part, boundaries in parts.items():
+            if not boundaries:
+                raise ValueError(f"part {part!r} covers no mesh boundary")
+        for closure in closures:
+            if not isinstance(closure, InteriorClosureProtocol):
+                raise TypeError(
+                    "closures must satisfy InteriorClosureProtocol, got "
+                    f"{type(closure).__name__}"
+                )
         self._domain, self._mesh, self._basis = domain, mesh, basis
-        self._parts = dict(parts)
+        self._parts = {part: tuple(ids) for part, ids in parts.items()}
+        self._closures = tuple(closures)
 
     def bkd(self) -> Backend[Array]:
         return self._basis.bkd()
@@ -250,6 +291,10 @@ class ChebyshevLevel(Generic[Array]):
     def npts(self) -> int:
         return self._mesh.npts()
 
+    def closures(self) -> Tuple[InteriorClosureProtocol[Array], ...]:
+        """Rows for the mesh boundaries inside the domain."""
+        return self._closures
+
     def h(self) -> float:
         """The largest physical distance between neighboring nodes along
         a mesh line. On a box's Chebyshev-Gauss-Lobatto nodes it is the
@@ -257,22 +302,23 @@ class ChebyshevLevel(Generic[Array]):
         :math:`L` with :math:`N` nodes, so :math:`1/h` grows linearly in
         :math:`N`."""
         bkd, mesh = self.bkd(), self._mesh
-        ndim = mesh.ndim()
-        # Nodes run first dimension fastest, so dimension d is array axis
-        # ndim - 1 - d of the C-ordered grid.
+        ndirections = len(mesh.npts_per_dim())
+        points = mesh.points()
+        # Nodes run first direction fastest, so direction d is array axis
+        # ndirections - 1 - d of the C-ordered grid.
         shape = tuple(reversed(mesh.npts_per_dim()))
-        grids = [bkd.reshape(mesh.points()[k], shape) for k in range(ndim)]
+        grids = [bkd.reshape(points[k], shape) for k in range(points.shape[0])]
         gaps = []
-        for dim in range(ndim):
-            axis = ndim - 1 - dim
+        for dim in range(ndirections):
+            axis = ndirections - 1 - dim
             squared = bkd.diff(grids[0], axis=axis) ** 2
             for grid in grids[1:]:
                 squared = squared + bkd.diff(grid, axis=axis) ** 2
             gaps.append(bkd.to_float(bkd.max(bkd.sqrt(squared))))
         return max(gaps)
 
-    def boundary_id(self, part: str) -> int:
-        """The mesh boundary of boundary part ``part``.
+    def boundary_ids(self, part: str) -> Tuple[int, ...]:
+        """The mesh boundaries of boundary part ``part``.
 
         Raises
         ------
@@ -327,7 +373,7 @@ class ChebyshevBox(Generic[Array]):
         flat = tuple(value for pair in bounds for value in pair)
         # A side is the mesh boundary at its position in the box's side
         # order, lower side first in each direction.
-        parts = {part: i for i, part in enumerate(domain.boundaries())}
+        parts = {part: (i,) for i, part in enumerate(domain.boundaries())}
         levels: List[ChebyshevLevel[Array]] = []
         for n in self._sizes:
             if domain.ndim() == 1:
@@ -424,17 +470,38 @@ class _BoundaryValues(Generic[Array]):
 
 
 def side_nodes(level: ChebyshevLevel[Array], part: str) -> Tuple[Array, Array]:
-    """The node indices of side ``part``, shape ``(nboundary,)``, and their
-    outward unit normals, shape ``(nboundary, ndim)``.
+    """The node indices of boundary part ``part``, shape ``(nboundary,)``,
+    and their outward unit normals, shape ``(nboundary, ncoords)``. A node
+    two of the part's mesh boundaries share is taken once, with the
+    normal of the first.
 
     Raises
     ------
     ValueError
-        If the box has no such side.
+        If the domain has no such part.
     """
-    boundary = level.boundary_id(part)
-    mesh = level.mesh()
-    return mesh.boundary_indices(boundary), mesh.boundary_normals(boundary)
+    bkd, mesh = level.bkd(), level.mesh()
+    boundaries = level.boundary_ids(part)
+    if len(boundaries) == 1:
+        return (
+            mesh.boundary_indices(boundaries[0]),
+            mesh.boundary_normals(boundaries[0]),
+        )
+    seen: set[int] = set()
+    kept_indices: List[Array] = []
+    kept_normals: List[Array] = []
+    for boundary in boundaries:
+        indices = mesh.boundary_indices(boundary)
+        fresh = []
+        for position in range(indices.shape[0]):
+            node = bkd.to_int(indices[position])
+            if node not in seen:
+                seen.add(node)
+                fresh.append(position)
+        keep = bkd.asarray(fresh, dtype=bkd.int64_dtype())
+        kept_indices.append(indices[keep])
+        kept_normals.append(mesh.boundary_normals(boundary)[keep])
+    return bkd.concatenate(kept_indices), bkd.concatenate(kept_normals, axis=0)
 
 
 def side_values(
@@ -865,7 +932,11 @@ def boundary_conditions(
             elif isinstance(built, PeriodicPart):
                 periodic.append(built)
     bkd, npts, ncomponents = level.bkd(), level.npts(), len(fields)
-    closures: List[ClosureRowsProtocol[Array]] = []
+    # The level's interior closures first, so a boundary part's own rows
+    # win the nodes it shares with them (a ring's seam meets both circles).
+    closures: List[ClosureRowsProtocol[Array]] = [
+        closure.rows(level, ncomponents) for closure in level.closures()
+    ]
     if periodic:
         closures.append(
             PeriodicRows(bkd, level.mesh().reference_points(), ncomponents, periodic)
@@ -968,7 +1039,7 @@ def _error_grid(level: ChebyshevLevel[Array]) -> _ErrorGrid[Array]:
     coords: List[Array] = []
     weights: Optional[Array] = None
     interpolation: Optional[Array] = None
-    for dim in range(mesh.ndim()):
+    for dim in range(len(mesh.npts_per_dim())):
         nodes = mesh.reference_nodes_1d(dim)
         nquad = 2 * nodes.shape[0]
         legendre = LegendrePolynomial1D(bkd)
