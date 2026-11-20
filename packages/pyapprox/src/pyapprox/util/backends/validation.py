@@ -1,6 +1,32 @@
-from typing import Any, Sequence
+from typing import Any, Sequence, Tuple
 
 from pyapprox.util.backends.protocols import Backend
+
+
+def check_index_add_shapes(
+    index_shape: Tuple[int, ...], values_shape: Tuple[int, ...]
+) -> None:
+    """Check the shapes ``Backend.index_add`` accepts.
+
+    Parameters
+    ----------
+    index_shape : Tuple[int, ...]
+        Shape of the row indices; must be ``(m,)``.
+    values_shape : Tuple[int, ...]
+        Shape of the rows to add; must start with ``m``.
+
+    Raises
+    ------
+    ValueError
+        If the index is not 1-D or the row counts differ.
+    """
+    if len(index_shape) != 1:
+        raise ValueError(f"index must be 1-D, got shape {index_shape}")
+    if len(values_shape) == 0 or values_shape[0] != index_shape[0]:
+        raise ValueError(
+            f"values must have {index_shape[0]} rows, one per index, got "
+            f"shape {values_shape}"
+        )
 
 
 def validate_backend(obj: Any) -> None:

@@ -17,6 +17,7 @@ from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
+from pyapprox.util.backends.validation import check_index_add_shapes
 
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs
@@ -1077,6 +1078,16 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         result = array.clone()
         result[index] = value
         return result
+
+    @staticmethod
+    def index_add(
+        array: torch.Tensor, index: torch.Tensor, values: torch.Tensor
+    ) -> torch.Tensor:
+        """Return a copy of array with ``values[k]`` added at
+        ``array[index[k]]`` along the first axis, repeated indices
+        accumulating (out-of-place ``Tensor.index_add``)."""
+        check_index_add_shapes(tuple(index.shape), tuple(values.shape))
+        return array.index_add(0, index, values)
 
     @staticmethod
     def block(blocks: List[List[torch.Tensor]]) -> torch.Tensor:

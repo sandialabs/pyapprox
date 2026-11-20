@@ -7,6 +7,7 @@ from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
+from pyapprox.util.backends.validation import check_index_add_shapes
 
 
 def _swap_rows(
@@ -987,6 +988,18 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         """
         result = array.copy()
         result[index] = value
+        return result
+
+    @staticmethod
+    def index_add(
+        array: NDArray[Any], index: NDArray[Any], values: NDArray[Any]
+    ) -> NDArray[Any]:
+        """Return a copy of array with ``values[k]`` added at
+        ``array[index[k]]`` along the first axis, repeated indices
+        accumulating (``np.add.at`` on a copy)."""
+        check_index_add_shapes(index.shape, values.shape)
+        result = array.copy()
+        np.add.at(result, index, values)
         return result
 
     @staticmethod

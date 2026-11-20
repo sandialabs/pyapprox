@@ -323,3 +323,42 @@ class TestStackedLu:
                 rtol=1e-12,
                 atol=1e-13,
             )
+
+
+class TestIndexAdd:
+    """``index_add`` returns a copy with rows added at the given indices,
+    repeated indices accumulating, and leaves its input unchanged."""
+
+    def test_repeated_indices_accumulate(self, bkd: Backend[Array]) -> None:
+        array = bkd.asarray([1.0, 2.0, 3.0, 4.0])
+        index = bkd.asarray([2, 0, 2, 2], dtype=bkd.int64_dtype())
+        values = bkd.asarray([10.0, 20.0, 30.0, 40.0])
+        result = bkd.index_add(array, index, values)
+        bkd.assert_allclose(result, bkd.asarray([21.0, 2.0, 83.0, 4.0]))
+        bkd.assert_allclose(array, bkd.asarray([1.0, 2.0, 3.0, 4.0]))
+
+    def test_adds_whole_rows(self, bkd: Backend[Array]) -> None:
+        array = bkd.zeros((3, 2))
+        index = bkd.asarray([1, 1, 0], dtype=bkd.int64_dtype())
+        values = bkd.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        result = bkd.index_add(array, index, values)
+        expected = bkd.asarray([[5.0, 6.0], [4.0, 6.0], [0.0, 0.0]])
+        bkd.assert_allclose(result, expected)
+
+    def test_keeps_complex_entries(self, bkd: Backend[Array]) -> None:
+        array = bkd.zeros((2,), dtype=bkd.complex_dtype())
+        index = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        values = bkd.asarray([1.0 + 1.0j, 2.0 - 3.0j], dtype=bkd.complex_dtype())
+        result = bkd.index_add(array, index, values)
+        expected = bkd.asarray([3.0 - 2.0j, 0.0], dtype=bkd.complex_dtype())
+        bkd.assert_allclose(result, expected)
+
+    def test_rejects_a_2d_index(self, bkd: Backend[Array]) -> None:
+        index = bkd.asarray([[0, 1]], dtype=bkd.int64_dtype())
+        with pytest.raises(ValueError, match="index must be 1-D"):
+            bkd.index_add(bkd.zeros((2,)), index, bkd.ones((1, 2)))
+
+    def test_rejects_mismatched_row_counts(self, bkd: Backend[Array]) -> None:
+        index = bkd.asarray([0, 1], dtype=bkd.int64_dtype())
+        with pytest.raises(ValueError, match="one per index"):
+            bkd.index_add(bkd.zeros((2,)), index, bkd.ones((3,)))

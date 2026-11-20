@@ -1201,6 +1201,39 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def index_add(array: Array, index: Array, values: Array) -> Array:
+        """Return a copy of array with ``values[k]`` added at
+        ``array[index[k]]`` along the first axis.
+
+        Repeated indices accumulate: every ``values[k]`` whose ``index[k]``
+        is ``i`` is added to row ``i``. The input is not modified, so the
+        operation is compatible with autograd frameworks and with
+        libraries whose arrays are immutable.
+
+        Parameters
+        ----------
+        array : Array
+            Array to add into. Shape: ``(n, ...)``.
+        index : Array
+            Integer row indices. Shape: ``(m,)``.
+        values : Array
+            Rows to add. Shape: ``(m, ...)``, trailing dimensions matching
+            ``array``'s.
+
+        Returns
+        -------
+        Array
+            Copy of array with the values added. Shape: ``(n, ...)``.
+
+        Raises
+        ------
+        ValueError
+            If ``index`` is not 1-D or ``values`` has a different number of
+            rows than ``index``.
+        """
+        ...
+
+    @staticmethod
     def block(blocks: List[List[Array]]) -> Array:
         """Create a block matrix from nested list of arrays.
 
