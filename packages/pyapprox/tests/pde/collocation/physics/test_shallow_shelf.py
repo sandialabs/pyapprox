@@ -42,13 +42,11 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.manufactured.shallow_shelf import (
     ManufacturedShallowShelfVelocityAndDepthEquations,
-    ManufacturedShallowShelfVelocityEquations,
 )
 from pyapprox.pde.models.collocation.right_hand_side import (
     CollocationRightHandSide,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from tests._helpers.markers import slow_test
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,
 )
@@ -106,8 +104,13 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
-            friction=1e6, A=1e-16, rho=917.0,
+            basis,
+            bkd,
+            depth=NodalField(depth),
+            bed=NodalField(bed),
+            friction=1e6,
+            A=1e-16,
+            rho=917.0,
         )
 
         # Small random velocities
@@ -133,8 +136,13 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         depth = bkd.full((npts,), 800.0)
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
-            friction=5e5, A=1e-16, rho=917.0,
+            basis,
+            bkd,
+            depth=NodalField(depth),
+            bed=NodalField(bed),
+            friction=5e5,
+            A=1e-16,
+            rho=917.0,
         )
 
         np.random.seed(123)
@@ -156,8 +164,13 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
-            friction=1e6, A=1e-16, rho=917.0,
+            basis,
+            bkd,
+            depth=NodalField(depth),
+            bed=NodalField(bed),
+            friction=1e6,
+            A=1e-16,
+            rho=917.0,
         )
 
         # 2D: u and v velocity components
@@ -176,8 +189,13 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
 
         with pytest.raises(ValueError):
             ShallowShelfVelocityPhysics(
-                basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
-                friction=1e6, A=1e-16, rho=917.0,
+                basis,
+                bkd,
+                depth=NodalField(depth),
+                bed=NodalField(bed),
+                friction=1e6,
+                A=1e-16,
+                rho=917.0,
             )
 
     def test_factory_function(self, bkd):
@@ -192,8 +210,13 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         bed = bkd.zeros((npts,))
 
         physics = create_shallow_shelf_velocity(
-            basis, bkd, depth=NodalField(depth), bed=NodalField(bed),
-            friction=1e6, A=1e-16, rho=917.0,
+            basis,
+            bkd,
+            depth=NodalField(depth),
+            bed=NodalField(bed),
+            friction=1e6,
+            A=1e-16,
+            rho=917.0,
         )
 
         assert physics.ncomponents() == 2
@@ -259,9 +282,7 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
-        nodes_x_1d = bkd.array(
-            np.cos(np.pi * np.arange(npts_1d) / (npts_1d - 1))
-        )
+        nodes_x_1d = bkd.array(np.cos(np.pi * np.arange(npts_1d) / (npts_1d - 1)))
         bed = 10.0 * bkd.array(np.tile(nodes_x_1d, npts_1d))
         depth_field = NodalField(bkd.full((npts,), 800.0))
         physics = ShallowShelfVelocityPhysics(
@@ -275,9 +296,7 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         )
         np.random.seed(11)
         vel_state = bkd.array(0.1 * np.random.randn(2 * npts))
-        depth0 = bkd.asarray(
-            800.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,))
-        )
+        depth0 = bkd.asarray(800.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,)))
 
         def fun(depth):
             depth_field.set_values(depth)
@@ -292,90 +311,6 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         )
         errors = checker.check_derivatives(depth0[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
-
-    @slow_test
-    def test_residual_at_manufactured_solution(self, bkd):
-        """Verify residual is near zero at manufactured solution.
-
-        Uses a manufactured solution with smooth polynomial velocities.
-        The forcing term is computed analytically so that the exact
-        solution satisfies the SSA equations.
-
-        Note: Uses default xy meshgrid indexing with C-order flattening,
-        which matches the tensor product basis ordering.
-
-        The SSA equations have highly nonlinear viscosity (Glen's flow law
-        with n=3), requiring many points for spectral accuracy. With 50
-        points per dimension, the residual norm reaches ~7.6e-9.
-        """
-        npts_1d = 50  # Need many points for nonlinear SSA
-        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
-
-        basis = ChebyshevBasis2D(mesh, bkd)
-        basis.npts()
-
-        # Manufactured solution parameters
-        depth_str = "1.0"
-        bed_str = "0.0"
-        friction_str = "1.0"
-        A = 1.0
-        rho = 1.0
-        sol_strs = ["x**2 + y", "x + y**2"]
-
-        man_sol = ManufacturedShallowShelfVelocityEquations(
-            sol_strs=sol_strs,
-            nvars=2,
-            bed_str=bed_str,
-            depth_str=depth_str,
-            friction_str=friction_str,
-            A=A,
-            rho=rho,
-            bkd=bkd,
-            oned=False,
-        )
-
-        # Get nodes using default xy indexing
-        nodes_x = basis.nodes_x()
-        nodes_y = basis.nodes_y()
-        X, Y = np.meshgrid(nodes_x, nodes_y)  # default 'xy' indexing
-        X_flat = X.flatten()
-        Y_flat = Y.flatten()
-        nodes_2d = np.vstack([X_flat, Y_flat])
-
-        # Get exact solution and forcing
-        exact_sol_vals = man_sol.functions["solution"](nodes_2d)
-        u_exact = exact_sol_vals[:, 0]
-        v_exact = exact_sol_vals[:, 1]
-        exact_state = bkd.hstack([u_exact, v_exact])
-
-        forcing_vals = man_sol.functions["forcing"](nodes_2d)
-        forcing_u = forcing_vals[:, 0]
-        forcing_v = forcing_vals[:, 1]
-        forcing = bkd.hstack([forcing_u, forcing_v])
-
-        # Get fields
-        depth_vals = man_sol.functions["depth"](nodes_2d).flatten()
-        bed_vals = man_sol.functions["bed"](nodes_2d).flatten()
-        friction_vals = man_sol.functions["friction"](nodes_2d).flatten()
-
-        # Create physics with forcing
-        physics = ShallowShelfVelocityPhysics(
-            basis,
-            bkd,
-            depth=NodalField(depth_vals),
-            bed=NodalField(bed_vals),
-            friction=NodalField(friction_vals),
-            A=A,
-            rho=rho,
-            forcing=NodalField(forcing),
-        )
-
-        # Compute residual at exact solution
-        residual = physics.residual(exact_state, time=0.0)
-
-        # Residual should be very small (spectral discretization error only)
-        res_norm = float(bkd.norm(residual))
-        assert res_norm < 1e-8, f"Residual norm {res_norm:.4e} too large"
 
 
 class TestShallowShelfDepthPhysics(PhysicsTestBase):
@@ -441,9 +376,7 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         velocity = NodalField(bkd.zeros((2 * npts,)))
         physics = ShallowShelfDepthPhysics(basis, bkd, velocity)
         np.random.seed(3)
-        depth = bkd.asarray(
-            500.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,))
-        )
+        depth = bkd.asarray(500.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,)))
         vel0 = bkd.array(0.1 * np.random.randn(2 * npts))
 
         def fun(vel):

@@ -3,9 +3,11 @@
 Verifies:
 1. Lame parameters held as NodalFields, validated when read
 2. Variable-Lame Jacobian correctness via DerivativeChecker
-3. Manufactured solution with spatially varying lambda(x), mu(x)
-4. Residual sensitivity methods via finite differences
-5. Dual backend support (NumPy and PyTorch)
+3. Residual sensitivity methods via finite differences
+4. Dual backend support (NumPy and PyTorch)
+
+Solves with spatially varying lambda(x), mu(x) are verified by the
+collocation linear-elasticity catalog.
 """
 
 import math
@@ -19,16 +21,12 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.physics.coefficients import NodalField
-from pyapprox.pde.manufactured import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.util.backends.protocols import Array
 
 
@@ -84,29 +82,6 @@ def _get_nodes(basis, bkd):
     nodes_y = basis.nodes_y()
     xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
     return bkd.stack([xx.flatten(), yy.flatten()], axis=0)
-
-
-def _set_dirichlet_all_sides(physics, mesh_obj, bkd, npts):
-    """Apply homogeneous Dirichlet BCs on all 4 sides for both components."""
-    bcs = []
-    for side in range(4):
-        boundary_idx = mesh_obj.boundary_indices(side)
-        bc_u = zero_dirichlet_bc(bkd, boundary_idx)
-        bcs.append(bc_u)
-        boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
-        bc_v = zero_dirichlet_bc(bkd, boundary_idx_v)
-        bcs.append(bc_v)
-    physics.set_boundary_conditions(bcs)
-
-
-def _interior_indices(mesh_obj, npts):
-    """Get interior DOF indices (both u and v components)."""
-    boundary_set = set()
-    for side in range(4):
-        for idx in mesh_obj.boundary_indices(side):
-            boundary_set.add(idx)
-            boundary_set.add(idx + npts)
-    return [i for i in range(2 * npts) if i not in boundary_set]
 
 
 class TestVariableLame:
@@ -200,68 +175,6 @@ class TestVariableLame:
         jac_c = physics_c.jacobian(state, 0.0)
         jac_v = physics_v.jacobian(state, 0.0)
         bkd.assert_allclose(jac_v, jac_c, rtol=1e-10)
-
-    # ------------------------------------------------------------------
-    # Manufactured solution with variable Lame
-    # ------------------------------------------------------------------
-
-    def test_manufactured_variable_lame(self, bkd):
-        """Residual = 0 at exact solution with variable lambda(x), mu(x)."""
-        npts_1d = 10
-        physics, basis, mesh_obj = _setup_2d_physics(bkd, npts_1d=npts_1d)
-        nodes = _get_nodes(basis, bkd)
-        npts = basis.npts()
-
-        # Variable Lame: polynomial in x, y so derivatives are exact
-        lambda_str = "2 + x + y"
-        mu_str = "1 + 0.5*x*y"
-
-        man_sol = ManufacturedLinearElasticityEquations(
-            sol_strs=[
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-            ],
-            nvars=2,
-            lambda_str=lambda_str,
-            mu_str=mu_str,
-            bkd=bkd,
-            oned=True,
-        )
-
-        # Set variable Lame on physics
-        lam_vals = man_sol.functions["lambda"](nodes)
-        mu_vals = man_sol.functions["mu"](nodes)
-        physics.lamda_function().set_values(lam_vals)
-        physics.mu_function().set_values(mu_vals)
-
-        # Get exact solution and forcing
-        u_exact = man_sol.functions["solution"](nodes)
-        forcing = man_sol.functions["forcing"](nodes)
-        u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
-        forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
-
-        # Set forcing on physics (recreate with forcing)
-        physics_f = LinearElasticityPhysics(
-            basis, bkd, lamda=1.0, mu=1.0, forcing=lambda t: forcing_flat
-        )
-        physics_f.lamda_function().set_values(lam_vals)
-        physics_f.mu_function().set_values(mu_vals)
-
-        _set_dirichlet_all_sides(physics_f, mesh_obj, bkd, npts)
-
-        residual = physics_f.residual(u_exact_flat, 0.0)
-        jacobian = physics_f.jacobian(u_exact_flat, 0.0)
-        residual_bc, _ = physics_f.apply_boundary_conditions(
-            residual, jacobian, u_exact_flat, 0.0
-        )
-
-        interior_idx = _interior_indices(mesh_obj, npts)
-        interior_res = bkd.asarray([residual_bc[i] for i in interior_idx])
-        bkd.assert_allclose(
-            interior_res,
-            bkd.zeros(interior_res.shape),
-            atol=1e-8,
-        )
 
     # ------------------------------------------------------------------
     # Residual sensitivity FD tests
