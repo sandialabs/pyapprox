@@ -670,7 +670,17 @@ class TestNumbaGenericAgreement:
         )
 
         bkd.assert_allclose(fact_nb.pivots(), fact_gen.pivots())
-        bkd.assert_allclose(fact_nb.factor(), fact_gen.factor(), rtol=1e-12)
+        # The two paths may sum in different orders (and fuse multiply-adds
+        # differently per platform), so small entries differ by a few
+        # rounding units of the factor's scale: an absolute floor, not a
+        # purely relative tolerance.
+        factor_scale = float(np.max(np.abs(fact_gen.factor())))
+        bkd.assert_allclose(
+            fact_nb.factor(),
+            fact_gen.factor(),
+            rtol=1e-12,
+            atol=1e-12 * factor_scale,
+        )
         return fact_nb, fact_gen
 
     def test_no_weights(self, numpy_bkd: NumpyBkd) -> None:
