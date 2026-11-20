@@ -128,6 +128,51 @@ class TestConformance:
         )
 
 
+class TestDeclaredDerivatives:
+    """Each family declares its members' derivatives when it is built,
+    before any trajectory, and each field reads the member for the
+    stored state it is given."""
+
+    def test_the_misfit_declares_its_members(self, bkd: Backend[Array]) -> None:
+        misfit = _misfit(bkd)
+        bundle = misfit.derivatives()
+        assert bundle.first is not None and bundle.second is not None
+        member = misfit.at(5, 0.25).derivatives()
+        first, second = bundle.first(5, 0.25), bundle.second(5, 0.25)
+        assert first.wrt_state == member.wrt_state
+        assert first.wrt_param == member.wrt_param
+        assert second.state_state == member.state_state
+
+    def test_the_endpoint_declares_its_term(self, bkd: Backend[Array]) -> None:
+        endpoint = EndpointTerm(StateEntries(bkd, 2, [0, 1]))
+        bundle = endpoint.derivatives()
+        assert bundle.first is not None and bundle.second is not None
+        member = endpoint.at(10, 0.5).derivatives()
+        assert bundle.first(10, 0.5).wrt_state == member.wrt_state
+
+    def test_a_stacked_term_mirrors_the_inner_one(self, bkd: Backend[Array]) -> None:
+        endpoint = EndpointTerm(StateEntries(bkd, 2, [0, 1]))
+        stacked = TrajectoryFunctional.stack(
+            bkd,
+            [
+                TrajectoryFunctional.from_terms(bkd, 1, state_terms=(_misfit(bkd),)),
+                TrajectoryFunctional.from_terms(bkd, 2, state_terms=(endpoint,)),
+            ],
+        )
+        for term in stacked.state_terms:
+            bundle = term.derivatives()
+            assert bundle.first is not None and bundle.second is not None
+        # The mapped member writes the endpoint's values to rows 1 and 2.
+        first = stacked.state_terms[1].derivatives().first
+        assert first is not None
+        state = bkd.asarray([[3.0], [4.0]])
+        bkd.assert_allclose(
+            first(10, 0.5).wrt_state(state).apply(bkd.asarray([[1.0], [2.0]])),
+            bkd.asarray([[0.0], [1.0], [2.0]]),
+            rtol=1e-15,
+        )
+
+
 class TestAgainstTheOldFunctionals:
     def test_misfit_value_and_state_gradient(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd)

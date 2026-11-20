@@ -84,7 +84,12 @@ from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
 )
-from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.trajectory_terms import (
+    MemberCurvature,
+    MemberFirst,
+    StoredStateTermDerivatives,
+    TrajectoryFunctional,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.ode.runge_kutta_cases import LV_PARAM, lotka_volterra_with_mass
@@ -371,9 +376,7 @@ class _CountingStore(InMemoryTrajectoryStore[Array]):
 
 
 class TestStoreReads:
-    @pytest.mark.parametrize(
-        "make", [heun, bdf2], ids=["Heun", "BDF2"]
-    )
+    @pytest.mark.parametrize("make", [heun, bdf2], ids=["Heun", "BDF2"])
     def test_binding_reads_no_state(
         self, bkd: Backend[Array], make: Callable[[], Method]
     ) -> None:
@@ -473,6 +476,15 @@ class _Quadrature(Generic[Array]):
         frozen: Optional[float] = None,
     ) -> None:
         self._integrand, self._weights, self._frozen = integrand, weights, frozen
+        # Every member is an _IntegrandAt, which has all its derivatives.
+        self._derivatives: StoredStateTermDerivatives[Array, Array] = (
+            StoredStateTermDerivatives.second_order(
+                MemberFirst(self.at), MemberCurvature(self.at)
+            )
+        )
+
+    def derivatives(self) -> StoredStateTermDerivatives[Array, Array]:
+        return self._derivatives
 
     def nqoi(self) -> int:
         return 1
@@ -724,9 +736,7 @@ class _ValueOnly(Generic[Array]):
     def value(self, state: Array, time: float) -> Array:
         return self._bkd.dot(state.T, state)
 
-    def linearization(
-        self, state: Array, time: float
-    ) -> BackendScalarGradient[Array]:
+    def linearization(self, state: Array, time: float) -> BackendScalarGradient[Array]:
         """The state derivative it does not declare, for the refusal."""
         return BackendScalarGradient(2.0 * state, self._bkd)
 

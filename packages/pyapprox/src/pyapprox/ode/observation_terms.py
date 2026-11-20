@@ -19,7 +19,11 @@ from pyapprox.implicitfunction.observation_terms import (
     StateEntries,
     StateObservationProtocol,
 )
-from pyapprox.ode.trajectory_terms import AtStoredStates, StoredStates
+from pyapprox.ode.trajectory_terms import (
+    AtStoredStates,
+    StoredStates,
+    StoredStateTermDerivatives,
+)
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 
 V = TypeVar("V")
@@ -75,6 +79,9 @@ class MisfitTerm(Generic[V, A]):
             except ValueError as error:
                 raise ValueError(f"at stored state {index}: {error}") from error
             self._members[index] = member
+        self._derivatives: StoredStateTermDerivatives[V, A] = (
+            StoredStateTermDerivatives.of_members(self.at, list(self._members.values()))
+        )
 
     @staticmethod
     def from_state_times(
@@ -143,6 +150,9 @@ class MisfitTerm(Generic[V, A]):
 
     def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
         return self._members[index]
+
+    def derivatives(self) -> StoredStateTermDerivatives[V, A]:
+        return self._derivatives
 
 
 class EndpointTerm(AtStoredStates[V, A]):

@@ -24,8 +24,8 @@ a column of ``nqoi`` entries) and transposed (:math:`(\partial c)^\top
 \omega` for weights :math:`\omega` of the values, the adjoint sweep);
 its second derivatives are weighted by :math:`\omega` as an adjoint
 weighs them. Each sweep reads the bundles once and refuses, naming the
-term, when one lacks what it needs; a state term's family is as capable
-as its weakest member read. A term holds no trajectory: it is handed the
+term, when one lacks what it needs; a state term's family declares the
+derivatives its weakest member has. A term holds no trajectory: it is handed the
 state or window it reads, so the same term serves any store and the value
 sink.
 
@@ -60,8 +60,14 @@ from typing import (
 from pyapprox.implicitfunction.functional_terms import (
     LinearizationProtocol,
     ParameterTermProtocol,
+    StateCurvature,
+    StateFirst,
     StateTermProtocol,
     check_terms,
+    has_first_derivatives,
+    has_second_derivatives,
+    state_first_derivatives,
+    state_second_derivatives,
     value_weights,
 )
 from pyapprox.implicitfunction.mapped_terms import (
@@ -275,6 +281,136 @@ class StepTermDerivatives(Generic[V, A]):
         )
 
 
+StoredStateFirstFn = Callable[[int, float], StateFirst[V, A]]
+"""``(index, time) ->`` the first derivatives of the member for stored
+state ``index`` at ``time``."""
+
+StoredStateCurvatureFn = Callable[[int, float], StateCurvature[V, A]]
+"""``(index, time) ->`` the second derivatives of the member for stored
+state ``index`` at ``time``."""
+
+
+@dataclass(frozen=True)
+class StoredStateTermDerivatives(Generic[V, A]):
+    r"""A stored-state term's optional derivatives: for each stored state
+    it reads, given by index and time, its member's first derivatives
+    and its member's :math:`\omega`-weighted second derivatives. Fixed
+    when the term is built, as the weakest of its members, so a consumer
+    knows them before any trajectory exists. Build with :meth:`none`,
+    :meth:`first_order`, :meth:`second_order`, :meth:`of_members` or
+    :meth:`mirroring`.
+
+    A member's ``wrt_param`` being None means the member does not read
+    the parameters, not that a derivative is missing; it stays inside
+    the member's ``StateFirst``.
+
+    Raises
+    ------
+    TypeError
+        If a field is neither callable nor None.
+    ValueError
+        If ``second`` is given without ``first``.
+    """
+
+    first: Optional[StoredStateFirstFn[V, A]] = None
+    second: Optional[StoredStateCurvatureFn[V, A]] = None
+
+    def __post_init__(self) -> None:
+        for name in ("first", "second"):
+            value = getattr(self, name)
+            if value is not None and not callable(value):
+                raise TypeError(
+                    f"StoredStateTermDerivatives field '{name}' must be callable "
+                    f"or None; got {type(value).__name__}"
+                )
+        if self.second is not None and self.first is None:
+            raise ValueError("a stored-state term's second derivatives need its first")
+
+    @staticmethod
+    def none() -> "StoredStateTermDerivatives[V, A]":
+        """No derivatives: the term is only evaluated."""
+        return StoredStateTermDerivatives()
+
+    @staticmethod
+    def first_order(
+        first: StoredStateFirstFn[V, A],
+    ) -> "StoredStateTermDerivatives[V, A]":
+        """The first derivatives."""
+        return StoredStateTermDerivatives(first)
+
+    @staticmethod
+    def second_order(
+        first: StoredStateFirstFn[V, A], second: StoredStateCurvatureFn[V, A]
+    ) -> "StoredStateTermDerivatives[V, A]":
+        """The first and second derivatives."""
+        return StoredStateTermDerivatives(first, second)
+
+    @staticmethod
+    def of_members(
+        at: Callable[[int, float], StateTermProtocol[V, A]],
+        members: Sequence[StateTermProtocol[V, A]],
+    ) -> "StoredStateTermDerivatives[V, A]":
+        """The derivatives every one of ``members`` has, each read from
+        the member ``at`` builds: for a term whose members are all known
+        when it is built."""
+        if not has_first_derivatives((), members):
+            return StoredStateTermDerivatives.none()
+        if not has_second_derivatives((), members):
+            return StoredStateTermDerivatives.first_order(MemberFirst(at))
+        return StoredStateTermDerivatives.second_order(
+            MemberFirst(at), MemberCurvature(at)
+        )
+
+    @staticmethod
+    def mirroring(
+        inner: "StoredStateTermDerivatives[V, A]",
+        at: Callable[[int, float], StateTermProtocol[V, A]],
+    ) -> "StoredStateTermDerivatives[V, A]":
+        """The fields ``inner`` has, each read from the member ``at``
+        builds: for a term whose members wrap an inner term's."""
+        if inner.first is None:
+            return StoredStateTermDerivatives.none()
+        if inner.second is None:
+            return StoredStateTermDerivatives.first_order(MemberFirst(at))
+        return StoredStateTermDerivatives.second_order(
+            MemberFirst(at), MemberCurvature(at)
+        )
+
+
+@dataclass(frozen=True)
+class MemberFirst(Generic[V, A]):
+    """The first derivatives of the member ``at`` builds for a stored
+    state.
+
+    Raises
+    ------
+    TypeError
+        When called, if the member's bundle has none.
+    """
+
+    at: Callable[[int, float], StateTermProtocol[V, A]]
+
+    def __call__(self, index: int, time: float) -> StateFirst[V, A]:
+        return state_first_derivatives([self.at(index, time)])[0]
+
+
+@dataclass(frozen=True)
+class MemberCurvature(Generic[V, A]):
+    """The second derivatives of the member ``at`` builds for a stored
+    state.
+
+    Raises
+    ------
+    TypeError
+        When called, if the member's bundle has none.
+    """
+
+    at: Callable[[int, float], StateTermProtocol[V, A]]
+
+    def __call__(self, index: int, time: float) -> StateCurvature[V, A]:
+        return state_second_derivatives([self.at(index, time)])[0]
+
+
 @runtime_checkable
 class StoredStateTermProtocol(Protocol[V, A]):
     r"""A term :math:`\sum_m g_m(y_m;\, p)` over the stored states it
@@ -292,9 +428,8 @@ class StoredStateTermProtocol(Protocol[V, A]):
     The second derivative in the states is block diagonal over the stored
     states (:math:`\partial^2 g/\partial y_m \partial y_k = 0` for
     :math:`m \ne k`): a term coupling states of one step is a step term.
-    The family is as capable as its weakest member read: a consumer reads
-    every member's bundle once, before any sweep, and refuses naming the
-    member that lacks what it needs.
+    The family is as capable as its weakest member, and declares so in
+    its bundle when it is built (:class:`StoredStateTermDerivatives`).
     """
 
     def nqoi(self) -> int:
@@ -311,6 +446,10 @@ class StoredStateTermProtocol(Protocol[V, A]):
         called only for a state the term reads. A member serves the
         trajectory whose time it was built at: consumers build members
         anew for each trajectory, whose times an adaptive plan changes."""
+        ...
+
+    def derivatives(self) -> StoredStateTermDerivatives[V, A]:
+        """The optional derivatives, fixed when the term is built."""
         ...
 
 
@@ -376,6 +515,9 @@ class AtStoredStates(Generic[V, A]):
                 f"term must satisfy StateTermProtocol, got {type(term).__name__}"
             )
         self._term, self._where = term, where
+        self._derivatives: StoredStateTermDerivatives[V, A] = (
+            StoredStateTermDerivatives.of_members(self.at, [term])
+        )
 
     def nqoi(self) -> int:
         return self._term.nqoi()
@@ -385,6 +527,9 @@ class AtStoredStates(Generic[V, A]):
 
     def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
         return self._term
+
+    def derivatives(self) -> StoredStateTermDerivatives[V, A]:
+        return self._derivatives
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._term!r}, {self._where!r})"
@@ -606,12 +751,15 @@ class _AtStep(Generic[A]):
 
 class _MappedStoredStateTerm(Generic[V, A]):
     """A stored-state term with its values mapped: each member the core's
-    mapped term of the inner member."""
+    mapped term of the inner member; its bundle mirrors the inner one's."""
 
     def __init__(
         self, term: StoredStateTermProtocol[V, A], values: ValueMapProtocol[A]
     ) -> None:
         self._term, self._values = term, values
+        self._derivatives: StoredStateTermDerivatives[V, A] = (
+            StoredStateTermDerivatives.mirroring(term.derivatives(), self.at)
+        )
 
     def nqoi(self) -> int:
         return self._values.nqoi(self._term.nqoi())
@@ -621,6 +769,9 @@ class _MappedStoredStateTerm(Generic[V, A]):
 
     def at(self, index: int, time: float) -> StateTermProtocol[V, A]:
         return MappedStateTerm(self._term.at(index, time), self._values)
+
+    def derivatives(self) -> StoredStateTermDerivatives[V, A]:
+        return self._derivatives
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._term!r})"

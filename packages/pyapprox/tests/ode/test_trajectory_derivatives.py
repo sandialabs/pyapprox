@@ -40,6 +40,7 @@ from pyapprox.implicitfunction.functional_terms import (
     StateTermDerivatives,
     StateTermProtocol,
 )
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -57,6 +58,7 @@ from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.integration import Integrator, ResidualFormConstraint
 from pyapprox.ode.linear_multistep import LinearMultistepStepper
 from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
+from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.ode.protocols.time_stepping import TimeSteppingResidualProtocol
 from pyapprox.ode.residual_derivatives import (
@@ -86,7 +88,9 @@ from pyapprox.ode.trajectory_derivatives import (
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import (
     AtStoredStates,
+    MemberFirst,
     StoredStates,
+    StoredStateTermDerivatives,
     StoredStateTermProtocol,
     TrajectoryFunctional,
 )
@@ -490,6 +494,11 @@ class _EachTruncated(Generic[Array]):
         self, inner: StoredStateTermProtocol[Array, Array], order: int
     ) -> None:
         self._inner, self._order = inner, order
+        self._derivatives: StoredStateTermDerivatives[Array, Array] = (
+            StoredStateTermDerivatives.none()
+            if order == 0
+            else StoredStateTermDerivatives.first_order(MemberFirst(self.at))
+        )
 
     def nqoi(self) -> int:
         return self._inner.nqoi()
@@ -499,6 +508,35 @@ class _EachTruncated(Generic[Array]):
 
     def at(self, index: int, time: float) -> StateTermProtocol[Array, Array]:
         return _Truncated(self._inner.at(index, time), self._order)
+
+    def derivatives(self) -> StoredStateTermDerivatives[Array, Array]:
+        return self._derivatives
+
+
+class TestStoredStateTermDerivatives:
+    def test_a_family_declares_its_weakest_members(self, bkd: Backend[Array]) -> None:
+        """Truncated members give a family of their order; stacking it
+        keeps that order."""
+        endpoint = EndpointTerm(StateEntries(bkd, 2, [0]))
+        for order in (0, 1):
+            family = _EachTruncated(endpoint, order)
+            # The stack of one functional holds one state term, the
+            # family's mapped copy.
+            (stacked,) = TrajectoryFunctional.stack(
+                bkd, [TrajectoryFunctional.from_terms(bkd, 1, state_terms=(family,))]
+            ).state_terms
+            for bundle in (family.derivatives(), stacked.derivatives()):
+                assert (bundle.first is not None) == (order == 1)
+                assert bundle.second is None
+
+    def test_the_bundle_refuses_second_alone(self, bkd: Backend[Array]) -> None:
+        endpoint = EndpointTerm(StateEntries(bkd, 2, [0]))
+        second = endpoint.derivatives().second
+        assert second is not None
+        with pytest.raises(ValueError, match="need its first"):
+            StoredStateTermDerivatives(second=second)
+        with pytest.raises(TypeError, match="must be callable"):
+            StoredStateTermDerivatives(first=1.0)  # type: ignore[arg-type]
 
 
 class TestHessianVectorProductRefusals:
