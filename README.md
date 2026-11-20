@@ -127,8 +127,8 @@ pip install -e "packages/pyapprox[runtime-extras]"  # All the above
 
 ### Using conda
 
-Conda supplies Python and OpenMP (`llvm-openmp`); pip then installs
-every Python package, so no package is installed by both tools.
+Conda supplies Python; pip then installs every Python package, so no
+package is installed by both tools.
 
 Any conda installation works: `environment.yml` names only the
 conda-forge channel, so the env's packages come from there whichever
@@ -139,13 +139,12 @@ Anaconda's `defaults` channel; that channel has its own terms of
 service. On Apple silicon, use an installer built for arm64: an x86_64
 one runs under Rosetta, and JAX's x86_64 wheels then do not load.
 
-OpenMP is needed only for `torch.compile` on CPU, which the PyTorch
-backend's compiled paths use: it builds generated C++ with the system
-compiler, which must find `omp.h`. Apple's clang has no OpenMP, so on
-macOS it is required. It is not needed on Linux (gcc ships its own), on
-a GPU, or with only the NumPy backend. Homebrew's `libomp`
-(`brew install libomp`) works instead; torch finds either, the conda one
-only when the env is activated.
+Install no OpenMP package. The PyTorch wheel ships its own OpenMP
+runtime and `omp.h`, and `torch.compile`'s CPU kernels build and link
+against those. A second runtime in the same environment (conda's
+`llvm-openmp`, Homebrew's `libomp`) is loaded beside torch's, and the
+process aborts with `OMP: Error #15` once both initialize: a compiled
+reduction or a numba parallel loop is enough.
 
 ```bash
 conda env create -f environment.yml
@@ -158,8 +157,7 @@ pip install -e "packages/pyapprox[dev]" \
 `make install-dev` runs the same `pip install`.
 
 Without conda, any Python 3.12+ virtual environment works with the same
-`pip install` commands. On macOS, `torch.compile` then needs OpenMP from
-Homebrew (`brew install libomp`).
+`pip install` commands, and needs nothing else.
 
 To type-check against the same package versions as CI, create the env
 with Python 3.13 and install under the pinned versions in
@@ -167,7 +165,7 @@ with Python 3.13 and install under the pinned versions in
 
 ```bash
 conda create -n pyapprox-dev -c conda-forge --override-channels \
-    python=3.13 pip llvm-openmp
+    python=3.13 pip
 conda activate pyapprox-dev
 pip install -c requirements/ci-pins.txt \
     -e "packages/pyapprox[dev,rol]" \
@@ -178,6 +176,25 @@ pip install -c requirements/ci-pins.txt \
 
 `make dev-env DEV_ENV=pyapprox-dev` does both steps; without `DEV_ENV`
 it names the env after the checkout directory.
+
+### Installing into an existing environment
+
+An environment you did not create for pyapprox may already hold a second
+OpenMP runtime: conda's `llvm-openmp` is a dependency of many
+conda-forge packages. If importing torch and running a numba parallel
+loop or a `torch.compile` reduction aborts with `OMP: Error #15`, point
+`torch.compile` at torch's own runtime and keep numba off OpenMP:
+
+```bash
+export OMP_PREFIX="$(python -c 'import os, torch; print(os.path.dirname(torch.__file__))')"
+export NUMBA_THREADING_LAYER=workqueue
+```
+
+In a conda environment, `conda env config vars set OMP_PREFIX=...
+NUMBA_THREADING_LAYER=workqueue` makes them part of the environment.
+Do not set `KMP_DUPLICATE_LIB_OK=TRUE`, which the error message
+suggests: with two runtimes loaded the process then hangs or crashes
+instead of aborting.
 
 ## Running Tests
 

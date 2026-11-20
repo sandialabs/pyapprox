@@ -16,15 +16,16 @@ install-dev:  ## Install all three packages in editable mode with dev extras
 	            -e packages/pyapprox-tutorials
 
 # The env a checkout's agents and CI type-check in: conda supplies Python
-# 3.13 (CI's lint version) and llvm-openmp as environment.yml does; pip
-# installs everything else under requirements/ci-pins.txt. Named after
+# 3.13 (CI's lint version) and nothing else, as environment.yml does (no
+# OpenMP package: torch's wheel brings the one runtime); pip installs
+# everything else under requirements/ci-pins.txt. Named after
 # the checkout directory, which is where pyx looks for it. pip runs as
 # the env's own python by path: `conda run` can start another env's
 # python when the calling shell has a different conda activated.
 DEV_ENV ?= $(notdir $(CURDIR))
 dev-env:  ## Create the pinned dev conda env named after the checkout (override with DEV_ENV=name)
 	conda create -y -n $(DEV_ENV) -c conda-forge --override-channels \
-	    python=3.13 pip llvm-openmp
+	    python=3.13 pip
 	"$$(conda info --base)/envs/$(DEV_ENV)/bin/python" -m pip install -c requirements/ci-pins.txt \
 	    -e "packages/pyapprox[dev,rol]" \
 	    -e packages/pyapprox-benchmarks \

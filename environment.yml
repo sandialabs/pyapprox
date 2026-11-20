@@ -1,14 +1,14 @@
 name: pyapprox
-# Conda supplies Python and the native libraries pip cannot install;
-# every Python package then comes from pip, from the packages'
-# pyproject.toml, so no package is installed twice by two tools.
-# llvm-openmp is for torch.compile on CPU, which TorchBkd's compiled
-# paths use: it generates C++ with OpenMP pragmas and builds it
-# with the system compiler, so the compiler must find omp.h. Apple's
-# clang ships no OpenMP, so on macOS this is required. It is not needed
-# on Linux, where gcc brings its own OpenMP (libgomp); on a GPU, where
-# torch.compile generates Triton kernels instead; or if you use only the
-# NumPy backend, or never call torch.compile.
+# Conda supplies Python; every Python package then comes from pip, from
+# the packages' pyproject.toml, so no package is installed twice by two
+# tools.
+#
+# No OpenMP package: the PyTorch wheel ships its own OpenMP runtime and
+# header, and torch.compile's CPU kernels build and link against those.
+# A second OpenMP runtime in the env (conda's llvm-openmp, Homebrew's
+# libomp) gets loaded beside torch's and aborts the process with
+# "OMP: Error #15" once both initialize, e.g. a torch.compile reduction
+# or a numba parallel loop.
 #
 #   conda env create -f environment.yml
 #   conda activate pyapprox
@@ -21,4 +21,3 @@ channels:
 dependencies:
   - python>=3.12
   - pip
-  - llvm-openmp
