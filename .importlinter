@@ -177,4 +177,35 @@ ignore_imports =
     pyapprox.polynomials.induced -> pyapprox.surrogates.affine.protocols.multivariate_basis
     pyapprox.polynomials.leja.multivariate -> pyapprox.surrogates.affine.protocols
     pyapprox.polynomials.leja.univariate -> pyapprox.surrogates.affine.protocols
+
+# ── Contract: the coupling is stack-neutral ──────────────────────────────
+# Subdomain responses reach the coupling through protocols it owns; only
+# pde.coupling.stacks builds them from a discretization stack's objects,
+# so the coupling can leave pyapprox as its own package with each stack an
+# optional extra. Indirect imports count: a core module may not reach a
+# stack through anything else either.
+[importlinter:contract:coupling-stack-neutral]
+name = the coupling core imports no discretization stack
+type = forbidden
+source_modules =
+    pyapprox.pde.coupling
+forbidden_modules =
+    pyapprox.pde.collocation
+    pyapprox.pde.galerkin
+    pyapprox.pde.models
+    skfem
+ignore_imports =
+    pyapprox.pde.coupling.stacks.** -> pyapprox.pde.collocation.**
+    pyapprox.pde.coupling.stacks.** -> pyapprox.pde.models.**
+
+# The stacks know nothing of the coupling.
+[importlinter:contract:stacks-independent-of-coupling]
+name = discretization stacks do not import the coupling
+type = forbidden
+source_modules =
+    pyapprox.pde.collocation
+    pyapprox.pde.galerkin
+    pyapprox.pde.models
+forbidden_modules =
+    pyapprox.pde.coupling
     pyapprox.polynomials.univariate.transformed -> pyapprox.surrogates.affine.protocols.basis1d
