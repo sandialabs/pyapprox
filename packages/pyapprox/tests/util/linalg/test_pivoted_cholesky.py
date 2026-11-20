@@ -232,9 +232,7 @@ class TestPivotedCholesky:
         fact_s.factorize(nrows)
         assert fact_s.npivots() == nrows
         bkd.assert_allclose(fact_s.pivots(), fact.pivots())
-        bkd.assert_allclose(
-            fact_s.factor(), np.sqrt(scale) * fact.factor(), rtol=1e-12
-        )
+        bkd.assert_allclose(fact_s.factor(), np.sqrt(scale) * fact.factor(), rtol=1e-12)
 
     def test_rank_exhaustion_stops_without_error(self, bkd: Backend[Array]) -> None:
         """Requesting more pivots than the rank stops at the rank."""
@@ -263,7 +261,11 @@ class TestPivotedCholesky:
         """
         n, npivots = 200_000, 2
         kernel = SquaredExponentialKernel(
-            bkd.asarray([0.5]), (1e-6, 1e6), nvars=1, bkd=bkd, fixed=True,
+            bkd.asarray([0.5]),
+            (1e-6, 1e6),
+            nvars=1,
+            bkd=bkd,
+            fixed=True,
         )
         X = bkd.asarray(np.linspace(0.0, 1.0, n).reshape(1, -1))
         fact = PivotedCholeskyFactorizer(KernelColumnOperator(kernel, X, bkd), bkd)
@@ -289,12 +291,13 @@ class TestKernelColumnOperatorFused:
     ) -> tuple[Matern32Kernel[NDArray[Any]], NDArray[Any]]:
         bkd = numpy_bkd
         kernel = Matern32Kernel(
-            bkd.asarray([lenscale]), (1e-6, 1e6),
-            nvars=1, bkd=bkd, fixed=True,
+            bkd.asarray([lenscale]),
+            (1e-6, 1e6),
+            nvars=1,
+            bkd=bkd,
+            fixed=True,
         )
-        x = bkd.asarray(
-            np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1)
-        )
+        x = bkd.asarray(np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1))
         return kernel, x
 
     def test_fused_matches_dense(self, numpy_bkd: NumpyBkd) -> None:
@@ -313,7 +316,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_fused.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
             atol=1e-14,
         )
 
@@ -334,7 +339,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_fused.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
         )
 
     def test_fused_with_init_pivots(self, numpy_bkd: NumpyBkd) -> None:
@@ -354,7 +361,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_fused.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
         )
 
     def test_fused_recovers_kernel_matrix(self, numpy_bkd: NumpyBkd) -> None:
@@ -387,7 +396,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_gen.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_gen.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_gen.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
         )
 
     def test_unrecognized_kernel_falls_back(self, numpy_bkd: NumpyBkd) -> None:
@@ -397,6 +408,7 @@ class TestKernelColumnOperatorFused:
 
         class _OpaqueKernel:
             """Kernel wrapper that hides numba protocol methods."""
+
             def __init__(self, inner: Matern32Kernel[NDArray[Any]]) -> None:
                 self._inner = inner
 
@@ -409,13 +421,14 @@ class TestKernelColumnOperatorFused:
                 return self._inner.diag(X1)
 
         inner = Matern32Kernel(
-            bkd.asarray([0.5]), (1e-6, 1e6),
-            nvars=1, bkd=bkd, fixed=True,
+            bkd.asarray([0.5]),
+            (1e-6, 1e6),
+            nvars=1,
+            bkd=bkd,
+            fixed=True,
         )
         kernel = _OpaqueKernel(inner)
-        X = bkd.asarray(
-            np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1)
-        )
+        X = bkd.asarray(np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1))
         K = inner(X, X)
 
         fact_dense = PivotedCholeskyFactorizer(bkd.asarray(bkd.to_numpy(K)), bkd)
@@ -427,7 +440,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_op.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_op.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_op.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
         )
 
     def test_fused_sqexp_matches_dense(self, numpy_bkd: NumpyBkd) -> None:
@@ -436,12 +451,13 @@ class TestKernelColumnOperatorFused:
         n, npivots = 100, 20
         lenscale = 0.5
         kernel = SquaredExponentialKernel(
-            bkd.asarray([lenscale]), (1e-6, 1e6),
-            nvars=1, bkd=bkd, fixed=True,
+            bkd.asarray([lenscale]),
+            (1e-6, 1e6),
+            nvars=1,
+            bkd=bkd,
+            fixed=True,
         )
-        X = bkd.asarray(
-            np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1)
-        )
+        X = bkd.asarray(np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1))
         K = bkd.to_numpy(kernel(X, X))
 
         fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
@@ -453,7 +469,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_fused.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
             atol=1e-14,
         )
 
@@ -463,8 +481,11 @@ class TestKernelColumnOperatorFused:
         nvars, n, npivots = 3, 100, 20
         lenscales = [0.3, 0.5, 0.8]
         kernel = Matern32Kernel(
-            bkd.asarray(lenscales), (1e-6, 1e6),
-            nvars=nvars, bkd=bkd, fixed=True,
+            bkd.asarray(lenscales),
+            (1e-6, 1e6),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         X = bkd.asarray(np.random.uniform(-2.0, 2.0, (nvars, n)))
         K = bkd.to_numpy(kernel(X, X))
@@ -478,7 +499,9 @@ class TestKernelColumnOperatorFused:
 
         bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
         bkd.assert_allclose(
-            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            fact_fused.factor(),
+            fact_dense.factor(),
+            rtol=1e-10,
             atol=1e-14,
         )
 
@@ -504,9 +527,7 @@ class TestBlockedUpdate:
         assert fact.npivots() == ref.npivots()
         bkd.assert_allclose(fact.pivots(), ref.pivots(), rtol=0.0)
         scale = bkd.to_float(bkd.max(bkd.abs(ref.factor())))
-        bkd.assert_allclose(
-            fact.factor(), ref.factor(), rtol=0.0, atol=1e-13 * scale
-        )
+        bkd.assert_allclose(fact.factor(), ref.factor(), rtol=0.0, atol=1e-13 * scale)
 
     @pytest.fixture(autouse=True)
     def _seed(self) -> None:
@@ -521,13 +542,9 @@ class TestBlockedUpdate:
         pivot_weights: Array | None = None,
         init_pivots: Array | None = None,
     ) -> PivotedCholeskyFactorizer[Array]:
-        fact = PivotedCholeskyFactorizer(
-            A, bkd, tol=0.0, row_blocking=row_blocking
-        )
+        fact = PivotedCholeskyFactorizer(A, bkd, tol=0.0, row_blocking=row_blocking)
         fact._use_numba = False
-        fact.factorize(
-            npivots, init_pivots=init_pivots, pivot_weights=pivot_weights
-        )
+        fact.factorize(npivots, init_pivots=init_pivots, pivot_weights=pivot_weights)
         return fact
 
     def _kernel_matrix(self, bkd: Backend[Array], n: int) -> Array:
@@ -546,9 +563,7 @@ class TestBlockedUpdate:
         assert ref.npivots() == 25
         self._assert_same(bkd, fact, ref)
 
-    def test_blocked_with_weights_and_init_pivots(
-        self, bkd: Backend[Array]
-    ) -> None:
+    def test_blocked_with_weights_and_init_pivots(self, bkd: Backend[Array]) -> None:
         A = self._kernel_matrix(bkd, 40)
         weights = bkd.asarray(np.random.uniform(0.5, 2.0, 40))
         init = bkd.asarray(np.array([3, 11], dtype=np.int64))
@@ -556,7 +571,11 @@ class TestBlockedUpdate:
             bkd, A, 15, NoBlocking(), pivot_weights=weights, init_pivots=init
         )
         fact = self._factor(
-            bkd, A, 15, FixedRowBlocking(4), pivot_weights=weights,
+            bkd,
+            A,
+            15,
+            FixedRowBlocking(4),
+            pivot_weights=weights,
             init_pivots=init,
         )
         self._assert_same(bkd, fact, ref)
@@ -574,9 +593,7 @@ class TestBlockedUpdate:
         X = bkd.asarray(np.random.uniform(0.0, 1.0, (1, 50)))
         kernel = Matern32Kernel(bkd.asarray([0.2]), (0.01, 10.0), 1, bkd)
         blocking = FixedRowBlocking(6)
-        solver = PivotedCholeskyEigenSolver(
-            bkd, rank=10, row_blocking=blocking
-        )
+        solver = PivotedCholeskyEigenSolver(bkd, rank=10, row_blocking=blocking)
         fact = solver.factorize(kernel, X, 5)
         assert fact._row_blocking is blocking
 
@@ -592,11 +609,11 @@ class TestBlockedUpdate:
         bkd = numpy_bkd
         npoints, npivots = 5000, 200
         X = bkd.asarray(np.random.uniform(0.0, 1.0, (3, npoints)))
-        kernel = SquaredExponentialKernel(
-            bkd.full((3,), 0.05), (0.001, 10.0), 3, bkd
-        )
+        kernel = SquaredExponentialKernel(bkd.full((3,), 0.05), (0.001, 10.0), 3, bkd)
         fact = PivotedCholeskyFactorizer(
-            KernelColumnOperator(kernel, X, bkd), bkd, tol=0.0,
+            KernelColumnOperator(kernel, X, bkd),
+            bkd,
+            tol=0.0,
             row_blocking=ByteBudgetBlocking(256 * 1024),
         )
         fact._use_numba = False
@@ -614,7 +631,9 @@ class TestBlockedUpdate:
         A = self._kernel_matrix(bkd, 10)
         with pytest.raises(TypeError, match="RowBlockingProtocol"):
             PivotedCholeskyFactorizer(
-                A, bkd, row_blocking=4,  # type: ignore[arg-type]
+                A,
+                bkd,
+                row_blocking=4,  # type: ignore[arg-type]
             )
 
 
@@ -642,13 +661,13 @@ class TestNumbaGenericAgreement:
 
         fact_nb = PivotedCholeskyFactorizer(A, bkd, econ=True)
         assert fact_nb._use_numba
-        fact_nb.factorize(npivots, init_pivots=init_pivots,
-                          pivot_weights=pivot_weights)
+        fact_nb.factorize(npivots, init_pivots=init_pivots, pivot_weights=pivot_weights)
 
         fact_gen = PivotedCholeskyFactorizer(A, bkd, econ=True)
         fact_gen._use_numba = False
-        fact_gen.factorize(npivots, init_pivots=init_pivots,
-                           pivot_weights=pivot_weights)
+        fact_gen.factorize(
+            npivots, init_pivots=init_pivots, pivot_weights=pivot_weights
+        )
 
         bkd.assert_allclose(fact_nb.pivots(), fact_gen.pivots())
         bkd.assert_allclose(fact_nb.factor(), fact_gen.factor(), rtol=1e-12)
@@ -686,5 +705,4 @@ class TestNumbaGenericAgreement:
         A = A.T @ A
         weights = numpy_bkd.asarray(np.random.uniform(1.0, 3.0, n))
         init_pivots = numpy_bkd.asarray(np.array([2, 5], dtype=np.int64))
-        self._run_both(numpy_bkd, A, n, init_pivots=init_pivots,
-                       pivot_weights=weights)
+        self._run_both(numpy_bkd, A, n, init_pivots=init_pivots, pivot_weights=weights)
