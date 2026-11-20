@@ -120,9 +120,6 @@ from pyapprox.pde.collocation.protocols.boundary import FluxProviderProtocol
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
-from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
-    CollocationQuadrature1D,
-)
 from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.expressions.symbols import coordinates, time
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
@@ -138,6 +135,9 @@ from pyapprox.pde.verification.conditions import (
 from pyapprox.pde.verification.domains import Box, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.study import CheckResult, ErrorMeasureProtocol
+from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
+from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule
+from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
 from pyapprox.util.backends.protocols import Array, Array_co, Backend
 from pyapprox.util.expressions.parsing import Value, parse
 from pyapprox.util.linalg.backend_dense import BackendDenseLU
@@ -887,20 +887,52 @@ class ConstantGuess:
         return f"{type(self).__name__}({self._value!r})"
 
 
-def _quadrature_weights(level: ChebyshevLevel[Array]) -> Array:
-    """Weights at the level's nodes integrating over the box: tensor
-    products of 1D Clenshaw-Curtis-type weights on the reference interval
-    (first dimension fastest), times the map's Jacobian determinant.
-    Shape: (npts,)"""
+@dataclass(frozen=True)
+class _ErrorGrid(Generic[Array]):
+    """A tensor Gauss-Legendre grid of the level's box with twice the
+    level's nodes per direction, first dimension fastest.
+
+    ``points`` are physical, shape (ndim, nquad); ``weights`` integrate
+    over the box, shape (nquad,); ``interpolation`` maps nodal values to
+    the nodes' Lagrange interpolant at the points, shape (nquad, npts).
+    With :math:`2N` points per direction the rule is exact to degree
+    :math:`4N - 1`, so the squared interpolant (degree :math:`2N - 2`) is
+    integrated exactly and :math:`u^*` far more accurately than the
+    error being measured.
+    """
+
+    points: Array
+    weights: Array
+    interpolation: Array
+
+
+def _error_grid(level: ChebyshevLevel[Array]) -> _ErrorGrid[Array]:
     bkd = level.bkd()
+    coords: List[Array] = []
     weights: Optional[Array] = None
-    for n in level.mesh().npts_per_dim():
-        reference = ChebyshevBasis1D(TransformedMesh1D(n, bkd), bkd)
-        w = CollocationQuadrature1D(reference, bkd).full_domain_weights()
-        weights = w if weights is None else bkd.kron(w, weights)
-    if weights is None:
+    interpolation: Optional[Array] = None
+    for dim, (lower, upper) in enumerate(level.domain().bounds()):
+        nodes = level.mesh().reference_nodes_1d(dim)
+        nquad = 2 * nodes.shape[0]
+        legendre = LegendrePolynomial1D(bkd)
+        legendre.set_nterms(nquad)
+        reference, probability = GaussQuadratureRule(legendre)(nquad)
+        xi = reference[0, :]
+        # Probability weights sum to 1; the box side has length upper - lower.
+        w = probability[:, 0] * (upper - lower)
+        lagrange = univariate_lagrange_polynomial(nodes, xi, bkd)
+        x = lower + (upper - lower) * (xi + 1.0) / 2.0
+        if weights is None or interpolation is None:
+            coords, weights, interpolation = [x], w, lagrange
+            continue
+        previous = weights.shape[0]
+        coords = [bkd.kron(bkd.ones((nquad,)), c) for c in coords]
+        coords.append(bkd.kron(x, bkd.ones((previous,))))
+        weights = bkd.kron(w, weights)
+        interpolation = bkd.kron(lagrange, interpolation)
+    if weights is None or interpolation is None:
         raise ValueError("a level has at least one dimension")
-    return weights * level.mesh().jacobian_determinant()
+    return _ErrorGrid(bkd.stack(coords, axis=0), weights, interpolation)
 
 
 class CollocationApproximation(Generic[Array]):
@@ -940,14 +972,24 @@ class CollocationApproximation(Generic[Array]):
                 f"the state must have shape ({expected},), one value per node "
                 f"for each of {list(fields)}; got {tuple(state.shape)}"
             )
-        exact = PointExpressions(
+        solution = PointExpressions(
             [problem.solution(row) for row in fields],
             problem.names(),
             problem.coordinates(),
             bkd,
-        )(level.mesh().points())
+        )
+        exact = solution(level.mesh().points())
         self._error = bkd.reshape(exact, (-1,)) - state
-        self._weights = bkd.tile(_quadrature_weights(level), (len(fields),))
+        grid = _error_grid(level)
+        npts = level.npts()
+        interpolated = bkd.hstack(
+            [
+                grid.interpolation @ state[k * npts : (k + 1) * npts]
+                for k in range(len(fields))
+            ]
+        )
+        self._grid_error = bkd.reshape(solution(grid.points), (-1,)) - interpolated
+        self._weights = bkd.tile(grid.weights, (len(fields),))
         self._bkd, self._state, self._h = bkd, state, level.h()
         self._nodes = max(level.mesh().npts_per_dim())
 
@@ -964,12 +1006,14 @@ class CollocationApproximation(Generic[Array]):
         return self._state
 
     def l2_error(self) -> float:
-        r""":math:`\|u^* - u_h\|_{L^2}` by the collocation quadrature of the
-        squared nodal error, summed over the fields: exact for the
-        interpolant of the error when its square is in the quadrature's
-        polynomial space."""
+        r""":math:`\|u^* - u_h\|_{L^2}`, :math:`u_h` the Lagrange
+        interpolant of the nodal values, by Gauss-Legendre quadrature with
+        twice the level's nodes per direction against :math:`u^*` itself,
+        summed over the fields. It sees the error between the nodes, which
+        a quadrature at the nodes would not."""
         bkd = self._bkd
-        return math.sqrt(bkd.to_float(bkd.sum(self._weights * self._error**2)))
+        squared = bkd.sum(self._weights * self._grid_error**2)
+        return math.sqrt(bkd.to_float(squared))
 
     def nodal_error(self) -> float:
         r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the collocation nodes

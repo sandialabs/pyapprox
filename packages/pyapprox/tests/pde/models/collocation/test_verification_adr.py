@@ -39,6 +39,7 @@ import math
 from typing import Dict, List, Optional, Sequence
 
 import pytest
+import sympy as sp
 
 from pyapprox.pde.collocation.boundary.closure_rows import RobinPart, RobinRows
 from pyapprox.pde.collocation.boundary.essential_rows import (
@@ -211,8 +212,8 @@ def test_recovers_cubic_2d(bkd: Backend[Array], codes: str, conservative: bool) 
 def test_decays_1d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """u = exp(x) sin(3 x) on [0, 1], Dirichlet left and Neumann right,
     variable D and v: the L2 error falls exponentially over 4-12 nodes
-    (0.2 to 4e-9; observed decay 2.07 per node non-conservative, 2.12
-    conservative, required 1)."""
+    (0.2 to 4e-9 non-conservative, 0.7 to 1e-8 conservative; observed
+    decay 2.10 and 2.13 per node, required 1)."""
     adr = _ADR("1 + x/2", ["1 + x"], "-1", conservative)
     problem = _problem("exp(x)*sin(3*x)", adr, _UNIT, coded("DN", _UNIT))
     decays(problem, adr, [4, 6, 8, 10, 12], 1.0, numpy_bkd)
@@ -222,7 +223,7 @@ def test_decays_1d(numpy_bkd: Backend[Array], conservative: bool) -> None:
 def test_decays_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """u = exp(x/2) sin(2 y) + x y on [0, 1] x [-1, 1], Dirichlet,
     Robin and Neumann sides, rotating v: exponential decay over 4-12
-    nodes per direction (observed 2.16 per node in both forms, required
+    nodes per direction (observed 2.17 per node in both forms, required
     1)."""
     adr = _ADR("1 + x*y/4", ["1 - y", "x/2"], "-1", conservative)
     problem = _problem(
@@ -238,8 +239,8 @@ _PERIODIC_1D: Dict[str, ConditionProtocol] = {"left": Periodic(), "right": Perio
 def test_decays_periodic_1d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """Both ends periodic, periodic D and v, absorption r = -1: the
     value and derivative match close the system, exponential decay over
-    8-20 nodes (2.1 to 3e-7 L2; observed 1.31 per node non-conservative,
-    1.26 conservative, required 0.6)."""
+    8-20 nodes (2.1 to 3e-7 L2 non-conservative, 2.3 to 7e-7
+    conservative; observed 1.31 and 1.25 per node, required 0.6)."""
     adr = _ADR("1 + sin(2*pi*x)/2", ["1 + cos(2*pi*x)/4"], "-1", conservative)
     problem = _problem("sin(2*pi*x) + cos(4*pi*x)/2 + 1", adr, _UNIT, _PERIODIC_1D)
     decays(problem, adr, [8, 12, 16, 20], 0.6, numpy_bkd)
@@ -248,7 +249,7 @@ def test_decays_periodic_1d(numpy_bkd: Backend[Array], conservative: bool) -> No
 @pytest.mark.parametrize("conservative", [False, True])
 def test_decays_periodic_2d(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """[0, 1] x [-1, 1] periodic in x, Dirichlet bottom and Robin top:
-    exponential decay over 8-16 nodes per direction (1e-3 to 3e-11 L2;
+    exponential decay over 8-16 nodes per direction (1e-3 to 4e-11 L2;
     observed 2.16 per node in both forms, required 1); the bottom Dirichlet values
     agree on the paired corners."""
     adr = _ADR("1", ["1", "x/4 + 1/2"], "-1", conservative)
@@ -430,6 +431,27 @@ class TestAdapterPieces:
         )
         assert abs(approximation.l2_error() - math.sqrt(expected)) < 1e-13
         assert abs(approximation.nodal_error() - 1.0) < 1e-13
+
+    def test_l2_error_sees_between_nodes(self, bkd: Backend[Array]) -> None:
+        """u* = x^4 on [0, 1] with the state equal to u* at the 3 nodes
+        (0, 1/2, 1): the nodal error is zero, while the L2 error is that
+        of the interpolating quadratic, integrated exactly here by sympy
+        (degree 8, within the 6-point Gauss rule's degree 11)."""
+        box = Box([(0.0, 1.0)])
+        conditions: Dict[str, ConditionProtocol] = {
+            side: Dirichlet() for side in box.boundaries()
+        }
+        problem = _problem("x**4", _ADR("1"), box, conditions)
+        (level,) = ChebyshevBox([3], bkd).levels(box)
+        nodes = level.mesh().points()[0]
+        approximation = CollocationApproximation(problem, level, nodes**4)
+        x = sp.Symbol("x")
+        quadratic = sp.interpolate(
+            [(0, 0), (sp.Rational(1, 2), sp.Rational(1, 16)), (1, 1)], x
+        )
+        expected = float(sp.integrate((x**4 - quadratic) ** 2, (x, 0, 1)))
+        assert approximation.nodal_error() < 1e-14
+        assert abs(approximation.l2_error() - math.sqrt(expected)) < 1e-13
 
 
 class TestRefusals:

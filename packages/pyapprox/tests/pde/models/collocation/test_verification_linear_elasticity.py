@@ -242,7 +242,7 @@ def test_decays_2d(numpy_bkd: Backend[Array]) -> None:
     """u = sin(x + y)/2, v = cos(x - 2 y)/4 on the unit square,
     lambda = 2, mu = 1 + x y/2, sides Dirichlet, traction, Robin,
     Dirichlet: exponential decay over 4-12 nodes per direction (8e-3 to
-    4e-12; observed 2.68 per node, required 1)."""
+    4e-12; observed 2.69 per node, required 1)."""
     elasticity = _Elasticity("2", "1 + x*y/2")
     problem = elasticity.problem(
         ("sin(x + y)/2", "cos(x - 2*y)/4"), _UNIT_SQUARE, _sides(_UNIT_SQUARE, "DNRD")
@@ -253,8 +253,8 @@ def test_decays_2d(numpy_bkd: Backend[Array]) -> None:
 def test_decays_3d(numpy_bkd: Backend[Array]) -> None:
     """The old 3D spectral case: sin(pi x) sin(pi y) sin(pi z) in every
     component on [-1, 1]^3, lambda = mu = 1, zero Dirichlet faces:
-    exponential decay over 4-8 nodes per direction (1.0 to 2e-3;
-    observed 1.57 per node, required 1)."""
+    exponential decay over 4-8 nodes per direction (0.9 to 3e-3;
+    observed 1.45 per node, required 1)."""
     elasticity = _Elasticity("1", "1")
     problem = elasticity.problem(
         ("sin(pi*x)*sin(pi*y)*sin(pi*z)",) * 3, _CUBE, _sides(_CUBE, "DDDDDD")

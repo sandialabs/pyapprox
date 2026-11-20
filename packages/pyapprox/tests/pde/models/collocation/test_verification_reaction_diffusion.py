@@ -271,7 +271,7 @@ def test_recovers_cubics_2d(bkd: Backend[Array], codes: Tuple[str, str]) -> None
 def test_decays_1d(numpy_bkd: Backend[Array], kinetics: _Kinetics) -> None:
     """u = exp(x) sin(3 x), v = cos(2 x) on [0, 1], D_u = 1 + x/2,
     D_v = 2 - x, u Dirichlet-Neumann and v Robin-Dirichlet: exponential
-    decay over 4-12 nodes (observed 2.06 and 2.09 per node for the two
+    decay over 4-12 nodes (observed 2.09 and 2.07 per node for the two
     kinetics, required 1)."""
     rd = _ReactionDiffusion(("1 + x/2", "2 - x"), kinetics)
     problem = rd.problem(("exp(x)*sin(3*x)", "cos(2*x)"), _UNIT, ("DN", "RD"))
@@ -281,8 +281,8 @@ def test_decays_1d(numpy_bkd: Backend[Array], kinetics: _Kinetics) -> None:
 def test_decays_2d(numpy_bkd: Backend[Array]) -> None:
     """u = exp(x/2) sin(2 y) + x y, v = cos(x + y) on [0, 1] x [-1, 1],
     D_u = 1 + x y/4, D_v = 1/2, FitzHugh-Nagumo kinetics, mixed sides:
-    exponential decay over 4-12 nodes per direction (0.12 to 3e-9;
-    observed 2.18 per node, required 1)."""
+    exponential decay over 4-12 nodes per direction (0.14 to 3e-9;
+    observed 2.20 per node, required 1)."""
     rd = _ReactionDiffusion(("1 + x*y/4", "1/2"), _FitzHughNagumo(0.1, 0.5, 0.5, 1.0))
     problem = rd.problem(
         ("exp(x/2)*sin(2*y) + x*y", "cos(x + y)"), _RECTANGLE, ("DRDN", "NDRD")

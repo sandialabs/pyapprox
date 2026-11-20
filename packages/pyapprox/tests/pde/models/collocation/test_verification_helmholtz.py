@@ -155,7 +155,7 @@ def test_decays_1d(numpy_bkd: Backend[Array]) -> None:
     k^2 = -4: the standard sign, between the first two eigenvalues
     (pi/2)^2 and (3 pi/2)^2 of -u'' with these ends, so indefinite but
     nonsingular. Exponential decay over 4-12 nodes (0.73 to 1.5e-8;
-    observed 2.06 per node, required 1)."""
+    observed 2.07 per node, required 1)."""
     helmholtz = _Helmholtz(-4.0)
     problem = helmholtz.problem("exp(x)*sin(3*x)", _UNIT, "DN")
     decays(problem, helmholtz, [4, 6, 8, 10, 12], 1.0, numpy_bkd)
@@ -164,7 +164,7 @@ def test_decays_1d(numpy_bkd: Backend[Array]) -> None:
 def test_decays_2d(numpy_bkd: Backend[Array]) -> None:
     """u = exp(x/2) sin(2 y) + x y on [0, 1] x [-1, 1], k^2 = 3,
     Dirichlet, Robin and Neumann sides: exponential decay over 4-12
-    nodes per direction (0.12 to 3.5e-9; observed 2.17 per node,
+    nodes per direction (0.14 to 3.5e-9; observed 2.18 per node,
     required 1)."""
     helmholtz = _Helmholtz(3.0)
     problem = helmholtz.problem("exp(x/2)*sin(2*y) + x*y", _RECTANGLE, "DRDN")

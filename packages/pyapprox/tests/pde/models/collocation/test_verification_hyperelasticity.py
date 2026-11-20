@@ -209,8 +209,8 @@ def test_recovers_affine(
 
 def test_decays_clamped_1d(numpy_bkd: Backend[Array]) -> None:
     """The comparison suite's bar, u = 0.1 x^2 (1 - x)^2 on [0, 1],
-    lambda = mu = 1, both ends Dirichlet: errors 1.6e-5 to 1.3e-12 over
-    6-14 nodes (observed 1.93 per node, required 0.9); the old test
+    lambda = mu = 1, both ends Dirichlet: errors 1.4e-5 to 1.3e-12 over
+    6-14 nodes (observed 1.92 per node, required 0.9); the old test
     needed a relative error below 1e-6 at 20 nodes."""
     physics = _Hyperelasticity("1", "1")
     problem = physics.problem(("0.1*x**2*(1 - x)**2",), _LINE, "DD")
@@ -220,8 +220,8 @@ def test_decays_clamped_1d(numpy_bkd: Backend[Array]) -> None:
 def test_decays_clamped_2d(numpy_bkd: Backend[Array]) -> None:
     """The comparison suite's 2D case, u = 0.1 b, v = 0.05 b with
     b = x^2 (1 - x)^2 y^2 (1 - y)^2 on the unit square, lambda = mu = 1,
-    all sides Dirichlet: errors 3.5e-8 to 4.3e-14 over 6-12 nodes per
-    direction (observed 2.37 per node, required 1.1); the old test needed
+    all sides Dirichlet: errors 3.0e-8 to 3.4e-14 over 6-12 nodes per
+    direction (observed 2.38 per node, required 1.1); the old test needed
     a relative error below 1e-6 at 10 x 10 nodes."""
     physics = _Hyperelasticity("1", "1")
     bubble = "x**2*(1 - x)**2*y**2*(1 - y)**2"
@@ -244,8 +244,8 @@ def test_decays_1d(numpy_bkd: Backend[Array], codes: str) -> None:
 def test_decays_2d(numpy_bkd: Backend[Array], codes: str) -> None:
     """The Galerkin catalog's 2D solution on the unit square,
     lambda = 1.5, mu = 0.8, with its side sets: over 6-12 nodes per
-    direction, DNDN 5.9e-5 to 9.2e-10 (observed 1.86 per node), DRDR
-    2.8e-5 to 6.2e-10 (1.80), DNDR 3.9e-5 to 6.4e-10 (1.85); required
+    direction, DNDN 6.0e-5 to 9.1e-10 (observed 1.86 per node), DRDR
+    3.0e-5 to 6.1e-10 (1.81), DNDR 4.0e-5 to 6.4e-10 (1.85); required
     0.9."""
     physics = _Hyperelasticity("1.5", "0.8")
     problem = physics.problem(_SOLUTION_2D, _SQUARE, codes)
@@ -253,8 +253,8 @@ def test_decays_2d(numpy_bkd: Backend[Array], codes: str) -> None:
 
 
 def test_decays_varying_lame(numpy_bkd: Backend[Array]) -> None:
-    """Lambda = 1 + x, mu = 1 + y/2, sides D, N, D, R: errors 3.7e-5 to
-    6.4e-10 over 6-12 nodes per direction (observed 1.83 per node,
+    """Lambda = 1 + x, mu = 1 + y/2, sides D, N, D, R: errors 3.8e-5 to
+    6.4e-10 over 6-12 nodes per direction (observed 1.84 per node,
     required 0.9)."""
     physics = _Hyperelasticity("1 + x", "1 + y/2")
     problem = physics.problem(_SOLUTION_2D, _SQUARE, "DNDR")

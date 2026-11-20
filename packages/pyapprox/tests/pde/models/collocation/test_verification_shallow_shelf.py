@@ -183,8 +183,8 @@ def test_decays(numpy_bkd: Backend[Array], codes: str) -> None:
     """The old residual tests' u = x^2 + y, v = x + y^2 on [-1, 1]^2,
     H = 1, bed 0.1 x, friction 1 (Q = 4(x^2 + x y + y^2) + 1 >= 1, so the
     viscosity is analytic): exponential decay over 6-14 nodes per
-    direction (observed 0.744 per node Dirichlet, errors 4.4e-2 to
-    1.1e-4; 0.735 mixed, 4.6e-2 to 1.3e-4; required 0.35). The old tests
+    direction (observed 0.746 per node Dirichlet, errors 4.0e-2 to
+    1.0e-4; 0.735 mixed, 4.2e-2 to 1.2e-4; required 0.35). The old tests
     needed 40 nodes for a residual below 1e-6."""
     shelf = _ShallowShelf("1", "0.1*x", "1")
     problem = shelf.problem(["x**2 + y", "x + y**2"], _SQUARE, codes)
@@ -194,7 +194,7 @@ def test_decays(numpy_bkd: Backend[Array], codes: str) -> None:
 def test_swapped_fluxes_stall(numpy_bkd: Backend[Array]) -> None:
     """Wrong-model control: Dirichlet left and bottom, Neumann right and
     top, and each component's Neumann sides prescribe the other
-    component's flux; the error stops falling (errors 2.1 to 1.7 over
+    component's flux; the error stops falling (errors 2.2 to 1.7 over
     6-12 nodes), so the flux cases above check which stress row each side
     carries. With a Robin side instead (DNDR) the wrong model's Newton
     does not converge at most sizes."""

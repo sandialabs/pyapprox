@@ -169,19 +169,17 @@ def test_recovers_cubic(
 @pytest.mark.parametrize("total", [True, False], ids=["total", "viscous"])
 def test_decays(numpy_bkd: Backend[Array], total: bool, conservative: bool) -> None:
     """u = sin(pi x) + 2 x on [0, 1], nu = 1 + x/2, Dirichlet left,
-    Neumann right: exponential decay over 4-12 nodes (observed 1.35 to
-    2.07 per node across the four combinations, required 0.6)."""
+    Neumann right: exponential decay over 4-12 nodes (observed 1.41 to
+    2.14 per node across the four combinations, required 0.6)."""
     burgers = _Burgers("1 + x/2", total=total, conservative=conservative)
     problem = burgers.problem("sin(pi*x) + 2*x", _UNIT, "DN")
     decays(problem, burgers, [4, 6, 8, 10, 12], 0.6, numpy_bkd)
 
 
 @_FORMS
-def test_decays_dirichlet_sine(
-    numpy_bkd: Backend[Array], conservative: bool
-) -> None:
+def test_decays_dirichlet_sine(numpy_bkd: Backend[Array], conservative: bool) -> None:
     """u = sin(pi x), nu = 0.1, on [-1, 1] with zero Dirichlet ends:
-    exponential decay over 12-24 nodes (observed 1.82 per node
+    exponential decay over 12-24 nodes (observed 1.83 per node
     conservative, 1.67 advective, required 0.8). On 8 nodes the
     advective form's Newton does not converge from zero (residual 0.18
     after 30 steps)."""
@@ -196,8 +194,8 @@ def test_viscous_shock(numpy_bkd: Backend[Array], conservative: bool) -> None:
     ends on [-1, 1]; Newton finds it from zero. Its poles at
     +-i pi nu set the decay ln r, r = pi nu + sqrt(1 + (pi nu)^2), 0.309
     per node; the fit over 20-40 nodes must reach 0.9 of the prediction
-    (observed 0.304 conservative, errors 3.6e-3 to 8.2e-6; 0.358
-    advective, 2.8e-3 to 2.1e-6). The sizes stop at 40 because Newton's
+    (observed 0.305 conservative, errors 2.6e-3 to 5.8e-6; 0.327
+    advective, 4.0e-3 to 5.8e-6). The sizes stop at 40 because Newton's
     residual reaches round-off against its tolerance from about 50
     nodes: on CI runners both forms stalled there (3.2e-12 conservative,
     1.0e-11 advective, against 2.4e-12), and locally the conservative
