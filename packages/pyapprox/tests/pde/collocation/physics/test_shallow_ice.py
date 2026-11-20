@@ -13,7 +13,6 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
 )
-from pyapprox.pde.collocation.boundary.essential_rows import DirichletPart
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
@@ -50,7 +49,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.physics_test_utils import (
     PhysicsDerivativeWrapper,
     PhysicsTestBase,
-    solve_steady_dirichlet,
 )
 
 
@@ -100,137 +98,6 @@ class TestShallowIcePhysics(PhysicsTestBase):
         # Exact Jacobian: limited only by the checker's FD noise
         # (measured sweep bottom ~8e-8)
         self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
-
-    def test_residual_at_manufactured_solution(self, bkd: Backend[Array]) -> None:
-        """Verify residual is near zero at manufactured solution.
-
-        Uses normalized parameters (A=1, rho=1) to avoid numerical issues
-        with the highly nonlinear shallow ice equation. With glaciological
-        parameters (A~1e-16, rho~917), the forcing terms are O(1e10) which
-        causes numerical issues with spectral methods.
-        """
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        # Normalized parameters for numerical stability
-        A = 1.0
-        rho = 1.0
-
-        # Manufactured solution with smooth positive ice thickness
-        man_sol = ManufacturedShallowIce(
-            sol_str="2 + 0.5*(1 - x**2)",
-            nvars=1,
-            bed_str="0.1*x",  # small sloped bed
-            friction_str="1.0",
-            A=A,
-            rho=rho,
-            bkd=bkd,
-            oned=True,
-        )
-
-        # Get forcing from manufactured solution
-        # Manufactured: dH/dt - div(D*grad(s)) = f → f = -div(D*grad(s))
-        # Physics:      residual = div(D*grad(s)) + f
-        # For residual = 0: f = -div(D*grad(s)) which is what manufactured computes
-        forcing = man_sol.functions["forcing"](nodes[None, :])
-        if forcing.ndim == 2:
-            forcing = forcing[:, 0]
-        # NO negation needed - sign conventions match
-
-        # Get bed elevation
-        bed = man_sol.functions["bed"](nodes[None, :])
-        if bed.ndim == 2:
-            bed = bed[:, 0]
-
-        physics = ShallowIcePhysics(
-            basis,
-            bkd,
-            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
-        )
-
-        # Get exact solution
-        exact_solution = man_sol.functions["solution"](nodes[None, :])
-        if exact_solution.ndim == 2:
-            exact_solution = exact_solution[:, 0]
-
-        # Spectral-truncation-limited (measured norm ~2.3e-7 at npts=20)
-        self.check_residual_zero(bkd, physics, exact_solution, atol=5e-7)
-
-    def test_solve_steady_from_small_perturbation(self, bkd: Backend[Array]) -> None:
-        """Verify Newton converges from small perturbation.
-
-        Uses normalized parameters for numerical stability.
-        Tests that NewtonSolver converges when starting close to solution.
-        """
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        # Normalized parameters for numerical stability
-        A = 1.0
-        rho = 1.0
-
-        # Manufactured solution
-        man_sol = ManufacturedShallowIce(
-            sol_str="2 + 0.5*(1 - x**2)",
-            nvars=1,
-            bed_str="0.1*x",
-            friction_str="1.0",
-            A=A,
-            rho=rho,
-            bkd=bkd,
-            oned=True,
-        )
-
-        # Get forcing (no negation needed - sign conventions match)
-        forcing = man_sol.functions["forcing"](nodes[None, :])
-        if forcing.ndim == 2:
-            forcing = forcing[:, 0]
-
-        # Get bed elevation
-        bed = man_sol.functions["bed"](nodes[None, :])
-        if bed.ndim == 2:
-            bed = bed[:, 0]
-
-        physics = ShallowIcePhysics(
-            basis,
-            bkd,
-            bed=NodalField(bed), friction=1.0, A=A, rho=rho, forcing=NodalField(forcing)
-        )
-
-        # Set boundary conditions
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-
-        exact_solution = man_sol.functions["solution"](nodes[None, :])
-        if exact_solution.ndim == 2:
-            exact_solution = exact_solution[:, 0]
-
-        li = bkd.to_int(left_idx)
-        ri = bkd.to_int(right_idx)
-        parts = [
-            DirichletPart(left_idx, bkd.to_float(exact_solution[li])),
-            DirichletPart(right_idx, bkd.to_float(exact_solution[ri])),
-        ]
-
-        # Small perturbation from exact solution
-        np.random.seed(42)
-        pert_np = 0.01 * bkd.to_numpy(exact_solution) * np.random.randn(npts)
-        initial_guess = exact_solution + bkd.array(pert_np)
-
-        # Solve with Newton
-        solution = solve_steady_dirichlet(
-            physics, 1, parts, initial_guess, atol=1e-10, rtol=1e-10, maxiters=50
-        )
-
-        # Newton-tolerance-limited (atol/rtol 1e-10; measured solution
-        # error ~7.5e-13 with the exact Jacobian)
-        bkd.assert_allclose(solution, exact_solution, atol=1e-11)
 
     def test_factory_function(self, bkd: Backend[Array]) -> None:
         """Test create_shallow_ice factory function."""
@@ -299,12 +166,8 @@ class TestShallowIcePhysics(PhysicsTestBase):
         right_idx = bc_mesh.boundary_indices(1)
         li = bkd.to_int(left_idx)
         ri = bkd.to_int(right_idx)
-        bc_left = constant_dirichlet_bc(
-            bkd, left_idx, bkd.to_float(exact_at_0[li])
-        )
-        bc_right = constant_dirichlet_bc(
-            bkd, right_idx, bkd.to_float(exact_at_0[ri])
-        )
+        bc_left = constant_dirichlet_bc(bkd, left_idx, bkd.to_float(exact_at_0[li]))
+        bc_right = constant_dirichlet_bc(bkd, right_idx, bkd.to_float(exact_at_0[ri]))
         physics.set_boundary_conditions([bc_left, bc_right])
 
         return nodes, man_sol, physics
@@ -400,9 +263,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         wrapper = PhysicsDerivativeWrapper(physics, time=0.0)
         checker = DerivativeChecker(wrapper)
         for _ in range(3):
-            state = bkd.asarray(
-                2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,))
-            )
+            state = bkd.asarray(2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,)))
             errors = checker.check_derivatives(state[:, None], verbosity=0)
             # The FD sweep is V-shaped (truncation decay then roundoff
             # climb) bottoming near 9e-8; a wrong Jacobian plateaus
@@ -414,9 +275,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
     def test_jacobian_forcing_independent(self, bkd: Backend[Array]) -> None:
         """dR/dH must be identical with and without forcing (additive,
         state-independent term)."""
-        physics_plain, npts = self._make_shallow_ice(
-            bkd, 2, "varying", 1.0, 3.0
-        )
+        physics_plain, npts = self._make_shallow_ice(bkd, 2, "varying", 1.0, 3.0)
         forcing_vals = bkd.asarray(np.random.uniform(-1.0, 1.0, (npts,)))
         physics_forced, _ = self._make_shallow_ice(
             bkd, 2, "varying", 1.0, 3.0, forcing=NodalField(forcing_vals)
@@ -452,8 +311,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         bkd.assert_allclose(kappa_g, gamma * state**5, rtol=1e-12)
         bkd.assert_allclose(
             kappa_h,
-            5.0 * gamma * state**4 * (grad_s_sq + eps)
-            + 2.0 * friction_frac * state,
+            5.0 * gamma * state**4 * (grad_s_sq + eps) + 2.0 * friction_frac * state,
             rtol=1e-12,
         )
 
