@@ -22,6 +22,8 @@ Cases:
   deformation gradient and so stress are constant, under Dirichlet,
   traction and Robin sides in 1D, 2D and 3D, on both backends, and of
   the old 3D residual case's polynomial bubble;
+- the interior residual at clamped 1D and 2D bubbles for Lamé pairs from
+  soft to stiff;
 - spectral decay, fitted per node, of the comparison suite's 1D and 2D
   displacements (clamped, all sides Dirichlet), and of the Galerkin
   catalog's 1D, 2D and 3D solutions with traction and Robin sides;
@@ -41,10 +43,12 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
+    ChebyshevBox,
     ChebyshevLevel,
     PiolaTractionTerm,
     collocation_system,
     field,
+    side_nodes,
     stacked_forcing,
 )
 from pyapprox.pde.verification.domains import Box
@@ -150,12 +154,12 @@ class _Hyperelasticity:
             coded(codes, box),
         )
 
-    def system(
+    def physics(
         self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
-    ) -> CollocationSystem[Array]:
+    ) -> HyperelasticityPhysics[Array]:
         lam, mu = (self._mu, self._lam) if self._swapped else (self._lam, self._mu)
         bkd = level.bkd()
-        physics = HyperelasticityPhysics(
+        return HyperelasticityPhysics(
             level.basis(),
             bkd,
             NeoHookeanLaw(bkd),
@@ -163,6 +167,11 @@ class _Hyperelasticity:
             lamda=field(problem, lam, level),
             forcing=stacked_forcing(problem, level),
         )
+
+    def system(
+        self, problem: ManufacturedProblem, level: ChebyshevLevel[Array]
+    ) -> CollocationSystem[Array]:
+        physics = self.physics(problem, level)
         term = _ReversedTraction if self._reversed else PiolaTractionTerm
         fluxes = {row: term(physics, i) for i, row in enumerate(problem.fields())}
         return collocation_system(physics, problem, level, fluxes)
@@ -207,6 +216,50 @@ def test_recovers_affine(
     mu = 0.8."""
     physics = _Hyperelasticity("1.5", "0.8")
     recovers(physics.problem(solution, box, codes), physics, npts, bkd)
+
+
+_BUBBLE = "x**2*(1 - x)**2*y**2*(1 - y)**2"
+
+
+@pytest.mark.parametrize(
+    "solution, lam, mu, npts",
+    [
+        (("0.1*x**2*(1 - x)**2",), "1", "1", 16),
+        (("0.2*x**2*(1 - x)**2",), "0.5", "0.5", 16),
+        (("0.05*x**2*(1 - x)**2",), "5", "10", 16),
+        ((f"0.1*{_BUBBLE}", f"0.05*{_BUBBLE}"), "1", "1", 10),
+        ((f"0.05*{_BUBBLE}", f"0.03*{_BUBBLE}"), "10", "1", 10),
+    ],
+    ids=["1d", "1d-soft", "1d-stiff", "2d", "2d-high-lambda"],
+)
+def test_residual_vanishes(
+    bkd: Backend[Array], solution: Sequence[str], lam: str, mu: str, npts: int
+) -> None:
+    """Clamped bubbles on the unit line and square, Lamé pairs from soft
+    (0.5, 0.5) to stiff (lambda 5, mu 10; lambda 10): the interior
+    residual at the exact nodal displacement is below 1e-8, on both
+    backends."""
+    box = _LINE if len(solution) == 1 else _SQUARE
+    elasticity = _Hyperelasticity(lam, mu)
+    problem = elasticity.problem(solution, box, "D" * len(box.boundaries()))
+    (level,) = ChebyshevBox([npts], bkd).levels(box)
+    exact = []
+    for component in solution:
+        values = field(problem, component, level)
+        assert not isinstance(values, float)
+        exact.append(values.values(0.0))
+    residual = elasticity.physics(problem, level).residual(bkd.concatenate(exact), 0.0)
+    boundary = {int(i) for part in box.boundaries() for i in side_nodes(level, part)[0]}
+    interior = [
+        node + offset
+        for offset in range(0, len(solution) * level.npts(), level.npts())
+        for node in range(level.npts())
+        if node not in boundary
+    ]
+    interior_residual = residual[bkd.asarray(interior, dtype=bkd.int64_dtype())]
+    bkd.assert_allclose(
+        interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
+    )
 
 
 def test_decays_clamped_1d(numpy_bkd: Backend[Array]) -> None:
