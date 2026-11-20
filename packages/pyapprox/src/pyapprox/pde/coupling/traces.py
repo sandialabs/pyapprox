@@ -9,32 +9,47 @@ from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class PointPortTrace(Generic[Array]):
-    r"""The trace of ports that are points, as the ends of a 1D domain
-    are: each port node is an element with one trace function,
-    :math:`\phi = 1`, and one quadrature point of unit weight there.
+class LumpedNodalTrace(Generic[Array]):
+    r"""Nodal trace functions with lumped quadrature: each port node is an
+    element with one trace function, :math:`\phi = 1`, and one quadrature
+    point there, weighted by the node's quadrature weight.
+
+    A flux tested against it is :math:`r_n = w_n q(x_n)`. The ends of a
+    1D domain are points, of unit weight. A collocation face's nodes carry
+    the face quadrature weights at those nodes (Clenshaw–Curtis on
+    Chebyshev–Gauss–Lobatto nodes), so the moments are the flux tested
+    against the face's nodal interpolants under that quadrature.
 
     Parameters
     ----------
     points
         The physical point of each port node, in port order. Shape:
         (ndim, nnodes), at least one node.
+    weights
+        Each node's quadrature weight in the physical measure. Shape:
+        (nnodes,).
     bkd
         Computational backend.
 
     Raises
     ------
     ValueError
-        If ``points`` is not 2D with at least one column.
+        If ``points`` is not 2D with at least one column, or ``weights``
+        does not have one entry per node.
     """
 
-    def __init__(self, points: Array, bkd: Backend[Array]) -> None:
+    def __init__(self, points: Array, weights: Array, bkd: Backend[Array]) -> None:
         if points.ndim != 2 or points.shape[1] < 1:
             raise ValueError(
                 f"points must have shape (ndim, nnodes), got {tuple(points.shape)}"
             )
         n = int(points.shape[1])
+        if tuple(weights.shape) != (n,):
+            raise ValueError(
+                f"weights must have shape ({n},), got {tuple(weights.shape)}"
+            )
         self._points, self._nnodes, self._bkd = points, n, bkd
+        self._weights = bkd.reshape(weights, (n, 1))
         self._nodes = bkd.asarray([[i] for i in range(n)], dtype=bkd.int64_dtype())
 
     def bkd(self) -> Backend[Array]:
@@ -50,7 +65,7 @@ class PointPortTrace(Generic[Array]):
         return self._points
 
     def weights(self) -> Array:
-        return self._bkd.ones((self._nnodes, 1))
+        return self._weights
 
     def values(self) -> Array:
         return self._bkd.ones((self._nnodes, 1, 1))

@@ -40,7 +40,7 @@ from pyapprox.pde.coupling.skeleton import (
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
-from pyapprox.pde.coupling.traces import LinearSegmentTrace, PointPortTrace
+from pyapprox.pde.coupling.traces import LinearSegmentTrace, LumpedNodalTrace
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import (
@@ -101,9 +101,17 @@ def test_components_take_their_moments_separately(bkd: Backend[Array]) -> None:
 
 
 def test_a_point_trace_moments_are_the_values(bkd: Backend[Array]) -> None:
-    trace = PointPortTrace(bkd.asarray([[0.25, 0.5, 0.75]]), bkd)
+    trace = LumpedNodalTrace(bkd.asarray([[0.25, 0.5, 0.75]]), bkd.ones((3,)), bkd)
     values = bkd.asarray(np.random.default_rng(2).normal(size=(3, 2)))
     bkd.assert_allclose(flux_moments(trace, values), values, rtol=1e-15)
+
+
+def test_lumped_moments_are_weighted_values(bkd: Backend[Array]) -> None:
+    weights = bkd.asarray([0.1, 0.4, 0.5])
+    trace = LumpedNodalTrace(bkd.asarray([[0.25, 0.5, 0.75]]), weights, bkd)
+    values = bkd.asarray(np.random.default_rng(3).normal(size=(6, 2)))
+    expected = values * bkd.reshape(bkd.stack([weights, weights], axis=1), (6, 1))
+    bkd.assert_allclose(flux_moments(trace, values, 2), expected, rtol=1e-15)
 
 
 def _exact_piecewise_constant(conductivities: Sequence[float], f: float) -> list[float]:
@@ -139,7 +147,9 @@ def test_chain_with_a_pointwise_flux_piece_matches_the_exact_values(
         if s == 1:
             # Its port ends, left first, are the trace's points.
             ends = bkd.asarray([[s / n, (s + 1) / n]])
-            piece = PointwiseFluxResponse(piece, PointPortTrace(ends, bkd))
+            piece = PointwiseFluxResponse(
+                piece, LumpedNodalTrace(ends, bkd.ones((2,)), bkd)
+            )
         rows = BackendPortRows(
             skeleton.descriptor(), subdomain_port_dofs(topo, skeleton, s), bkd
         )
@@ -203,7 +213,7 @@ class _Underived(Generic[Array]):
 
 def test_tangent_follows_the_model(bkd: Backend[Array]) -> None:
     inner = KirchhoffResponse1D(0.5, 1.0, (1.0, 0.5), None, None, bkd)
-    trace = PointPortTrace(bkd.asarray([[0.0, 0.5]]), bkd)
+    trace = LumpedNodalTrace(bkd.asarray([[0.0, 0.5]]), bkd.ones((2,)), bkd)
     data = bkd.asarray([[0.2], [0.4]])
     params = bkd.zeros((0, 1))
     with_jvp = PointwiseFluxResponse(inner, trace).linearize(data, params, _STEADY)
@@ -243,4 +253,6 @@ def test_refusals(bkd: Backend[Array]) -> None:
     with pytest.raises(TypeError):
         PointwiseFluxResponse(object(), trace)  # type: ignore[arg-type]
     with pytest.raises(ValueError):
-        PointPortTrace(bkd.zeros((1, 0)), bkd)
+        LumpedNodalTrace(bkd.zeros((1, 0)), bkd.ones((0,)), bkd)
+    with pytest.raises(ValueError, match="weights"):
+        LumpedNodalTrace(bkd.zeros((1, 2)), bkd.ones((3,)), bkd)
