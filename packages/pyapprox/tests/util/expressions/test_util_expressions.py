@@ -15,6 +15,10 @@ Evaluation, on both backends at three points, against the same values
 written with backend methods (1e-12): built-in functions, a constant and
 a one-variable expression broadcast to every point, a custom ``tan``, the
 backend's dtype, and on torch the gradient of :math:`\sum x_1^2`.
+``sign``, ``Heaviside`` (1/2 at zero, as sympy), ``Max`` and ``Min``
+(variadic, with number arguments) on arrays, against hand values at
+three points including zeros, and on torch the gradient of
+:math:`\max(x_1, 0)^2`.
 """
 
 import pickle
@@ -161,6 +165,32 @@ class TestEvaluate:
     def test_dtype_follows_the_backend(self, bkd: Backend[Array]) -> None:
         values = ExpressionEvaluator(["x1*x2"], Names(["x1", "x2"]), bkd)(_points(bkd))
         assert values.dtype == bkd.zeros((1,)).dtype
+
+    def test_nonsmooth_functions(self, bkd: Backend[Array]) -> None:
+        pts = bkd.asarray([[-1.5, 0.0, 0.5], [0.2, -0.3, 0.0]])
+        texts = [
+            "sign(x1)",
+            "Heaviside(x1)",
+            "max(x1, x2, 0)",
+            "Min(x1, 0.25)",
+            "Max(x1, 0)*x2",
+        ]
+        values = ExpressionEvaluator(texts, Names(["x1", "x2"]), bkd)(pts)
+        bkd.assert_allclose(values[0], bkd.asarray([-1.0, 0.0, 1.0]))
+        # sympy's Heaviside(0) = 1/2.
+        bkd.assert_allclose(values[1], bkd.asarray([0.0, 0.5, 1.0]))
+        bkd.assert_allclose(values[2], bkd.asarray([0.2, 0.0, 0.5]))
+        bkd.assert_allclose(values[3], bkd.asarray([-1.5, 0.0, 0.25]))
+        bkd.assert_allclose(values[4], bkd.asarray([0.0, 0.0, 0.0]))
+
+    def test_torch_graph_through_max(self, torch_bkd: TorchBkd) -> None:
+        import torch
+
+        bkd = torch_bkd
+        pts = bkd.asarray([[-1.0, 0.5], [0.0, 0.0]]).requires_grad_(True)
+        values = ExpressionEvaluator(["Max(x1, 0)**2"], Names(["x1", "x2"]), bkd)(pts)
+        (gradient,) = torch.autograd.grad(bkd.sum(values), [pts])
+        bkd.assert_allclose(gradient[0], bkd.asarray([0.0, 1.0]), rtol=1e-12)
 
     def test_uses(self, numpy_bkd: Backend[Array]) -> None:
         evaluator = ExpressionEvaluator(["x1"], Names(["x1", "x2"]), numpy_bkd)

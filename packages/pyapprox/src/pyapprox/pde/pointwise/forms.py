@@ -19,6 +19,7 @@ from typing import List, Sequence
 import sympy as sp
 
 from pyapprox.pde.expressions.symbols import derivative, jets, normal, pde_names
+from pyapprox.pde.pointwise.derivatives import RealDifferentiation
 from pyapprox.pde.pointwise.spec import PointwisePhysics
 from pyapprox.util.expressions.names import Names
 from pyapprox.util.expressions.parsing import Value, parse
@@ -29,6 +30,8 @@ def total_derivative(
 ) -> sp.Expr:
     """The derivative of ``expression`` along coordinate ``direction``,
     with every field and aux-field jet differentiated by the chain rule.
+    Variables are real and derivatives branch-wise, as in
+    :class:`~pyapprox.pde.pointwise.derivatives.RealDifferentiation`.
 
     Raises
     ------
@@ -38,13 +41,14 @@ def total_derivative(
     coords = physics.coords()
     if direction not in coords:
         raise ValueError(f"direction must be one of {list(coords)}, got {direction!r}")
-    result: sp.Expr = sp.diff(expression, sp.Symbol(direction))
+    diff = RealDifferentiation(physics.names().variables())
+    result = diff(expression, sp.Symbol(direction))
     named = list(physics.field_names()) + [data.name for data in physics.aux()]
     for name in named:
         # The integrands use values and gradients only.
         for symbol, directions in jets(name, coords, 1).items():
             if symbol in expression.free_symbols:
-                result += sp.diff(expression, symbol) * derivative(
+                result += diff(expression, symbol) * derivative(
                     name, directions + direction, coords
                 )
     return result

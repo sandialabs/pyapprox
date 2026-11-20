@@ -26,6 +26,7 @@ from pyapprox.pde.pointwise.generated import GeneratedSet, GeneratedSets, genera
 from pyapprox.pde.pointwise.spec import PointwisePhysics
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.expressions.evaluation import (
+    array_ready,
     backend_namespace,
     check_backend_functions,
 )
@@ -136,7 +137,10 @@ class _BoundSet(Generic[Array]):
         for expression in generated.outputs:
             check_backend_functions(expression, names)
         self._generated, self._bkd = generated, bkd
-        reduction = (list(generated.replacements), list(generated.outputs))
+        reduction = (
+            [(s, array_ready(e)) for s, e in generated.replacements],
+            [array_ready(o) for o in generated.outputs],
+        )
         self._function: Optional[Callable[..., Sequence[Array]]] = None
         if generated.noutputs() > 0:
             self._function = sp.lambdify(

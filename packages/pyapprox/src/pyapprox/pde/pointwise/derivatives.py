@@ -18,6 +18,13 @@ gradient component. The parameter derivatives are
 :math:`\partial f_{0,a} / \partial p_k` and
 :math:`\partial f_{1,a} / \partial p_k`.
 
+Every variable is differentiated as real, so ``abs(u)`` gives
+``sign(u)``, and derivatives of nonsmooth terms are branch-wise:
+``max(u, 0)`` gives ``Heaviside(u)``, with no delta at the switch.
+Removable singularities are not removed: a flux like ``|∇u| ∇u`` has a
+derivative at ``∇u = 0`` but evaluates there as ``0/0``; a law
+regularizes such points itself.
+
 A block, or a whole field pair, is ``None`` when it is symbolically zero:
 when sympy's derivative is exactly ``0`` because the integrand does not
 depend on that input. Zeros that need simplification to appear are not
@@ -73,8 +80,41 @@ class SymbolicTerms:
     f1: Optional[Tuple[sp.Expr, ...]]
 
 
-def _diff(expression: sp.Expr, symbol: sp.Symbol) -> sp.Expr:
-    result: sp.Expr = sp.diff(expression, symbol)
+class RealDifferentiation:
+    """Differentiation with every variable taken as real.
+
+    Plain sympy symbols may be complex, which leaves ``abs`` and ``sign``
+    undifferentiated (``re``/``im`` derivatives). Variables are replaced by
+    real stand-ins of the same name for differentiating and restored
+    after, so the physics' symbols stay as declared. Derivatives are
+    branch-wise: the ``DiracDelta`` a step function contributes at its
+    switch is dropped (``d/du max(u, 0) = Heaviside(u)``).
+
+    Parameters
+    ----------
+    variables : Sequence[sympy.Symbol]
+        The symbols that may be differentiated by and are taken as real.
+
+    Raises
+    ------
+    ValueError
+        When called, if sympy leaves the derivative unevaluated (a
+        function it cannot differentiate).
+    """
+
+    def __init__(self, variables: Sequence[sp.Symbol]) -> None:
+        self._real = {s: sp.Symbol(s.name, real=True) for s in variables}
+        self._plain = {r: s for s, r in self._real.items()}
+
+    def __call__(self, expression: sp.Expr, symbol: sp.Symbol) -> sp.Expr:
+        derivative = sp.diff(expression.xreplace(self._real), self._real[symbol])
+        derivative = derivative.replace(
+            lambda e: isinstance(e, sp.DiracDelta), lambda e: sp.Integer(0)
+        )
+        return _checked(expression, symbol, derivative.xreplace(self._plain))
+
+
+def _checked(expression: sp.Expr, symbol: sp.Symbol, result: sp.Expr) -> sp.Expr:
     unevaluated = result.atoms(sp.Derivative, sp.Subs)
     if unevaluated:
         raise ValueError(
@@ -125,6 +165,7 @@ class PointwiseDerivatives:
                 f"physics must be a PointwisePhysics, got {type(physics).__name__}"
             )
         self._physics = physics
+        self._diff = RealDifferentiation(physics.names().variables())
         names = physics.field_names()
         self._jacobian: Dict[Tuple[str, str], Optional[SymbolicJacobianBlock]] = {}
         for test in names:
@@ -140,11 +181,12 @@ class PointwiseDerivatives:
         f0, f1 = physics.f0(test), physics.f1(test)
         value = physics.value_symbol(trial)
         grads = physics.gradient_symbols(trial)
+        diff = self._diff
         block = SymbolicJacobianBlock(
-            g0=_scalar(_diff(f0, value)),
-            g1=_vector([_diff(f0, g) for g in grads]),
-            g2=_vector([_diff(c, value) for c in f1]),
-            g3=_matrix([[_diff(c, g) for g in grads] for c in f1]),
+            g0=_scalar(diff(f0, value)),
+            g1=_vector([diff(f0, g) for g in grads]),
+            g2=_vector([diff(c, value) for c in f1]),
+            g3=_matrix([[diff(c, g) for g in grads] for c in f1]),
         )
         if all(t is None for t in (block.g0, block.g1, block.g2, block.g3)):
             return None
@@ -153,8 +195,8 @@ class PointwiseDerivatives:
     def _terms(self, test: str, symbol: sp.Symbol) -> Optional[SymbolicTerms]:
         physics = self._physics
         terms = SymbolicTerms(
-            f0=_scalar(_diff(physics.f0(test), symbol)),
-            f1=_vector([_diff(c, symbol) for c in physics.f1(test)]),
+            f0=_scalar(self._diff(physics.f0(test), symbol)),
+            f1=_vector([self._diff(c, symbol) for c in physics.f1(test)]),
         )
         if terms.f0 is None and terms.f1 is None:
             return None

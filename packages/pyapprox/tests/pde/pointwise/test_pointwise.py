@@ -133,11 +133,23 @@ def _one_way_pair() -> PointwisePhysics:
     )
 
 
+def _nonsmooth() -> PointwisePhysics:
+    # Switches at u = 0, 0.1 and 0.3; the seeded points lie off them.
+    return PointwisePhysics(
+        _XY,
+        [Field("u")],
+        f0={"u": "abs(u)*f + Max(u, 0.1)**2"},
+        f1={"u": ("Min(u, 0.3)*u_x", "Heaviside(u)*u_y + sign(u)*u_x")},
+        aux=[AuxField("f")],
+    )
+
+
 _SPECS: Dict[str, Callable[[], PointwisePhysics]] = {
     "poisson": _poisson,
     "helmholtz": _helmholtz,
     "nonlinear_pair": _nonlinear_pair,
     "one_way_pair": _one_way_pair,
+    "nonsmooth": _nonsmooth,
 }
 
 
@@ -321,6 +333,20 @@ class TestSymbolic:
             _XY, [Field("u")], {"u": "a*u"}, {}, params=["a", "b"]
         )
         assert PointwiseDerivatives(physics).parameter_derivative("u", "b") is None
+
+    def test_nonsmooth_branchwise(self) -> None:
+        derivatives = PointwiseDerivatives(_nonsmooth())
+        block = derivatives.jacobian_block("u", "u")
+        assert block is not None and block.g0 is not None and block.g2 is not None
+        u, f = sp.symbols("u f")
+        # abs differentiates to sign (real variables); Max to Heaviside,
+        # with no delta at the switch.
+        expected_g0 = sp.sign(u) * f + 2 * sp.Max(u, 0.1) * sp.Heaviside(u - 0.1)
+        assert sp.simplify(block.g0 - expected_g0) == 0
+        assert not block.g0.atoms(sp.DiracDelta)
+        assert not block.g2[1].atoms(sp.DiracDelta)
+        # The physics' own symbols stay plain.
+        assert all(not s.is_real for s in block.g0.free_symbols)
 
     def test_undifferentiable_function(self) -> None:
         unknown = CustomFunction(sp.Function("g"), _identity)
@@ -619,6 +645,25 @@ class TestKernel:
         assert (
             kernel.parameter_derivatives(PointwiseInputs(numpy_bkd.zeros((2, 3)))) == {}
         )
+
+    def test_removable_singularity_not_removed(self, numpy_bkd: Backend[Array]) -> None:
+        # p-Laplacian, p = 3: the flux |grad u| grad u has derivative 0 at
+        # grad u = 0, but the generated tangent divides by |grad u| there.
+        # Laws regularize such points themselves; the kernel does not hide
+        # them.
+        bkd = numpy_bkd
+        flux = ("sqrt(u_x**2 + u_y**2)*u_x", "sqrt(u_x**2 + u_y**2)*u_y")
+        kernel = BackendPointwiseKernel(
+            PointwisePhysics(_XY, [Field("u")], {}, {"u": flux}), bkd
+        )
+        inputs = PointwiseInputs(
+            bkd.zeros((2, 2)), gradients={"u": bkd.asarray([[0.0, 0.3], [0.0, 0.4]])}
+        )
+        with np.errstate(invalid="ignore", divide="ignore"):
+            block = kernel.jacobian(inputs)[("u", "u")]
+        assert block is not None and block.g3 is not None
+        assert bool(bkd.all_bool(bkd.isnan(block.g3[:, :, 0])))
+        assert not bool(bkd.any_bool(bkd.isnan(block.g3[:, :, 1])))
 
     def test_unsupported_backend_function(self, numpy_bkd: Backend[Array]) -> None:
         physics = PointwisePhysics(_XY, [Field("u")], {"u": "tan(u)"}, {})

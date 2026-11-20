@@ -8,7 +8,8 @@ users or agents are therefore safe to parse.
 
 Names resolve in order: a declared variable, constant or function; then
 sympy's own numeric constants (``pi``, ``E``) and function classes
-(``sin``, ``exp``, ``besselj``, ...), plus ``sqrt``, ``cbrt`` and ``abs``.
+(``sin``, ``exp``, ``besselj``, ...), plus ``sqrt``, ``cbrt``, ``abs``,
+and ``Max``/``Min`` (also spelled ``max``/``min``).
 Anything else is refused.
 """
 
@@ -32,6 +33,11 @@ _HELPERS: Dict[str, Callable[..., sp.Expr]] = {
     "sqrt": sp.sqrt,
     "cbrt": sp.cbrt,
     "abs": sp.Abs,
+    # Max and Min are not Function classes, so are listed by name.
+    "Max": sp.Max,
+    "Min": sp.Min,
+    "max": sp.Max,
+    "min": sp.Min,
 }
 
 

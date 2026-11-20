@@ -12,7 +12,7 @@ all variables is broadcast.
 """
 
 import functools
-from typing import Any, Callable, Dict, Generic, List, Sequence
+from typing import Any, Callable, Dict, Generic, List, Sequence, Tuple
 
 import sympy as sp
 
@@ -34,22 +34,69 @@ _BACKEND_METHODS = {
     "exp": "exp",
     "log": "log",
     "Abs": "abs",
-    "sign": "sign",
     "erf": "erf",
 }
 # Where lambdify prints a class under another name.
 _PRINTED = {"Abs": "abs"}
 
 
+def _sign(bkd: Backend[Any], x: Any) -> Any:
+    return bkd.sign(x)
+
+
+def _heaviside(bkd: Backend[Any], x: Any, at_zero: Any = 0.5) -> Any:
+    # (sign + 1)/2 away from zero; at_zero where sign is 0.
+    s = bkd.sign(x)
+    return (s + 1) / 2 + (at_zero - 0.5) * (1 - s * s)
+
+
+def _maximum(bkd: Backend[Any], *args: Any) -> Any:
+    # (a + b + |a - b|)/2 accepts plain numbers beside arrays and keeps a
+    # differentiable backend's graph.
+    return functools.reduce(lambda a, b: (a + b + bkd.abs(a - b)) / 2, args)
+
+
+def _minimum(bkd: Backend[Any], *args: Any) -> Any:
+    return functools.reduce(lambda a, b: (a + b - bkd.abs(a - b)) / 2, args)
+
+
+# Classes lambdify prints as scalar Python (conditionals, builtin max and
+# min), which fails on arrays: replaced before printing by functions of
+# these names, which backend_namespace binds.
+_ARRAY_FORMS: Dict[Any, Tuple[str, Callable[..., Any]]] = {
+    sp.sign: ("_bkd_sign", _sign),
+    sp.Heaviside: ("_bkd_heaviside", _heaviside),
+    sp.Max: ("_bkd_max", _maximum),
+    sp.Min: ("_bkd_min", _minimum),
+}
+
+
+def array_ready(expression: sp.Expr) -> sp.Expr:
+    """``expression`` with ``sign``, ``Heaviside``, ``Max`` and ``Min``
+    replaced by the functions :func:`backend_namespace` binds to array
+    forms, so ``lambdify`` does not print them as scalar Python."""
+    for cls, (name, _) in _ARRAY_FORMS.items():
+        function = sp.Function(name)
+        expression = expression.replace(
+            lambda e, c=cls: isinstance(e, c),
+            lambda e, f=function: f(*e.args),
+        )
+    return expression
+
+
 def backend_namespace(bkd: Backend[Any], names: Names) -> Dict[str, Any]:
     """The ``lambdify`` namespace binding sympy's functions, and the
-    custom functions of ``names``, to ``bkd``'s methods."""
+    custom functions of ``names``, to ``bkd``'s methods. Expressions using
+    ``sign``, ``Heaviside``, ``Max`` or ``Min`` go through
+    :func:`array_ready` first."""
     namespace: Dict[str, Any] = {
         _PRINTED.get(cls, cls): getattr(bkd, method)
         for cls, method in _BACKEND_METHODS.items()
     }
     # sqrt(x) is a power; lambdify still prints it as sqrt.
     namespace["sqrt"] = bkd.sqrt
+    for name, numeric in _ARRAY_FORMS.values():
+        namespace[name] = functools.partial(numeric, bkd)
     for function in names.functions().values():
         namespace[function.symbolic.__name__] = functools.partial(function.numeric, bkd)
     return namespace
@@ -64,9 +111,11 @@ def check_backend_functions(expression: sp.Expr, names: Names) -> None:
     ValueError
         If such a function is used.
     """
-    supported = set(_BACKEND_METHODS) | {
-        f.symbolic.__name__ for f in names.functions().values()
-    }
+    supported = (
+        set(_BACKEND_METHODS)
+        | {cls.__name__ for cls in _ARRAY_FORMS}
+        | {f.symbolic.__name__ for f in names.functions().values()}
+    )
     used = {type(f).__name__ for f in expression.atoms(sp.Function)}
     if not used <= supported:
         raise ValueError(
@@ -107,7 +156,7 @@ class ExpressionEvaluator(Generic[Array]):
                 {c: sp.Float(c.evalf(17)) for c in expression.atoms(sp.NumberSymbol)}
             )
             check_backend_functions(expression, names)
-            numeric.append(expression)
+            numeric.append(array_ready(expression))
         self._used: "set[sp.Basic]" = set()
         for expression in numeric:
             self._used |= expression.free_symbols
