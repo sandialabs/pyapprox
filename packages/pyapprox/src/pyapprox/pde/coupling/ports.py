@@ -11,16 +11,27 @@ data; its transpose adds a subdomain's tested flux back into a skeleton
 vector, which keeps the flux sum conservative.
 """
 
-from typing import Generic, Protocol, Sequence, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.pde.coupling.geometry import FacePoint
 from pyapprox.pde.coupling.spaces import FaceValues
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseOperator, backend_dtype_name
-from pyapprox.util.linalg.operators import SpaceDescriptor
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    LinearSolverProtocol,
+    OperatorProperties,
+    SpaceDescriptor,
+)
+from pyapprox.util.linalg.operators.algebra import Product
 
 V = TypeVar("V")
 P = TypeVar("P")
+F = TypeVar("F")
+F_co = TypeVar("F_co", covariant=True)
+# Element data only flows in to a sink: I for DOF maps, E for values.
+I_contra = TypeVar("I_contra", contravariant=True)
+E_contra = TypeVar("E_contra", contravariant=True)
 
 
 @runtime_checkable
@@ -353,6 +364,375 @@ def port_interpolation(
         bkd,
         range=SpaceDescriptor("port", int(matrix.shape[0]), dtype),
     )
+
+
+@runtime_checkable
+class PortBlockAdapterProtocol(Protocol, Generic[Array, P]):
+    """A port stack's one conversion of exchange blocks (interface-sized
+    backend arrays, as the skeleton's port rows deliver them) to and from
+    its own block type ``P``. Each port stack has one, whatever the
+    skeleton's stack is."""
+
+    def to_port(self, block: Array, descriptor: SpaceDescriptor) -> P:
+        """``block``, shape (descriptor.size, ncols), as a block of ``P``."""
+        ...
+
+    def to_exchange(self, block: P) -> Array:
+        """``block`` as an exchange block, shape (size, ncols)."""
+        ...
+
+
+class AdaptedPortRows(Generic[V, Array, P]):
+    """Port rows delivering blocks of a port stack ``P``: the skeleton's
+    exchange rows, converted at the port block by the port stack's
+    adapter.
+
+    Satisfies :class:`PortRowsProtocol` with ``P`` as the port block, so a
+    :class:`PortMatrixTransfer` whose local map acts on ``P`` reads a
+    skeleton of any stack.
+
+    Parameters
+    ----------
+    rows
+        The skeleton's rows of the port, delivering exchange blocks.
+    adapter
+        The port stack's adapter.
+    descriptor
+        The space of the port blocks, of size ``rows.nrows()``: the
+        domain of the transfer's local map.
+
+    Raises
+    ------
+    TypeError
+        If ``rows`` or ``adapter`` does not satisfy its protocol.
+    ValueError
+        If ``descriptor``'s size differs from ``rows.nrows()``.
+    """
+
+    def __init__(
+        self,
+        rows: PortRowsProtocol[V, Array],
+        adapter: PortBlockAdapterProtocol[Array, P],
+        descriptor: SpaceDescriptor,
+    ) -> None:
+        if not isinstance(rows, PortRowsProtocol):
+            raise TypeError(
+                f"rows must satisfy PortRowsProtocol, got {type(rows).__name__}"
+            )
+        if not isinstance(adapter, PortBlockAdapterProtocol):
+            raise TypeError(
+                "adapter must satisfy PortBlockAdapterProtocol, got "
+                f"{type(adapter).__name__}"
+            )
+        if descriptor.size != rows.nrows():
+            raise ValueError(
+                f"descriptor has size {descriptor.size}, the rows {rows.nrows()}"
+            )
+        self._rows, self._adapter, self._descriptor = rows, adapter, descriptor
+
+    def nrows(self) -> int:
+        return self._rows.nrows()
+
+    def take(self, x: V) -> P:
+        return self._adapter.to_port(self._rows.take(x), self._descriptor)
+
+    def add_to(self, y: V, block: P) -> V:
+        return self._rows.add_to(y, self._adapter.to_exchange(block))
+
+
+@runtime_checkable
+class PortTraceProtocol(Protocol, Generic[Array]):
+    r"""What the projection builders ask of a port: its trace functions
+    :math:`\phi` and the quadrature of the port, element by element.
+
+    Elements are batched, each with the same number of local trace
+    functions and quadrature points. The trace functions are scalar; a
+    port of :math:`k`-vector data carries :math:`\phi_a e_c`, numbered
+    node-major (port data row :math:`k a + c`).
+    """
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def nnodes(self) -> int:
+        """The number of trace functions: the port's nodes."""
+        ...
+
+    def element_nodes(self) -> Array:
+        """Each element's port nodes, int64. Shape: (nelems, nlocal)."""
+        ...
+
+    def points(self) -> Array:
+        """The physical quadrature points, element-major (point
+        ``e * nquad + q``). Shape: (ndim, nelems * nquad)."""
+        ...
+
+    def weights(self) -> Array:
+        """The quadrature weights in the physical measure. Shape:
+        (nelems, nquad)."""
+        ...
+
+    def values(self) -> Array:
+        """Each element's trace functions at its points. Shape: (nelems,
+        nquad, nlocal)."""
+        ...
+
+
+@runtime_checkable
+class PointLocatorProtocol(Protocol, Generic[Array]):
+    """What :func:`port_trace_coupling` asks of a geometry: where physical
+    points lie on the skeleton's faces."""
+
+    def locate(
+        self, points: Array, faces: Sequence[int], tol: float = 1e-12
+    ) -> tuple[tuple[FacePoint[Array], ...], ...]: ...
+
+
+@runtime_checkable
+class PortMatrixSinkProtocol(Protocol, Generic[P, F_co, I_contra, E_contra]):
+    """What the projection builders ask of a port stack's matrix sink:
+    element blocks in, the stack's operator out. ``I_contra`` is the
+    array type of DOF maps, ``E_contra`` that of element values."""
+
+    def add_element_matrices(
+        self,
+        row_dofs: I_contra,
+        col_dofs: I_contra,
+        values: E_contra,
+        weights: Optional[E_contra] = None,
+    ) -> None: ...
+
+    def assemble(
+        self, properties: Optional[OperatorProperties] = None
+    ) -> ActionOperatorProtocol[P, F_co]: ...
+
+
+@runtime_checkable
+class PortAssemblyProtocol(Protocol, Generic[P, F_co, I_contra, E_contra]):
+    """What the projection builders ask of a port stack: a matrix sink
+    for a pattern of element blocks, e.g. an assembly stack of
+    :mod:`pyapprox.pde.assembly`."""
+
+    def matrix_sink(
+        self,
+        range: SpaceDescriptor,
+        domain: SpaceDescriptor,
+        row_dofs: I_contra,
+        col_dofs: I_contra,
+    ) -> PortMatrixSinkProtocol[P, F_co, I_contra, E_contra]: ...
+
+
+def _check_trace(trace: PortTraceProtocol[Array]) -> tuple[int, int, int]:
+    if not isinstance(trace, PortTraceProtocol):
+        raise TypeError(
+            f"trace must satisfy PortTraceProtocol, got {type(trace).__name__}"
+        )
+    nodes, weights, values = trace.element_nodes(), trace.weights(), trace.values()
+    if nodes.ndim != 2 or nodes.shape[0] == 0:
+        raise ValueError(
+            f"element_nodes must have shape (nelems, nlocal), got {tuple(nodes.shape)}"
+        )
+    nelems, nlocal = int(nodes.shape[0]), int(nodes.shape[1])
+    if weights.ndim != 2 or weights.shape[0] != nelems:
+        raise ValueError(
+            f"weights must have shape ({nelems}, nquad), got {tuple(weights.shape)}"
+        )
+    nquad = int(weights.shape[1])
+    if tuple(values.shape) != (nelems, nquad, nlocal):
+        raise ValueError(
+            f"values must have shape ({nelems}, {nquad}, {nlocal}), "
+            f"got {tuple(values.shape)}"
+        )
+    return nelems, nquad, nlocal
+
+
+def _component_rows(trace: PortTraceProtocol[Array], ncomponents: int) -> Array:
+    """Each element's port data rows, node-major. Shape: (nelems,
+    nlocal * ncomponents)."""
+    bkd = trace.bkd()
+    nodes = trace.element_nodes()
+    offsets = bkd.asarray(list(range(ncomponents)), dtype=bkd.int64_dtype())
+    rows = nodes[:, :, None] * ncomponents + offsets[None, None, :]
+    return bkd.reshape(rows, (int(nodes.shape[0]), -1))
+
+
+def port_trace_mass(
+    trace: PortTraceProtocol[Array],
+    ncomponents: int,
+    assembly: PortAssemblyProtocol[P, F, Array, Array],
+) -> ActionOperatorProtocol[P, F]:
+    r"""The port's trace mass :math:`M_p = \int \phi^\top \phi`, assembled
+    by the port stack and declared symmetric positive definite.
+
+    Each element adds :math:`\Phi_e^\top W_e \Phi_e \otimes I_k` at its
+    port data rows (node-major), computed from the trace's backend
+    arrays; ``assembly`` chooses the storage.
+
+    Parameters
+    ----------
+    trace
+        The port's trace functions and quadrature.
+    ncomponents
+        :math:`k`, the components of the port data.
+    assembly
+        The port stack's assembly.
+
+    Returns
+    -------
+    ActionOperatorProtocol
+        On the ``"port"`` space of size ``k * trace.nnodes()``.
+
+    Raises
+    ------
+    TypeError
+        If ``trace`` or ``assembly`` does not satisfy its protocol.
+    ValueError
+        If ``ncomponents`` is not positive or the trace's arrays disagree
+        in shape.
+    """
+    nelems, _, nlocal = _check_trace(trace)
+    if not isinstance(assembly, PortAssemblyProtocol):
+        raise TypeError(
+            f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
+        )
+    if ncomponents < 1:
+        raise ValueError(f"ncomponents must be >= 1, got {ncomponents}")
+    bkd, k = trace.bkd(), ncomponents
+    phi, weights = trace.values(), trace.weights()
+    scalar = bkd.einsum("eq,eqa,eqb->eab", weights, phi, phi)
+    eye = bkd.eye(k, dtype=bkd.default_dtype())
+    blocks = bkd.reshape(
+        bkd.einsum("eab,cd->eacbd", scalar, eye), (nelems, nlocal * k, nlocal * k)
+    )
+    rows = _component_rows(trace, k)
+    port = SpaceDescriptor("port", k * trace.nnodes(), backend_dtype_name(bkd))
+    sink = assembly.matrix_sink(port, port, rows, rows)
+    sink.add_element_matrices(rows, rows, blocks)
+    return sink.assemble(OperatorProperties(symmetric=True, spd=True))
+
+
+def port_trace_coupling(
+    space: FaceValuesProtocol[Array],
+    trace: PortTraceProtocol[Array],
+    geometry: PointLocatorProtocol[Array],
+    faces: Sequence[int],
+    dofs: Sequence[int],
+    cross_points: CrossPointRuleProtocol[Array],
+    assembly: PortAssemblyProtocol[P, F, Array, Array],
+) -> ActionOperatorProtocol[P, F]:
+    r"""The coupling :math:`B = \int \phi^\top \psi` of the port's trace
+    functions with the skeleton functions of ``dofs``, assembled by the
+    port stack.
+
+    The trace's quadrature points are located on ``faces`` and the
+    skeleton functions evaluated there as exchange data
+    (:func:`port_interpolation`'s rows, node-major per point); each
+    element adds :math:`\Phi_e^\top W_e \Psi_e` at its port data rows.
+    Each element's block spans every column, so the pattern is dense,
+    rows times ``dofs``; a face-blocked pattern is the remedy for large
+    ports.
+
+    Parameters
+    ----------
+    space
+        The skeleton field space, of :math:`k` components.
+    trace
+        The port's trace functions and quadrature.
+    geometry
+        Locates the trace's points on the skeleton's faces.
+    faces
+        The faces the port lies on.
+    dofs
+        The skeleton DOFs the port reads, in the order of the transfer's
+        rows.
+    cross_points
+        The rule for quadrature points on several faces.
+    assembly
+        The port stack's assembly.
+
+    Returns
+    -------
+    ActionOperatorProtocol
+        From the ``"port-rows"`` space of size ``len(dofs)`` to the
+        ``"port"`` space of size ``k * trace.nnodes()``.
+
+    Raises
+    ------
+    TypeError
+        If an argument does not satisfy its protocol.
+    ValueError
+        If the trace's arrays disagree in shape, a point lies on none of
+        ``faces``, or a face's DOFs are not all in ``dofs``.
+    """
+    nelems, nquad, nlocal = _check_trace(trace)
+    if not isinstance(geometry, PointLocatorProtocol):
+        raise TypeError(
+            f"geometry must satisfy PointLocatorProtocol, got {type(geometry).__name__}"
+        )
+    if not isinstance(assembly, PortAssemblyProtocol):
+        raise TypeError(
+            f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
+        )
+    bkd = trace.bkd()
+    psi = (
+        port_interpolation(
+            space, geometry.locate(trace.points(), faces), dofs, cross_points
+        )
+        .format()
+        .matrix()
+    )
+    ncols = len(dofs)
+    k = int(psi.shape[0]) // (nelems * nquad)
+    psi = bkd.reshape(psi, (nelems, nquad, k, ncols))
+    blocks = bkd.reshape(
+        bkd.einsum("eq,eqa,eqcj->eacj", trace.weights(), trace.values(), psi),
+        (nelems, nlocal * k, ncols),
+    )
+    rows = _component_rows(trace, k)
+    columns = bkd.asarray([list(range(ncols))] * nelems, dtype=bkd.int64_dtype())
+    dtype = backend_dtype_name(bkd)
+    sink = assembly.matrix_sink(
+        SpaceDescriptor("port", k * trace.nnodes(), dtype),
+        SpaceDescriptor("port-rows", ncols, dtype),
+        rows,
+        columns,
+    )
+    sink.add_element_matrices(rows, columns, blocks)
+    return sink.assemble()
+
+
+def port_projection(
+    mass: ActionOperatorProtocol[P, F],
+    coupling: ActionOperatorProtocol[P, F],
+    solver: LinearSolverProtocol[P, F],
+) -> Product[P]:
+    r"""The local map :math:`L = M_p^{-1} B` of a :class:`PortMatrixTransfer`
+    that projects: the port data are the :math:`L^2` projection of the
+    skeleton function onto the port's trace space.
+
+    Composed, never formed: :math:`M_p^{-1} B` is dense even when
+    :math:`M_p` and :math:`B` are sparse. ``apply`` is
+    :math:`x \mapsto M_p^{-1}(B x)` and ``apply_transpose`` is
+    :math:`y \mapsto B^\top M_p^{-\top} y`, which recovers the flux
+    function from a flux tested against the trace functions and tests it
+    against the skeleton functions. ``solver`` factors :math:`M_p` once,
+    and must solve with its transpose.
+
+    Parameters
+    ----------
+    mass
+        :math:`M_p`, e.g. from :func:`port_trace_mass`.
+    coupling
+        :math:`B`, e.g. from :func:`port_trace_coupling`.
+    solver
+        A solver for ``mass``'s format.
+
+    Raises
+    ------
+    ValueError
+        If ``coupling``'s range is not ``mass``'s.
+    """
+    handle = solver.setup(mass)
+    return Product([handle, coupling])
 
 
 class BackendPortRows(Generic[Array]):

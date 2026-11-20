@@ -27,3 +27,16 @@ class MockPortRows:
         data = peek(y)
         np.add.at(data, self._dofs, block)
         return wrap(data, self._descriptor)
+
+
+class MockPortAdapter:
+    """The mock stack's adapter between exchange blocks (NumPy arrays)
+    and its own port blocks."""
+
+    def to_port(
+        self, block: NDArray[np.float64], descriptor: SpaceDescriptor
+    ) -> MockVector:
+        return wrap(block, descriptor)
+
+    def to_exchange(self, block: MockVector) -> NDArray[np.float64]:
+        return peek(block)
