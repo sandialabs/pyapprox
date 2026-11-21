@@ -3,25 +3,27 @@ NumPy and Torch.
 
 - 1D, the setup of ``test_normal_flux.py``: [0, 1], 8 nodes,
   :math:`2 u'' + 4 = 0`, u(0) = 1, the right end a port. At port value 1
-  the response returns the exact outward flux 2 (unit weight at a point)
-  and its state is :math:`1 + x - x^2` at the nodes, to 1e-12.
+  the response returns the exact outward Neumann data :math:`2 u'(1) =
+  -2` (unit weight at a point) and its state is :math:`1 + x - x^2` at
+  the nodes, to 1e-12.
 - 2D: [0, 1] x [0, 2], 6 x 7 nodes, :math:`2 \Delta u + f = 0` for
   :math:`u = 1 + x + x y + y^2`, Dirichlet on the left, bottom and top
   sides except at the port nodes, which are the whole right side. Given
   the exact trace, the response returns the side's weights times the
-  exact outward flux :math:`-2(1 + y)` (1e-10), and these sum to the
-  exact flux integral, -8; its trace tangent passes central differences.
+  exact outward Neumann data :math:`2 \partial u / \partial x = 2(1 + y)`
+  (1e-10), and these sum to its integral, 8; its trace tangent passes
+  central differences.
   With a Gauss side rule it returns the flux tested against each node's
   Lagrange polynomial in y, against a 20-point rule (1e-10).
 - A corner on two port sides (right and top) is one port node, tested on
-  both: the outputs sum to the exact flux over both sides, -17, under
+  both: the outputs sum to the exact flux over both sides, 17, under
   either rule (1e-10).
 - Two components on the same rectangle, the right side a port, given the
   exact linear fields: elasticity (lambda 1, mu 2, u = (0.1 + 0.2x +
   0.3y, -0.1 + 0.4x - 0.5y)) returns the traction, integrating to
   (sigma_00, sigma_10) times 2 = (1.0, 2.8); two species (D = 2, 3,
-  linear reaction, u = (1 + x + y, 2 - x + 0.5y)) return the fluxes
-  -D_k du_k/dx, integrating to (-4, 6); each state exact (1e-12), the
+  linear reaction, u = (1 + x + y, 2 - x + 0.5y)) return the Neumann
+  data D_k du_k/dx, integrating to (4, -6); each state exact (1e-12), the
   port data node-major.
 - Refusals: no port node; a node off its side; a side given twice; a
   side repeating a node; a mesh outside the protocol; fluxes outside
@@ -117,7 +119,7 @@ def test_a_1d_end_returns_the_exact_flux(bkd: Backend[Array]) -> None:
         _newton(),
     )
     point = response.linearize(bkd.asarray([[1.0]]), _no_params(bkd), _STEADY)
-    bkd.assert_allclose(point.output(), bkd.asarray([[2.0]]), rtol=1e-12)
+    bkd.assert_allclose(point.output(), bkd.asarray([[-2.0]]), rtol=1e-12)
     x = mesh.points()[0]
     bkd.assert_allclose(point.state()[:, 0], 1.0 + x - x**2, rtol=1e-12, atol=1e-13)
 
@@ -200,11 +202,11 @@ def test_a_2d_side_returns_the_weighted_exact_flux(bkd: Backend[Array]) -> None:
     point = response.linearize(rect.trace(), _no_params(bkd), _STEADY)
     y = rect.mesh().points()[1, rect.port()]
     weights = boundary_quadrature_weights(rect.mesh(), _RIGHT)
-    expected = weights * (-_D * (1.0 + y))
+    expected = weights * (_D * (1.0 + y))
     bkd.assert_allclose(point.output()[:, 0], expected, rtol=1e-10, atol=1e-12)
     bkd.assert_allclose(
         bkd.reshape(bkd.sum(point.output()), (1,)),
-        bkd.asarray([-8.0]),
+        bkd.asarray([8.0]),
         rtol=1e-10,
     )
 
@@ -215,13 +217,13 @@ def test_a_gauss_rule_tests_the_flux_against_the_lagrange_polynomials(
     rect = _Rectangle(bkd)
     response = rect.response([PortSide(_RIGHT, rect.port())], GaussLegendreSideRule())
     point = response.linearize(rect.trace(), _no_params(bkd), _STEADY)
-    # int_0^2 -2 (1 + y) l_a(y) dy by a 20-point rule on y = 1 + t.
+    # int_0^2 2 (1 + y) l_a(y) dy by a 20-point rule on y = 1 + t.
     t, w = GaussLegendreSideRule(13).rule(bkd.zeros((7,)), bkd)
     nodes = rect.mesh().reference_nodes_1d(1)
-    expected = (w * (-_D * (2.0 + t))) @ univariate_lagrange_polynomial(nodes, t, bkd)
+    expected = (w * (_D * (2.0 + t))) @ univariate_lagrange_polynomial(nodes, t, bkd)
     bkd.assert_allclose(point.output()[:, 0], expected, rtol=1e-10, atol=1e-12)
     bkd.assert_allclose(
-        bkd.reshape(bkd.sum(point.output()), (1,)), bkd.asarray([-8.0]), rtol=1e-10
+        bkd.reshape(bkd.sum(point.output()), (1,)), bkd.asarray([8.0]), rtol=1e-10
     )
 
 
@@ -231,7 +233,7 @@ def test_a_corner_on_two_port_sides_is_tested_on_both(
 ) -> None:
     """The right and top sides as ports, sharing the corner (1, 2): one
     port node there, and the outputs sum to the exact outward flux over
-    both sides, -8 - 9."""
+    both sides, 8 + 9."""
     rect = _Rectangle(bkd)
     top = _nodes(bkd, rect.mesh().boundary_indices(_TOP))
     sides = [PortSide(_RIGHT, rect.port()), PortSide(_TOP, top)]
@@ -241,7 +243,7 @@ def test_a_corner_on_two_port_sides_is_tested_on_both(
     trace = bkd.reshape(_exact(rect.mesh().points()[:, ports]), (-1, 1))
     point = response.linearize(trace, _no_params(bkd), _STEADY)
     bkd.assert_allclose(
-        bkd.reshape(bkd.sum(point.output()), (1,)), bkd.asarray([-17.0]), rtol=1e-10
+        bkd.reshape(bkd.sum(point.output()), (1,)), bkd.asarray([17.0]), rtol=1e-10
     )
 
 
@@ -330,7 +332,7 @@ def test_species_ports_return_both_fluxes(bkd: Backend[Array]) -> None:
     point = response.linearize(_port_data(bkd, exact, ports), _no_params(bkd), _STEADY)
     bkd.assert_allclose(point.state()[:, 0], bkd.reshape(exact, (-1,)), atol=1e-12)
     bkd.assert_allclose(
-        _component_sums(bkd, point.output()), bkd.asarray([-4.0, 6.0]), rtol=1e-10
+        _component_sums(bkd, point.output()), bkd.asarray([4.0, -6.0]), rtol=1e-10
     )
 
 

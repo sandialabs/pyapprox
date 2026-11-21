@@ -3,8 +3,9 @@ r"""A spectral collocation subdomain as a Dirichlet-to-Neumann response.
 The subdomain's port nodes lie on sides of its mesh. Its rows are the PDE
 evaluated pointwise, so the residual left on a pinned port row is not a
 flux (:mod:`~pyapprox.pde.coupling.normal_flux`); the response instead
-returns the outward normal flux :math:`\mathbf{F}(u)\cdot n`, interpolated
-on each port side from its nodes and tested against the side's Lagrange
+returns the outward Neumann data, :math:`-\mathbf{F}(u)\cdot n` for a
+conservation-law flux :math:`\mathbf{F}` or the traction :math:`\sigma
+n`, interpolated on each port side from its nodes and tested against the side's Lagrange
 polynomials by an injected rule (:func:`~pyapprox.pde.collocation.
 quadrature.boundary_quadrature.boundary_side_quadrature`).
 
@@ -83,11 +84,19 @@ class NormalFluxesProtocol(Protocol[Array]):
 
 
 class ComponentFluxes(Generic[Array]):
-    r"""Component :math:`c` of the port flux is :math:`\mathbf{F}_c(u)
+    r"""Component :math:`c` of the port flux is :math:`-\mathbf{F}_c(u)
     \cdot n` for the ``c``-th flux provider: the physics itself for a
     scalar flux, or e.g. one
     :class:`~pyapprox.pde.collocation.physics.reaction_diffusion.
     SpeciesDiffusiveFlux` per species.
+
+    A provider's flux is that of the conservation law :math:`\partial_t u
+    + \nabla\cdot\mathbf{F} = s`, :math:`-D \nabla u` for diffusion; a
+    port returns Neumann data (:class:`~pyapprox.pde.coupling.responses.
+    Flux`), :math:`D\, \partial u / \partial n`, as a Galerkin reaction and
+    :class:`TractionComponents` (:math:`\sigma n`, with
+    :math:`\mathbf{F} = -\sigma`) do, hence the sign. A subdomain coupled
+    to one of another stack then balances with it.
 
     Raises
     ------
@@ -106,8 +115,9 @@ class ComponentFluxes(Generic[Array]):
     def operators(
         self, indices: Array, normals: Array, bkd: Backend[Array]
     ) -> Sequence[NormalFluxOperatorProtocol[Array]]:
+        # F tested with the inward normal is -F . n.
         return [
-            FluxNormalOperator(bkd, indices, normals, provider)
+            FluxNormalOperator(bkd, indices, -normals, provider)
             for provider in self._providers
         ]
 
