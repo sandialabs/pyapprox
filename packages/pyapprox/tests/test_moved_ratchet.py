@@ -46,6 +46,7 @@ def test_counts_whole_dotted_names_in_scanned_files(tmp_path: Path) -> None:
     _write(tmp_path, "docs/page.qmd", "See `pkg.old.thing`.\n")
     _write(tmp_path, "docs/notes.md", "pkg.old moved  # moved: allow\n")
     _write(tmp_path, "build/gen.py", "import pkg.old\n")  # skipped directory
+    _write(tmp_path, ".claude/rules/tests.md", "pkg.old\n")  # untracked config
     _write(tmp_path, "data/blob.bin", "pkg.old\n")  # not a scanned suffix
     _write(tmp_path, "src/pyapprox/_moved.py", "MOVED = {'pkg.old': 'pkg.new'}\n")
     _write(tmp_path, BASELINE_FILE, "moved:pkg.old=4\n")

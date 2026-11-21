@@ -36,10 +36,12 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 SUFFIXES = (".py", ".qmd", ".md", ".rst", ".toml", ".cfg", ".ini", ".yml", ".yaml")
+# .claude holds per-checkout agent configuration that is never tracked,
+# so counting it would make a local count exceed CI's.
 SKIP_DIRS = {
     ".git", "__pycache__", "_site", "_freeze", ".quarto", ".mypy_cache",
-    ".pytest_cache", ".ruff_cache", ".claude-logs", "build", "dist",
-    "node_modules",
+    ".pytest_cache", ".ruff_cache", ".claude", ".claude-logs", "build",
+    "dist", "node_modules",
 }  # fmt: skip
 # The tables name every prefix by construction.
 EXEMPT = ("pyapprox/_moved.py", "pyapprox/_moved_ratchet.py")
