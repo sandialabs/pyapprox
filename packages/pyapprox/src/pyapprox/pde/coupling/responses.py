@@ -170,3 +170,63 @@ class LocalResponseProtocol(Protocol[Array]):
         """Do the subdomain's work for ``port_data`` (nport, 1) and
         ``params`` (nparams, 1) over ``window``."""
         ...
+
+
+class DeclaredKinds(Generic[Array]):
+    """``response`` declaring other kinds than its own: the physical
+    quantities its port data and output are, where its class names a
+    generic role. A pinned response receives a :class:`Trace` and returns
+    a :class:`Flux`; as the Darcy side of a Stokes-Darcy interface the
+    trace is an interface pressure and the flux a normal velocity, the
+    kinds the Stokes side receives and returns too, so the interface has
+    one unknown per DOF (:mod:`~pyapprox.pde.coupling.kind_layout`).
+
+    Satisfies :class:`LocalResponseProtocol`; everything but the kinds is
+    ``response``'s.
+
+    Raises
+    ------
+    TypeError
+        If ``response`` does not satisfy :class:`LocalResponseProtocol`.
+    """
+
+    def __init__(
+        self,
+        response: LocalResponseProtocol[Array],
+        receives: PortQuantity,
+        returns: PortQuantity,
+    ) -> None:
+        if not isinstance(response, LocalResponseProtocol):
+            raise TypeError(
+                "response must satisfy LocalResponseProtocol, got "
+                f"{type(response).__name__}"
+            )
+        self._response = response
+        self._receives, self._returns = receives, returns
+
+    def bkd(self) -> Backend[Array]:
+        return self._response.bkd()
+
+    def nport(self) -> int:
+        return self._response.nport()
+
+    def receives(self) -> PortQuantity:
+        return self._receives
+
+    def returns(self) -> PortQuantity:
+        return self._returns
+
+    def nparams(self) -> int:
+        return self._response.nparams()
+
+    def nqoi(self) -> int:
+        return self._response.nqoi()
+
+    def linearize(
+        self, port_data: Array, params: Array, window: TimeWindow
+    ) -> ResponsePointProtocol[Array]:
+        return self._response.linearize(port_data, params, window)
+
+    def wrapped(self) -> LocalResponseProtocol[Array]:
+        """The response whose kinds this replaces."""
+        return self._response
