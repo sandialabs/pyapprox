@@ -68,17 +68,15 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
     predicted_rounding,
 )
-from pyapprox.ode.functional_sink import FunctionalSink, RunningRecursion
-from pyapprox.ode.integrands import WeightedSquaredNorm
 from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
 from pyapprox.ode.tableau import backward_euler, crank_nicolson
-from pyapprox.ode.time_integral import TimeIntegral
-from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.transient_implicit_map import (
     FixedTrajectoryFunctional,
+    ParameterFanOut,
+    SummedFunctional,
     TrajectoryFunctionalSourceProtocol,
     TransientImplicitMap,
 )
@@ -109,6 +107,9 @@ from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
+)
+from pyapprox.pde.models.galerkin.transient_observations import (
+    time_integrated_weighted_l2,
 )
 from pyapprox.pde.models.galerkin.transient_system import (
     GalerkinTransientSystem,
@@ -341,26 +342,6 @@ def _endpoint_average(
     )
 
 
-class _Parameters:
-    """Sets the system's parameters and those of every term that reads
-    them."""
-
-    def __init__(
-        self,
-        system: GalerkinTransientSystem[NumpyArray, Any],
-        *readers: Callable[[NumpyArray], None],
-    ) -> None:
-        self._system, self._readers = system, readers
-
-    def nparams(self) -> int:
-        return self._system.nparams()
-
-    def set_param(self, param: NumpyArray) -> None:
-        self._system.set_param(param)
-        for reader in self._readers:
-            reader(param)
-
-
 def _transient(
     system: GalerkinSystem[NumpyArray],
     param_obj: Any,
@@ -381,7 +362,7 @@ def _function(
 ) -> _Function:
     implicit = TransientImplicitMap(
         transient,
-        _Parameters(transient, *readers),
+        ParameterFanOut(transient, readers),
         _method(method),
         RecomputeAlways(transient.solved.solver),
         _steps(),
@@ -492,51 +473,6 @@ def _check_gradient_and_hvp(
         bkd.sum(h_other * bkd.flatten(direction)),
         rtol=1e-12,
     )
-
-
-class _IntegralPlusParameterTerms:
-    """A time integral plus parameter terms, as a functional source: the
-    integral's step term combined by its method's recursion during the
-    solve, and weighed by the recursion's sensitivities for the sweeps,
-    beside the parameter terms."""
-
-    def __init__(
-        self,
-        integral: TimeIntegral[NumpyArray, NumpyArray],
-        depth: int,
-        parameter_terms: Tuple[ParameterTermProtocol[NumpyArray, NumpyArray], ...],
-        bkd: NumpyBkd,
-    ) -> None:
-        self._integral, self._depth = integral, depth
-        self._parameter_terms, self._bkd = parameter_terms, bkd
-
-    def nqoi(self) -> int:
-        return self._integral.nqoi()
-
-    def sink(self) -> FunctionalSink[NumpyArray, NumpyArray]:
-        integral = self._integral
-        return FunctionalSink(
-            self._bkd.zeros((self.nqoi(), 1)),
-            self._parameter_terms,
-            (),
-            (
-                (
-                    integral.step_term(),
-                    RunningRecursion(integral.quadrature(), self._depth),
-                ),
-            ),
-        )
-
-    def trajectory_functional(
-        self, store: TrajectoryStoreProtocol[NumpyArray]
-    ) -> TrajectoryFunctional[NumpyArray, NumpyArray]:
-        weighted = self._integral.trajectory_functional(store)
-        return TrajectoryFunctional.from_terms(
-            self._bkd,
-            self.nqoi(),
-            parameter_terms=self._parameter_terms,
-            step_terms=weighted.step_terms,
-        )
 
 
 class TestTransientAdjointWorkedExample:
@@ -669,23 +605,22 @@ class TestTransientAdjointWorkedExample:
         bkd = numpy_bkd
         physics, system, param_obj = _build_parameterization(bkd, "forcing")
         transient = _transient(system, param_obj)
-        stepper = _method(method).stepper(
-            transient.solved,
+        integral = time_integrated_weighted_l2(
+            transient,
+            _method(method),
             RecomputeAlways(transient.solved.solver),
-            transient.row_pinning,
-        )
-        integral = TimeIntegral(
-            WeightedSquaredNorm(ScipySparseWeight(physics.mass_matrix(), bkd), bkd),
-            stepper,
-            bkd,
+            ScipySparseWeight(physics.mass_matrix(), bkd),
         )
         tikhonov = TikhonovTerm(bkd, 0.7)
+        regularization = FixedTrajectoryFunctional(
+            TrajectoryFunctional.from_terms(bkd, 1, parameter_terms=(tikhonov,))
+        )
         model = _function(
             bkd,
             transient,
             method,
             _gaussian_bump_ic(bkd, physics),
-            _IntegralPlusParameterTerms(integral, stepper.depth(), (tikhonov,), bkd),
+            SummedFunctional([integral, regularization]),
             tikhonov.set_param,
         )
         _check_gradient_and_hvp(bkd, model)

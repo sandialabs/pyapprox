@@ -18,6 +18,9 @@ ten steps of 0.05, under backward Euler, Heun and BDF2 (Newton to
   gradient passes central differences of the value and the HVP central
   differences of the gradient (DerivativeChecker, minimum ratio below
   1e-6).
+- That integral plus a Tikhonov term as a ``SummedFunctional`` (BDF2),
+  parameters fanned out by ``ParameterFanOut``: value, gradient and HVP
+  the sums of the two sources' own maps, to 1e-12.
 - A value of two entries (two MSEs observing different stored states,
   stacked, under BDF2): each entry's value, and the gradient under unit
   weights each entry's gradient, to 1e-12.
@@ -73,6 +76,8 @@ from pyapprox.ode.trajectory_terms import (
 )
 from pyapprox.ode.transient_implicit_map import (
     FixedTrajectoryFunctional,
+    ParameterFanOut,
+    SummedFunctional,
     TrajectoryFunctionalSourceProtocol,
     TransientImplicitMap,
     TransientPoint,
@@ -273,6 +278,78 @@ class TestATimeIntegral:
             )
         ).check_derivatives(param, relative=True, central=True)[0]
         assert bkd.to_float(bkd.min(second)) < 1e-6
+
+
+class TestSummedFunctional:
+    """A time integral plus a Tikhonov term, which no one source holds,
+    under BDF2 (the integral's recursion weights read from the recorded
+    trajectory), its parameters fanned out to the system, the integrand
+    and the term: the value, gradient and HVP equal the sums of the two
+    sources' own maps to 1e-12."""
+
+    def test_value_gradient_and_hvp_are_the_sums(self, bkd: Backend[Array]) -> None:
+        method: _Method[Array] = _bdf2()
+        model = lotka_volterra_with_mass(bkd)
+        integrand = EnergyIntegrand(bkd)
+        integral = _integral(bkd, method, model, integrand)
+        tikhonov = TikhonovTerm(bkd, 0.3)
+        regularization = FixedTrajectoryFunctional(
+            TrajectoryFunctional.from_terms(bkd, 1, parameter_terms=(tikhonov,))
+        )
+        discretization = _Discretization(bkd, model)
+        summed: TransientImplicitMap[Array, Array, DenseFormat[Array]]
+        summed = TransientImplicitMap(
+            discretization,
+            ParameterFanOut(
+                _Parameters(model.set_param),
+                [integrand.set_param, tikhonov.set_param],
+            ),
+            method,
+            RecomputeAlways(discretization.system().solver),
+            STEPS,
+            bkd.asarray(START),
+            SummedFunctional([integral, regularization]),
+        )
+        parts = [
+            _map(bkd, method, model, integral, integrand.set_param),
+            _map(bkd, method, model, regularization, tikhonov.set_param),
+        ]
+        param = bkd.asarray(LV_PARAM)
+        direction = random_direction(bkd)
+
+        # The maps share the model, so each one's derivatives are taken
+        # before the next solve moves its parameters.
+        def at(implicit: Any) -> Tuple[Array, Array, Array, Array]:
+            value = implicit.value(param)
+            point = implicit.point(param)
+            return value, point.value(), point.gradient(), point.hvp(direction)
+
+        total = at(summed)
+        first, second = at(parts[0]), at(parts[1])
+        bkd.assert_allclose(total[1], total[0], rtol=1e-12)
+        for got, one, other in zip(total, first, second):
+            bkd.assert_allclose(got, one + other, rtol=1e-12)
+
+    def test_refusals(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        model = lotka_volterra_with_mass(bkd)
+        functional, _ = native_tikhonov_mse(bkd)
+        fixed = FixedTrajectoryFunctional(functional)
+        two = FixedTrajectoryFunctional(
+            TrajectoryFunctional.from_terms(
+                bkd, 2, state_terms=(EndpointTerm(StateEntries(bkd, 2, [0, 1])),)
+            )
+        )
+        with pytest.raises(ValueError, match="at least one"):
+            SummedFunctional([])
+        with pytest.raises(TypeError, match="TrajectoryFunctionalSourceProtocol"):
+            SummedFunctional([fixed, object()])  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="one nqoi"):
+            SummedFunctional([fixed, two])
+        with pytest.raises(TypeError, match="ParameterVectorSetterProtocol"):
+            ParameterFanOut(object(), [])  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="callable"):
+            ParameterFanOut(_Parameters(model.set_param), [1.0])  # type: ignore[list-item]
 
 
 class TestTwoEntries:

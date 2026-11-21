@@ -24,6 +24,7 @@ setups and the steps are injected.
 """
 
 from typing import (
+    Callable,
     Generic,
     Optional,
     Protocol,
@@ -46,7 +47,7 @@ from pyapprox.ode.pinned_rows import RowPinningProtocol
 from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.step_plan import StepPlanProtocol
-from pyapprox.ode.stepper_derivatives import StepperDerivatives
+from pyapprox.ode.stepper_derivatives import StepperDerivatives, StepWindow
 from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.ode.trajectory_derivatives import (
     InitialStateDerivatives,
@@ -180,6 +181,135 @@ class FixedTrajectoryFunctional(Generic[V, A]):
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nqoi={self.nqoi()})"
+
+
+class _SummedSink(Generic[V, A]):
+    """Passes the trajectory to each of several value sinks, its value
+    their sum."""
+
+    def __init__(self, sinks: Sequence[ValueSinkProtocol[V, A]]) -> None:
+        self._sinks = tuple(sinks)
+        self._forward = MultiSink(self._sinks)
+
+    def append(self, time: float, state: V, unconstrained: Optional[V] = None) -> None:
+        self._forward.append(time, state, unconstrained)
+
+    def append_step(
+        self, window: StepWindow[V], state: V, unconstrained: Optional[V] = None
+    ) -> None:
+        self._forward.append_step(window, state, unconstrained)
+
+    def ntimes(self) -> int:
+        return self._sinks[0].ntimes()
+
+    def value(self) -> A:
+        total = self._sinks[0].value()
+        for sink in self._sinks[1:]:
+            total = total + sink.value()
+        return total
+
+
+class SummedFunctional(Generic[V, A]):
+    r"""The sum :math:`Q = \sum_k Q_k` of functional sources of one
+    ``nqoi``, itself a source: a time integral plus a parameter
+    regularization, say, which no one source holds.
+
+    During a solve each source's sink receives the trajectory and the
+    value is the sum of theirs. For the sweeps the functional on a store
+    has every source's terms on that store.
+
+    Parameters
+    ----------
+    sources : sequence of TrajectoryFunctionalSourceProtocol
+        The :math:`Q_k`, at least one.
+
+    Raises
+    ------
+    TypeError
+        If a source does not satisfy ``TrajectoryFunctionalSourceProtocol``.
+    ValueError
+        If there is no source, or their ``nqoi`` differ.
+    """
+
+    def __init__(
+        self, sources: Sequence[TrajectoryFunctionalSourceProtocol[V, A]]
+    ) -> None:
+        if not sources:
+            raise ValueError("a SummedFunctional needs at least one source")
+        for source in sources:
+            if not isinstance(source, TrajectoryFunctionalSourceProtocol):
+                raise TypeError(
+                    "each source must satisfy TrajectoryFunctionalSourceProtocol, "
+                    f"got {type(source).__name__}"
+                )
+        sizes = {source.nqoi() for source in sources}
+        if len(sizes) != 1:
+            raise ValueError(f"the sources must share one nqoi, got {sorted(sizes)}")
+        self._sources = tuple(sources)
+
+    def nqoi(self) -> int:
+        return self._sources[0].nqoi()
+
+    def sink(self) -> _SummedSink[V, A]:
+        return _SummedSink([source.sink() for source in self._sources])
+
+    def trajectory_functional(
+        self, store: TrajectoryStoreProtocol[V]
+    ) -> TrajectoryFunctional[V, A]:
+        functionals = [source.trajectory_functional(store) for source in self._sources]
+        return TrajectoryFunctional(
+            functionals[0].zero,
+            tuple(term for f in functionals for term in f.parameter_terms),
+            tuple(term for f in functionals for term in f.state_terms),
+            tuple(term for f in functionals for term in f.step_terms),
+        )
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({', '.join(map(repr, self._sources))})"
+
+
+class ParameterFanOut(Generic[V]):
+    """Sets the parameters on a setter and passes them to every reader: a
+    parameter term of the functional, such as
+    :class:`~pyapprox.implicitfunction.tikhonov_term.TikhonovTerm`, reads
+    the parameters the system is solved at.
+
+    Parameters
+    ----------
+    setter : ParameterVectorSetterProtocol
+        Sets the system's parameters; its ``nparams`` is this one's.
+    readers : sequence of callable
+        Each called with every parameter vector set, after ``setter``.
+
+    Raises
+    ------
+    TypeError
+        If ``setter`` does not satisfy ``ParameterVectorSetterProtocol``
+        or a reader is not callable.
+    """
+
+    def __init__(
+        self,
+        setter: ParameterVectorSetterProtocol[V],
+        readers: Sequence[Callable[[V], None]],
+    ) -> None:
+        if not isinstance(setter, ParameterVectorSetterProtocol):
+            raise TypeError(
+                "setter must satisfy ParameterVectorSetterProtocol, got "
+                f"{type(setter).__name__}"
+            )
+        for reader in readers:
+            if not callable(reader):
+                raise TypeError(f"each reader must be callable, got {reader!r}")
+        self._setter, self._readers = setter, tuple(readers)
+
+    def nparams(self) -> int:
+        return self._setter.nparams()
+
+    def set_param(self, param: V) -> None:
+        self._setter.set_param(param)
+        for reader in self._readers:
+            reader(param)
 
 
 class TransientPoint(Generic[V, A]):
