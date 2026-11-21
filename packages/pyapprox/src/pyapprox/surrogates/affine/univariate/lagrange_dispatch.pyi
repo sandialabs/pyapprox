@@ -8,7 +8,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.optional_deps import package_available
-from pyapprox.polynomials.univariate.lagrange_dispatch import _HAS_NUMBA as _HAS_NUMBA
 from pyapprox.polynomials.univariate.lagrange_dispatch import LagrangeEvalImpl as LagrangeEvalImpl
 from pyapprox.polynomials.univariate.lagrange_dispatch import LagrangeDerivImpl as LagrangeDerivImpl
 from pyapprox.polynomials.univariate.lagrange_dispatch import _is_torch as _is_torch
@@ -27,4 +26,4 @@ from pyapprox.polynomials.univariate.lagrange_dispatch import _numba_lagrange_he
 from pyapprox.polynomials.univariate.lagrange_dispatch import _get_compiled_lagrange_hessian as _get_compiled_lagrange_hessian
 from pyapprox.polynomials.univariate.lagrange_dispatch import _compiled_lagrange_hessian as _compiled_lagrange_hessian
 from pyapprox.polynomials.univariate.lagrange_dispatch import get_lagrange_hessian_impl as get_lagrange_hessian_impl
-__all__ = ['_HAS_NUMBA', 'LagrangeEvalImpl', 'LagrangeDerivImpl', '_is_torch', '_numba_lagrange_eval', '_generic_lagrange_eval', '_get_compiled_lagrange_eval', '_compiled_lagrange_eval', 'get_lagrange_eval_impl', '_generic_lagrange_jacobian', '_numba_lagrange_jacobian', '_get_compiled_lagrange_jacobian', '_compiled_lagrange_jacobian', 'get_lagrange_jacobian_impl', '_generic_lagrange_hessian', '_numba_lagrange_hessian', '_get_compiled_lagrange_hessian', '_compiled_lagrange_hessian', 'get_lagrange_hessian_impl']
+__all__ = ['LagrangeEvalImpl', 'LagrangeDerivImpl', '_is_torch', '_numba_lagrange_eval', '_generic_lagrange_eval', '_get_compiled_lagrange_eval', '_compiled_lagrange_eval', 'get_lagrange_eval_impl', '_generic_lagrange_jacobian', '_numba_lagrange_jacobian', '_get_compiled_lagrange_jacobian', '_compiled_lagrange_jacobian', 'get_lagrange_jacobian_impl', '_generic_lagrange_hessian', '_numba_lagrange_hessian', '_get_compiled_lagrange_hessian', '_compiled_lagrange_hessian', 'get_lagrange_hessian_impl']
