@@ -776,7 +776,7 @@ class TestAdapterPieces:
         boundary_conditions builds."""
         (level,) = ChebyshevAnnulus([5], bkd).levels(_RING)
         assert [repr(c) for c in level.closures()] == ["PeriodicSeam(1)"]
-        seam = level.closures()[0].rows(level, 2)
+        seam = level.closures()[0].rows(level, level.layout(["u", "w"]))
         assert seam.rows().count() == 20
         two = ManufacturedProblem(
             {"u": "x", "w": "y"},
@@ -786,6 +786,18 @@ class TestAdapterPieces:
         )
         declarations = boundary_conditions(two, level)
         assert len(declarations.closures) == 1
+
+    def test_layout(self, bkd: Backend[Array]) -> None:
+        """A level lays every field on its one mesh, named and in order:
+        5 x 5 nodes and fields u, w give offsets 0 and 25, 50 states; a
+        repeated field name is refused."""
+        (level,) = ChebyshevAnnulus([5], bkd).levels(_RING)
+        layout = level.layout(["u", "w"])
+        assert layout == StateLayout.uniform(25, 2, names=["u", "w"])
+        assert [layout.offset(k) for k in range(2)] == [0, 25]
+        assert layout.nstates() == 50
+        with pytest.raises(ValueError, match="repeat"):
+            level.layout(["u", "u"])
 
     def test_part_over_several_boundaries(self, bkd: Backend[Array]) -> None:
         """A part may cover several mesh boundaries (a disk's circle, all
@@ -908,7 +920,7 @@ class TestRefusals:
             ChebyshevEllipticalAnnulus([4], numpy_bkd).levels(_RING)
         (level,) = ChebyshevAnnulus([4], numpy_bkd).levels(_RING)
         with pytest.raises(ValueError, match="direction 2 is not"):
-            PeriodicSeam[Array](2).rows(level, 1)
+            PeriodicSeam[Array](2).rows(level, level.layout(["u"]))
 
     def test_periodic_off_a_box(self, numpy_bkd: Backend[Array]) -> None:
         """Periodic conditions pair a box's opposite sides; an annulus'

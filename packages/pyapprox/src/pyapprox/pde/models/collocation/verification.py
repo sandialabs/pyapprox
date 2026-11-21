@@ -217,10 +217,10 @@ class InteriorClosureProtocol(Protocol[Array]):
     the two ends of a ring's angle (one physical line, a seam)."""
 
     def rows(
-        self, level: "ChebyshevLevel[Array]", ncomponents: int
+        self, level: "ChebyshevLevel[Array]", layout: StateLayout
     ) -> ClosureRowsProtocol[Array]:
-        """The rows on ``level``'s mesh, for a state of ``ncomponents``
-        components."""
+        """The rows on ``level``'s mesh, for a state laid out as
+        ``layout``."""
         ...
 
 
@@ -293,6 +293,17 @@ class ChebyshevLevel(Generic[Array]):
 
     def npts(self) -> int:
         return self._mesh.npts()
+
+    def layout(self, fields: Sequence[str]) -> StateLayout:
+        """Where each of ``fields`` sits in the state, stacked in order:
+        every field on the level's one mesh.
+
+        Raises
+        ------
+        ValueError
+            If there are no fields or a name repeats.
+        """
+        return StateLayout.uniform(self.npts(), len(fields), names=fields)
 
     def closures(self) -> Tuple[InteriorClosureProtocol[Array], ...]:
         """Rows for the mesh boundaries inside the domain."""
@@ -424,15 +435,15 @@ class PeriodicSeam(Generic[Array]):
         self._direction = direction
 
     def rows(
-        self, level: ChebyshevLevel[Array], ncomponents: int
+        self, level: ChebyshevLevel[Array], layout: StateLayout
     ) -> PeriodicRows[Array]:
-        """The seam's rows on every one of ``ncomponents`` components.
+        """The seam's rows on every field of ``layout``.
 
         Raises
         ------
         ValueError
             If the direction is not one of the level's reference
-            directions.
+            directions, or a field is not on the level's mesh.
         """
         mesh, direction = level.mesh(), self._direction
         if not 0 <= direction < len(mesh.npts_per_dim()):
@@ -445,14 +456,9 @@ class PeriodicSeam(Generic[Array]):
         upper = mesh.boundary_indices(2 * direction + 1)
         parts = [
             PeriodicPart(lower, upper, derivative, component)
-            for component in range(ncomponents)
+            for component in range(layout.nfields())
         ]
-        return PeriodicRows(
-            level.bkd(),
-            StateLayout.uniform(mesh.reference_points().shape[1], ncomponents),
-            mesh.reference_points(),
-            parts,
-        )
+        return PeriodicRows(level.bkd(), layout, mesh.reference_points(), parts)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._direction})"
@@ -1101,32 +1107,21 @@ def boundary_conditions(
                 robin.append(built)
             elif isinstance(built, PeriodicPart):
                 periodic.append(built)
-    bkd, npts, ncomponents = level.bkd(), level.npts(), len(fields)
+    bkd, layout = level.bkd(), level.layout(fields)
     # The level's interior closures first, so a boundary part's own rows
     # win the nodes it shares with them (a ring's seam meets both circles).
     closures: List[ClosureRowsProtocol[Array]] = [
-        closure.rows(level, ncomponents) for closure in level.closures()
+        closure.rows(level, layout) for closure in level.closures()
     ]
     if periodic:
         closures.append(
-            PeriodicRows(
-                bkd,
-                StateLayout.uniform(
-                    level.mesh().reference_points().shape[1], ncomponents
-                ),
-                level.mesh().reference_points(),
-                periodic,
-            )
+            PeriodicRows(bkd, layout, level.mesh().reference_points(), periodic)
         )
     if robin:
         # After the periodic rows, so a side's own condition wins the
         # nodes it shares with a periodic side.
-        closures.append(RobinRows(bkd, StateLayout.uniform(npts, ncomponents), robin))
-    essential = (
-        DirichletRows(bkd, StateLayout.uniform(npts, ncomponents), dirichlet)
-        if dirichlet
-        else None
-    )
+        closures.append(RobinRows(bkd, layout, robin))
+    essential = DirichletRows(bkd, layout, dirichlet) if dirichlet else None
     return BoundaryDeclarations(essential, tuple(closures))
 
 
@@ -1279,7 +1274,8 @@ class CollocationApproximation(Generic[Array]):
     ) -> None:
         bkd = level.bkd()
         fields = problem.fields()
-        expected = len(fields) * level.npts()
+        layout = level.layout(fields)
+        expected = layout.nstates()
         if state.shape != (expected,):
             raise ValueError(
                 f"the state must have shape ({expected},), one value per node "
@@ -1294,13 +1290,11 @@ class CollocationApproximation(Generic[Array]):
         exact = solution(level.mesh().points())
         self._error = bkd.reshape(exact, (-1,)) - state
         grid = _error_grid(level)
-        npts = level.npts()
-        interpolated = bkd.hstack(
-            [
-                grid.interpolation @ state[k * npts : (k + 1) * npts]
-                for k in range(len(fields))
-            ]
-        )
+        blocks = [
+            state[layout.offset(k) : layout.offset(k) + layout.npts(k)]
+            for k in range(layout.nfields())
+        ]
+        interpolated = bkd.hstack([grid.interpolation @ block for block in blocks])
         self._grid_error = bkd.reshape(solution(grid.points), (-1,)) - interpolated
         self._weights = bkd.tile(grid.weights, (len(fields),))
         self._bkd, self._state, self._h = bkd, state, level.h()
@@ -1413,10 +1407,11 @@ class CollocationDiscretizer(Generic[Array]):
         for level in self._levels.levels(domain):
             system = self._factory.system(problem, level)
             bkd, nstates = level.bkd(), system.nstates()
-            if nstates != len(fields) * level.npts():
+            layout = level.layout(fields)
+            if nstates != layout.nstates():
                 raise ValueError(
                     f"the system has {nstates} states, not one per node "
-                    f"({level.npts()}) for each of {list(fields)}"
+                    f"({layout.nstates()} over {list(fields)})"
                 )
             steady = SteadySystem(
                 collocation_steady_residual(system),
