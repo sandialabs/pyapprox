@@ -21,7 +21,7 @@ manufactured from the exact solution.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional
+from typing import Generic
 
 import pytest
 
@@ -64,10 +64,13 @@ from pyapprox.pde.coupling.skeleton import (
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.coupling.traces import LumpedNodalTrace
+from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
     collocation_steady_residual,
 )
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
@@ -79,6 +82,12 @@ from pyapprox.util.linalg.backend_dense import (
 )
 from pyapprox.util.linalg.operators import SpaceDescriptor
 from pyapprox.util.rootfinding.nonlinear import Newton
+from tests._helpers.coupling_collocation import (
+    Coefficients,
+    adr_problem,
+    forcing_at,
+    solution_at,
+)
 from tests._helpers.physics_test_utils import solve_steady_dirichlet
 
 _ENDS = (0.0, 0.3, 0.65, 1.0)
@@ -86,33 +95,19 @@ _NPIECES = len(_ENDS) - 1
 _STEADY = TimeWindow.steady()
 _ATOL = 1e-11
 
-# u, u' and u'' at the given points.
-Exact = Callable[[Array, Backend[Array]], tuple[Array, Array, Array]]
+_CUBIC = "1 + x - 2*x**2 + x**3"
+_SMOOTH = "exp(x)*sin(3*x)"
+_DIFFUSION = Coefficients(2.0, None, None)
+_ADR = Coefficients(2.0, (0.7,), -1.5)
 
 
-def _cubic(x: Array, bkd: Backend[Array]) -> tuple[Array, Array, Array]:
-    return 1.0 + x - 2.0 * x**2 + x**3, 1.0 - 4.0 * x + 3.0 * x**2, -4.0 + 6.0 * x
-
-
-def _smooth(x: Array, bkd: Backend[Array]) -> tuple[Array, Array, Array]:
-    ex, s, c = bkd.exp(x), bkd.sin(3.0 * x), bkd.cos(3.0 * x)
-    return ex * s, ex * (s + 3.0 * c), ex * (6.0 * c - 8.0 * s)
-
-
-@dataclass(frozen=True)
-class _Coefficients:
-    diffusion: float
-    velocity: Optional[float]
-    reaction: Optional[float]
-
-
-_DIFFUSION = _Coefficients(2.0, None, None)
-_ADR = _Coefficients(2.0, 0.7, -1.5)
+def _problem(coefs: Coefficients, solution: str) -> ManufacturedProblem:
+    """The strong form on [0, 1], the forcing derived from ``solution``."""
+    return adr_problem(coefs, solution, Box([(0.0, 1.0)]))
 
 
 class _Interval(Generic[Array]):
-    """The physics on [a, b] with ``n`` nodes, its forcing manufactured
-    from ``exact``."""
+    """The physics on [a, b] with ``n`` nodes, forced by ``problem``."""
 
     def __init__(
         self,
@@ -120,26 +115,21 @@ class _Interval(Generic[Array]):
         a: float,
         b: float,
         n: int,
-        coefs: _Coefficients,
-        exact: Exact[Array],
+        coefs: Coefficients,
+        problem: ManufacturedProblem,
     ) -> None:
-        self._bkd, self._n, self._exact = bkd, n, exact
+        self._bkd, self._n, self._problem = bkd, n, problem
         self._mesh = TransformedMesh1D(n, bkd, AffineTransform1D((a, b), bkd))
-        u, du, d2u = exact(self.points(), bkd)
-        forcing = -coefs.diffusion * d2u
-        velocity = None
-        if coefs.velocity is not None:
-            forcing = forcing + coefs.velocity * du
-            velocity = [bkd.full((n,), coefs.velocity)]
-        if coefs.reaction is not None:
-            forcing = forcing - coefs.reaction * u
+        velocity = (
+            None if coefs.velocity is None else [bkd.full((n,), coefs.velocity[0])]
+        )
         self._physics = AdvectionDiffusionReaction(
             ChebyshevBasis1D(self._mesh, bkd),
             bkd,
             diffusion=coefs.diffusion,
             velocity=velocity,
             reaction=coefs.reaction,
-            forcing=NodalField(forcing),
+            forcing=NodalField(forcing_at(problem, self._mesh.points(), bkd)[0]),
             advection_form=ConservativeAdvection(),
         )
 
@@ -157,8 +147,9 @@ class _Interval(Generic[Array]):
     def dirichlet(self, side: int) -> DirichletPart[Array]:
         """The exact value at an end as Dirichlet data."""
         index = self.end(side)
+        points = self._mesh.points()[:, index]
         return DirichletPart(
-            index, NodalField(self._exact(self.points()[index], self._bkd)[0])
+            index, NodalField(solution_at(self._problem, points, self._bkd)[0])
         )
 
 
@@ -172,11 +163,11 @@ class _Piece(Generic[Array]):
         bkd: Backend[Array],
         s: int,
         n: int,
-        coefs: _Coefficients,
-        exact: Exact[Array],
+        coefs: Coefficients,
+        problem: ManufacturedProblem,
     ) -> None:
         self._bkd, self._n = bkd, n
-        self._interval = _Interval(bkd, _ENDS[s], _ENDS[s + 1], n, coefs, exact)
+        self._interval = _Interval(bkd, _ENDS[s], _ENDS[s + 1], n, coefs, problem)
         physical: list[DirichletPart[Array]] = []
         parts: list[NormalFluxPart[Array]] = []
         self._port: list[int] = []
@@ -262,13 +253,13 @@ class _ChainSolution(Generic[Array]):
 
 
 def _solve_chain(
-    bkd: Backend[Array], n: int, coefs: _Coefficients, exact: Exact[Array]
+    bkd: Backend[Array], n: int, coefs: Coefficients, problem: ManufacturedProblem
 ) -> _ChainSolution[Array]:
     topo = TensorBoxPartition((_NPIECES,))
     bases = UniformBases(lobatto_lagrange_basis(0, 1, bkd))
     skeleton = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     space = BackendVectorSpace(skeleton.descriptor(), bkd)
-    pieces = [_Piece(bkd, s, n, coefs, exact) for s in range(_NPIECES)]
+    pieces = [_Piece(bkd, s, n, coefs, problem) for s in range(_NPIECES)]
     subdomains = [
         CoupledSubdomain(
             piece.response(),
@@ -309,11 +300,11 @@ def _solve_chain(
 
 
 def _solve_single(
-    bkd: Backend[Array], n: int, coefs: _Coefficients, exact: Exact[Array]
+    bkd: Backend[Array], n: int, coefs: Coefficients, problem: ManufacturedProblem
 ) -> tuple[Array, Array]:
     """The single-domain collocation solution on [0, 1]: its nodes and
     nodal values."""
-    whole = _Interval(bkd, _ENDS[0], _ENDS[-1], n, coefs, exact)
+    whole = _Interval(bkd, _ENDS[0], _ENDS[-1], n, coefs, problem)
     state = solve_steady_dirichlet(
         whole.physics(),
         1,
@@ -324,44 +315,52 @@ def _solve_single(
     return whole.points(), state
 
 
+def _exact(bkd: Backend[Array], problem: ManufacturedProblem, x: Array) -> Array:
+    """The exact solution at the 1D points ``x``. Shape: (n,)"""
+    return solution_at(problem, x[None, :], bkd)[0]
+
+
 def _max_error(
-    bkd: Backend[Array], chain: _ChainSolution[Array], exact: Exact[Array]
+    bkd: Backend[Array], chain: _ChainSolution[Array], problem: ManufacturedProblem
 ) -> float:
     return max(
-        bkd.to_float(bkd.max(bkd.abs(piece.state - exact(piece.points, bkd)[0])))
+        bkd.to_float(bkd.max(bkd.abs(piece.state - _exact(bkd, problem, piece.points))))
         for piece in chain.pieces
     )
 
 
 @pytest.mark.parametrize("coefs", [_DIFFUSION, _ADR], ids=["diffusion", "adr"])
 def test_a_cubic_equals_the_single_domain_solve(
-    bkd: Backend[Array], coefs: _Coefficients
+    bkd: Backend[Array], coefs: Coefficients
 ) -> None:
-    chain = _solve_chain(bkd, 6, coefs, _cubic)
-    nodes, values = _solve_single(bkd, 8, coefs, _cubic)
+    problem = _problem(coefs, _CUBIC)
+    chain = _solve_chain(bkd, 6, coefs, problem)
+    nodes, values = _solve_single(bkd, 8, coefs, problem)
+    # The exact flux -D u' + v u, from the core.
+    flux = problem.flux("u")
+    if flux is None:
+        raise ValueError("the strong form has no flux")
+    exact_flux = PointExpressions(
+        [flux[0]], problem.names(), problem.coordinates(), bkd
+    )
     for piece in chain.pieces:
         interpolated = univariate_lagrange_polynomial(nodes, piece.points, bkd) @ values
         bkd.assert_allclose(piece.state, interpolated, rtol=1e-10, atol=1e-10)
         bkd.assert_allclose(
-            piece.state, _cubic(piece.points, bkd)[0], rtol=1e-10, atol=1e-10
+            piece.state, _exact(bkd, problem, piece.points), rtol=1e-10, atol=1e-10
         )
-    for piece in chain.pieces:
-        u, du, _ = _cubic(piece.port_points, bkd)
-        flux = -coefs.diffusion * du
-        if coefs.velocity is not None:
-            flux = flux + coefs.velocity * u
-        bkd.assert_allclose(
-            piece.flux[:, 0], piece.port_normals * flux, rtol=1e-10, atol=1e-10
-        )
+        expected = piece.port_normals * exact_flux(piece.port_points[None, :])[0]
+        bkd.assert_allclose(piece.flux[:, 0], expected, rtol=1e-10, atol=1e-10)
 
 
 @pytest.mark.parametrize("coefs", [_DIFFUSION, _ADR], ids=["diffusion", "adr"])
 def test_a_smooth_solution_converges_spectrally(
-    bkd: Backend[Array], coefs: _Coefficients
+    bkd: Backend[Array], coefs: Coefficients
 ) -> None:
     # Measured: 1.1e-2, 2.3e-5, 9.4e-8, 1.5e-10, 8.1e-14 (diffusion).
+    problem = _problem(coefs, _SMOOTH)
     errors = [
-        _max_error(bkd, _solve_chain(bkd, n, coefs, _smooth), _smooth)
+        _max_error(bkd, _solve_chain(bkd, n, coefs, problem), problem)
         for n in (4, 6, 8, 10, 12)
     ]
     for coarse, fine in zip(errors[:-1], errors[1:]):
@@ -370,8 +369,6 @@ def test_a_smooth_solution_converges_spectrally(
 
 
 @pytest.mark.parametrize("coefs", [_DIFFUSION, _ADR], ids=["diffusion", "adr"])
-def test_the_interface_fluxes_balance(
-    bkd: Backend[Array], coefs: _Coefficients
-) -> None:
-    chain = _solve_chain(bkd, 8, coefs, _smooth)
+def test_the_interface_fluxes_balance(bkd: Backend[Array], coefs: Coefficients) -> None:
+    chain = _solve_chain(bkd, 8, coefs, _problem(coefs, _SMOOTH))
     assert bkd.to_float(bkd.max(bkd.abs(chain.balance))) < _ATOL

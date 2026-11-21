@@ -10,10 +10,14 @@ Lagrange basis on Chebyshev-Gauss-Lobatto nodes. The transfer is matching
 when every subdomain has the skeleton's nodes, or interpolating
 (:class:`CoupledCollocation`).
 
-The physics is the steady scalar advection-diffusion-reaction equation
-:math:`D \Delta u - \nabla\cdot(v u) + r u + f = 0` with constant
-coefficients, f manufactured from an exact solution, which also gives the
-Dirichlet data on the whole outer boundary.
+A :class:`Model` states the physics' strong form as a
+:class:`~pyapprox.pde.verification.problem.ManufacturedProblem` on the
+physical region and builds the physics from it: :class:`Adr` (scalar
+advection-diffusion-reaction), :class:`TwoSpecies` and
+:class:`Elasticity`. The verification core derives the forcing from the
+exact solution symbolically; both are evaluated at the meshes' physical
+nodes, and the exact solution gives the Dirichlet data on the whole outer
+boundary.
 
 Skeleton DOFs on the outer boundary are held at the exact data.
 
@@ -27,7 +31,7 @@ normals and quadrature weights are physical.
 import itertools
 import math
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, Protocol, Sequence, Union
+from typing import Generic, Optional, Protocol, Sequence, Union
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
@@ -51,6 +55,12 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.physics.linear_elasticity import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.reaction_diffusion import (
+    LinearReaction,
+    SpeciesDiffusiveFlux,
+    TwoSpeciesReactionDiffusionPhysics,
+)
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
@@ -91,10 +101,17 @@ from pyapprox.pde.coupling.stacks.collocation import (
     ComponentFluxes,
     NormalFluxesProtocol,
     PortSide,
+    TractionComponents,
     collocation_pinned_response,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
+from pyapprox.pde.verification.conditions import Dirichlet
+from pyapprox.pde.verification.domains import AnnularSector, DomainProtocol
+from pyapprox.pde.verification.domains import Box as VerificationBox
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import Divergence, Source, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
@@ -108,9 +125,11 @@ from tests._helpers.physics_test_utils import solve_steady_dirichlet
 STEADY = TimeWindow.steady()
 ATOL = 1e-11
 
-# u, its gradient and its Laplacian at points of shape (d, n): shapes
-# (n,), (d, n), (n,).
-Exact = Callable[[Array, Backend[Array]], tuple[Array, Array, Array]]
+# Exact solutions, in the verification core's expression syntax.
+CUBIC = "1 + x - 2*x**2 + x**3 + x*y + y**3/2"
+CUBIC_3D = CUBIC + " + y*z + z**2"
+SMOOTH = "exp(x)*sin(3*x)*cos(2*y)"
+
 Bounds = Sequence[tuple[float, float]]
 Mesh = Union[TransformedMesh2D[Array], TransformedMesh3D[Array]]
 # A side of a box: the direction normal to it and whether at its upper end.
@@ -153,6 +172,10 @@ class Domain(Protocol[Array]):
         """Physical points of parameter points. Shape: (d, n)"""
         ...
 
+    def region(self, ndim: int) -> DomainProtocol:
+        """The physical region, as the verification core names it."""
+        ...
+
 
 class UnitBox(Generic[Array]):
     """The parameter box itself."""
@@ -162,6 +185,9 @@ class UnitBox(Generic[Array]):
 
     def to_physical(self, params: Array, bkd: Backend[Array]) -> Array:
         return params
+
+    def region(self, ndim: int) -> DomainProtocol:
+        return VerificationBox([(0.0, 1.0)] * ndim)
 
 
 class QuarterAnnulus(Generic[Array]):
@@ -183,6 +209,11 @@ class QuarterAnnulus(Generic[Array]):
         r, theta = 1.0 + params[0], (math.pi / 2.0) * params[1]
         return bkd.stack([r * bkd.cos(theta), r * bkd.sin(theta)], axis=0)
 
+    def region(self, ndim: int) -> DomainProtocol:
+        if ndim != 2:
+            raise ValueError(f"the quarter annulus is 2D, got {ndim}D")
+        return AnnularSector((0.0, 0.0), 1.0, 2.0, 0.0, 0.5 * math.pi)
+
 
 def reference_nodes(n: int, bkd: Backend[Array]) -> Array:
     """The ``n`` Chebyshev-Gauss-Lobatto nodes on [-1, 1], increasing."""
@@ -202,68 +233,174 @@ def basis(
     return ChebyshevBasis3D(mesh, bkd)
 
 
+def solution_at(
+    problem: ManufacturedProblem, points: Array, bkd: Backend[Array]
+) -> Array:
+    """The exact solution of every field at physical ``points``. Shape:
+    (k, n)"""
+    rows = [problem.solution(row) for row in problem.fields()]
+    return PointExpressions(rows, problem.names(), problem.coordinates(), bkd)(points)
+
+
+def forcing_at(
+    problem: ManufacturedProblem, points: Array, bkd: Backend[Array]
+) -> Array:
+    """The forcing of every row at physical ``points``. Shape: (k, n)"""
+    rows = [problem.forcing(row) for row in problem.fields()]
+    return PointExpressions(rows, problem.names(), problem.coordinates(), bkd)(points)
+
+
+def _posed(
+    solution: dict[str, str], terms: Sequence[TermProtocol], region: DomainProtocol
+) -> ManufacturedProblem:
+    """``solution`` and ``terms`` on ``region``, Dirichlet on every part."""
+    return ManufacturedProblem(
+        solution, terms, region, {part: Dirichlet() for part in region.boundaries()}
+    )
+
+
+def adr_problem(
+    coefs: Coefficients, solution: str, region: DomainProtocol
+) -> ManufacturedProblem:
+    r"""Conservative advection-diffusion-reaction on ``region``, flux
+    :math:`-D \nabla u + v u`, exact solution ``solution``."""
+    coords = region.coordinates()
+    fluxes = [f"-({coefs.diffusion})*u_{c}" for c in coords]
+    if coefs.velocity is not None:
+        if len(coefs.velocity) != len(coords):
+            raise ValueError(f"velocity needs {len(coords)} components")
+        fluxes = [f"{q} + ({v})*u" for q, v in zip(fluxes, coefs.velocity)]
+    terms: list[TermProtocol] = [Divergence("u", fluxes)]
+    if coefs.reaction is not None:
+        terms.append(Source("u", f"-({coefs.reaction})*u"))
+    return _posed({"u": solution}, terms, region)
+
+
 class Model(Protocol[Array]):
-    """A physics of ``k`` components with a manufactured exact solution:
-    what a subdomain solves and what its ports return."""
+    """A physics and its strong form: what a subdomain solves and what
+    its ports return."""
 
-    def ncomponents(self) -> int: ...
-
-    def exact(self, points: Array, bkd: Backend[Array]) -> Array:
-        """The exact solution at physical ``points``. Shape: (k, n)"""
+    def problem(self, region: DomainProtocol) -> ManufacturedProblem:
+        """The strong form and exact solution on ``region``."""
         ...
 
     def build(
-        self, mesh: Mesh[Array], bkd: Backend[Array]
+        self, problem: ManufacturedProblem, mesh: Mesh[Array], bkd: Backend[Array]
     ) -> tuple[CollocationInteriorOperatorProtocol[Array], NormalFluxesProtocol[Array]]:
-        """The physics on ``mesh``, its forcing manufactured from the
-        exact solution, and the fluxes its ports return."""
+        """The physics on ``mesh`` forced by ``problem``, and the fluxes its
+        ports return."""
         ...
 
 
 class Adr(Generic[Array]):
     """Scalar advection-diffusion-reaction with constant ``coefs``,
-    :math:`D \\Delta u - \\nabla\\cdot(v u) + r u + f = 0`, f manufactured
-    from ``exact``; the ports return the total flux."""
+    :math:`D \\Delta u - \\nabla\\cdot(v u) + r u + f = 0`, exact solution
+    ``solution``; the ports return the total flux."""
 
-    def __init__(self, coefs: Coefficients, exact: Exact[Array]) -> None:
-        self._coefs, self._exact = coefs, exact
+    def __init__(self, coefs: Coefficients, solution: str) -> None:
+        self._coefs, self._solution = coefs, solution
 
-    def ncomponents(self) -> int:
-        return 1
-
-    def exact(self, points: Array, bkd: Backend[Array]) -> Array:
-        return self._exact(points, bkd)[0][None, :]
+    def problem(self, region: DomainProtocol) -> ManufacturedProblem:
+        return adr_problem(self._coefs, self._solution, region)
 
     def build(
-        self, mesh: Mesh[Array], bkd: Backend[Array]
+        self, problem: ManufacturedProblem, mesh: Mesh[Array], bkd: Backend[Array]
     ) -> tuple[AdvectionDiffusionReaction[Array], ComponentFluxes[Array]]:
-        coefs, ndim, npts = self._coefs, mesh.ndim(), mesh.npts()
-        u, grad, lap = self._exact(mesh.points(), bkd)
-        forcing = -coefs.diffusion * lap
-        velocity = None
-        if coefs.velocity is not None:
-            if len(coefs.velocity) != ndim:
-                raise ValueError(f"velocity needs {ndim} components")
-            for d, v in enumerate(coefs.velocity):
-                forcing = forcing + v * grad[d]
-            velocity = [bkd.full((npts,), v) for v in coefs.velocity]
-        if coefs.reaction is not None:
-            forcing = forcing - coefs.reaction * u
+        coefs, npts = self._coefs, mesh.npts()
+        velocity = (
+            None
+            if coefs.velocity is None
+            else [bkd.full((npts,), v) for v in coefs.velocity]
+        )
         physics = AdvectionDiffusionReaction(
             basis(mesh, bkd),
             bkd,
             diffusion=coefs.diffusion,
             velocity=velocity,
             reaction=coefs.reaction,
-            forcing=NodalField(forcing),
+            forcing=NodalField(forcing_at(problem, mesh.points(), bkd)[0]),
             advection_form=ConservativeAdvection(),
         )
         return physics, ComponentFluxes([physics])
 
 
+class TwoSpecies(Generic[Array]):
+    r"""Two-species reaction-diffusion with constant diffusions and the
+    linear reaction :math:`R_u = a_{00} u + a_{01} v`, :math:`R_v = a_{10}
+    u + a_{11} v`: :math:`D_c \Delta u_c + R_c(u) + f_c = 0`, exact
+    solution ``fields`` for (u, v); the ports return each species'
+    diffusive flux :math:`-D_c \nabla u_c \cdot n`."""
+
+    def __init__(
+        self,
+        diffusions: tuple[float, float],
+        reaction: tuple[float, float, float, float],
+        fields: tuple[str, str],
+    ) -> None:
+        self._diffusions, self._reaction, self._fields = diffusions, reaction, fields
+
+    def problem(self, region: DomainProtocol) -> ManufacturedProblem:
+        a00, a01, a10, a11 = self._reaction
+        reactions = (f"({a00})*u + ({a01})*v", f"({a10})*u + ({a11})*v")
+        terms: list[TermProtocol] = []
+        for row, diffusion, reaction in zip(("u", "v"), self._diffusions, reactions):
+            fluxes = [f"-({diffusion})*{row}_{c}" for c in region.coordinates()]
+            terms += [Divergence(row, fluxes), Source(row, f"-({reaction})")]
+        return _posed(dict(zip(("u", "v"), self._fields)), terms, region)
+
+    def build(
+        self, problem: ManufacturedProblem, mesh: Mesh[Array], bkd: Backend[Array]
+    ) -> tuple[TwoSpeciesReactionDiffusionPhysics[Array], ComponentFluxes[Array]]:
+        forcing = forcing_at(problem, mesh.points(), bkd)
+        physics = TwoSpeciesReactionDiffusionPhysics(
+            basis(mesh, bkd),
+            bkd,
+            self._diffusions[0],
+            self._diffusions[1],
+            LinearReaction(*self._reaction, bkd),
+            forcing0=NodalField(forcing[0]),
+            forcing1=NodalField(forcing[1]),
+        )
+        fluxes = ComponentFluxes(
+            [SpeciesDiffusiveFlux(physics, 0), SpeciesDiffusiveFlux(physics, 1)]
+        )
+        return physics, fluxes
+
+
+class Elasticity(Generic[Array]):
+    r"""Linear elasticity in 2D with constant Lamé parameters,
+    :math:`\nabla\cdot\sigma + f = 0`, exact displacement ``fields`` for
+    (u, v); the ports return the traction :math:`\sigma n`."""
+
+    def __init__(self, lamda: float, mu: float, fields: tuple[str, str]) -> None:
+        self._lamda, self._mu, self._fields = lamda, mu, fields
+
+    def problem(self, region: DomainProtocol) -> ManufacturedProblem:
+        if region.ndim() != 2:
+            raise ValueError(f"the elasticity model is 2D, got {region.ndim()}D")
+        lamda, mu = self._lamda, self._mu
+        trace = f"({lamda})*(u_x + v_y)"
+        shear = f"({mu})*(u_y + v_x)"
+        terms: list[TermProtocol] = [
+            Divergence("u", [f"-({trace} + 2*({mu})*u_x)", f"-({shear})"]),
+            Divergence("v", [f"-({shear})", f"-({trace} + 2*({mu})*v_y)"]),
+        ]
+        return _posed(dict(zip(("u", "v"), self._fields)), terms, region)
+
+    def build(
+        self, problem: ManufacturedProblem, mesh: Mesh[Array], bkd: Backend[Array]
+    ) -> tuple[LinearElasticityPhysics[Array], TractionComponents[Array]]:
+        # Components stacked, as the physics takes its forcing.
+        forcing = bkd.reshape(forcing_at(problem, mesh.points(), bkd), (-1,))
+        physics = LinearElasticityPhysics(
+            basis(mesh, bkd), bkd, self._lamda, self._mu, forcing=NodalField(forcing)
+        )
+        return physics, TractionComponents(physics, mesh.ndim())
+
+
 class Box(Generic[Array]):
     """A model's physics on the image of a parameter box with ``n`` nodes
-    per direction."""
+    per direction, forced by ``problem``."""
 
     def __init__(
         self,
@@ -271,11 +408,12 @@ class Box(Generic[Array]):
         bounds: Bounds,
         n: int,
         model: Model[Array],
-        domain: Optional[Domain[Array]] = None,
+        problem: ManufacturedProblem,
+        domain: Domain[Array],
     ) -> None:
-        self._bkd, self._model, self._bounds = bkd, model, bounds
-        self._mesh = (UnitBox() if domain is None else domain).mesh(bounds, n, bkd)
-        self._physics, self._fluxes = model.build(self._mesh, bkd)
+        self._bkd, self._problem, self._bounds = bkd, problem, bounds
+        self._mesh = domain.mesh(bounds, n, bkd)
+        self._physics, self._fluxes = model.build(problem, self._mesh, bkd)
 
     def mesh(self) -> Mesh[Array]:
         return self._mesh
@@ -287,7 +425,7 @@ class Box(Generic[Array]):
         return self._fluxes
 
     def ncomponents(self) -> int:
-        return self._model.ncomponents()
+        return len(self._problem.fields())
 
     def points(self) -> Array:
         """Shape: (d, npts)"""
@@ -318,7 +456,7 @@ class Box(Generic[Array]):
         if not nodes:
             return []
         index = bkd.asarray(nodes, dtype=bkd.int64_dtype())
-        values = self._model.exact(self.points()[:, index], bkd)
+        values = solution_at(self._problem, self.points()[:, index], bkd)
         return [
             DirichletPart(index, NodalField(values[c]), c)
             for c in range(self.ncomponents())
@@ -406,7 +544,9 @@ class CoupledCollocation(Generic[Array]):
         if not interpolate and any(n != nskel for n in ns):
             raise ValueError("a matching transfer needs every count equal to nskel")
         self._bkd, self._ncells, self._ns = bkd, tuple(ncells), tuple(ns)
-        self._model, self._k = model, model.ncomponents()
+        self._model = model
+        self._problem = model.problem(self._domain.region(len(ncells)))
+        self._k = len(self._problem.fields())
         self._interpolate = interpolate
         default: SideRuleProtocol = (
             GaussLegendreSideRule() if interpolate else CollocationNodeRule()
@@ -460,14 +600,19 @@ class CoupledCollocation(Generic[Array]):
             port_sides,
             self._rule,
             RecomputeAlways(BackendDenseLU(self._bkd)),
-            Newton(atol=1e-13, rtol=0.0, maxiters=30),
+            # The pointwise residual's roundoff floor grows like D n^4 eps |u|
+            # (5.6e-12 for two species at 12 nodes); a linear subproblem
+            # reaches it in one step, so the tolerance only stays above it.
+            Newton(atol=1e-10, rtol=0.0, maxiters=30),
         )
 
     def _piece(self, subdomain: int) -> Piece[Array]:
         bkd, ncells = self._bkd, self._ncells
         cell = self._cell(subdomain)
         bounds = [(c / m, (c + 1) / m) for c, m in zip(cell, ncells)]
-        box = Box(bkd, bounds, self._ns[subdomain], self._model, self._domain)
+        box = Box(
+            bkd, bounds, self._ns[subdomain], self._model, self._problem, self._domain
+        )
         sides: list[Side] = list(itertools.product(range(len(ncells)), (False, True)))
         interface = [
             (d, upper)
@@ -551,8 +696,13 @@ class CoupledCollocation(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def model(self) -> Model[Array]:
-        return self._model
+    def problem(self) -> ManufacturedProblem:
+        """The model's strong form and exact solution on the region."""
+        return self._problem
+
+    def exact_at(self, points: Array) -> Array:
+        """The exact solution at physical ``points``. Shape: (k, n)"""
+        return solution_at(self._problem, points, self._bkd)
 
     def pieces(self) -> list[Piece[Array]]:
         return self._pieces
@@ -564,7 +714,7 @@ class CoupledCollocation(Generic[Array]):
     def skeleton_exact(self) -> Array:
         """The exact solution at the skeleton's field DOFs, node-major.
         Shape: (k * nscalar,)"""
-        exact = self._model.exact(self.skeleton_coords(), self._bkd)
+        exact = self.exact_at(self.skeleton_coords())
         return self._bkd.reshape(self._bkd.transpose(exact), (-1,))
 
     def pinned(self) -> list[int]:
@@ -616,7 +766,7 @@ class CoupledCollocation(Generic[Array]):
         box and nodal values, components stacked. Shape of the values:
         (k * npts,)"""
         bkd, ndim = self._bkd, len(self._ncells)
-        box = Box(bkd, [(0.0, 1.0)] * ndim, n, self._model, self._domain)
+        box = Box(bkd, [(0.0, 1.0)] * ndim, n, self._model, self._problem, self._domain)
         sides = list(itertools.product(range(ndim), (False, True)))
         parts = box.dirichlet(sides, set())
         if not parts:
@@ -631,41 +781,17 @@ class CoupledCollocation(Generic[Array]):
         return box, state
 
 
-def cubic(points: Array, bkd: Backend[Array]) -> tuple[Array, Array, Array]:
-    """u = 1 + x - 2x^2 + x^3 + xy + y^3/2 [+ yz + z^2 in 3D]."""
-    x, y = points[0], points[1]
-    u = 1.0 + x - 2.0 * x**2 + x**3 + x * y + 0.5 * y**3
-    grad = [1.0 - 4.0 * x + 3.0 * x**2 + y, x + 1.5 * y**2]
-    lap = -4.0 + 6.0 * x + 3.0 * y
-    if points.shape[0] == 3:
-        z = points[2]
-        u = u + y * z + z**2
-        grad = [grad[0], grad[1] + z, y + 2.0 * z]
-        lap = lap + 2.0
-    return u, bkd.stack(grad, axis=0), lap
-
-
-def smooth(points: Array, bkd: Backend[Array]) -> tuple[Array, Array, Array]:
-    """u = e^x sin(3x) cos(2y), in 2D."""
-    x, y = points[0], points[1]
-    ex, s, c = bkd.exp(x), bkd.sin(3.0 * x), bkd.cos(3.0 * x)
-    cy, sy = bkd.cos(2.0 * y), bkd.sin(2.0 * y)
-    u = ex * s * cy
-    grad = bkd.stack([ex * (s + 3.0 * c) * cy, -2.0 * ex * s * sy], axis=0)
-    return u, grad, ex * cy * (6.0 * c - 12.0 * s)
-
-
 def max_state_error(problem: CoupledCollocation[Array], lam: Array) -> float:
     """The largest nodal error of the subdomains' states for the skeleton
     values ``lam``, against the problem's exact solution, over every
     component."""
-    bkd, model = problem.bkd(), problem.model()
+    bkd = problem.bkd()
     return max(
         bkd.to_float(
             bkd.max(
                 bkd.abs(
                     piece.state(lam)
-                    - bkd.reshape(model.exact(piece.box.points(), bkd), (-1,))
+                    - bkd.reshape(problem.exact_at(piece.box.points()), (-1,))
                 )
             )
         )

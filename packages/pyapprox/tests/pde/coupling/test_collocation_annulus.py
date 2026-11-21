@@ -29,12 +29,12 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    SMOOTH,
     Adr,
     Coefficients,
     CoupledCollocation,
     QuarterAnnulus,
     max_state_error,
-    smooth,
 )
 
 _ADR = Coefficients(2.0, (0.7, -0.4), -1.5)
@@ -48,7 +48,7 @@ def _problem(
     rule: SideRuleProtocol,
 ) -> CoupledCollocation[Array]:
     return CoupledCollocation(
-        bkd, (2, 1), ns, nskel, Adr(_ADR, smooth), interpolate, rule, QuarterAnnulus()
+        bkd, (2, 1), ns, nskel, Adr(_ADR, SMOOTH), interpolate, rule, QuarterAnnulus()
     )
 
 
@@ -59,7 +59,8 @@ def test_matching_nodes_give_the_single_domain_error(
     problem = _problem(bkd, [n, n], n, False, CollocationNodeRule())
     lam = problem.solve_skeleton()
     box, state = problem.single_domain(n)
-    single = bkd.to_float(bkd.max(bkd.abs(state - smooth(box.points(), bkd)[0])))
+    exact = problem.exact_at(box.points())[0]
+    single = bkd.to_float(bkd.max(bkd.abs(state - exact)))
     coupled = max_state_error(problem, lam)
     assert abs(coupled - single) < 0.05 * single
     balance = problem.residual()(lam)[:, 0]

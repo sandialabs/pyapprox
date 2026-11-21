@@ -23,13 +23,14 @@ import pytest
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    CUBIC,
+    CUBIC_3D,
+    SMOOTH,
     Adr,
     Coefficients,
     CoupledCollocation,
-    cubic,
     interpolate,
     max_state_error,
-    smooth,
 )
 
 _DIFFUSION_2D = Coefficients(2.0, None, None)
@@ -51,17 +52,17 @@ _ADR_3D = Coefficients(2.0, (0.7, -0.4, 0.3), -1.5)
 def test_a_cubic_equals_the_single_domain_solve(
     bkd: Backend[Array], ncells: tuple[int, ...], coefs: Coefficients
 ) -> None:
+    cubic = CUBIC if len(ncells) == 2 else CUBIC_3D
     problem = CoupledCollocation(bkd, ncells, [5] * 3, 5, Adr(coefs, cubic))
     lam = problem.solve_skeleton()
-    coords = problem.skeleton_coords()
-    bkd.assert_allclose(lam[:, 0], cubic(coords, bkd)[0], rtol=1e-10, atol=1e-10)
+    bkd.assert_allclose(lam[:, 0], problem.skeleton_exact(), rtol=1e-10, atol=1e-10)
     whole, values = problem.single_domain(6)
     for piece in problem.pieces():
         state, points = piece.state(lam), piece.box.points()
         bkd.assert_allclose(
             state, interpolate(values, 6, points, bkd), rtol=1e-10, atol=1e-10
         )
-        bkd.assert_allclose(state, cubic(points, bkd)[0], rtol=1e-10, atol=1e-10)
+        bkd.assert_allclose(state, problem.exact_at(points)[0], rtol=1e-10, atol=1e-10)
 
 
 @pytest.mark.parametrize("coefs", [_DIFFUSION_2D, _ADR_2D], ids=["diffusion", "adr"])
@@ -71,7 +72,7 @@ def test_a_smooth_solution_converges_spectrally(
     # Measured: 4.4e-3, 3.7e-5, 1.3e-7, 2.8e-10, 4.2e-13 (diffusion).
     errors = []
     for n in (4, 6, 8, 10, 12):
-        problem = CoupledCollocation(bkd, (3, 1), [n] * 3, n, Adr(coefs, smooth))
+        problem = CoupledCollocation(bkd, (3, 1), [n] * 3, n, Adr(coefs, SMOOTH))
         errors.append(max_state_error(problem, problem.solve_skeleton()))
     for coarse, fine in zip(errors[:-1], errors[1:]):
         assert fine < coarse / 100.0
@@ -86,7 +87,7 @@ def test_a_smooth_solution_converges_spectrally(
 def test_the_interface_fluxes_balance(
     bkd: Backend[Array], ncells: tuple[int, ...], coefs: Coefficients, n: int
 ) -> None:
-    exact = smooth if len(ncells) == 2 else cubic
+    exact = SMOOTH if len(ncells) == 2 else CUBIC_3D
     problem = CoupledCollocation(bkd, ncells, [n] * 3, n, Adr(coefs, exact))
     lam = problem.solve_skeleton()
     balance = problem.residual()(lam)[:, 0]

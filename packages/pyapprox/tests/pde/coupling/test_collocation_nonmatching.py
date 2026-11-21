@@ -29,12 +29,12 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    CUBIC,
+    SMOOTH,
     Adr,
     Coefficients,
     CoupledCollocation,
-    cubic,
     max_state_error,
-    smooth,
 )
 
 _DIFFUSION = Coefficients(2.0, None, None)
@@ -45,14 +45,14 @@ _COUNTS = [5, 6, 7]
 @pytest.mark.parametrize("coefs", [_DIFFUSION, _ADR], ids=["diffusion", "adr"])
 def test_a_cubic_is_reproduced(bkd: Backend[Array], coefs: Coefficients) -> None:
     problem = CoupledCollocation(
-        bkd, (3, 1), _COUNTS, 4, Adr(coefs, cubic), interpolate=True
+        bkd, (3, 1), _COUNTS, 4, Adr(coefs, CUBIC), interpolate=True
     )
     assert max_state_error(problem, problem.solve_skeleton()) < 1e-10
 
 
 def test_lumped_testing_misses_the_advective_cubic(bkd: Backend[Array]) -> None:
     problem = CoupledCollocation(
-        bkd, (3, 1), _COUNTS, 4, Adr(_ADR, cubic), True, CollocationNodeRule()
+        bkd, (3, 1), _COUNTS, 4, Adr(_ADR, CUBIC), True, CollocationNodeRule()
     )
     assert max_state_error(problem, problem.solve_skeleton()) > 1e-6
 
@@ -61,7 +61,7 @@ def test_a_smooth_solution_converges_spectrally(bkd: Backend[Array]) -> None:
     errors = []
     for n in (6, 8, 10, 12):
         problem = CoupledCollocation(
-            bkd, (3, 1), [n, n + 2, n + 1], n, Adr(_ADR, smooth), interpolate=True
+            bkd, (3, 1), [n, n + 2, n + 1], n, Adr(_ADR, SMOOTH), interpolate=True
         )
         errors.append(max_state_error(problem, problem.solve_skeleton()))
     for coarse, fine in zip(errors[:-1], errors[1:]):
@@ -71,7 +71,7 @@ def test_a_smooth_solution_converges_spectrally(bkd: Backend[Array]) -> None:
 
 def test_the_interface_fluxes_balance(bkd: Backend[Array]) -> None:
     problem = CoupledCollocation(
-        bkd, (3, 1), [8, 10, 9], 8, Adr(_ADR, smooth), interpolate=True
+        bkd, (3, 1), [8, 10, 9], 8, Adr(_ADR, SMOOTH), interpolate=True
     )
     lam = problem.solve_skeleton()
     balance = problem.residual()(lam)[:, 0]

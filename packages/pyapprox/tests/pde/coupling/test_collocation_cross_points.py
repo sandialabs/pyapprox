@@ -29,13 +29,13 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
     ATOL,
+    CUBIC,
+    CUBIC_3D,
+    SMOOTH,
     Adr,
     Coefficients,
     CoupledCollocation,
-    Exact,
-    cubic,
     max_state_error,
-    smooth,
 )
 
 _ADR_2D = Coefficients(2.0, (0.7, -0.4), -1.5)
@@ -47,7 +47,7 @@ def _solve(
     ncells: tuple[int, ...],
     ns: list[int],
     nskel: int,
-    exact: Exact[Array],
+    exact: str,
     interpolate: bool,
     rule: SideRuleProtocol,
 ) -> tuple[CoupledCollocation[Array], Array]:
@@ -69,11 +69,12 @@ def test_matching_nodes_reproduce_a_cubic(
     bkd: Backend[Array], ncells: tuple[int, ...]
 ) -> None:
     nsub = 2 ** len(ncells)
+    cubic = CUBIC if len(ncells) == 2 else CUBIC_3D
     problem, lam = _solve(
         bkd, ncells, [5] * nsub, 5, cubic, False, CollocationNodeRule()
     )
     assert max_state_error(problem, lam) < 1e-10
-    expected = cubic(problem.skeleton_coords(), bkd)[0]
+    expected = problem.skeleton_exact()
     bkd.assert_allclose(lam[:, 0], expected, rtol=1e-10, atol=1e-10)
 
 
@@ -84,7 +85,7 @@ def test_matching_nodes_converge_spectrally(
     bkd: Backend[Array], rule: SideRuleProtocol
 ) -> None:
     errors = [
-        max_state_error(*_solve(bkd, (2, 2), [n] * 4, n, smooth, False, rule))
+        max_state_error(*_solve(bkd, (2, 2), [n] * 4, n, SMOOTH, False, rule))
         for n in (6, 8, 10, 12)
     ]
     _assert_spectral(errors)
@@ -92,7 +93,7 @@ def test_matching_nodes_converge_spectrally(
 
 def test_different_nodes_reproduce_a_cubic(bkd: Backend[Array]) -> None:
     problem, lam = _solve(
-        bkd, (2, 2), [5, 6, 7, 6], 4, cubic, True, GaussLegendreSideRule()
+        bkd, (2, 2), [5, 6, 7, 6], 4, CUBIC, True, GaussLegendreSideRule()
     )
     assert max_state_error(problem, lam) < 1e-10
 
@@ -105,7 +106,7 @@ def test_different_nodes_converge_spectrally(bkd: Backend[Array]) -> None:
                 (2, 2),
                 [n, n + 2, n + 1, n + 3],
                 n,
-                smooth,
+                SMOOTH,
                 True,
                 GaussLegendreSideRule(),
             )
@@ -114,7 +115,7 @@ def test_different_nodes_converge_spectrally(bkd: Backend[Array]) -> None:
     ]
     _assert_spectral(errors)
     lumped = _solve(
-        bkd, (2, 2), [12, 14, 13, 15], 12, smooth, True, CollocationNodeRule()
+        bkd, (2, 2), [12, 14, 13, 15], 12, SMOOTH, True, CollocationNodeRule()
     )
     assert max_state_error(*lumped) > 100.0 * errors[-1]
 
@@ -125,7 +126,7 @@ def test_the_fluxes_balance_at_the_vertex(
 ) -> None:
     ns = [8, 10, 9, 11] if interpolate else [8] * 4
     problem, lam = _solve(
-        bkd, (2, 2), ns, 8, smooth, interpolate, GaussLegendreSideRule()
+        bkd, (2, 2), ns, 8, SMOOTH, interpolate, GaussLegendreSideRule()
     )
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
