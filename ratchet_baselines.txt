@@ -9,3 +9,5 @@ mypy_benchmarks=229
 moved:pyapprox.surrogates.affine.univariate=209
 moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
+superseded:pyapprox.pde.manufactured=35
+superseded:pyapprox.pde.galerkin.manufactured=18

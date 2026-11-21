@@ -1,6 +1,7 @@
-"""The moved-module ratchet and added-lines check: references to old
-prefixes are counted as whole dotted names, compared with
-ratchet_baselines.txt, and refused on staged added lines."""
+"""The moved-module and superseded-package ratchets and added-lines
+check: references to old prefixes are counted as whole dotted names,
+compared with ratchet_baselines.txt, and refused on staged added lines;
+references inside a superseded package are not counted."""
 
 import shutil
 import subprocess  # nosec B404: runs git with fixed arguments in a tmp repo
@@ -12,6 +13,8 @@ import pyapprox
 from pyapprox._moved import MOVED
 from pyapprox._moved_ratchet import (
     BASELINE_FILE,
+    SUPERSEDED,
+    SUPERSEDED_KEY,
     added_line_problems,
     count_references,
     main,
@@ -74,6 +77,59 @@ def test_ratchet_holds_counts_at_their_baselines(tmp_path: Path) -> None:
     )
 
 
+_SUPERSEDED = {"pkg.gone": "pkg.core", "pkg.sub.gone": "pkg.core"}
+
+
+def test_superseded_references_inside_their_packages_are_not_counted(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path, "src/user.py", "from pkg.gone import a\nimport pkg.sub.gone\n")
+    # A superseded package's own modules, and one importing the other.
+    _write(tmp_path, "src/pkg/gone/base.py", "from pkg.gone.mixins import b\n")
+    _write(tmp_path, "src/pkg/sub/gone/adapter.py", "from pkg.gone import c\n")
+    counts = count_references(_SUPERSEDED, tmp_path, skip_inside=True)
+    assert counts == {"pkg.gone": 1, "pkg.sub.gone": 1}
+    # Without the exemption, as moved prefixes are counted.
+    assert count_references(_SUPERSEDED, tmp_path) == {"pkg.gone": 3, "pkg.sub.gone": 1}
+
+
+def test_superseded_ratchet_names_the_replacement(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        BASELINE_FILE,
+        "moved:pkg.old=4\nsuperseded:pkg.gone=2\nsuperseded:pkg.was=1\n",
+    )
+    baseline = read_baseline(tmp_path / BASELINE_FILE, SUPERSEDED_KEY)
+    assert baseline == {"pkg.gone": 2, "pkg.was": 1}
+    problems = ratchet_problems(
+        {"pkg.gone": "pkg.core"}, {"pkg.gone": 3}, baseline, SUPERSEDED_KEY
+    )
+    assert problems == [
+        "pkg.gone: 3 references, baseline 2; use pkg.core instead",
+        "superseded:pkg.was is stale: pkg.was is not superseded",
+    ]
+
+
+_SUPERSEDED_DIFF = """\
+diff --git a/src/user.py b/src/user.py
+--- a/src/user.py
++++ b/src/user.py
+@@ -1,0 +2 @@
++from pkg.gone import a
+diff --git a/src/pkg/gone/base.py b/src/pkg/gone/base.py
+--- a/src/pkg/gone/base.py
++++ b/src/pkg/gone/base.py
+@@ -1,0 +2 @@
++from pkg.gone.mixins import b
+"""
+
+
+def test_added_uses_of_superseded_packages_are_reported() -> None:
+    # Only the user's line; the package's own edit passes.
+    problems = added_line_problems(_SUPERSEDED, _SUPERSEDED_DIFF, skip_inside=True)
+    assert problems == ["src/user.py:2: from pkg.gone import a"]
+
+
 _DIFF = """\
 diff --git a/src/a.py b/src/a.py
 --- a/src/a.py
@@ -127,6 +183,10 @@ def test_staged_check_reads_the_index(
     _write(tmp_path, "a.py", "x = 1\nfrom pkg.new import y\n")
     git("add", "a.py")
     assert main(["--staged"]) == 0
+    monkeypatch.setitem(SUPERSEDED, "pkg.gone", "pkg.core")
+    _write(tmp_path, "a.py", "x = 1\nfrom pkg.gone import y\n")
+    git("add", "a.py")
+    assert main(["--staged"]) == 1
 
 
 def test_repository_holds_its_baselines() -> None:
@@ -136,3 +196,6 @@ def test_repository_holds_its_baselines() -> None:
         pytest.skip("not a source checkout")
     counts = count_references(MOVED, root)
     assert ratchet_problems(MOVED, counts, read_baseline(root / BASELINE_FILE)) == []
+    superseded = count_references(SUPERSEDED, root, skip_inside=True)
+    baseline = read_baseline(root / BASELINE_FILE, SUPERSEDED_KEY)
+    assert ratchet_problems(SUPERSEDED, superseded, baseline, SUPERSEDED_KEY) == []

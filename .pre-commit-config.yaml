@@ -23,10 +23,11 @@ repos:
 
   - repo: local
     hooks:
-      # Old paths of moved modules may stay where they are, but no
-      # commit adds one; see pyapprox/_moved_ratchet.py.
+      # Old paths of moved modules, and uses of superseded packages, may
+      # stay where they are, but no commit adds one; see
+      # pyapprox/_moved_ratchet.py.
       - id: moved-module-old-paths
-        name: no old paths of moved modules on added lines
+        name: no old paths of moved modules or superseded packages on added lines
         entry: python -m pyapprox._moved_ratchet --staged
         language: system
         pass_filenames: false
