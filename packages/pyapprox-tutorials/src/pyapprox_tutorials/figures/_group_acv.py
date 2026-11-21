@@ -45,6 +45,7 @@ _MODEL_LABELS = ["$f_0$ (HF)", "$f_1$", "$f_2$", "$f_3$", "$f_4$"]
 # group_acv_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
 
+
 def plot_group_structures(axes):
     """group_acv_concept.qmd -> fig-group-structures
 
@@ -95,9 +96,9 @@ def plot_group_structures(axes):
     }
 
     subtitles = {
-        "MLMC":   "pairwise consecutive-level groups",
-        "MFMC":   "nested chain of groups",
-        "ACVMF":  "every LF model grouped with $f_0$",
+        "MLMC": "pairwise consecutive-level groups",
+        "MFMC": "nested chain of groups",
+        "ACVMF": "every LF model grouped with $f_0$",
         "MLBLUE": "all $2^M{-}1$ non-empty subsets",
     }
 
@@ -118,10 +119,13 @@ def plot_group_structures(axes):
 
             if isinstance(entry, str):
                 ax.text(
-                    x_cursor + 0.3, y_center,
+                    x_cursor + 0.3,
+                    y_center,
                     r"$\vdots$",
-                    ha="center", va="center",
-                    fontsize=12, color="#888",
+                    ha="center",
+                    va="center",
+                    fontsize=12,
+                    color="#888",
                 )
                 continue
 
@@ -133,24 +137,34 @@ def plot_group_structures(axes):
                 x_left = x_cursor + slot * block_w_per_model
                 rect = mpatches.FancyBboxPatch(
                     (x_left, y_center - block_h / 2),
-                    block_w_per_model, block_h,
+                    block_w_per_model,
+                    block_h,
                     boxstyle="round,pad=0.02",
                     facecolor=_MODEL_COLORS[m_idx],
-                    edgecolor="k", lw=0.9, alpha=0.85,
+                    edgecolor="k",
+                    lw=0.9,
+                    alpha=0.85,
                 )
                 ax.add_patch(rect)
                 ax.text(
-                    x_left + block_w_per_model / 2, y_center,
+                    x_left + block_w_per_model / 2,
+                    y_center,
                     f"$f_{{{m_idx}}}$",
-                    ha="center", va="center",
-                    fontsize=8.5, fontweight="bold", color="white",
+                    ha="center",
+                    va="center",
+                    fontsize=8.5,
+                    fontweight="bold",
+                    color="white",
                 )
 
             ax.text(
-                x_cursor + width + 0.12, y_center,
+                x_cursor + width + 0.12,
+                y_center,
                 rf"$\mathcal{{G}}^{{{label_counter}}}$",
-                ha="left", va="center",
-                fontsize=9, color="#444",
+                ha="left",
+                va="center",
+                fontsize=9,
+                color="#444",
             )
 
         ax.set_xlim(0, max_total_width + 0.9)
@@ -159,25 +173,34 @@ def plot_group_structures(axes):
         ax.axis("off")
         ax.set_title(name, fontsize=12, fontweight="bold", pad=4)
         ax.text(
-            (max_total_width + 0.9) / 2, 0.25,
+            (max_total_width + 0.9) / 2,
+            0.25,
             subtitles[name],
-            ha="center", va="bottom",
-            fontsize=8.5, color="#555", style="italic",
+            ha="center",
+            va="bottom",
+            fontsize=8.5,
+            color="#555",
+            style="italic",
         )
 
     handles = [
-        mpatches.Patch(facecolor=_MODEL_COLORS[i], edgecolor="k",
-                       label=_MODEL_LABELS[i])
+        mpatches.Patch(
+            facecolor=_MODEL_COLORS[i], edgecolor="k", label=_MODEL_LABELS[i]
+        )
         for i in range(nmodels)
     ]
     flat_axes[-1].legend(
-        handles=handles, loc="lower center",
-        bbox_to_anchor=(-0.1, -0.25), ncol=nmodels,
-        fontsize=9, frameon=False,
+        handles=handles,
+        loc="lower center",
+        bbox_to_anchor=(-0.1, -0.25),
+        ncol=nmodels,
+        fontsize=9,
+        frameon=False,
     )
 
 
 # ---------------------------------------------------------------------------
+
 
 def _cv_limits(cov_np):
     """Return [CV-1, CV-2, ..., CV-(L)] floors (variance / sigma_0^2)."""
@@ -218,26 +241,18 @@ def _ceiling_panel(ax, bkd, benchmark):
         cs, rs = [], []
         for f in factors:
             npartition_samples = bkd.asarray(
-                nhf * np.hstack(
-                    (1, base_ratio[: nparts - 1] * 2**f)
-                ),
+                nhf * np.hstack((1, base_ratio[: nparts - 1] * 2**f)),
                 dtype=bkd.double_dtype(),
             )
-            ec = est_template._covariance_from_npartition_samples(
-                npartition_samples
-            )
-            actual_cost = bkd.to_float(
-                est_template._estimator_cost(npartition_samples)
-            )
+            ec = est_template._covariance_from_npartition_samples(npartition_samples)
+            actual_cost = bkd.to_float(est_template._estimator_cost(npartition_samples))
             cs.append(actual_cost)
             rs.append(bkd.to_float(ec[0, 0]) / mc_var)
         return cs, rs
 
     mlmc_c, mlmc_r = sweep_acv(MLMCEstimator(stat, costs))
     mfmc_c, mfmc_r = sweep_acv(MFMCEstimator(stat, costs))
-    acvmf_c, acvmf_r = sweep_acv(
-        GMFEstimator(stat, costs, recursion_index=ri_zeros)
-    )
+    acvmf_c, acvmf_r = sweep_acv(GMFEstimator(stat, costs, recursion_index=ri_zeros))
 
     mlblue_subsets = [
         bkd.asarray(list(range(nmodels)), dtype=int),
@@ -246,17 +261,14 @@ def _ceiling_panel(ax, bkd, benchmark):
         bkd.asarray(list(range(3, nmodels)), dtype=int),
         bkd.asarray([nmodels - 1], dtype=int),
     ]
-    mlblue_template = MLBLUEEstimator(
-        stat, costs, model_subsets=mlblue_subsets
-    )
+    mlblue_template = MLBLUEEstimator(stat, costs, model_subsets=mlblue_subsets)
     mlblue_c, mlblue_r = [], []
     for f in factors:
         npart = bkd.asarray(
-            nhf * np.hstack((1, base_ratio * 2**f)), dtype=float,
+            nhf * np.hstack((1, base_ratio * 2**f)),
+            dtype=float,
         )
-        actual_cost = bkd.to_float(
-            mlblue_template._estimator_cost(npart)
-        )
+        actual_cost = bkd.to_float(mlblue_template._estimator_cost(npart))
         ec = mlblue_template._covariance_from_npartition_samples(npart)
         mlblue_c.append(actual_cost)
         mlblue_r.append(bkd.to_float(ec[0, 0]) / mc_var)
@@ -264,19 +276,18 @@ def _ceiling_panel(ax, bkd, benchmark):
     ax.loglog(mlmc_c, mlmc_r, "-", color="#2C7FB8", lw=2, label="MLMC")
     ax.loglog(mfmc_c, mfmc_r, "--", color="#E67E22", lw=2, label="MFMC")
     ax.loglog(acvmf_c, acvmf_r, "-.", color="#8E44AD", lw=2, label="ACVMF")
-    ax.loglog(mlblue_c, mlblue_r, ":", color="#27AE60", lw=2.5,
-              label="MLBLUE (GACV-IS)")
+    ax.loglog(
+        mlblue_c, mlblue_r, ":", color="#27AE60", lw=2.5, label="MLBLUE (GACV-IS)"
+    )
 
     cv_colors = ["#c0392b", "#d35400", "#f39c12", "#2c3e50"]
     cv_ls = ["--", "-.", ":", (0, (5, 1))]
     for i, (lim, col, ls) in enumerate(zip(cv_lims, cv_colors, cv_ls)):
-        ax.axhline(lim, color=col, ls=ls, lw=1.1,
-                   label=f"CV-{i + 1} limit")
+        ax.axhline(lim, color=col, ls=ls, lw=1.1, label=f"CV-{i + 1} limit")
 
     ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC")
     ax.set_xlabel("Total cost  (HF=1, LF samples grow)", fontsize=11)
-    ax.set_ylabel(r"$\mathbb{V}[\hat{\mu}_0] / \mathbb{V}_{\mathrm{MC}}$",
-                  fontsize=11)
+    ax.set_ylabel(r"$\mathbb{V}[\hat{\mu}_0] / \mathbb{V}_{\mathrm{MC}}$", fontsize=11)
     ax.set_title("Structural ceiling ($N_0$ fixed)", fontsize=11)
     ax.legend(fontsize=7.5, loc="lower left", ncol=2)
     ax.grid(True, alpha=0.2, which="both")
@@ -322,19 +333,25 @@ def _optimized_panel(ax, bkd, benchmark, target_costs):
 
     est_types = ["MC", "MLMC", "MFMC", "ACVMF", "GACV-IS"]
     colors = {
-        "MC":      "#aaaaaa",
-        "MLMC":    "#2C7FB8",
-        "MFMC":    "#E67E22",
-        "ACVMF":   "#8E44AD",
+        "MC": "#aaaaaa",
+        "MLMC": "#2C7FB8",
+        "MFMC": "#E67E22",
+        "ACVMF": "#8E44AD",
         "GACV-IS": "#27AE60",
     }
     markers = {
-        "MC": "o", "MLMC": "s", "MFMC": "D",
-        "ACVMF": "^", "GACV-IS": "v",
+        "MC": "o",
+        "MLMC": "s",
+        "MFMC": "D",
+        "ACVMF": "^",
+        "GACV-IS": "v",
     }
     linestyles = {
-        "MC": ":", "MLMC": "-", "MFMC": "--",
-        "ACVMF": "-.", "GACV-IS": "-",
+        "MC": ":",
+        "MLMC": "-",
+        "MFMC": "--",
+        "ACVMF": "-.",
+        "GACV-IS": "-",
     }
 
     target_costs_np = np.array([float(c) for c in target_costs])
@@ -346,9 +363,15 @@ def _optimized_panel(ax, bkd, benchmark, target_costs):
             except Exception:
                 v = np.nan
             vars_at_cost.append(v)
-        ax.loglog(target_costs_np, vars_at_cost,
-                  linestyles[et] + markers[et],
-                  color=colors[et], lw=1.8, ms=8, label=et)
+        ax.loglog(
+            target_costs_np,
+            vars_at_cost,
+            linestyles[et] + markers[et],
+            color=colors[et],
+            lw=1.8,
+            ms=8,
+            label=et,
+        )
 
     ax.set_xlabel("Total cost $P$", fontsize=11)
     ax.set_ylabel(r"Optimised $\mathbb{V}[\hat{\mu}_0]$", fontsize=11)
@@ -377,7 +400,9 @@ def _gacv_is_variance(cov, costs, nqoi, nmodels, target_cost):
     subsets = get_model_subsets(nmodels, bkd)
     template = GroupACVEstimatorIS(stat, costs, model_subsets=subsets)
     result = GroupACVAllocationOptimizer(
-        template, optimizer=_slsqp(), problem_config=_LOG_INEQ_CONFIG,
+        template,
+        optimizer=_slsqp(),
+        problem_config=_LOG_INEQ_CONFIG,
     ).optimize(target_cost)
     fitted = FittedGroupACVEstimator(template, result)
     return bkd.to_float(fitted.covariance()[0, 0])
@@ -410,6 +435,7 @@ def plot_gacv_convergence(axes, target_costs=(20.0, 100.0, 500.0)):
 # ---------------------------------------------------------------------------
 # group_acv_concept.qmd — sample allocation figure
 # ---------------------------------------------------------------------------
+
 
 def _subset_label(subset_np):
     """Format a model subset as e.g. '{0,1,3}'."""
@@ -449,13 +475,13 @@ def plot_sample_allocation(axes, target_cost=500.0):
 
     template = GroupACVEstimatorIS(stat, costs, model_subsets=subsets)
     result = GroupACVAllocationOptimizer(
-        template, optimizer=_slsqp(), problem_config=_LOG_INEQ_CONFIG,
+        template,
+        optimizer=_slsqp(),
+        problem_config=_LOG_INEQ_CONFIG,
     ).optimize(float(target_cost), round_nsamples=False)
 
     nps = bkd.to_numpy(result.npartition_samples).astype(float)
-    npm = bkd.to_numpy(
-        template._compute_nsamples_per_model(bkd.asarray(nps))
-    )
+    npm = bkd.to_numpy(template._compute_nsamples_per_model(bkd.asarray(nps)))
     model_subsets_np = [bkd.to_numpy(s).astype(int) for s in subsets]
 
     # --- Panel (a): samples per partition, stacked by model ---
@@ -478,8 +504,13 @@ def plot_sample_allocation(axes, target_cost=500.0):
         bottom = 0.0
         for slot, m_id in enumerate(sorted(subset)):
             ax.bar(
-                bar_i, seg_height, bar_width, bottom=bottom,
-                color=_MODEL_COLORS[m_id], edgecolor="k", lw=0.3,
+                bar_i,
+                seg_height,
+                bar_width,
+                bottom=bottom,
+                color=_MODEL_COLORS[m_id],
+                edgecolor="k",
+                lw=0.3,
             )
             bottom += seg_height
 
@@ -499,12 +530,17 @@ def plot_sample_allocation(axes, target_cost=500.0):
     ax = axes[1]
     x_mod = np.arange(nmodels)
     ax.bar(
-        x_mod, npm, 0.6,
-        color=_MODEL_COLORS[:nmodels], edgecolor="k", lw=0.5,
+        x_mod,
+        npm,
+        0.6,
+        color=_MODEL_COLORS[:nmodels],
+        edgecolor="k",
+        lw=0.5,
     )
     ax.set_xticks(x_mod)
     ax.set_xticklabels(
-        [_MODEL_LABELS[i] for i in range(nmodels)], fontsize=9,
+        [_MODEL_LABELS[i] for i in range(nmodels)],
+        fontsize=9,
     )
     ax.set_yscale("log")
     ax.set_ylabel("Total samples $n_\\ell$", fontsize=10)
@@ -537,6 +573,7 @@ def plot_sample_allocation(axes, target_cost=500.0):
     for name, est in estimators.items():
         if name in ("MLMC", "MFMC"):
             from pyapprox.statest.acv import default_allocator_factory
+
             res = default_allocator_factory(est).allocate(float(target_cost))
             n_per_model = bkd.to_numpy(res.nsamples_per_model).astype(float)
         elif name == "ACVMF":
@@ -553,14 +590,19 @@ def plot_sample_allocation(axes, target_cost=500.0):
     for idx, (name, n_per_model) in enumerate(all_npm.items()):
         offset = (idx - len(all_npm) / 2 + 0.5) * bar_width_c
         ax.bar(
-            x_c + offset, n_per_model, bar_width_c,
-            color=est_colors[name], edgecolor="k", lw=0.3,
+            x_c + offset,
+            n_per_model,
+            bar_width_c,
+            color=est_colors[name],
+            edgecolor="k",
+            lw=0.3,
             label=name,
         )
 
     ax.set_xticks(x_c)
     ax.set_xticklabels(
-        [_MODEL_LABELS[i] for i in range(nmodels)], fontsize=9,
+        [_MODEL_LABELS[i] for i in range(nmodels)],
+        fontsize=9,
     )
     ax.set_yscale("log")
     ax.set_ylabel("Total samples $n_\\ell$", fontsize=10)
@@ -576,6 +618,7 @@ def plot_sample_allocation(axes, target_cost=500.0):
 # ---------------------------------------------------------------------------
 # group_acv_multistat_concept.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
+
 
 def plot_multistat_reduction(axes, target_cost=500.0):
     """group_acv_multistat_concept.qmd -> fig-multistat-reduction
@@ -605,10 +648,9 @@ def plot_multistat_reduction(axes, target_cost=500.0):
     B = benchmark.covariance_of_mean_and_variance_estimators()
 
     all_subsets = get_model_subsets(nmodels, bkd)
-    mlmc_subsets = [
-        bkd.asarray([k, k + 1], dtype=int)
-        for k in range(nmodels - 1)
-    ] + [bkd.asarray([nmodels - 1], dtype=int)]
+    mlmc_subsets = [bkd.asarray([k, k + 1], dtype=int) for k in range(nmodels - 1)] + [
+        bkd.asarray([nmodels - 1], dtype=int)
+    ]
 
     stat_mean = MultiOutputMean(nqoi, bkd)
     stat_mean.set_pilot_quantities(cov_full)
@@ -621,28 +663,24 @@ def plot_multistat_reduction(axes, target_cost=500.0):
 
     n_mc = float(target_cost) / hf_cost
     mc_mean_var = bkd.to_float(
-        stat_mean.high_fidelity_estimator_covariance(
-            bkd.asarray(n_mc)
-        )[0, 0]
+        stat_mean.high_fidelity_estimator_covariance(bkd.asarray(n_mc))[0, 0]
     )
     mc_var_var = bkd.to_float(
-        stat_var.high_fidelity_estimator_covariance(
-            bkd.asarray(n_mc)
-        )[0, 0]
+        stat_var.high_fidelity_estimator_covariance(bkd.asarray(n_mc))[0, 0]
     )
     mc_det = mc_mean_var * mc_var_var
 
     def _solve_guided(stat, model_subsets):
         fitter = MeanGuidedSubsetFitter(
-            stat, costs, GroupACVEstimatorIS,
+            stat,
+            costs,
+            GroupACVEstimatorIS,
             candidate_subsets=model_subsets,
             optimizer=_slsqp(),
             problem_config=_LOG_INEQ_CONFIG,
         )
         result = fitter.fit(float(target_cost))
-        active = [
-            model_subsets[i] for i in result.active_subset_indices
-        ]
+        active = [model_subsets[i] for i in result.active_subset_indices]
         nps = bkd.asarray(
             result.best_allocation.relaxed_npartition_samples,
             dtype=float,
@@ -650,20 +688,17 @@ def plot_multistat_reduction(axes, target_cost=500.0):
         return nps, active
 
     def _solve_direct(stat, model_subsets):
-        template = GroupACVEstimatorIS(
-            stat, costs, model_subsets=model_subsets
-        )
+        template = GroupACVEstimatorIS(stat, costs, model_subsets=model_subsets)
         result = GroupACVAllocationOptimizer(
-            template, optimizer=_slsqp(),
+            template,
+            optimizer=_slsqp(),
             problem_config=_LOG_INEQ_CONFIG,
         ).optimize(float(target_cost), round_nsamples=False)
         nps = bkd.asarray(result.npartition_samples, dtype=float)
         return nps, model_subsets
 
     def _eval_cov(stat, nps, subsets_used):
-        template = GroupACVEstimatorIS(
-            stat, costs, model_subsets=subsets_used
-        )
+        template = GroupACVEstimatorIS(stat, costs, model_subsets=subsets_used)
         return template._covariance_from_npartition_samples(nps)
 
     # Solve each configuration
@@ -690,50 +725,72 @@ def plot_multistat_reduction(axes, target_cost=500.0):
     # Standalone mean and variance use different allocations, so we evaluate
     # the joint covariance at each one to show that joint allocation achieves
     # the lowest determinant.
-    cov_joint_at_mean_all = _eval_cov(
-        stat_joint, nps_mean_all, subs_mean_all
-    )
-    cov_joint_at_var_all = _eval_cov(
-        stat_joint, nps_var_all, subs_var_all
-    )
-    cov_joint_at_mean_mlmc = _eval_cov(
-        stat_joint, nps_mean_mlmc, subs_mean_mlmc
-    )
-    cov_joint_at_var_mlmc = _eval_cov(
-        stat_joint, nps_var_mlmc, subs_var_mlmc
-    )
+    cov_joint_at_mean_all = _eval_cov(stat_joint, nps_mean_all, subs_mean_all)
+    cov_joint_at_var_all = _eval_cov(stat_joint, nps_var_all, subs_var_all)
+    cov_joint_at_mean_mlmc = _eval_cov(stat_joint, nps_mean_mlmc, subs_mean_mlmc)
+    cov_joint_at_var_mlmc = _eval_cov(stat_joint, nps_var_mlmc, subs_var_mlmc)
 
     # Panels (a) and (b): 4 bars each
     bars_ab = [
-        ("Standalone\n(all subsets)", "#2C7FB8",
-         bkd.to_float(cov_mean_all[0, 0]) / mc_mean_var,
-         bkd.to_float(cov_var_all[0, 0]) / mc_var_var),
-        ("Joint\n(all subsets)", "#27AE60",
-         bkd.to_float(cov_joint_all[0, 0]) / mc_mean_var,
-         bkd.to_float(cov_joint_all[nqoi, nqoi]) / mc_var_var),
-        ("Standalone\n(MLMC subsets)", "#8E44AD",
-         bkd.to_float(cov_mean_mlmc[0, 0]) / mc_mean_var,
-         bkd.to_float(cov_var_mlmc[0, 0]) / mc_var_var),
-        ("Joint\n(MLMC subsets)", "#E67E22",
-         bkd.to_float(cov_joint_mlmc[0, 0]) / mc_mean_var,
-         bkd.to_float(cov_joint_mlmc[nqoi, nqoi]) / mc_var_var),
+        (
+            "Standalone\n(all subsets)",
+            "#2C7FB8",
+            bkd.to_float(cov_mean_all[0, 0]) / mc_mean_var,
+            bkd.to_float(cov_var_all[0, 0]) / mc_var_var,
+        ),
+        (
+            "Joint\n(all subsets)",
+            "#27AE60",
+            bkd.to_float(cov_joint_all[0, 0]) / mc_mean_var,
+            bkd.to_float(cov_joint_all[nqoi, nqoi]) / mc_var_var,
+        ),
+        (
+            "Standalone\n(MLMC subsets)",
+            "#8E44AD",
+            bkd.to_float(cov_mean_mlmc[0, 0]) / mc_mean_var,
+            bkd.to_float(cov_var_mlmc[0, 0]) / mc_var_var,
+        ),
+        (
+            "Joint\n(MLMC subsets)",
+            "#E67E22",
+            bkd.to_float(cov_joint_mlmc[0, 0]) / mc_mean_var,
+            bkd.to_float(cov_joint_mlmc[nqoi, nqoi]) / mc_var_var,
+        ),
     ]
 
     # Panel (c): 6 bars — det(Cov_joint) at mean-only, var-only, and joint
     # allocations for each subset configuration
     bars_det = [
-        ("Mean alloc\n(all)", "#2C7FB8",
-         bkd.to_float(bkd.det(cov_joint_at_mean_all)) / mc_det),
-        ("Var alloc\n(all)", "#C0392B",
-         bkd.to_float(bkd.det(cov_joint_at_var_all)) / mc_det),
-        ("Joint alloc\n(all)", "#27AE60",
-         bkd.to_float(bkd.det(cov_joint_all)) / mc_det),
-        ("Mean alloc\n(MLMC)", "#8E44AD",
-         bkd.to_float(bkd.det(cov_joint_at_mean_mlmc)) / mc_det),
-        ("Var alloc\n(MLMC)", "#E67E22",
-         bkd.to_float(bkd.det(cov_joint_at_var_mlmc)) / mc_det),
-        ("Joint alloc\n(MLMC)", "#2ECC71",
-         bkd.to_float(bkd.det(cov_joint_mlmc)) / mc_det),
+        (
+            "Mean alloc\n(all)",
+            "#2C7FB8",
+            bkd.to_float(bkd.det(cov_joint_at_mean_all)) / mc_det,
+        ),
+        (
+            "Var alloc\n(all)",
+            "#C0392B",
+            bkd.to_float(bkd.det(cov_joint_at_var_all)) / mc_det,
+        ),
+        (
+            "Joint alloc\n(all)",
+            "#27AE60",
+            bkd.to_float(bkd.det(cov_joint_all)) / mc_det,
+        ),
+        (
+            "Mean alloc\n(MLMC)",
+            "#8E44AD",
+            bkd.to_float(bkd.det(cov_joint_at_mean_mlmc)) / mc_det,
+        ),
+        (
+            "Var alloc\n(MLMC)",
+            "#E67E22",
+            bkd.to_float(bkd.det(cov_joint_at_var_mlmc)) / mc_det,
+        ),
+        (
+            "Joint alloc\n(MLMC)",
+            "#2ECC71",
+            bkd.to_float(bkd.det(cov_joint_mlmc)) / mc_det,
+        ),
     ]
 
     # --- Plot panels (a) and (b) ---
@@ -779,8 +836,7 @@ def plot_multistat_reduction(axes, target_cost=500.0):
     x_det = np.arange(len(bars_det))
     width_det = 0.5
 
-    ax_d.bar(x_det, det_ratios, width_det, color=colors_det,
-             edgecolor="k", lw=0.5)
+    ax_d.bar(x_det, det_ratios, width_det, color=colors_det, edgecolor="k", lw=0.5)
     ax_d.set_yscale("log")
     ax_d.set_xticks(x_det)
     ax_d.set_xticklabels(labels_det, fontsize=7)
@@ -788,8 +844,9 @@ def plot_multistat_reduction(axes, target_cost=500.0):
         r"$\det(\mathrm{Cov})\;/\;\det(\mathrm{Cov}_{\mathrm{MC}})$",
         fontsize=10,
     )
-    ax_d.set_title(f"(c) Joint covariance determinant ($P={int(target_cost)}$)",
-                   fontsize=11)
+    ax_d.set_title(
+        f"(c) Joint covariance determinant ($P={int(target_cost)}$)", fontsize=11
+    )
     ax_d.grid(True, alpha=0.2, axis="y", which="both")
     ax_d.set_axisbelow(True)
 
@@ -809,10 +866,7 @@ def _make_known_quantities(means, nknown, nqoi):
     """Known means of the cheapest LF models first, or None for none."""
     if nknown == 0:
         return None
-    return [
-        KnownMean(m, means[m, :nqoi])
-        for m in _CHEAPEST_FIRST_ORDER[:nknown]
-    ]
+    return [KnownMean(m, means[m, :nqoi]) for m in _CHEAPEST_FIRST_ORDER[:nknown]]
 
 
 def _mixed_ceiling_panel(ax, bkd, benchmark):
@@ -850,21 +904,20 @@ def _mixed_ceiling_panel(ax, bkd, benchmark):
     mfmc_template = MFMCEstimator(stat_ref, costs)
     mfmc_c, mfmc_r = [], []
     for f in factors:
-        nps = bkd.asarray(
-            nhf * np.hstack((1, base_ratio[:M] * 2**f)), dtype=float
-        )
+        nps = bkd.asarray(nhf * np.hstack((1, base_ratio[:M] * 2**f)), dtype=float)
         mfmc_c.append(bkd.to_float(mfmc_template._estimator_cost(nps)))
         ec = mfmc_template._covariance_from_npartition_samples(nps)
         mfmc_r.append(bkd.to_float(ec[0, 0]) / mc_var)
-    ax.loglog(mfmc_c, mfmc_r, "-", color="#aaaaaa", lw=1.5, alpha=0.7,
-              label="MFMC")
+    ax.loglog(mfmc_c, mfmc_r, "-", color="#aaaaaa", lw=1.5, alpha=0.7, label="MFMC")
 
     for nknown in range(M):
         stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
         kq = _make_known_quantities(means, nknown, nqoi)
         est = GroupACVEstimatorIS(
-            stat, costs, model_subsets=mlblue_subsets,
+            stat,
+            costs,
+            model_subsets=mlblue_subsets,
             known_quantities=kq,
         )
         nparts = est.npartitions()
@@ -874,9 +927,7 @@ def _mixed_ceiling_panel(ax, bkd, benchmark):
         for f in factors:
             npart = nhf * np.hstack((1, base_ratio * 2**f))
             for p in range(1, nparts):
-                models_in_p = set(
-                    bkd.to_numpy(mlblue_subsets[p]).astype(int).tolist()
-                )
+                models_in_p = set(bkd.to_numpy(mlblue_subsets[p]).astype(int).tolist())
                 if models_in_p <= known_set:
                     npart[p] = nhf
             npart_arr = bkd.asarray(npart, dtype=float)
@@ -886,7 +937,8 @@ def _mixed_ceiling_panel(ax, bkd, benchmark):
             ratios.append(bkd.to_float(ec[0, 0]) / mc_var)
 
         ax.loglog(
-            costs_list, ratios,
+            costs_list,
+            ratios,
             linestyle=_KNOWN_STYLES[nknown],
             color=_KNOWN_COLORS[nknown],
             lw=1.8,
@@ -894,10 +946,12 @@ def _mixed_ceiling_panel(ax, bkd, benchmark):
         )
 
     cv_lims = _cv_limits(cov_np)
-    ax.axhline(cv_lims[0], color="#E74C3C", ls="--", lw=1.5, zorder=5,
-               label="CV-1 floor")
-    ax.axhline(cv_lim, color="#2c3e50", ls="--", lw=1.5, zorder=5,
-               label=f"CV-{M} floor")
+    ax.axhline(
+        cv_lims[0], color="#E74C3C", ls="--", lw=1.5, zorder=5, label="CV-1 floor"
+    )
+    ax.axhline(
+        cv_lim, color="#2c3e50", ls="--", lw=1.5, zorder=5, label=f"CV-{M} floor"
+    )
     ax.set_xlabel("Total cost (HF fixed, LF grows)", fontsize=10)
     ax.set_ylabel(
         r"$\mathbb{V}[\hat{\mu}_0] / \mathbb{V}_{\mathrm{MC}}$",
@@ -928,21 +982,27 @@ def _mixed_optimized_panel(ax, bkd, benchmark, target_costs):
             stat.set_pilot_quantities(cov)
             kq = _make_known_quantities(means, nknown, nqoi)
             template = GroupACVEstimatorIS(
-                stat, costs, model_subsets=subsets, known_quantities=kq,
+                stat,
+                costs,
+                model_subsets=subsets,
+                known_quantities=kq,
             )
             result = GroupACVAllocationOptimizer(
-                template, optimizer=_slsqp(),
+                template,
+                optimizer=_slsqp(),
                 problem_config=_LOG_INEQ_CONFIG,
             ).optimize(float(tc))
             fitted = FittedGroupACVEstimator(template, result)
             est_var = bkd.to_float(fitted.covariance()[0, 0])
             ratios.append(est_var / mc_var)
         ax.loglog(
-            tc_array, ratios,
+            tc_array,
+            ratios,
             linestyle=_KNOWN_STYLES[nknown],
             marker="o",
             color=_KNOWN_COLORS[nknown],
-            lw=1.8, ms=6,
+            lw=1.8,
+            ms=6,
             label=rf"$|\mathcal{{K}}| = {nknown}$",
         )
 
@@ -973,10 +1033,14 @@ def _mixed_summary_panel(ax, bkd, benchmark, fixed_budget=100.0):
         stat.set_pilot_quantities(cov)
         kq = _make_known_quantities(means, nknown, nqoi)
         template = GroupACVEstimatorIS(
-            stat, costs, model_subsets=subsets, known_quantities=kq,
+            stat,
+            costs,
+            model_subsets=subsets,
+            known_quantities=kq,
         )
         result = GroupACVAllocationOptimizer(
-            template, optimizer=_slsqp(),
+            template,
+            optimizer=_slsqp(),
             problem_config=_LOG_INEQ_CONFIG,
         ).optimize(float(fixed_budget))
         fitted = FittedGroupACVEstimator(template, result)
@@ -984,11 +1048,18 @@ def _mixed_summary_panel(ax, bkd, benchmark, fixed_budget=100.0):
         ratios.append(est_var / mc_var)
 
     ax.semilogy(
-        range(M + 1), ratios, "-o",
-        color="#2C7FB8", lw=2, ms=8,
+        range(M + 1),
+        ratios,
+        "-o",
+        color="#2C7FB8",
+        lw=2,
+        ms=8,
     )
     ax.fill_between(
-        range(M + 1), ratios, alpha=0.15, color="#2C7FB8",
+        range(M + 1),
+        ratios,
+        alpha=0.15,
+        color="#2C7FB8",
     )
 
     ax.set_xlabel(r"$|\mathcal{K}|$ (number of known LF means)", fontsize=10)
@@ -1056,10 +1127,15 @@ def plot_mixed_allocation_shift(ax, target_cost=100.0):
         stat.set_pilot_quantities(cov)
         kq = _make_known_quantities(means, nknown, nqoi)
         est = GroupACVEstimatorIS(
-            stat, costs, model_subsets=subsets, known_quantities=kq,
+            stat,
+            costs,
+            model_subsets=subsets,
+            known_quantities=kq,
         )
         result = GroupACVAllocationOptimizer(
-            est, optimizer=_slsqp(), problem_config=_LOG_INEQ_CONFIG,
+            est,
+            optimizer=_slsqp(),
+            problem_config=_LOG_INEQ_CONFIG,
         ).optimize(float(target_cost))
         nps = bkd.to_numpy(result.npartition_samples).astype(float)
         npm = bkd.to_numpy(est._compute_nsamples_per_model(bkd.asarray(nps)))
@@ -1072,8 +1148,12 @@ def plot_mixed_allocation_shift(ax, target_cost=100.0):
         offset = (m - nmodels / 2 + 0.5) * bar_width
         vals = [all_npm[k][m] for k in range(M + 1)]
         bars = ax.bar(
-            x + offset, vals, bar_width,
-            color=_MODEL_COLORS[m], edgecolor="k", lw=0.4,
+            x + offset,
+            vals,
+            bar_width,
+            color=_MODEL_COLORS[m],
+            edgecolor="k",
+            lw=0.4,
             label=_MODEL_LABELS[m],
         )
         known_at_k = [set(_CHEAPEST_FIRST_ORDER[:k]) for k in range(M + 1)]
@@ -1089,7 +1169,9 @@ def plot_mixed_allocation_shift(ax, target_cost=100.0):
     ax.set_xticklabels([str(k) for k in range(M + 1)])
     handles, labels = ax.get_legend_handles_labels()
     known_patch = mpatches.Patch(
-        facecolor="#cccccc", edgecolor="#444", hatch="//",
+        facecolor="#cccccc",
+        edgecolor="#444",
+        hatch="//",
         label="known mean",
     )
     handles.append(known_patch)
@@ -1102,6 +1184,7 @@ def plot_mixed_allocation_shift(ax, target_cost=100.0):
 # ---------------------------------------------------------------------------
 # group_acv_multistat_concept.qmd — allocation target mismatch
 # ---------------------------------------------------------------------------
+
 
 def plot_allocation_target_mismatch(axes, target_cost=500.0):
     """group_acv_multistat_concept.qmd -> fig-allocation-target-mismatch
@@ -1145,30 +1228,26 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
 
     n_mc = float(target_cost) / hf_cost
     mc_mean_var = bkd.to_float(
-        stat_mean.high_fidelity_estimator_covariance(
-            bkd.asarray(n_mc)
-        )[0, 0]
+        stat_mean.high_fidelity_estimator_covariance(bkd.asarray(n_mc))[0, 0]
     )
     mc_var_var = bkd.to_float(
-        stat_var.high_fidelity_estimator_covariance(
-            bkd.asarray(n_mc)
-        )[0, 0]
+        stat_var.high_fidelity_estimator_covariance(bkd.asarray(n_mc))[0, 0]
     )
 
     def _allocate_direct(stat_alloc):
-        template = GroupACVEstimatorIS(
-            stat_alloc, costs, model_subsets=all_subsets
-        )
+        template = GroupACVEstimatorIS(stat_alloc, costs, model_subsets=all_subsets)
         result = GroupACVAllocationOptimizer(
-            template, optimizer=_slsqp(), problem_config=_LOG_INEQ_CONFIG,
+            template,
+            optimizer=_slsqp(),
+            problem_config=_LOG_INEQ_CONFIG,
         ).optimize(float(target_cost), round_nsamples=False)
-        return bkd.asarray(
-            result.npartition_samples, dtype=bkd.double_dtype()
-        )
+        return bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
 
     def _allocate_guided(stat_alloc):
         fitter = MeanGuidedSubsetFitter(
-            stat_alloc, costs, GroupACVEstimatorIS,
+            stat_alloc,
+            costs,
+            GroupACVEstimatorIS,
             candidate_subsets=all_subsets,
             optimizer=_slsqp(),
             problem_config=_LOG_INEQ_CONFIG,
@@ -1183,9 +1262,7 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
         )
 
     def _evaluate(stat_report, diag_idx, nps, subsets_used):
-        template = GroupACVEstimatorIS(
-            stat_report, costs, model_subsets=subsets_used
-        )
+        template = GroupACVEstimatorIS(stat_report, costs, model_subsets=subsets_used)
         est_cov = template._covariance_from_npartition_samples(nps)
         return bkd.to_float(est_cov[diag_idx, diag_idx])
 
@@ -1202,30 +1279,59 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
     # Each alloc spec: (label, color, nps, subsets_used,
     #   mean_stat, mean_diag, var_stat, var_diag)
     alloc_specs = [
-        ("Allocate\nfor variance", "#2C7FB8", nps_var, subs_var,
-         stat_mean, 0, stat_var, 0),
-        ("Allocate\njointly", "#27AE60", nps_joint, subs_joint,
-         stat_joint, 0, stat_joint, nqoi),
-        ("Allocate\nfor mean", "#E67E22", nps_mean, subs_mean,
-         stat_mean, 0, stat_var, 0),
+        (
+            "Allocate\nfor variance",
+            "#2C7FB8",
+            nps_var,
+            subs_var,
+            stat_mean,
+            0,
+            stat_var,
+            0,
+        ),
+        (
+            "Allocate\njointly",
+            "#27AE60",
+            nps_joint,
+            subs_joint,
+            stat_joint,
+            0,
+            stat_joint,
+            nqoi,
+        ),
+        (
+            "Allocate\nfor mean",
+            "#E67E22",
+            nps_mean,
+            subs_mean,
+            stat_mean,
+            0,
+            stat_var,
+            0,
+        ),
     ]
 
     panel_specs = [
-        (mc_mean_var,
-         r"$\mathbb{V}[\hat{\mu}_0]\;/\;\mathbb{V}_{\mathrm{MC}}$",
-         f"(a) Mean report ($P={int(target_cost)}$)",
-         4, 5),
-        (mc_var_var,
-         r"$\mathbb{V}[\hat{\sigma}_0^2]\;/\;\mathbb{V}_{\mathrm{MC}}$",
-         f"(b) Variance report ($P={int(target_cost)}$)",
-         6, 7),
+        (
+            mc_mean_var,
+            r"$\mathbb{V}[\hat{\mu}_0]\;/\;\mathbb{V}_{\mathrm{MC}}$",
+            f"(a) Mean report ($P={int(target_cost)}$)",
+            4,
+            5,
+        ),
+        (
+            mc_var_var,
+            r"$\mathbb{V}[\hat{\sigma}_0^2]\;/\;\mathbb{V}_{\mathrm{MC}}$",
+            f"(b) Variance report ($P={int(target_cost)}$)",
+            6,
+            7,
+        ),
     ]
 
     x = np.arange(len(alloc_specs))
     width = 0.6
 
-    for panel_idx, (mc_ref, ylabel, title,
-                    si, di) in enumerate(panel_specs):
+    for panel_idx, (mc_ref, ylabel, title, si, di) in enumerate(panel_specs):
         ax = axes[panel_idx]
         ratios = []
         labels = []
@@ -1252,6 +1358,7 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
 # ---------------------------------------------------------------------------
 # group_acv_multistat_concept.qmd — known statistics for variance / joint
 # ---------------------------------------------------------------------------
+
 
 def plot_known_stats_multistat(axes, target_cost=500.0):
     """Variance reduction vs number of known quantities for three stats.
@@ -1294,14 +1401,10 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
 
     n_mc = float(target_cost) / hf_cost
     mc_mean = bkd.to_float(
-        stat_mean.high_fidelity_estimator_covariance(
-            bkd.asarray(n_mc)
-        )[0, 0]
+        stat_mean.high_fidelity_estimator_covariance(bkd.asarray(n_mc))[0, 0]
     )
     mc_var = bkd.to_float(
-        stat_var.high_fidelity_estimator_covariance(
-            bkd.asarray(n_mc)
-        )[0, 0]
+        stat_var.high_fidelity_estimator_covariance(bkd.asarray(n_mc))[0, 0]
     )
 
     order = _CHEAPEST_FIRST_ORDER
@@ -1309,15 +1412,14 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
 
     def _build_kq(nknown_mean, nknown_var):
         kq = [KnownMean(i, means[i, :nqoi]) for i in order[:nknown_mean]]
-        kq += [
-            KnownVariance(i, variances[i : i + 1])
-            for i in order[:nknown_var]
-        ]
+        kq += [KnownVariance(i, variances[i : i + 1]) for i in order[:nknown_var]]
         return kq if kq else None
 
     def _solve_guided(stat, kq):
         fitter = MeanGuidedSubsetFitter(
-            stat, costs, GroupACVEstimatorIS,
+            stat,
+            costs,
+            GroupACVEstimatorIS,
             candidate_subsets=all_subsets,
             optimizer=_slsqp(),
             problem_config=_LOG_INEQ_CONFIG,
@@ -1340,20 +1442,15 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
     for nk in nk_range:
         kq = _build_kq(nk, nk)
         cov_j = _solve_guided(stat_joint, kq)
-        curves_joint_m.append(
-            cov_j[mean_idx[0], mean_idx[0]] / mc_mean
-        )
-        curves_joint_v.append(
-            cov_j[var_idx[0], var_idx[0]] / mc_var
-        )
+        curves_joint_m.append(cov_j[mean_idx[0], mean_idx[0]] / mc_mean)
+        curves_joint_v.append(cov_j[var_idx[0], var_idx[0]] / mc_var)
 
     x = list(nk_range)
     style_both = dict(color="#27AE60", marker="D", ls="-")
 
     # Panel (a): variance stat
     ax = axes[0]
-    ax.semilogy(x, curves_var, label="known mean + variance",
-                ms=6, **style_both)
+    ax.semilogy(x, curves_var, label="known mean + variance", ms=6, **style_both)
     ax.set_xlabel(r"$|\mathcal{K}|$ (known models, cheapest first)")
     ax.set_ylabel(
         r"$\mathbb{V}[\hat{\sigma}_0^2]\;/\;\mathbb{V}_{\mathrm{MC}}$",
@@ -1367,15 +1464,17 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
 
     # Panel (b): joint mean component
     ax = axes[1]
-    ax.semilogy(x, curves_joint_m, label="both known",
-                color="#27AE60", marker="D", ls="-", ms=6)
+    ax.semilogy(
+        x, curves_joint_m, label="both known", color="#27AE60", marker="D", ls="-", ms=6
+    )
     ax.set_xlabel(r"$|\mathcal{K}|$ (known models, cheapest first)")
     ax.set_ylabel(
         r"$\mathbb{V}[\hat{\mu}_0]\;/\;\mathbb{V}_{\mathrm{MC}}$",
         fontsize=10,
     )
     ax.set_title(
-        f"(b) Joint: mean component ($P={int(target_cost)}$)", fontsize=11,
+        f"(b) Joint: mean component ($P={int(target_cost)}$)",
+        fontsize=11,
     )
     ax.set_xticks(x)
     ax.legend(fontsize=8)
@@ -1384,8 +1483,9 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
 
     # Panel (c): joint variance component
     ax = axes[2]
-    ax.semilogy(x, curves_joint_v, label="both known",
-                color="#27AE60", marker="D", ls="-", ms=6)
+    ax.semilogy(
+        x, curves_joint_v, label="both known", color="#27AE60", marker="D", ls="-", ms=6
+    )
     ax.set_xlabel(r"$|\mathcal{K}|$ (known models, cheapest first)")
     ax.set_ylabel(
         r"$\mathbb{V}[\hat{\sigma}_0^2]\;/\;\mathbb{V}_{\mathrm{MC}}$",
@@ -1442,31 +1542,62 @@ def plot_restriction_matrix(axes):
     for i in range(rows):
         for j in range(P):
             one = R[i, j] == 1
-            axR.add_patch(mpatches.Rectangle(
-                (j, i), 1, 1, facecolor=FILL if one else "white",
-                edgecolor="#cfcfcf", lw=0.7))
-            axR.text(j + 0.5, i + 0.5, "1" if one else "0",
-                     ha="center", va="center", fontsize=12,
-                     fontweight="bold" if one else "normal",
-                     color="white" if one else "#c4c4c4")
-    axR.add_patch(mpatches.Rectangle((0, 0), P, rows, facecolor="none",
-                                     edgecolor="black", lw=2.2))
+            axR.add_patch(
+                mpatches.Rectangle(
+                    (j, i),
+                    1,
+                    1,
+                    facecolor=FILL if one else "white",
+                    edgecolor="#cfcfcf",
+                    lw=0.7,
+                )
+            )
+            axR.text(
+                j + 0.5,
+                i + 0.5,
+                "1" if one else "0",
+                ha="center",
+                va="center",
+                fontsize=12,
+                fontweight="bold" if one else "normal",
+                color="white" if one else "#c4c4c4",
+            )
+    axR.add_patch(
+        mpatches.Rectangle((0, 0), P, rows, facecolor="none", edgecolor="black", lw=2.2)
+    )
     for i, lbl in enumerate(["$f_0$", "$f_1$", "$f_2$"]):
-        axR.text(-0.32, i + 0.5, lbl, ha="right", va="center",
-                 fontsize=11, fontweight="bold")
+        axR.text(
+            -0.32, i + 0.5, lbl, ha="right", va="center", fontsize=11, fontweight="bold"
+        )
     for j, (g, m, lbl) in enumerate(col_specs):
-        axR.add_patch(mpatches.FancyBboxPatch(
-            (j + 0.1, -0.92), 0.8, 0.62, boxstyle="round,pad=0.02",
-            facecolor=gcol[g], edgecolor="k", lw=0.8, alpha=HA))
+        axR.add_patch(
+            mpatches.FancyBboxPatch(
+                (j + 0.1, -0.92),
+                0.8,
+                0.62,
+                boxstyle="round,pad=0.02",
+                facecolor=gcol[g],
+                edgecolor="k",
+                lw=0.8,
+                alpha=HA,
+            )
+        )
         axR.text(j + 0.5, -0.61, lbl, ha="center", va="center", fontsize=10)
     seen = set()
     for j, (g, m, lbl) in enumerate(col_specs):
         if g not in seen:
             seen.add(g)
             js = [k for k, (gg, _, _) in enumerate(col_specs) if gg == g]
-            axR.text((min(js) + max(js)) / 2 + 0.5, -1.18,
-                     rf"$\mathcal{{G}}^{{{g}}}$", ha="center", va="bottom",
-                     fontsize=10, fontweight="bold", color=gcol[g])
+            axR.text(
+                (min(js) + max(js)) / 2 + 0.5,
+                -1.18,
+                rf"$\mathcal{{G}}^{{{g}}}$",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontweight="bold",
+                color=gcol[g],
+            )
     axR.set_xticks([])
     axR.set_yticks([])
     for sp in axR.spines.values():
@@ -1475,16 +1606,32 @@ def plot_restriction_matrix(axes):
     axR.set_ylim(rows + 0.75, -1.5)
     axR.set_aspect("equal")
     axR.set_title(r"$R$  (restriction matrix)", fontsize=12, pad=18)
-    axR.text(P / 2, rows + 0.5,
-             r"row $\ell$ sums model $\ell$'s weights across its groups",
-             ha="center", va="top", fontsize=8.5, style="italic", color="#555")
+    axR.text(
+        P / 2,
+        rows + 0.5,
+        r"row $\ell$ sums model $\ell$'s weights across its groups",
+        ha="center",
+        va="top",
+        fontsize=8.5,
+        style="italic",
+        color="#555",
+    )
 
     axb.axis("off")
     axb.set_title(r"$\boldsymbol{\beta}$", fontsize=13, pad=18)
     for i, (g, m, lbl) in enumerate(col_specs):
-        axb.add_patch(mpatches.FancyBboxPatch(
-            (0.1, -(i + 1) + 0.08), 0.8, 0.84, boxstyle="round,pad=0.02",
-            facecolor=gcol[g], edgecolor="k", lw=0.8, alpha=HA))
+        axb.add_patch(
+            mpatches.FancyBboxPatch(
+                (0.1, -(i + 1) + 0.08),
+                0.8,
+                0.84,
+                boxstyle="round,pad=0.02",
+                facecolor=gcol[g],
+                edgecolor="k",
+                lw=0.8,
+                alpha=HA,
+            )
+        )
         axb.text(0.5, -(i + 0.5), lbl, ha="center", va="center", fontsize=10)
     axb.set_xlim(0, 1)
     axb.set_ylim(-P - 0.2, 0.6)
@@ -1493,20 +1640,50 @@ def plot_restriction_matrix(axes):
     axe.axis("off")
     axe.set_title(r"$\mathbf{e}^0$", fontsize=13, pad=18)
     for i, v in enumerate([1, 0, 0]):
-        axe.add_patch(mpatches.FancyBboxPatch(
-            (0.1, -(i + 1) + 0.08), 0.8, 0.84, boxstyle="round,pad=0.02",
-            facecolor="#C0392B" if v else "#eeeeee", edgecolor="k", lw=0.8,
-            alpha=0.85 if v else 1.0))
-        axe.text(0.5, -(i + 0.5), str(v), ha="center", va="center",
-                 fontsize=12, fontweight="bold", color="white" if v else "#777")
-        axe.text(1.05, -(i + 0.5), ["$f_0$", "$f_1$", "$f_2$"][i],
-                 ha="left", va="center", fontsize=9, color="#555")
+        axe.add_patch(
+            mpatches.FancyBboxPatch(
+                (0.1, -(i + 1) + 0.08),
+                0.8,
+                0.84,
+                boxstyle="round,pad=0.02",
+                facecolor="#C0392B" if v else "#eeeeee",
+                edgecolor="k",
+                lw=0.8,
+                alpha=0.85 if v else 1.0,
+            )
+        )
+        axe.text(
+            0.5,
+            -(i + 0.5),
+            str(v),
+            ha="center",
+            va="center",
+            fontsize=12,
+            fontweight="bold",
+            color="white" if v else "#777",
+        )
+        axe.text(
+            1.05,
+            -(i + 0.5),
+            ["$f_0$", "$f_1$", "$f_2$"][i],
+            ha="left",
+            va="center",
+            fontsize=9,
+            color="#555",
+        )
     axe.set_xlim(0, 1.6)
     axe.set_ylim(-P - 0.2, 0.6)
-    axe.text(0.5, -3.7,
-             "weight 1 on $f_0$, 0 on every LF model\n"
-             r"$\Rightarrow$ unbiased for $\mu_0$",
-             ha="center", va="top", fontsize=8.5, style="italic", color="#555")
+    axe.text(
+        0.5,
+        -3.7,
+        "weight 1 on $f_0$, 0 on every LF model\n"
+        r"$\Rightarrow$ unbiased for $\mu_0$",
+        ha="center",
+        va="top",
+        fontsize=8.5,
+        style="italic",
+        color="#555",
+    )
 
 
 def plot_block_covariance(ax, sample_symbol="m"):
@@ -1515,15 +1692,13 @@ def plot_block_covariance(ax, sample_symbol="m"):
     Block-diagonal per-group covariance C = BlockDiag(C^1, C^2, C^3) for the
     independent-samples three-pair collection in ``_RC_SUBSETS``.
     """
-    Sigma = np.array([[1.00, 0.80, 0.60],
-                      [0.80, 1.00, 0.50],
-                      [0.60, 0.50, 1.00]])
+    Sigma = np.array([[1.00, 0.80, 0.60], [0.80, 1.00, 0.50], [0.60, 0.50, 1.00]])
     groups = [(g, list(s)) for g, s in enumerate(_RC_SUBSETS, start=1)]
     P = sum(len(s) for _, s in groups)
     C = np.zeros((P, P))
     info, pos = [], 0
     for g, idx in groups:
-        C[pos:pos + len(idx), pos:pos + len(idx)] = Sigma[np.ix_(idx, idx)]
+        C[pos : pos + len(idx), pos : pos + len(idx)] = Sigma[np.ix_(idx, idx)]
         info.append((pos, len(idx), g))
         pos += len(idx)
 
@@ -1532,23 +1707,52 @@ def plot_block_covariance(ax, sample_symbol="m"):
     for i in range(P):
         for j in range(P):
             if abs(C[i, j]) > 1e-9:
-                ax.add_patch(mpatches.Rectangle(
-                    (j, i), 1, 1, facecolor=cmap(norm(C[i, j])),
-                    edgecolor="#d9d9d9", lw=0.6))
-                ax.text(j + 0.5, i + 0.5, f"{C[i, j]:.2f}",
-                        ha="center", va="center", fontsize=11)
+                ax.add_patch(
+                    mpatches.Rectangle(
+                        (j, i),
+                        1,
+                        1,
+                        facecolor=cmap(norm(C[i, j])),
+                        edgecolor="#d9d9d9",
+                        lw=0.6,
+                    )
+                )
+                ax.text(
+                    j + 0.5,
+                    i + 0.5,
+                    f"{C[i, j]:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=11,
+                )
             else:
-                ax.add_patch(mpatches.Rectangle(
-                    (j, i), 1, 1, facecolor="white",
-                    edgecolor="#efefef", lw=0.5))
-    for (start, size, g) in info:
-        ax.add_patch(mpatches.Rectangle((start, start), size, size, lw=2.8,
-                     edgecolor=_RC_GROUP_COLORS[g], facecolor="none"))
-        ax.text(P + 0.2, start + size / 2,
-                rf"$C^{{{g}}}=\frac{{1}}{{{sample_symbol}^{{{g}}}}}"
-                rf"\Sigma^{{{g}}}$",
-                ha="left", va="center", fontsize=12, fontweight="bold",
-                color=_RC_GROUP_COLORS[g])
+                ax.add_patch(
+                    mpatches.Rectangle(
+                        (j, i), 1, 1, facecolor="white", edgecolor="#efefef", lw=0.5
+                    )
+                )
+    for start, size, g in info:
+        ax.add_patch(
+            mpatches.Rectangle(
+                (start, start),
+                size,
+                size,
+                lw=2.8,
+                edgecolor=_RC_GROUP_COLORS[g],
+                facecolor="none",
+            )
+        )
+        ax.text(
+            P + 0.2,
+            start + size / 2,
+            rf"$C^{{{g}}}=\frac{{1}}{{{sample_symbol}^{{{g}}}}}"
+            rf"\Sigma^{{{g}}}$",
+            ha="left",
+            va="center",
+            fontsize=12,
+            fontweight="bold",
+            color=_RC_GROUP_COLORS[g],
+        )
     ax.set_xticks([])
     ax.set_yticks([])
     ax.axis("off")

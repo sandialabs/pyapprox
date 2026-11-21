@@ -12,6 +12,7 @@ import numpy as np
 # mlblue_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
 
+
 def plot_mlblue_subsets(ax):
     """mlblue_concept.qmd -> fig-subsets
 
@@ -23,9 +24,9 @@ def plot_mlblue_subsets(ax):
 
     subsets = [
         {"models": [0, 2, 3], "label": "$S_1$"},
-        {"models": [0, 1],    "label": "$S_2$"},
-        {"models": [1, 4],    "label": "$S_3$"},
-        {"models": [4],       "label": "$S_4$"},
+        {"models": [0, 1], "label": "$S_2$"},
+        {"models": [1, 4], "label": "$S_3$"},
+        {"models": [4], "label": "$S_4$"},
     ]
 
     model_colors = ["#2C7FB8", "#95a5a6", "#27AE60", "#8E44AD", "#C0392B"]
@@ -40,25 +41,59 @@ def plot_mlblue_subsets(ax):
         for row, midx in enumerate(sub["models"]):
             y = -(y_counter + row) * (block_h + 0.15)
             rect = mpatches.FancyBboxPatch(
-                (x - block_w / 2, y - block_h / 2), block_w, block_h,
-                boxstyle="round,pad=0.05", facecolor=model_colors[midx],
-                edgecolor="k", lw=1.2, alpha=0.85,
+                (x - block_w / 2, y - block_h / 2),
+                block_w,
+                block_h,
+                boxstyle="round,pad=0.05",
+                facecolor=model_colors[midx],
+                edgecolor="k",
+                lw=1.2,
+                alpha=0.85,
             )
             ax.add_patch(rect)
-            ax.text(x, y, f"$Y_{{{y_counter + row + 1}}}$",
-                    ha="center", va="center", fontsize=10, fontweight="bold",
-                    color="white")
+            ax.text(
+                x,
+                y,
+                f"$Y_{{{y_counter + row + 1}}}$",
+                ha="center",
+                va="center",
+                fontsize=10,
+                fontweight="bold",
+                color="white",
+            )
         top_y = -(y_counter) * (block_h + 0.15) + block_h / 2 + 0.3
-        ax.text(x, top_y, sub["label"], ha="center", va="bottom",
-                fontsize=11, fontweight="bold")
-        ax.text(x, top_y + 0.35, f"$m_{{{col+1}}}$ pts", ha="center",
-                va="bottom", fontsize=8, color="#555")
+        ax.text(
+            x,
+            top_y,
+            sub["label"],
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
+        )
+        ax.text(
+            x,
+            top_y + 0.35,
+            f"$m_{{{col + 1}}}$ pts",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="#555",
+        )
         y_counter += len(sub["models"])
 
-    handles = [mpatches.Patch(facecolor=c, edgecolor="k", label=lb)
-               for c, lb in zip(model_colors, model_labels)]
-    ax.legend(handles=handles, loc="upper right", fontsize=9, ncol=1,
-              framealpha=0.95, edgecolor="#ccc")
+    handles = [
+        mpatches.Patch(facecolor=c, edgecolor="k", label=lb)
+        for c, lb in zip(model_colors, model_labels)
+    ]
+    ax.legend(
+        handles=handles,
+        loc="upper right",
+        fontsize=9,
+        ncol=1,
+        framealpha=0.95,
+        edgecolor="#ccc",
+    )
 
     ax.set_xlim(-0.8, (len(subsets) - 1) * gap_x + 2.5)
     ax.set_ylim(-(y_counter) * (block_h + 0.15) - 0.5, 1.5)
@@ -75,12 +110,27 @@ def plot_mlblue_system(axes):
     import matplotlib.patches as mpatches
 
     subset_specs = [
-        {"name": "$S_5$", "models": [2],    "m": 1, "color": "#95a5a6",
-         "members": "$\\{f_2\\}$"},
-        {"name": "$S_2$", "models": [1, 2], "m": 1, "color": "#C0392B",
-         "members": "$\\{f_1, f_2\\}$"},
-        {"name": "$S_3$", "models": [0, 1], "m": 2, "color": "#27AE60",
-         "members": "$\\{f_0, f_1\\}$"},
+        {
+            "name": "$S_5$",
+            "models": [2],
+            "m": 1,
+            "color": "#95a5a6",
+            "members": "$\\{f_2\\}$",
+        },
+        {
+            "name": "$S_2$",
+            "models": [1, 2],
+            "m": 1,
+            "color": "#C0392B",
+            "members": "$\\{f_1, f_2\\}$",
+        },
+        {
+            "name": "$S_3$",
+            "models": [0, 1],
+            "m": 2,
+            "color": "#27AE60",
+            "members": "$\\{f_0, f_1\\}$",
+        },
     ]
 
     nmodels = 3
@@ -107,14 +157,25 @@ def plot_mlblue_system(axes):
     for spec in subset_specs:
         block_h = spec["m"] * len(spec["models"])
         rect = mpatches.FancyBboxPatch(
-            (0.1, -(y_pos + block_h) + 0.1), 0.8, block_h - 0.2,
-            boxstyle="round,pad=0.05", facecolor=spec["color"],
-            edgecolor="k", lw=1, alpha=0.3,
+            (0.1, -(y_pos + block_h) + 0.1),
+            0.8,
+            block_h - 0.2,
+            boxstyle="round,pad=0.05",
+            facecolor=spec["color"],
+            edgecolor="k",
+            lw=1,
+            alpha=0.3,
         )
         ax.add_patch(rect)
-        ax.text(0.5, -(y_pos + block_h / 2),
-                f"{spec['name']}={spec['members']}\n$m={spec['m']}$",
-                ha="center", va="center", fontsize=8, fontweight="bold")
+        ax.text(
+            0.5,
+            -(y_pos + block_h / 2),
+            f"{spec['name']}={spec['members']}\n$m={spec['m']}$",
+            ha="center",
+            va="center",
+            fontsize=8,
+            fontweight="bold",
+        )
         y_pos += block_h
     ax.set_xlim(-0.1, 1.1)
     ax.set_ylim(-nrows - 0.3, 0.8)
@@ -125,13 +186,25 @@ def plot_mlblue_system(axes):
     ax.set_title("$\\mathbf{Y}$", fontsize=11, fontweight="bold")
     for i in range(nrows):
         rect = mpatches.FancyBboxPatch(
-            (0.05, -(i + 1) + 0.05), 0.9, 0.9,
-            boxstyle="round,pad=0.03", facecolor=row_colors[i],
-            edgecolor="k", lw=0.8, alpha=0.5,
+            (0.05, -(i + 1) + 0.05),
+            0.9,
+            0.9,
+            boxstyle="round,pad=0.03",
+            facecolor=row_colors[i],
+            edgecolor="k",
+            lw=0.8,
+            alpha=0.5,
         )
         ax.add_patch(rect)
-        ax.text(0.5, -(i + 0.5), f"$Y_{{{i+1}}}$", ha="center", va="center",
-                fontsize=9, fontweight="bold")
+        ax.text(
+            0.5,
+            -(i + 0.5),
+            f"$Y_{{{i + 1}}}$",
+            ha="center",
+            va="center",
+            fontsize=9,
+            fontweight="bold",
+        )
     ax.set_xlim(-0.1, 1.1)
     ax.set_ylim(-nrows - 0.3, 0.8)
 
@@ -141,13 +214,26 @@ def plot_mlblue_system(axes):
     ax.matshow(H, cmap="Blues", alpha=0.7, extent=[0, nmodels, nrows, 0])
     for i in range(nrows):
         for j in range(nmodels):
-            ax.text(j + 0.5, i + 0.5, str(H[i, j]),
-                    ha="center", va="center", fontsize=10,
-                    fontweight="bold" if H[i, j] == 1 else "normal",
-                    color="white" if H[i, j] == 1 else "#888")
+            ax.text(
+                j + 0.5,
+                i + 0.5,
+                str(H[i, j]),
+                ha="center",
+                va="center",
+                fontsize=10,
+                fontweight="bold" if H[i, j] == 1 else "normal",
+                color="white" if H[i, j] == 1 else "#888",
+            )
     for j in range(nmodels):
-        ax.text(j + 0.5, -0.3, mean_labels[j], ha="center", va="center",
-                fontsize=10, fontweight="bold")
+        ax.text(
+            j + 0.5,
+            -0.3,
+            mean_labels[j],
+            ha="center",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
+        )
     ax.set_xticks([])
     ax.set_yticks([])
     for spine in ax.spines.values():
@@ -158,17 +244,29 @@ def plot_mlblue_system(axes):
     # Panel 4: residual
     ax = axes[3]
     ax.axis("off")
-    ax.set_title("$\\mathbf{Y} - \\mathbf{H}\\mathbf{q}$", fontsize=11,
-                 fontweight="bold")
+    ax.set_title(
+        "$\\mathbf{Y} - \\mathbf{H}\\mathbf{q}$", fontsize=11, fontweight="bold"
+    )
     for i in range(nrows):
         rect = mpatches.FancyBboxPatch(
-            (0.05, -(i + 1) + 0.05), 0.9, 0.9,
-            boxstyle="round,pad=0.03", facecolor=row_colors[i],
-            edgecolor="k", lw=0.8, alpha=0.3,
+            (0.05, -(i + 1) + 0.05),
+            0.9,
+            0.9,
+            boxstyle="round,pad=0.03",
+            facecolor=row_colors[i],
+            edgecolor="k",
+            lw=0.8,
+            alpha=0.3,
         )
         ax.add_patch(rect)
-        ax.text(0.5, -(i + 0.5), f"$\\epsilon_{{{i+1}}}$", ha="center",
-                va="center", fontsize=9)
+        ax.text(
+            0.5,
+            -(i + 0.5),
+            f"$\\epsilon_{{{i + 1}}}$",
+            ha="center",
+            va="center",
+            fontsize=9,
+        )
     ax.set_xlim(-0.1, 1.1)
     ax.set_ylim(-nrows - 0.3, 0.8)
 
@@ -180,14 +278,16 @@ def plot_mlblue_cov(ax, fig):
     """
     import matplotlib.patches as mpatches
 
-    Sigma = np.array([
-        [1.00, 0.70, 0.50],
-        [0.70, 1.00, 0.60],
-        [0.50, 0.60, 1.00],
-    ])
+    Sigma = np.array(
+        [
+            [1.00, 0.70, 0.50],
+            [0.70, 1.00, 0.60],
+            [0.50, 0.60, 1.00],
+        ]
+    )
 
     subset_specs = [
-        {"name": "$G_5$", "models": [2],    "m": 1},
+        {"name": "$G_5$", "models": [2], "m": 1},
         {"name": "$G_2$", "models": [1, 2], "m": 1},
         {"name": "$G_3$", "models": [0, 1], "m": 2},
     ]
@@ -206,7 +306,7 @@ def plot_mlblue_cov(ax, fig):
     total = pos
     C_ee = np.zeros((total, total))
     for blk, (start, size, _) in zip(blocks, block_info):
-        C_ee[start:start + size, start:start + size] = blk
+        C_ee[start : start + size, start : start + size] = blk
 
     im = ax.matshow(C_ee, cmap="RdBu_r", vmin=-1, vmax=1)
 
@@ -214,21 +314,31 @@ def plot_mlblue_cov(ax, fig):
         for j in range(total):
             v = C_ee[i, j]
             if abs(v) > 1e-10:
-                ax.text(j, i, f"{v:.2f}", ha="center", va="center",
-                        fontsize=10)
+                ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=10)
 
     block_colors = ["#95a5a6", "#C0392B", "#27AE60", "#27AE60"]
     block_labels_used = set()
     for (start, size, name), col in zip(block_info, block_colors):
         rect = mpatches.Rectangle(
-            (start - 0.5, start - 0.5), size, size,
-            linewidth=2.5, edgecolor=col, facecolor="none",
+            (start - 0.5, start - 0.5),
+            size,
+            size,
+            linewidth=2.5,
+            edgecolor=col,
+            facecolor="none",
         )
         ax.add_patch(rect)
         if name not in block_labels_used:
-            ax.text(total - 0.1, start + size / 2 - 0.5, name,
-                    ha="left", va="center", fontsize=10, fontweight="bold",
-                    color=col)
+            ax.text(
+                total - 0.1,
+                start + size / 2 - 0.5,
+                name,
+                ha="left",
+                va="center",
+                fontsize=10,
+                fontweight="bold",
+                color=col,
+            )
             block_labels_used.add(name)
 
     ax.set_xticks(range(total))
@@ -261,7 +371,7 @@ def plot_mlblue_ceiling(ax):
 
     cv_lims = []
     for k in range(1, nmodels):
-        sub = cov_np[:k+1, :k+1]
+        sub = cov_np[: k + 1, : k + 1]
         c0 = sub[0, 1:]
         Sll = sub[1:, 1:]
         cv_lims.append(1 - c0 @ np.linalg.solve(Sll, c0) / sigma2)
@@ -278,16 +388,23 @@ def plot_mlblue_ceiling(ax):
         est_costs, est_ratios = [], []
         for factor in factors:
             npartition_samples = bkd.asarray(
-                nhf_samples * np.hstack(
-                    (1, npartition_ratio_base[:est_template._npartitions - 1]
-                     * 2**factor)),
+                nhf_samples
+                * np.hstack(
+                    (
+                        1,
+                        npartition_ratio_base[: est_template._npartitions - 1]
+                        * 2**factor,
+                    )
+                ),
                 dtype=float,
             )
             est_cov = est_template._covariance_from_npartition_samples(
-                npartition_samples)
+                npartition_samples
+            )
             est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(
-                bkd.to_float(est_template._estimator_cost(npartition_samples)))
+                bkd.to_float(est_template._estimator_cost(npartition_samples))
+            )
             est_ratios.append(est_var / mc_var)
         return est_costs, est_ratios
 
@@ -301,43 +418,38 @@ def plot_mlblue_ceiling(ax):
         bkd.asarray(list(range(3, nmodels)), dtype=int),
         bkd.asarray([nmodels - 1], dtype=int),
     ]
-    mlblue_template = MLBLUEEstimator(
-        stat, costs, model_subsets=mlblue_subsets)
+    mlblue_template = MLBLUEEstimator(stat, costs, model_subsets=mlblue_subsets)
 
     mlblue_costs, mlblue_ratio = [], []
     for factor in factors:
         npartition_samples = bkd.asarray(
-            nhf_samples * np.hstack(
-                (1, npartition_ratio_base * 2**factor)),
+            nhf_samples * np.hstack((1, npartition_ratio_base * 2**factor)),
             dtype=float,
         )
-        actual_cost = bkd.to_float(
-            mlblue_template._estimator_cost(npartition_samples))
+        actual_cost = bkd.to_float(mlblue_template._estimator_cost(npartition_samples))
         est_var = bkd.to_float(
-            mlblue_template._covariance_from_npartition_samples(
-                npartition_samples)[0, 0])
+            mlblue_template._covariance_from_npartition_samples(npartition_samples)[
+                0, 0
+            ]
+        )
         mlblue_costs.append(actual_cost)
         mlblue_ratio.append(est_var / mc_var)
 
-    ax.loglog(mlmc_costs, mlmc_ratio, "-", color="#2C7FB8", lw=2,
-              label="MLMC")
-    ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2,
-              label="MFMC")
-    ax.loglog(mlblue_costs, mlblue_ratio, "-", color="#27AE60", lw=2.5,
-              label="MLBLUE")
+    ax.loglog(mlmc_costs, mlmc_ratio, "-", color="#2C7FB8", lw=2, label="MLMC")
+    ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2, label="MFMC")
+    ax.loglog(mlblue_costs, mlblue_ratio, "-", color="#27AE60", lw=2.5, label="MLBLUE")
 
     cv_colors = ["#c0392b", "#d35400", "#f39c12", "#2c3e50"]
     cv_ls = ["--", "-.", ":", (0, (5, 1))]
     for i, (lim, col, ls) in enumerate(zip(cv_lims, cv_colors, cv_ls)):
-        ax.axhline(lim, color=col, ls=ls, lw=1.5,
-                   label=f"CV-{i+1} limit ({i+1} LF)")
+        ax.axhline(
+            lim, color=col, ls=ls, lw=1.5, label=f"CV-{i + 1} limit ({i + 1} LF)"
+        )
 
-    ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4,
-               label="MC (no reduction)")
+    ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
     ax.set_xlabel("Total cost", fontsize=11)
     ax.set_ylabel("Variance / MC variance", fontsize=11)
-    ax.set_title("MLBLUE converges to the multi-model CV ceiling",
-                 fontsize=11)
+    ax.set_title("MLBLUE converges to the multi-model CV ceiling", fontsize=11)
     ax.legend(fontsize=8, loc="lower left")
     ax.grid(True, alpha=0.2, which="both")
 
@@ -346,24 +458,35 @@ def plot_mlblue_ceiling(ax):
 # mlblue_analysis.qmd — echo:true → Convention B
 # ---------------------------------------------------------------------------
 
-def plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts,
-                       ax):
+
+def plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts, ax):
     """mlblue_analysis.qmd -> fig-verify
 
     Empirical distribution of MLBLUE estimates vs theoretical prediction.
     """
-    ax.hist(estimates, bins=60, density=True, color="#2C7FB8", alpha=0.78,
-            edgecolor="k", lw=0.2,
-            label=f"Empirical ({len(estimates)} trials)")
+    ax.hist(
+        estimates,
+        bins=60,
+        density=True,
+        color="#2C7FB8",
+        alpha=0.78,
+        edgecolor="k",
+        lw=0.2,
+        label=f"Empirical ({len(estimates)} trials)",
+    )
     ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
-    ax.axvspan(true_mean - var_theo**0.5, true_mean + var_theo**0.5,
-               alpha=0.14, color="#C0392B",
-               label=f"$\\pm$std theory = {var_theo**0.5:.4f}")
+    ax.axvspan(
+        true_mean - var_theo**0.5,
+        true_mean + var_theo**0.5,
+        alpha=0.14,
+        color="#C0392B",
+        label=f"$\\pm$std theory = {var_theo**0.5:.4f}",
+    )
     ax.set_xlabel(r"MLBLUE estimate $Q^B_0$", fontsize=11)
     ax.set_ylabel("Density", fontsize=11)
     ax.set_title(
-        f"Variance verification  |  subsets {subsets_idx}  |  m={m_counts}",
-        fontsize=10)
+        f"Variance verification  |  subsets {subsets_idx}  |  m={m_counts}", fontsize=10
+    )
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.2)
 
@@ -373,18 +496,35 @@ def plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax):
 
     MLBLUE variance vs subset sample count m3.
     """
-    ax.semilogx(m3_vals, vars_sweep, color="#2C7FB8", lw=2.5,
-                label=r"MLBLUE variance ($m_1=1, m_2=1, m_3$ varies)")
-    ax.axhline(cv1_floor, color="#C0392B", ls="--", lw=1.5, alpha=0.85,
-               label=f"CV-1 floor = {cv1_floor:.5f}")
-    ax.axhline(mc_var_N1, color="k", ls=":", lw=1, alpha=0.4,
-               label=f"MC variance (N=1) = {mc_var_N1:.4f}")
-    ax.set_xlabel(r"Sample count $m_3$ for $S_3 = \{f_0, f_1\}$",
-                  fontsize=11)
+    ax.semilogx(
+        m3_vals,
+        vars_sweep,
+        color="#2C7FB8",
+        lw=2.5,
+        label=r"MLBLUE variance ($m_1=1, m_2=1, m_3$ varies)",
+    )
+    ax.axhline(
+        cv1_floor,
+        color="#C0392B",
+        ls="--",
+        lw=1.5,
+        alpha=0.85,
+        label=f"CV-1 floor = {cv1_floor:.5f}",
+    )
+    ax.axhline(
+        mc_var_N1,
+        color="k",
+        ls=":",
+        lw=1,
+        alpha=0.4,
+        label=f"MC variance (N=1) = {mc_var_N1:.4f}",
+    )
+    ax.set_xlabel(r"Sample count $m_3$ for $S_3 = \{f_0, f_1\}$", fontsize=11)
     ax.set_ylabel(
         r"$\mathbb{V}[Q^B_0] = \boldsymbol{\beta}^\top"
         r"\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$",
-        fontsize=11)
+        fontsize=11,
+    )
     ax.set_title("MLBLUE variance vs subset sample count", fontsize=11)
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.2)
@@ -393,6 +533,7 @@ def plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax):
 # ---------------------------------------------------------------------------
 # pacv_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
+
 
 def plot_pacv_dags(fig, axes):
     """pacv_concept.qmd -> fig-dags
@@ -424,15 +565,25 @@ def plot_pacv_dags(fig, axes):
         nc = node_colors or (["#e74c3c"] + ["#2C7FB8"] * M)
         labels = {0: "$f_0$"} | {j: f"$f_{j}$" for j in range(1, M + 1)}
 
-        nx.draw_networkx_nodes(G, pos, nodelist=nodes, node_color=nc,
-                               node_size=700, ax=ax)
-        nx.draw_networkx_labels(G, pos, labels=labels, font_size=10,
-                                font_color="white", ax=ax)
-        nx.draw_networkx_edges(G, pos, edge_color="#555", width=2,
-                               arrows=True, arrowsize=18,
-                               connectionstyle="arc3,rad=0.1", ax=ax)
-        ax.set_title(f"$\\boldsymbol{{\\gamma}}={list(gamma)}$\n{title}",
-                     fontsize=9, pad=4)
+        nx.draw_networkx_nodes(
+            G, pos, nodelist=nodes, node_color=nc, node_size=700, ax=ax
+        )
+        nx.draw_networkx_labels(
+            G, pos, labels=labels, font_size=10, font_color="white", ax=ax
+        )
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edge_color="#555",
+            width=2,
+            arrows=True,
+            arrowsize=18,
+            connectionstyle="arc3,rad=0.1",
+            ax=ax,
+        )
+        ax.set_title(
+            f"$\\boldsymbol{{\\gamma}}={list(gamma)}$\n{title}", fontsize=9, pad=4
+        )
         ax.axis("off")
 
     def label(g):
@@ -451,8 +602,8 @@ def plot_pacv_dags(fig, axes):
     for ax in axes_flat[n:]:
         ax.set_visible(False)
     fig.suptitle(
-        "All valid recursion DAGs --- four-model ensemble ($M=3$)",
-        fontsize=12, y=1.01)
+        "All valid recursion DAGs --- four-model ensemble ($M=3$)", fontsize=12, y=1.01
+    )
 
 
 def plot_pacv_family_matrix(ax):
@@ -465,50 +616,82 @@ def plot_pacv_family_matrix(ax):
     ax.axis("off")
 
     rows = ["GMF", "GRD", "GIS"]
-    cols = ["Chain: " + r"$\boldsymbol{\gamma}=[0,1,\ldots,M{-}1]$",
-            "Star: " + r"$\boldsymbol{\gamma}=[0,0,\ldots,0]$"]
-    data = [["MFMC", "ACVMF"],
-            ["MLMC", "(novel)"],
-            ["(novel)", "ACVIS"]]
-    colors = [["#E67E22", "#8E44AD"],
-              ["#2C7FB8", "#bdc3c7"],
-              ["#bdc3c7", "#27AE60"]]
+    cols = [
+        "Chain: " + r"$\boldsymbol{\gamma}=[0,1,\ldots,M{-}1]$",
+        "Star: " + r"$\boldsymbol{\gamma}=[0,0,\ldots,0]$",
+    ]
+    data = [["MFMC", "ACVMF"], ["MLMC", "(novel)"], ["(novel)", "ACVIS"]]
+    colors = [["#E67E22", "#8E44AD"], ["#2C7FB8", "#bdc3c7"], ["#bdc3c7", "#27AE60"]]
 
     col_w, row_h = 0.38, 0.20
     x0, y0 = 0.18, 0.05
 
     for c, col in enumerate(cols):
-        ax.text(x0 + col_w * (c + 0.5), y0 + row_h * len(rows) + 0.06,
-                col, ha="center", va="bottom", fontsize=9, fontweight="bold")
+        ax.text(
+            x0 + col_w * (c + 0.5),
+            y0 + row_h * len(rows) + 0.06,
+            col,
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            fontweight="bold",
+        )
 
-    ax.text(x0 - 0.04, y0 + row_h * (len(rows) + 0.3),
-            "Family", ha="center", va="bottom", fontsize=10, style="italic")
-    ax.text(x0 + col_w, y0 + row_h * len(rows) + 0.14,
-            "Recursion index", ha="center", va="bottom", fontsize=10,
-            style="italic")
+    ax.text(
+        x0 - 0.04,
+        y0 + row_h * (len(rows) + 0.3),
+        "Family",
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        style="italic",
+    )
+    ax.text(
+        x0 + col_w,
+        y0 + row_h * len(rows) + 0.14,
+        "Recursion index",
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        style="italic",
+    )
 
     for r, row in enumerate(rows):
         yc = y0 + row_h * (len(rows) - r - 0.5)
-        ax.text(x0 - 0.04, yc, row, ha="center", va="center",
-                fontsize=11, fontweight="bold")
+        ax.text(
+            x0 - 0.04, yc, row, ha="center", va="center", fontsize=11, fontweight="bold"
+        )
         for c, (cell, clr) in enumerate(zip(data[r], colors[r])):
             xc = x0 + col_w * c
             rect = mpatches.FancyBboxPatch(
                 (xc + 0.01, yc - row_h * 0.45),
-                col_w - 0.02, row_h - 0.02,
-                boxstyle="round,pad=0.02", fc=clr, ec="white", lw=2,
-                alpha=0.85)
+                col_w - 0.02,
+                row_h - 0.02,
+                boxstyle="round,pad=0.02",
+                fc=clr,
+                ec="white",
+                lw=2,
+                alpha=0.85,
+            )
             ax.add_patch(rect)
-            ax.text(xc + col_w * 0.5, yc,
-                    cell, ha="center", va="center", fontsize=12,
-                    fontweight="bold",
-                    color="white" if cell != "(novel)" else "#333")
+            ax.text(
+                xc + col_w * 0.5,
+                yc,
+                cell,
+                ha="center",
+                va="center",
+                fontsize=12,
+                fontweight="bold",
+                color="white" if cell != "(novel)" else "#333",
+            )
 
     ax.set_xlim(0, 1.05)
     ax.set_ylim(0, 1)
     ax.set_title(
         "PACV family grid: three base families x two recursion indices",
-        fontsize=11, pad=12)
+        fontsize=11,
+        pad=12,
+    )
 
 
 def plot_pacv_enumeration(ax):
@@ -556,9 +739,9 @@ def plot_pacv_enumeration(ax):
         return alloc
 
     search = ACVSearch(
-        stat, costs,
-        recursion_strategy=TreeDepthRecursionStrategy(
-            max_depth=nmodels - 1),
+        stat,
+        costs,
+        recursion_strategy=TreeDepthRecursionStrategy(max_depth=nmodels - 1),
         allocator_factory=_fast_allocator,
     )
     result = search.search(100.0, allow_failures=True)
@@ -577,29 +760,31 @@ def plot_pacv_enumeration(ax):
         ri = bkd.to_numpy(est._recursion_index).astype(int)
         labels_ri.append(str(list(ri.tolist())))
 
-    colors_bar = ["#8E44AD" if v == min(variances) else "#2C7FB8"
-                  for v in variances]
+    colors_bar = ["#8E44AD" if v == min(variances) else "#2C7FB8" for v in variances]
 
     x = np.arange(len(variances))
-    ax.bar(x, variances, color=colors_bar, edgecolor="k", lw=0.5,
-           alpha=0.85)
+    ax.bar(x, variances, color=colors_bar, edgecolor="k", lw=0.5, alpha=0.85)
     ax.axhline(1.0, color="k", ls=":", lw=1, alpha=0.4, label="MC baseline")
     ax.set_xticks(x)
-    ax.set_xticklabels([f"$\\gamma={lb}$" for lb in labels_ri],
-                       rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(
+        [f"$\\gamma={lb}$" for lb in labels_ri], rotation=30, ha="right", fontsize=9
+    )
     ax.set_ylabel("Predicted variance / MC variance", fontsize=11)
     ax.set_title(
         f"GMF estimators --- all {len(variances)} recursion indices  "
-        f"(P=100, M={nmodels-1} LF models)",
-        fontsize=11)
+        f"(P=100, M={nmodels - 1} LF models)",
+        fontsize=11,
+    )
     ax.legend(fontsize=10)
     best_lbl = labels_ri[np.argmin(variances)]
-    ax.annotate(f"Best: $\\gamma={best_lbl}$",
-                xy=(np.argmin(variances), min(variances)),
-                xytext=(np.argmin(variances) + 0.5,
-                        min(variances) + 0.08),
-                fontsize=9, color="#8E44AD",
-                arrowprops=dict(arrowstyle="->", color="#8E44AD"))
+    ax.annotate(
+        f"Best: $\\gamma={best_lbl}$",
+        xy=(np.argmin(variances), min(variances)),
+        xytext=(np.argmin(variances) + 0.5, min(variances) + 0.08),
+        fontsize=9,
+        color="#8E44AD",
+        arrowprops=dict(arrowstyle="->", color="#8E44AD"),
+    )
     ax.grid(True, alpha=0.2, axis="y")
 
 
@@ -628,7 +813,7 @@ def plot_pacv_ceiling(ax):
 
     cv_limits = []
     for k in range(1, n_models):
-        sub = cov[:k + 1, :k + 1]
+        sub = cov[: k + 1, : k + 1]
         c0l = sub[0, 1:]
         Sl = sub[1:, 1:]
         r2 = c0l @ np.linalg.solve(Sl, c0l) / sigma2_hf
@@ -647,23 +832,23 @@ def plot_pacv_ceiling(ax):
         est_costs, est_ratios = [], []
         for factor in factors:
             ratios = bkd.asarray(
-                partition_ratio_base[:nparts - 1] * 2**factor, dtype=float)
+                partition_ratio_base[: nparts - 1] * 2**factor, dtype=float
+            )
             model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
             target_cost = bkd.to_float(
-                nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:])))
+                nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
+            )
             est_cov = estimator.covariance_at(target_cost, ratios)
             est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(target_cost)
             est_ratios.append(est_var / mc_var)
         return est_costs, est_ratios
 
-    mlmc_costs, mlmc_ratio = compute_variance_vs_cost(
-        MLMCEstimator(stat, costs))
-    mfmc_costs, mfmc_ratio = compute_variance_vs_cost(
-        MFMCEstimator(stat, costs))
+    mlmc_costs, mlmc_ratio = compute_variance_vs_cost(MLMCEstimator(stat, costs))
+    mfmc_costs, mfmc_ratio = compute_variance_vs_cost(MFMCEstimator(stat, costs))
     acvmf_costs, acvmf_ratio = compute_variance_vs_cost(
-        GMFEstimator(stat, costs,
-                     recursion_index=bkd.zeros(M, dtype=int)))
+        GMFEstimator(stat, costs, recursion_index=bkd.zeros(M, dtype=int))
+    )
 
     all_ri = TreeDepthRecursionStrategy(max_depth=M).indices(n_models, bkd)
     best_costs, best_ratio = [], []
@@ -673,11 +858,12 @@ def plot_pacv_ceiling(ax):
             est = GMFEstimator(stat, costs, recursion_index=ri)
             nparts = est._npartitions
             ratios = bkd.asarray(
-                partition_ratio_base[:nparts - 1] * 2**factor, dtype=float)
+                partition_ratio_base[: nparts - 1] * 2**factor, dtype=float
+            )
             model_ratios = est._partition_ratios_to_model_ratios(ratios)
             target_cost = bkd.to_float(
-                nhf_samples * (
-                    costs[0] + bkd.dot(model_ratios, costs[1:])))
+                nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
+            )
             est_cov = est.covariance_at(target_cost, ratios)
             est_var = bkd.to_float(est_cov[0, 0])
             if est_var < best_var:
@@ -688,25 +874,20 @@ def plot_pacv_ceiling(ax):
     cv_colors = ["#e74c3c", "#8e44ad", "#16a085", "#2c3e50"]
     cv_ls = ["--", "-.", ":", (0, (5, 1))]
 
-    ax.loglog(mlmc_costs, mlmc_ratio, "-", color="#2C7FB8", lw=2,
-              label="MLMC")
-    ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2,
-              label="MFMC")
-    ax.loglog(acvmf_costs, acvmf_ratio, "-.", color="#27AE60", lw=2,
-              label="ACVMF")
-    ax.loglog(best_costs, best_ratio, "-", color="#c0392b", lw=2.5,
-              label="Best GMF")
+    ax.loglog(mlmc_costs, mlmc_ratio, "-", color="#2C7FB8", lw=2, label="MLMC")
+    ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2, label="MFMC")
+    ax.loglog(acvmf_costs, acvmf_ratio, "-.", color="#27AE60", lw=2, label="ACVMF")
+    ax.loglog(best_costs, best_ratio, "-", color="#c0392b", lw=2.5, label="Best GMF")
 
     for k, (lim, col, ls) in enumerate(zip(cv_limits, cv_colors, cv_ls)):
-        ax.axhline(lim, color=col, ls=ls, lw=1.5,
-                   label=f"CV-{k+1} limit ({k+1} LF)")
+        ax.axhline(
+            lim, color=col, ls=ls, lw=1.5, label=f"CV-{k + 1} limit ({k + 1} LF)"
+        )
 
-    ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4,
-               label="MC (no reduction)")
+    ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
     ax.set_xlabel("Total cost", fontsize=11)
     ax.set_ylabel("Variance / MC variance", fontsize=11)
-    ax.set_title("PACV best-GMF converges to the multi-model CV ceiling",
-                 fontsize=11)
+    ax.set_title("PACV best-GMF converges to the multi-model CV ceiling", fontsize=11)
     ax.legend(fontsize=8, loc="lower left")
     ax.grid(True, alpha=0.2, which="both")
 
@@ -715,8 +896,8 @@ def plot_pacv_ceiling(ax):
 # pacv_analysis.qmd — echo:true, only the cross-family plot → Convention B
 # ---------------------------------------------------------------------------
 
-def plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,
-                           nmodels, ax):
+
+def plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var, nmodels, ax):
     """pacv_analysis.qmd -> fig-cross-family
 
     Grouped bar chart of predicted variance across PACV families.
@@ -726,29 +907,44 @@ def plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,
     offsets = [-1, 0, 1]
     for offset, fam in zip(offsets, fam_names):
         vals = results[fam]
-        ax.bar(x + offset * width, vals, width * 0.92, color=fam_cols[fam],
-               alpha=0.85, edgecolor="k", lw=0.4, label=fam_names[fam])
+        ax.bar(
+            x + offset * width,
+            vals,
+            width * 0.92,
+            color=fam_cols[fam],
+            alpha=0.85,
+            edgecolor="k",
+            lw=0.4,
+            label=fam_names[fam],
+        )
 
-    all_vals = [(v, fam, i)
-                for fam in fam_names for i, v in enumerate(results[fam])]
+    all_vals = [(v, fam, i) for fam in fam_names for i, v in enumerate(results[fam])]
     best_v, best_fam, best_i = min(all_vals)
     best_offset = offsets[list(fam_names).index(best_fam)]
-    ax.scatter(best_i + best_offset * width, best_v,
-               s=140, marker="*", color="gold", edgecolors="k", lw=0.8,
-               zorder=5,
-               label=(f"Best: {fam_names[best_fam]} "
-                      f"\u03b3={list(ri_list[best_i])}"))
+    ax.scatter(
+        best_i + best_offset * width,
+        best_v,
+        s=140,
+        marker="*",
+        color="gold",
+        edgecolors="k",
+        lw=0.8,
+        zorder=5,
+        label=(f"Best: {fam_names[best_fam]} \u03b3={list(ri_list[best_i])}"),
+    )
 
     ax.axhline(1.0, color="k", ls=":", lw=1, alpha=0.4, label="MC")
     ax.set_xticks(x)
-    ax.set_xticklabels([str(list(ri)) for ri in ri_list],
-                       rotation=30, ha="right", fontsize=8)
+    ax.set_xticklabels(
+        [str(list(ri)) for ri in ri_list], rotation=30, ha="right", fontsize=8
+    )
     ax.set_xlabel("Recursion index $\\boldsymbol{\\gamma}$", fontsize=11)
     ax.set_ylabel("Predicted variance / MC variance", fontsize=11)
     ax.set_title(
         f"All PACV estimators --- three families x {len(ri_list)} indices  "
-        f"(P=500, M={nmodels-1})",
-        fontsize=11)
+        f"(P=500, M={nmodels - 1})",
+        fontsize=11,
+    )
     ax.legend(fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.2, axis="y")
 
@@ -756,6 +952,7 @@ def plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,
 # ---------------------------------------------------------------------------
 # multioutput_acv_concept.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
+
 
 def plot_moacv_vs_soacv(ax):
     """multioutput_acv_concept.qmd -> fig-moacv-soacv
@@ -790,7 +987,8 @@ def plot_moacv_vs_soacv(ax):
 
     qoi_idx = [0]
     (cov_so,) = stat_mo.get_pilot_quantities_subset(
-        nmodels, nqoi, list(range(nmodels)), qoi_idx)
+        nmodels, nqoi, list(range(nmodels)), qoi_idx
+    )
     stat_so = MultiOutputMean(len(qoi_idx), bkd)
     stat_so.set_pilot_quantities(cov_so)
     search_so = ACVSearch(stat_so, costs)
@@ -810,29 +1008,41 @@ def plot_moacv_vs_soacv(ax):
         cov_mo_P = bkd.to_numpy(result_mo.best.covariance())
         target_costs.append(P)
         mo_vars.append(cov_mo_P[0, 0])
-        so_vars.append(bkd.to_float(
-            result_so.best.covariance()[0, 0]))
+        so_vars.append(bkd.to_float(result_so.best.covariance()[0, 0]))
         mc_vars.append(mc_var_q0 / float(P))
 
-    ax.loglog(target_costs, mo_vars, "-", color="#8E44AD", lw=2.5,
-              label="MOACV (joint: both QoIs)")
-    ax.loglog(target_costs, so_vars, "--", color="#2C7FB8", lw=2.5,
-              label="SOACV (QoI 0 only)")
-    ax.loglog(target_costs, mc_vars, ":", color="k", lw=1.5, alpha=0.6,
-              label="MC")
+    ax.loglog(
+        target_costs,
+        mo_vars,
+        "-",
+        color="#8E44AD",
+        lw=2.5,
+        label="MOACV (joint: both QoIs)",
+    )
+    ax.loglog(
+        target_costs, so_vars, "--", color="#2C7FB8", lw=2.5, label="SOACV (QoI 0 only)"
+    )
+    ax.loglog(target_costs, mc_vars, ":", color="k", lw=1.5, alpha=0.6, label="MC")
 
     mid_i = len(target_costs) // 2
-    ax.annotate("", xy=(target_costs[mid_i], mo_vars[mid_i]),
-                xytext=(target_costs[mid_i], so_vars[mid_i]),
-                arrowprops=dict(arrowstyle="<->", color="#e74c3c", lw=1.5))
-    ax.text(target_costs[mid_i] * 1.15,
-            (mo_vars[mid_i] * so_vars[mid_i]) ** 0.5,
-            "MOACV\ngain", fontsize=9, color="#e74c3c", va="center")
+    ax.annotate(
+        "",
+        xy=(target_costs[mid_i], mo_vars[mid_i]),
+        xytext=(target_costs[mid_i], so_vars[mid_i]),
+        arrowprops=dict(arrowstyle="<->", color="#e74c3c", lw=1.5),
+    )
+    ax.text(
+        target_costs[mid_i] * 1.15,
+        (mo_vars[mid_i] * so_vars[mid_i]) ** 0.5,
+        "MOACV\ngain",
+        fontsize=9,
+        color="#e74c3c",
+        va="center",
+    )
 
     ax.set_xlabel("Target cost $P$", fontsize=12)
     ax.set_ylabel("Estimator variance (QoI 0)", fontsize=12)
-    ax.set_title("MOACV vs SOACV: joint estimation improves each QoI",
-                 fontsize=11)
+    ax.set_title("MOACV vs SOACV: joint estimation improves each QoI", fontsize=11)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.2, which="both")
 
@@ -841,32 +1051,59 @@ def plot_moacv_vs_soacv(ax):
 # multioutput_acv_analysis.qmd — echo:true → Convention B
 # ---------------------------------------------------------------------------
 
-def plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,
-                                so_vars_emp, n_trials, ax):
+
+def plot_mo_theory_vs_empirical(
+    nqoi, cov_mo_np, cov_so_np, mo_vars_emp, so_vars_emp, n_trials, ax
+):
     """multioutput_acv_analysis.qmd -> fig-mo-theory-vs-empirical
 
     Theoretical (bars) vs empirical (dots) variance per QoI.
     """
     x = np.arange(nqoi)
     width = 0.2
-    ax.bar(x - width * 1.5,
-           [cov_mo_np[qi, qi] for qi in range(nqoi)],
-           width, color="#8E44AD", alpha=0.8, edgecolor="k", lw=0.5,
-           label="MOACV theory")
-    ax.scatter(x - width * 1.5, mo_vars_emp,
-               s=70, color="#8E44AD", edgecolors="k", lw=1, zorder=4)
-    ax.bar(x - width * 0.5,
-           [cov_so_np[qi, qi] for qi in range(nqoi)],
-           width, color="#2C7FB8", alpha=0.8, edgecolor="k", lw=0.5,
-           label="SOACV theory")
-    ax.scatter(x - width * 0.5, so_vars_emp,
-               s=70, color="#2C7FB8", edgecolors="k", lw=1, zorder=4,
-               label="Empirical (dots)")
+    ax.bar(
+        x - width * 1.5,
+        [cov_mo_np[qi, qi] for qi in range(nqoi)],
+        width,
+        color="#8E44AD",
+        alpha=0.8,
+        edgecolor="k",
+        lw=0.5,
+        label="MOACV theory",
+    )
+    ax.scatter(
+        x - width * 1.5,
+        mo_vars_emp,
+        s=70,
+        color="#8E44AD",
+        edgecolors="k",
+        lw=1,
+        zorder=4,
+    )
+    ax.bar(
+        x - width * 0.5,
+        [cov_so_np[qi, qi] for qi in range(nqoi)],
+        width,
+        color="#2C7FB8",
+        alpha=0.8,
+        edgecolor="k",
+        lw=0.5,
+        label="SOACV theory",
+    )
+    ax.scatter(
+        x - width * 0.5,
+        so_vars_emp,
+        s=70,
+        color="#2C7FB8",
+        edgecolors="k",
+        lw=1,
+        zorder=4,
+        label="Empirical (dots)",
+    )
     ax.set_xticks(x)
     ax.set_xticklabels([f"QoI {qi}" for qi in range(nqoi)], fontsize=11)
     ax.set_ylabel("Estimator variance", fontsize=11)
-    ax.set_title(f"MOACV vs SOACV  |  P=100  |  {n_trials} trials",
-                 fontsize=11)
+    ax.set_title(f"MOACV vs SOACV  |  P=100  |  {n_trials} trials", fontsize=11)
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.2, axis="y")
 
@@ -874,6 +1111,7 @@ def plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,
 # ---------------------------------------------------------------------------
 # ensemble_selection_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
+
 
 def plot_bad_model(ax):
     """ensemble_selection_concept.qmd -> fig-bad-model
@@ -920,8 +1158,7 @@ def plot_bad_model(ax):
             sub_costs = bkd.asarray([bkd.to_numpy(costs)[i] for i in idx2])
             stat2 = MultiOutputMean(1, bkd)
             stat2.set_pilot_quantities(bkd.array(sub_cov))
-            est2 = GMFEstimator(stat2, sub_costs,
-                                recursion_index=bkd.asarray([0]))
+            est2 = GMFEstimator(stat2, sub_costs, recursion_index=bkd.asarray([0]))
             alloc2 = default_allocator_factory(est2).allocate(P)
             fitted2 = FittedACVEstimator(est2, alloc2)
             v = bkd.to_float(fitted2.covariance()[0, 0])
@@ -930,8 +1167,7 @@ def plot_bad_model(ax):
 
         stat3 = MultiOutputMean(1, bkd)
         stat3.set_pilot_quantities(cov)
-        est3 = GMFEstimator(stat3, costs,
-                            recursion_index=bkd.asarray([0, 0]))
+        est3 = GMFEstimator(stat3, costs, recursion_index=bkd.asarray([0, 0]))
         alloc3 = default_allocator_factory(est3).allocate(P)
         fitted3 = FittedACVEstimator(est3, alloc3)
         v3 = bkd.to_float(fitted3.covariance()[0, 0])
@@ -941,22 +1177,36 @@ def plot_bad_model(ax):
     ratio_2m = np.array(two_model_vars) / np.array(mc_vars)
     ratio_3m = np.array(three_model_vars) / np.array(mc_vars)
 
-    ax.plot(rho01_arr, ratio_3m, color="#2C7FB8", lw=2.5,
-            label="Three-model ACVMF  $\\{f_0,f_1,f_2\\}$")
-    ax.plot(rho01_arr, ratio_2m, color="#E67E22", ls="--", lw=2,
-            label="Best two-model ACVMF")
-    ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5,
-               label="MC baseline")
-    ax.fill_between(rho01_arr, ratio_3m, ratio_2m,
-                    where=ratio_3m > ratio_2m,
-                    color="#e74c3c", alpha=0.18,
-                    label="Region where $f_1$ *hurts*")
-    ax.set_xlabel(
-        r"$\rho_{01}$ --- correlation of $f_1$ with HF model", fontsize=12)
+    ax.plot(
+        rho01_arr,
+        ratio_3m,
+        color="#2C7FB8",
+        lw=2.5,
+        label="Three-model ACVMF  $\\{f_0,f_1,f_2\\}$",
+    )
+    ax.plot(
+        rho01_arr,
+        ratio_2m,
+        color="#E67E22",
+        ls="--",
+        lw=2,
+        label="Best two-model ACVMF",
+    )
+    ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5, label="MC baseline")
+    ax.fill_between(
+        rho01_arr,
+        ratio_3m,
+        ratio_2m,
+        where=ratio_3m > ratio_2m,
+        color="#e74c3c",
+        alpha=0.18,
+        label="Region where $f_1$ *hurts*",
+    )
+    ax.set_xlabel(r"$\rho_{01}$ --- correlation of $f_1$ with HF model", fontsize=12)
     ax.set_ylabel("Predicted variance / MC variance", fontsize=12)
     ax.set_title(
-        "ACVMF: two-model vs three-model  (tunable benchmark, $P=100$)",
-        fontsize=11)
+        "ACVMF: two-model vs three-model  (tunable benchmark, $P=100$)", fontsize=11
+    )
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.2)
 
@@ -975,9 +1225,9 @@ def plot_correlation_heatmaps(axes, fig):
     nmodels = 3
 
     im = None
-    for ax, theta1, title in zip(axes, [1.4, 0.6],
-                                 [r"$\theta_1 = 1.4$",
-                                  r"$\theta_1 = 0.6$"]):
+    for ax, theta1, title in zip(
+        axes, [1.4, 0.6], [r"$\theta_1 = 1.4$", r"$\theta_1 = 0.6$"]
+    ):
         bm = TunableEnsembleBenchmark(bkd, theta1=theta1)
         cov_np = bkd.to_numpy(bm.ensemble_covariance())
         D_inv = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
@@ -991,10 +1241,15 @@ def plot_correlation_heatmaps(axes, fig):
         ax.set_yticklabels(labels, fontsize=11)
         for i in range(nmodels):
             for j in range(nmodels):
-                ax.text(j, i, f"{corr[i,j]:.2f}", ha="center", va="center",
-                        fontsize=10,
-                        color="black" if abs(corr[i, j]) < 0.85
-                        else "white")
+                ax.text(
+                    j,
+                    i,
+                    f"{corr[i, j]:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    color="black" if abs(corr[i, j]) < 0.85 else "white",
+                )
         ax.set_title(title, fontsize=11)
 
     divider = make_axes_locatable(axes[1])
@@ -1044,8 +1299,7 @@ def plot_ensemble_nmodels(ax):
             sub_costs = bkd.asarray([bkd.to_numpy(costs)[i] for i in idx2])
             stat2 = MultiOutputMean(1, bkd)
             stat2.set_pilot_quantities(bkd.array(sub_cov))
-            est2 = GMFEstimator(stat2, sub_costs,
-                                recursion_index=bkd.asarray([0]))
+            est2 = GMFEstimator(stat2, sub_costs, recursion_index=bkd.asarray([0]))
             alloc2 = default_allocator_factory(est2).allocate(P)
             fitted2 = FittedACVEstimator(est2, alloc2)
             v = bkd.to_float(fitted2.covariance()[0, 0])
@@ -1054,8 +1308,7 @@ def plot_ensemble_nmodels(ax):
 
         stat3 = MultiOutputMean(1, bkd)
         stat3.set_pilot_quantities(cov)
-        est3 = GMFEstimator(stat3, costs,
-                            recursion_index=bkd.asarray([0, 0]))
+        est3 = GMFEstimator(stat3, costs, recursion_index=bkd.asarray([0, 0]))
         alloc3 = default_allocator_factory(est3).allocate(P)
         fitted3 = FittedACVEstimator(est3, alloc3)
         v3 = bkd.to_float(fitted3.covariance()[0, 0])
@@ -1063,18 +1316,30 @@ def plot_ensemble_nmodels(ax):
 
     rho01_arr = np.array(rho01_vals)
 
-    ax.plot(rho01_arr, two_lf, color="#2C7FB8", lw=2.5, marker="o", ms=4,
-            label="2 LF models  $\\{f_0,f_1,f_2\\}$")
-    ax.plot(rho01_arr, best_1lf, color="#E67E22", lw=2.5, marker="s", ms=4,
-            label="Best 1 LF model")
-    ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5,
-               label="MC baseline")
-    ax.set_xlabel(
-        r"$\rho_{01}$ --- correlation of $f_1$ with HF model", fontsize=12)
+    ax.plot(
+        rho01_arr,
+        two_lf,
+        color="#2C7FB8",
+        lw=2.5,
+        marker="o",
+        ms=4,
+        label="2 LF models  $\\{f_0,f_1,f_2\\}$",
+    )
+    ax.plot(
+        rho01_arr,
+        best_1lf,
+        color="#E67E22",
+        lw=2.5,
+        marker="s",
+        ms=4,
+        label="Best 1 LF model",
+    )
+    ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5, label="MC baseline")
+    ax.set_xlabel(r"$\rho_{01}$ --- correlation of $f_1$ with HF model", fontsize=12)
     ax.set_ylabel("Best variance / MC variance", fontsize=11)
     ax.set_title(
-        "ACVMF: optimal ensemble size depends on correlation  ($P=100$)",
-        fontsize=11)
+        "ACVMF: optimal ensemble size depends on correlation  ($P=100$)", fontsize=11
+    )
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.2)
 
@@ -1082,6 +1347,7 @@ def plot_ensemble_nmodels(ax):
 # ---------------------------------------------------------------------------
 # pilot_studies_concept.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
+
 
 def plot_pilot_tradeoff(axes):
     """pilot_studies_concept.qmd -> fig-tradeoff
@@ -1147,29 +1413,37 @@ def plot_pilot_tradeoff(axes):
         budget_free = P_total
         budget_paid = max(P_total - pilot_cost, 1.0)
 
-        vals_free = [single_trial(s, npilot, budget_free)
-                     for s in range(ntrials)]
-        vals_paid = [single_trial(s, npilot, budget_paid)
-                     for s in range(ntrials)]
+        vals_free = [single_trial(s, npilot, budget_free) for s in range(ntrials)]
+        vals_paid = [single_trial(s, npilot, budget_paid) for s in range(ntrials)]
 
         vals_free = np.array([v for v in vals_free if np.isfinite(v)])
         vals_paid = np.array([v for v in vals_paid if np.isfinite(v)])
 
-        mse_free.append(np.mean((vals_free - true_mean)**2).item())
-        mse_paid.append(np.mean((vals_paid - true_mean)**2).item())
+        mse_free.append(np.mean((vals_free - true_mean) ** 2).item())
+        mse_paid.append(np.mean((vals_paid - true_mean) ** 2).item())
 
     for ax, mse_list, title in zip(
         axes,
         [mse_free, mse_paid],
-        ["Pilot cost ignored\n(unrealistic)",
-         "Pilot cost deducted\n(realistic)"],
+        ["Pilot cost ignored\n(unrealistic)", "Pilot cost deducted\n(realistic)"],
     ):
-        ax.plot(npilot_list, [m / mc_mse for m in mse_list], "-o",
-                color="#2C7FB8", lw=2.2, ms=7, label="Pilot MSE")
-        ax.axhline(oracle_mse / mc_mse, color="k", ls="--", lw=1.8,
-                   label=f"Oracle ACV  ({oracle_mse/mc_mse:.3f})")
-        ax.axhline(1.0, color="#c0392b", ls=":", lw=1.5,
-                   label="MC baseline")
+        ax.plot(
+            npilot_list,
+            [m / mc_mse for m in mse_list],
+            "-o",
+            color="#2C7FB8",
+            lw=2.2,
+            ms=7,
+            label="Pilot MSE",
+        )
+        ax.axhline(
+            oracle_mse / mc_mse,
+            color="k",
+            ls="--",
+            lw=1.8,
+            label=f"Oracle ACV  ({oracle_mse / mc_mse:.3f})",
+        )
+        ax.axhline(1.0, color="#c0392b", ls=":", lw=1.5, label="MC baseline")
         ax.set_xlabel("Pilot samples $N_p$", fontsize=11)
         ax.set_title(title, fontsize=11)
         ax.legend(fontsize=8)
@@ -1182,6 +1456,7 @@ def plot_pilot_tradeoff(axes):
 # mc_budget_estimation.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
+
 def plot_budget_verification(all_means, nqoi, predicted_est_cov_np, axes):
     """mc_budget_estimation.qmd -> fig-budget-verification
 
@@ -1189,24 +1464,40 @@ def plot_budget_verification(all_means, nqoi, predicted_est_cov_np, axes):
     """
     from scipy.stats import norm
 
-    qoi_labels = [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(nqoi)]
+    qoi_labels = [rf"$\hat{{\mu}}_{{{k + 1}}}$" for k in range(nqoi)]
     colors = ["#2C7FB8", "#E67E22", "#27AE60"]
     M_alloc = all_means.shape[0]
 
     for col, ax in enumerate(axes):
-        ax.hist(all_means[:, col], bins=30, density=True,
-                color=colors[col], alpha=0.7, edgecolor="k", lw=0.3)
+        ax.hist(
+            all_means[:, col],
+            bins=30,
+            density=True,
+            color=colors[col],
+            alpha=0.7,
+            edgecolor="k",
+            lw=0.3,
+        )
 
         pred_std = np.sqrt(predicted_est_cov_np[col, col])
         emp_mean = np.mean(all_means[:, col])
         emp_std = np.std(all_means[:, col])
 
-        x_grid = np.linspace(all_means[:, col].min(),
-                             all_means[:, col].max(), 200)
-        ax.plot(x_grid, norm.pdf(x_grid, emp_mean, pred_std), "r--", lw=2,
-                label=f"Predicted \u03c3 = {pred_std:.4f}")
-        ax.axvline(emp_mean, color="#27AE60", ls="-", lw=1.5,
-                   label=f"Empirical \u03c3 = {emp_std:.4f}")
+        x_grid = np.linspace(all_means[:, col].min(), all_means[:, col].max(), 200)
+        ax.plot(
+            x_grid,
+            norm.pdf(x_grid, emp_mean, pred_std),
+            "r--",
+            lw=2,
+            label=f"Predicted \u03c3 = {pred_std:.4f}",
+        )
+        ax.axvline(
+            emp_mean,
+            color="#27AE60",
+            ls="-",
+            lw=1.5,
+            label=f"Empirical \u03c3 = {emp_std:.4f}",
+        )
 
         ax.set_xlabel(qoi_labels[col], fontsize=12)
         ax.set_ylabel("Density", fontsize=12)
@@ -1242,8 +1533,9 @@ def plot_budget_vs_statistic(stat_configs, cost_per_eval, bkd, ax):
     ax.grid(True, alpha=0.2, which="both")
 
 
-def plot_pilot_sensitivity(all_pred_stds, pilot_sizes, true_pred_std,
-                           n_pilot_reps, target_for_test, axes, fig):
+def plot_pilot_sensitivity(
+    all_pred_stds, pilot_sizes, true_pred_std, n_pilot_reps, target_for_test, axes, fig
+):
     """mc_budget_estimation.qmd -> fig-pilot-sensitivity
 
     Sensitivity of budget prediction to pilot size.
@@ -1253,8 +1545,15 @@ def plot_pilot_sensitivity(all_pred_stds, pilot_sizes, true_pred_std,
     xlim = (all_vals.min() - x_pad, all_vals.max() + x_pad)
 
     for ax, M_p in zip(axes, pilot_sizes):
-        ax.hist(all_pred_stds[M_p], bins=25, density=True, color="#2C7FB8",
-                alpha=0.7, edgecolor="k", lw=0.3)
+        ax.hist(
+            all_pred_stds[M_p],
+            bins=25,
+            density=True,
+            color="#2C7FB8",
+            alpha=0.7,
+            edgecolor="k",
+            lw=0.3,
+        )
         ax.axvline(true_pred_std, color="#C0392B", ls="--", lw=2)
         ax.set_xlim(xlim)
         ax.set_xlabel("Predicted \u03c3", fontsize=10)
@@ -1265,12 +1564,14 @@ def plot_pilot_sensitivity(all_pred_stds, pilot_sizes, true_pred_std,
     fig.suptitle(
         "Predicted std of $\\hat{\\mu}_1$ at budget = "
         f"{int(target_for_test)}, across {n_pilot_reps} independent pilots",
-        fontsize=11, y=1.02,
+        fontsize=11,
+        y=1.02,
     )
 
 
-def plot_est_cov_final(pred_cov_plot, stat_labels, nstats, nqoi, target_cost,
-                       ax1, ax2, fig):
+def plot_est_cov_final(
+    pred_cov_plot, stat_labels, nstats, nqoi, target_cost, ax1, ax2, fig
+):
     """mc_budget_estimation.qmd -> fig-est-cov-final
 
     Estimator covariance heatmap and diagonal bar chart.
@@ -1278,20 +1579,19 @@ def plot_est_cov_final(pred_cov_plot, stat_labels, nstats, nqoi, target_cost,
     vmin = pred_cov_plot.min()
     vmax = pred_cov_plot.max()
 
-    im1 = ax1.imshow(pred_cov_plot, cmap="RdBu_r", aspect="equal",
-                     vmin=vmin, vmax=vmax)
+    im1 = ax1.imshow(pred_cov_plot, cmap="RdBu_r", aspect="equal", vmin=vmin, vmax=vmax)
     ax1.set_xticks(range(nstats))
     ax1.set_xticklabels(stat_labels, fontsize=7, rotation=45)
     ax1.set_yticks(range(nstats))
     ax1.set_yticklabels(stat_labels, fontsize=7)
-    ax1.set_title(f"Estimator covariance (target_cost = {target_cost:.0f})",
-                  fontsize=11)
+    ax1.set_title(
+        f"Estimator covariance (target_cost = {target_cost:.0f})", fontsize=11
+    )
     fig.colorbar(im1, ax=ax1, shrink=0.7)
 
     diag_vals = np.diag(pred_cov_plot)
     colors_bar = ["#2C7FB8"] * nqoi + ["#E67E22"] * (nstats - nqoi)
-    ax2.bar(range(nstats), diag_vals, color=colors_bar, edgecolor="k",
-            lw=0.3)
+    ax2.bar(range(nstats), diag_vals, color=colors_bar, edgecolor="k", lw=0.3)
     ax2.set_xticks(range(nstats))
     ax2.set_xticklabels(stat_labels, fontsize=8, rotation=45)
     ax2.set_ylabel("Estimator variance", fontsize=12)
