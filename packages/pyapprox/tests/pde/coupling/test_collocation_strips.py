@@ -16,11 +16,23 @@ nodes on the outer boundary are pinned skeleton DOFs.
   nodal error decays spectrally in the nodes per direction.
 - At the solution the summed tested fluxes at the free skeleton DOFs are
   below the solver tolerance.
+- Variable diffusion :math:`D = 2(1 + x/2) + y` (with the same v, r) on
+  the 3 x 1 strip: the cubic is reproduced to 1e-10 and the smooth
+  solution decays spectrally; the coupled skeleton residual's Jacobian
+  passes central finite differences (smallest relative error below 1e-6),
+  for matching nodes and for counts (6, 8, 7) on a 6-node skeleton.
 """
 
 import pytest
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJVPFromCallable,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.operators import LinearizationPoint
 from tests._helpers.coupling_collocation import (
     ATOL,
     CUBIC,
@@ -93,3 +105,57 @@ def test_the_interface_fluxes_balance(
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
     assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < ATOL
+
+
+# D = 2 (1 + x/2) + y: positive on the square, and linear, so a cubic's
+# flux D grad u stays in the 5-node space.
+_VARIABLE = Coefficients("2*(1 + 0.5*x) + y", (0.7, -0.4), -1.5)
+
+
+def test_variable_diffusion_reproduces_a_cubic(bkd: Backend[Array]) -> None:
+    problem = CoupledCollocation(bkd, (3, 1), [5] * 3, 5, Adr(_VARIABLE, CUBIC))
+    lam = problem.solve_skeleton()
+    bkd.assert_allclose(lam[:, 0], problem.skeleton_exact(), rtol=1e-10, atol=1e-10)
+    assert max_state_error(problem, lam) < 1e-10
+
+
+def test_variable_diffusion_converges_spectrally(bkd: Backend[Array]) -> None:
+    errors = []
+    for n in (6, 8, 10, 12):
+        problem = CoupledCollocation(bkd, (3, 1), [n] * 3, n, Adr(_VARIABLE, SMOOTH))
+        errors.append(max_state_error(problem, problem.solve_skeleton()))
+    for coarse, fine in zip(errors[:-1], errors[1:]):
+        assert fine < coarse / 100.0
+    assert errors[-1] < 1e-10
+
+
+@pytest.mark.parametrize(
+    "ns, nskel, interpolating",
+    [([6] * 3, 6, False), ([6, 8, 7], 6, True)],
+    ids=["matching", "interpolating"],
+)
+def test_the_skeleton_jacobian_passes_finite_differences(
+    bkd: Backend[Array], ns: list[int], nskel: int, interpolating: bool
+) -> None:
+    problem = CoupledCollocation(
+        bkd, (3, 1), ns, nskel, Adr(_VARIABLE, SMOOTH), interpolate=interpolating
+    )
+    residual = problem.residual()
+    jacobian = residual.derivatives().jacobian
+    assert jacobian is not None
+    label = LinearizationPoint(0, "test", provisional=True)
+    lam = bkd.reshape(problem.skeleton_exact(), (-1, 1))
+    n = int(lam.shape[0])
+
+    def fun(samples: Array) -> Array:
+        return bkd.hstack(
+            [residual(samples[:, j : j + 1]) for j in range(samples.shape[1])]
+        )
+
+    def jvp(sample: Array, vec: Array) -> Array:
+        return jacobian(sample, label).apply(vec)
+
+    errors = DerivativeChecker(
+        FunctionWithJVPFromCallable(nqoi=n, nvars=n, fun=fun, jvp=jvp, bkd=bkd)
+    ).check_derivatives(lam + 0.1, relative=True, central=True)[0]
+    assert bkd.to_float(bkd.min(errors)) <= 1e-6

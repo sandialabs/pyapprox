@@ -139,10 +139,11 @@ Response = SteadyPinnedResponse[Array, Array, DenseFormat[Array]]
 
 @dataclass(frozen=True)
 class Coefficients:
-    """Constant coefficients: diffusion, velocity (one entry per
-    direction) or none, reaction or none."""
+    """Coefficients: diffusion, a constant or an expression in the
+    coordinates; velocity (one constant per direction) or none; reaction
+    (a constant) or none."""
 
-    diffusion: float
+    diffusion: Union[float, str]
     velocity: Optional[tuple[float, ...]]
     reaction: Optional[float]
 
@@ -312,10 +313,19 @@ class Adr(Generic[Array]):
             if coefs.velocity is None
             else [bkd.full((npts,), v) for v in coefs.velocity]
         )
+        diffusion: Union[float, NodalField[Array]] = (
+            coefs.diffusion
+            if isinstance(coefs.diffusion, float)
+            else NodalField(
+                PointExpressions(
+                    [coefs.diffusion], problem.names(), problem.coordinates(), bkd
+                )(mesh.points())[0]
+            )
+        )
         physics = AdvectionDiffusionReaction(
             basis(mesh, bkd),
             bkd,
-            diffusion=coefs.diffusion,
+            diffusion=diffusion,
             velocity=velocity,
             reaction=coefs.reaction,
             forcing=NodalField(forcing_at(problem, mesh.points(), bkd)[0]),
