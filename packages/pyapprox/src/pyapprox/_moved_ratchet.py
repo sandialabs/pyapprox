@@ -16,10 +16,12 @@ Two checks over each:
 - **Ratchet.** :func:`count_references` counts references to each
   prefix (imports, ``mock.patch`` strings, documentation) across the
   repository. The count is recorded in ``ratchet_baselines.txt`` as
-  ``<key><prefix>=<count>``; under that file's rule, a commit that
-  lowers a count lowers its baseline in the same commit, and no commit
-  raises one. A moved prefix's alias retires, and a superseded package
-  can be deleted, when its count reaches zero.
+  ``<key><prefix>=<count>``. A count above its baseline fails; a count
+  below it is printed as a notice to lower the baseline and does not
+  fail, since merging branches lowers counts that no single branch
+  could have recorded. No commit raises a baseline. A moved prefix's
+  alias retires, and a superseded package can be deleted, when its
+  count reaches zero.
 - **Added lines.** ``python -m pyapprox._moved_ratchet --staged`` fails
   when a staged added line names a prefix, so a session pays only for
   the paths it writes, never for migrating untouched files.
@@ -123,9 +125,9 @@ def ratchet_problems(
     baseline: Mapping[str, int],
     key: str = BASELINE_KEY,
 ) -> list[str]:
-    """What differs between ``counts`` and ``baseline``: a count above its
-    baseline, below it (lower the baseline), or a prefix without one; and
-    baselines of prefixes no longer in ``table``."""
+    """What fails the ratchet: a count above its baseline, a prefix
+    without one, and baselines of prefixes no longer in ``table``. A
+    count below its baseline is a notice (:func:`ratchet_notices`)."""
     moved = key == BASELINE_KEY
     advice = "import the new path instead" if moved else "use {} instead"
     status = "moved" if moved else "superseded"
@@ -139,12 +141,25 @@ def ratchet_problems(
                 f"{prefix}: {count} references, baseline {baseline[prefix]}; "
                 + advice.format(table[prefix])
             )
-        elif count < baseline[prefix]:
-            problems.append(f"{prefix}: down to {count}; set {entry}={count}")
     problems += [
         f"{key}{p} is stale: {p} is not {status}" for p in baseline if p not in table
     ]
     return problems
+
+
+def ratchet_notices(
+    table: Mapping[str, str],
+    counts: Mapping[str, int],
+    baseline: Mapping[str, int],
+    key: str = BASELINE_KEY,
+) -> list[str]:
+    """Counts below their baselines, each with the baseline to set."""
+    return [
+        f"{prefix}: down to {counts.get(prefix, 0)}; "
+        f"set {key}{prefix}={counts.get(prefix, 0)}"
+        for prefix in table
+        if prefix in baseline and counts.get(prefix, 0) < baseline[prefix]
+    ]
 
 
 def added_line_problems(
@@ -185,40 +200,49 @@ def main(argv: Sequence[str]) -> int:
             text=True,
             check=True,
         ).stdout
-        reports = [
+        # (label, problems, notices); the added-lines check has no notices.
+        reports: list[tuple[str, list[str], list[str]]] = [
             (
                 "old path of a moved module on an added line",
                 added_line_problems(MOVED, diff),
+                [],
             ),
             (
                 "superseded package on an added line",
                 added_line_problems(SUPERSEDED, diff, skip_inside=True),
+                [],
             ),
         ]
     else:
         root = Path(__file__).resolve().parents[4]
         baselines = root / BASELINE_FILE
         moved = count_references(MOVED, root)
+        moved_baseline = read_baseline(baselines)
         superseded = count_references(SUPERSEDED, root, skip_inside=True)
+        superseded_baseline = read_baseline(baselines, SUPERSEDED_KEY)
         reports = [
             (
                 "moved-module ratchet",
-                ratchet_problems(MOVED, moved, read_baseline(baselines)),
+                ratchet_problems(MOVED, moved, moved_baseline),
+                ratchet_notices(MOVED, moved, moved_baseline),
             ),
             (
                 "superseded-package ratchet",
                 ratchet_problems(
-                    SUPERSEDED,
-                    superseded,
-                    read_baseline(baselines, SUPERSEDED_KEY),
-                    SUPERSEDED_KEY,
+                    SUPERSEDED, superseded, superseded_baseline, SUPERSEDED_KEY
+                ),
+                ratchet_notices(
+                    SUPERSEDED, superseded, superseded_baseline, SUPERSEDED_KEY
                 ),
             ),
         ]
     failed = False
-    for prefix, problems in reports:
+    for label, problems, notices in reports:
         for problem in problems:
-            print(f"{prefix}: {problem}")
+            print(f"{label}: {problem}")
+        # GitHub Actions shows a ::notice:: line as an annotation.
+        for notice in notices:
+            print(f"::notice::{label}: {notice}")
         failed = failed or bool(problems)
     return 1 if failed else 0
 

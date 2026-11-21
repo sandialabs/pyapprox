@@ -11,6 +11,7 @@ from pyapprox._moved_ratchet import BASELINE_FILE
 from pyapprox._superseded_ratchet import (
     SUPERSEDED,
     count_calls,
+    ratchet_notices,
     ratchet_problems,
     read_baseline,
 )
@@ -57,9 +58,14 @@ def test_ratchet_holds_counts_at_their_baselines(tmp_path: Path) -> None:
         "no baseline for b: add superseded-method:b=1",
         "superseded-method:gone is stale: gone is not superseded",
     ]
-    fell = ratchet_problems({"a": "new_a(x)"}, {"a": 1}, {"a": 3})
+    # A count below its baseline does not fail; it is a notice to lower it.
+    assert ratchet_problems({"a": "new_a(x)"}, {"a": 1}, {"a": 3}) == []
+    fell = ratchet_notices({"a": "new_a(x)"}, {"a": 1}, {"a": 3})
     assert fell == ["a: down to 1; set superseded-method:a=1"]
     assert ratchet_problems({"a": "new_a(x)"}, {"a": 3}, {"a": 3}) == []
+    assert ratchet_notices({"a": "new_a(x)"}, {"a": 3}, {"a": 3}) == []
+    # Neither a rise nor a missing baseline is a notice.
+    assert ratchet_notices(table, {"a": 4, "b": 1}, baseline) == []
 
 
 def test_repository_holds_its_baselines() -> None:

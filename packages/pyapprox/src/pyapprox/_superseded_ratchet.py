@@ -7,12 +7,13 @@ repository's Python and Quarto sources. The counts are recorded in
 ``ratchet_baselines.txt`` as ``superseded-method:<name>=<count>``, a key
 distinct from the ``superseded:`` package baselines of
 :mod:`pyapprox._moved_ratchet`, since each ratchet reports a key outside
-its own table as stale. Under that file's rule, a commit that lowers a
-count lowers its baseline in the same commit, and no commit raises one.
-A method is deleted from the backends when its count reaches zero.
+its own table as stale. No commit raises a baseline. A method is deleted
+from the backends when its count reaches zero.
 
 ``python -m pyapprox._superseded_ratchet`` exits nonzero when a count
-differs from its baseline.
+exceeds its baseline, a method has none, or a baseline is stale. A count
+below its baseline is printed as a notice to lower it and does not fail,
+since merging branches lowers counts no single branch could record.
 """
 
 import re
@@ -61,9 +62,9 @@ def read_baseline(path: Path) -> dict[str, int]:
 def ratchet_problems(
     table: Mapping[str, str], counts: Mapping[str, int], baseline: Mapping[str, int]
 ) -> list[str]:
-    """What differs between ``counts`` and ``baseline``: a count above its
-    baseline, below it (lower the baseline), or a method without one;
-    and baselines of methods no longer superseded."""
+    """What fails the ratchet: a count above its baseline, a method
+    without one, and baselines of methods no longer superseded. A count
+    below its baseline is a notice (:func:`ratchet_notices`)."""
     problems = []
     for name, replacement in table.items():
         count, key = counts.get(name, 0), f"{BASELINE_KEY}{name}"
@@ -74,8 +75,6 @@ def ratchet_problems(
                 f"{name}: {count} calls, baseline {baseline[name]}; "
                 f"use {replacement} instead"
             )
-        elif count < baseline[name]:
-            problems.append(f"{name}: down to {count}; set {key}={count}")
     problems += [
         f"{BASELINE_KEY}{n} is stale: {n} is not superseded"
         for n in baseline
@@ -84,12 +83,28 @@ def ratchet_problems(
     return problems
 
 
+def ratchet_notices(
+    table: Mapping[str, str], counts: Mapping[str, int], baseline: Mapping[str, int]
+) -> list[str]:
+    """Counts below their baselines, each with the baseline to set."""
+    return [
+        f"{name}: down to {counts.get(name, 0)}; "
+        f"set {BASELINE_KEY}{name}={counts.get(name, 0)}"
+        for name in table
+        if name in baseline and counts.get(name, 0) < baseline[name]
+    ]
+
+
 def main(argv: Sequence[str]) -> int:
     root = Path(__file__).resolve().parents[4]
     counts = count_calls(list(SUPERSEDED), root)
-    problems = ratchet_problems(SUPERSEDED, counts, read_baseline(root / BASELINE_FILE))
+    baseline = read_baseline(root / BASELINE_FILE)
+    problems = ratchet_problems(SUPERSEDED, counts, baseline)
     for problem in problems:
         print(f"superseded-method ratchet: {problem}")
+    # GitHub Actions shows a ::notice:: line as an annotation.
+    for notice in ratchet_notices(SUPERSEDED, counts, baseline):
+        print(f"::notice::superseded-method ratchet: {notice}")
     return 1 if problems else 0
 
 

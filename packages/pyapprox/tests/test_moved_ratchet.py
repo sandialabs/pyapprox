@@ -18,6 +18,7 @@ from pyapprox._moved_ratchet import (
     added_line_problems,
     count_references,
     main,
+    ratchet_notices,
     ratchet_problems,
     read_baseline,
 )
@@ -71,11 +72,15 @@ def test_ratchet_holds_counts_at_their_baselines(tmp_path: Path) -> None:
         "no baseline for pkg.other: add moved:pkg.other=3",
         "moved:gone.old is stale: gone.old is not moved",
     ]
-    fell = ratchet_problems({"pkg.old": "pkg.new"}, {"pkg.old": 1}, {"pkg.old": 4})
+    # A count below its baseline does not fail; it is a notice to lower it.
+    table_old = {"pkg.old": "pkg.new"}
+    assert ratchet_problems(table_old, {"pkg.old": 1}, {"pkg.old": 4}) == []
+    fell = ratchet_notices(table_old, {"pkg.old": 1}, {"pkg.old": 4})
     assert fell == ["pkg.old: down to 1; set moved:pkg.old=1"]
-    assert (
-        ratchet_problems({"pkg.old": "pkg.new"}, {"pkg.old": 4}, {"pkg.old": 4}) == []
-    )
+    assert ratchet_problems(table_old, {"pkg.old": 4}, {"pkg.old": 4}) == []
+    assert ratchet_notices(table_old, {"pkg.old": 4}, {"pkg.old": 4}) == []
+    # Neither a rise nor a missing baseline is a notice.
+    assert ratchet_notices(table, {"pkg.old": 5, "pkg.other": 3}, baseline) == []
 
 
 _SUPERSEDED = {"pkg.gone": "pkg.core", "pkg.sub.gone": "pkg.core"}
@@ -109,6 +114,10 @@ def test_superseded_ratchet_names_the_replacement(tmp_path: Path) -> None:
         "pkg.gone: 3 references, baseline 2; use pkg.core instead",
         "superseded:pkg.was is stale: pkg.was is not superseded",
     ]
+    fell = ratchet_notices(
+        {"pkg.gone": "pkg.core"}, {"pkg.gone": 1}, baseline, SUPERSEDED_KEY
+    )
+    assert fell == ["pkg.gone: down to 1; set superseded:pkg.gone=1"]
 
 
 _SUPERSEDED_DIFF = """\
