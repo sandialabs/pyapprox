@@ -71,6 +71,8 @@ from pyapprox.pde.coupling.ports import (
     port_projection,
     port_trace_coupling,
     port_trace_mass,
+    port_trace_mortar_coupling,
+    port_trace_pairing,
     subdomain_port_dofs,
 )
 from pyapprox.pde.coupling.responses import TimeWindow
@@ -81,7 +83,7 @@ from pyapprox.pde.coupling.skeleton import (
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
-from pyapprox.pde.coupling.traces import LagrangeSegmentTrace
+from pyapprox.pde.coupling.traces import LagrangeSegmentTrace, mortar_segment_traces
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import NeumannBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -90,6 +92,7 @@ from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction as GalerkinAdr,
 )
 from pyapprox.pde.models.galerkin.verification import (
+    GalerkinApproximation,
     boundary_conditions,
     field,
     forcing,
@@ -107,6 +110,7 @@ from pyapprox.util.linalg.backend_dense import (
     BackendVectorSpace,
     DenseFormat,
 )
+from pyapprox.util.linalg.operators.algebra import Product
 from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.coupling_collocation import (
@@ -124,18 +128,22 @@ from tests._helpers.coupling_skfem import pinned_piece
 Np = NDArray[Any]
 STEADY = TimeWindow.steady()
 _BKD = NumpyBkd()
-# The skfem half's conditions; the interface side gets none (its DOFs are
-# ports), so its entry only completes the problem's parts.
-_GALERKIN_CONDITIONS: dict[str, ConditionProtocol] = {
-    "left": Neumann(),
-    "right": Dirichlet(),
-    "bottom": Neumann(),
-    "top": Neumann(),
-}
+
+
+def galerkin_conditions(dirichlet_ends: bool) -> dict[str, ConditionProtocol]:
+    """The skfem half's conditions: Dirichlet on the right, and on the top
+    and bottom Dirichlet or the exact Neumann data. The interface side
+    gets none (its DOFs are ports), so its entry only completes the
+    problem's parts."""
+    ends: ConditionProtocol = Dirichlet() if dirichlet_ends else Neumann()
+    return {"left": Neumann(), "right": Dirichlet(), "bottom": ends, "top": ends}
 
 
 def galerkin_adr_problem(
-    coefs: Coefficients, solution: str, region: VerificationBox
+    coefs: Coefficients,
+    solution: str,
+    region: VerificationBox,
+    conditions: dict[str, ConditionProtocol],
 ) -> ManufacturedProblem:
     r""":math:`D \Delta u - \nabla\cdot(v u) + r u + f = 0` on ``region``
     with natural data the diffusive flux: only :math:`-D \nabla u` inside
@@ -149,7 +157,7 @@ def galerkin_adr_problem(
     terms.append(Divergence("u", [f"-({coefs.diffusion})*u_{c}" for c in coords]))
     if coefs.reaction is not None:
         terms.append(Source("u", f"-({coefs.reaction})*u"))
-    return ManufacturedProblem({"u": solution}, terms, region, _GALERKIN_CONDITIONS)
+    return ManufacturedProblem({"u": solution}, terms, region, conditions)
 
 
 class NegatedFlux:
@@ -188,6 +196,14 @@ class MixedStrip:
         Negate the skfem side's returned flux (the wrong-normal control).
     rule
         Tests the collocation side's flux; exact (Gauss) by default.
+    dirichlet_ends
+        Dirichlet on the skfem top and bottom too: the interface ends are
+        then essential rows, the ports the interface DOFs between them.
+    mortar
+        With ``dirichlet_ends``, read the skeleton by the mortar projection
+        (:func:`~pyapprox.pde.coupling.traces.mortar_segment_traces`);
+        False projects onto the port nodes' own functions alone (the
+        control).
     """
 
     def __init__(
@@ -200,6 +216,8 @@ class MixedStrip:
         degree: int = 2,
         reverse_galerkin_normal: bool = False,
         rule: Optional[SideRuleProtocol] = None,
+        dirichlet_ends: bool = False,
+        mortar: bool = True,
     ) -> None:
         bkd = _BKD
         self._coefs, self._solution = coefs, solution
@@ -214,6 +232,7 @@ class MixedStrip:
         self._coords = skeleton_dof_points(self._space, self._geometry, bases)
         self._nskel = nskel
         self._collocation(ncol, GaussLegendreSideRule() if rule is None else rule)
+        self._dirichlet_ends, self._mortar = dirichlet_ends, mortar
         self._galerkin(ncells, degree, reverse_galerkin_normal)
 
     def _faces_and_dofs(self, subdomain: int) -> tuple[list[int], list[int]]:
@@ -252,9 +271,15 @@ class MixedStrip:
     def _galerkin(self, ncells: int, degree: int, reverse: bool) -> None:
         bkd = _BKD
         region = VerificationBox([(0.5, 1.0), (0.0, 1.0)])
-        problem = galerkin_adr_problem(self._coefs, self._solution, region)
+        problem = galerkin_adr_problem(
+            self._coefs,
+            self._solution,
+            region,
+            galerkin_conditions(self._dirichlet_ends),
+        )
         mesh = StructuredMesh2D(ncells, ncells, [(0.5, 1.0), (0.0, 1.0)], bkd)
         basis = LagrangeBasis(mesh, degree=degree)
+        self._galerkin_problem, self._basis = problem, basis
         coefs = self._coefs
         physics = GalerkinAdr(
             basis=basis,
@@ -281,39 +306,81 @@ class MixedStrip:
         system = compose_galerkin_system(physics, conditions)
         self._dof_points: Np = np.asarray(basis.dof_coordinates())
         left = [int(d) for d in np.asarray(basis.get_dofs("left"))]
-        # Port order is along the interface, so element e is the run of
-        # degree + 1 ports from degree * e.
-        ports = sorted(left, key=lambda d: float(self._dof_points[1, d]))
-        if len(ports) != degree * ncells + 1:
+        # The interface DOFs in order along it, so element e is the run of
+        # degree + 1 of them from degree * e.
+        along = sorted(left, key=lambda d: float(self._dof_points[1, d]))
+        if len(along) != degree * ncells + 1:
             raise ValueError(f"expected {degree * ncells + 1} interface DOFs")
         elements = [
             list(range(degree * e, degree * e + degree + 1)) for e in range(ncells)
         ]
         # Exact for a trace function times a skeleton function.
         nquad = (degree + self._nskel + 1) // 2 + 1
-        trace = LagrangeSegmentTrace(self._dof_points[:, ports], elements, nquad, bkd)
-        stack: PortAssemblyProtocol[Np, CSRFormat, Np, Np] = ScipyAssemblyStack(
-            np.float64
-        )
         faces, dofs = self._faces_and_dofs(1)
-        local = port_projection(
-            port_trace_mass(trace, 1, stack),
-            port_trace_coupling(
-                self._space,
-                trace,
-                self._geometry,
-                faces,
-                dofs,
-                AverageIncidentFaces(),
-                stack,
-            ),
-            ScipySparseLU(),
-        )
+        local, ports = self._galerkin_map(along, elements, nquad, faces, dofs)
         transfer: PortTransferProtocol[Np, Np] = PortMatrixTransfer(
             BackendPortRows(self._space.descriptor(), dofs, bkd), local
         )
         self._galerkin_transfer = NegatedFlux(transfer) if reverse else transfer
         self._galerkin_response = pinned_piece(system, ports)
+
+    def _galerkin_map(
+        self,
+        along: list[int],
+        elements: list[list[int]],
+        nquad: int,
+        faces: list[int],
+        dofs: list[int],
+    ) -> tuple[Product[Np], list[int]]:
+        """The skfem side's local map and its port DOFs: every interface
+        DOF, or with Dirichlet ends those between them."""
+        bkd = _BKD
+        points = self._dof_points[:, along]
+        stack: PortAssemblyProtocol[Np, CSRFormat, Np, Np] = ScipyAssemblyStack(
+            np.float64
+        )
+        if not self._dirichlet_ends:
+            full = LagrangeSegmentTrace(points, elements, nquad, bkd)
+            mass = port_trace_mass(full, 1, stack)
+            coupling = port_trace_coupling(
+                self._space,
+                full,
+                self._geometry,
+                faces,
+                dofs,
+                AverageIncidentFaces(),
+                stack,
+            )
+            return port_projection(mass, coupling, ScipySparseLU()), along
+        traces = mortar_segment_traces(
+            points, elements, [0, len(along) - 1], nquad, bkd
+        )
+        ports = [along[n] for n in traces.interior]
+        if self._mortar:
+            mass = port_trace_pairing(traces.test, traces.trial, 1, stack)
+            coupling = port_trace_mortar_coupling(
+                self._space,
+                traces.test,
+                traces.ends,
+                traces.end_points,
+                self._geometry,
+                faces,
+                dofs,
+                AverageIncidentFaces(),
+                stack,
+            )
+        else:
+            mass = port_trace_mass(traces.trial, 1, stack)
+            coupling = port_trace_coupling(
+                self._space,
+                traces.trial,
+                self._geometry,
+                faces,
+                dofs,
+                AverageIncidentFaces(),
+                stack,
+            )
+        return port_projection(mass, coupling, ScipySparseLU()), ports
 
     def _pieces(
         self,
@@ -405,3 +472,12 @@ class MixedStrip:
         sum of its tested fluxes, its trace functions summing to one."""
         point = self._point(self._galerkin_response, self._galerkin_transfer, lam)
         return float(np.sum(point.output()))
+
+    def galerkin_l2_error(self, lam: Np) -> float:
+        r"""The skfem state's :math:`L^2` error against the exact solution,
+        integrated by skfem quadrature of order 8."""
+        point = self._point(self._galerkin_response, self._galerkin_transfer, lam)
+        approximation = GalerkinApproximation(
+            self._galerkin_problem, ["u"], self._basis, point.state()[:, 0], 8
+        )
+        return approximation.l2_error()
