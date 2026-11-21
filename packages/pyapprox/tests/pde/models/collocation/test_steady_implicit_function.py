@@ -3,7 +3,7 @@ r"""Collocation steady states as implicit functions of the parameters.
 ``collocation_steady_function`` with its defaults (``Newton`` atol 1e-10,
 above the flux rows' roundoff floor near 1.5e-11, with a line search;
 dense LU, ``RecomputeAlways``), the functional the state at the middle
-node, on the problems of the old steady derivative tests:
+node, on these problems:
 
 - ``dirichlet``: 1D diffusion on :math:`[-1, 1]` (20 nodes), :math:`D = 2
   + p_0 + p_1 x`, forcing :math:`\pi^2 \sin \pi x`, zero Dirichlet ends;
@@ -25,10 +25,6 @@ node, on the problems of the old steady derivative tests:
 
 Tests:
 
-- values at the parameters, half of them and them plus 0.1, and the
-  Jacobian at the parameters, equal ``SteadyForwardModel``'s on the same
-  physics with the old conditions (in flux neumann, the Dirichlet one
-  listed last) to 1e-9 relative to the larger entry;
 - the Jacobian and, where present, the HVP pass central finite
   differences (smallest relative error below 1e-6), and the HVP is
   symmetric, :math:`\langle H v, w \rangle = \langle H w, v \rangle` to
@@ -38,19 +34,18 @@ Tests:
   parameter Jacobian comes from the parameterization's flux sensitivity,
   which supplies no second derivative. It is absent for the map without
   curvature. It is present for the others: linear maps state their
-  curvature zero.
+  curvature zero;
+- a parameterization declaring no derivatives gives values and no
+  Jacobian; the scalar function runs inside the OUU ``InexactWrapper``.
 """
 
 import dataclasses
 import math
-from typing import Callable, Dict, Generic, List, Optional
+from typing import Callable, Dict, Generic, List, Optional, Tuple
 
 import numpy as np
 import pytest
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
 from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
@@ -62,12 +57,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    PeriodicBC,
-    flux_neumann_bc,
-    gradient_robin_bc,
-    zero_dirichlet_bc,
-)
 from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureRowsProtocol,
     RobinPart,
@@ -87,14 +76,12 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
-from pyapprox.pde.collocation.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.scalar import ScalarAmplitude
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap, _ExpTransform
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
-from pyapprox.pde.models.collocation.steady import SteadyForwardModel
 from pyapprox.pde.models.collocation.steady_function import (
     ParameterizedCollocationSystem,
     collocation_steady_function,
@@ -103,6 +90,7 @@ from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
 )
 from pyapprox.pde.parameterizations.composite import CompositeParameterization
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
@@ -126,21 +114,19 @@ _WITHOUT_HVP = {"flux neumann", "first-order map"}
 
 
 class _Problem(Generic[Array]):
-    """A physics holding the old conditions, the matching new system, and
-    its parameterization, sample and observed node."""
+    """A physics, its system, and its parameterization, sample and
+    observed node."""
 
     def __init__(
         self,
         bkd: Backend[Array],
         physics: AdvectionDiffusionReaction[Array],
-        old: List[BoundaryConditionProtocol[Array]],
         essential: Optional[DirichletRows[Array]],
         closures: List[ClosureRowsProtocol[Array]],
         parameterization: ParameterizationProtocol[Array],
         param: List[float],
         node: int,
     ) -> None:
-        physics.set_boundary_conditions(old)
         self.bkd, self.physics = bkd, physics
         self.system = CollocationSystem(physics, essential, closures)
         self.parameterization = parameterization
@@ -157,24 +143,6 @@ class _Problem(Generic[Array]):
             state_terms=(ObservedValue(StateEntries(bkd, self.nstates, [self.node])),),
         )
         return collocation_steady_function(self.system, parameters, functional)
-
-    def old_model(self) -> SteadyForwardModel[Array]:
-        bkd = self.bkd
-        weights = bkd.reshape(
-            bkd.asarray(
-                [1.0 if row == self.node else 0.0 for row in range(self.nstates)]
-            ),
-            (self.nstates, 1),
-        )
-        return SteadyForwardModel(
-            self.physics,
-            bkd,
-            bkd.zeros((self.nstates,)),
-            functional=WeightedSumFunctional(
-                weights, self.parameterization.nparams(), bkd
-            ),
-            parameterization=self.parameterization,
-        )
 
 
 def _diffusion_map(
@@ -198,7 +166,6 @@ def _dirichlet(bkd: Backend[Array]) -> _Problem[Array]:
     return _Problem(
         bkd,
         physics,
-        [zero_dirichlet_bc(bkd, left), zero_dirichlet_bc(bkd, right)],
         DirichletRows(
             bkd, 20, 1, [DirichletPart(left, 0.0), DirichletPart(right, 0.0)]
         ),
@@ -233,10 +200,6 @@ def _flux_neumann(bkd: Backend[Array]) -> _Problem[Array]:
     return _Problem(
         bkd,
         physics,
-        [
-            flux_neumann_bc(bkd, right, normals, physics, 0.0),
-            zero_dirichlet_bc(bkd, left),
-        ],
         DirichletRows(bkd, 20, 1, [DirichletPart(left, 0.0)]),
         [flux],
         create_diffusion_parameterization(
@@ -255,11 +218,9 @@ def _gradient_robin(bkd: Backend[Array]) -> _Problem[Array]:
         basis, bkd, diffusion=2.0, forcing=NodalField(bkd.ones((20,)))
     )
     derivatives = [basis.derivative_matrix(1, 0)]
-    old: List[BoundaryConditionProtocol[Array]] = []
     parts = []
     for side in (0, 1):
         indices, normals = mesh.boundary_indices(side), mesh.boundary_normals(side)
-        old.append(gradient_robin_bc(bkd, indices, normals, derivatives, 1.0, 0.5, 0.0))
         parts.append(
             RobinPart(
                 indices,
@@ -272,7 +233,6 @@ def _gradient_robin(bkd: Backend[Array]) -> _Problem[Array]:
     return _Problem(
         bkd,
         physics,
-        old,
         None,
         [RobinRows(bkd, 20, 1, parts)],
         create_diffusion_parameterization(
@@ -308,7 +268,6 @@ class _ZeroEnds(Generic[Array]):
         return _Problem(
             bkd,
             self.physics,
-            [zero_dirichlet_bc(bkd, left), zero_dirichlet_bc(bkd, right)],
             DirichletRows(
                 bkd,
                 self.npts,
@@ -405,7 +364,6 @@ def _periodic(bkd: Backend[Array]) -> _Problem[Array]:
     return _Problem(
         bkd,
         physics,
-        [PeriodicBC(bkd, left, right, derivative)],
         None,
         [
             PeriodicRows(
@@ -437,26 +395,6 @@ def _close(bkd: Backend[Array], actual: Array, expected: Array, rtol: float) -> 
     """Equal to ``rtol`` relative to the larger entry."""
     scale = max(bkd.to_float(bkd.max(bkd.abs(expected))), 1.0)
     bkd.assert_allclose(actual, expected, rtol=0.0, atol=rtol * scale)
-
-
-def _samples(bkd: Backend[Array], param: Array) -> Array:
-    return bkd.hstack([param, 0.5 * param, param + 0.1])
-
-
-@pytest.mark.parametrize("name", _CASES)
-class TestAgainstTheOldModel:
-    def test_values(self, bkd: Backend[Array], name: str) -> None:
-        problem = _BUILDERS[name](bkd)
-        samples = _samples(bkd, problem.param)
-        expected = problem.old_model()(samples)
-        _close(bkd, problem.function()(samples), expected, 1e-9)
-
-    def test_jacobian(self, bkd: Backend[Array], name: str) -> None:
-        problem = _BUILDERS[name](bkd)
-        new = problem.function().derivatives().jacobian
-        old = problem.old_model().derivatives().jacobian
-        assert new is not None and old is not None
-        _close(bkd, new(problem.param), old(problem.param), 1e-9)
 
 
 @pytest.mark.parametrize("name", _CASES)
@@ -580,3 +518,71 @@ class TestBuilder:
         )
         # The forcing doubles, and the problem is linear.
         _close(bkd, late, 2.0 * early, 1e-10)
+
+
+class _EvaluationOnly(Generic[Array]):
+    """A parameterization writing what ``inner`` writes but declaring no
+    derivatives."""
+
+    def __init__(self, inner: ParameterizationProtocol[Array]) -> None:
+        self._inner = inner
+
+    def nparams(self) -> int:
+        return self._inner.nparams()
+
+    def targets(self) -> Tuple[object, ...]:
+        return self._inner.targets()
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        return self._inner.owned_coefficients()
+
+    def apply(self, params_1d: Array) -> None:
+        self._inner.apply(params_1d)
+
+    def param_derivatives(self) -> ParamDerivatives[Array]:
+        return ParamDerivatives.none()
+
+
+class TestConsumers:
+    """What the function's bundle gives a caller, on ``dirichlet``."""
+
+    def test_no_jacobian_without_parameter_derivatives(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Values equal the differentiable parameterization's; the bundle
+        has neither a Jacobian nor an HVP."""
+        problem = _dirichlet(bkd)
+        function = collocation_steady_function(
+            problem.system,
+            ParameterState(_EvaluationOnly(problem.parameterization)),
+            _middle_value(bkd, problem.nstates, problem.node),
+        )
+        derivatives = function.derivatives()
+        assert derivatives.jacobian is None and derivatives.hvp is None
+        samples = bkd.hstack([problem.param, 0.5 * problem.param])
+        _close(bkd, function(samples), problem.function()(samples), 1e-12)
+
+    def test_inside_inexact_wrapper(self, numpy_bkd: Backend[Array]) -> None:
+        """The mean over three values of p_0 at the design p_1 = 0.1, by
+        the OUU ``InexactWrapper``, equals the weighted values computed
+        directly."""
+        from pyapprox.optimization.minimize.inexact.fixed import (
+            FixedSampleStrategy,
+        )
+        from pyapprox.optimization.minimize.inexact.wrapper import InexactWrapper
+        from pyapprox.risk import SampleAverageMean
+
+        bkd = numpy_bkd
+        function = _dirichlet(bkd).function()
+        random = bkd.asarray([[-0.2, 0.0, 0.2]])
+        weights = bkd.asarray([0.25, 0.5, 0.25])
+        wrapper = InexactWrapper(
+            model=function,
+            stat=SampleAverageMean(bkd),
+            strategy=FixedSampleStrategy(random, weights, bkd),
+            design_indices=[1],
+            bkd=bkd,
+        )
+        value = wrapper(bkd.asarray([[0.1]]))
+        direct = function(bkd.vstack([random, bkd.full((1, 3), 0.1)]))
+        _close(bkd, value, bkd.sum(direct * weights[None, :], axis=1)[:, None], 1e-12)
