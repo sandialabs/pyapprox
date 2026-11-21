@@ -2,16 +2,13 @@ r"""Collocation observations: point values and subdomain integrals.
 
 Setups:
 
-- Old against new: 15 Chebyshev nodes on :math:`[0, 2]`, a random state
-  (seed 1). Points 0, 0.7, 1.3 and 2 against ``PointEvaluationFunctional``;
-  the integral of :math:`c u` over :math:`[0.3, 1.4]` and over the whole
-  domain, :math:`c` random in :math:`[0.5, 1.5]`, against
-  ``SubdomainIntegralFunctional``. Values and state Jacobians to 1e-12.
-- Derivation-free: at a node the observation is the nodal value
-  (1e-14); :math:`x^{14}` is interpolated exactly at 0.7 and 1.3, and
-  :math:`\int_{0.3}^{1.4} x^{6} dx` is exact (1e-12); the transpose dot
-  test :math:`\langle H u, r \rangle = \langle u, H^\top r \rangle`
-  (1e-12).
+- Derivation-free, 15 Chebyshev nodes on :math:`[0, 2]`: at a node the
+  observation is the nodal value (1e-14); :math:`x^{14}` is interpolated
+  exactly at 0.7 and 1.3, and :math:`\int_{0.3}^{1.4} x^{6} dx` is exact
+  (1e-12), as is the whole-domain integral of :math:`c u` with
+  :math:`c = x`, :math:`u = x^5`; the transpose dot test
+  :math:`\langle H u, r \rangle = \langle u, H^\top r \rangle` (1e-12)
+  for points and for a subdomain integral.
 - One observation, two terms: 1D ADR on :math:`[-1, 1]` (16 nodes,
   two-mode KLE diffusion about 2, velocity 0.3, reaction -0.4, forcing
   :math:`\sin \pi x`, Dirichlet 0.5 and -0.3) solved on the new steady
@@ -22,7 +19,7 @@ Setups:
 """
 
 import math
-from typing import Callable, Generic, Tuple
+from typing import Callable, Generic
 
 import numpy as np
 import pytest
@@ -52,12 +49,6 @@ from pyapprox.pde.collocation.boundary.essential_rows import (
 from pyapprox.pde.collocation.functionals.observations import (
     point_observation,
     subdomain_integral_observation,
-)
-from pyapprox.pde.collocation.functionals.point_evaluation import (
-    PointEvaluationFunctional,
-)
-from pyapprox.pde.collocation.functionals.subdomain_integral import (
-    SubdomainIntegralFunctional,
 )
 from pyapprox.pde.collocation.mesh import AffineTransform1D, TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
@@ -97,60 +88,8 @@ def _random_state(bkd: Backend[Array]) -> Array:
     return bkd.asarray(np.random.default_rng(1).normal(0.0, 1.0, (_NPTS, 1)))
 
 
-def _coefficient(bkd: Backend[Array]) -> Array:
-    return bkd.asarray(np.random.default_rng(2).uniform(0.5, 1.5, _NPTS))
-
-
 def _value(observation: StateObservationProtocol[Array, Array], state: Array) -> Array:
     return ObservedValue(observation).value(state)
-
-
-def _state_jacobian(bkd: Backend[Array], observation: RowWeights[Array]) -> Array:
-    """H as a dense (nobs, npts) matrix, read through its transpose."""
-    eye = bkd.eye(observation.nobs())
-    return bkd.hstack(
-        [
-            observation.apply_transpose(eye[:, k : k + 1])
-            for k in range(observation.nobs())
-        ]
-    ).T
-
-
-class TestAgainstTheOldFunctionals:
-    def test_point_values(self, bkd: Backend[Array]) -> None:
-        basis, state = _basis(bkd), _random_state(bkd)
-        observation = point_observation(basis, _POINTS, bkd)
-        param = bkd.zeros((3, 1))
-        old = [PointEvaluationFunctional(basis, x, 3, bkd) for x in _POINTS]
-        expected = bkd.vstack([functional(state, param) for functional in old])
-        bkd.assert_allclose(_value(observation, state), expected, rtol=1e-12)
-        bkd.assert_allclose(
-            _state_jacobian(bkd, observation),
-            bkd.vstack([functional.state_jacobian(state, param) for functional in old]),
-            rtol=1e-12,
-            atol=1e-14,
-        )
-
-    @pytest.mark.parametrize("bounds", [_BOUNDS, None])
-    def test_subdomain_integrals(
-        self, bkd: Backend[Array], bounds: Tuple[float, float] | None
-    ) -> None:
-        basis, state, coefficient = _basis(bkd), _random_state(bkd), _coefficient(bkd)
-        observation = subdomain_integral_observation(
-            basis, bkd, coefficient=coefficient, bounds=bounds
-        )
-        lower, upper = bounds if bounds is not None else (None, None)
-        old = SubdomainIntegralFunctional(
-            basis, 3, bkd, a_sub=lower, b_sub=upper, coefficient=coefficient
-        )
-        param = bkd.zeros((3, 1))
-        bkd.assert_allclose(_value(observation, state), old(state, param), rtol=1e-12)
-        bkd.assert_allclose(
-            _state_jacobian(bkd, observation),
-            old.state_jacobian(state, param),
-            rtol=1e-12,
-            atol=1e-14,
-        )
 
 
 class TestDerivationFree:
@@ -187,10 +126,27 @@ class TestDerivationFree:
             rtol=1e-12,
         )
 
-    def test_transpose(self, bkd: Backend[Array]) -> None:
+    def test_coefficient_over_the_whole_domain(self, bkd: Backend[Array]) -> None:
+        r""":math:`\int_0^2 x \cdot x^5 dx = 2^7 / 7`."""
+        basis = _basis(bkd)
+        nodes = _nodes(basis)
+        observation = subdomain_integral_observation(basis, bkd, coefficient=nodes)
+        bkd.assert_allclose(
+            _value(observation, bkd.reshape(nodes**5, (_NPTS, 1))),
+            bkd.asarray([[2.0**7 / 7.0]]),
+            rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("kind", ["points", "subdomain"])
+    def test_transpose(self, bkd: Backend[Array], kind: str) -> None:
         basis, state = _basis(bkd), _random_state(bkd)
-        observation = point_observation(basis, _POINTS, bkd)
-        weights = bkd.asarray(np.random.default_rng(3).normal(0.0, 1.0, (4, 1)))
+        observation: RowWeights[Array] = (
+            point_observation(basis, _POINTS, bkd)
+            if kind == "points"
+            else subdomain_integral_observation(basis, bkd, bounds=_BOUNDS)
+        )
+        rng = np.random.default_rng(3)
+        weights = bkd.asarray(rng.normal(0.0, 1.0, (observation.nobs(), 1)))
         bkd.assert_allclose(
             bkd.sum(observation.apply(state) * weights),
             bkd.sum(state * observation.apply_transpose(weights)),

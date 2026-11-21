@@ -16,12 +16,16 @@ Setups:
   (seed 3) and area 0.7. Linear and hyperelastic hoop stress and strain
   energy.
 
-Tests: value, :math:`Q_u` and :math:`Q_p` equal the old functionals' to
-1e-12; :math:`Q_u` and :math:`Q_p` by ``DerivativeChecker`` (minimum
-relative error below 1e-6) for the neo-Hookean bar and the hyperelastic
-hoop stress; the average radial displacement equals the old functional
-and is the identity for a pure radial field; every term and observation
-survives a pickle round trip; refusals.
+Tests: :math:`Q_u` and :math:`Q_p` by ``DerivativeChecker``, central
+differences (minimum relative error below 1e-6), for every 1D density
+and both 2D post-processors; derivation-free values on the bar at
+:math:`p = 0` (:math:`u = e x`, :math:`e = 0.02`): the linear energy
+:math:`\tfrac12 E e^2 \cdot 2`, the averaged linear stress :math:`E e`,
+and zero neo-Hookean energy at zero displacement (1e-12); the neo-Hookean
+stress density is the energy's derivative in :math:`F` and its
+:math:`F`-derivative the second (central differences, 1e-8); the average
+radial displacement is the identity for a pure radial field; every term
+and observation survives a pickle round trip; refusals.
 """
 
 import pickle
@@ -31,7 +35,6 @@ import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
-from pyapprox.implicitfunction.observation_terms import ObservedValue
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -46,11 +49,6 @@ from pyapprox.pde.collocation.functionals.density_terms import (
     StrainEnergyDensity2D,
     gradient_density_term_1d,
 )
-from pyapprox.pde.collocation.functionals.elasticity_2d import (
-    AverageHoopStressFunctional,
-    OuterWallRadialDisplacementFunctional,
-    StrainEnergyFunctional2D,
-)
 from pyapprox.pde.collocation.functionals.observations import (
     average_radial_displacement_observation,
 )
@@ -59,7 +57,7 @@ from pyapprox.pde.collocation.functionals.strain_energy_1d import (
     LinearStrainEnergyDensity1D,
     LinearStressDensity1D,
     NeoHookeanStrainEnergyDensity1D,
-    StrainEnergyFunctional1D,
+    NeoHookeanStressDensity1D,
 )
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
@@ -127,34 +125,6 @@ def _first(
     wrt_param = bundle.wrt_param(state)
     assert wrt_param is not None
     return _row(bkd, bundle.wrt_state(state)), _row(bkd, wrt_param)
-
-
-class _Old(Generic[Array]):
-    """What the old functionals give: value, state and parameter rows."""
-
-    def __init__(
-        self,
-        value: Callable[[Array, Array], Array],
-        state_jacobian: Callable[[Array, Array], Array],
-        param_jacobian: Callable[[Array, Array], Array],
-    ) -> None:
-        self.value = value
-        self.state_jacobian = state_jacobian
-        self.param_jacobian = param_jacobian
-
-
-def _compare(
-    bkd: Backend[Array],
-    term: IntegratedDensity[Array],
-    old: _Old[Array],
-    state: Array,
-    param: Array,
-) -> None:
-    q_u, q_p = _first(bkd, term, state)
-    p = param[:, None]
-    bkd.assert_allclose(term.value(state), old.value(state, p), rtol=1e-12)
-    bkd.assert_allclose(q_u, old.state_jacobian(state, p), rtol=1e-12, atol=1e-14)
-    bkd.assert_allclose(q_p, old.param_jacobian(state, p), rtol=1e-12, atol=1e-14)
 
 
 def _min_error(
@@ -229,14 +199,14 @@ class _Bar(Generic[Array]):
             bkd, bkd.concatenate([bkd.full((15,), mu), bkd.full((15,), lamda)])
         )
 
-    def pair(
+    def term(
         self,
         density: GradientDensity1DProtocol[Array],
         material: _AffineMap[Array],
         bounds: Tuple[float, float] | None = None,
         scale: float = 1.0,
-    ) -> Tuple[IntegratedDensity[Array], _Old[Array]]:
-        term = gradient_density_term_1d(
+    ) -> IntegratedDensity[Array]:
+        return gradient_density_term_1d(
             self.basis,
             density,
             material,
@@ -245,17 +215,10 @@ class _Bar(Generic[Array]):
             bounds=bounds,
             scale=scale,
         )
-        lower, upper = bounds if bounds is not None else (None, None)
-        old = StrainEnergyFunctional1D(
-            self.basis,
-            density,
-            material,
-            self.bkd,
-            a_sub=lower,
-            b_sub=upper,
-            scale=scale,
-        )
-        return term, _Old(old, old.state_jacobian, old.param_jacobian)
+
+    def material(self, density: GradientDensity1DProtocol[Array]) -> _AffineMap[Array]:
+        """The modulus for a one-field density, the Lame pair otherwise."""
+        return self.modulus if density.nfields() == 1 else self.lame
 
 
 class _Plate(Generic[Array]):
@@ -299,86 +262,110 @@ class _Plate(Generic[Array]):
         )
 
 
-def _processors(
-    plate: _Plate[Array],
-) -> List[StressPostProcessor2D[Array] | HyperelasticStressPostProcessor2D[Array]]:
-    return [plate.linear(), plate.hyperelastic()]
+_DENSITIES_1D: List[Callable[[Backend[Array]], GradientDensity1DProtocol[Array]]] = [
+    LinearStrainEnergyDensity1D,
+    LinearStressDensity1D,
+    NeoHookeanStrainEnergyDensity1D,
+    NeoHookeanStressDensity1D,
+]
 
 
-class TestAgainstTheOldFunctionals:
-    def test_1d_strain_energies(self, bkd: Backend[Array]) -> None:
+class TestDerivatives:
+    @pytest.mark.parametrize("density_cls", _DENSITIES_1D)
+    def test_1d_densities(
+        self,
+        bkd: Backend[Array],
+        density_cls: Callable[[Backend[Array]], GradientDensity1DProtocol[Array]],
+    ) -> None:
+        """Over the whole bar, and the stresses also averaged over
+        [0.4, 1.5]."""
         bar = _Bar(bkd)
-        for density, material in (
-            (LinearStrainEnergyDensity1D(bkd), bar.modulus),
-            (NeoHookeanStrainEnergyDensity1D(bkd), bar.lame),
-        ):
-            term, old = bar.pair(density, material)
-            _compare(bkd, term, old, bar.state, bar.param)
+        density = density_cls(bkd)
+        terms = [bar.term(density, bar.material(density))]
+        if density_cls in (LinearStressDensity1D, NeoHookeanStressDensity1D):
+            terms.append(
+                bar.term(
+                    density, bar.material(density), bounds=(0.4, 1.5), scale=1 / 1.1
+                )
+            )
+        for term in terms:
+            _check_derivatives(bkd, term, bar.parameters, bar.state, bar.param)
 
-    def test_1d_average_stress(self, bkd: Backend[Array]) -> None:
-        bar = _Bar(bkd)
-        term, old = bar.pair(
-            LinearStressDensity1D(bkd), bar.modulus, bounds=(0.4, 1.5), scale=1 / 1.1
-        )
-        _compare(bkd, term, old, bar.state, bar.param)
-
-    def test_2d_hoop_stress(self, bkd: Backend[Array]) -> None:
+    @pytest.mark.parametrize("kind", ["linear", "hyperelastic"])
+    def test_2d_hoop_stress_and_strain_energy(
+        self, bkd: Backend[Array], kind: str
+    ) -> None:
         plate = _Plate(bkd)
-        for source in _processors(plate):
-            term = IntegratedDensity(
+        source = plate.linear() if kind == "linear" else plate.hyperelastic()
+        for term in (
+            IntegratedDensity(
                 bkd,
                 HoopStressDensity(bkd, source),
                 plate.lame,
                 plate.parameters,
                 plate.weights / plate.area,
-            )
-            old = AverageHoopStressFunctional(
-                source, plate.lame, plate.weights, plate.area, bkd
-            )
-            _compare(
-                bkd,
-                term,
-                _Old(old, old.state_jacobian, old.param_jacobian),
-                plate.state,
-                plate.param,
-            )
-
-    def test_2d_strain_energy(self, bkd: Backend[Array]) -> None:
-        plate = _Plate(bkd)
-        for source in _processors(plate):
-            term = IntegratedDensity(
+            ),
+            IntegratedDensity(
                 bkd,
                 StrainEnergyDensity2D(bkd, source),
                 plate.lame,
                 plate.parameters,
                 plate.weights,
-            )
-            old = StrainEnergyFunctional2D(source, plate.lame, plate.weights, bkd)
-            _compare(
-                bkd,
-                term,
-                _Old(old, old.state_jacobian, old.param_jacobian),
-                plate.state,
-                plate.param,
-            )
+            ),
+        ):
+            _check_derivatives(bkd, term, plate.parameters, plate.state, plate.param)
 
 
-class TestDerivatives:
-    def test_neo_hookean_bar(self, bkd: Backend[Array]) -> None:
+class TestValues:
+    """Derivation-free, on the bar at p = 0 (E = 3)."""
+
+    def _uniform_strain(self, bar: _Bar[Array], strain: float) -> Array:
+        x = bar.basis.mesh().points()[0]
+        return bar.bkd.reshape(strain * x, (15, 1))
+
+    def test_linear_energy_and_stress(self, bkd: Backend[Array]) -> None:
         bar = _Bar(bkd)
-        term, _ = bar.pair(NeoHookeanStrainEnergyDensity1D(bkd), bar.lame)
-        _check_derivatives(bkd, term, bar.parameters, bar.state, bar.param)
-
-    def test_hyperelastic_hoop_stress(self, bkd: Backend[Array]) -> None:
-        plate = _Plate(bkd)
-        term = IntegratedDensity(
-            bkd,
-            HoopStressDensity(bkd, plate.hyperelastic()),
-            plate.lame,
-            plate.parameters,
-            plate.weights / plate.area,
+        bar.parameters.set(bkd.zeros((_NPARAMS,)))
+        state = self._uniform_strain(bar, 0.02)
+        energy = bar.term(LinearStrainEnergyDensity1D(bkd), bar.modulus)
+        bkd.assert_allclose(
+            energy.value(state), bkd.asarray([[0.5 * 3.0 * 0.02**2 * 2.0]]), rtol=1e-12
         )
-        _check_derivatives(bkd, term, plate.parameters, plate.state, plate.param)
+        stress = bar.term(
+            LinearStressDensity1D(bkd), bar.modulus, bounds=(0.4, 1.5), scale=1 / 1.1
+        )
+        bkd.assert_allclose(
+            stress.value(state), bkd.asarray([[3.0 * 0.02]]), rtol=1e-12
+        )
+
+    def test_neo_hookean_energy_vanishes_at_rest(self, bkd: Backend[Array]) -> None:
+        bar = _Bar(bkd)
+        energy = bar.term(NeoHookeanStrainEnergyDensity1D(bkd), bar.lame)
+        bkd.assert_allclose(
+            energy.value(bkd.zeros((15, 1))), bkd.zeros((1, 1)), atol=1e-12
+        )
+
+    def test_neo_hookean_stress_is_energy_derivative(self, bkd: Backend[Array]) -> None:
+        """The stress density is d(psi)/dF of the energy density, and its
+        F-derivative the energy's second derivative (central differences
+        in F)."""
+        energy = NeoHookeanStrainEnergyDensity1D(bkd)
+        stress = NeoHookeanStressDensity1D(bkd)
+        F = bkd.asarray([0.8, 1.0, 1.3])
+        material = bkd.asarray([1.2, 0.7, 2.0, 0.5, 1.5, 0.9])
+        h = 1e-6
+        bkd.assert_allclose(
+            stress.value(F, material),
+            (energy.value(F + h, material) - energy.value(F - h, material)) / (2.0 * h),
+            rtol=1e-8,
+            atol=1e-9,
+        )
+        bkd.assert_allclose(
+            stress.arg_derivative(F, material),
+            (stress.value(F + h, material) - stress.value(F - h, material)) / (2.0 * h),
+            rtol=1e-8,
+            atol=1e-9,
+        )
 
 
 class TestRadialDisplacement:
@@ -386,27 +373,6 @@ class TestRadialDisplacement:
         indices = [0, 4, 7, 12]
         theta = bkd.asarray([0.1, 0.9, 1.7, 2.6])
         return indices, bkd.cos(theta), bkd.sin(theta)
-
-    def test_equals_the_old_functional(self, bkd: Backend[Array]) -> None:
-        indices, cos, sin = self._angles(bkd)
-        npts = 16
-        observation = average_radial_displacement_observation(
-            bkd, indices, cos, sin, npts
-        )
-        old = OuterWallRadialDisplacementFunctional(
-            bkd.asarray(indices, dtype=int), cos, sin, npts, 2, bkd
-        )
-        state = bkd.asarray(np.random.default_rng(4).normal(0.0, 1.0, (2 * npts, 1)))
-        param = bkd.zeros((2, 1))
-        bkd.assert_allclose(
-            ObservedValue(observation).value(state), old(state, param), rtol=1e-12
-        )
-        bkd.assert_allclose(
-            observation.apply_transpose(bkd.ones((1, 1))).T,
-            old.state_jacobian(state, param),
-            rtol=1e-12,
-            atol=1e-15,
-        )
 
     def test_a_radial_field(self, bkd: Backend[Array]) -> None:
         """Derivation-free: u = r_k (cos, sin) at each node averages to the
@@ -430,7 +396,7 @@ class TestRadialDisplacement:
 class TestPickle:
     def test_terms_and_observations(self, bkd: Backend[Array]) -> None:
         bar, plate = _Bar(bkd), _Plate(bkd)
-        term, _ = bar.pair(NeoHookeanStrainEnergyDensity1D(bkd), bar.lame)
+        term = bar.term(NeoHookeanStrainEnergyDensity1D(bkd), bar.lame)
         copy = pickle.loads(pickle.dumps(term))
         bkd.assert_allclose(copy.value(bar.state), term.value(bar.state), rtol=0.0)
         hoop = IntegratedDensity(
