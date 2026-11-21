@@ -1,17 +1,24 @@
 """Tests for affine transforms."""
 
+import math
+from typing import List, Tuple
+
+import numpy as np
+import pytest
 
 from pyapprox.pde.collocation.mesh.transforms.affine import (
+    AffineTransform,
     AffineTransform1D,
     AffineTransform2D,
     AffineTransform3D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestAffineTransforms:
     """Base test class for affine transforms."""
 
-    def test_transform_1d_identity(self, bkd):
+    def test_transform_1d_identity(self, bkd: Backend[Array]) -> None:
         """Test 1D transform maps [-1, 1] to [-1, 1]."""
         transform = AffineTransform1D((-1.0, 1.0), bkd)
 
@@ -19,7 +26,7 @@ class TestAffineTransforms:
         phys_pts = transform.map_to_physical(ref_pts)
         bkd.assert_allclose(phys_pts, ref_pts, atol=1e-14)
 
-    def test_transform_1d_scaling(self, bkd):
+    def test_transform_1d_scaling(self, bkd: Backend[Array]) -> None:
         """Test 1D transform maps [-1, 1] to [0, 2]."""
         transform = AffineTransform1D((0.0, 2.0), bkd)
 
@@ -28,7 +35,7 @@ class TestAffineTransforms:
         expected = bkd.asarray([[0.0, 1.0, 2.0]])
         bkd.assert_allclose(phys_pts, expected, atol=1e-14)
 
-    def test_transform_1d_inverse(self, bkd):
+    def test_transform_1d_inverse(self, bkd: Backend[Array]) -> None:
         """Test 1D transform inverse."""
         transform = AffineTransform1D((0.0, 10.0), bkd)
 
@@ -37,7 +44,7 @@ class TestAffineTransforms:
         ref_pts_back = transform.map_to_reference(phys_pts)
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
-    def test_transform_1d_jacobian(self, bkd):
+    def test_transform_1d_jacobian(self, bkd: Backend[Array]) -> None:
         """Test 1D Jacobian is constant scale factor."""
         transform = AffineTransform1D((0.0, 4.0), bkd)
 
@@ -50,7 +57,7 @@ class TestAffineTransforms:
         bkd.assert_allclose(jac_mat[:, 0, 0], bkd.full((3,), 2.0), atol=1e-14)
         bkd.assert_allclose(jac_det, bkd.full((3,), 2.0), atol=1e-14)
 
-    def test_transform_2d_identity(self, bkd):
+    def test_transform_2d_identity(self, bkd: Backend[Array]) -> None:
         """Test 2D transform maps [-1, 1]^2 to itself."""
         transform = AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)
 
@@ -58,7 +65,7 @@ class TestAffineTransforms:
         phys_pts = transform.map_to_physical(ref_pts)
         bkd.assert_allclose(phys_pts, ref_pts, atol=1e-14)
 
-    def test_transform_2d_scaling(self, bkd):
+    def test_transform_2d_scaling(self, bkd: Backend[Array]) -> None:
         """Test 2D transform maps [-1, 1]^2 to [0, 2] x [0, 3]."""
         transform = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)
 
@@ -68,7 +75,7 @@ class TestAffineTransforms:
         expected = bkd.asarray([[0.0, 2.0, 0.0, 2.0], [0.0, 0.0, 3.0, 3.0]])
         bkd.assert_allclose(phys_pts, expected, atol=1e-14)
 
-    def test_transform_2d_inverse(self, bkd):
+    def test_transform_2d_inverse(self, bkd: Backend[Array]) -> None:
         """Test 2D transform inverse."""
         transform = AffineTransform2D((1.0, 5.0, -2.0, 2.0), bkd)
 
@@ -77,7 +84,7 @@ class TestAffineTransforms:
         ref_pts_back = transform.map_to_reference(phys_pts)
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
-    def test_transform_2d_jacobian(self, bkd):
+    def test_transform_2d_jacobian(self, bkd: Backend[Array]) -> None:
         """Test 2D Jacobian is diagonal with scale factors."""
         transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -93,7 +100,7 @@ class TestAffineTransforms:
         bkd.assert_allclose(jac_mat[:, 1, 0], bkd.zeros((3,)), atol=1e-14)
         bkd.assert_allclose(jac_det, bkd.full((3,), 6.0), atol=1e-14)
 
-    def test_transform_3d_identity(self, bkd):
+    def test_transform_3d_identity(self, bkd: Backend[Array]) -> None:
         """Test 3D transform maps [-1, 1]^3 to itself."""
         transform = AffineTransform3D((-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
 
@@ -101,7 +108,7 @@ class TestAffineTransforms:
         phys_pts = transform.map_to_physical(ref_pts)
         bkd.assert_allclose(phys_pts, ref_pts, atol=1e-14)
 
-    def test_transform_3d_scaling(self, bkd):
+    def test_transform_3d_scaling(self, bkd: Backend[Array]) -> None:
         """Test 3D transform scaling."""
         transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -117,7 +124,7 @@ class TestAffineTransforms:
         expected = bkd.asarray([[2.0], [4.0], [6.0]])
         bkd.assert_allclose(phys_pts, expected, atol=1e-14)
 
-    def test_transform_3d_inverse(self, bkd):
+    def test_transform_3d_inverse(self, bkd: Backend[Array]) -> None:
         """Test 3D transform inverse."""
         transform = AffineTransform3D((1.0, 3.0, -1.0, 5.0, 0.0, 10.0), bkd)
 
@@ -126,7 +133,7 @@ class TestAffineTransforms:
         ref_pts_back = transform.map_to_reference(phys_pts)
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
-    def test_transform_3d_jacobian(self, bkd):
+    def test_transform_3d_jacobian(self, bkd: Backend[Array]) -> None:
         """Test 3D Jacobian is diagonal with scale factors."""
         transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -144,7 +151,7 @@ class TestAffineTransforms:
 
     # Tests for gradient_factors, scale_factors, and unit_curvilinear_basis
 
-    def test_gradient_factors_1d(self, bkd):
+    def test_gradient_factors_1d(self, bkd: Backend[Array]) -> None:
         """Test 1D gradient factors are inverse of scale."""
         # Map [-1,1] to [0,4], so scale = 2, gradient factor = 1/2
         transform = AffineTransform1D((0.0, 4.0), bkd)
@@ -156,7 +163,7 @@ class TestAffineTransforms:
         # d/dx_phys = (1/2) * d/d_xi_ref
         bkd.assert_allclose(grad_factors[:, 0, 0], bkd.full((3,), 0.5), atol=1e-14)
 
-    def test_scale_factors_1d(self, bkd):
+    def test_scale_factors_1d(self, bkd: Backend[Array]) -> None:
         """Test 1D scale factors equal Jacobian diagonal."""
         transform = AffineTransform1D((0.0, 4.0), bkd)
 
@@ -166,7 +173,7 @@ class TestAffineTransforms:
         assert scales.shape == (3, 1)
         bkd.assert_allclose(scales[:, 0], bkd.full((3,), 2.0), atol=1e-14)
 
-    def test_unit_basis_1d(self, bkd):
+    def test_unit_basis_1d(self, bkd: Backend[Array]) -> None:
         """Test 1D unit basis is identity."""
         transform = AffineTransform1D((0.0, 4.0), bkd)
 
@@ -176,7 +183,7 @@ class TestAffineTransforms:
         assert basis.shape == (3, 1, 1)
         bkd.assert_allclose(basis[:, 0, 0], bkd.ones((3,)), atol=1e-14)
 
-    def test_gradient_factors_2d(self, bkd):
+    def test_gradient_factors_2d(self, bkd: Backend[Array]) -> None:
         """Test 2D gradient factors are inverse of scales on diagonal."""
         # Map to [0,4] x [0,6], scales = (2, 3), grad factors = (1/2, 1/3)
         transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
@@ -194,7 +201,7 @@ class TestAffineTransforms:
         bkd.assert_allclose(grad_factors[:, 0, 1], bkd.zeros((2,)), atol=1e-14)
         bkd.assert_allclose(grad_factors[:, 1, 0], bkd.zeros((2,)), atol=1e-14)
 
-    def test_scale_factors_2d(self, bkd):
+    def test_scale_factors_2d(self, bkd: Backend[Array]) -> None:
         """Test 2D scale factors equal Jacobian diagonal entries."""
         transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -205,7 +212,7 @@ class TestAffineTransforms:
         bkd.assert_allclose(scales[:, 0], bkd.asarray([2.0]), atol=1e-14)
         bkd.assert_allclose(scales[:, 1], bkd.asarray([3.0]), atol=1e-14)
 
-    def test_unit_basis_2d(self, bkd):
+    def test_unit_basis_2d(self, bkd: Backend[Array]) -> None:
         """Test 2D unit basis is identity."""
         transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -216,7 +223,7 @@ class TestAffineTransforms:
         expected = bkd.asarray([[[1.0, 0.0], [0.0, 1.0]]])
         bkd.assert_allclose(basis, expected, atol=1e-14)
 
-    def test_gradient_factors_3d(self, bkd):
+    def test_gradient_factors_3d(self, bkd: Backend[Array]) -> None:
         """Test 3D gradient factors are inverse of scales on diagonal."""
         # Map to [0,2] x [0,4] x [0,6], scales = (1, 2, 3)
         transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
@@ -237,7 +244,7 @@ class TestAffineTransforms:
                         grad_factors[:, i, j], bkd.asarray([0.0]), atol=1e-14
                     )
 
-    def test_scale_factors_3d(self, bkd):
+    def test_scale_factors_3d(self, bkd: Backend[Array]) -> None:
         """Test 3D scale factors."""
         transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -249,7 +256,7 @@ class TestAffineTransforms:
         bkd.assert_allclose(scales[:, 1], bkd.asarray([2.0]), atol=1e-14)
         bkd.assert_allclose(scales[:, 2], bkd.asarray([3.0]), atol=1e-14)
 
-    def test_unit_basis_3d(self, bkd):
+    def test_unit_basis_3d(self, bkd: Backend[Array]) -> None:
         """Test 3D unit basis is identity."""
         transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
 
@@ -260,7 +267,7 @@ class TestAffineTransforms:
         expected = bkd.asarray([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]])
         bkd.assert_allclose(basis, expected, atol=1e-14)
 
-    def test_gradient_factors_identity(self, bkd):
+    def test_gradient_factors_identity(self, bkd: Backend[Array]) -> None:
         """Test gradient factors are identity when domain is [-1,1]."""
         transform = AffineTransform1D((-1.0, 1.0), bkd)
 
@@ -271,5 +278,67 @@ class TestAffineTransforms:
         bkd.assert_allclose(grad_factors[:, 0, 0], bkd.asarray([1.0]), atol=1e-14)
 
 
-class TestAffineTransformsNumpy(TestAffineTransforms):
-    """NumPy backend tests for affine transforms."""
+@pytest.mark.parametrize("ndim", [4, 6])
+def test_any_number_of_directions(bkd: Backend[Array], ndim: int) -> None:
+    """A 4D and a 6D box: corners map to corners and back, the Jacobian
+    is diagonal with the half-lengths, its determinant their product,
+    and the gradient factors their inverses."""
+    bounds: List[Tuple[float, float]] = [(-0.5 * d, 1.0 + d) for d in range(ndim)]
+    half_lengths = [(b - a) / 2.0 for a, b in bounds]
+    transform = AffineTransform(bounds, bkd)
+    assert transform.ndim() == ndim
+    assert transform.bounds() == tuple(bounds)
+    corners = bkd.asarray(np.stack([-np.ones(ndim), np.ones(ndim)], axis=1))
+    expected = bkd.asarray([[a, b] for a, b in bounds])
+    bkd.assert_allclose(transform.map_to_physical(corners), expected, atol=1e-14)
+    reference = bkd.asarray(np.random.default_rng(0).uniform(-1, 1, (ndim, 5)))
+    bkd.assert_allclose(
+        transform.map_to_reference(transform.map_to_physical(reference)),
+        reference,
+        atol=1e-14,
+    )
+    jacobian = transform.jacobian_matrix(reference)
+    assert jacobian.shape == (5, ndim, ndim)
+    bkd.assert_allclose(jacobian[2], bkd.diag(bkd.asarray(half_lengths)), atol=1e-14)
+    bkd.assert_allclose(
+        transform.jacobian_determinant(reference),
+        bkd.full((5,), math.prod(half_lengths)),
+        rtol=1e-14,
+    )
+    bkd.assert_allclose(
+        transform.gradient_factors(reference)[4],
+        bkd.diag(bkd.asarray([1.0 / s for s in half_lengths])),
+        atol=1e-14,
+    )
+    assert transform.scale_factors(reference).shape == (5, ndim)
+    bkd.assert_allclose(
+        transform.unit_curvilinear_basis(reference)[0], bkd.eye(ndim), atol=1e-14
+    )
+
+
+def test_per_dimension_classes_are_the_generic_map(bkd: Backend[Array]) -> None:
+    """The 1D/2D/3D classes are the generic map, keeping their flat
+    bounds."""
+    transform = AffineTransform2D((0.0, 4.0, 1.0, 2.0), bkd)
+    assert isinstance(transform, AffineTransform)
+    assert transform.bounds() == ((0.0, 4.0), (1.0, 2.0))
+    assert transform.physical_bounds() == (0.0, 4.0, 1.0, 2.0)
+    assert AffineTransform1D((0.0, 3.0), bkd).physical_bounds() == (0.0, 3.0)
+    assert AffineTransform3D((0, 1, 2, 3, 4, 5), bkd).physical_bounds() == (
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+    )
+
+
+def test_refusals(bkd: Backend[Array]) -> None:
+    """No directions, an empty interval or reversed bounds."""
+    with pytest.raises(ValueError, match="at least one direction"):
+        AffineTransform([], bkd)
+    with pytest.raises(ValueError, match="direction 1: lower bound 2.0"):
+        AffineTransform([(0.0, 1.0), (2.0, 2.0)], bkd)
+    with pytest.raises(ValueError, match="direction 0: lower bound 1.0"):
+        AffineTransform1D((1.0, 0.0), bkd)

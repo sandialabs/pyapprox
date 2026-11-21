@@ -1,178 +1,144 @@
 """Affine (scale and translate) coordinate transforms.
 
-Provides linear mappings from reference domain [-1, 1]^d to physical domains.
+:class:`AffineTransform` maps the reference cube :math:`[-1, 1]^d` onto an
+axis-aligned box in any number of directions. ``AffineTransform1D``,
+``AffineTransform2D`` and ``AffineTransform3D`` are the same map built
+from flat bound tuples ``(a_x, b_x, a_y, b_y, ...)``.
 """
 
-from typing import Generic, Tuple
+import math
+from typing import Generic, Sequence, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class AffineTransform1D(Generic[Array]):
-    """Affine transform for 1D domains.
+class AffineTransform(Generic[Array]):
+    """Affine map from the reference cube :math:`[-1, 1]^d` to a box.
 
-    Maps reference interval [-1, 1] to physical interval [a, b].
+    Direction ``d`` maps :math:`\\xi_d \\mapsto s_d \\xi_d + c_d` with
+    half-length :math:`s_d = (b_d - a_d) / 2` and center
+    :math:`c_d = (a_d + b_d) / 2`.
 
     Parameters
     ----------
-    physical_bounds : Tuple[float, float]
-        Physical domain bounds (a, b).
+    bounds : Sequence[Tuple[float, float]]
+        ``(a_d, b_d)`` per direction, ``a_d < b_d``.
     bkd : Backend
         Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If ``bounds`` is empty or a lower bound is not below its upper.
     """
 
     def __init__(
-        self,
-        physical_bounds: Tuple[float, float],
-        bkd: Backend[Array],
-    ):
+        self, bounds: Sequence[Tuple[float, float]], bkd: Backend[Array]
+    ) -> None:
+        if len(bounds) == 0:
+            raise ValueError("an affine transform needs at least one direction")
+        for direction, (lower, upper) in enumerate(bounds):
+            if not lower < upper:
+                raise ValueError(
+                    f"direction {direction}: lower bound {lower} is not below "
+                    f"upper bound {upper}"
+                )
         self._bkd = bkd
-        self._a, self._b = physical_bounds
-        # Scale and shift: x = (b-a)/2 * xi + (a+b)/2
-        self._scale = (self._b - self._a) / 2.0
-        self._shift = (self._a + self._b) / 2.0
+        self._bounds = tuple((float(a), float(b)) for a, b in bounds)
+        half_lengths = [(b - a) / 2.0 for a, b in self._bounds]
+        centers = [(a + b) / 2.0 for a, b in self._bounds]
+        self._determinant = math.prod(half_lengths)
+        # Columns, so they broadcast over points (one per column).
+        self._scale = bkd.reshape(bkd.asarray(half_lengths), (-1, 1))
+        self._shift = bkd.reshape(bkd.asarray(centers), (-1, 1))
+        self._jacobian = bkd.diag(bkd.asarray(half_lengths))
+        self._inverse_jacobian = bkd.diag(bkd.asarray([1.0 / s for s in half_lengths]))
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
 
     def ndim(self) -> int:
-        """Return the number of spatial dimensions."""
-        return 1
+        """Return the number of directions."""
+        return len(self._bounds)
 
-    def physical_bounds(self) -> Tuple[float, float]:
-        """Return physical domain bounds."""
-        return (self._a, self._b)
+    def bounds(self) -> Tuple[Tuple[float, float], ...]:
+        """``(a_d, b_d)`` per direction."""
+        return self._bounds
 
     def map_to_physical(self, reference_pts: Array) -> Array:
-        """Map from reference [-1, 1] to physical [a, b].
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Physical coordinates. Shape: (1, npts)
-        """
+        """Map reference points, shape ``(ndim, npts)``, to the box."""
         return self._scale * reference_pts + self._shift
 
     def map_to_reference(self, physical_pts: Array) -> Array:
-        """Map from physical [a, b] to reference [-1, 1].
-
-        Parameters
-        ----------
-        physical_pts : Array
-            Physical coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Reference coordinates. Shape: (1, npts)
-        """
+        """Map points of the box, shape ``(ndim, npts)``, to the reference
+        cube."""
         return (physical_pts - self._shift) / self._scale
 
-    def jacobian_matrix(self, reference_pts: Array) -> Array:
-        """Compute Jacobian matrix (constant for affine).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Jacobian matrices. Shape: (npts, 1, 1)
-        """
+    def _per_point(self, matrix: Array, reference_pts: Array) -> Array:
+        """``matrix`` repeated at every point: ``(npts, ndim, ndim)``."""
         npts = reference_pts.shape[1]
-        jac = self._bkd.full((npts, 1, 1), self._scale)
-        return jac
+        return self._bkd.ones((npts, 1, 1)) * matrix[None, :, :]
+
+    def jacobian_matrix(self, reference_pts: Array) -> Array:
+        """The constant diagonal Jacobian at every point:
+        ``(npts, ndim, ndim)``."""
+        return self._per_point(self._jacobian, reference_pts)
 
     def jacobian_determinant(self, reference_pts: Array) -> Array:
-        """Compute Jacobian determinant (constant for affine).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Jacobian determinants. Shape: (npts,)
-        """
-        npts = reference_pts.shape[1]
-        return self._bkd.full((npts,), self._scale)
+        """The product of half-lengths at every point: ``(npts,)``."""
+        return self._bkd.full((reference_pts.shape[1],), self._determinant)
 
     def scale_factors(self, reference_pts: Array) -> Array:
-        """Compute scale factors (constant for affine).
-
-        For affine transforms, scale factors are the diagonal Jacobian entries.
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Scale factors. Shape: (npts, 1)
-        """
+        """The half-lengths (the Jacobian's diagonal) at every point:
+        ``(npts, ndim)``."""
         npts = reference_pts.shape[1]
-        return self._bkd.full((npts, 1), self._scale)
+        return self._bkd.ones((npts, 1)) * self._scale[:, 0][None, :]
 
     def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
-        """Compute unit curvilinear basis vectors (identity for Cartesian).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Unit basis vectors. Shape: (npts, 1, 1)
-        """
-        npts = reference_pts.shape[1]
-        return self._bkd.ones((npts, 1, 1))
+        """The Cartesian unit vectors at every point: ``(npts, ndim,
+        ndim)``."""
+        return self._per_point(self._bkd.eye(self.ndim()), reference_pts)
 
     def gradient_factors(self, reference_pts: Array) -> Array:
-        """Compute gradient factors for coordinate transformation.
+        """Factors turning reference derivatives into physical ones, at
+        every point: ``(npts, ndim, ndim)``.
 
-        For affine transforms, gradient factors are 1/scale on the diagonal.
-        This converts reference derivatives to physical derivatives:
-            d/dx_phys = (1/scale) * d/d_xi_ref
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (1, npts)
-
-        Returns
-        -------
-        Array
-            Gradient factors. Shape: (npts, 1, 1)
-            gradient_factors[i, d, j] = factor to multiply j-th reference
-            derivative to get d-th physical derivative at point i.
+        Entry ``[i, d, j]`` multiplies the ``j``-th reference derivative
+        in the ``d``-th physical derivative at point ``i``: here
+        :math:`1 / s_d` on the diagonal.
         """
-        npts = reference_pts.shape[1]
-        return self._bkd.full((npts, 1, 1), 1.0 / self._scale)
+        return self._per_point(self._inverse_jacobian, reference_pts)
 
 
-class AffineTransform2D(Generic[Array]):
-    """Affine transform for 2D domains.
+class AffineTransform1D(AffineTransform[Array]):
+    """:class:`AffineTransform` of the interval ``(a, b)``.
 
-    Maps reference square [-1, 1]^2 to physical rectangle [ax, bx] x [ay, by].
+    Parameters
+    ----------
+    physical_bounds : Tuple[float, float]
+        ``(a, b)``.
+    bkd : Backend
+        Computational backend.
+    """
+
+    def __init__(
+        self, physical_bounds: Tuple[float, float], bkd: Backend[Array]
+    ) -> None:
+        super().__init__([physical_bounds], bkd)
+
+    def physical_bounds(self) -> Tuple[float, float]:
+        """``(a, b)``."""
+        return self._bounds[0]
+
+
+class AffineTransform2D(AffineTransform[Array]):
+    """:class:`AffineTransform` of the rectangle ``[ax, bx] x [ay, by]``.
 
     Parameters
     ----------
     physical_bounds : Tuple[float, float, float, float]
-        Physical domain bounds (ax, bx, ay, by).
+        ``(ax, bx, ay, by)``.
     bkd : Backend
         Computational backend.
     """
@@ -181,176 +147,24 @@ class AffineTransform2D(Generic[Array]):
         self,
         physical_bounds: Tuple[float, float, float, float],
         bkd: Backend[Array],
-    ):
-        self._bkd = bkd
-        self._ax, self._bx, self._ay, self._by = physical_bounds
-        # Scales per dimension
-        self._scale_x = (self._bx - self._ax) / 2.0
-        self._scale_y = (self._by - self._ay) / 2.0
-        self._shift_x = (self._ax + self._bx) / 2.0
-        self._shift_y = (self._ay + self._by) / 2.0
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
-    def ndim(self) -> int:
-        """Return the number of spatial dimensions."""
-        return 2
+    ) -> None:
+        ax, bx, ay, by = physical_bounds
+        super().__init__([(ax, bx), (ay, by)], bkd)
 
     def physical_bounds(self) -> Tuple[float, float, float, float]:
-        """Return physical domain bounds (ax, bx, ay, by)."""
-        return (self._ax, self._bx, self._ay, self._by)
-
-    def map_to_physical(self, reference_pts: Array) -> Array:
-        """Map from reference [-1, 1]^2 to physical domain.
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Physical coordinates. Shape: (2, npts)
-        """
-        result = self._bkd.zeros(reference_pts.shape)
-        result[0, :] = self._scale_x * reference_pts[0, :] + self._shift_x
-        result[1, :] = self._scale_y * reference_pts[1, :] + self._shift_y
-        return result
-
-    def map_to_reference(self, physical_pts: Array) -> Array:
-        """Map from physical domain to reference [-1, 1]^2.
-
-        Parameters
-        ----------
-        physical_pts : Array
-            Physical coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Reference coordinates. Shape: (2, npts)
-        """
-        result = self._bkd.zeros(physical_pts.shape)
-        result[0, :] = (physical_pts[0, :] - self._shift_x) / self._scale_x
-        result[1, :] = (physical_pts[1, :] - self._shift_y) / self._scale_y
-        return result
-
-    def jacobian_matrix(self, reference_pts: Array) -> Array:
-        """Compute Jacobian matrix (diagonal, constant for affine).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Jacobian matrices. Shape: (npts, 2, 2)
-        """
-        npts = reference_pts.shape[1]
-        jac = self._bkd.zeros((npts, 2, 2))
-        jac[:, 0, 0] = self._scale_x
-        jac[:, 1, 1] = self._scale_y
-        return jac
-
-    def jacobian_determinant(self, reference_pts: Array) -> Array:
-        """Compute Jacobian determinant (constant for affine).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Jacobian determinants. Shape: (npts,)
-        """
-        npts = reference_pts.shape[1]
-        det = self._scale_x * self._scale_y
-        return self._bkd.full((npts,), det)
-
-    def scale_factors(self, reference_pts: Array) -> Array:
-        """Compute scale factors (constant for affine).
-
-        For affine transforms, scale factors are the diagonal Jacobian entries.
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Scale factors. Shape: (npts, 2)
-        """
-        npts = reference_pts.shape[1]
-        scales = self._bkd.zeros((npts, 2))
-        scales[:, 0] = self._scale_x
-        scales[:, 1] = self._scale_y
-        return scales
-
-    def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
-        """Compute unit curvilinear basis vectors (identity for Cartesian).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Unit basis vectors. Shape: (npts, 2, 2)
-        """
-        npts = reference_pts.shape[1]
-        basis = self._bkd.zeros((npts, 2, 2))
-        basis[:, 0, 0] = 1.0
-        basis[:, 1, 1] = 1.0
-        return basis
-
-    def gradient_factors(self, reference_pts: Array) -> Array:
-        """Compute gradient factors for coordinate transformation.
-
-        For affine transforms, gradient factors are 1/scale on the diagonal.
-        This converts reference derivatives to physical derivatives:
-            d/dx_phys = (1/scale_x) * d/d_xi_ref
-            d/dy_phys = (1/scale_y) * d/d_eta_ref
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (2, npts)
-
-        Returns
-        -------
-        Array
-            Gradient factors. Shape: (npts, 2, 2)
-            gradient_factors[i, d, j] = factor to multiply j-th reference
-            derivative to get d-th physical derivative at point i.
-        """
-        npts = reference_pts.shape[1]
-        factors = self._bkd.zeros((npts, 2, 2))
-        factors[:, 0, 0] = 1.0 / self._scale_x
-        factors[:, 1, 1] = 1.0 / self._scale_y
-        return factors
+        """``(ax, bx, ay, by)``."""
+        (ax, bx), (ay, by) = self._bounds
+        return (ax, bx, ay, by)
 
 
-class AffineTransform3D(Generic[Array]):
-    """Affine transform for 3D domains.
-
-    Maps reference cube [-1, 1]^3 to physical box
-    [ax, bx] x [ay, by] x [az, bz].
+class AffineTransform3D(AffineTransform[Array]):
+    """:class:`AffineTransform` of the box
+    ``[ax, bx] x [ay, by] x [az, bz]``.
 
     Parameters
     ----------
     physical_bounds : Tuple[float, float, float, float, float, float]
-        Physical domain bounds (ax, bx, ay, by, az, bz).
+        ``(ax, bx, ay, by, az, bz)``.
     bkd : Backend
         Computational backend.
     """
@@ -359,186 +173,11 @@ class AffineTransform3D(Generic[Array]):
         self,
         physical_bounds: Tuple[float, float, float, float, float, float],
         bkd: Backend[Array],
-    ):
-        self._bkd = bkd
-        (
-            self._ax,
-            self._bx,
-            self._ay,
-            self._by,
-            self._az,
-            self._bz,
-        ) = physical_bounds
-        # Scales per dimension
-        self._scale_x = (self._bx - self._ax) / 2.0
-        self._scale_y = (self._by - self._ay) / 2.0
-        self._scale_z = (self._bz - self._az) / 2.0
-        self._shift_x = (self._ax + self._bx) / 2.0
-        self._shift_y = (self._ay + self._by) / 2.0
-        self._shift_z = (self._az + self._bz) / 2.0
+    ) -> None:
+        ax, bx, ay, by, az, bz = physical_bounds
+        super().__init__([(ax, bx), (ay, by), (az, bz)], bkd)
 
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
-    def ndim(self) -> int:
-        """Return the number of spatial dimensions."""
-        return 3
-
-    def physical_bounds(
-        self,
-    ) -> Tuple[float, float, float, float, float, float]:
-        """Return physical domain bounds (ax, bx, ay, by, az, bz)."""
-        return (
-            self._ax,
-            self._bx,
-            self._ay,
-            self._by,
-            self._az,
-            self._bz,
-        )
-
-    def map_to_physical(self, reference_pts: Array) -> Array:
-        """Map from reference [-1, 1]^3 to physical domain.
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Physical coordinates. Shape: (3, npts)
-        """
-        result = self._bkd.zeros(reference_pts.shape)
-        result[0, :] = self._scale_x * reference_pts[0, :] + self._shift_x
-        result[1, :] = self._scale_y * reference_pts[1, :] + self._shift_y
-        result[2, :] = self._scale_z * reference_pts[2, :] + self._shift_z
-        return result
-
-    def map_to_reference(self, physical_pts: Array) -> Array:
-        """Map from physical domain to reference [-1, 1]^3.
-
-        Parameters
-        ----------
-        physical_pts : Array
-            Physical coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Reference coordinates. Shape: (3, npts)
-        """
-        result = self._bkd.zeros(physical_pts.shape)
-        result[0, :] = (physical_pts[0, :] - self._shift_x) / self._scale_x
-        result[1, :] = (physical_pts[1, :] - self._shift_y) / self._scale_y
-        result[2, :] = (physical_pts[2, :] - self._shift_z) / self._scale_z
-        return result
-
-    def jacobian_matrix(self, reference_pts: Array) -> Array:
-        """Compute Jacobian matrix (diagonal, constant for affine).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Jacobian matrices. Shape: (npts, 3, 3)
-        """
-        npts = reference_pts.shape[1]
-        jac = self._bkd.zeros((npts, 3, 3))
-        jac[:, 0, 0] = self._scale_x
-        jac[:, 1, 1] = self._scale_y
-        jac[:, 2, 2] = self._scale_z
-        return jac
-
-    def jacobian_determinant(self, reference_pts: Array) -> Array:
-        """Compute Jacobian determinant (constant for affine).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Jacobian determinants. Shape: (npts,)
-        """
-        npts = reference_pts.shape[1]
-        det = self._scale_x * self._scale_y * self._scale_z
-        return self._bkd.full((npts,), det)
-
-    def scale_factors(self, reference_pts: Array) -> Array:
-        """Compute scale factors (constant for affine).
-
-        For affine transforms, scale factors are the diagonal Jacobian entries.
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Scale factors. Shape: (npts, 3)
-        """
-        npts = reference_pts.shape[1]
-        scales = self._bkd.zeros((npts, 3))
-        scales[:, 0] = self._scale_x
-        scales[:, 1] = self._scale_y
-        scales[:, 2] = self._scale_z
-        return scales
-
-    def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
-        """Compute unit curvilinear basis vectors (identity for Cartesian).
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Unit basis vectors. Shape: (npts, 3, 3)
-        """
-        npts = reference_pts.shape[1]
-        basis = self._bkd.zeros((npts, 3, 3))
-        basis[:, 0, 0] = 1.0
-        basis[:, 1, 1] = 1.0
-        basis[:, 2, 2] = 1.0
-        return basis
-
-    def gradient_factors(self, reference_pts: Array) -> Array:
-        """Compute gradient factors for coordinate transformation.
-
-        For affine transforms, gradient factors are 1/scale on the diagonal.
-        This converts reference derivatives to physical derivatives:
-            d/dx_phys = (1/scale_x) * d/d_xi_ref
-            d/dy_phys = (1/scale_y) * d/d_eta_ref
-            d/dz_phys = (1/scale_z) * d/d_zeta_ref
-
-        Parameters
-        ----------
-        reference_pts : Array
-            Reference coordinates. Shape: (3, npts)
-
-        Returns
-        -------
-        Array
-            Gradient factors. Shape: (npts, 3, 3)
-            gradient_factors[i, d, j] = factor to multiply j-th reference
-            derivative to get d-th physical derivative at point i.
-        """
-        npts = reference_pts.shape[1]
-        factors = self._bkd.zeros((npts, 3, 3))
-        factors[:, 0, 0] = 1.0 / self._scale_x
-        factors[:, 1, 1] = 1.0 / self._scale_y
-        factors[:, 2, 2] = 1.0 / self._scale_z
-        return factors
+    def physical_bounds(self) -> Tuple[float, float, float, float, float, float]:
+        """``(ax, bx, ay, by, az, bz)``."""
+        (ax, bx), (ay, by), (az, bz) = self._bounds
+        return (ax, bx, ay, by, az, bz)
