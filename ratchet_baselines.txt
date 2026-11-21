@@ -1,11 +1,11 @@
 # CI ratchet baselines. Rule: any commit that improves a metric lowers
 # its baseline here in the same commit. Read by .github/workflows/lint.yml
-mypy_src=316
+mypy_src=297
 # Measure benchmarks AFTER src, as lint.yml does: checking src first puts
 # the pyapprox modules in the cache, so benchmarks type-check against real
 # signatures. Measured alone it reports a fraction of this, because the
 # unresolved pyapprox imports become Any and the errors never surface.
-mypy_benchmarks=229
+mypy_benchmarks=226
 moved:pyapprox.surrogates.affine.univariate=208
 moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
