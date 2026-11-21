@@ -1,14 +1,18 @@
 """Shared harness pieces for adjoint/HVP DerivativeChecker tests."""
 
-from typing import Any, Generic, List
+from typing import Any, Generic, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+    VShapeReport,
+    predicted_rounding,
 )
+from pyapprox.interface.functions.derivative_checks.resolve import resolve_bundle
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
@@ -64,16 +68,72 @@ def solve_based_derivatives_pass_fd(model: Any, sample: NumpyArray) -> List[bool
     checker = DerivativeChecker(model)
     fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
     passed = []
-    for errors in checker.check_derivatives(
-        sample, fd_eps=fd_eps, relative=True
-    ):
+    for errors in checker.check_derivatives(sample, fd_eps=fd_eps, relative=True):
         ratio = bkd.to_float(checker.error_ratio(errors))
         # fd_eps descends, so the first five steps are 1e-1 to 1e-5.
-        order = bkd.to_float(
-            checker.convergence_order(errors[:5], fd_eps[:5])
-        )
+        order = bkd.to_float(checker.convergence_order(errors[:5], fd_eps[:5]))
         passed.append(ratio <= 5e-6 and abs(order - 1.0) < 0.1)
     return passed
+
+
+def central_derivatives_pass_fd(
+    function: FunctionProtocol[NumpyArray],
+    sample: NumpyArray,
+    direction: NumpyArray,
+    weights: Optional[NumpyArray] = None,
+) -> List[VShapeReport]:
+    """Central-difference check of a function's Jacobian and, when it has
+    one, its (weighted) Hessian-vector product, along ``direction``, over
+    steps 1e-1 to 1e-13; one report per derivative, each to be asserted
+    ``passed``.
+
+    Each curve is judged against its predicted rounding
+    (``predicted_rounding``), so the second-order fit covers the two
+    decades above where the error nears it and stays off a floor that
+    moves with the solve and the platform. A curve that is rounding
+    throughout (a quantity affine or quadratic along the direction)
+    passes as truncation free. The sizes are the value and the Jacobian's
+    action for the Jacobian, and the weighted gradient and the product for
+    the Hessian; ``weights`` defaults to ones, as the checker's.
+    """
+    bkd = function.bkd()
+    steps = [10.0**-k for k in range(1, 14)]
+    checker = DerivativeChecker(function)
+    derivatives = resolve_bundle(function)
+    jacobian = derivatives.jacobian
+    if jacobian is None:
+        raise ValueError("the function declares no Jacobian")
+    if weights is None:
+        weights = bkd.ones((function.nqoi(), 1))
+    errors = checker.check_derivatives(
+        sample,
+        fd_eps=bkd.asarray(steps),
+        direction=direction,
+        relative=True,
+        central=True,
+        weights=weights,
+    )
+    gradient = jacobian(sample)
+    sizes = [(function(sample), bkd.dot(gradient, direction))]
+    whvp = derivatives.resolved_whvp(function.nqoi())
+    if whvp is not None:
+        sizes.append((bkd.dot(gradient.T, weights), whvp(sample, direction, weights)))
+    eps = float(np.finfo(bkd.to_numpy(sample).dtype).eps)
+    point_size = bkd.to_float(bkd.norm(sample))
+    reports = []
+    for error, (value, action) in zip(errors, sizes):
+        rounding = predicted_rounding(
+            eps,
+            bkd.to_float(bkd.norm(value)),
+            bkd.to_float(bkd.norm(action)),
+            point_size,
+            steps,
+        )
+        curve = checker.curve(
+            error, bkd.asarray(steps), central=True, rounding=rounding
+        )
+        reports.append(curve.v_shape())
+    return reports
 
 
 class HVPOperatorFunction:
@@ -113,9 +173,7 @@ class HVPOperatorFunction:
         return self._operator(self._init_state, samples)
 
     def derivatives(self) -> Derivatives[NumpyArray]:
-        return Derivatives.second_order(
-            jacobian=self._jacobian, hvp=self._hvp
-        )
+        return Derivatives.second_order(jacobian=self._jacobian, hvp=self._hvp)
 
     def _jacobian(self, params: NumpyArray) -> NumpyArray:
         self._prepare(params)
@@ -123,6 +181,4 @@ class HVPOperatorFunction:
 
     def _hvp(self, params: NumpyArray, vvec: NumpyArray) -> NumpyArray:
         self._prepare(params)
-        return np.asarray(
-            self._operator.hvp(self._init_state, params, vvec)
-        ).T
+        return np.asarray(self._operator.hvp(self._init_state, params, vvec)).T
