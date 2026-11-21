@@ -1,18 +1,18 @@
 """Tests for SUPN MSE loss functions.
 
 Validates loss value, analytical gradient, and exact HVP using
-DerivativeChecker and torch autograd.
+DerivativeChecker and the backend's autodiff.
 """
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.surrogates.supn import SUPNMSELoss, create_supn
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 
 class TestSUPNMSELoss:
@@ -97,9 +97,7 @@ class TestSUPNMSELoss:
 
         loss = SUPNMSELoss(supn, samples, values, bkd)
         grad = loss.jacobian(params)
-        bkd.assert_allclose(
-            grad, bkd.zeros((1, supn.nparams())), atol=1e-10
-        )
+        bkd.assert_allclose(grad, bkd.zeros((1, supn.nparams())), atol=1e-10)
 
     def test_gradient_derivative_checker(self, bkd) -> None:
         """Test gradient using DerivativeChecker."""
@@ -122,15 +120,11 @@ class TestSUPNMSELoss:
             verbosity=0,
         )
         grad_error_ratio = float(checker.error_ratio(errors[0]))
-        assert grad_error_ratio < 1e-6, (
-            f"Gradient error ratio {grad_error_ratio:.2e}"
-        )
+        assert grad_error_ratio < 1e-6, f"Gradient error ratio {grad_error_ratio:.2e}"
         # DerivativeChecker also checks HVP since loss has hvp method
         assert len(errors) == 2, "Expected HVP check (loss has hvp)"
         hvp_error_ratio = float(checker.error_ratio(errors[1]))
-        assert hvp_error_ratio < 1e-6, (
-            f"HVP error ratio {hvp_error_ratio:.2e}"
-        )
+        assert hvp_error_ratio < 1e-6, f"HVP error ratio {hvp_error_ratio:.2e}"
 
     def test_derivative_checker_multi_qoi(self, bkd) -> None:
         """Test gradient and HVP with nqoi > 1 using DerivativeChecker."""
@@ -154,15 +148,11 @@ class TestSUPNMSELoss:
             verbosity=0,
         )
         grad_error_ratio = float(checker.error_ratio(errors[0]))
-        assert grad_error_ratio < 1e-6, (
-            f"Gradient error ratio {grad_error_ratio:.2e}"
-        )
+        assert grad_error_ratio < 1e-6, f"Gradient error ratio {grad_error_ratio:.2e}"
         # Loss nqoi=1 so HVP check should still run
         assert len(errors) == 2, "Expected HVP check (loss has hvp)"
         hvp_error_ratio = float(checker.error_ratio(errors[1]))
-        assert hvp_error_ratio < 1e-6, (
-            f"HVP error ratio {hvp_error_ratio:.2e}"
-        )
+        assert hvp_error_ratio < 1e-6, f"HVP error ratio {hvp_error_ratio:.2e}"
 
     def test_hvp_shape(self, bkd) -> None:
         """Test HVP output shape (P, 1)."""
@@ -178,80 +168,45 @@ class TestSUPNMSELoss:
 
 
 class TestSUPNMSELossAutograd:
-    """Verify analytical gradient and HVP match torch autograd."""
+    """The analytical gradient and HVP match the backend's autodiff ones,
+    which need the computation graph to survive."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
+    def _seed(self) -> None:
         np.random.seed(42)
 
-    def test_gradient_matches_autograd(self) -> None:
-        """Verify analytical gradient matches torch autograd."""
-        bkd = self._bkd
-        supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd)
-        params = bkd.asarray(np.random.randn(supn.nparams()))
-        supn = supn.with_params(params)
-
-        nsamples = 15
-        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
-        values = bkd.asarray(np.random.randn(1, nsamples))
-
-        loss = SUPNMSELoss(supn, samples, values, bkd)
-        analytical_grad = loss.jacobian(params)  # (1, P)
-
-        # Autograd
-        p_tensor = params.clone().requires_grad_(True)
-        loss_val = loss(p_tensor)[0, 0]
-        loss_val.backward()
-        autograd_grad = p_tensor.grad.unsqueeze(0)  # (1, P)
-
-        bkd.assert_allclose(analytical_grad, autograd_grad, rtol=1e-10)
-
-    def test_gradient_matches_autograd_multi_qoi(self) -> None:
-        """Verify gradient matches autograd for nqoi > 1."""
-        bkd = self._bkd
-        nqoi = 2
+    @pytest.mark.parametrize("nqoi", [1, 2])
+    def test_gradient_matches_autodiff(
+        self, torch_bkd: AutodiffBackend[Array], nqoi: int
+    ) -> None:
+        bkd = torch_bkd
         supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd, nqoi=nqoi)
         params = bkd.asarray(np.random.randn(supn.nparams()))
-        supn = supn.with_params(params)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, 15)))
+        values = bkd.asarray(np.random.randn(nqoi, 15))
+        loss = SUPNMSELoss(supn.with_params(params), samples, values, bkd)
 
-        nsamples = 15
-        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
-        values = bkd.asarray(np.random.randn(nqoi, nsamples))
+        def flat_loss(p: Array) -> Array:
+            return bkd.reshape(loss(p), (1,))
 
-        loss = SUPNMSELoss(supn, samples, values, bkd)
-        analytical_grad = loss.jacobian(params)
+        bkd.assert_allclose(
+            loss.jacobian(params), bkd.jacobian(flat_loss, params), rtol=1e-10
+        )
 
-        p_tensor = params.clone().requires_grad_(True)
-        loss_val = loss(p_tensor)[0, 0]
-        loss_val.backward()
-        autograd_grad = p_tensor.grad.unsqueeze(0)
-
-        bkd.assert_allclose(analytical_grad, autograd_grad, rtol=1e-10)
-
-    def test_hvp_matches_autograd(self) -> None:
-        """Verify analytical HVP matches torch autograd HVP."""
-        bkd = self._bkd
+    def test_hvp_matches_autodiff(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        bkd = torch_bkd
         supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd)
         params = bkd.asarray(np.random.randn(supn.nparams()))
-        supn = supn.with_params(params)
-
-        nsamples = 15
-        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
-        values = bkd.asarray(np.random.randn(1, nsamples))
-
-        loss = SUPNMSELoss(supn, samples, values, bkd)
-
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, 15)))
+        values = bkd.asarray(np.random.randn(1, 15))
+        loss = SUPNMSELoss(supn.with_params(params), samples, values, bkd)
         direction = bkd.asarray(np.random.randn(supn.nparams()))
-        hvp_analytical = loss.hvp(params, direction)[:, 0]  # (P,)
 
-        # Autograd HVP via two backward passes
-        p_tensor = params.clone().requires_grad_(True)
-        loss_val = loss(p_tensor)[0, 0]
-        grad = torch.autograd.grad(loss_val, p_tensor, create_graph=True)[0]
-        hvp_autograd = torch.autograd.grad(
-            grad, p_tensor, grad_outputs=direction
-        )[0]
+        def scalar_loss(p: Array) -> Array:
+            return loss(p)[0, 0]
 
-        bkd.assert_allclose(hvp_analytical, hvp_autograd, rtol=1e-10)
+        bkd.assert_allclose(
+            loss.hvp(params, direction)[:, 0],
+            bkd.hvp(scalar_loss, params, direction),
+            rtol=1e-10,
+        )

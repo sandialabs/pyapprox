@@ -1,11 +1,10 @@
 """Tests for SUPN jacobians w.r.t. inputs and parameters.
 
-Validates using DerivativeChecker and torch autograd.
+Validates using DerivativeChecker and the backend's autodiff Jacobian.
 """
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -14,7 +13,8 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.surrogates.supn import create_supn
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 
 class TestSUPNInputJacobian:
@@ -52,7 +52,8 @@ class TestSUPNInputJacobian:
         supn = supn.with_params(params)
 
         function_obj = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=1,
+            nqoi=1,
+            nvars=1,
             fun=lambda x: supn(x),
             jacobian=lambda x: supn.jacobian(x),
             bkd=bkd,
@@ -69,7 +70,8 @@ class TestSUPNInputJacobian:
         supn = supn.with_params(params)
 
         function_obj = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=2,
+            nqoi=1,
+            nvars=2,
             fun=lambda x: supn(x),
             jacobian=lambda x: supn.jacobian(x),
             bkd=bkd,
@@ -88,7 +90,8 @@ class TestSUPNInputJacobian:
         supn = supn.with_params(params)
 
         function_obj = FunctionWithJacobianFromCallable(
-            nqoi=nqoi, nvars=nvars,
+            nqoi=nqoi,
+            nvars=nvars,
             fun=lambda x: supn(x),
             jacobian=lambda x: supn.jacobian(x),
             bkd=bkd,
@@ -97,7 +100,9 @@ class TestSUPNInputJacobian:
         sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (nvars, 1)))
         weights = bkd.asarray(np.random.randn(nqoi, 1))
         errors = checker.check_derivatives(
-            sample, weights=weights, verbosity=0,
+            sample,
+            weights=weights,
+            verbosity=0,
         )
         assert float(checker.error_ratio(errors[0])) < 1e-6
 
@@ -140,7 +145,8 @@ class TestSUPNParamJacobian:
 
         # Wrap: input=params, output=supn(sample)
         function_obj = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=supn.nparams(),
+            nqoi=1,
+            nvars=supn.nparams(),
             fun=lambda p: supn.with_params(p)(sample),
             jacobian=lambda p: supn.with_params(p).jacobian_wrt_params(sample),
             bkd=bkd,
@@ -148,7 +154,10 @@ class TestSUPNParamJacobian:
         checker = DerivativeChecker(function_obj)
         fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
         errors = checker.check_derivatives(
-            params[:, None], fd_eps=fd_eps, relative=True, verbosity=0,
+            params[:, None],
+            fd_eps=fd_eps,
+            relative=True,
+            verbosity=0,
         )
         assert float(checker.error_ratio(errors[0])) < 1e-6
 
@@ -162,7 +171,8 @@ class TestSUPNParamJacobian:
         sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
 
         function_obj = FunctionWithJacobianFromCallable(
-            nqoi=nqoi, nvars=supn.nparams(),
+            nqoi=nqoi,
+            nvars=supn.nparams(),
             fun=lambda p: supn.with_params(p)(sample),
             jacobian=lambda p: supn.with_params(p).jacobian_wrt_params(sample),
             bkd=bkd,
@@ -171,82 +181,39 @@ class TestSUPNParamJacobian:
         fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
         weights = bkd.asarray(np.random.randn(nqoi, 1))
         errors = checker.check_derivatives(
-            params[:, None], fd_eps=fd_eps, relative=True,
-            weights=weights, verbosity=0,
+            params[:, None],
+            fd_eps=fd_eps,
+            relative=True,
+            weights=weights,
+            verbosity=0,
         )
         assert float(checker.error_ratio(errors[0])) < 1e-6
 
 
-class TestSUPNJacobianAutograd:
-    """Verify analytical jacobians match torch autograd."""
+class TestSUPNParamJacobianAutodiff:
+    """The analytical parameter Jacobian matches the backend's autodiff
+    Jacobian, which needs the computation graph to survive. The input
+    Jacobian's autodiff check is in test_supn_jacobians_torch.py."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
+    def _seed(self) -> None:
         np.random.seed(42)
 
-    def test_input_jacobian_matches_autograd(self) -> None:
-        """Verify input jacobian matches torch autograd."""
-        bkd = self._bkd
-        supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd)
-        params = bkd.asarray(np.random.randn(supn.nparams()))
-        supn = supn.with_params(params)
-
-        sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
-        analytical_jac = supn.jacobian(sample)  # (1, 2)
-
-        # Autograd: compute per-output jacobian via backward
-        sample_ag = sample.clone().requires_grad_(True)
-        out = supn(sample_ag)  # (1, 1)
-        out[0, 0].backward()
-        autograd_jac = sample_ag.grad.T  # (1, 2)
-
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
-
-    def test_param_jacobian_matches_autograd(self) -> None:
-        """Verify param jacobian matches torch autograd."""
-        bkd = self._bkd
-        supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd)
-        params = bkd.asarray(np.random.randn(supn.nparams()))
-        supn = supn.with_params(params)
-
-        sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
-        analytical_jac = supn.jacobian_wrt_params(sample)  # (1, P)
-
-        # Autograd: differentiate output w.r.t. flat params
-        def f_from_params(p: torch.Tensor) -> torch.Tensor:
-            return supn.with_params(p)(sample)  # (1, 1)
-
-        # Compute row-by-row
-        nqoi = supn.nqoi()
-        P = supn.nparams()
-        autograd_jac = torch.zeros(nqoi, P, dtype=torch.float64)
-        for q in range(nqoi):
-            p_tensor = params.clone().requires_grad_(True)
-            out = supn.with_params(p_tensor)(sample)
-            out[q, 0].backward()
-            autograd_jac[q, :] = p_tensor.grad
-
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
-
-    def test_param_jacobian_autograd_multi_qoi(self) -> None:
-        """Verify param jacobian matches autograd for nqoi > 1."""
-        bkd = self._bkd
-        nqoi = 2
+    @pytest.mark.parametrize("nqoi", [1, 2])
+    def test_param_jacobian_matches_autodiff(
+        self, torch_bkd: AutodiffBackend[Array], nqoi: int
+    ) -> None:
+        bkd = torch_bkd
         supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd, nqoi=nqoi)
         params = bkd.asarray(np.random.randn(supn.nparams()))
         supn = supn.with_params(params)
-
         sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
-        analytical_jac = supn.jacobian_wrt_params(sample)  # (Q, P)
 
-        P = supn.nparams()
-        autograd_jac = torch.zeros(nqoi, P, dtype=torch.float64)
-        for q in range(nqoi):
-            p_tensor = params.clone().requires_grad_(True)
-            out = supn.with_params(p_tensor)(sample)
-            out[q, 0].backward()
-            autograd_jac[q, :] = p_tensor.grad
+        def flat_output(p: Array) -> Array:
+            return bkd.reshape(supn.with_params(p)(sample), (nqoi,))
 
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
+        bkd.assert_allclose(
+            supn.jacobian_wrt_params(sample),  # (nqoi, nparams)
+            bkd.jacobian(flat_output, params),
+            rtol=1e-10,
+        )
