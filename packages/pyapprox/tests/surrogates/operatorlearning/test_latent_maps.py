@@ -9,6 +9,11 @@ graph makes a fit run, change nothing and report nothing.
 
 import numpy as np
 import pytest
+
+# Torch is optional and every test here needs it (the map is an nn.Module);
+# skip the module without it, so the imports below are ordinary ones.
+pytest.importorskip("torch")
+
 import torch
 
 from pyapprox.interface.functions.derivative_checks.base import JVPChecker

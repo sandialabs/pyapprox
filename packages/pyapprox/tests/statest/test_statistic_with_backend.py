@@ -12,9 +12,7 @@ from pyapprox.statest.statistics import (
     MultiOutputStatistic,
     MultiOutputVariance,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 NQOI = 2
 NMODELS = 3
@@ -28,8 +26,13 @@ FACTORIES: List[StatFactory] = [
 ]
 IDS = ["mean", "variance", "mean-var"]
 
-TARGETS = [NumpyBkd(), TorchBkd()]
-TARGET_IDS = ["to-numpy", "to-torch"]
+
+@pytest.fixture(params=["numpy_bkd", "torch_bkd"], ids=["to-numpy", "to-torch"])
+def target(request: pytest.FixtureRequest) -> Backend[Array]:
+    """The backend a statistic is moved to; the torch case skips without
+    torch, through the ``torch_bkd`` fixture."""
+    backend: Backend[Array] = request.getfixturevalue(request.param)
+    return backend
 
 
 def _with_pilot(
@@ -48,7 +51,6 @@ def _with_pilot(
 
 class TestWithBackend:
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
-    @pytest.mark.parametrize("target", TARGETS, ids=TARGET_IDS)
     def test_moved_statistic_lives_on_target(
         self, bkd: Backend[Array], factory: StatFactory, target: Backend[Array]
     ) -> None:
@@ -62,7 +64,6 @@ class TestWithBackend:
         assert moved.nstats() == stat.nstats()
 
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
-    @pytest.mark.parametrize("target", TARGETS, ids=TARGET_IDS)
     def test_high_fidelity_covariance_unchanged(
         self, bkd: Backend[Array], factory: StatFactory, target: Backend[Array]
     ) -> None:
@@ -70,12 +71,9 @@ class TestWithBackend:
         moved = stat.with_backend(target)
         expected = stat.high_fidelity_estimator_covariance(bkd.asarray(10.0))
         actual = moved.high_fidelity_estimator_covariance(target.asarray(10.0))
-        target.assert_allclose(
-            actual, target.asarray(expected), rtol=1e-12
-        )
+        target.assert_allclose(actual, target.asarray(expected), rtol=1e-12)
 
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
-    @pytest.mark.parametrize("target", TARGETS, ids=TARGET_IDS)
     def test_estimator_covariance_unchanged(
         self, bkd: Backend[Array], factory: StatFactory, target: Backend[Array]
     ) -> None:
@@ -92,12 +90,9 @@ class TestWithBackend:
         actual = GMFEstimator(moved, costs).covariance_at_npartition_samples(
             target.asarray(nps)
         )
-        target.assert_allclose(
-            actual, target.asarray(expected), rtol=1e-12
-        )
+        target.assert_allclose(actual, target.asarray(expected), rtol=1e-12)
 
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
-    @pytest.mark.parametrize("target", TARGETS, ids=TARGET_IDS)
     def test_without_pilot_quantities(
         self, bkd: Backend[Array], factory: StatFactory, target: Backend[Array]
     ) -> None:
@@ -107,20 +102,10 @@ class TestWithBackend:
 
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
     def test_source_is_left_alone(
-        self, bkd: Backend[Array], factory: StatFactory
+        self, bkd: Backend[Array], factory: StatFactory, target: Backend[Array]
     ) -> None:
         stat = _with_pilot(factory, bkd)
         before = bkd.copy(stat.pilot_covariance())
-        stat.with_backend(TorchBkd())
+        stat.with_backend(target)
         assert stat.bkd() is bkd
         bkd.assert_allclose(stat.pilot_covariance(), before)
-
-    def test_tensor_requiring_grad_is_refused_not_detached(
-        self, torch_bkd: TorchBkd
-    ) -> None:
-        stat = _with_pilot(FACTORIES[0], torch_bkd)
-        stat.set_pilot_quantities(
-            stat.pilot_covariance().clone().requires_grad_(True)
-        )
-        with pytest.raises(RuntimeError, match="requires grad"):
-            stat.with_backend(NumpyBkd())

@@ -14,8 +14,12 @@ float() to extract values. This test module creates autograd-friendly
 versions for comparison.
 """
 
-
 import pytest
+
+# Torch is optional and every test here needs it; skip the module
+# without it, so the imports below are ordinary ones.
+pytest.importorskip("torch")
+
 import torch
 
 from pyapprox.ode.explicit_steppers.forward_euler import (
@@ -167,7 +171,7 @@ class TestTorchAutogradComparison:
         }
         return name_map[stepper_class]
 
-    def _create_quadratic_ode_operator(self, bkd, stepper_class) :
+    def _create_quadratic_ode_operator(self, bkd, stepper_class):
         """Create operator with quadratic ODE (has non-zero HVP)."""
         nstates = 2
         nparams = 2
@@ -219,7 +223,7 @@ class TestTorchAutogradComparison:
         _, hvp = torch.autograd.functional.hvp(forward_fn, param_flat, vvec_flat)
         return hvp.detach()
 
-    def _check_jacobian_stepper(self, bkd, stepper_class) :
+    def _check_jacobian_stepper(self, bkd, stepper_class):
         """Check Jacobian matches autograd for given stepper."""
         stepper_name = self._stepper_name(stepper_class)
 
@@ -246,7 +250,7 @@ class TestTorchAutogradComparison:
 
         assert rel_error < self._tol
 
-    def _check_hvp_stepper(self, bkd, stepper_class) :
+    def _check_hvp_stepper(self, bkd, stepper_class):
         """Check HVP matches autograd for given stepper with quadratic ODE."""
         stepper_name = self._stepper_name(stepper_class)
 

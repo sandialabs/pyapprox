@@ -23,6 +23,12 @@ function of design_weights.
 """
 
 import numpy as np
+import pytest
+
+# Torch is optional and every test here needs it; skip the module
+# without it, so the imports below are ordinary ones.
+pytest.importorskip("torch")
+
 import torch
 
 from pyapprox.expdesign.evidence import Evidence, LogEvidence

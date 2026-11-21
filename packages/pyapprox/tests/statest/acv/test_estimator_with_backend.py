@@ -16,7 +16,6 @@ from pyapprox.statest.acv.variants import (
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 EstimatorFactory = Callable[
     [MultiOutputMean[Array], Array, Backend[Array]], ACVEstimator[Array]
@@ -31,13 +30,16 @@ FACTORIES: List[EstimatorFactory] = [
 ]
 IDS = ["gmf", "gis", "grd", "mfmc", "mlmc"]
 
-TARGETS = [NumpyBkd(), TorchBkd()]
-TARGET_IDS = ["to-numpy", "to-torch"]
+
+@pytest.fixture(params=["numpy_bkd", "torch_bkd"], ids=["to-numpy", "to-torch"])
+def target(request: pytest.FixtureRequest) -> Backend[Array]:
+    """The backend an estimator is moved to; the torch case skips without
+    torch, through the ``torch_bkd`` fixture."""
+    backend: Backend[Array] = request.getfixturevalue(request.param)
+    return backend
 
 
-def _estimator(
-    factory: EstimatorFactory, bkd: Backend[Array]
-) -> ACVEstimator[Array]:
+def _estimator(factory: EstimatorFactory, bkd: Backend[Array]) -> ACVEstimator[Array]:
     np.random.seed(1)
     A = np.random.normal(0, 1, (3, 3))
     stat = MultiOutputMean(1, bkd)
@@ -47,7 +49,6 @@ def _estimator(
 
 class TestEstimatorWithBackend:
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
-    @pytest.mark.parametrize("target", TARGETS, ids=TARGET_IDS)
     def test_same_estimator_on_target(
         self,
         bkd: Backend[Array],
@@ -64,7 +65,6 @@ class TestEstimatorWithBackend:
         )
 
     @pytest.mark.parametrize("factory", FACTORIES, ids=IDS)
-    @pytest.mark.parametrize("target", TARGETS, ids=TARGET_IDS)
     def test_covariance_unchanged(
         self,
         bkd: Backend[Array],
@@ -76,9 +76,7 @@ class TestEstimatorWithBackend:
         nps = [10.0, 20.0, 40.0]
         target.assert_allclose(
             moved.covariance_at_npartition_samples(target.asarray(nps)),
-            target.asarray(
-                est.covariance_at_npartition_samples(bkd.asarray(nps))
-            ),
+            target.asarray(est.covariance_at_npartition_samples(bkd.asarray(nps))),
             rtol=1e-12,
         )
 
@@ -93,4 +91,4 @@ class TestEstimatorWithBackend:
             numpy_bkd,
         )
         with pytest.raises(NotImplementedError, match="_Custom must override"):
-            est.with_backend(TorchBkd())
+            est.with_backend(NumpyBkd())

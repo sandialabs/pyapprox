@@ -13,6 +13,11 @@ chaining a polish after a first-order stage is expressible.
 
 import numpy as np
 import pytest
+
+# Torch is optional and every test here needs it; skip the module
+# without it, so the imports below are ordinary ones.
+pytest.importorskip("torch")
+
 import torch
 
 from pyapprox.surrogates.operatorlearning import (

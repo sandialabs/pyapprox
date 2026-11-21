@@ -44,6 +44,11 @@ from typing import Any, Tuple
 
 import numpy as np
 import pytest
+
+# Torch is optional and every test here trains a network latent map;
+# skip the module without it, so the imports below are ordinary ones.
+pytest.importorskip("torch")
+
 import torch
 
 from pyapprox.probability import UniformMarginal
@@ -144,9 +149,7 @@ def _fit_mlp(
         input_encoder,
         output_encoder,
         bkd,
-        optimizer=torch_adam_then_lbfgs(
-            nepochs=nepochs, npolish_iterations=npolish
-        ),
+        optimizer=torch_adam_then_lbfgs(nepochs=nepochs, npolish_iterations=npolish),
         seed=0,
     )
     return fitter.fit(latent_map, inputs, outputs)
@@ -198,12 +201,8 @@ class TestPODDeepONetOnASquaringOperator:
         architecture reaches and not its limit.
         """
         input_encoder, output_encoder = encoders
-        _, train_in, train_out = _squaring_data(
-            torch_bkd, input_encoder, 800, seed=0
-        )
-        _, test_in, test_out = _squaring_data(
-            torch_bkd, input_encoder, 400, seed=7
-        )
+        _, train_in, train_out = _squaring_data(torch_bkd, input_encoder, 800, seed=0)
+        _, test_in, test_out = _squaring_data(torch_bkd, input_encoder, 400, seed=7)
         result = _fit_mlp(
             torch_bkd,
             input_encoder,
@@ -246,9 +245,7 @@ class TestPODDeepONetOnASquaringOperator:
         seed.
         """
         input_encoder, output_encoder = encoders
-        _, test_in, test_out = _squaring_data(
-            torch_bkd, input_encoder, 400, seed=7
-        )
+        _, test_in, test_out = _squaring_data(torch_bkd, input_encoder, 400, seed=7)
 
         def error_with(nsamples: int) -> float:
             _, train_in, train_out = _squaring_data(
@@ -286,12 +283,8 @@ class TestPODDeepONetOnASquaringOperator:
         the first step so large.
         """
         input_encoder, output_encoder = encoders
-        _, train_in, train_out = _squaring_data(
-            torch_bkd, input_encoder, 200, seed=0
-        )
-        _, test_in, test_out = _squaring_data(
-            torch_bkd, input_encoder, 400, seed=7
-        )
+        _, train_in, train_out = _squaring_data(torch_bkd, input_encoder, 200, seed=0)
+        _, test_in, test_out = _squaring_data(torch_bkd, input_encoder, 400, seed=7)
         errors = []
         for width in (4, 8, 16):
             surrogate = _fit_mlp(
@@ -358,9 +351,7 @@ class TestPODDeepONetOnASquaringOperator:
             train_in,
             train_out,
         ).surrogate()
-        mlp_error = bochner_error(
-            output_encoder, mlp(test_in), test_out, torch_bkd
-        )
+        mlp_error = bochner_error(output_encoder, mlp(test_in), test_out, torch_bkd)
 
         assert linear_error > 0.5
         assert mlp_error < linear_error / 40.0
@@ -387,12 +378,8 @@ class TestPODDeepONetOnASquaringOperator:
         Cheap: two least-squares solves, no network.
         """
         input_encoder, output_encoder = encoders
-        raw_train, _, train_out = _squaring_data(
-            torch_bkd, input_encoder, 400, seed=0
-        )
-        raw_test, _, test_out = _squaring_data(
-            torch_bkd, input_encoder, 400, seed=7
-        )
+        raw_train, _, train_out = _squaring_data(torch_bkd, input_encoder, 400, seed=0)
+        raw_test, _, test_out = _squaring_data(torch_bkd, input_encoder, 400, seed=7)
 
         def baseline(degree: int) -> float:
             return _polynomial_baseline_error(
@@ -426,9 +413,7 @@ class TestPODDeepONetOnASquaringOperator:
         about data and capacity.
         """
         input_encoder, output_encoder = encoders
-        _, train_in, train_out = _squaring_data(
-            torch_bkd, input_encoder, 200, seed=0
-        )
+        _, train_in, train_out = _squaring_data(torch_bkd, input_encoder, 200, seed=0)
         starved = _fit_mlp(
             torch_bkd,
             input_encoder,
@@ -474,22 +459,14 @@ def _polynomial_baseline_error(
     decayed coefficients would shrink the inputs into part of the
     domain and understate the baseline.
     """
-    marginals = [
-        UniformMarginal(-1.0, 1.0, bkd) for _ in range(NINPUT_MODES)
-    ]
+    marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(NINPUT_MODES)]
     basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
-    basis.set_indices(
-        compute_hyperbolic_indices(NINPUT_MODES, degree, 1.0, bkd)
-    )
-    expansion = PolynomialChaosExpansion(
-        basis, bkd, nqoi=output_encoder.latent_dim()
-    )
+    basis.set_indices(compute_hyperbolic_indices(NINPUT_MODES, degree, 1.0, bkd))
+    expansion = PolynomialChaosExpansion(basis, bkd, nqoi=output_encoder.latent_dim())
     fitter = WeightedLeastSquaresOperatorFitter(
         IdentityFieldEncoder(NINPUT_MODES, bkd), output_encoder, bkd
     )
     surrogate = fitter.fit_encoded(
         expansion, raw_train, output_encoder.encode(train_out)
     ).surrogate()
-    return bochner_error(
-        output_encoder, surrogate(raw_test), test_out, bkd
-    )
+    return bochner_error(output_encoder, surrogate(raw_test), test_out, bkd)

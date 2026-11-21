@@ -11,6 +11,12 @@ will be wrong and the error ratio will be large.
 
 from typing import Callable, Optional, Tuple
 
+import pytest
+
+# Torch is optional and every test here needs it; skip the module
+# without it, so the imports below are ordinary ones.
+pytest.importorskip("torch")
+
 import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -30,6 +36,7 @@ def _autograd_jacobian(
     nvars: int,
 ) -> torch.Tensor:
     """Compute jacobian of f via torch.autograd.functional.jacobian."""
+
     def f_flat(x: torch.Tensor) -> torch.Tensor:
         return f(x).reshape(nqoi)
 
@@ -47,8 +54,9 @@ class TestEndpointFunctionalAutograd:
 
         bkd = torch_bkd
         nstates, ntimes, nparams = 3, 5, 2
-        func = EndpointFunctional(state_idx=1, nstates=nstates,
-                                  nparams=nparams, bkd=bkd)
+        func = EndpointFunctional(
+            state_idx=1, nstates=nstates, nparams=nparams, bkd=bkd
+        )
         param = torch.randn(nparams, 1, dtype=torch.float64)
         nvars = nstates * ntimes
 
@@ -59,7 +67,11 @@ class TestEndpointFunctionalAutograd:
             return _autograd_jacobian(eval_fn, sol_flat, 1, nvars)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=nvars,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
         sample = torch.randn(nvars, 1, dtype=torch.float64)
@@ -89,7 +101,11 @@ class TestWeightedEndpointFunctionalAutograd:
             return _autograd_jacobian(eval_fn, sol_flat, 1, nvars)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=nvars,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
         sample = torch.randn(nvars, 1, dtype=torch.float64)
@@ -114,8 +130,7 @@ class TestAllStatesEndpointFunctionalAutograd:
 
         bkd = torch_bkd
         nstates, ntimes, nparams = 3, 5, 2
-        func = AllStatesEndpointFunctional(nstates=nstates, nparams=nparams,
-                                           bkd=bkd)
+        func = AllStatesEndpointFunctional(nstates=nstates, nparams=nparams, bkd=bkd)
         param = torch.randn(nparams, 1, dtype=torch.float64)
         nvars = nstates * ntimes
 
@@ -126,7 +141,11 @@ class TestAllStatesEndpointFunctionalAutograd:
             return _autograd_jacobian(eval_fn, sol_flat, nstates, nvars)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=nstates, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=nstates,
+            nvars=nvars,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
         sample = torch.randn(nvars, 1, dtype=torch.float64)
@@ -138,7 +157,9 @@ class TestTransientMSEFunctionalAutograd:
     """Autograd derivative checker tests for TransientMSEFunctional."""
 
     def _make_functional(
-        self, bkd: TorchBkd, noise_std: Optional[float] = 0.1,
+        self,
+        bkd: TorchBkd,
+        noise_std: Optional[float] = 0.1,
     ) -> Tuple[TransientMSEFunctional[torch.Tensor], int, int]:
         nstates, nresidual_params = 2, 3
         obs_time_indices_0 = bkd.asarray([1, 3], dtype=int)
@@ -162,7 +183,8 @@ class TestTransientMSEFunctionalAutograd:
         """Autograd jacobian dQ/dsol converges, fixed noise_std."""
         bkd = torch_bkd
         func, nstates, nresidual_params = self._make_functional(
-            bkd, noise_std=0.1,
+            bkd,
+            noise_std=0.1,
         )
         ntimes = 6
         nvars = nstates * ntimes
@@ -175,7 +197,11 @@ class TestTransientMSEFunctionalAutograd:
             return _autograd_jacobian(eval_fn, sol_flat, 1, nvars)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=nvars,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
         sample = torch.randn(nvars, 1, dtype=torch.float64)
@@ -186,7 +212,8 @@ class TestTransientMSEFunctionalAutograd:
         """Autograd jacobian dQ/dsol converges, sigma as parameter."""
         bkd = torch_bkd
         func, nstates, nresidual_params = self._make_functional(
-            bkd, noise_std=None,
+            bkd,
+            noise_std=None,
         )
         ntimes = 6
         nvars = nstates * ntimes
@@ -201,7 +228,11 @@ class TestTransientMSEFunctionalAutograd:
             return _autograd_jacobian(eval_fn, sol_flat, 1, nvars)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=nvars,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
         sample = torch.randn(nvars, 1, dtype=torch.float64)
@@ -212,7 +243,8 @@ class TestTransientMSEFunctionalAutograd:
         """Autograd jacobian dQ/dparam converges, sigma as parameter."""
         bkd = torch_bkd
         func, nstates, nresidual_params = self._make_functional(
-            bkd, noise_std=None,
+            bkd,
+            noise_std=None,
         )
         ntimes = 6
         sol = torch.randn(nstates, ntimes, dtype=torch.float64)
@@ -227,7 +259,11 @@ class TestTransientMSEFunctionalAutograd:
             return _autograd_jacobian(eval_fn, p, 1, nparams)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=nparams, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=nparams,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
         sample = torch.randn(nparams, 1, dtype=torch.float64)
