@@ -204,6 +204,11 @@ class MixedStrip:
         (:func:`~pyapprox.pde.coupling.traces.mortar_segment_traces`);
         False projects onto the port nodes' own functions alone (the
         control).
+    galerkin
+        The skfem side's own coefficients and exact solution, for
+        different physics per side; omitted, ``coefs`` and ``solution``.
+        The two solutions must agree on the interface and their diffusive
+        fluxes balance there.
     """
 
     def __init__(
@@ -218,9 +223,13 @@ class MixedStrip:
         rule: Optional[SideRuleProtocol] = None,
         dirichlet_ends: bool = False,
         mortar: bool = True,
+        galerkin: Optional[tuple[Coefficients, str]] = None,
     ) -> None:
         bkd = _BKD
         self._coefs, self._solution = coefs, solution
+        self._galerkin_coefs, self._galerkin_solution = (
+            (coefs, solution) if galerkin is None else galerkin
+        )
         self._topo = TensorBoxPartition((2, 1))
         bases = UniformBases(
             TensorLagrangeBasis(1, reference_nodes(nskel, bkd), True, bkd)
@@ -272,15 +281,15 @@ class MixedStrip:
         bkd = _BKD
         region = VerificationBox([(0.5, 1.0), (0.0, 1.0)])
         problem = galerkin_adr_problem(
-            self._coefs,
-            self._solution,
+            self._galerkin_coefs,
+            self._galerkin_solution,
             region,
             galerkin_conditions(self._dirichlet_ends),
         )
         mesh = StructuredMesh2D(ncells, ncells, [(0.5, 1.0), (0.0, 1.0)], bkd)
         basis = LagrangeBasis(mesh, degree=degree)
         self._galerkin_problem, self._basis = problem, basis
-        coefs = self._coefs
+        coefs = self._galerkin_coefs
         physics = GalerkinAdr(
             basis=basis,
             diffusivity=field(problem, str(coefs.diffusion)),
@@ -391,9 +400,14 @@ class MixedStrip:
         ]
 
     def exact(self, points: Np) -> Np:
-        """The exact solution at ``points``. Shape: (n,)"""
+        """The collocation side's exact solution at ``points``, which is the
+        interface's too. Shape: (n,)"""
         problem = self._box_problem()
         return np.asarray(solution_at(problem, points, _BKD)[0])
+
+    def galerkin_exact(self, points: Np) -> Np:
+        """The skfem side's exact solution at ``points``. Shape: (n,)"""
+        return np.asarray(solution_at(self._galerkin_problem, points, _BKD)[0])
 
     def _box_problem(self) -> ManufacturedProblem:
         model: Adr[Np] = Adr(self._coefs, self._solution)
@@ -454,7 +468,7 @@ class MixedStrip:
         points = np.asarray(self._box.points())
         return (
             float(np.abs(collocation - self.exact(points)).max()),
-            float(np.abs(galerkin - self.exact(self._dof_points)).max()),
+            float(np.abs(galerkin - self.galerkin_exact(self._dof_points)).max()),
         )
 
     def gathered(self, lam: Np) -> tuple[Np, Np]:
