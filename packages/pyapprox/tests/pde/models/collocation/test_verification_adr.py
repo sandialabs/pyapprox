@@ -21,7 +21,8 @@ Cases:
   Neumann and Robin data carry the advective flux exactly when the form
   is conservative; and Neumann and Robin sides that measure the normal
   gradient :math:`\nabla u\cdot n` rather than the physics' flux, in 1D
-  and 2D;
+  and 2D; and pure transport (:math:`D = 0`) with a Dirichlet inflow and
+  an ``Unprescribed()`` outflow in 1D;
 - spectral decay (fitted decay of log error per node) of analytic
   solutions: 1D and 2D under mixed conditions, and periodic ends in 1D,
   a 2D box periodic in x, and one periodic in both directions, in both
@@ -91,6 +92,7 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Periodic,
     Robin,
+    Unprescribed,
 )
 from pyapprox.pde.verification.domains import (
     Annulus,
@@ -219,6 +221,28 @@ def test_recovers_cubic_1d(
     r = -1: 8 nodes reproduce it to 1e-10 under every pairing of ends."""
     adr = _ADR("1 + x/2", ["1 + x"], "-1", conservative)
     problem = _problem("1 + x - x**2/2 + x**3", adr, _UNIT, coded(codes, _UNIT))
+    recovers(problem, adr, 8, numpy_bkd)
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+def test_recovers_transport_with_unprescribed_outflow(
+    numpy_bkd: Backend[Array], conservative: bool
+) -> None:
+    """Pure transport, D = 0, v = 1 + x leaving on the right: Dirichlet
+    inflow on the left and ``Unprescribed()`` outflow, whose node keeps
+    the transport equation. 8 nodes reproduce the cubic to 1e-10."""
+    adr = _ADR("0", ["1 + x"], "-1", conservative)
+    conditions: Dict[str, ConditionProtocol] = {
+        "left": Dirichlet(),
+        "right": Unprescribed(),
+    }
+    problem = _problem("1 + x - x**2/2 + x**3", adr, _UNIT, conditions)
+    (level,) = ChebyshevBox([8], numpy_bkd).levels(_UNIT)
+    declarations = boundary_conditions(problem, level)
+    left, _ = side_nodes(level, "left")
+    assert declarations.essential is not None
+    assert list(declarations.essential.rows().indices()) == [int(left[0])]
+    assert declarations.closures == ()
     recovers(problem, adr, 8, numpy_bkd)
 
 

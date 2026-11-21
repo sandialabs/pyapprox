@@ -101,6 +101,7 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Periodic,
     Robin,
+    Unprescribed,
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
@@ -293,9 +294,7 @@ class _NaturalVectorData:
     """:class:`_NaturalData` with one expression per component, shape
     ``(ncomponents, npts)``."""
 
-    def __init__(
-        self, data: Sequence[sp.Expr], scope: ExpressionScopeProtocol
-    ) -> None:
+    def __init__(self, data: Sequence[sp.Expr], scope: ExpressionScopeProtocol) -> None:
         self._points = SkfemPoints(data, scope)
         self._timed = any(time() in d.free_symbols for d in data)
 
@@ -449,6 +448,12 @@ class _GalerkinCondition:
         # wrapped sides; there is no condition to build.
         return None
 
+    def unprescribed(self, condition: Unprescribed) -> None:
+        # A part with no condition is this stack's do-nothing condition:
+        # no natural data, so zero diffusive flux, with the advective
+        # boundary term the physics keeps.
+        return None
+
 
 def _boundary_parts(problem: ManufacturedProblem) -> Tuple[str, ...]:
     """The boundary parts of the problem's domain."""
@@ -480,6 +485,12 @@ def boundary_conditions(
     identifying it in the mesh (``StructuredBox(..., periodic=...)``), so
     a periodic part must be one the mesh has wrapped away, and every
     other part must be a boundary of the mesh.
+
+    Unprescribed parts get none either: that is this stack's do-nothing
+    condition, zero diffusive flux with the physics' advective boundary
+    term kept, exact for a row without diffusion. On a row with diffusion
+    the exact solution must have zero diffusive flux there; that is not
+    checked.
 
     Raises
     ------
@@ -519,24 +530,35 @@ class _Natural:
     alpha: Optional[sp.Expr]
 
 
+@dataclass(frozen=True)
+class _Free:
+    """A row a part prescribes nothing for."""
+
+
+_Kind = Union[_Essential, _Natural, _Free]
+
+
 class _RowKind:
     """What one row's condition on a part prescribes; ``None`` for a
-    periodic row, which prescribes nothing."""
+    periodic row, whose part the mesh wraps away."""
 
     def __init__(self, names: Names) -> None:
         self._names = names
 
-    def dirichlet(self, condition: Dirichlet) -> Union[_Essential, _Natural]:
+    def dirichlet(self, condition: Dirichlet) -> _Kind:
         return _Essential()
 
-    def neumann(self, condition: Neumann) -> Union[_Essential, _Natural]:
+    def neumann(self, condition: Neumann) -> _Kind:
         return _Natural(None)
 
-    def robin(self, condition: Robin) -> Union[_Essential, _Natural]:
+    def robin(self, condition: Robin) -> _Kind:
         return _Natural(self._names.substitute_constants(condition.alpha(self._names)))
 
     def periodic(self, condition: Periodic) -> None:
         return None
+
+    def unprescribed(self, condition: Unprescribed) -> _Kind:
+        return _Free()
 
 
 def vector_boundary_conditions(
@@ -557,6 +579,8 @@ def vector_boundary_conditions(
     equations the constraint replaces). The Robin coefficient is shared
     when every row is Robin with one coefficient, and otherwise one per
     component, zero on Neumann rows, so a part may mix all three kinds.
+    Unprescribed rows take zero natural data and no coefficient, which in
+    this stack prescribes nothing (see :func:`boundary_conditions`).
     Periodic parts are handled as in :func:`boundary_conditions`.
 
     Raises
@@ -575,17 +599,13 @@ def vector_boundary_conditions(
             raise ValueError("name the field of the mixed basis that rows make up")
         view = basis.field(field_name)
         if not isinstance(view, ComponentDofsBasisProtocol):
-            raise ValueError(
-                f"field {field_name!r} of the mixed basis is not a vector"
-            )
+            raise ValueError(f"field {field_name!r} of the mixed basis is not a vector")
         target, natural_basis = view, view
         ncomponents = view.ncomponents()
         field_basis = basis.field_basis(field_name)
     else:
         if field_name is not None:
-            raise ValueError(
-                f"field {field_name!r} given, but the basis is not mixed"
-            )
+            raise ValueError(f"field {field_name!r} given, but the basis is not mixed")
         target, natural_basis, field_basis = basis, basis, basis
         ncomponents = basis.ncomponents()
     if len(rows) != ncomponents:
@@ -598,9 +618,7 @@ def vector_boundary_conditions(
             f"rows {missing} take no boundary conditions; the boundary rows "
             f"are {list(problem.boundary_rows())}"
         )
-    visitor: ConditionVisitorProtocol[Union[_Essential, _Natural, None]] = _RowKind(
-        problem.names()
-    )
+    visitor: ConditionVisitorProtocol[Optional[_Kind]] = _RowKind(problem.names())
     zero = sp.Integer(0)
     conditions: List[BoundaryConditionRole[_Np]] = []
     for part in _boundary_parts(problem):
@@ -633,8 +651,13 @@ def vector_boundary_conditions(
         natural = [kind for kind in kinds if isinstance(kind, _Natural)]
         if not natural:
             continue
+        # Zero natural data on the Dirichlet rows, whose equations the
+        # constraint replaces, and on the unprescribed ones.
         flux = _NaturalVectorData(
-            [zero if i in essential else data[row] for i, row in enumerate(rows)],
+            [
+                data[row] if isinstance(kind, _Natural) else zero
+                for kind, row in zip(kinds, rows)
+            ],
             problem,
         )
         alphas = {kind.alpha for kind in natural}
@@ -643,11 +666,12 @@ def vector_boundary_conditions(
             continue
         shared = next(iter(alphas))
         coefficient: Union[float, _Field, _VectorField]
-        if len(alphas) == 1 and shared is not None and not essential:
+        if len(alphas) == 1 and shared is not None and len(natural) == len(rows):
             coefficient = field(problem, shared)
         else:
-            # One per component: zero on Neumann rows, and on Dirichlet
-            # rows, whose equations the constraint replaces.
+            # One per component: zero on Neumann rows, on Dirichlet
+            # rows, whose equations the constraint replaces, and on
+            # unprescribed rows.
             coefficient = _VectorField(
                 [
                     kind.alpha
@@ -1006,9 +1030,7 @@ def _blocks(basis: _AnyBasis, rows: Sequence[str]) -> List[_Block]:
 def _degree(basis: _AnyBasis) -> int:
     """The polynomial degree; of a mixed basis, its fields' highest."""
     if isinstance(basis, MixedBasis):
-        return max(
-            basis.field_basis(name).degree() for name in basis.field_names()
-        )
+        return max(basis.field_basis(name).degree() for name in basis.field_names())
     return basis.degree()
 
 

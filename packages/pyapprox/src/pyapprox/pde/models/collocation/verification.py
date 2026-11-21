@@ -132,6 +132,7 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Periodic,
     Robin,
+    Unprescribed,
 )
 from pyapprox.pde.verification.domains import (
     Annulus,
@@ -911,7 +912,8 @@ _BuiltPart = Union[DirichletPart[Array], RobinPart[Array], PeriodicPart[Array], 
 class _CollocationCondition(Generic[Array]):
     """Builds the rows of one row's condition on one side, on the row's
     state component; ``None`` for the upper side of a periodic pair, whose
-    rows the lower side builds."""
+    rows the lower side builds, and for an unprescribed side, whose nodes
+    keep the row's own equation."""
 
     def __init__(
         self,
@@ -967,6 +969,9 @@ class _CollocationCondition(Generic[Array]):
     def robin(self, condition: Robin) -> _BuiltPart[Array]:
         names = self._problem.names()
         return self._robin_part(names.substitute_constants(condition.alpha(names)))
+
+    def unprescribed(self, condition: Unprescribed) -> _BuiltPart[Array]:
+        return None
 
     def periodic(self, condition: Periodic) -> _BuiltPart[Array]:
         domain = self._level.domain()

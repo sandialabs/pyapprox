@@ -17,7 +17,11 @@ followed by each coordinate, e.g. ``nx, ny``):
 - :class:`Periodic`: the solution on this part equals that on the
   opposite part; no data. A problem must make both parts of a pair
   periodic, and the exact solution periodic across them; neither is
-  checked here.
+  checked here;
+- :class:`Unprescribed`: no equation on this part; the row's own
+  equation holds up to it. For a first-order (hyperbolic) row on a part
+  its characteristics leave, such as an outflow. No data; whether the
+  problem is then well posed is not checked here.
 
 Natural data are written with the outward flux :math:`q\, n`. In Robin
 the outward flux grows with :math:`u`, so a positive :math:`\alpha` is the
@@ -63,6 +67,10 @@ class ConditionVisitorProtocol(Protocol[T_co]):
 
     def periodic(self, condition: "Periodic") -> T_co:
         """The stack's object for a periodic condition."""
+        ...
+
+    def unprescribed(self, condition: "Unprescribed") -> T_co:
+        """The stack's object for a part that prescribes nothing."""
         ...
 
 
@@ -193,6 +201,30 @@ class Periodic:
     def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
         """``visitor.periodic(self)``."""
         return visitor.periodic(self)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
+
+class Unprescribed:
+    r"""No equation on this part: the row's own equation holds up to it.
+
+    Stated explicitly, rather than by leaving the part out, so that a
+    problem still names a condition on every part of every boundary row
+    and a forgotten one is refused.
+    """
+
+    def expressions(self, names: Names) -> Tuple[sp.Expr, ...]:
+        """None."""
+        return ()
+
+    def data(self, fields: BoundaryFieldsProtocol) -> Optional[sp.Expr]:
+        """None: nothing is prescribed."""
+        return None
+
+    def accept(self, visitor: ConditionVisitorProtocol[T]) -> T:
+        """``visitor.unprescribed(self)``."""
+        return visitor.unprescribed(self)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"

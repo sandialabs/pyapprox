@@ -8,6 +8,7 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Periodic,
     Robin,
+    Unprescribed,
 )
 
 
@@ -23,6 +24,9 @@ class _Names:
 
     def periodic(self, condition: Periodic) -> str:
         return "periodic"
+
+    def unprescribed(self, condition: Unprescribed) -> str:
+        return "unprescribed"
 
 
 class _NoRobin:
@@ -40,6 +44,16 @@ def test_each_kind_calls_its_method() -> None:
     assert Neumann().accept(visitor) == "neumann"
     assert Robin("1 + x").accept(visitor) == "robin x + 1"
     assert Periodic().accept(visitor) == "periodic"
+    assert Unprescribed().accept(visitor) == "unprescribed"
+
+
+def test_unprescribed_has_no_data() -> None:
+    """Nothing to parse and no right-hand side, so the problem leaves the
+    row out of the part's data."""
+    condition = Unprescribed()
+    names = pde_names(standard(1))
+    assert condition.expressions(names) == ()
+    assert repr(condition) == "Unprescribed()"
 
 
 def test_incomplete_visitor_is_not_one() -> None:

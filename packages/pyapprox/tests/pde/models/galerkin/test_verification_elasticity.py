@@ -20,7 +20,9 @@ Cases:
   1.5`, :math:`\mu = 0.8`), the varying Lamé case (:math:`\lambda = 1 +
   x/2`, :math:`\mu = 1 + y/4`, P1, three hexes per side), the roller
   case, generalized from :math:`\nu = 0` to symmetry planes holding one
-  component each with the others traction free, and the 1D P2 bar with
+  component each with the others traction free (also with the free
+  components ``Unprescribed()``, one part mixing them with a Robin one),
+  and the 1D P2 bar with
   nonzero clamped ends;
 - rates (fitted over the last three levels, within 0.1): 1D P1 2 and P2
   3; 2D on quads and triangles, P1 2 and P2 3, with Dirichlet, Neumann
@@ -67,6 +69,7 @@ from pyapprox.pde.verification.conditions import (
     Dirichlet,
     Neumann,
     Robin,
+    Unprescribed,
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
@@ -240,6 +243,34 @@ class TestRecovery:
         conditions: _Conditions = {
             "left": roller("u"),
             "right": neumann,
+            "bottom": roller("v"),
+            "top": neumann,
+            "back": roller("w"),
+            "front": neumann,
+        }
+        problem = _problem(
+            ("0.1*x", "-0.05*y", "0.2*z"),
+            elasticity,
+            _UNIT_CUBE,
+            conditions,
+        )
+        recovers_on(problem, VectorLagrange(1), elasticity, 2)
+
+    def test_unprescribed_components(self) -> None:
+        """The symmetry planes with the free components stated as
+        ``Unprescribed()``, and a right face springing u (alpha 2) with v
+        and w unprescribed, so a part mixes an essential or a natural
+        component with free ones. The shear tractions vanish there, so P1
+        on two hexes per side reproduces the displacement."""
+        elasticity = _Elasticity("1.5", "0.8")
+        free, dirichlet, neumann = Unprescribed(), Dirichlet(), Neumann()
+
+        def roller(held: str) -> Dict[str, ConditionProtocol]:
+            return {f: dirichlet if f == held else free for f in _FIELDS}
+
+        conditions: _Conditions = {
+            "left": roller("u"),
+            "right": {"u": Robin(2.0), "v": free, "w": free},
             "bottom": roller("v"),
             "top": neumann,
             "back": roller("w"),

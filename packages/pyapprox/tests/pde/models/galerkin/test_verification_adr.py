@@ -29,7 +29,8 @@ Cases (fitted rate over the last three levels, tolerance 0.1):
   both advection forms;
 - a do-nothing outflow, a side with no condition object, in 1D and 2D
   and both advection forms: P1 rate 2 for solutions with zero diffusive
-  flux and nonzero advective flux leaving there;
+  flux and nonzero advective flux leaving there, and the same outflow
+  stated by the problem as ``Unprescribed()``;
 - wrong-model controls, fitted rate below 0.5: natural data with the
   normal reversed; Robin without its spring term; a non-periodic
   solution on periodic ends; the conservative form without its
@@ -97,6 +98,7 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Periodic,
     Robin,
+    Unprescribed,
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
@@ -365,6 +367,29 @@ class TestDoNothingOutflow:
         converges(
             problem, StructuredBox([4, 8, 16, 32]), 1, _DoNothing(adr, ["right"]), 2.0
         )
+
+    def test_unprescribed_1d(self, conservative: bool) -> None:
+        """The same outflow stated by the problem, ``Unprescribed()`` on
+        the right, with the plain system: P1 rate 2."""
+        adr = _ADR("1 + x/2", ["1 + x"], "-u", conservative)
+        conditions: Dict[str, ConditionProtocol] = {
+            "left": Dirichlet(),
+            "right": Unprescribed(),
+        }
+        problem = _problem(
+            "2 + cos(pi*x) + x*(2 - x)", adr, Box([(0.0, 1.0)]), conditions
+        )
+        assert problem.boundary_data("right") == {}
+        converges(problem, StructuredBox([8, 16, 32, 64]), 1, adr, 2.0)
+
+    def test_unprescribed_2d(self, conservative: bool) -> None:
+        """Unit square, ``Unprescribed()`` on the right where v leaves:
+        Q1 rate 2."""
+        adr = _ADR("1 + x*y/4", ["1 + x/2", "y/2"], "-u", conservative)
+        box = Box([(0.0, 1.0), (0.0, 1.0)])
+        conditions = dict(_MIXED_2D, right=Unprescribed())
+        problem = _problem("2 + cos(pi*x)*sin(pi*y) + y", adr, box, conditions)
+        converges(problem, StructuredBox([4, 8, 16, 32]), 1, adr, 2.0)
 
 
 def test_conservative_without_boundary_term_stalls() -> None:

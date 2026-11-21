@@ -173,9 +173,7 @@ class ManufacturedProblem:
             )
         rows = self.boundary_rows()
         allowed = (
-            set(coordinates(self._coords))
-            | {time()}
-            | set(self._names.constants())
+            set(coordinates(self._coords)) | {time()} | set(self._names.constants())
         )
         checked: Dict[str, Mapping[str, ConditionProtocol]] = {}
         for part, given in conditions.items():
@@ -292,7 +290,8 @@ class ManufacturedProblem:
 
     def boundary_data(self, part: str) -> Dict[str, sp.Expr]:
         """The data of the conditions on boundary part ``part``, by row;
-        rows whose condition has no data (periodic) are left out."""
+        rows whose condition has no data (periodic, unprescribed) are left
+        out."""
         data: Dict[str, sp.Expr] = {}
         for row, condition in self.conditions(part).items():
             value = condition.data(_RowFields(self, row))
