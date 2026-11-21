@@ -3,15 +3,13 @@ Tests for logpdf_jacobian_wrt_params in distributions.
 
 Uses parametrized tests to validate analytical Jacobians against:
 1. DerivativeChecker (finite difference validation)
-2. PyTorch autograd
+2. The backend's autodiff Jacobian
 """
 
-from typing import Callable
+from typing import Callable, Generic, Optional, Protocol
 
 import numpy as np
 import pytest
-import torch
-from torch.autograd.functional import jacobian as torch_jacobian
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -26,10 +24,26 @@ from pyapprox.probability.univariate import (
     GaussianMarginal,
     UniformMarginal,
 )
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.hyperparameter import HyperParameterList
 
 # TODO: Should be move to the submodule it is testing
+
+
+class _ParamDifferentiableDistribution(Protocol, Generic[Array]):
+    """What the autodiff test uses of a distribution."""
+
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array: ...
+
+    def logpdf(self, samples: Array) -> Array: ...
+
+    def hyp_list(self) -> HyperParameterList[Array]: ...
+
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array: ...
 
 
 def create_gaussian(bkd) -> GaussianMarginal:
@@ -124,20 +138,24 @@ class TestParamJacobianDerivativeChecker:
         assert ratio <= 1e-6
 
 
-#TODO: This should only be run with TorchBkd
 class TestParamJacobianAutograd:
-    """Test logpdf_jacobian_wrt_params against PyTorch autograd."""
+    """Test logpdf_jacobian_wrt_params against the backend's autodiff."""
 
     @pytest.mark.parametrize(
         "name,factory,expected_nparams",
         DISTRIBUTIONS,
     )
     def test_jacobian_autograd(
-        self, name: str, factory: Callable, expected_nparams: int
+        self,
+        torch_bkd: AutodiffBackend[Array],
+        name: str,
+        factory: Callable[
+            [AutodiffBackend[Array]], _ParamDifferentiableDistribution[Array]
+        ],
+        expected_nparams: int,
     ) -> None:
-        """Verify analytical jacobian matches torch autograd."""
-        torch.set_default_dtype(torch.float64)
-        bkd = TorchBkd()
+        """Verify analytical jacobian matches the autodiff Jacobian."""
+        bkd = torch_bkd
         np.random.seed(42)
         dist = factory(bkd)
 
@@ -148,11 +166,11 @@ class TestParamJacobianAutograd:
         analytical_jac = dist.logpdf_jacobian_wrt_params(samples)
 
         # Get autograd jacobian
-        def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
+        def logpdf_from_params(params: Array) -> Array:
             dist.hyp_list().set_active_values(params)
-            return dist.logpdf(samples).flatten()
+            return bkd.flatten(dist.logpdf(samples))
 
         params = dist.hyp_list().get_active_values()
-        autograd_jac = torch_jacobian(logpdf_from_params, params)
+        autograd_jac = bkd.jacobian(logpdf_from_params, params)
 
         bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)

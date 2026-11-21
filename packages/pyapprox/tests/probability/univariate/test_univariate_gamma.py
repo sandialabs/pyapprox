@@ -2,10 +2,9 @@
 Tests for GammaMarginal distribution.
 """
 
-from typing import Tuple
+from typing import Callable, Tuple
 
 import pytest
-import torch
 from scipy import stats
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -19,7 +18,8 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
     GaussQuadratureRule,
     LegendrePolynomial1D,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 
 class GaussLegendreQuadrature01:
@@ -264,45 +264,43 @@ class TestGammaMarginal:
         )
 
 
-#TODO: Is this only run with TorchBkd
+def _grad_of_sum(
+    bkd: AutodiffBackend[Array], fun: Callable[[Array], Array], samples: Array
+) -> Array:
+    """Autodiff gradient of ``sum(fun(samples))`` for ``samples`` of shape
+    ``(1, nsamples)``, shaped like ``samples``."""
+    nsamples = samples.shape[1]
+
+    def total(flat: Array) -> Array:
+        return bkd.reshape(bkd.sum(fun(bkd.reshape(flat, (1, nsamples)))), (1,))
+
+    return bkd.reshape(bkd.jacobian(total, bkd.flatten(samples)), (1, nsamples))
+
+
 class TestGammaMarginalAutograd:
-    """Test autograd compatibility for GammaMarginal."""
+    """Autodiff derivatives of GammaMarginal w.r.t. its argument."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        self._shape = 2.0
-        self._scale = 1.5
-        self._dist = GammaMarginal(self._shape, self._scale, self._bkd)
+    SHAPE = 2.0
+    SCALE = 1.5
 
-    def test_logpdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of logpdf w.r.t. sample values."""
-        samples = torch.tensor([[0.5, 1.0, 2.0]], requires_grad=True)
-        logpdf = self._dist.logpdf(samples)
+    def test_logpdf_gradient_wrt_samples(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """d/dx log f(x) = (k-1)/x - rate."""
+        bkd = torch_bkd
+        dist = GammaMarginal(self.SHAPE, self.SCALE, bkd)
+        samples = bkd.asarray([[0.5, 1.0, 2.0]])
+        rate = 1.0 / self.SCALE
+        expected = (self.SHAPE - 1.0) / samples - rate
+        bkd.assert_allclose(
+            _grad_of_sum(bkd, dist.logpdf, samples), expected, rtol=1e-6
+        )
 
-        # Sum to get scalar for backward
-        loss = logpdf.sum()
-        loss.backward()
-
-        # Analytical gradient: d/dx log f(x) = (k-1)/x - rate
-        rate = 1.0 / self._scale
-        expected_grad = (self._shape - 1.0) / samples.detach() - rate
-
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-
-    def test_pdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of pdf w.r.t. sample values."""
-        samples = torch.tensor([[0.5, 1.0, 2.0]], requires_grad=True)
-        pdf = self._dist(samples)
-
-        loss = pdf.sum()
-        loss.backward()
-
-        # Analytical gradient: d/dx pdf = pdf * d/dx log(pdf)
-        rate = 1.0 / self._scale
-        pdf_vals = self._dist(samples.detach())
-        logpdf_grad = (self._shape - 1.0) / samples.detach() - rate
-        expected_grad = pdf_vals * logpdf_grad
-
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
+    def test_pdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        """d/dx pdf = pdf * d/dx log(pdf)."""
+        bkd = torch_bkd
+        dist = GammaMarginal(self.SHAPE, self.SCALE, bkd)
+        samples = bkd.asarray([[0.5, 1.0, 2.0]])
+        rate = 1.0 / self.SCALE
+        expected = dist(samples) * ((self.SHAPE - 1.0) / samples - rate)
+        bkd.assert_allclose(_grad_of_sum(bkd, dist, samples), expected, rtol=1e-6)

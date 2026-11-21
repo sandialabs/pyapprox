@@ -1,279 +1,215 @@
 """
-Tests for PyTorch autograd compatibility with probability distributions.
+Tests that Gaussian distributions keep the computation graph intact.
 
-These tests verify that logpdf and other methods work correctly with
-PyTorch's automatic differentiation.
+The analytical derivatives of logpdf, pdf, cdf and invcdf are compared with
+the backend's autodiff Jacobian and Hessian-vector product, and the autodiff
+gradients are validated against finite differences with DerivativeChecker.
 """
 
-import pytest
-import torch
+import math
+from typing import Callable
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
 from pyapprox.probability.gaussian import (
     DenseCholeskyMultivariateGaussian,
     DiagonalMultivariateGaussian,
 )
 from pyapprox.probability.univariate import GaussianMarginal
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 # TODO: Should be move to the submodule it is testing
 
+
+def _grad_of_sum(
+    bkd: AutodiffBackend[Array], fun: Callable[[Array], Array], samples: Array
+) -> Array:
+    """Autodiff gradient of ``sum(fun(samples))``, shaped like ``samples``."""
+    shape = tuple(samples.shape)
+
+    def total(flat: Array) -> Array:
+        return bkd.reshape(bkd.sum(fun(bkd.reshape(flat, shape))), (1,))
+
+    return bkd.reshape(bkd.jacobian(total, bkd.flatten(samples)), shape)
+
+
+def _fd_error_ratio(
+    bkd: AutodiffBackend[Array], fun: Callable[[Array], Array], samples: Array
+) -> float:
+    """DerivativeChecker error ratio of the autodiff gradient of
+    ``sum(fun(samples))``."""
+    shape = tuple(samples.shape)
+    nvars = math.prod(shape)
+
+    def total(x: Array) -> Array:
+        return bkd.reshape(bkd.sum(fun(bkd.reshape(x, shape))), (1, 1))
+
+    def jacobian(x: Array) -> Array:
+        return bkd.reshape(_grad_of_sum(bkd, fun, bkd.reshape(x, shape)), (1, nvars))
+
+    checker = DerivativeChecker(
+        FunctionWithJacobianFromCallable(
+            nqoi=1, nvars=nvars, fun=total, jacobian=jacobian, bkd=bkd
+        )
+    )
+    errors = checker.check_derivatives(bkd.reshape(samples, (nvars, 1)), verbosity=0)
+    return float(bkd.to_numpy(checker.error_ratio(errors[0])))
+
+
 class TestGaussianMarginalAutograd:
-    """Test autograd compatibility for GaussianMarginal."""
+    """Autodiff derivatives of GaussianMarginal w.r.t. its argument."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        self.mean = 2.0
-        self.stdev = 0.5
-        self.dist = GaussianMarginal(self.mean, self.stdev, self._bkd)
+    MEAN = 2.0
+    STDEV = 0.5
 
-    def test_logpdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of logpdf w.r.t. sample values."""
-        # Shape: (1, nsamples) for univariate distribution
-        samples = torch.tensor([[1.0, 2.0, 3.0]], requires_grad=True)
-        logpdf = self.dist.logpdf(samples)  # Returns (1, nsamples)
+    def _dist(self, bkd: AutodiffBackend[Array]) -> GaussianMarginal[Array]:
+        return GaussianMarginal(self.MEAN, self.STDEV, bkd)
 
-        # Sum to get scalar for backward
-        loss = logpdf.sum()
-        loss.backward()
+    def test_logpdf_gradient_wrt_samples(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """d/dx log(pdf) = -(x - mu) / sigma^2."""
+        bkd = torch_bkd
+        dist = self._dist(bkd)
+        samples = bkd.asarray([[1.0, 2.0, 3.0]])  # (1, nsamples)
+        expected = -(samples - self.MEAN) / (self.STDEV**2)
+        bkd.assert_allclose(
+            _grad_of_sum(bkd, dist.logpdf, samples), expected, rtol=1e-6
+        )
 
-        # Analytical gradient: d/dx log(pdf) = -(x - mu) / sigma^2
-        expected_grad = -(samples.detach() - self.mean) / (self.stdev**2)
+    def test_pdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        """d/dx pdf = pdf * (-(x - mu) / sigma^2)."""
+        bkd = torch_bkd
+        dist = self._dist(bkd)
+        samples = bkd.asarray([[1.5, 2.0, 2.5]])
+        expected = dist(samples) * (-(samples - self.MEAN) / (self.STDEV**2))
+        bkd.assert_allclose(_grad_of_sum(bkd, dist, samples), expected, rtol=1e-6)
 
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
+    def test_cdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        """d/dx CDF = pdf."""
+        bkd = torch_bkd
+        dist = self._dist(bkd)
+        samples = bkd.asarray([[1.5, 2.0, 2.5]])
+        bkd.assert_allclose(
+            _grad_of_sum(bkd, dist.cdf, samples), dist(samples), rtol=1e-6
+        )
 
-    def test_pdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of pdf w.r.t. sample values."""
-        # Shape: (1, nsamples) for univariate distribution
-        samples = torch.tensor([[1.5, 2.0, 2.5]], requires_grad=True)
-        pdf = self.dist(samples)  # Returns (1, nsamples)
+    def test_invcdf_gradient_wrt_probs(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        """d/dp invcdf = 1 / pdf(invcdf(p))."""
+        bkd = torch_bkd
+        dist = self._dist(bkd)
+        probs = bkd.asarray([[0.25, 0.5, 0.75]])
+        expected = 1.0 / dist(dist.invcdf(probs))
+        bkd.assert_allclose(_grad_of_sum(bkd, dist.invcdf, probs), expected, rtol=1e-5)
 
-        loss = pdf.sum()
-        loss.backward()
+    def test_logpdf_second_derivative(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        """d^2/dx^2 log(pdf) = -1/sigma^2; the Hessian of the summed logpdf is
+        diagonal, so its product with ones gives the second derivatives."""
+        bkd = torch_bkd
+        dist = self._dist(bkd)
+        samples = bkd.asarray([[1.5, 2.0, 2.5]])
+        nsamples = samples.shape[1]
 
-        # Analytical gradient: d/dx pdf = pdf * (-(x - mu) / sigma^2)
-        pdf_vals = self.dist(samples.detach())
-        expected_grad = pdf_vals * (-(samples.detach() - self.mean) / (self.stdev**2))
+        def total(flat: Array) -> Array:
+            return bkd.sum(dist.logpdf(bkd.reshape(flat, (1, nsamples))))
 
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-
-    def test_cdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of cdf w.r.t. sample values."""
-        # Shape: (1, nsamples) for univariate distribution
-        samples = torch.tensor([[1.5, 2.0, 2.5]], requires_grad=True)
-        cdf = self.dist.cdf(samples)  # Returns (1, nsamples)
-
-        loss = cdf.sum()
-        loss.backward()
-
-        # Analytical gradient: d/dx CDF = pdf
-        expected_grad = self.dist(samples.detach())
-
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-
-    def test_invcdf_gradient_wrt_probs(self) -> None:
-        """Test autograd gradient of invcdf w.r.t. probabilities."""
-        # Shape: (1, nsamples) for univariate distribution
-        probs = torch.tensor([[0.25, 0.5, 0.75]], requires_grad=True)
-        quantiles = self.dist.invcdf(probs)  # Returns (1, nsamples)
-
-        loss = quantiles.sum()
-        loss.backward()
-
-        # Analytical gradient: d/dp invcdf = 1 / pdf(invcdf(p))
-        quantile_vals = self.dist.invcdf(probs.detach())
-        expected_grad = 1.0 / self.dist(quantile_vals)
-
-        assert torch.allclose(probs.grad, expected_grad, rtol=1e-5)
-
-    def test_logpdf_second_derivative(self) -> None:
-        """Test second derivative of logpdf is computable."""
-        # Shape: (1, nsamples) for univariate distribution
-        samples = torch.tensor([[1.5, 2.0, 2.5]], requires_grad=True)
-
-        # First derivative
-        logpdf = self.dist.logpdf(samples)  # Returns (1, nsamples)
-        grad1 = torch.autograd.grad(logpdf.sum(), samples, create_graph=True)[0]
-
-        # Second derivative
-        grad2 = torch.autograd.grad(grad1.sum(), samples)[0]
-
-        # Analytical: d^2/dx^2 log(pdf) = -1/sigma^2
-        expected = torch.full_like(samples, -1.0 / (self.stdev**2))
-
-        assert torch.allclose(grad2, expected, rtol=1e-6)
+        second = bkd.hvp(total, bkd.flatten(samples), bkd.ones((nsamples,)))
+        expected = bkd.full((nsamples,), -1.0 / (self.STDEV**2))
+        bkd.assert_allclose(second, expected, rtol=1e-6)
 
 
 class TestGaussianMarginalAutogradFiniteDiff:
-    """Test autograd gradients match finite differences."""
+    """Autodiff gradients of GaussianMarginal match finite differences."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        self.mean = 1.0
-        self.stdev = 2.0
-        self.dist = GaussianMarginal(self.mean, self.stdev, self._bkd)
+    def test_logpdf_gradient_finite_diff(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        bkd = torch_bkd
+        dist = GaussianMarginal(1.0, 2.0, bkd)
+        samples = bkd.asarray([[0.5, 1.0, 1.5]])  # (1, nsamples)
+        assert _fd_error_ratio(bkd, dist.logpdf, samples) <= 1e-6
 
-    def test_logpdf_gradient_finite_diff(self) -> None:
-        """Compare autograd gradient to finite difference."""
-        # Shape: (1, nsamples) for univariate distribution
-        samples = torch.tensor([[0.5, 1.0, 1.5]], requires_grad=True)
-        logpdf = self.dist.logpdf(samples)  # Returns (1, nsamples)
-        loss = logpdf.sum()
-        loss.backward()
-        autograd_grad = samples.grad.clone()
 
-        #TODO: Use DerivativeChecker
-
-        # Finite difference
-        eps = 1e-6
-        fd_grad = torch.zeros_like(samples)
-        for i in range(samples.shape[1]):
-            samples_plus = samples.detach().clone()
-            samples_minus = samples.detach().clone()
-            samples_plus[0, i] += eps
-            samples_minus[0, i] -= eps
-            fd_grad[0, i] = (
-                self.dist.logpdf(samples_plus).sum()
-                - self.dist.logpdf(samples_minus).sum()
-            ) / (2 * eps)
-
-        assert torch.allclose(autograd_grad, fd_grad, rtol=1e-5)
+def _dense_gaussian(
+    bkd: AutodiffBackend[Array],
+) -> DenseCholeskyMultivariateGaussian[Array]:
+    mean = bkd.asarray([[1.0], [2.0], [3.0]])
+    cov = bkd.asarray(
+        [
+            [2.0, 0.5, 0.1],
+            [0.5, 1.5, 0.3],
+            [0.1, 0.3, 1.0],
+        ]
+    )
+    return DenseCholeskyMultivariateGaussian(mean, cov, bkd)
 
 
 class TestDenseCholeskyMultivariateGaussianAutograd:
-    """Test autograd compatibility for DenseCholeskyMultivariateGaussian."""
+    """Autodiff derivatives of DenseCholeskyMultivariateGaussian."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        self.nvars = 3
-        self.mean = torch.tensor([[1.0], [2.0], [3.0]])
-        self.cov = torch.tensor(
-            [
-                [2.0, 0.5, 0.1],
-                [0.5, 1.5, 0.3],
-                [0.1, 0.3, 1.0],
-            ]
+    def test_logpdf_gradient_wrt_samples(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """Autodiff gradient matches logpdf_gradient."""
+        bkd = torch_bkd
+        dist = _dense_gaussian(bkd)
+        samples = bkd.asarray([[0.5, 1.5], [1.0, 2.5], [2.0, 3.5]])
+        bkd.assert_allclose(
+            _grad_of_sum(bkd, dist.logpdf, samples),
+            dist.logpdf_gradient(samples),
+            rtol=1e-6,
         )
-        self.dist = DenseCholeskyMultivariateGaussian(self.mean, self.cov, self._bkd)
 
-    def test_logpdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of logpdf w.r.t. sample values."""
-        samples = torch.tensor(
-            [[0.5, 1.5], [1.0, 2.5], [2.0, 3.5]],
-            requires_grad=True,
-        )
-        logpdf = self.dist.logpdf(samples)
+    def test_logpdf_gradient_finite_diff(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        bkd = torch_bkd
+        dist = _dense_gaussian(bkd)
+        samples = bkd.asarray([[0.5], [1.0], [2.0]])
+        assert _fd_error_ratio(bkd, dist.logpdf, samples) <= 1e-6
 
-        loss = logpdf.sum()
-        loss.backward()
+    def test_pdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        """d/dx pdf = pdf * grad_log_pdf."""
+        bkd = torch_bkd
+        dist = _dense_gaussian(bkd)
+        samples = bkd.asarray([[1.0], [2.0], [3.0]])
+        expected = dist.pdf(samples) * dist.logpdf_gradient(samples)
+        bkd.assert_allclose(_grad_of_sum(bkd, dist.pdf, samples), expected, rtol=1e-6)
 
-        # Compare to analytical gradient
-        expected_grad = self.dist.logpdf_gradient(samples.detach())
 
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-
-    def test_logpdf_gradient_finite_diff(self) -> None:
-        """Compare autograd gradient to finite difference."""
-        samples = torch.tensor(
-            [[0.5], [1.0], [2.0]],
-            requires_grad=True,
-        )
-        logpdf = self.dist.logpdf(samples)
-        loss = logpdf.sum()
-        loss.backward()
-        autograd_grad = samples.grad.clone()
-
-        # Finite difference
-        # TODO: Use DerivativeChecker
-        eps = 1e-6
-        fd_grad = torch.zeros_like(samples)
-        for i in range(self.nvars):
-            samples_plus = samples.detach().clone()
-            samples_minus = samples.detach().clone()
-            samples_plus[i, 0] += eps
-            samples_minus[i, 0] -= eps
-            fd_grad[i, 0] = (
-                self.dist.logpdf(samples_plus).sum()
-                - self.dist.logpdf(samples_minus).sum()
-            ) / (2 * eps)
-
-        assert torch.allclose(autograd_grad, fd_grad, rtol=1e-5)
-
-    def test_pdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of pdf w.r.t. sample values."""
-        samples = torch.tensor(
-            [[1.0], [2.0], [3.0]],
-            requires_grad=True,
-        )
-        pdf = self.dist.pdf(samples)
-
-        loss = pdf.sum()
-        loss.backward()
-
-        # Analytical gradient: d/dx pdf = pdf * grad_log_pdf
-        pdf_val = self.dist.pdf(samples.detach())
-        logpdf_grad = self.dist.logpdf_gradient(samples.detach())
-        expected_grad = pdf_val * logpdf_grad
-
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
+def _diagonal_gaussian(
+    bkd: AutodiffBackend[Array],
+) -> DiagonalMultivariateGaussian[Array]:
+    mean = bkd.asarray([[0.0], [1.0], [2.0]])
+    variance = bkd.asarray([1.0, 2.0, 0.5])
+    return DiagonalMultivariateGaussian(mean, variance, bkd)
 
 
 class TestDiagonalMultivariateGaussianAutograd:
-    """Test autograd compatibility for DiagonalMultivariateGaussian."""
+    """Autodiff derivatives of DiagonalMultivariateGaussian."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        self.nvars = 3
-        self.mean = torch.tensor([[0.0], [1.0], [2.0]])
-        self.variance = torch.tensor([1.0, 2.0, 0.5])
-        self.dist = DiagonalMultivariateGaussian(self.mean, self.variance, self._bkd)
-
-    def test_logpdf_gradient_wrt_samples(self) -> None:
-        """Test autograd gradient of logpdf w.r.t. sample values."""
-        samples = torch.tensor(
-            [[0.5, -0.5], [1.5, 0.5], [2.5, 1.5]],
-            requires_grad=True,
+    def test_logpdf_gradient_wrt_samples(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """Autodiff gradient matches logpdf_gradient."""
+        bkd = torch_bkd
+        dist = _diagonal_gaussian(bkd)
+        samples = bkd.asarray([[0.5, -0.5], [1.5, 0.5], [2.5, 1.5]])
+        bkd.assert_allclose(
+            _grad_of_sum(bkd, dist.logpdf, samples),
+            dist.logpdf_gradient(samples),
+            rtol=1e-6,
         )
-        logpdf = self.dist.logpdf(samples)
 
-        loss = logpdf.sum()
-        loss.backward()
-
-        # Compare to analytical gradient
-        expected_grad = self.dist.logpdf_gradient(samples.detach())
-
-        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-
-    def test_logpdf_gradient_finite_diff(self) -> None:
-        """Compare autograd gradient to finite difference."""
-        samples = torch.tensor(
-            [[0.5], [1.0], [2.0]],
-            requires_grad=True,
-        )
-        logpdf = self.dist.logpdf(samples)
-        loss = logpdf.sum()
-        loss.backward()
-        autograd_grad = samples.grad.clone()
-
-        # Finite difference
-        # TODO: Use DerivativeChecker
-        eps = 1e-6
-        fd_grad = torch.zeros_like(samples)
-        for i in range(self.nvars):
-            samples_plus = samples.detach().clone()
-            samples_minus = samples.detach().clone()
-            samples_plus[i, 0] += eps
-            samples_minus[i, 0] -= eps
-            fd_grad[i, 0] = (
-                self.dist.logpdf(samples_plus).sum()
-                - self.dist.logpdf(samples_minus).sum()
-            ) / (2 * eps)
-
-        assert torch.allclose(autograd_grad, fd_grad, rtol=1e-5)
+    def test_logpdf_gradient_finite_diff(
+        self, torch_bkd: AutodiffBackend[Array]
+    ) -> None:
+        bkd = torch_bkd
+        dist = _diagonal_gaussian(bkd)
+        samples = bkd.asarray([[0.5], [1.0], [2.0]])
+        assert _fd_error_ratio(bkd, dist.logpdf, samples) <= 1e-6
