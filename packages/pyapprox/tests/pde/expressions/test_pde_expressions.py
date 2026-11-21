@@ -12,7 +12,8 @@ the same values written with backend methods (1e-12):
   point;
 - a normal flux :math:`x\, n_x + y\, n_y` and a state law
   :math:`u^2 + u_x` with ``u`` and ``u_x`` passed by name;
-- the backend's dtype; on torch the gradient of :math:`\sum x^2`.
+- the backend's dtype; on an autodiff backend the Jacobian of
+  :math:`\sum x^2` with respect to the points.
 
 Refusals: wrong shapes, missing normals or jets, undeclared symbols.
 """
@@ -28,8 +29,8 @@ from pyapprox.pde.expressions.symbols import (
     pde_names,
     standard,
 )
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 _X, _XY = standard(1), standard(2)
 
@@ -113,15 +114,19 @@ class TestValues:
         values = PointExpressions(["x*y"], pde_names(_XY), _XY, bkd)(_points(bkd))
         assert values.dtype == bkd.zeros((1,)).dtype
 
-    def test_torch_graph_survives(self, torch_bkd: TorchBkd) -> None:
-        import torch
-
+    def test_autodiff_graph_survives(self, torch_bkd: AutodiffBackend[Array]) -> None:
         bkd = torch_bkd
-        pts = bkd.asarray([[0.1, 0.5, 0.9], [0.2, 0.4, 0.7]]).requires_grad_(True)
-        values = PointExpressions(["x**2"], pde_names(_XY), _XY, bkd)(pts)
-        (gradient,) = torch.autograd.grad(bkd.sum(values), [pts])
-        bkd.assert_allclose(gradient[0], 2 * pts.detach()[0], rtol=1e-12)
-        bkd.assert_allclose(gradient[1], bkd.zeros((3,)), rtol=1e-12)
+        evaluator = PointExpressions(["x**2"], pde_names(_XY), _XY, bkd)
+
+        def total(flat_points: Array) -> Array:
+            values = evaluator(bkd.reshape(flat_points, (2, 3)))
+            return bkd.reshape(bkd.sum(values), (1,))
+
+        x = bkd.asarray([0.1, 0.5, 0.9])
+        flat = bkd.concatenate([x, bkd.asarray([0.2, 0.4, 0.7])])
+        gradient = bkd.jacobian(total, flat)
+        expected = bkd.concatenate([2.0 * x, bkd.zeros((3,))])
+        bkd.assert_allclose(gradient, bkd.reshape(expected, (1, 6)), rtol=1e-12)
 
 
 class TestRefusals:

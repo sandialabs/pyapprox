@@ -2,12 +2,13 @@
 
 The element data is a 1D mesh of 6 nodes and 5 two-node elements, with
 a rectangular (6 x 4) case whose columns repeat; references are explicit
-dense sums. Element values keep their torch graph through assembly.
+dense sums. Element values keep their autodiff graph through assembly:
+the backend's Jacobian of a probed sum of the matrix is the probe at
+each element entry's position (1e-14).
 """
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.pde.assembly.backend_dense_sink import (
     BackendDenseMatrixAssembly,
@@ -15,8 +16,8 @@ from pyapprox.pde.assembly.backend_dense_sink import (
 )
 from pyapprox.pde.assembly.protocols import MatrixSinkProtocol
 from pyapprox.pde.coupling.ports import PortAssemblyProtocol
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import backend_dtype_name
 from pyapprox.util.linalg.operators import OperatorProperties, SpaceDescriptor
 
@@ -107,15 +108,26 @@ def test_refusals(bkd: Backend[Array]) -> None:
         sink.add_element_matrices(rows, cols[:2], bkd.zeros((5, 2, 3)))
 
 
-def test_assembly_keeps_the_graph_through_the_values(torch_bkd: TorchBkd) -> None:
+def test_assembly_keeps_the_graph_through_the_values(
+    torch_bkd: AutodiffBackend[Array],
+) -> None:
     bkd = torch_bkd
     rng = np.random.default_rng(1)
-    values = torch.tensor(rng.normal(size=(5, 2, 3)), requires_grad=True)
-    probe = torch.tensor(rng.normal(size=(6, 4)))
-    sink = _sink(bkd)
-    sink.add_element_matrices(_dofs(bkd, _ROWS), _dofs(bkd, _COLS), values)
-    matrix = sink.assemble().format().matrix()
-    (grad,) = torch.autograd.grad((matrix * probe).sum(), [values])
+    values = rng.normal(size=(5, 2, 3))
+    probe = rng.normal(size=(6, 4))
+
+    def probed(flat_values: Array) -> Array:
+        """sum(probe * A) of the matrix assembled from ``flat_values``."""
+        sink = _sink(bkd)
+        sink.add_element_matrices(
+            _dofs(bkd, _ROWS),
+            _dofs(bkd, _COLS),
+            bkd.reshape(flat_values, (5, 2, 3)),
+        )
+        matrix = sink.assemble().format().matrix()
+        return bkd.reshape(bkd.sum(matrix * bkd.asarray(probe)), (1,))
+
+    gradient = bkd.jacobian(probed, bkd.asarray(values.reshape(-1)))
     # d/dvalues[e, a, b] of sum(probe * A) = probe[rows[e, a], cols[e, b]].
-    expected = probe[torch.tensor(_ROWS)[:, :, None], torch.tensor(_COLS)[:, None, :]]
-    bkd.assert_allclose(grad, expected, rtol=1e-14)
+    expected = probe[np.asarray(_ROWS)[:, :, None], np.asarray(_COLS)[:, None, :]]
+    bkd.assert_allclose(gradient, bkd.asarray(expected.reshape(1, -1)), rtol=1e-14)

@@ -43,8 +43,8 @@ the formulas (1e-12); every Jacobian block and parameter derivative of
 every spec against central differences of the kernel's residual (step
 1e-6; 1e-7 relative, 1e-8 absolute); ``DerivativeChecker`` on the
 nonlinear pair's state and parameter Jacobians at each point (error
-ratio at most 1e-6); on torch the same Jacobians against
-``torch.func.jacrev`` of the residual (1e-10). The
+ratio at most 1e-6); on an autodiff backend the same Jacobians against
+the backend's ``jacobian`` of the residual (1e-10). The
 backend's dtype, a pickle round trip, and refusals of bad specs and
 inputs.
 """
@@ -81,8 +81,8 @@ from pyapprox.pde.pointwise.kernel import (
     PointwiseTerms,
 )
 from pyapprox.pde.pointwise.spec import AuxField, Field, PointwisePhysics
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.expressions.names import CustomFunction
 
 _XY = standard(2)
@@ -595,26 +595,20 @@ class TestKernel:
                 params = _ParamFunction(kernel, single, test)
                 _assert_checks(params.as_function(), params.sample())
 
-    def test_torch_autograd(self, torch_bkd: TorchBkd) -> None:
-        import torch
-
+    def test_autodiff(self, torch_bkd: AutodiffBackend[Array]) -> None:
         bkd = torch_bkd
         physics = _nonlinear_pair()
         kernel = BackendPointwiseKernel(physics, bkd)
         inputs = _at_point(_inputs(physics, bkd), 3)
         for test in physics.field_names():
-            functions: List[
-                Union[_StateFunction[torch.Tensor], _ParamFunction[torch.Tensor]]
-            ] = [
+            functions: List[Union[_StateFunction[Array], _ParamFunction[Array]]] = [
                 _StateFunction(kernel, inputs, test, trial)
                 for trial in physics.field_names()
             ]
             functions.append(_ParamFunction(kernel, inputs, test))
             for function in functions:
                 sample = function.sample()
-                expected: torch.Tensor = torch.func.jacrev(function.flat_value)(
-                    sample[:, 0]
-                )
+                expected = bkd.jacobian(function.flat_value, sample[:, 0])
                 bkd.assert_allclose(function.jacobian(sample), expected, rtol=1e-10)
 
     def test_dtype_follows_the_backend(self, bkd: Backend[Array]) -> None:
