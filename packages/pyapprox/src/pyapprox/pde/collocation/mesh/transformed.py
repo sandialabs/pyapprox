@@ -34,16 +34,29 @@ class NodeGeneratorProtocol(Protocol, Generic[Array]):
     """The reference nodes of one direction."""
 
     def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
-        """``npts`` nodes on :math:`[-1, 1]`, increasing, both ends
-        included. Shape: ``(npts,)``."""
+        """``npts`` nodes on :math:`[-1, 1]`, increasing. A first node of
+        exactly -1 (a last node of exactly 1) gives the direction a lower
+        (upper) boundary; nodes inside the interval give it none.
+        Shape: ``(npts,)``."""
         ...
 
 
 class ChebyshevGaussLobattoNodes(Generic[Array]):
-    """Chebyshev-Gauss-Lobatto nodes :math:`-\\cos(\\pi j / (n - 1))`."""
+    """Chebyshev-Gauss-Lobatto nodes :math:`-\\cos(\\pi j / (n - 1))`,
+    both ends included."""
 
     def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
-        """``npts`` nodes from -1 to 1. Shape: ``(npts,)``."""
+        """``npts`` nodes from -1 to 1. Shape: ``(npts,)``.
+
+        Raises
+        ------
+        ValueError
+            If ``npts`` is below 2.
+        """
+        if npts < 2:
+            raise ValueError(
+                f"Chebyshev-Gauss-Lobatto nodes need at least 2 nodes, got {npts}"
+            )
         j = bkd.arange(npts)
         return -bkd.cos(np.pi * j / (npts - 1))
 
@@ -51,19 +64,42 @@ class ChebyshevGaussLobattoNodes(Generic[Array]):
         return "ChebyshevGaussLobattoNodes()"
 
 
+class ChebyshevGaussNodes(Generic[Array]):
+    """Chebyshev-Gauss nodes :math:`-\\cos(\\pi (2 j + 1) / (2 n))`, the
+    roots of :math:`T_n`: inside :math:`(-1, 1)`, so a direction on them
+    has no boundary. A staggered pressure grid uses them."""
+
+    def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
+        """``npts`` nodes inside (-1, 1), increasing. Shape: ``(npts,)``.
+
+        Raises
+        ------
+        ValueError
+            If ``npts`` is below 1.
+        """
+        if npts < 1:
+            raise ValueError(f"Chebyshev-Gauss nodes need at least 1 node, got {npts}")
+        j = bkd.arange(npts)
+        return -bkd.cos(np.pi * (2 * j + 1) / (2 * npts))
+
+    def __repr__(self) -> str:
+        return "ChebyshevGaussNodes()"
+
+
 class TransformedMesh(Generic[Array]):
     """Tensor-product mesh of the reference cube mapped by a transform.
 
     Nodes are in tensor order, the first direction fastest. Boundary
     ``2 d`` is the lower end of reference direction ``d`` and ``2 d + 1``
-    the upper.
+    the upper; it exists only when that direction's nodes reach the end
+    (Chebyshev-Gauss nodes do not).
 
     Implements ``MeshWithTransformProtocol``.
 
     Parameters
     ----------
     npts_per_dim : Sequence[int]
-        Nodes per direction, at least 2 each.
+        Nodes per direction, at least 1 each (a generator may need more).
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
@@ -76,8 +112,9 @@ class TransformedMesh(Generic[Array]):
     Raises
     ------
     ValueError
-        If ``npts_per_dim`` is empty or has a count below 2, or the
-        transform or the node generators do not match its length.
+        If ``npts_per_dim`` is empty or has a count below 1, a generator
+        refuses its count, or the transform or the node generators do not
+        match its length.
     TypeError
         If a node generator does not satisfy ``NodeGeneratorProtocol``.
     """
@@ -92,8 +129,8 @@ class TransformedMesh(Generic[Array]):
         counts = tuple(int(n) for n in npts_per_dim)
         if len(counts) == 0:
             raise ValueError("a mesh needs at least one direction")
-        if min(counts) < 2:
-            raise ValueError(f"every direction needs at least 2 nodes, got {counts}")
+        if min(counts) < 1:
+            raise ValueError(f"every direction needs at least 1 node, got {counts}")
         ndim = len(counts)
         if transform is None:
             transform = AffineTransform([(-1.0, 1.0)] * ndim, bkd)
@@ -127,6 +164,12 @@ class TransformedMesh(Generic[Array]):
         self._jacobian_matrix = transform.jacobian_matrix(reference)
         self._jacobian_determinant = transform.jacobian_determinant(reference)
         self._boundary_indices = compute_boundary_indices(counts, bkd)
+        # Boundary 2 d + s exists when direction d's nodes reach end s.
+        self._has_boundary = tuple(
+            bkd.to_float(nodes[-1 if side else 0]) == (1.0 if side else -1.0)
+            for nodes in self._reference_nodes
+            for side in (0, 1)
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -209,6 +252,12 @@ class TransformedMesh(Generic[Array]):
         if not 0 <= boundary_id < self.nboundaries():
             raise ValueError(
                 f"boundary_id must be in [0, {self.nboundaries()}), got {boundary_id}"
+            )
+        if not self._has_boundary[boundary_id]:
+            direction, side = divmod(boundary_id, 2)
+            raise ValueError(
+                f"boundary {boundary_id} does not exist: the nodes of direction "
+                f"{direction} do not reach its {'upper' if side else 'lower'} end"
             )
 
 

@@ -24,6 +24,7 @@ from pyapprox.pde.collocation.mesh.cartesian_3d import (
 )
 from pyapprox.pde.collocation.mesh.transformed import (
     ChebyshevGaussLobattoNodes,
+    ChebyshevGaussNodes,
     NodeGeneratorProtocol,
     TransformedMesh,
     TransformedMesh1D,
@@ -63,6 +64,7 @@ __all__ = [
     "AffineTransform3D",
     # Transformed meshes
     "ChebyshevGaussLobattoNodes",
+    "ChebyshevGaussNodes",
     "NodeGeneratorProtocol",
     "TransformedMesh",
     "TransformedMesh1D",

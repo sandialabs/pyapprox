@@ -13,6 +13,7 @@ import pytest
 
 from pyapprox.pde.collocation.mesh import (
     ChebyshevGaussLobattoNodes,
+    ChebyshevGaussNodes,
     TransformedMesh,
     TransformedMesh1D,
     TransformedMesh2D,
@@ -154,6 +155,55 @@ def test_node_generator_per_direction(bkd: Backend[Array]) -> None:
     )
 
 
+@pytest.mark.parametrize("npts", [1, 2, 5, 8])
+def test_chebyshev_gauss_nodes(bkd: Backend[Array], npts: int) -> None:
+    """Chebyshev-Gauss nodes are the n roots of T_n = cos(n arccos x),
+    increasing, symmetric about 0 and strictly inside (-1, 1); one node
+    is the midpoint."""
+    nodes = ChebyshevGaussNodes[Array]().nodes(npts, bkd)
+    assert nodes.shape == (npts,)
+    bkd.assert_allclose(
+        bkd.cos(npts * bkd.arccos(nodes)), bkd.zeros((npts,)), atol=1e-14
+    )
+    assert bkd.to_bool(bkd.all(bkd.diff(nodes) > 0))
+    bkd.assert_allclose(nodes, -bkd.flip(nodes), atol=1e-15)
+    assert bkd.to_bool(bkd.all(bkd.abs(nodes) < 1.0))
+    with pytest.raises(ValueError, match="at least 1 node"):
+        ChebyshevGaussNodes[Array]().nodes(0, bkd)
+
+
+def test_mesh_on_gauss_nodes_has_no_boundary(bkd: Backend[Array]) -> None:
+    """A 4 x 3 mesh of [0, 2] x [1, 3], Chebyshev-Gauss-Lobatto in x and
+    Chebyshev-Gauss in y: the points are the affine images of the
+    reference nodes, the x sides exist with their 3 nodes, and the y
+    sides, which no node reaches, are refused."""
+    gauss = ChebyshevGaussNodes[Array]()
+    transform = AffineTransform([(0.0, 2.0), (1.0, 3.0)], bkd)
+    mesh = TransformedMesh(
+        (4, 3),
+        bkd,
+        transform,
+        nodes=[ChebyshevGaussLobattoNodes[Array](), gauss],
+    )
+    y = gauss.nodes(3, bkd)
+    bkd.assert_allclose(mesh.points()[1], bkd.repeat(y + 2.0, 4), atol=1e-15)
+    assert mesh.boundary_indices(0).shape == (3,)
+    bkd.assert_allclose(mesh.points()[0][mesh.boundary_indices(1)], bkd.full((3,), 2.0))
+    for boundary, end in [(2, "lower"), (3, "upper")]:
+        with pytest.raises(ValueError, match=f"do not reach its {end} end"):
+            mesh.boundary_indices(boundary)
+        with pytest.raises(ValueError, match=f"boundary {boundary} does not exist"):
+            mesh.boundary_normals(boundary)
+
+
+def test_one_gauss_node(bkd: Backend[Array]) -> None:
+    """A direction may hold a single Gauss node, the interval's midpoint:
+    the coarsest pressure grid under a 3-node velocity direction."""
+    gauss = ChebyshevGaussNodes[Array]()
+    mesh = TransformedMesh((1, 1), bkd, nodes=[gauss, gauss])
+    bkd.assert_allclose(mesh.points(), bkd.zeros((2, 1)), atol=1e-15)
+
+
 def test_per_dimension_meshes_are_the_generic_mesh(bkd: Backend[Array]) -> None:
     """The 1D/2D/3D classes are TransformedMesh with their counts."""
     for mesh, counts in [
@@ -167,12 +217,14 @@ def test_per_dimension_meshes_are_the_generic_mesh(bkd: Backend[Array]) -> None:
 
 
 def test_refusals(bkd: Backend[Array]) -> None:
-    """No directions, a direction with one node, a transform or node
-    list of the wrong length, a non-generator, an unknown boundary or
-    direction."""
+    """No directions, a direction with no nodes, one Gauss-Lobatto node
+    (refused by its generator), a transform or node list of the wrong
+    length, a non-generator, an unknown boundary or direction."""
     with pytest.raises(ValueError, match="at least one direction"):
         TransformedMesh((), bkd)
-    with pytest.raises(ValueError, match="at least 2 nodes"):
+    with pytest.raises(ValueError, match="at least 1 node"):
+        TransformedMesh((3, 0), bkd)
+    with pytest.raises(ValueError, match="Lobatto nodes need at least 2 nodes"):
         TransformedMesh((3, 1), bkd)
     with pytest.raises(ValueError, match="the transform has 1 directions, the mesh 2"):
         TransformedMesh((3, 3), bkd, AffineTransform([(0.0, 1.0)], bkd))
