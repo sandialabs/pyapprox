@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.probability import (
     GaussianMarginal,
@@ -18,7 +17,8 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestPCEArithmetic:
@@ -60,27 +60,21 @@ class TestPCEArithmetic:
         pce1, pce2 = self._create_pce_pair(bkd, 2, 3, 3)
         pce3 = pce1 + pce2
         samples = self._random_samples(bkd, 2)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12)
 
     def test_add_different_indices(self, bkd):
         """pce1 + pce2 with different index sets."""
         pce1, pce2 = self._create_pce_pair(bkd, 2, 2, 4)
         pce3 = pce1 + pce2
         samples = self._random_samples(bkd, 2)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12)
 
     def test_add_1d(self, bkd):
         """pce1 + pce2 in 1D."""
         pce1, pce2 = self._create_pce_pair(bkd, 1, 3, 5)
         pce3 = pce1 + pce2
         samples = self._random_samples(bkd, 1)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12)
 
     def test_add_scalar(self, bkd):
         """pce + constant."""
@@ -101,9 +95,7 @@ class TestPCEArithmetic:
         pce1, pce2 = self._create_pce_pair(bkd, 2, 3, 3, nqoi=2)
         pce3 = pce1 + pce2
         samples = self._random_samples(bkd, 2)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) + pce2(samples), rtol=1e-12)
 
     # ------------------------------------------------------------------
     # Subtraction
@@ -114,9 +106,7 @@ class TestPCEArithmetic:
         pce1, pce2 = self._create_pce_pair(bkd, 2, 3, 4)
         pce3 = pce1 - pce2
         samples = self._random_samples(bkd, 2)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) - pce2(samples), rtol=1e-12
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) - pce2(samples), rtol=1e-12)
 
     def test_sub_scalar(self, bkd):
         """pce - constant."""
@@ -141,27 +131,21 @@ class TestPCEArithmetic:
         pce1, pce2 = self._create_pce_pair(bkd, 1, 3, 3, nqoi=2)
         pce3 = pce1 * pce2
         samples = self._random_samples(bkd, 1)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) * pce2(samples), rtol=1e-11
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) * pce2(samples), rtol=1e-11)
 
     def test_mul_2d(self, bkd):
         """pce1 * pce2 in 2D."""
         pce1, pce2 = self._create_pce_pair(bkd, 2, 3, 3, nqoi=2)
         pce3 = pce1 * pce2
         samples = self._random_samples(bkd, 2)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) * pce2(samples), rtol=1e-11
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) * pce2(samples), rtol=1e-11)
 
     def test_mul_different_indices(self, bkd):
         """pce1 * pce2 with different index sets."""
         pce1, pce2 = self._create_pce_pair(bkd, 2, 2, 4, nqoi=1)
         pce3 = pce1 * pce2
         samples = self._random_samples(bkd, 2)
-        bkd.assert_allclose(
-            pce3(samples), pce1(samples) * pce2(samples), rtol=1e-11
-        )
+        bkd.assert_allclose(pce3(samples), pce1(samples) * pce2(samples), rtol=1e-11)
 
     def test_mul_scalar(self, bkd):
         """pce * constant."""
@@ -311,60 +295,59 @@ class TestPCEArithmetic:
 
 
 # ------------------------------------------------------------------
-# Torch-only autograd tests
+# Autodiff tests
 # ------------------------------------------------------------------
 
 
+def _uniform_pce(
+    bkd: Backend[Array], nvars: int, max_level: int, nqoi: int = 1
+) -> PolynomialChaosExpansion[Array]:
+    marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    return PolynomialChaosExpansion(basis, bkd, nqoi)
+
+
 class TestAutogradPCEArithmetic:
-    """Verify autograd graph preservation through PCE arithmetic."""
+    """The computation graph survives PCE arithmetic: the autodiff Jacobian
+    of the result with respect to one operand's coefficients is exact."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
+    def _seed(self) -> None:
         np.random.seed(42)
 
-    def _create_pce(self, nvars, max_level, nqoi=1):
-        bkd = self._bkd
-        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        bases_1d = create_bases_1d(marginals, bkd)
-        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
-        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-        return PolynomialChaosExpansion(basis, bkd, nqoi)
+    def test_autograd_add(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        """d/dc1 (pce1 + pce2)(x) is the basis matrix Phi(x)."""
+        bkd = autodiff_bkd
+        pce1 = _uniform_pce(bkd, 1, 3)
+        pce2 = _uniform_pce(bkd, 1, 3)
+        pce2.set_coefficients(bkd.asarray(np.random.randn(pce2.nterms(), 1)))
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)))
+        nterms = pce1.nterms()
 
-    def test_autograd_add(self):
-        """Autograd through pce1 + pce2: gradient of output w.r.t. coefs."""
-        bkd = self._bkd
-        pce1 = self._create_pce(1, 3)
-        pce2 = self._create_pce(1, 3)
-        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)).astype(np.float64))
+        def func(c: Array) -> Array:
+            pce1.set_coefficients(bkd.reshape(c, (nterms, 1)))
+            return bkd.flatten((pce1 + pce2)(samples))
 
-        coef1 = torch.randn(pce1.nterms(), 1, dtype=torch.float64, requires_grad=True)
+        coef1 = bkd.asarray(np.random.randn(nterms))
+        bkd.assert_allclose(
+            bkd.jacobian(func, coef1), pce1.basis_matrix(samples), rtol=1e-12
+        )
 
-        def func(c):
-            pce1.set_coefficients(c)
-            result = pce1 + pce2
-            return result(samples)
+    def test_autograd_mul(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        """d/dc1 (pce1 * pce2)(x) is diag(pce2(x)) Phi(x)."""
+        bkd = autodiff_bkd
+        pce1 = _uniform_pce(bkd, 1, 2)
+        pce2 = _uniform_pce(bkd, 1, 2)
+        pce2.set_coefficients(bkd.asarray(np.random.randn(pce2.nterms(), 1)))
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)))
+        nterms = pce1.nterms()
 
-        jac = torch.autograd.functional.jacobian(func, coef1)
-        # Jacobian should be non-zero (addition is linear in coef1)
-        assert torch.abs(jac).max().item() > 0.0
+        def func(c: Array) -> Array:
+            pce1.set_coefficients(bkd.reshape(c, (nterms, 1)))
+            return bkd.flatten((pce1 * pce2)(samples))
 
-    def test_autograd_mul(self):
-        """Autograd through pce1 * pce2: gradient of output w.r.t. coefs."""
-        bkd = self._bkd
-        pce1 = self._create_pce(1, 2)
-        pce2 = self._create_pce(1, 2)
-        coef2 = bkd.asarray(np.random.randn(pce2.nterms(), 1).astype(np.float64))
-        pce2.set_coefficients(coef2)
-        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)).astype(np.float64))
-
-        coef1 = torch.randn(pce1.nterms(), 1, dtype=torch.float64, requires_grad=True)
-
-        def func(c):
-            pce1.set_coefficients(c)
-            result = pce1 * pce2
-            return result(samples)
-
-        jac = torch.autograd.functional.jacobian(func, coef1)
-        assert torch.abs(jac).max().item() > 0.0
+        coef1 = bkd.asarray(np.random.randn(nterms))
+        expected = bkd.reshape(pce2(samples), (-1, 1)) * pce1.basis_matrix(samples)
+        bkd.assert_allclose(bkd.jacobian(func, coef1), expected, rtol=1e-12)

@@ -13,7 +13,6 @@ using DerivativeChecker. Tests cover:
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     BatchDerivativeChecker,
@@ -40,7 +39,8 @@ from pyapprox.surrogates.affine.univariate import (
     MonomialBasis1D,
     create_bases_1d,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 from tests._helpers.markers import slow_test
 
 
@@ -969,27 +969,19 @@ class TestJacobianWrtParams:
 
 
 class TestJacobianWrtParamsAutograd:
-    """Torch-only tests for jacobian_wrt_params using torch.autograd."""
+    """jacobian_wrt_params against the backend's autodiff Jacobian."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-
-    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
-        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
-
-    def test_jacobian_wrt_params_autograd(self):
-        """Verify jacobian_wrt_params matches torch autograd."""
-        from torch.autograd.functional import jacobian as torch_jacobian
-
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=2, nqoi=1)
+    @pytest.mark.parametrize("nqoi", [1, 2])
+    def test_jacobian_wrt_params_autograd(
+        self, autodiff_bkd: AutodiffBackend[Array], nqoi: int
+    ) -> None:
+        """Verify jacobian_wrt_params matches the autodiff Jacobian."""
+        bkd = autodiff_bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        pce = create_pce_from_marginals(marginals, 2, bkd, nqoi=nqoi)
 
         np.random.seed(42)
-        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), nqoi)))
 
         # Evaluate at multiple samples
         samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
@@ -999,54 +991,20 @@ class TestJacobianWrtParamsAutograd:
         nactive = pce.nactive_params()
 
         # Get autograd jacobian
-        def output_from_params(params: torch.Tensor) -> torch.Tensor:
+        def output_from_params(params: Array) -> Array:
             # params shape: (nactive_params,)
             pce.hyp_list().set_active_values(params)
             pce.sync_params()
-            return pce(samples).flatten()  # (nsamples * nqoi,)
+            # PCE output is (nqoi, nsamples); flatten sample-major, then
+            # qoi, to match the analytical ordering
+            return bkd.flatten(pce(samples).T)  # (nsamples * nqoi,)
 
         params = pce.hyp_list().get_active_values()
-        autograd_jac = torch_jacobian(output_from_params, params)
+        autograd_jac = bkd.jacobian(output_from_params, params)
         # autograd_jac shape: (nsamples * nqoi, nactive_params)
 
         # Reshape analytical to match autograd
         nsamples = samples.shape[1]
-        analytical_flat = bkd.reshape(analytical_jac, (nsamples * pce.nqoi(), nactive))
-
-        bkd.assert_allclose(analytical_flat, autograd_jac, rtol=1e-10)
-
-    def test_jacobian_wrt_params_autograd_multi_qoi(self):
-        """Verify jacobian_wrt_params matches torch autograd for multi-QoI."""
-        from torch.autograd.functional import jacobian as torch_jacobian
-
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=2, nqoi=2)
-
-        np.random.seed(42)
-        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
-
-        # Evaluate at multiple samples
-        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
-
-        # Get analytical jacobian (w.r.t. active params)
-        analytical_jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive)
-        nactive = pce.nactive_params()
-
-        # Get autograd jacobian
-        def output_from_params(params: torch.Tensor) -> torch.Tensor:
-            # params shape: (nactive_params,)
-            pce.hyp_list().set_active_values(params)
-            pce.sync_params()
-            # PCE output is (nqoi, nsamples), need to flatten properly
-            # Order should match analytical: sample-major, then qoi
-            return pce(samples).T.flatten()  # (nsamples, nqoi) flattened
-
-        params = pce.hyp_list().get_active_values()
-        autograd_jac = torch_jacobian(output_from_params, params)
-        # autograd_jac shape: (nsamples * nqoi, nactive_params)
-
-        # Reshape analytical to match autograd
-        nsamples = samples.shape[1]
-        analytical_flat = bkd.reshape(analytical_jac, (nsamples * pce.nqoi(), nactive))
+        analytical_flat = bkd.reshape(analytical_jac, (nsamples * nqoi, nactive))
 
         bkd.assert_allclose(analytical_flat, autograd_jac, rtol=1e-10)
