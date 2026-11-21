@@ -30,12 +30,15 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from pyapprox.implicitfunction.implicit_map import ImplicitMapFunction
+    from pyapprox.ode.stepping_methods import RungeKutta
     from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.zone_weights import ZoneWeightProtocol
-    from pyapprox.pde.models.galerkin.transient import (
-        GalerkinTransientForwardModel,
+    from pyapprox.pde.models.galerkin.transient_system import (
+        GalerkinTransientSystem,
     )
+    from pyapprox.util.linalg.scipy_stack import CSRFormat
 
 import numpy as np
 from numpy.typing import NDArray
@@ -258,12 +261,21 @@ class ObstructedFlowControlProblem:
         zone_weight: Optional["ZoneWeightProtocol[_Np]"],
         time_integrator: str,
     ) -> None:
-        from pyapprox.ode.config import TimeIntegrationConfig
-        from pyapprox.ode.functionals.tikhonov import (
-            TikhonovAugmentedFunctional,
+        from pyapprox.implicitfunction.implicit_map import (
+            ArrayParameters,
+            ImplicitMapFunction,
         )
-        from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
-            TimeIntegratedWeightedL2Functional,
+        from pyapprox.implicitfunction.setups import RecomputeAlways
+        from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
+        from pyapprox.ode.step_plan import FixedStep
+        from pyapprox.ode.stepping_methods import RungeKutta
+        from pyapprox.ode.tableau import backward_euler, crank_nicolson
+        from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+        from pyapprox.ode.transient_implicit_map import (
+            FixedTrajectoryFunctional,
+            ParameterFanOut,
+            SummedFunctional,
+            TransientImplicitMap,
         )
         from pyapprox.pde.constitutive.coefficient_functions import (
             NodalFieldDiffusion,
@@ -286,18 +298,23 @@ class ObstructedFlowControlProblem:
         from pyapprox.pde.galerkin.zone_weights import (
             ElementAlignedRectangleZone,
         )
-        from pyapprox.pde.models.galerkin.transient import (
-            GalerkinTransientForwardModel,
+        from pyapprox.pde.models.galerkin.transient_observations import (
+            time_integrated_weighted_l2,
+        )
+        from pyapprox.pde.models.galerkin.transient_system import (
+            galerkin_transient_system,
         )
         from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
             AdvectionDiffusionParameterization,
         )
+        from pyapprox.pde.parameterizations.parameter_state import ParameterState
         from pyapprox.pde.zoo.obstructed_flow import (
             build_obstructed_mesh,
             extract_velocity_callable,
             solve_obstructed_stokes,
         )
         from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+        from pyapprox.util.rootfinding.nonlinear import Newton
 
         bkd = self._bkd
 
@@ -375,32 +392,50 @@ class ObstructedFlowControlProblem:
         self._zone_weight: "ZoneWeightProtocol[_Np]" = zone_weight
         zone_mass = zone_weight.assemble_weighted_mass(self._basis, bkd)
 
-        functional = TikhonovAugmentedFunctional(
-            TimeIntegratedWeightedL2Functional(zone_mass, self.ncontrols(), bkd),
-            self._alpha,
-            bkd,
-        )
-
-        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
-            method=time_integrator,
-            init_time=0.0,
-            final_time=final_time,
-            deltat=deltat,
-            newton_tol=1e-12,
-            newton_maxiter=5,
-            verbosity=0,
-        )
-        self._model: "GalerkinTransientForwardModel[_Np]" = (
-            GalerkinTransientForwardModel(
+        self._transient: "GalerkinTransientSystem[_Np, CSRFormat]" = (
+            galerkin_transient_system(
                 skfem_discretization(
                     compose_galerkin_system(physics, boundary_conditions)
                 ),
                 ScipySparseLU(),
-                parameterization,
-                bkd.zeros((physics.nstates(),)),
-                config,
-                functional=functional,
+                ParameterState(parameterization),
             )
+        )
+        tableau = {"backward_euler": backward_euler, "crank_nicolson": crank_nicolson}
+        self._method: "RungeKutta[_Np, _Np]" = RungeKutta(
+            tableau[time_integrator](), Newton(atol=1e-12, rtol=0.0, maxiters=5)
+        )
+        self._steps = FixedStep(deltat, (0.0, final_time))
+        self._init_state = bkd.zeros((physics.nstates(), 1))
+
+        # J = int_0^T u^T W u dt, by the method the plume is solved with,
+        # plus the actuation cost (alpha/2)||p||^2, which reads the
+        # controls each solve is set to.
+        tikhonov = TikhonovTerm(bkd, self._alpha)
+        functional: "SummedFunctional[_Np, _Np]" = SummedFunctional(
+            [
+                time_integrated_weighted_l2(
+                    self._transient,
+                    self._method,
+                    RecomputeAlways(self._transient.solved.solver),
+                    zone_mass,
+                ),
+                FixedTrajectoryFunctional(
+                    TrajectoryFunctional.from_terms(bkd, 1, parameter_terms=(tikhonov,))
+                ),
+            ]
+        )
+        implicit = TransientImplicitMap(
+            self._transient,
+            ParameterFanOut(self._transient, [tikhonov.set_param]),
+            self._method,
+            RecomputeAlways(self._transient.solved.solver),
+            self._steps,
+            self._init_state,
+            functional,
+        )
+        self._model: "ImplicitMapFunction[Any, _Np, _Np]" = ImplicitMapFunction(
+            implicit, ArrayParameters(bkd)
         )
 
     def bkd(self) -> NumpyBkd:
@@ -411,13 +446,50 @@ class ObstructedFlowControlProblem:
         """Return the number of actuator amplitudes K."""
         return len(self._actuator_labels)
 
-    def model(self) -> "GalerkinTransientForwardModel[_Np]":
+    def model(self) -> "ImplicitMapFunction[Any, _Np, _Np]":
         """Return the control objective J(p).
 
         Satisfies ``ObjectiveProtocol``: adjoint gradient and
         second-order-adjoint HVP via ``derivatives()``.
         """
         return self._model
+
+    def trajectory(self, controls: _Np) -> Tuple[_Np, _Np]:
+        """Solve the transport at ``controls`` and return every state.
+
+        Parameters
+        ----------
+        controls : np.ndarray
+            Extraction rates. Shape: (ncontrols, 1).
+
+        Returns
+        -------
+        states : np.ndarray
+            The concentration at each time. Shape: (nstates, ntimes).
+        times : np.ndarray
+            The times. Shape: (ntimes,).
+        """
+        from pyapprox.implicitfunction.setups import RecomputeAlways
+        from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+        from pyapprox.pde.models.galerkin.transient_system import (
+            solve_galerkin_transient,
+        )
+
+        bkd = self._bkd
+        self._transient.set_param(controls)
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            self._transient,
+            self._method,
+            RecomputeAlways(self._transient.solved.solver),
+            self._steps,
+            self._init_state,
+            store,
+        )
+        states = bkd.concatenate(
+            [store.state(n) for n in range(store.ntimes())], axis=1
+        )
+        return states, bkd.asarray(store.times())
 
     def bounds(self) -> _Np:
         """Return extraction-rate bounds. Shape: ``(ncontrols, 2)``.
