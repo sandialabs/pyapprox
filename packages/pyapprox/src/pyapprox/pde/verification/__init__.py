@@ -6,6 +6,7 @@ approximations integrate their own errors; checks judge the resulting
 studies. Nothing here depends on a particular stack or array library.
 
 Import from the modules: ``domains``, ``conditions``, ``problem``,
-``protocols``, ``quantities``, ``exact``, ``study``. Expressions are
+``protocols``, ``quantities``, ``exact``, ``study``, and
+``solid_mechanics`` (stress laws as terms). Expressions are
 written in the symbols of :mod:`pyapprox.pde.expressions.symbols`.
 """

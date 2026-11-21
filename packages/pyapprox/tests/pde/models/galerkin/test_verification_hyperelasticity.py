@@ -10,9 +10,10 @@ Lagrangian, with the first Piola stress
    \quad J = \det F.
 
 The problem states it row by row (fields :math:`u, v, w`):
-:math:`\nabla\cdot(-P_{i\cdot}) - f_i = 0`, with :math:`P` written here
-from the formula above, not from the stress model's own symbolic form, so
-the two are independent. Its natural data are :math:`-P N`, negated by the
+:math:`\nabla\cdot(-P_{i\cdot}) - f_i = 0`, with :math:`P` written from
+the formula above by :mod:`pyapprox.pde.verification.solid_mechanics`,
+not from the stress model's own symbolic form, so the two are
+independent. Its natural data are :math:`-P N`, negated by the
 adapter into this stack's nominal traction :math:`P N`. Solutions have
 displacement gradients up to about 0.45, large enough that the stress is far
 from linear (the linearized control below stalls), small enough that
@@ -67,7 +68,13 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.terms import Divergence, TermProtocol
+from pyapprox.pde.verification.solid_mechanics import (
+    DISPLACEMENT_FIELDS,
+    equilibrium_terms,
+    linear_stress,
+    neo_hookean_stress,
+)
+from pyapprox.pde.verification.terms import TermProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.galerkin_verification import (
     converges_on,
@@ -76,40 +83,7 @@ from tests._helpers.galerkin_verification import (
 )
 
 _Np = NDArray[Any]
-_FIELDS = ("u", "v", "w")
-_COORDS = ("x", "y", "z")
-
-
-def _gradient(ndim: int) -> sp.Matrix:
-    """:math:`\\nabla u` in the problem's names: entry (i, j) is the
-    derivative of field i in coordinate j."""
-    return sp.Matrix(ndim, ndim, lambda i, j: sp.Symbol(f"{_FIELDS[i]}_{_COORDS[j]}"))
-
-
-def _neo_hookean(ndim: int, lam: str, mu: str) -> sp.Matrix:
-    """:math:`P = \\mu F + (\\lambda \\ln J - \\mu) F^{-T}`, with
-    :math:`F^{-T} = \\mathrm{adj}(F)^T / J`."""
-    deformation = sp.eye(ndim) + _gradient(ndim)
-    jacobian = deformation.det()
-    lam_value, mu_value = sp.sympify(lam), sp.sympify(mu)
-    stress: sp.Matrix = (
-        mu_value * deformation
-        + (lam_value * sp.log(jacobian) - mu_value)
-        * deformation.adjugate().T
-        / jacobian
-    )
-    return stress
-
-
-def _linear(ndim: int, lam: str, mu: str) -> sp.Matrix:
-    """:math:`\\sigma = \\lambda\\,\\mathrm{tr}(\\varepsilon) I + 2\\mu
-    \\varepsilon`, the small-strain law (the wrong-model control)."""
-    gradient = _gradient(ndim)
-    strain = (gradient + gradient.T) / 2
-    stress: sp.Matrix = (
-        sp.sympify(lam) * strain.trace() * sp.eye(ndim) + 2 * sp.sympify(mu) * strain
-    )
-    return stress
+_FIELDS = DISPLACEMENT_FIELDS
 
 
 class _Hyperelasticity:
@@ -145,12 +119,8 @@ class _Hyperelasticity:
         self._linear_problem, self._swapped = linear_problem, swapped
 
     def terms(self, ndim: int) -> List[TermProtocol]:
-        law = _linear if self._linear_problem else _neo_hookean
-        stress = law(ndim, self._lam, self._mu)
-        return [
-            Divergence(_FIELDS[i], [str(-stress[i, j]) for j in range(ndim)])
-            for i in range(ndim)
-        ]
+        law = linear_stress if self._linear_problem else neo_hookean_stress
+        return equilibrium_terms(law(ndim, self._lam, self._mu))
 
     def _lame(
         self, problem: ManufacturedProblem, basis: VectorLagrangeBasis[_Np]

@@ -23,7 +23,8 @@ repository's skfem Galerkin stack. Bound to skfem and NumPy.
   unchanged. :func:`field`, :func:`vector_field` and :func:`state_law`
   need only a scope of names and coordinates, not a manufactured
   problem, so text coefficients of a production problem pass through
-  them too.
+  them too. :func:`exact_dof_values` gives the exact solution at a
+  basis's DOFs, for a case that compares one solve directly.
 - :class:`GalerkinDiscretizer` solves each level through
   ``galerkin_steady_residual`` + ``SteadySystem`` and returns
   :class:`GalerkinApproximation` objects, whose errors are integrated by
@@ -707,6 +708,37 @@ def pinned_value(
     point = np.asarray(basis.dof_coordinates())[:, dof : dof + 1]
     value = SkfemPoints([problem.solution(row)], problem)(point)[0]
     return DirectDirichletBC(np.array([dof]), value, _BKD)
+
+
+def exact_dof_values(
+    problem: ManufacturedProblem,
+    basis: Union[LagrangeBasis[_Np], VectorLagrangeBasis[_Np]],
+    rows: Sequence[str],
+    time: float = 0.0,
+) -> _Np:
+    """The exact solution of ``rows`` (one per component of ``basis``) at
+    its DOF locations at ``time``, each DOF its own component's value.
+    Shape: ``(ndofs,)``.
+
+    Raises
+    ------
+    ValueError
+        If ``rows`` does not have one entry per component of ``basis``.
+    """
+    dofs = np.arange(basis.ndofs())
+    if isinstance(basis, VectorLagrangeBasis):
+        ncomponents = basis.ncomponents()
+        components = np.asarray(basis.dof_components(dofs))
+    else:
+        ncomponents, components = 1, np.zeros_like(dofs)
+    if len(rows) != ncomponents:
+        raise ValueError(
+            f"one row per component of the basis ({ncomponents}), got {list(rows)}"
+        )
+    coords = np.asarray(basis.dof_coordinates())
+    exact = SkfemPoints([problem.solution(row) for row in rows], problem)
+    values: _Np = exact(coords, t=time)[components, dofs]
+    return values
 
 
 class SystemFactoryProtocol(Protocol[_B_contra]):

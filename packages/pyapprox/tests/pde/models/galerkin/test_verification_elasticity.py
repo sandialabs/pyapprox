@@ -4,7 +4,8 @@ r"""Galerkin linear elasticity verified by manufactured solutions.
 CompositeLinearElasticity` solves :math:`-\nabla\cdot\sigma(u) = f` with
 :math:`\sigma = \lambda (\nabla\cdot u) I + \mu (\nabla u + \nabla u^T)`
 on a vector Lagrange basis. The problem states it row by row, the
-displacement components :math:`u, v, w` as fields:
+displacement components :math:`u, v, w` as fields, through
+:mod:`pyapprox.pde.verification.solid_mechanics`:
 :math:`\nabla\cdot(-\sigma_{i\cdot}) - f_i = 0`, so its natural data are
 :math:`-\sigma n`, which the adapter negates into this stack's traction
 :math:`\sigma n`. Constant Lamé values reach the physics as
@@ -73,6 +74,11 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.solid_mechanics import (
+    DISPLACEMENT_FIELDS,
+    equilibrium_terms,
+    linear_stress,
+)
 from pyapprox.pde.verification.terms import Divergence, TermProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.galerkin_verification import (
@@ -82,8 +88,7 @@ from tests._helpers.galerkin_verification import (
 )
 
 _Np = NDArray[Any]
-_FIELDS = ("u", "v", "w")
-_COORDS = ("x", "y", "z")
+_FIELDS = DISPLACEMENT_FIELDS
 _Conditions = Dict[str, Union[ConditionProtocol, Dict[str, ConditionProtocol]]]
 
 
@@ -104,19 +109,7 @@ class _Elasticity:
         self._lam, self._mu, self._swapped = lam, mu, swapped
 
     def terms(self, ndim: int) -> List[TermProtocol]:
-        fields, coords = _FIELDS[:ndim], _COORDS[:ndim]
-        divergence = " + ".join(f"{f}_{c}" for f, c in zip(fields, coords))
-        terms: List[TermProtocol] = []
-        for i in range(ndim):
-            stresses = []
-            for j in range(ndim):
-                shear = (
-                    f"({self._mu})*({fields[i]}_{coords[j]} + {fields[j]}_{coords[i]})"
-                )
-                normal = f"({self._lam})*({divergence}) + " if i == j else ""
-                stresses.append(f"-({normal}{shear})")
-            terms.append(Divergence(fields[i], stresses))
-        return terms
+        return equilibrium_terms(linear_stress(ndim, self._lam, self._mu))
 
     def physics(
         self, problem: ManufacturedProblem, basis: VectorLagrangeBasis[_Np]
