@@ -1,25 +1,29 @@
-"""Worked transient gradient + HVP example through the public model API.
+"""Worked transient gradient + HVP example through the public function API.
 
 The capstone of the galerkin adjoint stack: a 2D transient
 advection-diffusion problem with a bilaplacian (Whittle-Matern)
-log-diffusivity KLE, driven entirely through
-``GalerkinTransientForwardModel`` (``__call__`` ->
-``derivatives().jacobian`` -> ``derivatives().hvp``) with a
-mass-weighted subdomain-average QoI. Component tiers below this
-(assemblies, engine terms, steppers, BC wrappers) each have their own
-FD suites; this file validates the composed public surface:
+log-diffusivity KLE, solved through ``galerkin_transient_system`` and
+``TransientImplicitMap`` and driven entirely through ``ImplicitMapFunction``
+(``__call__`` -> ``derivatives().jacobian`` -> ``derivatives().hvp``)
+with a mass-weighted subdomain-average QoI, c^T y(T). Component tiers
+below this (assemblies, engine terms, steppers, BC wrappers) each have
+their own FD suites; this file validates the composed public surface:
 
 - gradient and HVP vs DerivativeChecker FD for each parameterized
   coefficient (diffusivity/forcing/velocity/composite), BE and CN;
 - the HVP symmetry identity <Hu, v> = <Hv, u> (FD-noise immune);
-- the scalar-adjoint row vs the shared tangent-linear sensitivity
-  matrix (adjoint and forward propagation must agree exactly);
-- a Tikhonov-augmented QoI (nonzero direct dQ/dp and d2Q/dp2 —
+- the scalar QoI's adjoint row vs the final state's tangent-column
+  Jacobian (adjoint and forward propagation must agree to 1e-10);
+- a Tikhonov parameter term (nonzero direct dQ/dp and d2Q/dp2 —
   otherwise those functional pathways are untested) evaluated at p = 0
   where the parameterized forcing field VANISHES at the test point
   (the configuration where wrongly-Zeroed derivative paths surface);
-- the quasilinear kappa(u)*a(x) physics (genuine mixed
-  state-parameter curvature, invisible to gradient-only tests).
+- a time-integrated quadratic QoI, the method's own quadrature of
+  y^T M y, plus the Tikhonov term;
+- Robin boundary conditions, and the quasilinear kappa(u)*a(x) physics
+  (genuine mixed state-parameter curvature, invisible to gradient-only
+  tests);
+- a reaction control modulated in time.
 
 FD calibration: central differences. One-sided differences of the
 gradient floor near 1e-6 relative for the HVP, at the bound itself, and
@@ -36,7 +40,7 @@ of 1e-5 in the Jacobian or the HVP fails. The symmetry identity carries
 the tight validation.
 """
 
-from typing import List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Callable, List, Optional, Protocol, Tuple, runtime_checkable
 
 import pytest
 
@@ -47,18 +51,36 @@ if not package_available("skfem"):
 
 import numpy as np
 
+from pyapprox.implicitfunction.functional_terms import ParameterTermProtocol
+from pyapprox.implicitfunction.implicit_map import (
+    AdjointRows,
+    ArrayParameters,
+    ImplicitMapFunction,
+    TangentColumns,
+)
+from pyapprox.implicitfunction.observation_terms import (
+    StateEntries,
+    WeightedEntries,
+)
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
     predicted_rounding,
 )
-from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.ode.functionals.protocols import TransientFunctionalProtocol
-from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
-from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
-    TimeIntegratedWeightedL2Functional,
-)
-from pyapprox.ode.functionals.weighted_endpoint import (
-    WeightedEndpointFunctional,
+from pyapprox.ode.functional_sink import FunctionalSink, RunningRecursion
+from pyapprox.ode.integrands import WeightedSquaredNorm
+from pyapprox.ode.observation_terms import EndpointTerm
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import backward_euler, crank_nicolson
+from pyapprox.ode.time_integral import TimeIntegral
+from pyapprox.ode.trajectory_store import TrajectoryStoreProtocol
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.transient_implicit_map import (
+    FixedTrajectoryFunctional,
+    TrajectoryFunctionalSourceProtocol,
+    TransientImplicitMap,
 )
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -70,6 +92,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeModulatedNodalFieldLinearReaction,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
+from pyapprox.pde.field_maps.modulation import PiecewiseLinearModulation
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
@@ -87,19 +110,23 @@ from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
-from pyapprox.pde.models.galerkin.transient import (
-    GalerkinTransientForwardModel,
+from pyapprox.pde.models.galerkin.transient_system import (
+    GalerkinTransientSystem,
+    galerkin_transient_system,
 )
 from pyapprox.pde.parameterizations.field_term import _FieldParameterizationTerm
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    FROM_FIELD,
     AdvectionDiffusionParameterization,
 )
 from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.linalg.symmetric_weight import ScipySparseWeight
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.spde_fields import (
     spde_lognormal_field_map,
@@ -107,6 +134,9 @@ from tests._helpers.spde_fields import (
 
 _N_KLE_MODES = 4
 _N_FORCING_MODES = 2
+
+_Function = ImplicitMapFunction[Any, NumpyArray, NumpyArray]
+_Source = TrajectoryFunctionalSourceProtocol[NumpyArray, NumpyArray]
 
 
 def _kappa(u: NumpyArray) -> NumpyArray:
@@ -121,16 +151,13 @@ def _kappa_second_deriv(u: NumpyArray) -> NumpyArray:
     return np.full_like(u, 2.0)
 
 
-def _time_config(method: str) -> TimeIntegrationConfig[NumpyArray]:
-    return TimeIntegrationConfig(
-        method=method,
-        init_time=0.0,
-        final_time=0.1,
-        deltat=0.02,
-        newton_tol=1e-12,
-        newton_maxiter=20,
-        verbosity=0,
-    )
+def _method(name: str) -> RungeKutta[NumpyArray, NumpyArray]:
+    tableau = {"backward_euler": backward_euler, "crank_nicolson": crank_nicolson}
+    return RungeKutta(tableau[name](), Newton(atol=1e-12, rtol=0.0, maxiters=20))
+
+
+def _steps() -> FixedStep:
+    return FixedStep(0.02, (0.0, 0.1))
 
 
 def _build_physics(
@@ -286,29 +313,96 @@ def _subdomain_average_weights(bkd: NumpyBkd, physics: _PhysicsProtocol) -> Nump
 def _gaussian_bump_ic(bkd: NumpyBkd, physics: _PhysicsProtocol) -> NumpyArray:
     coords = bkd.to_numpy(physics.basis().dof_coordinates())
     vals = np.exp(-50.0 * ((coords[0] - 0.4) ** 2 + (coords[1] - 0.5) ** 2))
-    return bkd.asarray(vals)
+    return bkd.asarray(vals[:, None])
+
+
+def _endpoint_average(
+    bkd: NumpyBkd,
+    physics: _PhysicsProtocol,
+    parameter_terms: Tuple[ParameterTermProtocol[NumpyArray, NumpyArray], ...] = (),
+) -> _Source:
+    """c^T y(T) with c the subdomain-average weights, plus
+    ``parameter_terms``."""
+    weights = _subdomain_average_weights(bkd, physics)
+    nstates = weights.shape[0]
+    average = WeightedEntries(
+        bkd,
+        nstates,
+        bkd.asarray(np.arange(nstates)[None, :], dtype=bkd.int64_dtype()),
+        weights.T,
+    )
+    return FixedTrajectoryFunctional(
+        TrajectoryFunctional.from_terms(
+            bkd,
+            1,
+            parameter_terms=parameter_terms,
+            state_terms=(EndpointTerm(average),),
+        )
+    )
+
+
+class _Parameters:
+    """Sets the system's parameters and those of every term that reads
+    them."""
+
+    def __init__(
+        self,
+        system: GalerkinTransientSystem[NumpyArray, Any],
+        *readers: Callable[[NumpyArray], None],
+    ) -> None:
+        self._system, self._readers = system, readers
+
+    def nparams(self) -> int:
+        return self._system.nparams()
+
+    def set_param(self, param: NumpyArray) -> None:
+        self._system.set_param(param)
+        for reader in self._readers:
+            reader(param)
+
+
+def _transient(
+    system: GalerkinSystem[NumpyArray],
+    param_obj: Any,
+) -> GalerkinTransientSystem[NumpyArray, Any]:
+    return galerkin_transient_system(
+        skfem_discretization(system), ScipySparseLU(), ParameterState(param_obj)
+    )
+
+
+def _function(
+    bkd: NumpyBkd,
+    transient: GalerkinTransientSystem[NumpyArray, Any],
+    method: str,
+    init_state: NumpyArray,
+    functional: _Source,
+    *readers: Callable[[NumpyArray], None],
+    strategy: Optional[Any] = None,
+) -> _Function:
+    implicit = TransientImplicitMap(
+        transient,
+        _Parameters(transient, *readers),
+        _method(method),
+        RecomputeAlways(transient.solved.solver),
+        _steps(),
+        init_state,
+        functional,
+    )
+    if strategy is None:
+        return ImplicitMapFunction(implicit, ArrayParameters(bkd))
+    return ImplicitMapFunction(implicit, ArrayParameters(bkd), strategy)
 
 
 def _make_model(
-    bkd: NumpyBkd,
-    case: str,
-    method: str,
-    functional: Optional[TransientFunctionalProtocol[NumpyArray]] = None,
-) -> GalerkinTransientForwardModel[NumpyArray]:
-    physics, system, param_obj = _build_parameterization(bkd, case)
-    if functional is None:
-        functional = WeightedEndpointFunctional(
-            _subdomain_average_weights(bkd, physics),
-            param_obj.nparams(),
-            bkd,
-        )
-    return GalerkinTransientForwardModel(
-        skfem_discretization(system),
-        ScipySparseLU(),
-        param_obj,
+    bkd: NumpyBkd, case: str, method: str, robin: bool = False
+) -> _Function:
+    physics, system, param_obj = _build_parameterization(bkd, case, robin=robin)
+    return _function(
+        bkd,
+        _transient(system, param_obj),
+        method,
         _gaussian_bump_ic(bkd, physics),
-        _time_config(method),
-        functional=functional,
+        _endpoint_average(bkd, physics),
     )
 
 
@@ -321,7 +415,7 @@ def _sample_and_direction(nparams: int) -> Tuple[NumpyArray, NumpyArray]:
 
 def _check_gradient_and_hvp(
     bkd: NumpyBkd,
-    model: GalerkinTransientForwardModel[NumpyArray],
+    model: _Function,
     expect_zero_hessian: bool = False,
 ) -> None:
     """DerivativeChecker on the model itself + HVP symmetry identity.
@@ -400,36 +494,49 @@ def _check_gradient_and_hvp(
     )
 
 
-class _TikhonovWeightedEndpoint(WeightedEndpointFunctional[NumpyArray]):
-    """Q = c^T y(T) + (alpha/2) ||p||^2: nonzero direct parameter
-    derivatives (every plain-endpoint case has dQ/dp == 0, leaving the
-    functional param pathways untested)."""
+class _IntegralPlusParameterTerms:
+    """A time integral plus parameter terms, as a functional source: the
+    integral's step term combined by its method's recursion during the
+    solve, and weighed by the recursion's sensitivities for the sweeps,
+    beside the parameter terms."""
 
     def __init__(
-        self, weights: NumpyArray, nparams: int, alpha: float, bkd: NumpyBkd
+        self,
+        integral: TimeIntegral[NumpyArray, NumpyArray],
+        depth: int,
+        parameter_terms: Tuple[ParameterTermProtocol[NumpyArray, NumpyArray], ...],
+        bkd: NumpyBkd,
     ) -> None:
-        super().__init__(weights, nparams, bkd)
-        self._alpha = alpha
+        self._integral, self._depth = integral, depth
+        self._parameter_terms, self._bkd = parameter_terms, bkd
 
-    def __call__(self, sol: NumpyArray, param: NumpyArray) -> NumpyArray:
-        base = super().__call__(sol, param)
-        return base + self._bkd.reshape(
-            0.5 * self._alpha * self._bkd.sum(param[:, 0] * param[:, 0]),
-            (1, 1),
+    def nqoi(self) -> int:
+        return self._integral.nqoi()
+
+    def sink(self) -> FunctionalSink[NumpyArray, NumpyArray]:
+        integral = self._integral
+        return FunctionalSink(
+            self._bkd.zeros((self.nqoi(), 1)),
+            self._parameter_terms,
+            (),
+            (
+                (
+                    integral.step_term(),
+                    RunningRecursion(integral.quadrature(), self._depth),
+                ),
+            ),
         )
 
-    def param_jacobian(self, sol: NumpyArray, param: NumpyArray) -> NumpyArray:
-        return self._alpha * param.T
-
-    def param_state_hvp(
-        self, sol: NumpyArray, param: NumpyArray, time_idx: int, wvec: NumpyArray
-    ) -> NumpyArray:
-        return self._bkd.zeros((self.nparams(), 1))
-
-    def param_param_hvp(
-        self, sol: NumpyArray, param: NumpyArray, vvec: NumpyArray
-    ) -> NumpyArray:
-        return self._alpha * vvec
+    def trajectory_functional(
+        self, store: TrajectoryStoreProtocol[NumpyArray]
+    ) -> TrajectoryFunctional[NumpyArray, NumpyArray]:
+        weighted = self._integral.trajectory_functional(store)
+        return TrajectoryFunctional.from_terms(
+            self._bkd,
+            self.nqoi(),
+            parameter_terms=self._parameter_terms,
+            step_terms=weighted.step_terms,
+        )
 
 
 class TestTransientAdjointWorkedExample:
@@ -463,36 +570,47 @@ class TestTransientAdjointWorkedExample:
     def test_scalar_adjoint_matches_forward_sensitivity_row(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """Adjoint gradient row == c^T W_T with W_T from the shared
-        tangent-linear sweep (backward and forward propagation of the
+        """Adjoint gradient row == c^T W_T with W_T the final state's
+        tangent-column Jacobian (backward and forward propagation of the
         same linearization must agree to solver precision)."""
         bkd = numpy_bkd
-        # ONE physics + parameterization shared by both models: separate
-        # KLE constructions are distinct parameterizations (eigensolver
-        # sign/ordering indeterminacy), which would make the comparison
-        # meaningless.
+        # ONE physics + parameterization shared by both functions:
+        # separate KLE constructions are distinct parameterizations
+        # (eigensolver sign/ordering indeterminacy), which would make the
+        # comparison meaningless.
         physics, system, param_obj = _build_parameterization(bkd, "diffusivity")
+        transient = _transient(system, param_obj)
         ic = _gaussian_bump_ic(bkd, physics)
-        config = _time_config("backward_euler")
-        scalar_model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param_obj,
+        scalar = _function(
+            bkd,
+            transient,
+            "backward_euler",
             ic,
-            config,
-            functional=WeightedEndpointFunctional(
-                _subdomain_average_weights(bkd, physics),
-                param_obj.nparams(),
+            _endpoint_average(bkd, physics),
+            strategy=AdjointRows(),
+        )
+        nstates = physics.nstates()
+        final_state = FixedTrajectoryFunctional(
+            TrajectoryFunctional.from_terms(
                 bkd,
-            ),
+                nstates,
+                state_terms=(
+                    EndpointTerm(StateEntries(bkd, nstates, list(range(nstates)))),
+                ),
+            )
         )
-        vector_model = GalerkinTransientForwardModel(
-            skfem_discretization(system), ScipySparseLU(), param_obj, ic, config
+        vector = _function(
+            bkd,
+            transient,
+            "backward_euler",
+            ic,
+            final_state,
+            strategy=TangentColumns(),
         )
-        sample_np, _ = _sample_and_direction(scalar_model.nvars())
+        sample_np, _ = _sample_and_direction(scalar.nvars())
         sample = bkd.asarray(sample_np)
-        scalar_jac = scalar_model.derivatives().jacobian
-        vector_jac = vector_model.derivatives().jacobian
+        scalar_jac = scalar.derivatives().jacobian
+        vector_jac = vector.derivatives().jacobian
         assert scalar_jac is not None
         assert vector_jac is not None
         grad = bkd.to_numpy(scalar_jac(sample))
@@ -514,19 +632,14 @@ class TestTransientAdjointWorkedExample:
         immediately. The direct dQ/dp and d2Q/dp2 terms are nonzero."""
         bkd = numpy_bkd
         physics, system, param_obj = _build_parameterization(bkd, "forcing")
-        functional = _TikhonovWeightedEndpoint(
-            _subdomain_average_weights(bkd, physics),
-            param_obj.nparams(),
-            0.7,
+        tikhonov = TikhonovTerm(bkd, 0.7)
+        model = _function(
             bkd,
-        )
-        model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param_obj,
+            _transient(system, param_obj),
+            "backward_euler",
             _gaussian_bump_ic(bkd, physics),
-            _time_config("backward_euler"),
-            functional=functional,
+            _endpoint_average(bkd, physics, (tikhonov,)),
+            tikhonov.set_param,
         )
         sample = bkd.zeros((model.nvars(), 1))
         direction = bkd.asarray(
@@ -547,66 +660,35 @@ class TestTransientAdjointWorkedExample:
     def test_time_integrated_qoi_gradient_and_hvp(
         self, numpy_bkd: NumpyBkd, method: str
     ) -> None:
-        """THE pattern for time-integrated QoIs: the functional takes
-        NO quadrature weights — the model injects its scheme's rule
-        (stepper.trajectory_quadrature over the actual solve times)
-        after every forward solve. dQ/dy is nonzero at every stored
-        step (per-step adjoint RHS accumulation, which endpoint QoIs
-        never exercise), the quadratic QoI supplies state_state
-        curvature, and the Tikhonov cost supplies the direct parameter
-        pathways."""
+        """A time-integrated QoI: the integral of y^T M y by the method
+        the trajectory is solved with (its nodes are the method's own),
+        plus a Tikhonov term. dQ/dy is nonzero at every stored step
+        (per-step adjoint RHS accumulation, which endpoint QoIs never
+        exercise), the quadratic QoI supplies state_state curvature, and
+        the Tikhonov term supplies the direct parameter pathways."""
         bkd = numpy_bkd
         physics, system, param_obj = _build_parameterization(bkd, "forcing")
-        functional = TikhonovAugmentedFunctional(
-            TimeIntegratedWeightedL2Functional(
-                ScipySparseWeight(physics.mass_matrix(), bkd),
-                param_obj.nparams(),
-                bkd,
-            ),
-            0.7,
+        transient = _transient(system, param_obj)
+        stepper = _method(method).stepper(
+            transient.solved,
+            RecomputeAlways(transient.solved.solver),
+            transient.row_pinning,
+        )
+        integral = TimeIntegral(
+            WeightedSquaredNorm(ScipySparseWeight(physics.mass_matrix(), bkd), bkd),
+            stepper,
             bkd,
         )
-        model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param_obj,
+        tikhonov = TikhonovTerm(bkd, 0.7)
+        model = _function(
+            bkd,
+            transient,
+            method,
             _gaussian_bump_ic(bkd, physics),
-            _time_config(method),
-            functional=functional,
+            _IntegralPlusParameterTerms(integral, stepper.depth(), (tikhonov,), bkd),
+            tikhonov.set_param,
         )
         _check_gradient_and_hvp(bkd, model)
-
-    def test_model_injects_scheme_consistent_quadrature(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
-        """The injected rule is the SCHEME's: backward Euler must
-        yield right-rectangle nodal weights (zero at t0), not the
-        trapezoid a hand-roller would reach for."""
-        bkd = numpy_bkd
-        physics, system, param_obj = _build_parameterization(bkd, "forcing")
-        inner = TimeIntegratedWeightedL2Functional(
-            ScipySparseWeight(physics.mass_matrix(), bkd),
-            param_obj.nparams(),
-            bkd,
-        )
-        model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param_obj,
-            _gaussian_bump_ic(bkd, physics),
-            _time_config("backward_euler"),
-            functional=inner,
-        )
-        model(bkd.zeros((model.nvars(), 1)))
-        config = _time_config("backward_euler")
-        nsteps = round((config.final_time - config.init_time) / config.deltat)
-        expected = np.full(nsteps + 1, config.deltat)
-        expected[0] = 0.0
-        bkd.assert_allclose(
-            inner.time_quadrature().nodal_weights(),
-            bkd.asarray(expected),
-            rtol=1e-12,
-        )
 
     @pytest.mark.parametrize("case", ["forcing", "diffusivity"])
     @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
@@ -620,20 +702,7 @@ class TestTransientAdjointWorkedExample:
         essential rows. First adjoint coverage of galerkin Robin BCs —
         needed before an inflow can become the Danckwerts condition."""
         bkd = numpy_bkd
-        physics, system, param_obj = _build_parameterization(bkd, case, robin=True)
-        functional = WeightedEndpointFunctional(
-            _subdomain_average_weights(bkd, physics),
-            param_obj.nparams(),
-            bkd,
-        )
-        model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param_obj,
-            _gaussian_bump_ic(bkd, physics),
-            _time_config(method),
-            functional=functional,
-        )
+        model = _make_model(bkd, case, method, robin=True)
         assert model.derivatives().hvp is not None
         # Linear forcing map + linear QoI: exactly zero Hessian, as in
         # the Dirichlet variant of this configuration.
@@ -665,18 +734,12 @@ class TestTransientAdjointWorkedExample:
         param_obj = create_quasilinear_diffusivity_parameterization(
             physics, _diffusivity_map(bkd, basis), bkd
         )
-        functional = WeightedEndpointFunctional(
-            _subdomain_average_weights(bkd, physics),
-            param_obj.nparams(),
+        model = _function(
             bkd,
-        )
-        model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param_obj,
+            _transient(system, param_obj),
+            "backward_euler",
             _gaussian_bump_ic(bkd, physics),
-            _time_config("backward_euler"),
-            functional=functional,
+            _endpoint_average(bkd, physics),
         )
         assert model.derivatives().hvp is not None
         _check_gradient_and_hvp(bkd, model)
@@ -699,18 +762,10 @@ class TestTimeModulatedControl:
         self, method: str
     ) -> Tuple[
         NumpyBkd,
-        GalerkinTransientForwardModel[NumpyArray],
+        _Function,
         TimeModulatedNodalFieldLinearReaction,
         AdvectionDiffusionParameterization[NumpyArray],
     ]:
-        from pyapprox.pde.field_maps.modulation import (
-            PiecewiseLinearModulation,
-        )
-        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
-        from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
-            FROM_FIELD,
-        )
-
         bkd = NumpyBkd()
         mesh = StructuredMesh2D(nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -752,23 +807,23 @@ class TestTimeModulatedControl:
         )
         constrained = set(int(d) for d in bkd.to_numpy(system.constraint_set().dofs()))
         free = [i for i in range(ndofs) if i not in constrained]
-        weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
-        weights[free[len(free) // 2]] = 1.0
-        model = GalerkinTransientForwardModel(
-            skfem_discretization(system),
-            ScipySparseLU(),
-            param,
-            bkd.zeros((physics.nstates(),)),
-            TimeIntegrationConfig(
-                method=method,
-                init_time=0.0,
-                final_time=0.1,
-                deltat=0.02,
-                newton_tol=1e-12,
-                newton_maxiter=20,
-                verbosity=0,
-            ),
-            functional=WeightedEndpointFunctional(weights, param.nparams(), bkd),
+        nstates = physics.nstates()
+        # The QoI is the value at one free DOF of the final state.
+        functional = FixedTrajectoryFunctional(
+            TrajectoryFunctional.from_terms(
+                bkd,
+                1,
+                state_terms=(
+                    EndpointTerm(StateEntries(bkd, nstates, [free[len(free) // 2]])),
+                ),
+            )
+        )
+        model = _function(
+            bkd,
+            _transient(system, param),
+            method,
+            bkd.zeros((nstates, 1)),
+            functional,
         )
         return bkd, model, reaction, param
 
