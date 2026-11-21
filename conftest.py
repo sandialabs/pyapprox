@@ -1,9 +1,10 @@
 """Pytest configuration and shared fixtures."""
+
 from __future__ import annotations
 
 import os
 import warnings
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pytest
@@ -72,14 +73,42 @@ def numpy_bkd() -> NumpyBkd:
     return NumpyBkd()
 
 
-@pytest.fixture
-def torch_bkd() -> "TorchBkd":
-    """For tests that only make sense on Torch (e.g., autograd)."""
+def _make_torch_bkd() -> "TorchBkd":
+    """Float64 TorchBkd; skips the test when torch is not installed."""
     torch = pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
 
     torch.set_default_dtype(torch.float64)
     return TorchBkd()
+
+
+# Backends the ``autodiff_bkd`` fixture runs on: each satisfies
+# AutodiffBackend, and each factory skips when its library is missing.
+_AUTODIFF_BACKEND_FACTORIES: List[Tuple[str, Callable[[], "TorchBkd"]]] = [
+    ("TorchBkd", _make_torch_bkd),
+]
+
+
+@pytest.fixture(params=_AUTODIFF_BACKEND_FACTORIES, ids=lambda pair: pair[0])
+def autodiff_bkd(request: pytest.FixtureRequest) -> "TorchBkd":
+    """Parametrized over the autodiff backends.
+
+    For tests that need ``bkd.jacobian`` or ``bkd.hvp`` and nothing
+    specific to one library; annotate the argument
+    ``AutodiffBackend[Array]``. Tests that are torch-only by construction
+    (``torch.compile``, ``torch.nn``, a torch-bound class) take
+    ``torch_bkd`` instead.
+    """
+    _, factory = cast(Tuple[str, Callable[[], "TorchBkd"]], request.param)
+    return factory()
+
+
+@pytest.fixture
+def torch_bkd() -> "TorchBkd":
+    """For tests that only make sense on Torch (``torch.compile``,
+    ``torch.nn``, a torch-bound class). Tests that only need autodiff take
+    ``autodiff_bkd``."""
+    return _make_torch_bkd()
 
 
 @pytest.fixture

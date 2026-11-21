@@ -1,10 +1,13 @@
-"""Tests for ACV allocation module."""
+"""Tests for ACV allocation module.
 
-from typing import Any
+Allocation through ACVAllocatorViaTorch, which optimizes on a torch copy of
+the estimator whatever its backend, is tested in test_allocation_torch.py.
+"""
+
+from typing import Any, Tuple
 
 import numpy as np
 import pytest
-import torch
 from numpy.typing import NDArray
 
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
@@ -15,8 +18,6 @@ from pyapprox.statest.acv.allocation import (
     AnalyticallyAllocatable,
     default_allocator_factory,
 )
-from pyapprox.statest.acv.base import FittedACVEstimator
-from pyapprox.statest.acv.optimization import ACVLogDeterminantObjective
 from pyapprox.statest.acv.result import ACVAllocationResult
 from pyapprox.statest.acv.variants import (
     GMFEstimator,
@@ -24,321 +25,168 @@ from pyapprox.statest.acv.variants import (
     MLMCEstimator,
 )
 from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from tests._helpers.markers import slow_test
+
+
+def _stat_and_costs(
+    bkd: Backend[Array], nmodels: int = 3, nqoi: int = 1
+) -> Tuple[MultiOutputMean[Array], Array]:
+    """Statistic with correlation 0.9**|i-j| between models, and costs
+    decreasing by factors of ten. Satisfies the MLMC requirements."""
+    nqoi_nmodels = nqoi * nmodels
+    cov = np.eye(nqoi_nmodels)
+    for q in range(nqoi):
+        for i in range(nmodels):
+            for j in range(nmodels):
+                if i != j:
+                    corr = 0.9 ** abs(i - j)
+                    cov[q * nmodels + i, q * nmodels + j] = corr
+
+    stat = MultiOutputMean(nqoi, bkd)
+    stat.set_pilot_quantities(bkd.array(cov))
+    costs = bkd.array([10.0 ** (nmodels - 1 - i) for i in range(nmodels)])
+    return stat, costs
+
+
+def _mfmc_stat_and_costs(
+    bkd: Backend[Array], nmodels: int = 3, nqoi: int = 1
+) -> Tuple[MultiOutputMean[Array], Array]:
+    """Statistic and costs satisfying the MFMC hierarchy requirements
+    (correlation with the high-fidelity model decreasing)."""
+    nqoi_nmodels = nqoi * nmodels
+    cov = np.eye(nqoi_nmodels)
+    for q in range(nqoi):
+        for i in range(nmodels):
+            for j in range(nmodels):
+                if i != j:
+                    corr = 0.95 ** max(i, j)
+                    cov[q * nmodels + i, q * nmodels + j] = corr
+
+    stat = MultiOutputMean(nqoi, bkd)
+    stat.set_pilot_quantities(bkd.array(cov))
+    costs = bkd.array([10.0 ** (nmodels - 1 - i) for i in range(nmodels)])
+    return stat, costs
+
+
+def _gmf_estimator(
+    bkd: Backend[Array], recursion_index: Tuple[int, ...] = (0, 1)
+) -> GMFEstimator[Array]:
+    stat, costs = _stat_and_costs(bkd)
+    return GMFEstimator(
+        stat,
+        costs,
+        recursion_index=bkd.asarray(recursion_index, dtype=bkd.int64_dtype()),
+    )
+
+
+def _allocation_result(bkd: Backend[Array]) -> ACVAllocationResult[Array]:
+    return ACVAllocationResult(
+        partition_ratios=bkd.array([1.0, 2.0]),
+        continuous_npartition_samples=bkd.array([10.0, 10.0, 20.0]),
+        objective_value=bkd.array([-5.0]),
+        npartition_samples=bkd.array([10, 10, 20], dtype=bkd.int64_dtype()),
+        nsamples_per_model=bkd.array([10, 20, 30], dtype=bkd.int64_dtype()),
+        target_cost=100.0,
+        actual_cost=95.0,
+        success=True,
+        message="",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _seed() -> None:
+    np.random.seed(42)
 
 
 class TestACVAllocationResult:
     """Tests for ACVAllocationResult dataclass."""
 
-    def test_allocation_result_creation(self, bkd):
+    def test_allocation_result_creation(self, bkd: Backend[Array]) -> None:
         """Test dataclass instantiation."""
-        result = ACVAllocationResult(
-            partition_ratios=bkd.array([1.0, 2.0]),
-            continuous_npartition_samples=bkd.array([10.0, 10.0, 20.0]),
-            objective_value=bkd.array([-5.0]),
-            npartition_samples=bkd.array([10, 10, 20], dtype=int),
-            nsamples_per_model=bkd.array([10, 20, 30], dtype=int),
-            target_cost=100.0,
-            actual_cost=95.0,
-            success=True,
-            message="",
-        )
+        result = _allocation_result(bkd)
         assert result.success
         bkd.assert_allclose(
             bkd.asarray([result.target_cost]),
             bkd.asarray([100.0]),
         )
 
-    def test_allocation_result_frozen(self, bkd):
+    def test_allocation_result_frozen(self, bkd: Backend[Array]) -> None:
         """Test immutability."""
-        result = ACVAllocationResult(
-            partition_ratios=bkd.array([1.0, 2.0]),
-            continuous_npartition_samples=bkd.array([10.0, 10.0, 20.0]),
-            objective_value=bkd.array([-5.0]),
-            npartition_samples=bkd.array([10, 10, 20], dtype=int),
-            nsamples_per_model=bkd.array([10, 20, 30], dtype=int),
-            target_cost=100.0,
-            actual_cost=95.0,
-            success=True,
-            message="",
-        )
+        result = _allocation_result(bkd)
         with pytest.raises(AttributeError):
-            result.success = False  # type: ignore
+            result.success = False  # type: ignore[misc]
 
-    def test_allocation_result_objective_value_is_array(self, bkd):
+    def test_allocation_result_objective_value_is_array(
+        self, bkd: Backend[Array]
+    ) -> None:
         """Test that objective_value is an Array, not float."""
-        result = ACVAllocationResult(
-            partition_ratios=bkd.array([1.0, 2.0]),
-            continuous_npartition_samples=bkd.array([10.0, 10.0, 20.0]),
-            objective_value=bkd.array([-5.0]),
-            npartition_samples=bkd.array([10, 10, 20], dtype=int),
-            nsamples_per_model=bkd.array([10, 20, 30], dtype=int),
-            target_cost=100.0,
-            actual_cost=95.0,
-            success=True,
-            message="",
-        )
+        result = _allocation_result(bkd)
         # objective_value should be an array with shape (1,)
         assert result.objective_value.shape == (1,)
         bkd.assert_allclose(result.objective_value, bkd.array([-5.0]))
 
 
-class TestACVAllocator:
-    """Tests for ACVAllocatorViaTorch with both backends.
-
-    Estimators on any backend are optimized on a TorchBkd copy, with
-    results converted back.
-    """
-
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def _create_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Helper to create test statistic and costs."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.9 ** abs(i - j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-
-        costs = bkd.array([10.0 ** (nmodels - 1 - i) for i in range(nmodels)])
-        return stat, costs
-
-    def test_acv_allocator_success(self, bkd):
-        """Basic allocation works."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=1000.0)
-        assert result.success
-        assert result.actual_cost <= result.target_cost
-
-    def test_acv_allocator_budget_too_small(self, bkd):
-        """Returns failure when budget too small."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=0.1)  # Too small
-        assert not result.success
-        assert "Budget too small" in result.message
-
-    def test_acv_allocator_respects_budget(self, bkd):
-        """actual_cost <= target_cost."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocatorViaTorch(est)
-        target_cost = 500.0
-        result = allocator.allocate(target_cost=target_cost)
-        if result.success:
-            assert result.actual_cost <= target_cost
-
-    def test_acv_allocator_objective_value_is_array(self, bkd):
-        """objective_value should be Array, not float."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=1000.0)
-        if result.success:
-            assert result.objective_value.shape == (1,)
-
-    def test_acv_allocator_failure_objective_value_is_array(self, bkd):
-        """Even failed allocations should have Array objective_value."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=0.1)  # Will fail
-        assert not result.success
-        assert result.objective_value.shape == (1,)
-        assert float(result.objective_value[0]) == float("inf")
-
-    def test_acv_allocator_result_backend_matches(self, bkd):
-        """Result arrays are in the estimator's backend type."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=1000.0)
-        assert result.success
-        # All array fields should be the same type as the backend's arrays
-        expected_type = type(bkd.array([0.0]))
-        assert isinstance(result.partition_ratios, expected_type)
-        assert isinstance(result.continuous_npartition_samples, expected_type)
-        assert isinstance(result.objective_value, expected_type)
-        assert isinstance(result.npartition_samples, expected_type)
-        assert isinstance(result.nsamples_per_model, expected_type)
-
-    def test_custom_objective_is_used(self, bkd: Backend[Array]) -> None:
-        """The objective given is the one optimized, on the torch copy."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        objective = ACVLogDeterminantObjective[torch.Tensor]()
-        result = ACVAllocatorViaTorch(est, objective=objective).allocate(
-            target_cost=1000.0
-        )
-        assert result.success
-        assert isinstance(objective.bkd(), TorchBkd)
-
-
 class TestACVAllocatorOnOwnBackend:
     """ACVAllocator optimizes on the estimator's backend, never another."""
 
-    def _estimator(self, bkd: Backend[Array]) -> GMFEstimator[Array]:
-        stat, costs = TestACVAllocator()._create_stat_and_costs(bkd)
-        return GMFEstimator(
-            stat, costs, recursion_index=bkd.array([0, 1], dtype=int)
-        )
-
-    def test_torch_estimator_with_autograd(self, torch_bkd: TorchBkd) -> None:
-        """On an autodiff backend the default optimizer gets jacobians."""
-        result = ACVAllocator(self._estimator(torch_bkd)).allocate(1000.0)
-        assert result.success
-        assert isinstance(result.partition_ratios, torch.Tensor)
-
-    def test_numpy_estimator_with_finite_differences(
-        self, numpy_bkd: NumpyBkd
+    def test_autodiff_estimator_with_autograd(
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
+        """On an autodiff backend the default optimizer gets jacobians."""
+        result = ACVAllocator(_gmf_estimator(autodiff_bkd)).allocate(1000.0)
+        assert result.success
+        assert isinstance(result.partition_ratios, type(autodiff_bkd.zeros((1,))))
+
+    def test_numpy_estimator_with_finite_differences(self, numpy_bkd: NumpyBkd) -> None:
         """Without autodiff, an optimizer that approximates jacobians works.
 
         SLSQP falls back to finite differences when the objective and
-        constraint declare no jacobian, so no torch copy is needed; the
-        allocation matches the one optimized on torch with autograd.
+        constraint declare no jacobian, so no torch copy is needed.
+        test_allocation_torch.py checks the allocation matches the one
+        optimized on torch with autograd.
         """
-        est = self._estimator(numpy_bkd)
+        est = _gmf_estimator(numpy_bkd)
         result = ACVAllocator(
             est, optimizer=ScipySLSQPOptimizer[NDArray[Any]](maxiter=200)
         ).allocate(1000.0)
         assert result.success
         assert isinstance(result.partition_ratios, np.ndarray)
-        via_torch = ACVAllocatorViaTorch(
-            est, optimizer=ScipySLSQPOptimizer[torch.Tensor](maxiter=200)
-        ).allocate(1000.0)
-        numpy_bkd.assert_allclose(
-            result.objective_value, via_torch.objective_value, rtol=1e-4
-        )
 
 
 class TestAnalyticalAllocator:
     """Tests for AnalyticalAllocator."""
 
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def _create_mfmc_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Create stat and costs that satisfy MFMC hierarchy requirements."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.95 ** max(i, j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def _create_mlmc_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Create stat and costs that satisfy MLMC requirements (decreasing cost)."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.9 ** abs(i - j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def test_default_allocator_factory_gmf_chain(self, bkd):
-        """Returns ACVAllocatorViaTorch for GMF with chain index."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocatorViaTorch)
-
-    def test_default_allocator_factory_gmf_non_chain(self, bkd):
-        """Returns ACVAllocatorViaTorch for GMF with non-chain index."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 0], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocatorViaTorch)
-
-    def test_default_allocator_factory_mfmc_returns_analytical(self, bkd):
-        """Returns AnalyticalAllocator for MFMC (satisfies AnalyticallyAllocatable)."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        est = MFMCEstimator(stat, costs)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, AnalyticalAllocator)
-
-    def test_default_allocator_factory_mlmc_returns_analytical(self, bkd):
-        """Returns AnalyticalAllocator for MLMC (satisfies AnalyticallyAllocatable)."""
-        stat, costs = self._create_mlmc_stat_and_costs(bkd)
-        est = MLMCEstimator(stat, costs)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, AnalyticalAllocator)
-
-    def test_analytical_allocator_mfmc_success(self, bkd):
+    def test_analytical_allocator_mfmc_success(self, bkd: Backend[Array]) -> None:
         """AnalyticalAllocator works with MFMC."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        est = MFMCEstimator(stat, costs)
-        allocator = AnalyticalAllocator(est)
+        stat, costs = _mfmc_stat_and_costs(bkd)
+        allocator = AnalyticalAllocator(MFMCEstimator(stat, costs))
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
         assert result.actual_cost <= result.target_cost
         assert result.objective_value.shape == (1,)
 
-    def test_analytical_allocator_mlmc_success(self, bkd):
+    def test_analytical_allocator_mlmc_success(self, bkd: Backend[Array]) -> None:
         """AnalyticalAllocator works with MLMC."""
-        stat, costs = self._create_mlmc_stat_and_costs(bkd)
-        est = MLMCEstimator(stat, costs)
-        allocator = AnalyticalAllocator(est)
+        stat, costs = _stat_and_costs(bkd)
+        allocator = AnalyticalAllocator(MLMCEstimator(stat, costs))
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
         assert result.actual_cost <= result.target_cost
         assert result.objective_value.shape == (1,)
 
-    def test_analytical_allocator_budget_too_small(self, bkd):
+    def test_analytical_allocator_budget_too_small(self, bkd: Backend[Array]) -> None:
         """AnalyticalAllocator returns failure when budget too small."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        est = MFMCEstimator(stat, costs)
-        allocator = AnalyticalAllocator(est)
+        stat, costs = _mfmc_stat_and_costs(bkd)
+        allocator = AnalyticalAllocator(MFMCEstimator(stat, costs))
         result = allocator.allocate(target_cost=0.1)  # Too small
         assert not result.success
         assert "Budget too small" in result.message
 
-    def test_estimator_without_closed_form_refused(
-        self, bkd: Backend[Array]
-    ) -> None:
+    def test_estimator_without_closed_form_refused(self, bkd: Backend[Array]) -> None:
         """An estimator with no closed-form allocation is refused at once."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        est = GMFEstimator(stat, costs, recursion_index=bkd.array([0, 1]))
+        est = _gmf_estimator(bkd)
         assert not isinstance(est, AnalyticallyAllocatable)
         with pytest.raises(TypeError, match="AnalyticallyAllocatable"):
             AnalyticalAllocator(est)
@@ -347,267 +195,41 @@ class TestAnalyticalAllocator:
 class TestAllocatorFactory:
     """Tests for default_allocator_factory."""
 
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def _create_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Helper to create test statistic and costs."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.9 ** abs(i - j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def test_factory_returns_acv_for_gmf_chain(self, bkd):
-        """Returns ACVAllocatorViaTorch for GMF with chain index."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = default_allocator_factory(est)
+    @pytest.mark.parametrize("recursion_index", [(0, 1), (0, 0)])
+    def test_factory_returns_via_torch_for_gmf(
+        self, bkd: Backend[Array], recursion_index: Tuple[int, ...]
+    ) -> None:
+        """Returns ACVAllocatorViaTorch for GMF with chain and non-chain
+        recursion indices."""
+        allocator = default_allocator_factory(_gmf_estimator(bkd, recursion_index))
         assert isinstance(allocator, ACVAllocatorViaTorch)
 
-    def test_factory_returns_acv_for_gmf_non_chain(self, bkd):
-        """Returns ACVAllocatorViaTorch for GMF with non-chain index."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 0], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocatorViaTorch)
-
-    def test_factory_returns_analytical_for_mfmc(self, bkd):
+    def test_factory_returns_analytical_for_mfmc(self, bkd: Backend[Array]) -> None:
         """Returns AnalyticalAllocator for MFMC (satisfies AnalyticallyAllocatable)."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        est = MFMCEstimator(stat, costs)
-        allocator = default_allocator_factory(est)
+        stat, costs = _mfmc_stat_and_costs(bkd)
+        allocator = default_allocator_factory(MFMCEstimator(stat, costs))
         assert isinstance(allocator, AnalyticalAllocator)
 
-    def test_factory_returns_analytical_for_mlmc(self, bkd):
+    def test_factory_returns_analytical_for_mlmc(self, bkd: Backend[Array]) -> None:
         """Returns AnalyticalAllocator for MLMC (satisfies AnalyticallyAllocatable)."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        est = MLMCEstimator(stat, costs)
-        allocator = default_allocator_factory(est)
+        stat, costs = _stat_and_costs(bkd)
+        allocator = default_allocator_factory(MLMCEstimator(stat, costs))
         assert isinstance(allocator, AnalyticalAllocator)
 
 
-class TestFittedACVEstimator:
-    """Tests for FittedACVEstimator."""
+class TestACVEstimatorAtRatios:
+    """Covariance and sample counts at given partition ratios."""
 
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def _create_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Helper to create test statistic and costs."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.9 ** abs(i - j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def test_fitted_from_successful_allocation(self, bkd):
-        """FittedACVEstimator can be created from successful allocation."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=1000.0)
-        assert result.success
-
-        fitted = FittedACVEstimator(est, result)
-        cov = fitted.covariance()
-        assert len(cov.shape) == 2
-        assert cov.shape[0] == cov.shape[1]
-
-    def test_fitted_from_failed_allocation_raises(self, bkd):
-        """FittedACVEstimator raises ValueError for failed allocation."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=0.1)
-        assert not result.success
-
-        with pytest.raises(ValueError, match="failed allocation"):
-            FittedACVEstimator(est, result)
-
-    def test_covariance_at(self, bkd):
+    def test_covariance_at(self, bkd: Backend[Array]) -> None:
         """covariance_at() computes covariance from continuous ratios."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        partition_ratios = bkd.array([2.0, 5.0])
-        target_cost = 500.0
-
-        cov = est.covariance_at(target_cost, partition_ratios)
-
+        est = _gmf_estimator(bkd)
+        cov = est.covariance_at(500.0, bkd.array([2.0, 5.0]))
         assert len(cov.shape) == 2
         assert cov.shape[0] == cov.shape[1]
 
-    def test_npartition_samples_at(self, bkd):
+    def test_npartition_samples_at(self, bkd: Backend[Array]) -> None:
         """npartition_samples_at() computes sample counts from ratios."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        partition_ratios = bkd.array([2.0, 5.0])
-        target_cost = 500.0
-
-        npartition_samples = est.npartition_samples_at(
-            target_cost, partition_ratios
-        )
-
+        est = _gmf_estimator(bkd)
+        npartition_samples = est.npartition_samples_at(500.0, bkd.array([2.0, 5.0]))
         assert len(npartition_samples) == est._npartitions
         assert all(float(n) > 0 for n in npartition_samples)
-
-    def test_covariance_consistency(self, bkd):
-        """FittedACVEstimator.covariance() equals a fresh computation.
-
-        The fresh computation uses the same discrete counts.
-        """
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=1000.0)
-        assert result.success
-
-        fitted = FittedACVEstimator(est, result)
-        # The template evaluates the continuous relaxation, so the discrete
-        # allocation must be cast to float at the boundary, exactly as
-        # FittedACVEstimator does internally.
-        fresh_cov = est.covariance_at_npartition_samples(
-            bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
-        )
-        bkd.assert_allclose(fitted.covariance(), fresh_cov)
-
-    def test_template_unchanged_after_fitting(self, bkd):
-        """Template estimator is not mutated by FittedACVEstimator creation."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        allocator = ACVAllocatorViaTorch(est)
-        result = allocator.allocate(target_cost=1000.0)
-        assert result.success
-
-        repr_before = repr(est)
-        FittedACVEstimator(est, result)
-        repr_after = repr(est)
-        assert repr_before == repr_after
-
-
-class TestAnalyticalVsNumerical:
-    """Compare analytical MFMC/MLMC allocation with numerical optimization."""
-
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def _create_mfmc_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Create stat/costs satisfying MFMC hierarchy (decreasing correlation)."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.95 ** max(i, j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def _create_mlmc_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Create stat/costs satisfying MLMC requirements (decreasing cost)."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.9 ** abs(i - j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    @slow_test
-    def test_mfmc_analytical_vs_numerical(self, bkd):
-        """Analytical MFMC allocation matches numerical optimization."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        target_cost = 1000.0
-
-        # Analytical
-        mfmc_est = MFMCEstimator(stat, costs)
-        analytical_allocator = AnalyticalAllocator(mfmc_est)
-        analytical_result = analytical_allocator.allocate(target_cost)
-        assert analytical_result.success
-
-        # Numerical (force optimization by using ACVAllocatorViaTorch directly)
-        numerical_allocator = ACVAllocatorViaTorch(mfmc_est)
-        numerical_result = numerical_allocator.allocate(target_cost)
-        assert numerical_result.success
-
-        # rtol=1e-5 accounts for optimizer convergence tolerance
-        bkd.assert_allclose(
-            analytical_result.partition_ratios,
-            numerical_result.partition_ratios,
-            rtol=1e-5,
-        )
-        bkd.assert_allclose(
-            analytical_result.objective_value,
-            numerical_result.objective_value,
-            rtol=1e-5,
-        )
-
-    @slow_test
-    def test_mlmc_analytical_vs_numerical(self, bkd):
-        """Analytical MLMC allocation matches numerical optimization."""
-        stat, costs = self._create_mlmc_stat_and_costs(bkd)
-        target_cost = 1000.0
-
-        # Analytical
-        mlmc_est = MLMCEstimator(stat, costs)
-        analytical_allocator = AnalyticalAllocator(mlmc_est)
-        analytical_result = analytical_allocator.allocate(target_cost)
-        assert analytical_result.success
-
-        # Numerical (MLMCEstimator uses -1 weights, same objective)
-        numerical_allocator = ACVAllocatorViaTorch(mlmc_est)
-        numerical_result = numerical_allocator.allocate(target_cost)
-        assert numerical_result.success
-
-        # rtol=1e-5 accounts for optimizer convergence tolerance
-        bkd.assert_allclose(
-            analytical_result.partition_ratios,
-            numerical_result.partition_ratios,
-            rtol=1e-5,
-        )
-        bkd.assert_allclose(
-            analytical_result.objective_value,
-            numerical_result.objective_value,
-            rtol=1e-5,
-        )
