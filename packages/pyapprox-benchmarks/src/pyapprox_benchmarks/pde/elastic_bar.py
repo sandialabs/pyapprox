@@ -18,19 +18,17 @@ from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.functionals.density_terms import (
+    GradientDensity1DProtocol,
+    LinearStrainEnergyDensity1D,
+    LinearStressDensity1D,
+    NeoHookeanStrainEnergyDensity1D,
+    NeoHookeanStressDensity1D,
     NodalMaterialMapProtocol,
     gradient_density_term_1d,
 )
 from pyapprox.pde.collocation.functionals.observations import (
     point_observation,
     subdomain_integral_observation,
-)
-from pyapprox.pde.collocation.functionals.strain_energy_1d import (
-    GradientDensity1DProtocol,
-    LinearStrainEnergyDensity1D,
-    LinearStressDensity1D,
-    NeoHookeanStrainEnergyDensity1D,
-    NeoHookeanStressDensity1D,
 )
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
@@ -368,9 +366,7 @@ def build_elastic_bar_1d(
             f"{type(constitutive).__name__}"
         )
     if not isinstance(qoi, BarQoIProtocol):
-        raise TypeError(
-            f"qoi must satisfy BarQoIProtocol, got {type(qoi).__name__}"
-        )
+        raise TypeError(f"qoi must satisfy BarQoIProtocol, got {type(qoi).__name__}")
 
     # Mesh
     transform = AffineTransform1D((0.0, length), bkd)
@@ -403,9 +399,7 @@ def build_elastic_bar_1d(
         length,
         bkd,
     )
-    functional = StateFunctional.from_terms(
-        bkd, 1, state_terms=(qoi.term(context),)
-    )
+    functional = StateFunctional.from_terms(bkd, 1, state_terms=(qoi.term(context),))
 
     # Forward model
     fwd = collocation_steady_function(configured.system, parameters, functional)

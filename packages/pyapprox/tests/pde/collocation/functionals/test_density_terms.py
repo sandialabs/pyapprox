@@ -44,20 +44,18 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.functionals.density_terms import (
     GradientDensity1D,
+    GradientDensity1DProtocol,
     HoopStressDensity,
     IntegratedDensity,
+    LinearStrainEnergyDensity1D,
+    LinearStressDensity1D,
+    NeoHookeanStrainEnergyDensity1D,
+    NeoHookeanStressDensity1D,
     StrainEnergyDensity2D,
     gradient_density_term_1d,
 )
 from pyapprox.pde.collocation.functionals.observations import (
     average_radial_displacement_observation,
-)
-from pyapprox.pde.collocation.functionals.strain_energy_1d import (
-    GradientDensity1DProtocol,
-    LinearStrainEnergyDensity1D,
-    LinearStressDensity1D,
-    NeoHookeanStrainEnergyDensity1D,
-    NeoHookeanStressDensity1D,
 )
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,

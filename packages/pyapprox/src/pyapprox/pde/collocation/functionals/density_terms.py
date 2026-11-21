@@ -26,9 +26,11 @@ residual reads, so the material it evaluates is the one the state was
 solved with.
 
 The densities are adapters, each satisfying :class:`NodalDensityProtocol`:
-:class:`GradientDensity1D` over a 1D gradient density, and
-:class:`HoopStressDensity` and :class:`StrainEnergyDensity2D` over a 2D
-stress post-processor.
+:class:`GradientDensity1D` over a 1D gradient density
+(:class:`GradientDensity1DProtocol`: the linear and neo-Hookean energy
+and stress densities here), and :class:`HoopStressDensity` and
+:class:`StrainEnergyDensity2D` over a 2D stress post-processor
+(:class:`HoopStressSourceProtocol`, :class:`StrainEnergySourceProtocol`).
 """
 
 from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
@@ -40,13 +42,6 @@ from pyapprox.implicitfunction.functional_terms import (
 )
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
-)
-from pyapprox.pde.collocation.functionals.elasticity_2d import (
-    HoopStressSourceProtocol,
-    StrainEnergySourceProtocol,
-)
-from pyapprox.pde.collocation.functionals.strain_energy_1d import (
-    GradientDensity1DProtocol,
 )
 from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
     CollocationQuadrature1D,
@@ -109,6 +104,175 @@ class NodalDensityProtocol(Protocol[Array]):
         r""":math:`\partial \psi_i/\partial m_{k,i}` for each field
         :math:`k`, stacked as the material is. Shape: (nfields*npts,)"""
         ...
+
+
+@runtime_checkable
+class GradientDensity1DProtocol(Protocol, Generic[Array]):
+    """A pointwise density of the 1D displacement gradient and the
+    material, with its derivatives.
+
+    The argument is the strain du/dx or the deformation gradient
+    1 + du/dx. ``material`` stacks ``nfields()`` nodal fields,
+    field-major, as the material map gives them.
+    """
+
+    def nfields(self) -> int:
+        """The number of material fields the density reads."""
+        ...
+
+    def uses_deformation_gradient(self) -> bool:
+        """True for ``arg = 1 + du/dx``, False for ``arg = du/dx``."""
+        ...
+
+    def value(self, arg: Array, material: Array) -> Array:
+        """The density at the nodes. Shape: (npts,)"""
+        ...
+
+    def arg_derivative(self, arg: Array, material: Array) -> Array:
+        """The pointwise derivative in ``arg``. Shape: (npts,)"""
+        ...
+
+    def material_derivative(self, arg: Array, material: Array) -> Array:
+        """The pointwise derivative in each field, stacked as
+        ``material`` is. Shape: (nfields*npts,)"""
+        ...
+
+
+class LinearStrainEnergyDensity1D(Generic[Array]):
+    """:math:`\\psi = \\tfrac12 E \\varepsilon^2` with material ``[E]``."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def nfields(self) -> int:
+        return 1
+
+    def uses_deformation_gradient(self) -> bool:
+        return False
+
+    def value(self, arg: Array, material: Array) -> Array:
+        return 0.5 * material * arg**2
+
+    def arg_derivative(self, arg: Array, material: Array) -> Array:
+        return material * arg
+
+    def material_derivative(self, arg: Array, material: Array) -> Array:
+        return 0.5 * arg**2
+
+
+class LinearStressDensity1D(Generic[Array]):
+    """:math:`\\sigma = E \\varepsilon` with material ``[E]``."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def nfields(self) -> int:
+        return 1
+
+    def uses_deformation_gradient(self) -> bool:
+        return False
+
+    def value(self, arg: Array, material: Array) -> Array:
+        return material * arg
+
+    def arg_derivative(self, arg: Array, material: Array) -> Array:
+        return material
+
+    def material_derivative(self, arg: Array, material: Array) -> Array:
+        return arg
+
+
+class NeoHookeanStrainEnergyDensity1D(Generic[Array]):
+    """The 1D neo-Hookean stored energy
+    :math:`\\psi = \\tfrac{\\mu}{2}(F^2 - 1 - 2\\ln F) +
+    \\tfrac{\\lambda}{2}(\\ln F)^2` with material ``[mu; lamda]``.
+    Its derivative in F is the first Piola-Kirchhoff stress."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def nfields(self) -> int:
+        return 2
+
+    def uses_deformation_gradient(self) -> bool:
+        return True
+
+    def value(self, arg: Array, material: Array) -> Array:
+        mu, lamda = _split_lame(material, material.shape[0] // 2)
+        ln_F = self._bkd.log(arg)
+        return 0.5 * mu * (arg**2 - 1.0 - 2.0 * ln_F) + 0.5 * lamda * ln_F**2
+
+    def arg_derivative(self, arg: Array, material: Array) -> Array:
+        mu, lamda = _split_lame(material, material.shape[0] // 2)
+        return mu * (arg - 1.0 / arg) + lamda * self._bkd.log(arg) / arg
+
+    def material_derivative(self, arg: Array, material: Array) -> Array:
+        ln_F = self._bkd.log(arg)
+        return self._bkd.concatenate([0.5 * (arg**2 - 1.0 - 2.0 * ln_F), 0.5 * ln_F**2])
+
+
+class NeoHookeanStressDensity1D(Generic[Array]):
+    """The 1D neo-Hookean first Piola-Kirchhoff stress
+    :math:`P = \\mu (F - 1/F) + \\lambda \\ln F / F` with material
+    ``[mu; lamda]``."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def nfields(self) -> int:
+        return 2
+
+    def uses_deformation_gradient(self) -> bool:
+        return True
+
+    def value(self, arg: Array, material: Array) -> Array:
+        mu, lamda = _split_lame(material, material.shape[0] // 2)
+        return mu * (arg - 1.0 / arg) + lamda * self._bkd.log(arg) / arg
+
+    def arg_derivative(self, arg: Array, material: Array) -> Array:
+        mu, lamda = _split_lame(material, material.shape[0] // 2)
+        inv_F2 = 1.0 / arg**2
+        return mu * (1.0 + inv_F2) + lamda * (1.0 - self._bkd.log(arg)) * inv_F2
+
+    def material_derivative(self, arg: Array, material: Array) -> Array:
+        return self._bkd.concatenate([arg - 1.0 / arg, self._bkd.log(arg) / arg])
+
+
+@runtime_checkable
+class HoopStressSourceProtocol(Protocol, Generic[Array]):
+    """What the hoop-stress density reads: the hoop stress for given
+    Lame parameters, its state Jacobian and its pointwise Lame
+    derivatives. Both 2D stress post-processors satisfy it."""
+
+    def npts(self) -> int: ...
+
+    def hoop_stress(self, state: Array, mu: Array, lamda: Array) -> Array: ...
+
+    def hoop_stress_state_jacobian(
+        self, state: Array, mu: Array, lamda: Array
+    ) -> Array: ...
+
+    def hoop_stress_lame_jacobian(
+        self, state: Array, mu: Array, lamda: Array
+    ) -> Tuple[Array, Array]: ...
+
+
+@runtime_checkable
+class StrainEnergySourceProtocol(Protocol, Generic[Array]):
+    """What the strain-energy density reads, as for
+    :class:`HoopStressSourceProtocol`."""
+
+    def npts(self) -> int: ...
+
+    def strain_energy_density(self, state: Array, mu: Array, lamda: Array) -> Array: ...
+
+    def strain_energy_density_state_jacobian(
+        self, state: Array, mu: Array, lamda: Array
+    ) -> Array: ...
+
+    def strain_energy_density_lame_jacobian(
+        self, state: Array, mu: Array, lamda: Array
+    ) -> Tuple[Array, Array]: ...
 
 
 class IntegratedDensity(Generic[Array]):
