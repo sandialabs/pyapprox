@@ -3,7 +3,6 @@
 Tests Dirichlet, Neumann and Robin BCs and the BoundaryConditionSet.
 """
 
-
 import pytest
 
 from pyapprox.util.optional_deps import package_available
@@ -150,12 +149,8 @@ class TestNeumannBCBase:
         zeros = bkd.zeros((basis.ndofs(),))
         left = NeumannBC(basis, "left", flux_func=_NormalX(), bkd=bkd)
         right = NeumannBC(basis, "right", flux_func=_NormalX(), bkd=bkd)
-        bkd.assert_allclose(
-            left.apply_to_load(zeros, 0.0)[0:1], bkd.asarray([-1.0])
-        )
-        bkd.assert_allclose(
-            right.apply_to_load(zeros, 0.0)[-1:], bkd.asarray([1.0])
-        )
+        bkd.assert_allclose(left.apply_to_load(zeros, 0.0)[0:1], bkd.asarray([-1.0]))
+        bkd.assert_allclose(right.apply_to_load(zeros, 0.0)[-1:], bkd.asarray([1.0]))
         assert not left.is_time_dependent()
 
     def test_1d_neumann_apply_to_load(self, numpy_bkd: NumpyBkd) -> None:
@@ -280,11 +275,31 @@ class TestRobinBCBase:
         with pytest.raises(ValueError, match="alpha must return shape"):
             stiffness(_three_alphas)
         scalar = LagrangeBasis(mesh, degree=1)
-        bc = RobinBC(
-            scalar, "left", TimeIndependent(_profile_alpha_on_both), 0.0, bkd
-        )
+        bc = RobinBC(scalar, "left", TimeIndependent(_profile_alpha_on_both), 0.0, bkd)
         with pytest.raises(ValueError, match="alpha must return shape"):
             bc.apply_to_stiffness(bkd.zeros((scalar.ndofs(), scalar.ndofs())), 0.0)
+
+    def test_constant_data_on_a_vector_basis_loads_every_component(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        r"""On a 2D vector basis a constant datum is the same value for
+        every component: the Neumann load of 0.7 equals that of the data
+        (0.7, 0.7), and a Robin condition with zero data and a
+        per-component coefficient adds no load."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh2D(nx=3, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        zero = bkd.zeros((basis.ndofs(),))
+
+        def load(bc: Any) -> NDArray[np.floating[Any]]:
+            return np.asarray(bkd.to_numpy(bc.apply_to_load(zero, 0.0)))
+
+        constant = load(NeumannBC(basis, "left", 0.7, bkd))
+        vector = load(NeumannBC(basis, "left", TimeIndependent(_two_sevenths), bkd))
+        assert float(np.abs(constant).max()) > 0.1
+        np.testing.assert_allclose(constant, vector, rtol=1e-14)
+        robin = RobinBC(basis, "left", TimeIndependent(_profile_alpha_on_x), 0.0, bkd)
+        np.testing.assert_allclose(load(robin), np.zeros(basis.ndofs()), atol=0.0)
 
 
 class TestNaturalBCsOnMixedFields:
@@ -351,9 +366,7 @@ class TestNaturalBCsOnMixedFields:
                 bkd.zeros((n, n)), state[field], 0.0
             )
             bkd.assert_allclose(
-                robin.apply_to_jacobian(
-                    bkd.zeros((nstates, nstates)), state, 0.0
-                ),
+                robin.apply_to_jacobian(bkd.zeros((nstates, nstates)), state, 0.0),
                 bkd.asarray(placed_matrix(plain_jac)),
             )
             plain_res = plain_robin.apply_to_residual(
@@ -367,6 +380,11 @@ class TestNaturalBCsOnMixedFields:
 
 def _two_fluxes(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
     return np.stack([1.0 + x[1], 2.0 - x[1]])
+
+
+def _two_sevenths(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    """The vector data (0.7, 0.7)."""
+    return np.full((2, x.shape[1]), 0.7)
 
 
 def _profile_alpha(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
@@ -429,12 +447,8 @@ class TestBoundaryConditionSetBase:
         basis = LagrangeBasis(mesh, degree=1)
 
         bc_set = BoundaryConditionSet(bkd)
-        bc_set.add_dirichlet(
-            DirichletBC(basis, "left", value_func=1.0, bkd=bkd)
-        )
-        bc_set.add_dirichlet(
-            DirichletBC(basis, "right", value_func=2.0, bkd=bkd)
-        )
+        bc_set.add_dirichlet(DirichletBC(basis, "left", value_func=1.0, bkd=bkd))
+        bc_set.add_dirichlet(DirichletBC(basis, "right", value_func=2.0, bkd=bkd))
 
         dofs = bkd.to_numpy(bc_set.dirichlet_dofs())
         values = bkd.to_numpy(bc_set.dirichlet_values(time=0.0))
@@ -480,9 +494,7 @@ class TestRoleProtocols:
             bkd.asarray(bc.constrained_dofs(), dtype=bkd.double_dtype()),
             bkd.asarray(bc.boundary_dofs(), dtype=bkd.double_dtype()),
         )
-        bkd.assert_allclose(
-            bc.constrained_values(0.0), bc.boundary_values(0.0)
-        )
+        bkd.assert_allclose(bc.constrained_values(0.0), bc.boundary_values(0.0))
 
     def test_neumann_stiffness_and_jacobian_are_identity(
         self, numpy_bkd: NumpyBkd

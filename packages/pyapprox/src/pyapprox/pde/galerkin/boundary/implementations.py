@@ -62,9 +62,7 @@ class _ConstantBoundaryValue:
     def __init__(self, value: float) -> None:
         self._value = value
 
-    def __call__(
-        self, x: np.ndarray, t: Optional[float] = None
-    ) -> np.ndarray:
+    def __call__(self, x: np.ndarray, t: Optional[float] = None) -> np.ndarray:
         return np.full(x.shape[1], self._value)
 
 
@@ -80,9 +78,7 @@ class NormalDependentDataProtocol(Protocol):
     on any boundary shape, curved facets included.
     """
 
-    def evaluate(
-        self, coords: _FacetPts, normal: _FacetPts, time: float
-    ) -> _FacetPts:
+    def evaluate(self, coords: _FacetPts, normal: _FacetPts, time: float) -> _FacetPts:
         """Return ``g`` at the points.
 
         Parameters
@@ -112,9 +108,7 @@ class _NormalFreeData:
     def __init__(self, func: TimeAwareCallableProtocol) -> None:
         self._func = func
 
-    def evaluate(
-        self, coords: _FacetPts, normal: _FacetPts, time: float
-    ) -> _FacetPts:
+    def evaluate(self, coords: _FacetPts, normal: _FacetPts, time: float) -> _FacetPts:
         return np.asarray(self._func(coords, time))
 
     def is_time_dependent(self) -> bool:
@@ -143,8 +137,10 @@ def _boundary_load(
 ) -> _FacetPts:
     """Assemble ``integral_Gamma g . phi ds`` with the facet normals.
 
-    Scalar data ``(npts,)`` gives ``g * v``; vector data ``(ndim, npts)``
-    gives ``sum_i g_i * v_i``.
+    Scalar data ``(npts,)`` gives ``g * v`` on a scalar basis and
+    ``sum_i g * v_i`` on a vector one, the same value for every
+    component, as a constant Robin coefficient is; vector data ``(ndim,
+    npts)`` gives ``sum_i g_i * v_i``.
     """
 
     def form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
@@ -161,7 +157,12 @@ def _boundary_load(
         if vals.ndim == 2 and vals.shape[0] == ndim:
             vector_vals = vals.reshape(ndim, *trailing)
             return np.asarray(sum(vector_vals[i] * v[i] for i in range(ndim)))
-        return np.asarray(vals.reshape(trailing) * v)
+        scalar_vals = vals.reshape(trailing)
+        # A vector test function leads with its component axis.
+        if np.asarray(v.value).ndim > len(trailing):
+            ncomponents = np.asarray(v.value).shape[0]
+            return np.asarray(sum(scalar_vals * v[i] for i in range(ncomponents)))
+        return np.asarray(scalar_vals * v)
 
     load: _FacetPts = asm(LinearForm(form), boundary_basis)
     return load
@@ -250,9 +251,7 @@ class DirichletBC(Generic[Array]):
         )
 
         # A component basis says which component each DOF belongs to.
-        self._component_basis: Optional[
-            ComponentDofsBasisProtocol[Array]
-        ] = None
+        self._component_basis: Optional[ComponentDofsBasisProtocol[Array]] = None
         if isinstance(basis, ComponentDofsBasisProtocol):
             self._component_basis = basis
             self._ncomponents = basis.ncomponents()
@@ -269,9 +268,7 @@ class DirichletBC(Generic[Array]):
                     "per-component DOF selection, got "
                     f"{type(basis).__name__}"
                 )
-            self._boundary_dofs = basis.get_dofs(
-                boundary_name, components=components
-            )
+            self._boundary_dofs = basis.get_dofs(boundary_name, components=components)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -370,9 +367,7 @@ class DirichletBC(Generic[Array]):
             dof_components = self._bkd.to_numpy(
                 self._component_basis.dof_components(self._boundary_dofs)
             )
-            values_np = values_np[
-                dof_components, np.arange(bndry_dofs_np.shape[0])
-            ]
+            values_np = values_np[dof_components, np.arange(bndry_dofs_np.shape[0])]
 
         return self._bkd.asarray(values_np.astype(np.float64))
 
@@ -627,9 +622,7 @@ class RobinBC(Generic[Array]):
     def is_time_dependent(self) -> bool:
         """Whether the coefficient alpha or the Robin data g varies in
         time (declared, not inferred)."""
-        return self._alpha_is_time_dependent() or (
-            self._value_data.is_time_dependent()
-        )
+        return self._alpha_is_time_dependent() or (self._value_data.is_time_dependent())
 
     def is_time_invariant(self) -> bool:
         """Whether the term is declared time-independent."""
@@ -642,9 +635,7 @@ class RobinBC(Generic[Array]):
         return not self._alpha_is_time_dependent()
 
     def _alpha_is_time_dependent(self) -> bool:
-        return not isinstance(self._alpha, float) and (
-            self._alpha.is_time_dependent()
-        )
+        return not isinstance(self._alpha, float) and (self._alpha.is_time_dependent())
 
     def alpha(self) -> Union[float, TimeAwareCallableProtocol]:
         """Return the coefficient for the u term: a constant, or a
@@ -741,9 +732,7 @@ class RobinBC(Generic[Array]):
 
     def _placed_contribution(self, time: float, nstates: int) -> spmatrix:
         """K_Gamma at the field's DOFs of a state of size ``nstates``."""
-        return _placed_matrix(
-            self._stiffness_contribution(time), self._offset, nstates
-        )
+        return _placed_matrix(self._stiffness_contribution(time), self._offset, nstates)
 
     def apply_to_stiffness(
         self,
@@ -827,8 +816,7 @@ class RobinBC(Generic[Array]):
         """
         load = self.apply_to_load(self._bkd.full_like(residual, 0.0), time)
         stiffness_times_state = self._bkd.asarray(
-            self._placed_contribution(time, state.shape[0])
-            @ self._bkd.to_numpy(state)
+            self._placed_contribution(time, state.shape[0]) @ self._bkd.to_numpy(state)
         )
         return residual + load - stiffness_times_state
 
@@ -850,9 +838,7 @@ class RobinBC(Generic[Array]):
         return StateDerivatives.linear(self._bkd)
 
     def __repr__(self) -> str:
-        alpha_repr = (
-            "callable" if callable(self._alpha) else repr(self._alpha)
-        )
+        alpha_repr = "callable" if callable(self._alpha) else repr(self._alpha)
         return (
             f"RobinBC(boundary='{self._boundary_name}', "
             f"alpha={alpha_repr}, "
@@ -1077,9 +1063,7 @@ class CallableDirichletBC(Generic[Array]):
             np.asarray(dof_indices, dtype=np.int64), dtype=bkd.int64_dtype()
         )
         self._signal = (
-            value_func
-            if isinstance(value_func, DofSignal)
-            else DofSignal(value_func)
+            value_func if isinstance(value_func, DofSignal) else DofSignal(value_func)
         )
 
     def signal(self) -> DofSignal:
@@ -1098,9 +1082,7 @@ class CallableDirichletBC(Generic[Array]):
             return None
         return partial(self._evaluate, derivative)
 
-    def _evaluate(
-        self, func: Callable[[float], np.ndarray], time: float
-    ) -> Array:
+    def _evaluate(self, func: Callable[[float], np.ndarray], time: float) -> Array:
         """Evaluate a time-only supplier at the DOFs as a backend array."""
         return self._bkd.asarray(np.asarray(func(time), dtype=np.float64))
 
