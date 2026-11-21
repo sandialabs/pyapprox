@@ -79,16 +79,18 @@ class ResponseParametersProtocol(Protocol[A_contra]):
 
 @runtime_checkable
 class PortFluxProtocol(Protocol[V, A]):
-    """How a :class:`SteadyPinnedResponse` reads its output from a solved
-    state: the outward flux on the ports, tested against the port's trace
-    functions, and its change with the state."""
+    """How a steady port response reads its output from a solved state,
+    and its change with the state: for :class:`SteadyPinnedResponse` the
+    outward flux on the ports, tested against the port's trace functions;
+    for a port-loaded response (:mod:`~pyapprox.pde.coupling.
+    loaded_response`) the trace, or a tested trace."""
 
     def flux(self, state: V) -> A:
-        """The tested outward flux at ``state``. Shape: (nport, 1)."""
+        """The output at ``state``. Shape: (nport, 1)."""
         ...
 
     def flux_tangent(self, state: V, delta: V, point: SteadyPoint[V, A]) -> A:
-        """The flux's change for state changes ``delta`` (ncols columns)
+        """The output's change for state changes ``delta`` (ncols columns)
         at the solve ``point`` of ``state``. Shape: (nport, ncols)."""
         ...
 
@@ -135,9 +137,13 @@ class PinnedReactionFlux(Generic[V, A, F]):
         return -self._ports.state_ports().take(change)
 
 
-class _TraceTangent(Generic[V, A]):
-    r"""What a point's trace tangent reads: the port-pinned residual's
-    parameter Jacobian :math:`R_\theta`, the port data and the flux."""
+class PortTangent(Generic[V, A]):
+    r"""What a point's trace tangent reads: the port residual's parameter
+    Jacobian :math:`R_\theta`, the port data and the output. The port
+    residual is the port-pinned one of :class:`SteadyPinnedResponse` or
+    the port-loaded one of :class:`~pyapprox.pde.coupling.
+    loaded_response.SteadyLoadedResponse`; the tangent solve is the same
+    for both."""
 
     def __init__(
         self,
@@ -149,8 +155,8 @@ class _TraceTangent(Generic[V, A]):
 
 
 class SteadyPinnedPoint(Generic[V, A]):
-    r"""A :class:`SteadyPinnedResponse` solved at one set of port data and
-    parameters.
+    r"""A steady port response (:class:`SteadyPinnedResponse`, or a
+    port-loaded one) solved at one set of port data and parameters.
 
     Its derivatives hold while the response is not linearized again: a
     later solve changes the port data, and a tangent requested after it
@@ -162,14 +168,15 @@ class SteadyPinnedPoint(Generic[V, A]):
         point: SteadyPoint[V, A],
         output: A,
         bkd: Backend[A],
-        tangent: _TraceTangent[V, A],
+        tangent: PortTangent[V, A],
     ) -> None:
         self._point, self._output, self._bkd = point, output, bkd
         self._tangent = tangent
         self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
 
     def output(self) -> A:
-        """The outward flux on the ports. Shape: (nport, 1)."""
+        """The response's output on the ports: the outward flux for a
+        pinned response. Shape: (nport, 1)."""
         return self._output
 
     def qoi(self) -> A:
@@ -181,7 +188,7 @@ class SteadyPinnedPoint(Generic[V, A]):
     def jvp_trace(self, directions: A) -> A:
         r""":math:`(\partial r/\partial \lambda)` ``directions``, for a
         block of shape (nport, ncols): one tangent solve :math:`R_u\,
-        \delta u = -R_\theta [d; 0]` for all columns, then the flux's
+        \delta u = -R_\theta [d; 0]` for all columns, then the output's
         tangent at :math:`\delta u`.
 
         Raises
@@ -296,7 +303,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
                 "a trace tangent needs the port-pinned residual's parameter Jacobian"
             )
         self._system = SteadySystem(self._residual, space, setups)
-        self._tangent = _TraceTangent(param, ports, flux)
+        self._tangent = PortTangent(param, ports, flux)
         self._nonlinear, self._bkd = nonlinear, bkd
         self._parameters = parameters
         self._guess = space.zeros(1)

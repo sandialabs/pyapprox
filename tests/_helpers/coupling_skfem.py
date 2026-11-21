@@ -386,19 +386,26 @@ class CoupledProblem:
         )
         return self._build(mesh, sides, exempt), mesh
 
-    def piece(self, subdomain: int) -> tuple[Piece, Np, tuple[int, ...]]:
-        """Subdomain ``subdomain``'s response, its node points and its
-        skeleton DOFs."""
+    def port_system(self, subdomain: int) -> tuple[Any, Np, list[int], tuple[int, ...]]:
+        """Subdomain ``subdomain``'s system without essential rows at its
+        port nodes, its node points, its port field DOFs and its skeleton
+        DOFs, both in skeleton port order."""
         nodes = subdomain_port_dofs(self.topo, self.scalar, subdomain)
         dofs = subdomain_port_dofs(self.topo, self.space, subdomain)
         skel = self.skeleton_coords()
-        # Pinned port nodes take g through the skeleton, not as essentials.
+        # Port nodes take their data through the skeleton, not as essentials.
         system, mesh = self.system(self._grids[subdomain], skel[:, list(nodes)])
         # Skeleton port DOFs are node-major, as are the mesh DOFs.
         ports = self.mesh_dofs([node_at(mesh.nodes(), skel[:, d]) for d in nodes])
         if len(ports) != len(dofs):
             raise ValueError("port DOFs and mesh DOFs differ in number")
-        return pinned_piece(system, ports), mesh.nodes(), dofs
+        return system, mesh.nodes(), ports, dofs
+
+    def piece(self, subdomain: int) -> tuple[Piece, Np, tuple[int, ...]]:
+        """Subdomain ``subdomain``'s response, its node points and its
+        skeleton DOFs."""
+        system, nodes, ports, dofs = self.port_system(subdomain)
+        return pinned_piece(system, ports), nodes, dofs
 
     def single_domain(self) -> tuple[Np, Np]:
         """The single-domain solution and its node points."""
