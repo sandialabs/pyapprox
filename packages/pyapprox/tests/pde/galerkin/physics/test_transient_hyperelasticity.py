@@ -3,9 +3,11 @@
 Hyperelasticity is second order in time (rho u_tt = Div P + f). Every
 Galerkin transient path integrates ``M du/dt = F(u, t)``, which for it
 is a viscous relaxation with no inertia or density, so each path refuses
-both ``HyperelasticityPhysics`` and ``CompositeHyperelasticityPhysics``.
-Steady solves, and direct use of the physics' own mass matrix, stay
-available.
+both ``HyperelasticityPhysics`` and ``CompositeHyperelasticityPhysics``
+(the hand-built ODE adapter, and ``galerkin_transient_system`` for the
+composite class, the one with a parameterization). Steady solves, and
+direct use of the physics' own mass matrix, stay available. The problem
+is a :mod:`pyapprox.pde.verification` manufactured problem.
 
 NumPy only: skfem assembly at each nonlinear step is numpy-based.
 """
@@ -19,18 +21,10 @@ if not package_available("skfem"):
 
 from typing import Any, Tuple, Union
 
-import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolution,
-    create_hyperelasticity_manufactured_test,
-)
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import (
     CompositeHyperelasticityPhysics,
     HyperelasticityPhysics,
@@ -40,13 +34,26 @@ from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
     skfem_ode_residual,
 )
-from pyapprox.pde.models.galerkin.transient import (
-    GalerkinTransientForwardModel,
+from pyapprox.pde.models.galerkin.transient_system import galerkin_transient_system
+from pyapprox.pde.models.galerkin.verification import (
+    StructuredBox,
+    VectorLagrange,
+    exact_dof_values,
+    vector_boundary_conditions,
+    vector_forcing,
 )
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.pde.time_order import SecondOrderInTimeProtocol
+from pyapprox.pde.verification.conditions import Dirichlet
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.solid_mechanics import (
+    equilibrium_terms,
+    neo_hookean_stress,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from tests._helpers.galerkin_steady_solve import steady_solve
@@ -59,52 +66,43 @@ _Physics = Union[
 
 _REFUSAL = "second order in time"
 _PHYSICS_NAMES = ["HyperelasticityPhysics", "CompositeHyperelasticityPhysics"]
-
-
-def _time_config() -> TimeIntegrationConfig[_NumpyArray]:
-    return TimeIntegrationConfig(
-        method="backward_euler",
-        init_time=0.0,
-        final_time=0.1,
-        deltat=0.05,
-        newton_tol=1e-10,
-        newton_maxiter=5,
-        verbosity=0,
-    )
+_LINE = Box([(0.0, 1.0)])
 
 
 def _setup(
     bkd: NumpyBkd, physics_name: str
 ) -> Tuple[_Physics, GalerkinSystem[_NumpyArray], _NumpyArray]:
-    """1D Neo-Hookean bar with a manufactured steady displacement.
+    r"""A neo-Hookean bar, :math:`-\nabla\cdot P = f` with :math:`u =
+    x^2 (1-x)^2 / 10`, :math:`\lambda = \mu = 1` (E = 2.5, nu = 0.25
+    through ``from_uniform`` for the composite class), Dirichlet at both
+    ends; P2 on 30 cells.
 
-    Lame parameters lambda = mu = 1 (E = 2.5, nu = 0.25); Dirichlet at
-    both ends. Returns the physics, its system, and the exact
-    displacement at the DOFs.
+    Returns the physics, its system, and the exact displacement at the
+    DOFs.
     """
-    stress: NeoHookeanStress[_NumpyArray] = NeoHookeanStress(1.0, 1.0)
-    functions, _ = create_hyperelasticity_manufactured_test(
-        bounds=[0.0, 1.0],
-        sol_strs=["0.1*x**2*(1-x)**2"],
-        stress_model=stress,
-        bkd=bkd,
+    problem = ManufacturedProblem(
+        {"u": "0.1*x**2*(1 - x)**2"},
+        equilibrium_terms(neo_hookean_stress(1, 1, 1)),
+        _LINE,
+        {side: Dirichlet() for side in _LINE.boundaries()},
     )
-    mesh = StructuredMesh1D(nx=30, bounds=(0.0, 1.0), bkd=bkd)
-    basis = VectorLagrangeBasis(mesh, degree=2)
-    ms = GalerkinManufacturedSolution(basis, functions, bkd)
+    (mesh,) = StructuredBox([30]).meshes(_LINE)
+    basis = VectorLagrange(2).build(mesh)
+    rows = problem.fields()
+    force = vector_forcing(problem, rows)
     physics: _Physics
     if physics_name == "HyperelasticityPhysics":
         physics = HyperelasticityPhysics(
-            basis=basis, stress_model=stress, bkd=bkd, body_force=ms.forcing()
+            basis, NeoHookeanStress(1.0, 1.0), bkd, body_force=force
         )
     else:
         physics = CompositeHyperelasticityPhysics.from_uniform(
-            basis, 2.5, 0.25, bkd, body_force=ms.forcing()
+            basis, 2.5, 0.25, bkd, body_force=force
         )
-    bcs = [ms.dirichlet(name) for name in ("left", "right")]
-    dof_coords = bkd.to_numpy(basis.dof_coordinates())
-    exact = np.asarray(ms.solution()(dof_coords, 0.0))[:, 0]
-    return physics, compose_galerkin_system(physics, bcs), bkd.asarray(exact)
+    system = compose_galerkin_system(
+        physics, vector_boundary_conditions(problem, basis, rows)
+    )
+    return physics, system, bkd.asarray(exact_dof_values(problem, basis, rows))
 
 
 class TestGalerkinHyperelasticityTimeOrder:
@@ -126,18 +124,16 @@ class TestGalerkinHyperelasticityTimeOrder:
         with pytest.raises(TypeError, match=physics_name):
             skfem_ode_residual(system)
 
-    def test_forward_model_is_refused(self, numpy_bkd: NumpyBkd) -> None:
+    def test_transient_system_is_refused(self, numpy_bkd: NumpyBkd) -> None:
         """Only the composite physics has a Galerkin parameterization."""
-        physics, system, exact = _setup(numpy_bkd, "CompositeHyperelasticityPhysics")
+        physics, system, _ = _setup(numpy_bkd, "CompositeHyperelasticityPhysics")
         assert isinstance(physics, CompositeHyperelasticityPhysics)
-        parameterization = create_galerkin_lame_parameterization(physics, numpy_bkd)
+        parameters = ParameterState(
+            create_galerkin_lame_parameterization(physics, numpy_bkd)
+        )
         with pytest.raises(TypeError, match=_REFUSAL):
-            GalerkinTransientForwardModel(
-                skfem_discretization(system),
-                ScipySparseLU(),
-                parameterization,
-                exact,
-                _time_config(),
+            galerkin_transient_system(
+                skfem_discretization(system), ScipySparseLU(), parameters
             )
 
     @pytest.mark.parametrize("physics_name", _PHYSICS_NAMES)
