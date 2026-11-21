@@ -4,10 +4,12 @@
 callers are converted, each with its replacement. :func:`count_calls`
 counts calls to each (``.name(``, so definitions do not count) in the
 repository's Python and Quarto sources. The counts are recorded in
-``ratchet_baselines.txt`` as ``superseded:<name>=<count>``; under that
-file's rule, a commit that lowers a count lowers its baseline in the
-same commit, and no commit raises one. A method is deleted from the
-backends when its count reaches zero.
+``ratchet_baselines.txt`` as ``superseded-method:<name>=<count>``, a key
+distinct from the ``superseded:`` package baselines of
+:mod:`pyapprox._moved_ratchet`, since each ratchet reports a key outside
+its own table as stale. Under that file's rule, a commit that lowers a
+count lowers its baseline in the same commit, and no commit raises one.
+A method is deleted from the backends when its count reaches zero.
 
 ``python -m pyapprox._superseded_ratchet`` exits nonzero when a count
 differs from its baseline.
@@ -27,7 +29,7 @@ SUPERSEDED: Mapping[str, str] = {
     "all_array": "bkd.all(x, axis, keepdims)",
 }
 CALL_SUFFIXES = (".py", ".qmd")
-BASELINE_KEY = "superseded:"
+BASELINE_KEY = "superseded-method:"
 # Its fixtures write calls as text, so they never reach zero.
 EXEMPT = ("tests/test_superseded_ratchet.py",)
 
@@ -47,7 +49,7 @@ def count_calls(names: Sequence[str], root: Path) -> dict[str, int]:
 
 
 def read_baseline(path: Path) -> dict[str, int]:
-    """The ``superseded:<name>=<count>`` entries of a baseline file."""
+    """The ``superseded-method:<name>=<count>`` entries of a baseline file."""
     baseline: dict[str, int] = {}
     for line in path.read_text().splitlines():
         if line.startswith(BASELINE_KEY) and "=" in line:

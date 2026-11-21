@@ -44,19 +44,21 @@ def test_ratchet_holds_counts_at_their_baselines(tmp_path: Path) -> None:
     _write(
         tmp_path,
         BASELINE_FILE,
-        "mypy_src=1\nmoved:pkg.old=4\nsuperseded:a=3\nsuperseded:gone=2\n",
+        "mypy_src=1\nmoved:pkg.old=4\nsuperseded:pkg.legacy=5\n"
+        "superseded-method:a=3\nsuperseded-method:gone=2\n",
     )
     baseline = read_baseline(tmp_path / BASELINE_FILE)
+    # The superseded-package key belongs to the moved-module ratchet.
     assert baseline == {"a": 3, "gone": 2}
     table = {"a": "new_a(x)", "b": "new_b(x)"}
     problems = ratchet_problems(table, {"a": 4, "b": 1}, baseline)
     assert problems == [
         "a: 4 calls, baseline 3; use new_a(x) instead",
-        "no baseline for b: add superseded:b=1",
-        "superseded:gone is stale: gone is not superseded",
+        "no baseline for b: add superseded-method:b=1",
+        "superseded-method:gone is stale: gone is not superseded",
     ]
     fell = ratchet_problems({"a": "new_a(x)"}, {"a": 1}, {"a": 3})
-    assert fell == ["a: down to 1; set superseded:a=1"]
+    assert fell == ["a: down to 1; set superseded-method:a=1"]
     assert ratchet_problems({"a": "new_a(x)"}, {"a": 3}, {"a": 3}) == []
 
 
