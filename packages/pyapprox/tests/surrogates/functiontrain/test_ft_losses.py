@@ -5,7 +5,6 @@ Tests validate FunctionTrainMSELoss gradient accuracy using DerivativeChecker.
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -16,10 +15,12 @@ from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
+    FunctionTrain,
     FunctionTrainMSELoss,
     create_additive_functiontrain,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestFunctionTrainMSELoss:
@@ -243,58 +244,40 @@ class TestFunctionTrainMSELoss:
         assert error_ratio < 1e-6
 
 
-# Torch-only test
-class TestFunctionTrainMSELossAutograd:
-    """Verify analytical gradient matches torch autograd."""
-
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        np.random.seed(42)
-
-    def _create_univariate_expansion(self, max_level, nqoi=1):
-        bkd = self._bkd
+def _additive_ft(
+    bkd: Backend[Array], nvars: int, max_level: int, nqoi: int
+) -> FunctionTrain[Array]:
+    """Additive FunctionTrain of univariate Legendre expansions."""
+    univariate_bases = []
+    for _ in range(nvars):
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-        return BasisExpansion(basis, bkd, nqoi=nqoi)
+        univariate_bases.append(BasisExpansion(basis, bkd, nqoi=nqoi))
+    return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def _create_additive_ft(self, nvars=3, max_level=2, nqoi=1):
-        bkd = self._bkd
-        univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
-        ]
-        return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def test_gradient_matches_autograd(self) -> None:
-        """Verify analytical gradient matches torch autograd."""
-        bkd = self._bkd
-        nvars = 2
-        max_level = 1
-        nqoi = 1
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=nqoi)
+class TestFunctionTrainMSELossAutograd:
+    """The analytical loss gradient matches the backend's autodiff
+    gradient, which needs the computation graph to survive."""
 
-        nsamples = 15
+    @pytest.fixture(autouse=True)
+    def _seed(self) -> None:
+        np.random.seed(42)
+
+    def test_gradient_matches_autodiff(self, torch_bkd: AutodiffBackend[Array]) -> None:
+        bkd = torch_bkd
+        nvars, nqoi, nsamples = 2, 1, 15
+        ft = _additive_ft(bkd, nvars=nvars, max_level=1, nqoi=nqoi)
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = bkd.asarray(np.random.randn(nqoi, nsamples))
+        params = bkd.asarray(np.random.randn(ft.nparams()))
+        loss = FunctionTrainMSELoss(ft.with_params(params), samples, values, bkd)
 
-        # Set non-zero parameters
-        nparams = ft.nparams()
-        params = bkd.asarray(np.random.randn(nparams))
-        ft_with_params = ft.with_params(params)
+        def flat_loss(p: Array) -> Array:
+            return bkd.reshape(loss(p), (1,))
 
-        loss = FunctionTrainMSELoss(ft_with_params, samples, values, bkd)
-
-        # Get analytical gradient
-        analytical_grad = loss.jacobian(params)  # (1, nparams)
-
-        # Get autograd gradient
-        def loss_from_params(p: torch.Tensor) -> torch.Tensor:
-            return loss(p)[0, 0]
-
-        autograd_grad = torch.autograd.functional.jacobian(loss_from_params, params)
-        # Shape: (nparams,)
-
-        bkd.assert_allclose(analytical_grad[0, :], autograd_grad, rtol=1e-10)
+        bkd.assert_allclose(
+            loss.jacobian(params), bkd.jacobian(flat_loss, params), rtol=1e-10
+        )

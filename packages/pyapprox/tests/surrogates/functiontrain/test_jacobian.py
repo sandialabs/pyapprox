@@ -8,7 +8,6 @@ Tests validate Jacobian computations using DerivativeChecker. Tests cover:
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -27,7 +26,8 @@ from pyapprox.surrogates.functiontrain.additive import (
 )
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestConstantExpansionInputJacobian:
@@ -365,91 +365,47 @@ class TestFunctionTrainInputJacobian:
         assert float(error_ratio) < 1e-6
 
 
-# Torch-only test: verify autograd compatibility
-class TestFunctionTrainInputJacobianAutograd:
-    """Test that FunctionTrain input jacobian matches torch.autograd."""
-
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        np.random.seed(42)
-
-    def _create_univariate_expansion(self, max_level, nqoi=1):
-        bkd = self._bkd
+def _additive_ft(
+    bkd: Backend[Array], nvars: int, max_level: int, nqoi: int
+) -> FunctionTrain[Array]:
+    """Additive FunctionTrain of univariate Legendre expansions."""
+    univariate_bases = []
+    for _ in range(nvars):
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-        return BasisExpansion(basis, bkd, nqoi=nqoi)
+        univariate_bases.append(BasisExpansion(basis, bkd, nqoi=nqoi))
+    return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def _create_additive_ft(self, nvars=3, max_level=2, nqoi=1):
-        bkd = self._bkd
-        univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
-        ]
-        return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def test_jacobian_matches_autograd(self) -> None:
-        """Test that analytical jacobian matches torch autograd."""
-        bkd = self._bkd
-        nvars = 3
-        max_level = 2
-        nqoi = 1
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=nqoi)
+class TestFunctionTrainInputJacobianAutograd:
+    """The analytical input Jacobian matches the backend's autodiff
+    Jacobian, which needs the computation graph to survive."""
 
-        # Set random parameters
-        nparams = ft.nparams()
-        params = bkd.asarray(np.random.randn(nparams))
-        ft = ft.with_params(params)
+    @pytest.fixture(autouse=True)
+    def _seed(self) -> None:
+        np.random.seed(42)
 
+    @pytest.mark.parametrize("nvars,nqoi", [(3, 1), (2, 2)])
+    def test_jacobian_matches_autodiff(
+        self, torch_bkd: AutodiffBackend[Array], nvars: int, nqoi: int
+    ) -> None:
+        bkd = torch_bkd
         nsamples = 3
+        ft = _additive_ft(bkd, nvars=nvars, max_level=2, nqoi=nqoi)
+        ft = ft.with_params(bkd.asarray(np.random.randn(ft.nparams())))
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
 
-        # Get analytical jacobian
         analytical_jac = ft.jacobian_batch(samples)  # (nsamples, nqoi, nvars)
 
-        # Get autograd jacobian for each sample
+        def flat_output(x: Array) -> Array:
+            # One sample's (nqoi, 1) output as a vector of its (nvars,) inputs.
+            return bkd.reshape(ft(bkd.reshape(x, (nvars, 1))), (nqoi,))
+
         for ii in range(nsamples):
-            sample = samples[:, ii : ii + 1].clone().requires_grad_(True)
-
-            def ft_output(x: torch.Tensor) -> torch.Tensor:
-                return ft(x).flatten()  # (nqoi,)
-
-            autograd_jac = torch.autograd.functional.jacobian(ft_output, sample)
-            # autograd_jac shape: (nqoi, nvars, 1) -> squeeze to (nqoi, nvars)
-            autograd_jac = autograd_jac.squeeze(-1)
-
-            bkd.assert_allclose(analytical_jac[ii], autograd_jac, rtol=1e-10)
-
-    def test_jacobian_matches_autograd_multi_qoi(self) -> None:
-        """Test analytical jacobian matches autograd with multiple QoIs."""
-        bkd = self._bkd
-        nvars = 2
-        max_level = 2
-        nqoi = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=nqoi)
-
-        # Set random parameters
-        nparams = ft.nparams()
-        params = bkd.asarray(np.random.randn(nparams))
-        ft = ft.with_params(params)
-
-        nsamples = 3
-        samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
-
-        # Get analytical jacobian
-        analytical_jac = ft.jacobian_batch(samples)  # (nsamples, nqoi, nvars)
-
-        # Get autograd jacobian for each sample
-        for ii in range(nsamples):
-            sample = samples[:, ii : ii + 1].clone().requires_grad_(True)
-
-            def ft_output(x: torch.Tensor) -> torch.Tensor:
-                return ft(x).flatten()  # (nqoi,)
-
-            autograd_jac = torch.autograd.functional.jacobian(ft_output, sample)
-            # autograd_jac shape: (nqoi, nvars, 1) -> squeeze to (nqoi, nvars)
-            autograd_jac = autograd_jac.squeeze(-1)
-
-            bkd.assert_allclose(analytical_jac[ii], autograd_jac, rtol=1e-10)
+            bkd.assert_allclose(
+                analytical_jac[ii],
+                bkd.jacobian(flat_output, samples[:, ii]),
+                rtol=1e-10,
+            )
