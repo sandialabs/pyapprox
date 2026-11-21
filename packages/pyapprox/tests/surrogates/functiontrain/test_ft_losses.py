@@ -266,8 +266,10 @@ class TestFunctionTrainMSELossAutograd:
     def _seed(self) -> None:
         np.random.seed(42)
 
-    def test_gradient_matches_autodiff(self, torch_bkd: AutodiffBackend[Array]) -> None:
-        bkd = torch_bkd
+    def test_gradient_matches_autodiff(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
+        bkd = autodiff_bkd
         nvars, nqoi, nsamples = 2, 1, 15
         ft = _additive_ft(bkd, nvars=nvars, max_level=1, nqoi=nqoi)
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))

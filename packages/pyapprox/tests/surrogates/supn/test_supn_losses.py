@@ -177,9 +177,9 @@ class TestSUPNMSELossAutograd:
 
     @pytest.mark.parametrize("nqoi", [1, 2])
     def test_gradient_matches_autodiff(
-        self, torch_bkd: AutodiffBackend[Array], nqoi: int
+        self, autodiff_bkd: AutodiffBackend[Array], nqoi: int
     ) -> None:
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd, nqoi=nqoi)
         params = bkd.asarray(np.random.randn(supn.nparams()))
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, 15)))
@@ -193,8 +193,8 @@ class TestSUPNMSELossAutograd:
             loss.jacobian(params), bkd.jacobian(flat_loss, params), rtol=1e-10
         )
 
-    def test_hvp_matches_autodiff(self, torch_bkd: AutodiffBackend[Array]) -> None:
-        bkd = torch_bkd
+    def test_hvp_matches_autodiff(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        bkd = autodiff_bkd
         supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd)
         params = bkd.asarray(np.random.randn(supn.nparams()))
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, 15)))

@@ -71,10 +71,10 @@ class TestGaussianMarginalAutograd:
         return GaussianMarginal(self.MEAN, self.STDEV, bkd)
 
     def test_logpdf_gradient_wrt_samples(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
         """d/dx log(pdf) = -(x - mu) / sigma^2."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = self._dist(bkd)
         samples = bkd.asarray([[1.0, 2.0, 3.0]])  # (1, nsamples)
         expected = -(samples - self.MEAN) / (self.STDEV**2)
@@ -82,35 +82,43 @@ class TestGaussianMarginalAutograd:
             _grad_of_sum(bkd, dist.logpdf, samples), expected, rtol=1e-6
         )
 
-    def test_pdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+    def test_pdf_gradient_wrt_samples(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """d/dx pdf = pdf * (-(x - mu) / sigma^2)."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = self._dist(bkd)
         samples = bkd.asarray([[1.5, 2.0, 2.5]])
         expected = dist(samples) * (-(samples - self.MEAN) / (self.STDEV**2))
         bkd.assert_allclose(_grad_of_sum(bkd, dist, samples), expected, rtol=1e-6)
 
-    def test_cdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+    def test_cdf_gradient_wrt_samples(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """d/dx CDF = pdf."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = self._dist(bkd)
         samples = bkd.asarray([[1.5, 2.0, 2.5]])
         bkd.assert_allclose(
             _grad_of_sum(bkd, dist.cdf, samples), dist(samples), rtol=1e-6
         )
 
-    def test_invcdf_gradient_wrt_probs(self, torch_bkd: AutodiffBackend[Array]) -> None:
+    def test_invcdf_gradient_wrt_probs(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """d/dp invcdf = 1 / pdf(invcdf(p))."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = self._dist(bkd)
         probs = bkd.asarray([[0.25, 0.5, 0.75]])
         expected = 1.0 / dist(dist.invcdf(probs))
         bkd.assert_allclose(_grad_of_sum(bkd, dist.invcdf, probs), expected, rtol=1e-5)
 
-    def test_logpdf_second_derivative(self, torch_bkd: AutodiffBackend[Array]) -> None:
+    def test_logpdf_second_derivative(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """d^2/dx^2 log(pdf) = -1/sigma^2; the Hessian of the summed logpdf is
         diagonal, so its product with ones gives the second derivatives."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = self._dist(bkd)
         samples = bkd.asarray([[1.5, 2.0, 2.5]])
         nsamples = samples.shape[1]
@@ -127,9 +135,9 @@ class TestGaussianMarginalAutogradFiniteDiff:
     """Autodiff gradients of GaussianMarginal match finite differences."""
 
     def test_logpdf_gradient_finite_diff(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = GaussianMarginal(1.0, 2.0, bkd)
         samples = bkd.asarray([[0.5, 1.0, 1.5]])  # (1, nsamples)
         assert _fd_error_ratio(bkd, dist.logpdf, samples) <= 1e-6
@@ -153,10 +161,10 @@ class TestDenseCholeskyMultivariateGaussianAutograd:
     """Autodiff derivatives of DenseCholeskyMultivariateGaussian."""
 
     def test_logpdf_gradient_wrt_samples(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
         """Autodiff gradient matches logpdf_gradient."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = _dense_gaussian(bkd)
         samples = bkd.asarray([[0.5, 1.5], [1.0, 2.5], [2.0, 3.5]])
         bkd.assert_allclose(
@@ -166,16 +174,18 @@ class TestDenseCholeskyMultivariateGaussianAutograd:
         )
 
     def test_logpdf_gradient_finite_diff(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = _dense_gaussian(bkd)
         samples = bkd.asarray([[0.5], [1.0], [2.0]])
         assert _fd_error_ratio(bkd, dist.logpdf, samples) <= 1e-6
 
-    def test_pdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+    def test_pdf_gradient_wrt_samples(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """d/dx pdf = pdf * grad_log_pdf."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = _dense_gaussian(bkd)
         samples = bkd.asarray([[1.0], [2.0], [3.0]])
         expected = dist.pdf(samples) * dist.logpdf_gradient(samples)
@@ -194,10 +204,10 @@ class TestDiagonalMultivariateGaussianAutograd:
     """Autodiff derivatives of DiagonalMultivariateGaussian."""
 
     def test_logpdf_gradient_wrt_samples(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
         """Autodiff gradient matches logpdf_gradient."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = _diagonal_gaussian(bkd)
         samples = bkd.asarray([[0.5, -0.5], [1.5, 0.5], [2.5, 1.5]])
         bkd.assert_allclose(
@@ -207,9 +217,9 @@ class TestDiagonalMultivariateGaussianAutograd:
         )
 
     def test_logpdf_gradient_finite_diff(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = _diagonal_gaussian(bkd)
         samples = bkd.asarray([[0.5], [1.0], [2.0]])
         assert _fd_error_ratio(bkd, dist.logpdf, samples) <= 1e-6

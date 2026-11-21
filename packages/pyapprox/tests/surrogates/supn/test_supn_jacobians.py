@@ -201,9 +201,9 @@ class TestSUPNParamJacobianAutodiff:
 
     @pytest.mark.parametrize("nqoi", [1, 2])
     def test_param_jacobian_matches_autodiff(
-        self, torch_bkd: AutodiffBackend[Array], nqoi: int
+        self, autodiff_bkd: AutodiffBackend[Array], nqoi: int
     ) -> None:
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         supn = create_supn(nvars=2, width=3, max_level=2, bkd=bkd, nqoi=nqoi)
         params = bkd.asarray(np.random.randn(supn.nparams()))
         supn = supn.with_params(params)

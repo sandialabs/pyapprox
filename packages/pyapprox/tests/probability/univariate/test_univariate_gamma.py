@@ -284,10 +284,10 @@ class TestGammaMarginalAutograd:
     SCALE = 1.5
 
     def test_logpdf_gradient_wrt_samples(
-        self, torch_bkd: AutodiffBackend[Array]
+        self, autodiff_bkd: AutodiffBackend[Array]
     ) -> None:
         """d/dx log f(x) = (k-1)/x - rate."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = GammaMarginal(self.SHAPE, self.SCALE, bkd)
         samples = bkd.asarray([[0.5, 1.0, 2.0]])
         rate = 1.0 / self.SCALE
@@ -296,9 +296,11 @@ class TestGammaMarginalAutograd:
             _grad_of_sum(bkd, dist.logpdf, samples), expected, rtol=1e-6
         )
 
-    def test_pdf_gradient_wrt_samples(self, torch_bkd: AutodiffBackend[Array]) -> None:
+    def test_pdf_gradient_wrt_samples(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """d/dx pdf = pdf * d/dx log(pdf)."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         dist = GammaMarginal(self.SHAPE, self.SCALE, bkd)
         samples = bkd.asarray([[0.5, 1.0, 2.0]])
         rate = 1.0 / self.SCALE

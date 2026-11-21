@@ -371,9 +371,9 @@ class TestFunctionTrainJacobianAutograd:
 
     @pytest.mark.parametrize("nqoi", [1, 2])
     def test_jacobian_matches_autodiff(
-        self, torch_bkd: AutodiffBackend[Array], nqoi: int
+        self, autodiff_bkd: AutodiffBackend[Array], nqoi: int
     ) -> None:
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         nvars, nsamples = 2, 3
         ft = _additive_ft(bkd, nvars=nvars, max_level=1, nqoi=nqoi)
         ft = ft.with_params(bkd.asarray(np.random.randn(ft.nparams())))

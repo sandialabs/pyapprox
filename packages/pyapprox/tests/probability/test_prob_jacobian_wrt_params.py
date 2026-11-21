@@ -147,7 +147,7 @@ class TestParamJacobianAutograd:
     )
     def test_jacobian_autograd(
         self,
-        torch_bkd: AutodiffBackend[Array],
+        autodiff_bkd: AutodiffBackend[Array],
         name: str,
         factory: Callable[
             [AutodiffBackend[Array]], _ParamDifferentiableDistribution[Array]
@@ -155,7 +155,7 @@ class TestParamJacobianAutograd:
         expected_nparams: int,
     ) -> None:
         """Verify analytical jacobian matches the autodiff Jacobian."""
-        bkd = torch_bkd
+        bkd = autodiff_bkd
         np.random.seed(42)
         dist = factory(bkd)
 
