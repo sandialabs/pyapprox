@@ -16,7 +16,14 @@ from typing import Any, Callable, TypeVar, overload
 from numba import njit as _numba_njit
 from numba import prange as _numba_prange
 
+from pyapprox.util.openmp import keep_numba_off_openmp
+
 F = TypeVar("F", bound=Callable[..., Any])
+
+# Every numba kernel in the library is defined through this module, so this
+# runs before any of them launches threads (numba fixes its threading layer
+# at the first parallel launch).
+keep_numba_off_openmp()
 
 
 @overload

@@ -181,9 +181,13 @@ it names the env after the checkout directory.
 
 An environment you did not create for pyapprox may already hold a second
 OpenMP runtime: conda's `llvm-openmp` is a dependency of many
-conda-forge packages. If importing torch and running a numba parallel
-loop or a `torch.compile` reduction aborts with `OMP: Error #15`, point
-`torch.compile` at torch's own runtime and keep numba off OpenMP:
+conda-forge packages. On macOS pyapprox keeps the process on torch's
+runtime by itself, unless you have set these variables yourself: creating
+a `TorchBkd` sets `OMP_PREFIX` to torch's install folder, and importing a
+pyapprox numba kernel ranks numba's `omp` threading layer last. Code that
+calls `torch.compile` or numba without going through pyapprox gets
+neither; if it aborts with `OMP: Error #15`, set the same variables before
+starting Python:
 
 ```bash
 export OMP_PREFIX="$(python -c 'import os, torch; print(os.path.dirname(torch.__file__))')"

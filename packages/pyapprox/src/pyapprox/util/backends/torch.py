@@ -21,6 +21,7 @@ from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_to_bool_shape,
 )
+from pyapprox.util.openmp import use_torch_openmp
 
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs
@@ -61,6 +62,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             torch.device(device) if device is not None else torch.device("cpu")
         )
         _set_default_dtype(torch.float64)
+        # Every torch.compile path in the library runs with a TorchBkd, so
+        # this runs before inductor builds its first kernel.
+        use_torch_openmp()
         self._dtype = dtype if dtype is not None else torch.get_default_dtype()
 
     def synchronize(self) -> None:
