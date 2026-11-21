@@ -15,9 +15,6 @@ import numpy as np
 
 from pyapprox.util.optional_deps import package_available
 
-_HAS_NUMBA = package_available("numba")
-
-
 # Type alias: (np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts) -> np_coefs
 SmolyakImpl = Callable[[np.ndarray, np.ndarray, np.ndarray, int, int, int], np.ndarray]
 
@@ -84,6 +81,6 @@ def get_smolyak_impl() -> SmolyakImpl:
 
     Returns numba kernel if available, otherwise vectorized numpy fallback.
     """
-    if _HAS_NUMBA:
+    if package_available("numba"):
         return _numba_smolyak
     return _generic_smolyak

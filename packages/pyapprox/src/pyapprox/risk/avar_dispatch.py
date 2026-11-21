@@ -18,16 +18,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
-HAS_NUMBA = package_available("numba")
-if HAS_NUMBA:
-    from pyapprox.risk.avar_numba import (
-        avar_jacobian_numba,
-        avar_values_numba,
-    )
-
-ValuesImpl = Callable[
-    [Array, Array, Array, float, float, Backend[Array]], Array
-]
+ValuesImpl = Callable[[Array, Array, Array, float, float, Backend[Array]], Array]
 
 JacobianImpl = Callable[
     [Array, Array, Array, Array, float, float, Backend[Array]], Array
@@ -48,11 +39,11 @@ def _wrap_numba_values(
     bkd: Backend[Array],
 ) -> Array:
     """Wrap numba kernel to match the batch signature."""
+    from pyapprox.risk.avar_numba import avar_values_numba
+
     weights_1d = np.asarray(weights).ravel()
     alpha_f = float(np.asarray(alpha).ravel()[0])
-    result = avar_values_numba(
-        np.asarray(values), weights_1d, alpha_f, delta, lam
-    )
+    result = avar_values_numba(np.asarray(values), weights_1d, alpha_f, delta, lam)
     return bkd.asarray(result[:, np.newaxis])
 
 
@@ -66,6 +57,8 @@ def _wrap_numba_jacobian(
     bkd: Backend[Array],
 ) -> Array:
     """Wrap numba kernel to match the batch signature."""
+    from pyapprox.risk.avar_numba import avar_jacobian_numba
+
     weights_1d = np.asarray(weights).ravel()
     alpha_f = float(np.asarray(alpha).ravel()[0])
     result = avar_jacobian_numba(
@@ -99,7 +92,7 @@ def get_avar_values_impl(
         Implementation with signature:
         (values, weights, alpha, delta, lam, bkd) -> Array
     """
-    if _is_numpy(bkd) and HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _wrap_numba_values
     return avar_values_batch
 
@@ -124,6 +117,6 @@ def get_avar_jacobian_impl(
         Implementation with signature:
         (values, jac_values, weights, alpha, delta, lam, bkd) -> Array
     """
-    if _is_numpy(bkd) and HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _wrap_numba_jacobian
     return avar_jacobian_batch

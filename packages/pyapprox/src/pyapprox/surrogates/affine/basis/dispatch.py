@@ -18,17 +18,14 @@ from typing import Callable, List, cast
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.optional_deps import package_available
-
-_HAS_NUMBA = package_available("numba")
-
 from pyapprox.surrogates.affine.basis.compute import (
     basis_eval_vectorized,
     basis_hessian_vectorized,
     basis_jacobian_vectorized,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.optional_deps import package_available
 
 # Type aliases for dispatch callables
 BasisEvalImpl = Callable[[List[Array], Array, int, Backend[Array]], Array]
@@ -202,9 +199,9 @@ def _compiled_basis_eval(
 
 
 @lru_cache(maxsize=None)
-def _get_compiled_basis_jacobian() -> (
-    Callable[[List[Array], List[Array], Array], Array]
-):
+def _get_compiled_basis_jacobian() -> Callable[
+    [List[Array], List[Array], Array], Array
+]:
     """Create and cache the torch.compile-wrapped basis Jacobian kernel."""
     import torch
 
@@ -232,9 +229,9 @@ def _compiled_basis_jacobian(
 
 
 @lru_cache(maxsize=None)
-def _get_compiled_basis_hessian() -> (
-    Callable[[List[Array], List[Array], List[Array], Array], Array]
-):
+def _get_compiled_basis_hessian() -> Callable[
+    [List[Array], List[Array], List[Array], Array], Array
+]:
     """Create and cache the torch.compile-wrapped basis Hessian kernel."""
     import torch
 
@@ -281,7 +278,7 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl[Array]:
         Implementation with signature:
         (vals_1d, indices, nvars, bkd) -> Array
     """
-    if _is_numpy(bkd) and _HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_basis_eval
 
     if _is_torch(bkd):
@@ -304,7 +301,7 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl[Array]:
         Implementation with signature:
         (vals_1d, derivs_1d, indices, nvars, bkd) -> Array
     """
-    if _is_numpy(bkd) and _HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_basis_jacobian
 
     if _is_torch(bkd):
@@ -327,7 +324,7 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl[Array]:
         Implementation with signature:
         (vals_1d, derivs_1d, hess_1d, indices, nvars, bkd) -> Array
     """
-    if _is_numpy(bkd) and _HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_basis_hessian
 
     if _is_torch(bkd):

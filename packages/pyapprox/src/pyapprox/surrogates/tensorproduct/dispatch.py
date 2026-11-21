@@ -24,8 +24,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
-_HAS_NUMBA = package_available("numba")
-
 
 def _is_torch(bkd: Backend[Array]) -> bool:
     """Check if backend is PyTorch; import deferred to avoid torch load time."""
@@ -128,7 +126,7 @@ def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl[Array]:
         Implementation with signature:
         (basis_vals_1d, values, nterms_1d, bkd) -> Array
     """
-    if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
+    if isinstance(bkd, NumpyBkd) and package_available("numba"):
         return _numba_tp_eval
     if _is_torch(bkd):
         return _compiled_tp_eval

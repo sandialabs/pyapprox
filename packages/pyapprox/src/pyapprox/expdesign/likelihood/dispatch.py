@@ -28,16 +28,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
-HAS_NUMBA = package_available("numba")
-if HAS_NUMBA:
-    from pyapprox.expdesign.likelihood.compute_numba import (
-        fused_evidence_jacobian_numba,
-        fused_weighted_jacobian_numba,
-        jacobian_matrix_numba,
-        logpdf_matrix_numba,
-    )
-
-
 LogpdfMatrixImpl = Callable[[Array, Array, Array, Array, Backend[Array]], Array]
 
 JacobianMatrixImpl = Callable[
@@ -59,14 +49,14 @@ EvidenceJacobianImpl = Callable[
 
 WeightedJacobianImpl = Callable[
     [
-        Array,            # shapes         (nobs, ninner)
-        Array,            # obs            (nobs, nouter)
+        Array,  # shapes         (nobs, ninner)
+        Array,  # obs            (nobs, nouter)
         Optional[Array],  # latent_samples (nobs, nouter)
-        Array,            # base_variances (nobs,)
-        Array,            # design_weights (nobs, 1)
-        Array,            # qwl_ratio      (ninner, nouter) = qwl/evid
-        Array,            # weights_a      (ninner, npred)
-        Array,            # weights_b      (ninner, npred)
+        Array,  # base_variances (nobs,)
+        Array,  # design_weights (nobs, 1)
+        Array,  # qwl_ratio      (ninner, nouter) = qwl/evid
+        Array,  # weights_a      (ninner, npred)
+        Array,  # weights_b      (ninner, npred)
         Backend[Array],
     ],
     Tuple[Array, Array],  # (part_a, part_b), each (npred, nouter, nobs)
@@ -103,9 +93,7 @@ def _check_torch_compile_available() -> None:
 
     for cxx in ("clang++", "g++"):
         try:
-            subprocess.check_output(
-                [cxx, "--version"], stderr=subprocess.DEVNULL
-            )
+            subprocess.check_output([cxx, "--version"], stderr=subprocess.DEVNULL)
             return
         except (subprocess.SubprocessError, FileNotFoundError):
             continue
@@ -147,9 +135,9 @@ def _compiled_logpdf_matrix(
 
 
 @lru_cache(maxsize=None)
-def _get_compiled_jacobian() -> (
-    Callable[[Array, Array, Array, Array, Array, bool], Array]
-):
+def _get_compiled_jacobian() -> Callable[
+    [Array, Array, Array, Array, Array, bool], Array
+]:
     """Create and cache the torch.compile-wrapped jacobian_matrix kernel."""
     import torch
 
@@ -166,9 +154,7 @@ def _get_compiled_jacobian() -> (
     )
 
 
-def _torch_latent_or_zeros(
-    latent_samples: Optional[Array], obs: Array
-) -> Array:
+def _torch_latent_or_zeros(latent_samples: Optional[Array], obs: Array) -> Array:
     """Return latent samples, or zeros_like(obs) when None (torch only).
 
     The compiled kernels need a concrete tensor even when latent samples
@@ -254,6 +240,8 @@ def _numba_logpdf_matrix(
     bkd: Backend[Array],
 ) -> Array:
     """Numba-backed logpdf_matrix implementation."""
+    from pyapprox.expdesign.likelihood.compute_numba import logpdf_matrix_numba
+
     return bkd.asarray(
         logpdf_matrix_numba(
             np.asarray(shapes),
@@ -273,6 +261,8 @@ def _numba_jacobian_matrix(
     bkd: Backend[Array],
 ) -> Array:
     """Numba-backed jacobian_matrix implementation."""
+    from pyapprox.expdesign.likelihood.compute_numba import jacobian_matrix_numba
+
     has_latent = latent_samples is not None
     if not has_latent:
         # Numba needs a concrete array; pass zeros (ignored)
@@ -301,6 +291,10 @@ def _numba_evidence_jacobian(
     bkd: Backend[Array],
 ) -> Array:
     """Numba-backed fused evidence jacobian implementation."""
+    from pyapprox.expdesign.likelihood.compute_numba import (
+        fused_evidence_jacobian_numba,
+    )
+
     has_latent = latent_samples is not None
     if not has_latent:
         latent_samples_np = np.zeros_like(obs)
@@ -331,6 +325,10 @@ def _numba_weighted_jacobian(
     bkd: Backend[Array],
 ) -> Tuple[Array, Array]:
     """Numba-backed fused weighted jacobian implementation."""
+    from pyapprox.expdesign.likelihood.compute_numba import (
+        fused_weighted_jacobian_numba,
+    )
+
     has_latent = latent_samples is not None
     if not has_latent:
         latent_samples_np = np.zeros_like(obs)
@@ -338,10 +336,10 @@ def _numba_weighted_jacobian(
         latent_samples_np = latent_samples
 
     # Transpose to the contiguous layout the kernel expects.
-    shapes_ik = np.ascontiguousarray(shapes.T)                # (ninner, nobs)
-    obs_jk = np.ascontiguousarray(obs.T)                      # (nouter, nobs)
+    shapes_ik = np.ascontiguousarray(shapes.T)  # (ninner, nobs)
+    obs_jk = np.ascontiguousarray(obs.T)  # (nouter, nobs)
     latent_jk = np.ascontiguousarray(latent_samples_np.T)
-    weights_a_qi = np.ascontiguousarray(weights_a.T)          # (npred, ninner)
+    weights_a_qi = np.ascontiguousarray(weights_a.T)  # (npred, ninner)
     weights_b_qi = np.ascontiguousarray(weights_b.T)
 
     part_a, part_b = fused_weighted_jacobian_numba(
@@ -406,7 +404,7 @@ def get_logpdf_matrix_impl(
         Implementation with signature:
         (shapes, obs, base_variances, design_weights, bkd) -> Array
     """
-    if _is_numpy(bkd) and HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_logpdf_matrix
     if _is_torch(bkd):
         return _compiled_logpdf_matrix
@@ -434,7 +432,7 @@ def get_jacobian_matrix_impl(
         Implementation with signature:
         (shapes, obs, latent_samples, base_variances, design_weights, bkd) -> Array
     """
-    if _is_numpy(bkd) and HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_jacobian_matrix
     if _is_torch(bkd):
         return _compiled_jacobian_matrix
@@ -462,7 +460,7 @@ def get_evidence_jacobian_impl(
         (shapes, obs, latent_samples, base_variances, design_weights,
          quad_weighted_like, bkd) -> Array
     """
-    if _is_numpy(bkd) and HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_evidence_jacobian
 
     if _is_torch(bkd):
@@ -507,7 +505,7 @@ def get_weighted_jacobian_impl(
          qwl_ratio, weights_a, weights_b, bkd) -> (part_a, part_b)
         or ``None`` if no fused impl exists for this backend.
     """
-    if _is_numpy(bkd) and HAS_NUMBA:
+    if _is_numpy(bkd) and package_available("numba"):
         return _numba_weighted_jacobian
 
     return None

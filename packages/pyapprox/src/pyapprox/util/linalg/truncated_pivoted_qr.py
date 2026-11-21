@@ -36,8 +36,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
-_HAS_NUMBA = package_available("numba")
-
 
 class TruncatedPivotedQRFactorizer(Generic[Array]):
     """Matrix-free, truncated column-pivoted QR via Householder reflectors.
@@ -79,7 +77,7 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
         self._ncompleted_pivots = 0
         self._termination_flag = -1
         self._termination_msg = ""
-        self._use_numba = isinstance(bkd, NumpyBkd) and _HAS_NUMBA
+        self._use_numba = isinstance(bkd, NumpyBkd) and package_available("numba")
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -89,9 +87,7 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
         max_piv = min(self._nrows, self._ncols)
         npivots = max_piv if npivots is None else min(int(npivots), max_piv)
         if npivots > self._ncols:
-            raise ValueError(
-                "Number of pivots requested exceeds number of columns"
-            )
+            raise ValueError("Number of pivots requested exceeds number of columns")
 
         if self._use_numba and npivots > 0:
             R_out, V, betas, perm, nc, flag = self._factorize_numba(npivots)
@@ -105,25 +101,25 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
         self._ncompleted_pivots = nc
         self._termination_flag = 0 if flag == 0 else 1
         self._termination_msg = (
-            "Tolerance reached" if flag == 1
-            else "Factorization completed successfully"
+            "Tolerance reached" if flag == 1 else "Factorization completed successfully"
         )
 
     # -- numba fast path (numpy backend only) --------------------------
 
     def _factorize_numba(
-        self, npivots: int,
+        self,
+        npivots: int,
     ) -> Tuple[Array, Array, Array, Array, int, int]:
         from pyapprox.util.linalg.truncated_pivoted_qr_numba import (
             householder_pivoted_qr_numba,
         )
 
         bkd = self._bkd
-        R = np.ascontiguousarray(
-            bkd.to_numpy(self._A).astype(np.float64, copy=True)
-        )
+        R = np.ascontiguousarray(bkd.to_numpy(self._A).astype(np.float64, copy=True))
         R_out, V, betas, perm, nc, flag = householder_pivoted_qr_numba(
-            R, npivots, self._tol,
+            R,
+            npivots,
+            self._tol,
         )
         return (
             bkd.asarray(R_out),
@@ -137,7 +133,8 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
     # -- backend-generic path ------------------------------------------
 
     def _factorize_generic(
-        self, npivots: int,
+        self,
+        npivots: int,
     ) -> Tuple[Array, Array, Array, Array, int, int]:
         bkd = self._bkd
         nrows, ncols = self._nrows, self._ncols
@@ -184,7 +181,7 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
             vnorm = float(bkd.to_numpy(bkd.norm(v)))
             if vnorm == 0.0:
                 R[ii, ii] = alpha
-                R[ii + 1:, ii] = bkd.zeros((nrows - ii - 1,))
+                R[ii + 1 :, ii] = bkd.zeros((nrows - ii - 1,))
                 nc = ii + 1
             else:
                 v = v / vnorm
@@ -193,13 +190,19 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
                 w = beta * (v @ R[ii:, ii:])
                 R[ii:, ii:] = R[ii:, ii:] - bkd.outer(v, w)
                 R[ii, ii] = alpha
-                R[ii + 1:, ii] = bkd.zeros((nrows - ii - 1,))
+                R[ii + 1 :, ii] = bkd.zeros((nrows - ii - 1,))
                 V[ii:, ii] = v
                 betas[ii] = beta
                 nc = ii + 1
 
             self._downdate_norms_generic(
-                R, col_norms, exact_norms, ii, ncols, recompute_ratio, bkd,
+                R,
+                col_norms,
+                exact_norms,
+                ii,
+                ncols,
+                recompute_ratio,
+                bkd,
             )
 
         return R, V, betas, perm, nc, flag
@@ -244,7 +247,7 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
         ratio = vn1 / safe_vn2
         temp2 = temp * ratio * ratio
 
-        trailing = R[ii + 1:, j0:]
+        trailing = R[ii + 1 :, j0:]
         true_nrm = bkd.sqrt(bkd.einsum("ij,ij->j", trailing, trailing))
         downdated = vn1 * bkd.sqrt(temp)
 

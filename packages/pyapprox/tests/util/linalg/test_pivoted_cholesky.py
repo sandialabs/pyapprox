@@ -19,7 +19,6 @@ from pyapprox.surrogates.kle.eigensolvers import PivotedCholeskyEigenSolver
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.pivoted_cholesky import (
-    _HAS_NUMBA,
     KernelColumnOperator,
     PivotedCholeskyFactorizer,
 )
@@ -29,6 +28,9 @@ from pyapprox.util.linalg.row_blocking import (
     NoBlocking,
     RowBlockingProtocol,
 )
+from pyapprox.util.optional_deps import package_available
+
+_HAS_NUMBA = package_available("numba")
 
 
 class TestPivotedCholesky:

@@ -26,8 +26,6 @@ from pyapprox.util.linalg.row_blocking import (
 )
 from pyapprox.util.optional_deps import package_available
 
-_HAS_NUMBA = package_available("numba")
-
 #: A pivot whose residual diagonal is at most this fraction of the largest
 #: diagonal entry ends the factorization (numerical rank exhausted). Shared
 #: with the numba kernels.
@@ -47,36 +45,29 @@ class KernelLike(Protocol[Array]):
     satisfies this. The surrogates KernelProtocol is a structural subtype.
     """
 
-    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
-        ...
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array: ...
 
-    def diag(self, X1: Array) -> Array:
-        ...
+    def diag(self, X1: Array) -> Array: ...
 
 
 @runtime_checkable
 class NumbaKernelLike(Protocol):
     """Kernel that provides a numba-compiled scalar evaluator."""
 
-    def numba_eval(self) -> NumbaScalarKernelFn:
-        ...
+    def numba_eval(self) -> NumbaScalarKernelFn: ...
 
-    def numba_kernel_params(self) -> np.ndarray:
-        ...
+    def numba_kernel_params(self) -> np.ndarray: ...
 
 
 @runtime_checkable
 class ColumnOperatorProtocol(Protocol[Array_co]):
     """Symmetric matrix represented by column access and diagonal."""
 
-    def column(self, j: int) -> Array_co:
-        ...
+    def column(self, j: int) -> Array_co: ...
 
-    def diagonal(self) -> Array_co:
-        ...
+    def diagonal(self) -> Array_co: ...
 
-    def nvars(self) -> int:
-        ...
+    def nvars(self) -> int: ...
 
 
 class DenseColumnOperator(Generic[Array]):
@@ -153,8 +144,6 @@ def _swap_rows(matrix: Array, ii: int, jj: int, bkd: Backend[Array]) -> None:
     matrix[indices] = bkd.copy(matrix[swap_indices])
 
 
-
-
 # -------------------------------------------------------------------
 # Factorizer
 # -------------------------------------------------------------------
@@ -229,7 +218,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
 
         self._nrows = self._op.nvars()
         self._use_numba = (
-            isinstance(bkd, NumpyBkd) and _HAS_NUMBA and econ
+            isinstance(bkd, NumpyBkd) and package_available("numba") and econ
         )
 
     def bkd(self) -> Backend[Array]:
@@ -254,9 +243,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
             Weights for pivot selection (econ mode only).
         """
         if npivots > self._nrows:
-            raise ValueError(
-                "Number of pivots requested exceeds number of matrix rows"
-            )
+            raise ValueError("Number of pivots requested exceeds number of matrix rows")
         self._init_pivots = init_pivots
         self._pivot_weights = pivot_weights
         self._ncompleted_pivots = 0
@@ -289,19 +276,29 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         )
 
         X_np = np.ascontiguousarray(
-            self._bkd.to_numpy(self._op.points()), dtype=np.float64,
+            self._bkd.to_numpy(self._op.points()),
+            dtype=np.float64,
         )
         kernel_func = kernel.numba_eval()
         kernel_params = np.ascontiguousarray(
-            kernel.numba_kernel_params(), dtype=np.float64,
+            kernel.numba_kernel_params(),
+            dtype=np.float64,
         )
         w_np, ip_np, n_ip, use_weights = _pack_numba_args(
-            init_pivots, pivot_weights,
+            init_pivots,
+            pivot_weights,
         )
 
         L, perm, diag, nc, ie = pivoted_cholesky_fused_numba(
-            X_np, kernel_func, kernel_params,
-            npivots, self._tol, w_np, ip_np, n_ip, use_weights,
+            X_np,
+            kernel_func,
+            kernel_params,
+            npivots,
+            self._tol,
+            w_np,
+            ip_np,
+            n_ip,
+            use_weights,
         )
         self._store_numba_result(L, perm, diag, nc, npivots, init_error=ie)
         return True
@@ -322,14 +319,22 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         )
 
         K_np = np.ascontiguousarray(
-            self._op.matrix(), dtype=np.float64,
+            self._op.matrix(),
+            dtype=np.float64,
         )
         w_np, ip_np, n_ip, use_weights = _pack_numba_args(
-            init_pivots, pivot_weights,
+            init_pivots,
+            pivot_weights,
         )
 
         L, perm, diag, nc = pivoted_cholesky_econ_numba(
-            K_np, npivots, self._tol, w_np, ip_np, n_ip, use_weights,
+            K_np,
+            npivots,
+            self._tol,
+            w_np,
+            ip_np,
+            n_ip,
+            use_weights,
         )
         self._store_numba_result(L, perm, diag, nc, npivots, K_np)
         return True
@@ -365,9 +370,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         if init_error is not None:
             self._init_error = bkd.asarray(init_error)
         elif K_np is not None:
-            self._init_error = bkd.asarray(
-                np.sum(np.abs(np.diag(K_np)))
-            )
+            self._init_error = bkd.asarray(np.sum(np.abs(np.diag(K_np))))
         else:
             self._init_error = bkd.asarray(float(self._nrows))
         self._ncompleted_pivots = nc
@@ -393,9 +396,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         if self._ncompleted_pivots >= npivots:
             raise ValueError("Already have enough pivots")
         if npivots > self._nrows:
-            raise ValueError(
-                "Number of pivots requested exceeds number of matrix rows"
-            )
+            raise ValueError("Number of pivots requested exceeds number of matrix rows")
         ncols = int(self._L.shape[1])
         if ncols < npivots:
             self._L = self._bkd.hstack(
@@ -432,9 +433,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
                 self._diag[self._pivots_arr[ii]]
             )
 
-            pivot_idx = int(bkd.to_numpy(
-                self._pivots_arr[ii : ii + 1]
-            )[0])
+            pivot_idx = int(bkd.to_numpy(self._pivots_arr[ii : ii + 1])[0])
             full_col = self._op.column(pivot_idx)
             rows = self._pivots_arr[ii + 1 :]
             col_pivot = full_col[rows]
@@ -457,8 +456,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
 
             self._ncompleted_pivots += 1
             rel_error = (
-                bkd.sum(self._diag[self._pivots_arr[ii + 1 :]])
-                / self._init_error
+                bkd.sum(self._diag[self._pivots_arr[ii + 1 :]]) / self._init_error
             )
             if rel_error < self._tol:
                 self._termination_flag = 1
@@ -474,9 +472,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         assert self._diag is not None
 
         if self._init_pivots is not None and ii < len(self._init_pivots):
-            mask = bkd.asarray(
-                self._pivots_arr == self._init_pivots[ii]
-            )
+            mask = bkd.asarray(self._pivots_arr == self._init_pivots[ii])
             return int(bkd.to_numpy(bkd.where(mask)[0][0:1])[0])
 
         if self._econ:
@@ -484,9 +480,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
                 return int(
                     bkd.to_numpy(
                         bkd.reshape(
-                            bkd.argmax(
-                                self._diag[self._pivots_arr[ii:]]
-                            ) + ii,
+                            bkd.argmax(self._diag[self._pivots_arr[ii:]]) + ii,
                             (1,),
                         )
                     )[0]
@@ -525,10 +519,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         pivot = int(
             bkd.to_numpy(
                 bkd.reshape(
-                    bkd.argmax(
-                        bkd.norm(schur_complement, axis=0) ** 2
-                        / schur_diag
-                    )
+                    bkd.argmax(bkd.norm(schur_complement, axis=0) ** 2 / schur_diag)
                     + ii,
                     (1,),
                 )
