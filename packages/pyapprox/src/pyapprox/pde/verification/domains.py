@@ -11,6 +11,7 @@ unambiguously. Physical space defaults to ``x, y, z``; a phase space
 ``x, y, z, u, v, w``.
 """
 
+import math
 from typing import Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 _STANDARD = ("x", "y", "z")
@@ -257,6 +258,87 @@ class Annulus:
         return (
             f"{type(self).__name__}(center={self._center}, "
             f"r_inner={self._radii[0]}, r_outer={self._radii[1]})"
+        )
+
+
+class AnnularSector:
+    r"""The part of an annulus between two angles in two dimensions,
+    :math:`r_{inner} \le r \le r_{outer}`, :math:`\theta_{start} \le
+    \theta \le \theta_{end}` about ``center``, with boundary parts
+    ``inner``, ``outer`` (the arcs) and ``start``, ``end`` (the radial
+    sides).
+
+    Parameters
+    ----------
+    center : Tuple[float, float]
+        The common center.
+    r_inner, r_outer : float
+        The radii.
+    theta_start, theta_end : float
+        The angles, in radians.
+
+    Raises
+    ------
+    ValueError
+        If ``r_inner`` is not positive or not below ``r_outer``, or the
+        angles do not satisfy :math:`0 < \theta_{end} - \theta_{start}
+        < 2\pi`.
+    """
+
+    def __init__(
+        self,
+        center: Tuple[float, float] = (0.0, 0.0),
+        r_inner: float = 1.0,
+        r_outer: float = 2.0,
+        theta_start: float = 0.0,
+        theta_end: float = 0.5 * math.pi,
+    ) -> None:
+        if not 0.0 < r_inner < r_outer:
+            raise ValueError(
+                f"radii must satisfy 0 < r_inner < r_outer, got {r_inner}, {r_outer}"
+            )
+        if not 0.0 < theta_end - theta_start < 2.0 * math.pi:
+            raise ValueError(
+                "angles must satisfy 0 < theta_end - theta_start < 2 pi, got "
+                f"{theta_start}, {theta_end}"
+            )
+        self._center = (float(center[0]), float(center[1]))
+        self._radii = (float(r_inner), float(r_outer))
+        self._angles = (float(theta_start), float(theta_end))
+
+    def ndim(self) -> int:
+        """The spatial dimension, two."""
+        return 2
+
+    def coordinates(self) -> Tuple[str, ...]:
+        """``x, y``."""
+        return _STANDARD[:2]
+
+    def interval(self, coordinate: str) -> Optional[Tuple[float, float]]:
+        """``None``: a sector is not a product over either coordinate."""
+        return None
+
+    def center(self) -> Tuple[float, float]:
+        """The common center."""
+        return self._center
+
+    def radii(self) -> Tuple[float, float]:
+        """``(r_inner, r_outer)``."""
+        return self._radii
+
+    def angles(self) -> Tuple[float, float]:
+        """``(theta_start, theta_end)``."""
+        return self._angles
+
+    def boundaries(self) -> Tuple[str, ...]:
+        """``inner``, ``outer``, ``start``, ``end``."""
+        return ("inner", "outer", "start", "end")
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(center={self._center}, "
+            f"r_inner={self._radii[0]}, r_outer={self._radii[1]}, "
+            f"theta_start={self._angles[0]}, theta_end={self._angles[1]})"
         )
 
 

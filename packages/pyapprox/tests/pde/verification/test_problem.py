@@ -41,6 +41,7 @@ from pyapprox.pde.verification.conditions import (
     Robin,
 )
 from pyapprox.pde.verification.domains import (
+    AnnularSector,
     Annulus,
     Box,
     Disk,
@@ -119,6 +120,18 @@ class TestDomains:
         assert annulus.interval("x") is None
         assert repr(annulus) == "Annulus(center=(1.0, 2.0), r_inner=0.5, r_outer=1.5)"
 
+    def test_annular_sector(self) -> None:
+        sector = AnnularSector((1.0, 2.0), 0.5, 1.5, 0.25, 1.0)
+        assert isinstance(sector, DomainProtocol)
+        assert sector.ndim() == 2 and sector.coordinates() == ("x", "y")
+        assert sector.boundaries() == ("inner", "outer", "start", "end")
+        assert sector.center() == (1.0, 2.0) and sector.radii() == (0.5, 1.5)
+        assert sector.angles() == (0.25, 1.0) and sector.interval("x") is None
+        assert repr(sector) == (
+            "AnnularSector(center=(1.0, 2.0), r_inner=0.5, r_outer=1.5, "
+            "theta_start=0.25, theta_end=1.0)"
+        )
+
     def test_elliptical_annulus(self) -> None:
         ring = EllipticalAnnulus(2.0, 0.5, 1.0)
         assert isinstance(ring, DomainProtocol)
@@ -138,6 +151,11 @@ class TestDomains:
         for r_inner, r_outer in ((0.0, 1.0), (2.0, 1.0)):
             with pytest.raises(ValueError, match="0 < r_inner < r_outer"):
                 Annulus(r_inner=r_inner, r_outer=r_outer)
+            with pytest.raises(ValueError, match="0 < r_inner < r_outer"):
+                AnnularSector(r_inner=r_inner, r_outer=r_outer)
+        for start, end in ((1.0, 1.0), (0.0, 7.0)):
+            with pytest.raises(ValueError, match="theta_end - theta_start"):
+                AnnularSector(theta_start=start, theta_end=end)
         with pytest.raises(ValueError, match="focal must be positive"):
             EllipticalAnnulus(focal=0.0)
         for u_inner, u_outer in ((0.0, 1.0), (1.0, 1.0)):
