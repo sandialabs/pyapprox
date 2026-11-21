@@ -27,7 +27,13 @@ where that floor falls moves between platforms. Central differences of
 every case floor at most at 4.4e-10 (HVP) and give Jacobian and HVP
 error ratios at most 1.3e-8 and 5.2e-9, so the checks assert the V shape
 (second order) with bounds 1e-6 on the ratios and 1e-8 on the HVP
-minimum. The symmetry identity carries the tight validation.
+minimum. The V's order is fitted against each curve's predicted
+rounding (``predicted_rounding``), over the two decades above where the
+error nears it, because the floor arrives anywhere from h = 1e-3 to 1e-5
+by case and platform and a fit reaching it misreads the order (0.8 to
+2.4 seen). Locally every case fits 2.000 to 2.004, and a relative defect
+of 1e-5 in the Jacobian or the HVP fails. The symmetry identity carries
+the tight validation.
 """
 
 from typing import List, Optional, Protocol, Tuple, runtime_checkable
@@ -43,6 +49,7 @@ import numpy as np
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+    predicted_rounding,
 )
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.protocols import TransientFunctionalProtocol
@@ -351,14 +358,37 @@ def _check_gradient_and_hvp(
     assert hvp_min <= 1e-8
     hvp_ratio = float(bkd.to_numpy(checker.error_ratio(errors[1])))
     assert hvp_ratio <= 1e-6
-    # The V of a second-order difference, or, for a quantity quadratic
-    # along the direction (the time-integrated case's gradient), an exact
-    # difference already at the largest step, which a wrong derivative
-    # cannot give. Steps are the checker's defaults, largest first.
-    steps = bkd.flip(bkd.logspace(-13, -1, 13))
-    for error in errors:
-        exact = float(bkd.to_numpy(error[0])) <= 1e-13
-        assert exact or checker.check_v_shape(error, steps, central=True).passed
+    # The V of a second-order difference, judged against the rounding
+    # predicted for each curve: the order is fitted over the two decades
+    # above the steps where the error is within 100 times that rounding,
+    # so the fit stays off the floor wherever a case and platform put it
+    # (the floor arrives between h = 1e-3 and 1e-5 here, and a fit that
+    # reaches it reads 2.3 to 2.4). A curve that is rounding at every
+    # step (the time-integrated case's gradient, a quantity quadratic
+    # along the direction, so its difference is exact) passes as
+    # truncation free, which a wrong derivative cannot be. Steps are the
+    # checker's defaults, largest first.
+    steps_list = [10.0**-k for k in range(1, 14)]
+    steps = bkd.asarray(steps_list)
+    jacobian_fn = model.derivatives().jacobian
+    assert jacobian_fn is not None
+    gradient = jacobian_fn(sample)
+    sizes = (
+        (model(sample), bkd.dot(gradient, direction)),
+        (gradient, hvp_fn(sample, direction)),
+    )
+    eps = float(np.finfo(bkd.to_numpy(sample).dtype).eps)
+    for error, (value, action) in zip(errors, sizes):
+        rounding = predicted_rounding(
+            eps,
+            bkd.to_float(bkd.norm(value)),
+            bkd.to_float(bkd.norm(action)),
+            bkd.to_float(bkd.norm(sample)),
+            steps_list,
+        )
+        curve = checker.curve(error, steps, central=True, rounding=rounding)
+        report = curve.v_shape()
+        assert report.passed, report
 
     other = bkd.asarray(np.random.default_rng(11).normal(0.0, 1.0, (model.nvars(), 1)))
     h_dir = bkd.flatten(hvp_fn(sample, direction))
