@@ -34,7 +34,7 @@ from pyapprox.pde.verification.study import (
     verify,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
+from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 
 # A level family built from node counts per direction and a backend, as
 # ChebyshevBox, ChebyshevAnnulus and ChebyshevEllipticalAnnulus are.
@@ -45,6 +45,13 @@ _KINDS: Dict[str, ConditionProtocol] = {
     "N": Neumann(),
     "R": Robin(1.0),
 }
+
+
+def ring_newton() -> Newton[Array, Array]:
+    """Newton for solves on the ring families: on 20-24 nodes per
+    direction a linear solve's residual round-off floor (3e-11 to 8e-11)
+    is above the discretizer's default absolute tolerance 1e-12."""
+    return Newton(atol=1e-9, rtol=1e-12, maxiters=30)
 
 
 def coded(codes: str, domain: DomainProtocol) -> Dict[str, ConditionProtocol]:

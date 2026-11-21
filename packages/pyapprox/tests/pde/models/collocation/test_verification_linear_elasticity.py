@@ -19,7 +19,8 @@ Cases:
   and at their node counts; with variable Lamé values; with traction
   Neumann and traction Robin on one side and the other sides Dirichlet;
   in 3D; and with conditions mixing kinds by component, on both backends;
-- spectral decay, fitted per node, of analytic solutions in 2D and 3D;
+- spectral decay, fitted per node, of analytic solutions in 2D and 3D,
+  and on an annulus with Dirichlet, traction and Robin circles;
 - wrong-model controls, which stall: the physics given :math:`\lambda`
   and :math:`\mu` swapped, and traction sides given the traction with
   the wrong sign.
@@ -34,6 +35,7 @@ from pyapprox.pde.collocation.physics.linear_elasticity import (
 )
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
+    ChebyshevAnnulus,
     ChebyshevLevel,
     TractionTerm,
     collocation_system,
@@ -46,11 +48,16 @@ from pyapprox.pde.verification.conditions import (
     Neumann,
     Robin,
 )
-from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.domains import Annulus, Box, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import Divergence, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-from tests._helpers.collocation_verification import decays, recovers, stalls
+from tests._helpers.collocation_verification import (
+    decays,
+    recovers,
+    ring_newton,
+    stalls,
+)
 
 _FIELDS = ("u", "v", "w")
 _COORDS = ("x", "y", "z")
@@ -108,13 +115,13 @@ class _Elasticity:
         return terms
 
     def problem(
-        self, solution: Sequence[str], box: Box, conditions: _Conditions
+        self, solution: Sequence[str], domain: DomainProtocol, conditions: _Conditions
     ) -> ManufacturedProblem:
-        ndim = box.ndim()
+        ndim = domain.ndim()
         return ManufacturedProblem(
             dict(zip(_FIELDS[:ndim], solution)),
             self.terms(ndim),
-            box,
+            domain,
             conditions,
         )
 
@@ -140,14 +147,15 @@ class _Elasticity:
         )
 
 
-def _sides(box: Box, codes: str) -> Dict[str, ConditionProtocol]:
-    """One condition per side, for every component: D, N or R (alpha 2)."""
+def _sides(domain: DomainProtocol, codes: str) -> Dict[str, ConditionProtocol]:
+    """One condition per boundary part, for every component: D, N or R
+    (alpha 2)."""
     kinds: Dict[str, ConditionProtocol] = {
         "D": Dirichlet(),
         "N": Neumann(),
         "R": Robin(2.0),
     }
-    return {side: kinds[code] for code, side in zip(codes, box.boundaries())}
+    return {side: kinds[code] for code, side in zip(codes, domain.boundaries())}
 
 
 _SQUARE = Box([(-1.0, 1.0)] * 2)
@@ -260,6 +268,52 @@ def test_decays_3d(numpy_bkd: Backend[Array]) -> None:
         ("sin(pi*x)*sin(pi*y)*sin(pi*z)",) * 3, _CUBE, _sides(_CUBE, "DDDDDD")
     )
     decays(problem, elasticity, [4, 6, 8], 1.0, numpy_bkd)
+
+
+_RING = Annulus((0.0, 0.0), 1.0, 2.0)
+
+
+@pytest.mark.parametrize("codes", ["DD", "ND"], ids=["dirichlet", "traction-inner"])
+def test_decays_annulus(numpy_bkd: Backend[Array], codes: str) -> None:
+    """The old polar cases' u = x (x^2 + y^2), v = y (x^2 + y^2),
+    lambda = 1.5, mu = 0.8, on the annulus 1 <= r <= 2 meshed over the
+    full angle: both circles Dirichlet, 3.4e-1 to 8.9e-10, and traction
+    on the inner circle, 1.2 to 4.9e-11, over 8-24 nodes per direction
+    (observed 1.31 and 1.39 per node, required 0.9)."""
+    elasticity = _Elasticity("1.5", "0.8")
+    problem = elasticity.problem(
+        ("x*(x**2 + y**2)", "y*(x**2 + y**2)"), _RING, _sides(_RING, codes)
+    )
+    decays(
+        problem,
+        elasticity,
+        [8, 12, 16, 20, 24],
+        0.9,
+        numpy_bkd,
+        nonlinear=ring_newton(),
+        family=ChebyshevAnnulus,
+    )
+
+
+def test_decays_annulus_variable_lame(numpy_bkd: Backend[Array]) -> None:
+    """u = sin(x + y)/2, v = cos(x - 2 y)/4, lambda = 2 + x/4,
+    mu = 1 + y^2/8 on the annulus, Dirichlet inner and Robin outer:
+    1.1e-1 to 1.8e-4 over 16-32 nodes per direction (observed 0.39 per
+    node, required 0.3), slower than on the square because the solution
+    varies over a diameter of 4."""
+    elasticity = _Elasticity("2 + x/4", "1 + y**2/8")
+    problem = elasticity.problem(
+        ("sin(x + y)/2", "cos(x - 2*y)/4"), _RING, _sides(_RING, "DR")
+    )
+    decays(
+        problem,
+        elasticity,
+        [16, 20, 24, 28, 32],
+        0.3,
+        numpy_bkd,
+        nonlinear=ring_newton(),
+        family=ChebyshevAnnulus,
+    )
 
 
 def test_swapped_lame_stalls(numpy_bkd: Backend[Array]) -> None:

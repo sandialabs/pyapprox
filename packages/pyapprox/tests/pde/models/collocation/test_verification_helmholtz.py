@@ -16,7 +16,7 @@ Cases:
 - recovery of cubics under Neumann and Robin sides, 1D and 2D, both
   backends in 2D;
 - spectral decay, fitted per node, of analytic solutions in 1D and 2D
-  under mixed sides;
+  under mixed sides, and on an annulus;
 - wrong-model control: the physics built with -k^2, the standard sign,
   for a screened problem stalls.
 """
@@ -28,15 +28,22 @@ import pytest
 from pyapprox.pde.collocation.physics.helmholtz import HelmholtzPhysics
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
+    ChebyshevAnnulus,
     ChebyshevLevel,
     collocation_system,
     forcing,
 )
-from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.domains import Annulus, Box, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import Divergence, Source, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-from tests._helpers.collocation_verification import coded, decays, recovers, stalls
+from tests._helpers.collocation_verification import (
+    coded,
+    decays,
+    recovers,
+    ring_newton,
+    stalls,
+)
 
 
 class _Helmholtz:
@@ -66,9 +73,14 @@ class _Helmholtz:
             Source("u", f"({self._k2})*u"),
         ]
 
-    def problem(self, solution: str, box: Box, codes: str) -> ManufacturedProblem:
+    def problem(
+        self, solution: str, domain: DomainProtocol, codes: str
+    ) -> ManufacturedProblem:
         return ManufacturedProblem(
-            {"u": solution}, self.terms(box.coordinates()), box, coded(codes, box)
+            {"u": solution},
+            self.terms(domain.coordinates()),
+            domain,
+            coded(codes, domain),
         )
 
     def system(
@@ -90,6 +102,7 @@ _REFERENCE_1D = Box([(-1.0, 1.0)])
 _REFERENCE_2D = Box([(-1.0, 1.0)] * 2)
 _UNIT = Box([(0.0, 1.0)])
 _RECTANGLE = Box([(0.0, 1.0), (-1.0, 1.0)])
+_RING = Annulus((0.0, 0.0), 1.0, 2.0)
 
 
 @pytest.mark.parametrize(
@@ -169,6 +182,26 @@ def test_decays_2d(numpy_bkd: Backend[Array]) -> None:
     helmholtz = _Helmholtz(3.0)
     problem = helmholtz.problem("exp(x/2)*sin(2*y) + x*y", _RECTANGLE, "DRDN")
     decays(problem, helmholtz, [4, 6, 8, 10, 12], 1.0, numpy_bkd)
+
+
+@pytest.mark.parametrize("k2, codes", [(3.0, "DD"), (-2.0, "DR")])
+def test_decays_annulus(numpy_bkd: Backend[Array], k2: float, codes: str) -> None:
+    """u = exp(x/2) sin(y) on the annulus 1 <= r <= 2 meshed over the
+    full angle, screened (k^2 = 3, both circles Dirichlet) and standard
+    sign (k^2 = -2, Robin outer): errors 2.5e-1 to 9.6e-6 and 3.5e-1 to
+    1.1e-5 over 8-24 nodes per direction (observed 0.64 and 0.65 per
+    node, required 0.45)."""
+    helmholtz = _Helmholtz(k2)
+    problem = helmholtz.problem("exp(x/2)*sin(y)", _RING, codes)
+    decays(
+        problem,
+        helmholtz,
+        [8, 12, 16, 20, 24],
+        0.45,
+        numpy_bkd,
+        nonlinear=ring_newton(),
+        family=ChebyshevAnnulus,
+    )
 
 
 def test_wrong_sign_stalls(numpy_bkd: Backend[Array]) -> None:

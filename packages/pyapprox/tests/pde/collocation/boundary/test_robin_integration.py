@@ -6,12 +6,8 @@ conventions, are verified by the collocation catalogs
 (``tests/pde/models/collocation/test_verification_*.py``).
 """
 
-import math
-from typing import List
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
-    ChebyshevBasis2D,
 )
 from pyapprox.pde.collocation.boundary import (
     DirichletBC,
@@ -20,16 +16,12 @@ from pyapprox.pde.collocation.boundary import (
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
-    TransformedMesh2D,
     create_uniform_mesh_1d,
 )
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
 from pyapprox.pde.collocation.physics.coefficients import (
-    NodalField,
     NodalSupplier,
 )
-from pyapprox.pde.collocation.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
@@ -155,83 +147,3 @@ class TestTransientRobinSolve:
     def test_transient_flux_robin(self, bkd: Backend[Array]) -> None:
         """1D transient flux Robin, D=2, v=1."""
         self._solve_1d_transient_robin("flux", 2.0, 1, bkd)
-
-
-class TestCurvilinearRobinSolve:
-    """Integration tests for Robin BCs on curvilinear meshes."""
-
-    def test_polar_gradient_robin_solve(self, bkd: Backend[Array]) -> None:
-        """Polar domain r in [1,2], theta in [-pi/2,pi/2].
-
-        u = x^2*y^2, D=1, reaction=u.
-        Robin on r_min (varying normals), Dirichlet on other 3 sides.
-        """
-        npts = 25
-        transform = PolarTransform(
-            r_bounds=(1.0, 2.0),
-            theta_bounds=(-math.pi / 2, math.pi / 2),
-            bkd=bkd,
-        )
-        tmesh = TransformedMesh2D(npts, npts, bkd, transform)
-        basis = ChebyshevBasis2D(tmesh, bkd)
-
-        man_sol = ManufacturedAdvectionDiffusionReaction(
-            sol_str="x**2*y**2",
-            nvars=2,
-            diff_str="1.0",
-            react_str="u",
-            vel_strs=["0", "0"],
-            bkd=bkd,
-            oned=True,
-        )
-
-        pts = tmesh.points()
-        u_exact = man_sol.functions["solution"](pts)
-        forcing = man_sol.functions["forcing"](pts)
-
-        physics = AdvectionDiffusionReaction(
-            basis,
-            bkd,
-            diffusion=1.0,
-            reaction=1.0,
-            forcing=NodalField(forcing),
-        )
-
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
-
-        # r_min (side 0): gradient Robin with varying normals
-        left_idx = tmesh.boundary_indices(0)
-        left_normals = tmesh.boundary_normals(0)
-        robin_val = man_sol.robin_values(
-            pts[:, left_idx],
-            left_normals,
-            1.0,
-            1.0,
-            convention="gradient",
-        )
-        bc_left = gradient_robin_bc(
-            bkd,
-            left_idx,
-            left_normals,
-            [Dx, Dy],
-            1.0,
-            1.0,
-            robin_val,
-        )
-
-        # Other 3 sides: Dirichlet
-        bcs: List[BoundaryConditionProtocol[Array]] = [bc_left]
-        for side in range(1, 4):
-            idx = tmesh.boundary_indices(side)
-            bcs.append(DirichletBC(bkd, idx, u_exact[idx]))
-
-        physics.set_boundary_conditions(bcs)
-
-        model = CollocationModel(physics, bkd)
-        u_numerical = model.solve_steady(
-            bkd.zeros((npts * npts,)),
-            tol=1e-10,
-            maxiter=50,
-        )
-        bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)

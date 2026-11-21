@@ -26,7 +26,8 @@ Cases:
   soft to stiff;
 - spectral decay, fitted per node, of the comparison suite's 1D and 2D
   displacements (clamped, all sides Dirichlet), and of the Galerkin
-  catalog's 1D, 2D and 3D solutions with traction and Robin sides;
+  catalog's 1D, 2D and 3D solutions with traction and Robin sides, and
+  on an annulus with Dirichlet, traction and Robin circles;
 - wrong-model controls, which stall: the problem stated with the
   small-strain law, the physics given :math:`\lambda` and :math:`\mu`
   swapped, and traction sides given the traction with the wrong sign.
@@ -43,6 +44,7 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.verification import (
+    ChebyshevAnnulus,
     ChebyshevBox,
     ChebyshevLevel,
     PiolaTractionTerm,
@@ -51,11 +53,17 @@ from pyapprox.pde.models.collocation.verification import (
     side_nodes,
     stacked_forcing,
 )
-from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.domains import Annulus, Box, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.terms import Divergence, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-from tests._helpers.collocation_verification import coded, decays, recovers, stalls
+from tests._helpers.collocation_verification import (
+    coded,
+    decays,
+    recovers,
+    ring_newton,
+    stalls,
+)
 from tests._helpers.markers import slow_test
 
 _FIELDS = ("u", "v", "w")
@@ -143,15 +151,16 @@ class _Hyperelasticity:
         ]
 
     def problem(
-        self, solution: Sequence[str], box: Box, codes: str
+        self, solution: Sequence[str], domain: DomainProtocol, codes: str
     ) -> ManufacturedProblem:
-        """The problem on ``box``, one code per side for every component."""
-        ndim = box.ndim()
+        """The problem on ``domain``, one code per boundary part for every
+        component."""
+        ndim = domain.ndim()
         return ManufacturedProblem(
             dict(zip(_FIELDS[:ndim], solution)),
             self.terms(ndim),
-            box,
-            coded(codes, box),
+            domain,
+            coded(codes, domain),
         )
 
     def physics(
@@ -314,6 +323,30 @@ def test_decays_varying_lame(numpy_bkd: Backend[Array]) -> None:
     physics = _Hyperelasticity("1 + x", "1 + y/2")
     problem = physics.problem(_SOLUTION_2D, _SQUARE, "DNDR")
     decays(problem, physics, [6, 8, 10, 12], 0.9, numpy_bkd)
+
+
+_RING = Annulus((0.0, 0.0), 1.0, 2.0)
+
+
+@pytest.mark.parametrize("codes", ["DD", "ND", "DR"])
+def test_decays_annulus(numpy_bkd: Backend[Array], codes: str) -> None:
+    """u = 0.05 sin(x + y), v = 0.03 cos(x - y) on the annulus
+    1 <= r <= 2 meshed over the full angle, lambda = mu = 1: over 16-32
+    nodes per direction, both circles Dirichlet 2.1e-3 to 4.9e-7
+    (observed 0.52 per node), traction on the inner circle 3.9e-3 to
+    6.8e-7 (0.56, not monotone: 1.4e-3 at 20 nodes, 1.0e-3 at 24), Robin
+    outer 2.8e-3 to 9.0e-7 (0.50); required 0.4."""
+    physics = _Hyperelasticity("1", "1")
+    problem = physics.problem(("0.05*sin(x + y)", "0.03*cos(x - y)"), _RING, codes)
+    decays(
+        problem,
+        physics,
+        [16, 20, 24, 28, 32],
+        0.4,
+        numpy_bkd,
+        nonlinear=ring_newton(),
+        family=ChebyshevAnnulus,
+    )
 
 
 @slow_test

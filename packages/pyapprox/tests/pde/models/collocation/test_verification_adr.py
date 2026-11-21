@@ -107,8 +107,13 @@ from pyapprox.pde.verification.terms import (
     TimeDerivative,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.rootfinding.nonlinear import Newton
-from tests._helpers.collocation_verification import coded, decays, recovers, stalls
+from tests._helpers.collocation_verification import (
+    coded,
+    decays,
+    recovers,
+    ring_newton,
+    stalls,
+)
 
 
 class _ADR:
@@ -392,13 +397,6 @@ _ELLIPTICAL_RING = EllipticalAnnulus(1.0, 0.5, 1.0)
 _RING_SIZES = [8, 12, 16, 20, 24]
 
 
-def _ring_newton() -> Newton[Array, Array]:
-    """Newton for the rings' linear solves, which take one step: on 20-24
-    nodes per direction their residual's round-off floor (3e-11 to 8e-11)
-    is above the discretizer's default 1e-12."""
-    return Newton(atol=1e-9, rtol=1e-12, maxiters=30)
-
-
 @pytest.mark.parametrize(
     "adr, codes",
     [
@@ -422,7 +420,7 @@ def test_decays_annulus(numpy_bkd: Backend[Array], adr: _ADR, codes: str) -> Non
         _RING_SIZES,
         0.45,
         numpy_bkd,
-        nonlinear=_ring_newton(),
+        nonlinear=ring_newton(),
         family=ChebyshevAnnulus,
     )
 
@@ -441,7 +439,7 @@ def test_decays_annulus_old_periodic_case(bkd: Backend[Array]) -> None:
         [8, 12, 16],
         1.5,
         bkd,
-        nonlinear=_ring_newton(),
+        nonlinear=ring_newton(),
         family=ChebyshevAnnulus,
     )
 
@@ -462,7 +460,7 @@ def test_decays_elliptical_annulus(numpy_bkd: Backend[Array], codes: str) -> Non
         _RING_SIZES,
         0.4,
         numpy_bkd,
-        nonlinear=_ring_newton(),
+        nonlinear=ring_newton(),
         family=ChebyshevEllipticalAnnulus,
     )
 
@@ -497,7 +495,7 @@ def test_annulus_without_seam_stalls(numpy_bkd: Backend[Array]) -> None:
         adr,
         [8, 12, 16, 20],
         numpy_bkd,
-        nonlinear=_ring_newton(),
+        nonlinear=ring_newton(),
         family=_Seamless,
     )
 
