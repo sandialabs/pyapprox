@@ -21,13 +21,16 @@ FD suites; this file validates the composed public surface:
 - the quasilinear kappa(u)*a(x) physics (genuine mixed
   state-parameter curvature, invisible to gradient-only tests).
 
-FD calibration: one-sided FD stacked on Newton-tolerance transient
-solves floors near 1e-7 relative, so the raw 1e-6 ratio target is not
-met by ANY transient FD check in the repo; gradients assert
-``error_ratio <= 2e-5`` (the transient collocation precedent) and HVPs
-assert the V-bottom plus a loose ratio, with the symmetry identity
-carrying the tight validation.
+FD calibration: central differences. One-sided differences of the
+gradient floor near 1e-6 relative for the HVP, at the bound itself, and
+where that floor falls moves between platforms. Central differences of
+every case floor at most at 4.4e-10 (HVP) and give Jacobian and HVP
+error ratios at most 1.3e-8 and 5.2e-9, so the checks assert the V shape
+(second order) with bounds 1e-6 on the ratios and 1e-8 on the HVP
+minimum. The symmetry identity carries the tight validation.
 """
+
+from typing import List, Optional, Protocol, Tuple, runtime_checkable
 
 import pytest
 
@@ -42,6 +45,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.protocols import TransientFunctionalProtocol
 from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
 from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
     TimeIntegratedWeightedL2Functional,
@@ -49,13 +53,17 @@ from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
 from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
+from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
     NodalFieldVelocity,
+    TimeIndependent,
+    TimeModulatedNodalFieldLinearReaction,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
@@ -67,12 +75,15 @@ from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
     QuasilinearDiffusion,
 )
+from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
 from pyapprox.pde.models.galerkin.transient import (
     GalerkinTransientForwardModel,
 )
+from pyapprox.pde.parameterizations.field_term import _FieldParameterizationTerm
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -91,15 +102,15 @@ _N_KLE_MODES = 4
 _N_FORCING_MODES = 2
 
 
-def _kappa(u):
+def _kappa(u: NumpyArray) -> NumpyArray:
     return 1.0 + u**2
 
 
-def _kappa_deriv(u):
+def _kappa_deriv(u: NumpyArray) -> NumpyArray:
     return 2.0 * u
 
 
-def _kappa_second_deriv(u):
+def _kappa_second_deriv(u: NumpyArray) -> NumpyArray:
     return np.full_like(u, 2.0)
 
 
@@ -115,7 +126,14 @@ def _time_config(method: str) -> TimeIntegrationConfig[NumpyArray]:
     )
 
 
-def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = False):
+def _build_physics(
+    bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = False
+) -> Tuple[
+    AdvectionDiffusionReaction[NumpyArray],
+    GalerkinSystem[NumpyArray],
+    LagrangeBasis[NumpyArray],
+    VectorLagrangeBasis[NumpyArray],
+]:
     """2D unit-square ADR: nodal diffusivity/forcing, constant (1, 0)
     velocity, homogeneous Dirichlet. The optional CUBIC reaction is the
     only state-nonlinear term, and unlike the component tiers'
@@ -140,9 +158,10 @@ def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = Fa
         if cubic_reaction
         else None
     )
+    boundary_conditions: List[BoundaryConditionRole[NumpyArray]]
     if robin:
         boundary_conditions = [
-            RobinBC(basis, "left", lambda x: 0.5 + x[1], 0.0, bkd),
+            RobinBC(basis, "left", TimeIndependent(lambda x: 0.5 + x[1]), 0.0, bkd),
             RobinBC(basis, "right", 0.3, 0.0, bkd),
             DirichletBC(basis, "bottom", 0.0, bkd),
             DirichletBC(basis, "top", 0.0, bkd),
@@ -164,7 +183,9 @@ def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = Fa
     return physics, system, basis, vel_basis
 
 
-def _diffusivity_map(bkd: NumpyBkd, basis):
+def _diffusivity_map(
+    bkd: NumpyBkd, basis: LagrangeBasis[NumpyArray]
+) -> TransformedFieldMap[NumpyArray]:
     """Bilaplacian-prior lognormal KLE (correlation length ~0.5)."""
     nnodes = basis.ndofs()
     return spde_lognormal_field_map(
@@ -178,7 +199,9 @@ def _diffusivity_map(bkd: NumpyBkd, basis):
     )
 
 
-def _forcing_map(bkd: NumpyBkd, basis):
+def _forcing_map(
+    bkd: NumpyBkd, basis: LagrangeBasis[NumpyArray]
+) -> MeshKLEFieldMap[NumpyArray]:
     """Linear KLE with zero mean: the forcing field VANISHES at p = 0."""
     coords = bkd.to_numpy(basis.dof_coordinates())
     modes = np.stack(
@@ -195,7 +218,9 @@ def _forcing_map(bkd: NumpyBkd, basis):
     )
 
 
-def _velocity_map(bkd: NumpyBkd, vel_basis):
+def _velocity_map(
+    bkd: NumpyBkd, vel_basis: VectorLagrangeBasis[NumpyArray]
+) -> MeshKLEFieldMap[NumpyArray]:
     """Linear KLE over the interleaved velocity DOFs around (1, 0)."""
     nvel = vel_basis.ndofs()
     mean = np.zeros(nvel)
@@ -205,22 +230,44 @@ def _velocity_map(bkd: NumpyBkd, vel_basis):
     return MeshKLEFieldMap(bkd, bkd.asarray(mean), bkd.asarray(modes))
 
 
-def _build_parameterization(bkd: NumpyBkd, case: str, robin: bool = False):
+def _build_parameterization(
+    bkd: NumpyBkd, case: str, robin: bool = False
+) -> Tuple[
+    AdvectionDiffusionReaction[NumpyArray],
+    GalerkinSystem[NumpyArray],
+    AdvectionDiffusionParameterization[NumpyArray],
+]:
     physics, system, basis, vel_basis = _build_physics(
         bkd, cubic_reaction=case.startswith("cubic"), robin=robin
     )
-    maps = {}
-    if case in ("diffusivity", "composite", "cubic-exp"):
-        maps["diffusivity_map"] = _diffusivity_map(bkd, basis)
-    if case in ("forcing", "composite", "cubic-linear"):
-        maps["forcing_map"] = _forcing_map(bkd, basis)
-    if case == "velocity":
-        maps["velocity_map"] = _velocity_map(bkd, vel_basis)
-    param_obj = AdvectionDiffusionParameterization(physics, bkd=bkd, **maps)
+    param_obj = AdvectionDiffusionParameterization(
+        physics,
+        bkd=bkd,
+        diffusivity_map=(
+            _diffusivity_map(bkd, basis)
+            if case in ("diffusivity", "composite", "cubic-exp")
+            else None
+        ),
+        forcing_map=(
+            _forcing_map(bkd, basis)
+            if case in ("forcing", "composite", "cubic-linear")
+            else None
+        ),
+        velocity_map=_velocity_map(bkd, vel_basis) if case == "velocity" else None,
+    )
     return physics, system, param_obj
 
 
-def _subdomain_average_weights(bkd: NumpyBkd, physics) -> NumpyArray:
+@runtime_checkable
+class _PhysicsProtocol(Protocol):
+    """What the weight and initial-state helpers read of a physics."""
+
+    def basis(self) -> GalerkinBasisProtocol[NumpyArray]: ...
+
+    def mass_matrix(self) -> NumpyArray: ...
+
+
+def _subdomain_average_weights(bkd: NumpyBkd, physics: _PhysicsProtocol) -> NumpyArray:
     """Mass-weighted subdomain average: c = M @ indicator(x > 0.5)."""
     coords = bkd.to_numpy(physics.basis().dof_coordinates())
     indicator = (coords[0] > 0.5).astype(float)
@@ -229,14 +276,17 @@ def _subdomain_average_weights(bkd: NumpyBkd, physics) -> NumpyArray:
     return bkd.asarray(cvec.reshape(-1, 1))
 
 
-def _gaussian_bump_ic(bkd: NumpyBkd, physics) -> NumpyArray:
+def _gaussian_bump_ic(bkd: NumpyBkd, physics: _PhysicsProtocol) -> NumpyArray:
     coords = bkd.to_numpy(physics.basis().dof_coordinates())
     vals = np.exp(-50.0 * ((coords[0] - 0.4) ** 2 + (coords[1] - 0.5) ** 2))
     return bkd.asarray(vals)
 
 
 def _make_model(
-    bkd: NumpyBkd, case: str, method: str, functional=None
+    bkd: NumpyBkd,
+    case: str,
+    method: str,
+    functional: Optional[TransientFunctionalProtocol[NumpyArray]] = None,
 ) -> GalerkinTransientForwardModel[NumpyArray]:
     physics, system, param_obj = _build_parameterization(bkd, case)
     if functional is None:
@@ -251,10 +301,11 @@ def _make_model(
         param_obj,
         _gaussian_bump_ic(bkd, physics),
         _time_config(method),
-        functional=functional)
+        functional=functional,
+    )
 
 
-def _sample_and_direction(nparams: int):
+def _sample_and_direction(nparams: int) -> Tuple[NumpyArray, NumpyArray]:
     rng = np.random.default_rng(7)
     sample = 0.4 * rng.normal(0.0, 1.0, (nparams, 1))
     direction = rng.normal(0.0, 1.0, (nparams, 1))
@@ -262,7 +313,9 @@ def _sample_and_direction(nparams: int):
 
 
 def _check_gradient_and_hvp(
-    bkd: NumpyBkd, model, expect_zero_hessian: bool = False
+    bkd: NumpyBkd,
+    model: GalerkinTransientForwardModel[NumpyArray],
+    expect_zero_hessian: bool = False,
 ) -> None:
     """DerivativeChecker on the model itself + HVP symmetry identity.
 
@@ -279,21 +332,33 @@ def _check_gradient_and_hvp(
 
     if expect_zero_hessian:
         checker = DerivativeChecker(model)
-        errors = checker.check_derivatives(sample, direction=direction, relative=True)
+        errors = checker.check_derivatives(
+            sample, direction=direction, relative=True, central=True
+        )
         jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        assert jac_ratio <= 2e-5
+        assert jac_ratio <= 1e-6
         hvp_val = hvp_fn(sample, direction)
         bkd.assert_allclose(hvp_val, bkd.zeros(hvp_val.shape), atol=1e-14, rtol=0.0)
         return
 
     checker = DerivativeChecker(model)
-    errors = checker.check_derivatives(sample, direction=direction, relative=True)
+    errors = checker.check_derivatives(
+        sample, direction=direction, relative=True, central=True
+    )
     jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-    assert jac_ratio <= 2e-5
+    assert jac_ratio <= 1e-6
     hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
-    assert hvp_min <= 1e-6
+    assert hvp_min <= 1e-8
     hvp_ratio = float(bkd.to_numpy(checker.error_ratio(errors[1])))
-    assert hvp_ratio <= 1e-5
+    assert hvp_ratio <= 1e-6
+    # The V of a second-order difference, or, for a quantity quadratic
+    # along the direction (the time-integrated case's gradient), an exact
+    # difference already at the largest step, which a wrong derivative
+    # cannot give. Steps are the checker's defaults, largest first.
+    steps = bkd.flip(bkd.logspace(-13, -1, 13))
+    for error in errors:
+        exact = float(bkd.to_numpy(error[0])) <= 1e-13
+        assert exact or checker.check_v_shape(error, steps, central=True).passed
 
     other = bkd.asarray(np.random.default_rng(11).normal(0.0, 1.0, (model.nvars(), 1)))
     h_dir = bkd.flatten(hvp_fn(sample, direction))
@@ -310,24 +375,30 @@ class _TikhonovWeightedEndpoint(WeightedEndpointFunctional[NumpyArray]):
     derivatives (every plain-endpoint case has dQ/dp == 0, leaving the
     functional param pathways untested)."""
 
-    def __init__(self, weights, nparams, alpha, bkd):
+    def __init__(
+        self, weights: NumpyArray, nparams: int, alpha: float, bkd: NumpyBkd
+    ) -> None:
         super().__init__(weights, nparams, bkd)
         self._alpha = alpha
 
-    def __call__(self, sol, param):
+    def __call__(self, sol: NumpyArray, param: NumpyArray) -> NumpyArray:
         base = super().__call__(sol, param)
         return base + self._bkd.reshape(
             0.5 * self._alpha * self._bkd.sum(param[:, 0] * param[:, 0]),
             (1, 1),
         )
 
-    def param_jacobian(self, sol, param):
+    def param_jacobian(self, sol: NumpyArray, param: NumpyArray) -> NumpyArray:
         return self._alpha * param.T
 
-    def param_state_hvp(self, sol, param, time_idx, wvec):
+    def param_state_hvp(
+        self, sol: NumpyArray, param: NumpyArray, time_idx: int, wvec: NumpyArray
+    ) -> NumpyArray:
         return self._bkd.zeros((self.nparams(), 1))
 
-    def param_param_hvp(self, sol, param, vvec):
+    def param_param_hvp(
+        self, sol: NumpyArray, param: NumpyArray, vvec: NumpyArray
+    ) -> NumpyArray:
         return self._alpha * vvec
 
 
@@ -383,7 +454,8 @@ class TestTransientAdjointWorkedExample:
                 _subdomain_average_weights(bkd, physics),
                 param_obj.nparams(),
                 bkd,
-            ))
+            ),
+        )
         vector_model = GalerkinTransientForwardModel(
             skfem_discretization(system), ScipySparseLU(), param_obj, ic, config
         )
@@ -424,17 +496,22 @@ class TestTransientAdjointWorkedExample:
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
-            functional=functional)
+            functional=functional,
+        )
         sample = bkd.zeros((model.nvars(), 1))
         direction = bkd.asarray(
             np.random.default_rng(13).normal(0.0, 1.0, (model.nvars(), 1))
         )
         checker = DerivativeChecker(model)
-        errors = checker.check_derivatives(sample, direction=direction, relative=True)
+        errors = checker.check_derivatives(
+            sample, direction=direction, relative=True, central=True
+        )
         jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        assert jac_ratio <= 2e-5
+        assert jac_ratio <= 1e-6
+        # Q is quadratic in p here, so central differences of the
+        # gradient are exact up to rounding: no V, only a small floor.
         hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
-        assert hvp_min <= 1e-6
+        assert hvp_min <= 1e-8
 
     @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
     def test_time_integrated_qoi_gradient_and_hvp(
@@ -465,7 +542,8 @@ class TestTransientAdjointWorkedExample:
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
-            functional=functional)
+            functional=functional,
+        )
         _check_gradient_and_hvp(bkd, model)
 
     def test_model_injects_scheme_consistent_quadrature(
@@ -487,7 +565,8 @@ class TestTransientAdjointWorkedExample:
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
-            functional=inner)
+            functional=inner,
+        )
         model(bkd.zeros((model.nvars(), 1)))
         config = _time_config("backward_euler")
         nsteps = round((config.final_time - config.init_time) / config.deltat)
@@ -523,7 +602,8 @@ class TestTransientAdjointWorkedExample:
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
-            functional=functional)
+            functional=functional,
+        )
         assert model.derivatives().hvp is not None
         # Linear forcing map + linear QoI: exactly zero Hessian, as in
         # the Dirichlet variant of this configuration.
@@ -566,7 +646,8 @@ class TestTransientAdjointWorkedExample:
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
-            functional=functional)
+            functional=functional,
+        )
         assert model.derivatives().hvp is not None
         _check_gradient_and_hvp(bkd, model)
 
@@ -584,10 +665,14 @@ class TestTimeModulatedControl:
 
     _KNOTS = [0.0, 0.06, 0.12]
 
-    def _build(self, method: str):
-        from pyapprox.pde.constitutive.coefficient_functions import (
-            TimeModulatedNodalFieldLinearReaction,
-        )
+    def _build(
+        self, method: str
+    ) -> Tuple[
+        NumpyBkd,
+        GalerkinTransientForwardModel[NumpyArray],
+        TimeModulatedNodalFieldLinearReaction,
+        AdvectionDiffusionParameterization[NumpyArray],
+    ]:
         from pyapprox.pde.field_maps.modulation import (
             PiecewiseLinearModulation,
         )
@@ -653,7 +738,8 @@ class TestTimeModulatedControl:
                 newton_maxiter=20,
                 verbosity=0,
             ),
-            functional=WeightedEndpointFunctional(weights, param.nparams(), bkd))
+            functional=WeightedEndpointFunctional(weights, param.nparams(), bkd),
+        )
         return bkd, model, reaction, param
 
     @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
@@ -667,9 +753,10 @@ class TestTimeModulatedControl:
             bkd.asarray(sample),
             direction=bkd.asarray(direction),
             relative=True,
+            central=True,
         )
         ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        assert ratio <= 2e-5
+        assert ratio <= 1e-6
 
     def test_the_control_actually_moves_the_qoi(self) -> None:
         """Without this every other assertion still passes if the
@@ -690,6 +777,9 @@ class TestTimeModulatedControl:
         they perturb the same wrong forward field."""
         bkd, _, reaction, param = self._build("backward_euler")
         term = param._inner
+        # One coefficient is parameterized, so the inner term is not a
+        # composite.
+        assert isinstance(term, _FieldParameterizationTerm)
         derived = term._field_map.jacobian(bkd.asarray(np.zeros(3)))
         np.testing.assert_array_equal(
             np.asarray(bkd.to_numpy(derived)),
