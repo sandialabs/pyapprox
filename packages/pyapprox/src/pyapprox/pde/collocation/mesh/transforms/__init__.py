@@ -1,6 +1,7 @@
 """Coordinate transforms for spectral collocation methods."""
 
 from pyapprox.pde.collocation.mesh.transforms.affine import (
+    AffineTransform,
     AffineTransform1D,
     AffineTransform2D,
     AffineTransform3D,
@@ -24,6 +25,7 @@ from pyapprox.pde.collocation.mesh.transforms.sympy_transform import (
 
 __all__ = [
     # Affine transforms
+    "AffineTransform",
     "AffineTransform1D",
     "AffineTransform2D",
     "AffineTransform3D",

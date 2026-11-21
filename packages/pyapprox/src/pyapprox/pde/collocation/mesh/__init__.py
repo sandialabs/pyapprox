@@ -4,6 +4,7 @@ from pyapprox.pde.collocation.mesh.base import (
     BoundarySide,
     MeshData,
     MeshDataWithTransform,
+    compute_boundary_indices,
     compute_boundary_indices_1d,
     compute_boundary_indices_2d,
     compute_boundary_indices_3d,
@@ -22,11 +23,15 @@ from pyapprox.pde.collocation.mesh.cartesian_3d import (
     create_uniform_mesh_3d,
 )
 from pyapprox.pde.collocation.mesh.transformed import (
+    ChebyshevGaussLobattoNodes,
+    NodeGeneratorProtocol,
+    TransformedMesh,
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
 )
 from pyapprox.pde.collocation.mesh.transforms import (
+    AffineTransform,
     AffineTransform1D,
     AffineTransform2D,
     AffineTransform3D,
@@ -39,6 +44,7 @@ __all__ = [
     "MeshDataWithTransform",
     # Utilities
     "compute_cartesian_product",
+    "compute_boundary_indices",
     "compute_boundary_indices_1d",
     "compute_boundary_indices_2d",
     "compute_boundary_indices_3d",
@@ -51,10 +57,14 @@ __all__ = [
     "create_uniform_mesh_2d",
     "create_uniform_mesh_3d",
     # Transforms
+    "AffineTransform",
     "AffineTransform1D",
     "AffineTransform2D",
     "AffineTransform3D",
     # Transformed meshes
+    "ChebyshevGaussLobattoNodes",
+    "NodeGeneratorProtocol",
+    "TransformedMesh",
     "TransformedMesh1D",
     "TransformedMesh2D",
     "TransformedMesh3D",

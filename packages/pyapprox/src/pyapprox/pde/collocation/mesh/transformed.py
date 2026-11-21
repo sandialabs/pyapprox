@@ -1,23 +1,26 @@
-"""Transformed mesh classes for spectral collocation.
+"""Transformed tensor-product meshes for spectral collocation.
 
-Provides mesh classes that combine tensor product structure with
-coordinate transformations, computing gradient factors for derivative
-matrix scaling.
+:class:`TransformedMesh` places tensor-product nodes on the reference cube
+:math:`[-1, 1]^d`, any number of directions, and maps them through a
+transform, keeping the Jacobians and gradient factors the derivative
+matrices need. ``TransformedMesh1D``, ``TransformedMesh2D`` and
+``TransformedMesh3D`` are the same mesh built from per-direction counts.
 
-These classes implement MeshWithTransformProtocol from protocols.mesh.
+These classes implement ``MeshWithTransformProtocol`` from
+``protocols.mesh``.
 """
 
-from typing import Generic, Optional, Tuple
+import math
+from typing import Generic, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 import numpy as np
 
 from pyapprox.pde.collocation.mesh.base import (
-    compute_boundary_indices_1d,
-    compute_boundary_indices_2d,
-    compute_boundary_indices_3d,
+    compute_boundary_indices,
     compute_cartesian_product,
 )
 from pyapprox.pde.collocation.mesh.transforms.affine import (
+    AffineTransform,
     AffineTransform1D,
     AffineTransform2D,
     AffineTransform3D,
@@ -26,109 +29,143 @@ from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _chebyshev_gauss_lobatto_points(npts: int, bkd: Backend[Array]) -> Array:
-    """Generate Chebyshev-Gauss-Lobatto points on [-1, 1].
+@runtime_checkable
+class NodeGeneratorProtocol(Protocol, Generic[Array]):
+    """The reference nodes of one direction."""
+
+    def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
+        """``npts`` nodes on :math:`[-1, 1]`, increasing, both ends
+        included. Shape: ``(npts,)``."""
+        ...
+
+
+class ChebyshevGaussLobattoNodes(Generic[Array]):
+    """Chebyshev-Gauss-Lobatto nodes :math:`-\\cos(\\pi j / (n - 1))`."""
+
+    def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
+        """``npts`` nodes from -1 to 1. Shape: ``(npts,)``."""
+        j = bkd.arange(npts)
+        return -bkd.cos(np.pi * j / (npts - 1))
+
+    def __repr__(self) -> str:
+        return "ChebyshevGaussLobattoNodes()"
+
+
+class TransformedMesh(Generic[Array]):
+    """Tensor-product mesh of the reference cube mapped by a transform.
+
+    Nodes are in tensor order, the first direction fastest. Boundary
+    ``2 d`` is the lower end of reference direction ``d`` and ``2 d + 1``
+    the upper.
+
+    Implements ``MeshWithTransformProtocol``.
 
     Parameters
     ----------
-    npts : int
-        Number of points.
-    bkd : Backend
-        Computational backend.
-
-    Returns
-    -------
-    Array
-        Points in increasing order from -1 to 1. Shape: (npts,)
-    """
-    j = bkd.arange(npts)
-    # cos(pi * j / (npts - 1)) gives 1 to -1, negate for -1 to 1
-    return -bkd.cos(np.pi * j / (npts - 1))
-
-
-class TransformedMesh1D(Generic[Array]):
-    """1D mesh with coordinate transformation.
-
-    Generates Chebyshev points on reference interval [-1, 1] and maps them
-    to physical coordinates via the provided transform.
-
-    Implements MeshWithTransformProtocol.
-
-    Parameters
-    ----------
-    npts : int
-        Number of mesh points.
+    npts_per_dim : Sequence[int]
+        Nodes per direction, at least 2 each.
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
-        Coordinate transform. If None, the reference interval itself:
-        ``AffineTransform1D((-1.0, 1.0), bkd)``.
+        The map from the reference cube, with as many directions. Default:
+        the reference cube itself.
+    nodes : Sequence[NodeGeneratorProtocol], optional
+        One node generator per direction. Default: Chebyshev-Gauss-Lobatto
+        in every direction.
+
+    Raises
+    ------
+    ValueError
+        If ``npts_per_dim`` is empty or has a count below 2, or the
+        transform or the node generators do not match its length.
+    TypeError
+        If a node generator does not satisfy ``NodeGeneratorProtocol``.
     """
 
     def __init__(
         self,
-        npts: int,
+        npts_per_dim: Sequence[int],
         bkd: Backend[Array],
         transform: Optional[TransformProtocol[Array]] = None,
-    ):
-        self._bkd = bkd
-        self._npts = npts
+        nodes: Optional[Sequence[NodeGeneratorProtocol[Array]]] = None,
+    ) -> None:
+        counts = tuple(int(n) for n in npts_per_dim)
+        if len(counts) == 0:
+            raise ValueError("a mesh needs at least one direction")
+        if min(counts) < 2:
+            raise ValueError(f"every direction needs at least 2 nodes, got {counts}")
+        ndim = len(counts)
         if transform is None:
-            transform = AffineTransform1D((-1.0, 1.0), bkd)
+            transform = AffineTransform([(-1.0, 1.0)] * ndim, bkd)
+        if transform.ndim() != ndim:
+            raise ValueError(
+                f"the transform has {transform.ndim()} directions, the mesh {ndim}"
+            )
+        generators: Sequence[NodeGeneratorProtocol[Array]] = (
+            [ChebyshevGaussLobattoNodes[Array]() for _ in counts]
+            if nodes is None
+            else nodes
+        )
+        if len(generators) != ndim:
+            raise ValueError(f"{len(generators)} node generators for {ndim} directions")
+        for generator in generators:
+            if not isinstance(generator, NodeGeneratorProtocol):
+                raise TypeError(
+                    "node generators must satisfy NodeGeneratorProtocol, got "
+                    f"{type(generator).__name__}"
+                )
+        self._bkd = bkd
+        self._npts_per_dim = counts
         self._transform: TransformProtocol[Array] = transform
-
-        # Generate Chebyshev-Gauss-Lobatto points on [-1, 1]
-        self._reference_nodes_1d_arr = _chebyshev_gauss_lobatto_points(npts, bkd)
-
-        # Reference nodes as 2D array (1, npts)
-        ref_nodes_2d = bkd.reshape(self._reference_nodes_1d_arr, (1, -1))
-        self._reference_points = ref_nodes_2d
-
-        # Compute physical nodes, gradient factors, and Jacobians
-        self._points = transform.map_to_physical(ref_nodes_2d)
-        self._gradient_factors = transform.gradient_factors(ref_nodes_2d)
-        self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_2d)
-        self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_2d)
-
-        # Compute boundary indices
-        self._boundary_indices = compute_boundary_indices_1d(npts, bkd)
+        self._reference_nodes: List[Array] = [
+            generator.nodes(count, bkd) for generator, count in zip(generators, counts)
+        ]
+        reference = compute_cartesian_product(self._reference_nodes, bkd)
+        self._reference_points = reference
+        self._points = transform.map_to_physical(reference)
+        self._gradient_factors = transform.gradient_factors(reference)
+        self._jacobian_matrix = transform.jacobian_matrix(reference)
+        self._jacobian_determinant = transform.jacobian_determinant(reference)
+        self._boundary_indices = compute_boundary_indices(counts, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
         return self._bkd
 
     def ndim(self) -> int:
-        """Return number of spatial dimensions."""
-        return 1
+        """Return the number of directions."""
+        return len(self._npts_per_dim)
 
     def npts(self) -> int:
-        """Return total number of mesh points."""
-        return self._npts
+        """Return the total number of nodes."""
+        return math.prod(self._npts_per_dim)
 
     def npts_per_dim(self) -> Tuple[int, ...]:
-        """Return number of points in each dimension."""
-        return (self._npts,)
+        """Return the number of nodes in each direction."""
+        return self._npts_per_dim
 
     def nboundaries(self) -> int:
-        """Return number of boundaries."""
-        return 2
+        """Return the number of boundaries, two per direction."""
+        return 2 * self.ndim()
 
     def points(self) -> Array:
-        """Return physical coordinates. Shape: (1, npts)"""
+        """Return physical coordinates. Shape: ``(ndim, npts)``."""
         return self._points
 
     def reference_points(self) -> Array:
-        """Return reference coordinates. Shape: (1, npts)"""
+        """Return reference coordinates. Shape: ``(ndim, npts)``."""
         return self._reference_points
 
     def reference_nodes_1d(self, dim: int) -> Array:
-        """Return 1D reference nodes for dimension. Shape: (npts,)"""
-        if dim != 0:
-            raise ValueError(f"dim must be 0 for 1D mesh, got {dim}")
-        return self._reference_nodes_1d_arr
+        """Return the reference nodes of direction ``dim``. Shape:
+        ``(npts_dim,)``."""
+        if not 0 <= dim < self.ndim():
+            raise ValueError(f"dim must be in [0, {self.ndim()}), got {dim}")
+        return self._reference_nodes[dim]
 
     def boundary_indices(self, boundary_id: int) -> Array:
-        """Return indices of boundary points."""
+        """Return the indices of the nodes on boundary ``boundary_id``."""
+        self._check_boundary(boundary_id)
         return self._boundary_indices[boundary_id]
 
     def transform(self) -> TransformProtocol[Array]:
@@ -136,58 +173,84 @@ class TransformedMesh1D(Generic[Array]):
         return self._transform
 
     def jacobian_matrix(self) -> Array:
-        """Return Jacobian matrices. Shape: (npts, 1, 1)"""
+        """Return Jacobian matrices. Shape: ``(npts, ndim, ndim)``."""
         return self._jacobian_matrix
 
     def jacobian_determinant(self) -> Array:
-        """Return Jacobian determinants. Shape: (npts,)"""
+        """Return Jacobian determinants. Shape: ``(npts,)``."""
         return self._jacobian_determinant
 
     def gradient_factors(self) -> Array:
-        """Return gradient factors. Shape: (npts, 1, 1)"""
+        """Return gradient factors. Shape: ``(npts, ndim, ndim)``."""
         return self._gradient_factors
 
     def boundary_normals(self, boundary_id: int) -> Array:
-        """Return outward unit normal vectors at boundary points.
+        """Return outward unit normals at the nodes of a boundary.
 
-        For 1D, normals are simply -1 (left) or +1 (right).
-
-        Parameters
-        ----------
-        boundary_id : int
-            Boundary identifier: 0 = left (x=-1), 1 = right (x=+1)
+        Boundary ``2 d + s`` (``s = 0`` lower, ``1`` upper) has reference
+        normal :math:`(2 s - 1) e_d`, mapped to :math:`J^{-T} e_d`, which
+        is row ``d`` of :math:`J^{-1}` (the gradient of the reference
+        coordinate :math:`\\xi_d`), then normalized.
 
         Returns
         -------
         Array
-            Unit normal vectors. Shape: (1, 1)
+            Unit normals in physical coordinates. Shape:
+            ``(nboundary_pts, ndim)``.
         """
-        if boundary_id == 0:
-            return self._bkd.asarray([[-1.0]])  # left: -x direction
-        elif boundary_id == 1:
-            return self._bkd.asarray([[1.0]])  # right: +x direction
-        raise ValueError(f"boundary_id must be 0 or 1 for 1D mesh, got {boundary_id}")
+        self._check_boundary(boundary_id)
+        direction, side = divmod(boundary_id, 2)
+        jacobians = self._jacobian_matrix[self._boundary_indices[boundary_id]]
+        gradients = self._bkd.inv(jacobians)[:, direction, :]
+        lengths = self._bkd.sqrt(self._bkd.sum(gradients**2, axis=1))
+        return (2 * side - 1) * gradients / lengths[:, None]
+
+    def _check_boundary(self, boundary_id: int) -> None:
+        if not 0 <= boundary_id < self.nboundaries():
+            raise ValueError(
+                f"boundary_id must be in [0, {self.nboundaries()}), got {boundary_id}"
+            )
 
 
-class TransformedMesh2D(Generic[Array]):
-    """2D mesh with coordinate transformation.
-
-    Generates tensor product Chebyshev points on reference square [-1, 1]^2
-    and maps them to physical coordinates via the provided transform.
-
-    Implements MeshWithTransformProtocol.
+class TransformedMesh1D(TransformedMesh[Array]):
+    """:class:`TransformedMesh` of an interval.
 
     Parameters
     ----------
-    npts_x : int
-        Number of points in x (first) direction.
-    npts_y : int
-        Number of points in y (second) direction.
+    npts : int
+        Number of nodes.
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
-        Coordinate transform. If None, the reference square itself:
-        ``AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)``.
+        Coordinate transform. Default: ``AffineTransform1D((-1.0, 1.0),
+        bkd)``.
+    """
+
+    def __init__(
+        self,
+        npts: int,
+        bkd: Backend[Array],
+        transform: Optional[TransformProtocol[Array]] = None,
+    ) -> None:
+        super().__init__(
+            (npts,),
+            bkd,
+            AffineTransform1D((-1.0, 1.0), bkd) if transform is None else transform,
+        )
+
+
+class TransformedMesh2D(TransformedMesh[Array]):
+    """:class:`TransformedMesh` in two directions.
+
+    Parameters
+    ----------
+    npts_x, npts_y : int
+        Nodes in the first and second direction.
+    bkd : Backend
+        Computational backend.
+    transform : TransformProtocol, optional
+        Coordinate transform. Default: ``AffineTransform2D((-1.0, 1.0,
+        -1.0, 1.0), bkd)``.
     """
 
     def __init__(
@@ -196,176 +259,30 @@ class TransformedMesh2D(Generic[Array]):
         npts_y: int,
         bkd: Backend[Array],
         transform: Optional[TransformProtocol[Array]] = None,
-    ):
-        self._bkd = bkd
-        self._npts_x = npts_x
-        self._npts_y = npts_y
-        self._npts = npts_x * npts_y
-        if transform is None:
-            transform = AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)
-        self._transform: TransformProtocol[Array] = transform
-
-        # Generate Chebyshev points for each dimension
-        self._reference_nodes_x = _chebyshev_gauss_lobatto_points(npts_x, bkd)
-        self._reference_nodes_y = _chebyshev_gauss_lobatto_points(npts_y, bkd)
-
-        # Tensor product (first dim varies fastest for Kronecker ordering)
-        ref_nodes_2d = compute_cartesian_product(
-            [self._reference_nodes_x, self._reference_nodes_y], bkd
+    ) -> None:
+        super().__init__(
+            (npts_x, npts_y),
+            bkd,
+            (
+                AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)
+                if transform is None
+                else transform
+            ),
         )
-        self._reference_points = ref_nodes_2d
-
-        # Compute physical nodes, gradient factors, and Jacobians
-        self._points = transform.map_to_physical(ref_nodes_2d)
-        self._gradient_factors = transform.gradient_factors(ref_nodes_2d)
-        self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_2d)
-        self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_2d)
-
-        # Compute boundary indices
-        self._boundary_indices = compute_boundary_indices_2d(npts_x, npts_y, bkd)
-
-    def bkd(self) -> Backend[Array]:
-        """Return computational backend."""
-        return self._bkd
-
-    def ndim(self) -> int:
-        """Return number of spatial dimensions."""
-        return 2
-
-    def npts(self) -> int:
-        """Return total number of mesh points."""
-        return self._npts
-
-    def npts_per_dim(self) -> Tuple[int, ...]:
-        """Return number of points in each dimension."""
-        return (self._npts_x, self._npts_y)
-
-    def nboundaries(self) -> int:
-        """Return number of boundaries."""
-        return 4
-
-    def points(self) -> Array:
-        """Return physical coordinates. Shape: (2, npts)"""
-        return self._points
-
-    def reference_points(self) -> Array:
-        """Return reference coordinates. Shape: (2, npts)"""
-        return self._reference_points
-
-    def reference_nodes_1d(self, dim: int) -> Array:
-        """Return 1D reference nodes for dimension. Shape: (npts_dim,)"""
-        if dim == 0:
-            return self._reference_nodes_x
-        elif dim == 1:
-            return self._reference_nodes_y
-        raise ValueError(f"dim must be 0 or 1 for 2D mesh, got {dim}")
-
-    def boundary_indices(self, boundary_id: int) -> Array:
-        """Return indices of boundary points."""
-        return self._boundary_indices[boundary_id]
-
-    def transform(self) -> TransformProtocol[Array]:
-        """Return the coordinate transform."""
-        return self._transform
-
-    def jacobian_matrix(self) -> Array:
-        """Return Jacobian matrices. Shape: (npts, 2, 2)"""
-        return self._jacobian_matrix
-
-    def jacobian_determinant(self) -> Array:
-        """Return Jacobian determinants. Shape: (npts,)"""
-        return self._jacobian_determinant
-
-    def gradient_factors(self) -> Array:
-        """Return gradient factors. Shape: (npts, 2, 2)"""
-        return self._gradient_factors
-
-    def boundary_normals(self, boundary_id: int) -> Array:
-        """Return outward unit normal vectors at boundary points.
-
-        For curvilinear meshes, normals vary along the boundary and are
-        computed from the Jacobian matrix: n = J^{-T} @ n_ref / |J^{-T} @ n_ref|
-        where n_ref is the constant normal in reference coordinates.
-
-        Parameters
-        ----------
-        boundary_id : int
-            Boundary identifier:
-            0 = left (x=-1 in ref coords), outward normal points -x
-            1 = right (x=+1 in ref coords), outward normal points +x
-            2 = bottom (y=-1 in ref coords), outward normal points -y
-            3 = top (y=+1 in ref coords), outward normal points +y
-
-        Returns
-        -------
-        Array
-            Unit normal vectors in physical (Cartesian) coordinates.
-            Shape: (nboundary_pts, 2)
-        """
-        # Reference normals (outward pointing in reference domain)
-        # Boundaries: 0=left(-x), 1=right(+x), 2=bottom(-y), 3=top(+y)
-        ref_normals = {
-            0: self._bkd.asarray([-1.0, 0.0]),  # left: -x direction
-            1: self._bkd.asarray([1.0, 0.0]),  # right: +x direction
-            2: self._bkd.asarray([0.0, -1.0]),  # bottom: -y direction
-            3: self._bkd.asarray([0.0, 1.0]),  # top: +y direction
-        }
-        n_ref = ref_normals[boundary_id]
-
-        # Get boundary point indices
-        boundary_idx = self._boundary_indices[boundary_id]
-        nboundary = boundary_idx.shape[0]
-
-        # Compute n = J^{-T} @ n_ref / |...|
-        # at each boundary point
-        # J^{-T} = (J^{-1})^T
-        # For 2x2 matrix J, J^{-1} = (1/det(J)) * [[d, -b], [-c, a]]
-        # where J = [[a, b], [c, d]]
-
-        # Get Jacobian matrices at boundary points
-        jac_all = self._jacobian_matrix  # Shape: (npts, 2, 2)
-        det_all = self._jacobian_determinant  # Shape: (npts,)
-
-        # Extract boundary values
-        normals = self._bkd.zeros((nboundary, 2))
-        for i in range(nboundary):
-            idx = self._bkd.to_int(boundary_idx[i])
-            J = jac_all[idx]  # (2, 2)
-            det = det_all[idx]
-
-            # J^{-1} = (1/det) * [[J[1,1], -J[0,1]], [-J[1,0], J[0,0]]]
-            # J^{-T} = (1/det) * [[J[1,1], -J[1,0]], [-J[0,1], J[0,0]]]
-            J_inv_T = self._bkd.asarray(
-                [[J[1, 1] / det, -J[1, 0] / det], [-J[0, 1] / det, J[0, 0] / det]]
-            )
-
-            # n = J^{-T} @ n_ref
-            n_phys = J_inv_T @ n_ref
-
-            # Normalize
-            norm = self._bkd.sqrt(self._bkd.sum(n_phys**2))
-            normals[i, :] = n_phys / norm
-
-        return normals
 
 
-class TransformedMesh3D(Generic[Array]):
-    """3D mesh with coordinate transformation.
-
-    Generates tensor product Chebyshev points on reference cube [-1, 1]^3
-    and maps them to physical coordinates via the provided transform.
-
-    Implements MeshWithTransformProtocol.
+class TransformedMesh3D(TransformedMesh[Array]):
+    """:class:`TransformedMesh` in three directions.
 
     Parameters
     ----------
     npts_x, npts_y, npts_z : int
-        Number of points in each direction.
+        Nodes in each direction.
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
-        Coordinate transform. If None, the reference cube itself:
-        ``AffineTransform3D((-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)``.
+        Coordinate transform. Default: ``AffineTransform3D((-1.0, 1.0,
+        -1.0, 1.0, -1.0, 1.0), bkd)``.
     """
 
     def __init__(
@@ -375,146 +292,13 @@ class TransformedMesh3D(Generic[Array]):
         npts_z: int,
         bkd: Backend[Array],
         transform: Optional[TransformProtocol[Array]] = None,
-    ):
-        self._bkd = bkd
-        self._npts_x = npts_x
-        self._npts_y = npts_y
-        self._npts_z = npts_z
-        self._npts = npts_x * npts_y * npts_z
-        if transform is None:
-            transform = AffineTransform3D((-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
-        self._transform: TransformProtocol[Array] = transform
-
-        # Generate Chebyshev points for each dimension
-        self._reference_nodes_x = _chebyshev_gauss_lobatto_points(npts_x, bkd)
-        self._reference_nodes_y = _chebyshev_gauss_lobatto_points(npts_y, bkd)
-        self._reference_nodes_z = _chebyshev_gauss_lobatto_points(npts_z, bkd)
-
-        # Tensor product
-        ref_nodes_3d = compute_cartesian_product(
-            [
-                self._reference_nodes_x,
-                self._reference_nodes_y,
-                self._reference_nodes_z,
-            ],
+    ) -> None:
+        super().__init__(
+            (npts_x, npts_y, npts_z),
             bkd,
+            (
+                AffineTransform3D((-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
+                if transform is None
+                else transform
+            ),
         )
-        self._reference_points = ref_nodes_3d
-
-        # Compute physical nodes, gradient factors, and Jacobians
-        self._points = transform.map_to_physical(ref_nodes_3d)
-        self._gradient_factors = transform.gradient_factors(ref_nodes_3d)
-        self._jacobian_matrix = transform.jacobian_matrix(ref_nodes_3d)
-        self._jacobian_determinant = transform.jacobian_determinant(ref_nodes_3d)
-
-        # Compute boundary indices
-        self._boundary_indices = compute_boundary_indices_3d(
-            npts_x, npts_y, npts_z, bkd
-        )
-
-    def bkd(self) -> Backend[Array]:
-        """Return computational backend."""
-        return self._bkd
-
-    def ndim(self) -> int:
-        """Return number of spatial dimensions."""
-        return 3
-
-    def npts(self) -> int:
-        """Return total number of mesh points."""
-        return self._npts
-
-    def npts_per_dim(self) -> Tuple[int, ...]:
-        """Return number of points in each dimension."""
-        return (self._npts_x, self._npts_y, self._npts_z)
-
-    def nboundaries(self) -> int:
-        """Return number of boundaries."""
-        return 6
-
-    def points(self) -> Array:
-        """Return physical coordinates. Shape: (3, npts)"""
-        return self._points
-
-    def reference_points(self) -> Array:
-        """Return reference coordinates. Shape: (3, npts)"""
-        return self._reference_points
-
-    def reference_nodes_1d(self, dim: int) -> Array:
-        """Return 1D reference nodes for dimension. Shape: (npts_dim,)"""
-        if dim == 0:
-            return self._reference_nodes_x
-        elif dim == 1:
-            return self._reference_nodes_y
-        elif dim == 2:
-            return self._reference_nodes_z
-        raise ValueError(f"dim must be 0, 1, or 2 for 3D mesh, got {dim}")
-
-    def boundary_indices(self, boundary_id: int) -> Array:
-        """Return indices of boundary points."""
-        return self._boundary_indices[boundary_id]
-
-    def transform(self) -> TransformProtocol[Array]:
-        """Return the coordinate transform."""
-        return self._transform
-
-    def jacobian_matrix(self) -> Array:
-        """Return Jacobian matrices. Shape: (npts, 3, 3)"""
-        return self._jacobian_matrix
-
-    def jacobian_determinant(self) -> Array:
-        """Return Jacobian determinants. Shape: (npts,)"""
-        return self._jacobian_determinant
-
-    def gradient_factors(self) -> Array:
-        """Return gradient factors. Shape: (npts, 3, 3)"""
-        return self._gradient_factors
-
-    def boundary_normals(self, boundary_id: int) -> Array:
-        """Return outward unit normal vectors at boundary points.
-
-        For curvilinear 3D meshes, normals are computed from the Jacobian.
-
-        Parameters
-        ----------
-        boundary_id : int
-            Boundary identifier:
-            0 = x=-1 face, 1 = x=+1 face
-            2 = y=-1 face, 3 = y=+1 face
-            4 = z=-1 face, 5 = z=+1 face
-
-        Returns
-        -------
-        Array
-            Unit normal vectors. Shape: (nboundary_pts, 3)
-        """
-        # Reference normals (outward pointing)
-        ref_normals = {
-            0: self._bkd.asarray([-1.0, 0.0, 0.0]),
-            1: self._bkd.asarray([1.0, 0.0, 0.0]),
-            2: self._bkd.asarray([0.0, -1.0, 0.0]),
-            3: self._bkd.asarray([0.0, 1.0, 0.0]),
-            4: self._bkd.asarray([0.0, 0.0, -1.0]),
-            5: self._bkd.asarray([0.0, 0.0, 1.0]),
-        }
-        n_ref = ref_normals[boundary_id]
-
-        boundary_idx = self._boundary_indices[boundary_id]
-        nboundary = boundary_idx.shape[0]
-
-        # n = J^{-T} @ n_ref / |...|
-        normals = self._bkd.zeros((nboundary, 3))
-        for i in range(nboundary):
-            idx = self._bkd.to_int(boundary_idx[i])
-            J = self._jacobian_matrix[idx]  # (3, 3)
-
-            # Compute J^{-T} using adjugate/det
-            # For 3x3, use explicit formula or numerical inverse
-            J_inv = self._bkd.inv(J)
-            J_inv_T = self._bkd.transpose(J_inv)
-
-            n_phys = J_inv_T @ n_ref
-            norm = self._bkd.sqrt(self._bkd.sum(n_phys**2))
-            normals[i, :] = n_phys / norm
-
-        return normals

@@ -4,9 +4,12 @@ Provides pure data structures (dataclasses) for mesh representation,
 separating data from algorithms for C++ portability.
 """
 
+import math
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Generic, List, Tuple
+from typing import Generic, List, Sequence, Tuple
+
+import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_samples
@@ -147,129 +150,60 @@ def compute_cartesian_product(arrays_1d: List[Array], bkd: Backend[Array]) -> Ar
     return cartesian_product_samples(arrays_1d, bkd, first_dim_fastest=True)
 
 
-def compute_boundary_indices_1d(npts: int, bkd: Backend[Array]) -> List[Array]:
-    """Compute boundary indices for 1D mesh.
+def compute_boundary_indices(
+    npts_per_dim: Sequence[int], bkd: Backend[Array]
+) -> List[Array]:
+    """Boundary node indices of a tensor-product mesh in any dimension.
+
+    The nodes are in tensor order, the first direction fastest. Boundary
+    ``2 d`` is the first node along direction ``d``, boundary ``2 d + 1``
+    the last; each lists its nodes in increasing index, which is the
+    tensor order of the remaining directions.
 
     Parameters
     ----------
-    npts : int
-        Number of mesh points.
+    npts_per_dim : Sequence[int]
+        Nodes per direction.
     bkd : Backend
         Computational backend.
 
     Returns
     -------
     List[Array]
-        [left_indices, right_indices] where left is index 0, right is index npts-1.
+        ``2 len(npts_per_dim)`` integer arrays.
     """
-    left = bkd.asarray([0], dtype=bkd.int64_dtype())
-    right = bkd.asarray([npts - 1], dtype=bkd.int64_dtype())
-    return [left, right]
+    npts = math.prod(npts_per_dim)
+    flat = np.arange(npts)
+    indices: List[Array] = []
+    stride = 1
+    for count in npts_per_dim:
+        position = (flat // stride) % count
+        for end in (0, count - 1):
+            indices.append(
+                bkd.asarray(flat[position == end].tolist(), dtype=bkd.int64_dtype())
+            )
+        stride *= count
+    return indices
+
+
+def compute_boundary_indices_1d(npts: int, bkd: Backend[Array]) -> List[Array]:
+    """Boundary indices of a 1D mesh: ``[left, right]``, the first and
+    last node."""
+    return compute_boundary_indices((npts,), bkd)
 
 
 def compute_boundary_indices_2d(
     npts_x: int, npts_y: int, bkd: Backend[Array]
 ) -> List[Array]:
-    """Compute boundary indices for 2D mesh.
-
-    Assumes tensor product ordering with x varying fastest.
-
-    Parameters
-    ----------
-    npts_x : int
-        Number of points in x direction.
-    npts_y : int
-        Number of points in y direction.
-    bkd : Backend
-        Computational backend.
-
-    Returns
-    -------
-    List[Array]
-        [left, right, bottom, top] boundary indices.
-    """
-    # Left boundary: x = 0, all y -> indices 0, npts_x, 2*npts_x, ...
-    left = bkd.asarray([j * npts_x for j in range(npts_y)], dtype=bkd.int64_dtype())
-
-    # Right boundary: x = npts_x-1, all y
-    right = bkd.asarray(
-        [j * npts_x + (npts_x - 1) for j in range(npts_y)],
-        dtype=bkd.int64_dtype(),
-    )
-
-    # Bottom boundary: y = 0, all x -> indices 0, 1, ..., npts_x-1
-    bottom = bkd.asarray(list(range(npts_x)), dtype=bkd.int64_dtype())
-
-    # Top boundary: y = npts_y-1, all x
-    top = bkd.asarray(
-        [(npts_y - 1) * npts_x + i for i in range(npts_x)],
-        dtype=bkd.int64_dtype(),
-    )
-
-    return [left, right, bottom, top]
+    """Boundary indices of a 2D mesh, x fastest: ``[left, right, bottom,
+    top]``."""
+    return compute_boundary_indices((npts_x, npts_y), bkd)
 
 
 def compute_boundary_indices_3d(
     npts_x: int, npts_y: int, npts_z: int, bkd: Backend[Array]
 ) -> List[Array]:
-    """Compute boundary indices for 3D mesh.
-
-    Assumes tensor product ordering with x varying fastest, then y, then z.
-
-    Parameters
-    ----------
-    npts_x, npts_y, npts_z : int
-        Number of points in each direction.
-    bkd : Backend
-        Computational backend.
-
-    Returns
-    -------
-    List[Array]
-        [left, right, bottom, top, front, back] boundary indices.
-    """
-    npts_xy = npts_x * npts_y
-
-    # Left boundary: x = 0
-    left_indices = []
-    for k in range(npts_z):
-        for j in range(npts_y):
-            left_indices.append(k * npts_xy + j * npts_x)
-    left = bkd.asarray(left_indices, dtype=bkd.int64_dtype())
-
-    # Right boundary: x = npts_x - 1
-    right_indices = []
-    for k in range(npts_z):
-        for j in range(npts_y):
-            right_indices.append(k * npts_xy + j * npts_x + (npts_x - 1))
-    right = bkd.asarray(right_indices, dtype=bkd.int64_dtype())
-
-    # Bottom boundary: y = 0
-    bottom_indices = []
-    for k in range(npts_z):
-        for i in range(npts_x):
-            bottom_indices.append(k * npts_xy + i)
-    bottom = bkd.asarray(bottom_indices, dtype=bkd.int64_dtype())
-
-    # Top boundary: y = npts_y - 1
-    top_indices = []
-    for k in range(npts_z):
-        for i in range(npts_x):
-            top_indices.append(k * npts_xy + (npts_y - 1) * npts_x + i)
-    top = bkd.asarray(top_indices, dtype=bkd.int64_dtype())
-
-    # Front boundary: z = 0
-    front_indices = []
-    for j in range(npts_y):
-        for i in range(npts_x):
-            front_indices.append(j * npts_x + i)
-    front = bkd.asarray(front_indices, dtype=bkd.int64_dtype())
-
-    # Back boundary: z = npts_z - 1
-    back_indices = []
-    for j in range(npts_y):
-        for i in range(npts_x):
-            back_indices.append((npts_z - 1) * npts_xy + j * npts_x + i)
-    back = bkd.asarray(back_indices, dtype=bkd.int64_dtype())
-
-    return [left, right, bottom, top, front, back]
+    """Boundary indices of a 3D mesh, x fastest, then y, then z: x = -1,
+    x = +1, y = -1, y = +1, z = -1, z = +1 (:class:`BoundarySide` ``LEFT``
+    to ``BACK``)."""
+    return compute_boundary_indices((npts_x, npts_y, npts_z), bkd)
