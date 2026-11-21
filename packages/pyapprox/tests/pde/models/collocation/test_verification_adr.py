@@ -249,6 +249,24 @@ def test_recovers_cubic_3d(bkd: Backend[Array], codes: str, conservative: bool) 
     recovers(problem, adr, 6, bkd)
 
 
+_TESSERACT = Box([(0.0, 1.0), (-1.0, 1.0), (0.0, 2.0), (-1.0, 0.0)], "xyzw")
+
+
+@pytest.mark.parametrize("conservative", [False, True])
+@pytest.mark.parametrize("codes", ["DDDDDDDD", "DNRDRNDR"])
+def test_recovers_cubic_4d(bkd: Backend[Array], codes: str, conservative: bool) -> None:
+    """u = x y w + z^2 - x^2 w on [0, 1] x [-1, 1] x [0, 2] x [-1, 0]
+    (sides xmin, xmax, ..., wmin, wmax), D = 1 + x w/2, v = (1 + x, w/2,
+    y/2, z/2 + w) (divergence 2), r = -1: 4 nodes per direction (256)
+    reproduce it to 1e-10, on both backends; the box family and ADR hold
+    no dimension cap."""
+    adr = _ADR("1 + x*w/2", ["1 + x", "w/2", "y/2", "z/2 + w"], "-1", conservative)
+    problem = _problem(
+        "x*y*w + z**2 - x**2*w", adr, _TESSERACT, coded(codes, _TESSERACT)
+    )
+    recovers(problem, adr, 4, bkd)
+
+
 class _GradientTerm(Generic[Array]):
     r"""Neumann and Robin sides that measure :math:`N = \nabla u\cdot n`,
     through :class:`~pyapprox.pde.collocation.boundary.normal_operators.
