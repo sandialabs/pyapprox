@@ -16,12 +16,14 @@ direct solver:
 
 - Values equal a separate ``SteadySystem`` solve and ``SteadyDerivatives``
   value at three samples to 1e-12.
-- A scalar functional gives the Jacobian and the HVP, both passing central
-  finite differences (minimum relative error below 1e-6) at
-  :math:`p = (0.7, -0.4)`.
+- A scalar functional gives the Jacobian, the HVP and the weighted HVP,
+  passing central finite differences (minimum relative error below
+  1e-6) at :math:`p = (0.7, -0.4)`.
 - The functional stacked twice (no more entries than parameters: one
   adjoint per entry) and three times (more: one tangent per parameter)
-  gives every row equal to the scalar gradient to 1e-12, and no HVP.
+  gives every row equal to the scalar gradient to 1e-12, and a weighted
+  HVP equal to the weights' sum times the scalar HVP to 1e-10 that
+  passes central finite differences of the weighted gradient.
 - ``AdjointRows`` and ``TangentColumns`` passed explicitly give the
   default's Jacobian to 1e-12 for one, two and three entries.
 - No derivatives when the residual has no parameter Jacobian or a term
@@ -36,6 +38,11 @@ from typing import Generic, List, Optional, Tuple
 
 import pytest
 
+from pyapprox.implicitfunction.implicit_map import (
+    AdjointRows,
+    ImplicitJacobianProtocol,
+    TangentColumns,
+)
 from pyapprox.implicitfunction.setups import (
     KeepAll,
     OperatorBuilderProtocol,
@@ -43,12 +50,7 @@ from pyapprox.implicitfunction.setups import (
 )
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
-from pyapprox.implicitfunction.steady_function import (
-    AdjointRows,
-    SteadyImplicitFunction,
-    SteadyJacobianProtocol,
-    TangentColumns,
-)
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -99,7 +101,7 @@ def _function(
     functional_order: int = 2,
     nqoi: int = 1,
     maxiters: int = 30,
-    jacobian: Optional[SteadyJacobianProtocol] = None,
+    jacobian: Optional[ImplicitJacobianProtocol] = None,
 ) -> Tuple[SteadyImplicitFunction[A, F], _CountingClears[A, F]]:
     f, pinned = pinned_quadratic(case, residual_order)
     one = quadratic_functional(f, functional_order)
@@ -172,7 +174,8 @@ class DerivativesSuite:
     ) -> None:
         function, _ = _function(array_case)
         derivs = function.derivatives()
-        assert derivs.jacobian is not None and derivs.hvp is not None
+        assert derivs.jacobian is not None
+        assert derivs.hvp is not None and derivs.whvp is not None
         errors = _min_errors(array_case, function)
         assert len(errors) == 2
         assert max(errors) < 1e-6
@@ -184,7 +187,7 @@ class DerivativesSuite:
         scalar, _ = _function(array_case)
         vector, _ = _function(array_case, nqoi=nqoi)
         derivs = vector.derivatives()
-        assert derivs.jacobian is not None and derivs.hvp is None
+        assert derivs.jacobian is not None
         scalar_jacobian = scalar.derivatives().jacobian
         assert scalar_jacobian is not None
         p = _param(array_case)
@@ -192,6 +195,34 @@ class DerivativesSuite:
         array_case.bkd.assert_allclose(
             derivs.jacobian(p), array_case.bkd.vstack([gradient] * nqoi), rtol=1e-12
         )
+
+    @pytest.mark.parametrize("nqoi", [2, 3])
+    def test_vector_whvp_is_the_weighted_scalar_hvp(
+        self, array_case: TypedStackCase[A, F, A], nqoi: int
+    ) -> None:
+        """Every entry is the scalar functional, so the weighted HVP is
+        the scalar HVP times the weights' sum; and it passes central
+        finite differences of the weighted gradient."""
+        bkd = array_case.bkd
+        scalar, _ = _function(array_case)
+        vector, _ = _function(array_case, nqoi=nqoi)
+        scalar_hvp = scalar.derivatives().hvp
+        whvp = vector.derivatives().whvp
+        # The plain HVP is defined for one entry only.
+        assert vector.derivatives().hvp is None
+        assert scalar_hvp is not None and whvp is not None
+        p = _param(array_case)
+        direction = bkd.reshape(bkd.asarray([0.3, -1.1]), (2, 1))
+        weights = bkd.reshape(bkd.asarray([0.7, -0.4, 1.3][:nqoi]), (nqoi, 1))
+        bkd.assert_allclose(
+            whvp(p, direction, weights),
+            bkd.sum(weights) * scalar_hvp(p, direction),
+            rtol=1e-10,
+        )
+        errors = DerivativeChecker(vector).check_derivatives(
+            p, relative=True, central=True, weights=weights
+        )
+        assert bkd.to_float(bkd.min(errors[1])) < 1e-6
 
     @pytest.mark.parametrize("nqoi", [1, 2, 3])
     @pytest.mark.parametrize(
@@ -201,7 +232,7 @@ class DerivativesSuite:
         self,
         array_case: TypedStackCase[A, F, A],
         nqoi: int,
-        strategy: SteadyJacobianProtocol,
+        strategy: ImplicitJacobianProtocol,
     ) -> None:
         default, _ = _function(array_case, nqoi=nqoi)
         chosen, _ = _function(array_case, nqoi=nqoi, jacobian=strategy)
@@ -226,7 +257,8 @@ class DerivativesSuite:
     ) -> None:
         function, _ = _function(array_case, residual_order=1)
         derivs = function.derivatives()
-        assert derivs.jacobian is not None and derivs.hvp is None
+        assert derivs.jacobian is not None
+        assert derivs.hvp is None and derivs.whvp is None
 
 
 class SetupsSuite:
@@ -313,5 +345,5 @@ class RefusalsSuite:
     def test_a_jacobian_that_is_not_a_strategy(
         self, array_case: TypedStackCase[A, F, A]
     ) -> None:
-        with pytest.raises(TypeError, match="SteadyJacobianProtocol"):
+        with pytest.raises(TypeError, match="ImplicitJacobianProtocol"):
             _function(array_case, jacobian=3.0)  # type: ignore[arg-type]

@@ -25,16 +25,14 @@ steady_residual.collocation_steady_residual`.
 from dataclasses import dataclass
 from typing import Generic, Optional, TypeVar
 
+from pyapprox.implicitfunction.implicit_map import ImplicitJacobianProtocol
 from pyapprox.implicitfunction.setups import (
     RecomputeAlways,
     SetupStrategyProtocol,
     SteadyRequest,
 )
 from pyapprox.implicitfunction.state_functional import StateFunctional
-from pyapprox.implicitfunction.steady_function import (
-    SteadyImplicitFunction,
-    SteadyJacobianProtocol,
-)
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.ode.residual_derivatives import backend_state_space
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
@@ -82,7 +80,7 @@ def collocation_steady_function(
     ] = None,
     nonlinear: Optional[NonlinearSolverProtocol[Array, Array]] = None,
     time: Optional[float] = None,
-    jacobian: Optional[SteadyJacobianProtocol] = None,
+    jacobian: Optional[ImplicitJacobianProtocol] = None,
 ) -> SteadyImplicitFunction[Array, DenseFormat[Array]]:
     r"""The functional of ``system``'s steady state as a function of the
     parameters.
@@ -107,7 +105,7 @@ def collocation_steady_function(
     time : float, optional
         The time the data are frozen at; omitted, every piece must be
         declared time-invariant (see ``collocation_steady_residual``).
-    jacobian : SteadyJacobianProtocol, optional
+    jacobian : ImplicitJacobianProtocol, optional
         How the Jacobian is formed; default by the number of entries and
         parameters (see ``SteadyImplicitFunction``).
 

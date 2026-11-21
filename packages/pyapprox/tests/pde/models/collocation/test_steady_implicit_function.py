@@ -46,13 +46,11 @@ from typing import Callable, Dict, Generic, List, Optional, Tuple
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.implicit_map import TangentColumns
 from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
-from pyapprox.implicitfunction.steady_function import (
-    SteadyImplicitFunction,
-    TangentColumns,
-)
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

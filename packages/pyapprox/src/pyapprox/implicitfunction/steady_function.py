@@ -1,35 +1,35 @@
 r"""A steady functional as a function of the parameters.
 
-The function :math:`q(p) = Q(u(p);\, p)`, where :math:`u(p)` solves
-:math:`R(u;\, p) = 0`, maps a batch of parameter samples to their values
-and carries its derivatives in a
-:class:`~pyapprox.interface.functions.derivatives.Derivatives` bundle, so
-anything that takes a :class:`~pyapprox.interface.functions.protocols.
-function.FunctionProtocol` (sampling, sensitivity analysis, optimization,
-inference) can use it. It solves with a
-:class:`~pyapprox.implicitfunction.steady_system.SteadySystem` and
+The map :math:`p \mapsto Q(u(p);\, p)`, where :math:`u(p)` solves
+:math:`R(u;\, p) = 0`, is a :class:`SteadyImplicitMap`: it solves with a
+:class:`~pyapprox.implicitfunction.steady_system.SteadySystem`,
 differentiates with :class:`~pyapprox.implicitfunction.steady_derivatives.
-SteadyDerivatives`; the residual, the linear-solver setups and the
-nonlinear solver are all injected.
+SteadyDerivatives`, and declares what it can differentiate in an
+:class:`~pyapprox.implicitfunction.implicit_map.ImplicitMapDerivatives`
+bundle over its solved point, :class:`SteadyImplicitPoint`. The residual,
+the linear-solver setups and the nonlinear solver are all injected.
+
+:class:`SteadyImplicitFunction` is that map as a
+:class:`~pyapprox.interface.functions.protocols.function.FunctionProtocol`
+of backend sample columns, by :class:`~pyapprox.implicitfunction.
+implicit_map.ImplicitMapFunction`, so anything that takes one (sampling,
+sensitivity analysis, optimization, inference) can use it.
 """
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.implicitfunction.functional_terms import has_first_derivatives
+from pyapprox.implicitfunction.implicit_map import (
+    ArrayParameters,
+    ImplicitJacobianProtocol,
+    ImplicitMapDerivatives,
+    ImplicitMapFunction,
+)
 from pyapprox.implicitfunction.residual import ResidualProtocol
 from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
 from pyapprox.implicitfunction.state_functional import StateFunctional
-from pyapprox.implicitfunction.steady_derivatives import (
-    SteadyDerivatives,
-    SteadyHessian,
-    SteadyPointProtocol,
-)
+from pyapprox.implicitfunction.steady_derivatives import SteadyDerivatives
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
-from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.protocols.validation import (
-    validate_sample,
-    validate_samples,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import FormatProtocol, InnerProductSpaceProtocol
 from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
@@ -52,83 +52,74 @@ class ParameterSetterProtocol(Protocol[Array_contra]):
         ...
 
 
-@runtime_checkable
-class SteadyJacobianProtocol(Protocol):
-    """How a steady functional's Jacobian is formed from its solved
-    point."""
+class SteadyImplicitPoint(Generic[Array, F]):
+    r"""A steady solve at one parameter, with the derivatives taken there:
+    the point of :class:`SteadyImplicitMap`, whose bundle's fields are
+    this class's methods.
 
-    def jacobian(
+    Parameters
+    ----------
+    point : SteadyPoint
+        The converged solve.
+    derivatives : SteadyDerivatives, optional
+        The map's derivatives; None when it has none.
+    """
+
+    def __init__(
         self,
-        derivatives: SteadyDerivatives[Array, Array, F],
-        point: SteadyPointProtocol[Array],
-        nqoi: int,
-        nvars: int,
-        bkd: Backend[Array],
-    ) -> Array:
-        """:math:`dQ/dp` at ``point``. Shape: ``(nqoi, nvars)``."""
-        ...
+        point: SteadyPoint[Array, Array],
+        derivatives: Optional[SteadyDerivatives[Array, Array, F]],
+    ) -> None:
+        self._point, self._derivatives = point, derivatives
 
+    def state(self) -> Array:
+        """The solved state. Shape: ``(nstates, 1)``."""
+        return self._point.state()
 
-class AdjointRows:
-    """The Jacobian by rows: one adjoint solve per entry, each with the
-    transposed :math:`R_u`. Cheap with few entries; needs a linear solver
-    whose handle has a transpose."""
+    def _derivatives_or_raise(self) -> SteadyDerivatives[Array, Array, F]:
+        if self._derivatives is None:
+            raise RuntimeError(
+                "the map has no derivatives; check derivatives() before calling"
+            )
+        return self._derivatives
 
-    def jacobian(
-        self,
-        derivatives: SteadyDerivatives[Array, Array, F],
-        point: SteadyPointProtocol[Array],
-        nqoi: int,
-        nvars: int,
-        bkd: Backend[Array],
-    ) -> Array:
-        eye = bkd.eye(nqoi)
-        return bkd.vstack(
-            [
-                derivatives.gradient(derivatives.adjoint(point, eye[:, ii : ii + 1])).T
-                for ii in range(nqoi)
-            ]
-        )
+    def tangent(self, direction: Array) -> Array:
+        r""":math:`dQ/dp\, v`, one tangent solve. Shape: ``(nqoi, 1)``."""
+        return self._derivatives_or_raise().tangent(self._point, direction)
+
+    def gradient(self, weights: Optional[Array]) -> Array:
+        r""":math:`d(\omega^\top Q)/dp`, one adjoint solve; ``weights`` of
+        shape ``(nqoi, 1)``, None only for one entry. Shape:
+        ``(nparams, 1)``."""
+        derivatives = self._derivatives_or_raise()
+        return derivatives.gradient(derivatives.adjoint(self._point, weights))
+
+    def hvp(self, direction: Array, weights: Optional[Array]) -> Array:
+        r""":math:`(d^2 \omega^\top Q/dp^2)\, v`: an adjoint solve, then a
+        tangent and a second adjoint solve. Shape: ``(nparams, 1)``."""
+        derivatives = self._derivatives_or_raise()
+        hessian = derivatives.hessian()
+        if hessian is None:
+            raise RuntimeError(
+                "the map has no second derivatives; check derivatives() before calling"
+            )
+        return hessian.hvp(derivatives.adjoint(self._point, weights), direction)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
 
 
-class TangentColumns:
-    """The Jacobian by columns: one tangent solve per parameter, with
-    :math:`R_u` itself. Cheap with few parameters; needs no transpose."""
+class SteadyImplicitMap(Generic[Array, F]):
+    r""":math:`p \mapsto Q(u(p);\, p)` with :math:`R(u(p);\, p) = 0`: an
+    implicit map (``ImplicitMapProtocol``) whose parameter vectors are
+    backend columns ``(nparams, 1)``.
 
-    def jacobian(
-        self,
-        derivatives: SteadyDerivatives[Array, Array, F],
-        point: SteadyPointProtocol[Array],
-        nqoi: int,
-        nvars: int,
-        bkd: Backend[Array],
-    ) -> Array:
-        eye = bkd.eye(nvars)
-        return bkd.hstack(
-            [derivatives.tangent(point, eye[:, jj : jj + 1]) for jj in range(nvars)]
-        )
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}()"
-
-
-class SteadyImplicitFunction(Generic[Array, F]):
-    r""":math:`q(p) = Q(u(p);\, p)` with :math:`R(u(p);\, p) = 0`, as a
-    function of the parameters.
-
-    Satisfies ``FunctionProtocol``. Each sample sets the parameters,
-    clears ``setups``, and solves from ``init_state``.
-
-    ``derivatives()`` is decided once, here:
-
-    - none when the residual has no parameter Jacobian or a term of
-      ``functional`` has no first derivatives;
-    - otherwise the Jacobian, formed by ``jacobian``;
-    - for a single entry, also the Hessian-vector product when the
-      residual and every term carry second derivatives.
+    Each solve sets the parameters, clears ``setups``, and solves from
+    ``init_state``. ``derivatives()`` is decided once, here: none when the
+    residual has no parameter Jacobian or a term of ``functional`` has no
+    first derivatives; otherwise tangents and gradients; and the
+    Hessian-vector product, for every ``nqoi``, when the residual and every
+    term carry second derivatives.
 
     States are backend arrays: the state space's vectors are ``Array``.
 
@@ -142,26 +133,19 @@ class SteadyImplicitFunction(Generic[Array, F]):
         Sets the parameters; every ``set_param`` must move ``residual``'s
         parameter version.
     setups : SetupStrategyProtocol
-        The linear-solver setups for :math:`R_u`; cleared at every new
-        sample.
+        The linear-solver setups for :math:`R_u`; cleared at every solve.
     nonlinear : NonlinearSolverProtocol
         Solves :math:`R(u;\, p) = 0`.
     functional : StateFunctional
         :math:`Q(u;\, p)`.
     init_state : Array
         The initial guess of every solve. Shape: ``(nstates, 1)``.
-    bkd : Backend
-        The backend of the samples and values.
-    jacobian : SteadyJacobianProtocol, optional
-        How the Jacobian is formed. Default: :class:`AdjointRows` when
-        there are no more entries than parameters, else
-        :class:`TangentColumns`, whichever takes fewer solves.
 
     Raises
     ------
     TypeError
-        If ``parameters``, ``functional`` or ``jacobian`` is of the wrong
-        type (the others are checked by
+        If ``parameters`` or ``functional`` is of the wrong type (the
+        others are checked by
         :class:`~pyapprox.implicitfunction.steady_system.SteadySystem`).
     ValueError
         If ``init_state`` does not have shape ``(nstates, 1)``.
@@ -176,8 +160,6 @@ class SteadyImplicitFunction(Generic[Array, F]):
         nonlinear: NonlinearSolverProtocol[Array, Array],
         functional: StateFunctional[Array, Array],
         init_state: Array,
-        bkd: Backend[Array],
-        jacobian: Optional[SteadyJacobianProtocol] = None,
     ) -> None:
         self._system: SteadySystem[Array, Array, F] = SteadySystem(
             residual, space, setups
@@ -191,18 +173,6 @@ class SteadyImplicitFunction(Generic[Array, F]):
             raise TypeError(
                 f"functional must be a StateFunctional, got {type(functional).__name__}"
             )
-        if jacobian is None:
-            jacobian = (
-                AdjointRows()
-                if functional.nqoi() <= parameters.nparams()
-                else TangentColumns()
-            )
-        if not isinstance(jacobian, SteadyJacobianProtocol):
-            raise TypeError(
-                "jacobian must satisfy SteadyJacobianProtocol, got "
-                f"{type(jacobian).__name__}"
-            )
-        self._jacobian_strategy = jacobian
         nstates = space.descriptor().size
         if tuple(init_state.shape) != (nstates, 1):
             raise ValueError(
@@ -211,32 +181,33 @@ class SteadyImplicitFunction(Generic[Array, F]):
             )
         self._parameters, self._setups = parameters, setups
         self._nonlinear, self._functional = nonlinear, functional
-        self._init_state, self._bkd = init_state, bkd
-        self._derivatives: Optional[SteadyDerivatives[Array, Array, F]] = None
-        self._hessian: Optional[SteadyHessian[Array, Array]] = None
-        self._derivs: Derivatives[Array] = Derivatives.none()
+        self._init_state = init_state
+        self._steady: Optional[SteadyDerivatives[Array, Array, F]] = None
+        self._derivatives: ImplicitMapDerivatives[
+            SteadyImplicitPoint[Array, F], Array, Array
+        ] = ImplicitMapDerivatives.none()
         bundle = residual.derivatives()
         if bundle.param is None or not has_first_derivatives(
             functional.parameter_terms, functional.state_terms
         ):
             return
-        derivatives: SteadyDerivatives[Array, Array, F] = SteadyDerivatives(
+        steady: SteadyDerivatives[Array, Array, F] = SteadyDerivatives(
             residual, space, functional
         )
-        self._derivatives = derivatives
-        self._hessian = derivatives.hessian() if functional.nqoi() == 1 else None
-        if self._hessian is not None:
-            self._derivs = Derivatives.second_order(
-                jacobian=self._jacobian, hvp=self._hvp
+        self._steady = steady
+        self._derivatives = (
+            ImplicitMapDerivatives.first_order(
+                SteadyImplicitPoint.tangent, SteadyImplicitPoint.gradient
             )
-            return
-        self._derivs = Derivatives.first_order(jacobian=self._jacobian)
+            if steady.hessian() is None
+            else ImplicitMapDerivatives.second_order(
+                SteadyImplicitPoint.tangent,
+                SteadyImplicitPoint.gradient,
+                SteadyImplicitPoint.hvp,
+            )
+        )
 
-    def bkd(self) -> Backend[Array]:
-        """The backend of the samples and values."""
-        return self._bkd
-
-    def nvars(self) -> int:
+    def nparams(self) -> int:
         """The number of parameters."""
         return self._parameters.nparams()
 
@@ -244,22 +215,15 @@ class SteadyImplicitFunction(Generic[Array, F]):
         """The number of entries of the functional."""
         return self._functional.nqoi()
 
-    def derivatives(self) -> Derivatives[Array]:
-        """The derivative bundle, with respect to the parameters."""
-        return self._derivs
+    def derivatives(
+        self,
+    ) -> ImplicitMapDerivatives[SteadyImplicitPoint[Array, F], Array, Array]:
+        """Which derivatives a point has, fixed at construction."""
+        return self._derivatives
 
-    def __call__(self, samples: Array) -> Array:
-        """The functional at each sample.
-
-        Parameters
-        ----------
-        samples : Array
-            Shape: ``(nvars, nsamples)``.
-
-        Returns
-        -------
-        Array
-            Shape: ``(nqoi, nsamples)``.
+    def value(self, param: Array) -> Array:
+        """:math:`Q` at the parameter column ``param``. Shape:
+        ``(nqoi, 1)``.
 
         Raises
         ------
@@ -267,19 +231,18 @@ class SteadyImplicitFunction(Generic[Array, F]):
             If setting the parameters does not move the residual's
             parameter version.
         RuntimeError
-            If a solve does not converge.
+            If the solve does not converge.
         """
-        validate_samples(self.nvars(), samples)
-        return self._bkd.hstack(
-            [
-                self._functional.value(self._solve(samples[:, ii : ii + 1]).state())
-                for ii in range(samples.shape[1])
-            ]
-        )
+        return self._functional.value(self._solve(param).state())
 
-    def _solve(self, sample: Array) -> SteadyPoint[Array, Array]:
+    def point(self, param: Array) -> SteadyImplicitPoint[Array, F]:
+        """The solve at the parameter column ``param``, for the
+        derivatives; raises as :meth:`value`."""
+        return SteadyImplicitPoint(self._solve(param), self._steady)
+
+    def _solve(self, param: Array) -> SteadyPoint[Array, Array]:
         before = self._system.residual_version()
-        self._parameters.set_param(sample[:, 0])
+        self._parameters.set_param(param[:, 0])
         if self._system.residual_version() == before:
             raise ValueError(
                 "setting the parameters did not move the residual's parameter "
@@ -293,35 +256,62 @@ class SteadyImplicitFunction(Generic[Array, F]):
             )
         return point
 
-    def _derivatives_or_raise(self) -> SteadyDerivatives[Array, Array, F]:
-        if self._derivatives is None:
-            raise RuntimeError(
-                "jacobian is unavailable; check derivatives() before calling"
-            )
-        return self._derivatives
-
-    def _jacobian(self, sample: Array) -> Array:
-        """:math:`dq/dp` at one sample. Shape: ``(nqoi, nvars)``."""
-        derivatives = self._derivatives_or_raise()
-        validate_sample(self.nvars(), sample)
-        point = self._solve(sample)
-        return self._jacobian_strategy.jacobian(
-            derivatives, point, self.nqoi(), self.nvars(), self._bkd
-        )
-
-    def _hvp(self, sample: Array, vec: Array) -> Array:
-        r""":math:`\nabla^2 q\, v` at one sample. Shape: ``(nvars, 1)``."""
-        hessian = self._hessian
-        if hessian is None:
-            raise RuntimeError("hvp is unavailable; check derivatives() before calling")
-        derivatives = self._derivatives_or_raise()
-        validate_sample(self.nvars(), sample)
-        validate_sample(self.nvars(), vec)
-        point = self._solve(sample)
-        return hessian.hvp(derivatives.adjoint(point), vec)
-
     def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}(nvars={self.nvars()}, nqoi={self.nqoi()}, "
-            f"jacobian={self._jacobian_strategy!r}, derivatives={self._derivs!r})"
+            f"{type(self).__name__}(nparams={self.nparams()}, nqoi={self.nqoi()}, "
+            f"derivatives={self._derivatives!r})"
         )
+
+
+class SteadyImplicitFunction(
+    ImplicitMapFunction[SteadyImplicitPoint[Array, F], Array, Array]
+):
+    r""":math:`q(p) = Q(u(p);\, p)` with :math:`R(u(p);\, p) = 0`, as a
+    function of the parameters: a :class:`SteadyImplicitMap` through
+    :class:`~pyapprox.implicitfunction.implicit_map.ImplicitMapFunction`,
+    with the identity parameter-space map.
+
+    Satisfies ``FunctionProtocol``. ``derivatives()`` is decided once,
+    here: none when the map has none; otherwise the Jacobian, formed by
+    ``jacobian``; and the weighted Hessian-vector product ``whvp`` for
+    every ``nqoi`` when the map has second derivatives, with the plain
+    ``hvp`` as well for one entry.
+
+    Parameters
+    ----------
+    residual, space, parameters, setups, nonlinear, functional, init_state
+        As :class:`SteadyImplicitMap`.
+    bkd : Backend
+        The backend of the samples and values.
+    jacobian : ImplicitJacobianProtocol, optional
+        How the Jacobian is formed. Default:
+        :class:`~pyapprox.implicitfunction.implicit_map.AdjointRows` when
+        there are no more entries than parameters, else
+        :class:`~pyapprox.implicitfunction.implicit_map.TangentColumns`,
+        whichever takes fewer solves.
+
+    Raises
+    ------
+    TypeError
+        As :class:`SteadyImplicitMap`, or if ``jacobian`` does not satisfy
+        ``ImplicitJacobianProtocol``.
+    ValueError
+        As :class:`SteadyImplicitMap`.
+    """
+
+    def __init__(
+        self,
+        residual: ResidualProtocol[Array, F],
+        space: InnerProductSpaceProtocol[Array, Array],
+        parameters: ParameterSetterProtocol[Array],
+        setups: SetupStrategyProtocol[SteadyRequest[Array, F], Array, F],
+        nonlinear: NonlinearSolverProtocol[Array, Array],
+        functional: StateFunctional[Array, Array],
+        init_state: Array,
+        bkd: Backend[Array],
+        jacobian: Optional[ImplicitJacobianProtocol] = None,
+    ) -> None:
+        implicit: SteadyImplicitMap[Array, F] = SteadyImplicitMap(
+            residual, space, parameters, setups, nonlinear, functional, init_state
+        )
+        super().__init__(implicit, ArrayParameters(bkd), jacobian)

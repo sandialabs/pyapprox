@@ -604,7 +604,8 @@ class TestAsAFunction:
 
     def test_capability_follows_the_map(self, bkd: Backend[Array]) -> None:
         """A first-order map gives the Jacobian alone, a map without
-        derivatives none; a single entry resolves the plain HVP."""
+        derivatives none; a single entry gives the plain HVP as well as the
+        weighted one."""
         first = ImplicitMapFunction(
             _two_entries(bkd, ReducedLotkaVolterra(bkd, 1)), ArrayParameters(bkd)
         ).derivatives()
@@ -633,11 +634,14 @@ class TestAsAFunction:
             tikhonov.set_param,
         )
         function = ImplicitMapFunction(implicit, ArrayParameters(bkd))
-        hvp = function.derivatives().resolved_hvp(1, bkd)
-        assert hvp is not None
+        derivatives = function.derivatives()
+        hvp, whvp = derivatives.hvp, derivatives.whvp
+        assert hvp is not None and whvp is not None
         param, direction = bkd.asarray(LV_PARAM), random_direction(bkd)
+        expected = implicit.point(param).hvp(direction)
+        bkd.assert_allclose(hvp(param, direction), expected, rtol=1e-12)
         bkd.assert_allclose(
-            hvp(param, direction), implicit.point(param).hvp(direction), rtol=1e-12
+            whvp(param, direction, bkd.asarray([[2.0]])), 2.0 * expected, rtol=1e-12
         )
 
     def test_refusals(self, numpy_bkd: NumpyBkd) -> None:

@@ -12,8 +12,8 @@ with :math:`u^2`, at p = (0.4, -0.3, 0.2); the elastic plate at
   and HVP at the parameters pass central finite differences (smallest
   relative error below 1e-6).
 - The states at the middle and last-but-one DOFs (two entries, at most the
-  number of parameters): the Jacobian passes central finite differences
-  (below 1e-6).
+  number of parameters): the Jacobian and the weighted HVP with unit
+  weights pass central finite differences (below 1e-6).
 - Downgrade: the :math:`u^2` reaction declared without its second
   derivative gives a residual bundle with no second-order fields (absent,
   not a stated zero), so the function has no HVP; its Jacobian still
@@ -172,8 +172,9 @@ def test_vector_jacobian_passes_finite_differences(
     middle = _middle(bkd, name)
     function = _Observed(bkd, name, [middle, 2 * middle - 1])
     errors = _min_errors(bkd, function)
-    assert len(errors) == 1
-    assert errors[0] < 1e-6
+    # The Jacobian and the weighted HVP (unit weights).
+    assert len(errors) == 2
+    assert max(errors) < 1e-6
 
 
 def test_missing_state_curvature_downgrades_to_the_jacobian(
@@ -204,7 +205,8 @@ def test_missing_state_curvature_downgrades_to_the_jacobian(
         bkd,
     )
     derivs = function.derivatives()
-    assert derivs.jacobian is not None and derivs.hvp is None
+    assert derivs.jacobian is not None
+    assert derivs.hvp is None and derivs.whvp is None
     errors = DerivativeChecker(function).check_derivatives(
         ADR_PARAM, relative=True, central=True
     )

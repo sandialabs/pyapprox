@@ -290,8 +290,9 @@ class ImplicitMapFunction(Generic[P, V, A]):
     ``derivatives()`` is decided once, here, from the map's bundle: none
     when no Jacobian strategy is supported; otherwise the Jacobian, and
     with the map's ``hvp`` the weighted Hessian-vector product ``whvp``
-    for every ``nqoi`` (``resolved_hvp`` gives the plain one when
-    ``nqoi`` is 1). Each derivative solves once at its sample.
+    for every ``nqoi``, and for one entry the plain ``hvp`` as well (the
+    weighted one with unit weight). Each derivative solves once at its
+    sample.
 
     Parameters
     ----------
@@ -336,6 +337,10 @@ class ImplicitMapFunction(Generic[P, V, A]):
             if self._strategy is None
             else Derivatives.first_order(jacobian=self._jacobian)
             if self._map_derivatives.hvp is None
+            # One entry: the plain HVP too, the weighted one with unit
+            # weight, so scalar consumers read it directly.
+            else Derivatives(jacobian=self._jacobian, hvp=self._hvp, whvp=self._whvp)
+            if self.nqoi() == 1
             else Derivatives.second_order_weighted(
                 jacobian=self._jacobian, whvp=self._whvp
             )
@@ -432,6 +437,11 @@ class ImplicitMapFunction(Generic[P, V, A]):
         parameters = self._parameters
         point = self._implicit.point(parameters.from_array(sample))
         return parameters.to_array(hvp(point, parameters.from_array(vec), weights))
+
+    def _hvp(self, sample: A, vec: A) -> A:
+        r""":math:`\nabla^2 q\, v` at one sample, for one entry. Shape:
+        ``(nvars, 1)``."""
+        return self._whvp(sample, vec, self.bkd().ones((1, 1)))
 
     def __repr__(self) -> str:
         return (
