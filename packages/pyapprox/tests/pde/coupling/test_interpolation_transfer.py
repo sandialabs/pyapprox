@@ -3,8 +3,9 @@
 Checks are derivation-free: a skeleton function that is a polynomial of
 the basis degree is reproduced at arbitrary port points; scatter and
 gather are transposes; at points that are skeleton nodes the transfer is
-the matching one; at a cross point the rules average or refuse; the
-torch graph survives through both directions; the SciPy and the opaque
+the matching one; at a cross point the rules average or refuse; an
+autodiff graph survives through both directions (``bkd.jacobian``),
+and through the port nodes' positions; the SciPy and the opaque
 mock port stacks assemble the same map as the dense backend one.
 """
 
@@ -13,7 +14,6 @@ from typing import Any, Generic, Sequence
 
 import numpy as np
 import pytest
-import torch
 from numpy.typing import NDArray
 
 from pyapprox.pde.assembly.backend_dense_sink import BackendDenseMatrixAssembly
@@ -42,9 +42,9 @@ from pyapprox.pde.coupling.spaces import (
     UniformBases,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseOperator,
     DenseFormat,
@@ -418,7 +418,7 @@ def test_any_port_map_gives_the_same_transfer(bkd: Backend[Array]) -> None:
     )
 
 
-def test_transfer_keeps_the_torch_graph(torch_bkd: TorchBkd) -> None:
+def test_transfer_keeps_the_autodiff_graph(torch_bkd: AutodiffBackend[Array]) -> None:
     bkd = torch_bkd
     _, space, _ = _continuous(bkd, (2, 2))
     c = _center(bkd, space)
@@ -429,21 +429,28 @@ def test_transfer_keeps_the_torch_graph(torch_bkd: TorchBkd) -> None:
         BackendPortRows(space.descriptor(), c.dofs, bkd), matrix
     )
     n = space.descriptor().size
-    lam = torch.linspace(0.0, 1.0, n, dtype=torch.float64).reshape(n, 1)
-    lam.requires_grad_()
-    block = torch.tensor([[2.0]], dtype=torch.float64, requires_grad=True)
-    out = transfer.gather_add(block * transfer.scatter(lam), lam)
-    dlam, dblock = torch.autograd.grad(out.sum(), [lam, block])
+
+    def total(params: Array) -> Array:
+        lam, block = bkd.reshape(params[:n], (n, 1)), bkd.reshape(params[n:], (1, 1))
+        out = transfer.gather_add(block * transfer.scatter(lam), lam)
+        return bkd.reshape(bkd.sum(out), (1,))
+
+    lam = bkd.linspace(0.0, 1.0, n)
+    jacobian = bkd.jacobian(total, bkd.concatenate([lam, bkd.asarray([2.0])]))
     # d/dlam [lam + E^T (b E lam)] summed = 1 + b E^T E 1-vector column sums.
-    e_full = transfer.gather_add(torch.eye(1, dtype=torch.float64), torch.zeros(n, 1))
-    expected = 1.0 + 2.0 * e_full * float(e_full.sum())
-    bkd.assert_allclose(dlam, expected, rtol=1e-12)
+    e_full = transfer.gather_add(
+        bkd.eye(1, dtype=bkd.default_dtype()), bkd.zeros((n, 1))
+    )[:, 0]
     bkd.assert_allclose(
-        dblock.reshape(1), (transfer.scatter(lam) * e_full.sum()).detach().reshape(1)
+        jacobian[0, :n], 1.0 + 2.0 * e_full * bkd.sum(e_full), rtol=1e-12
     )
+    dblock = transfer.scatter(bkd.reshape(lam, (n, 1)))[:, 0] * bkd.sum(e_full)
+    bkd.assert_allclose(jacobian[0, n:], dblock)
 
 
-def test_assembly_keeps_the_graph_through_the_port_nodes(torch_bkd: TorchBkd) -> None:
+def test_assembly_keeps_the_graph_through_the_port_nodes(
+    torch_bkd: AutodiffBackend[Array],
+) -> None:
     # The interpolant reproduces _poly, so its derivative along the face
     # at a port node is the polynomial's.
     bkd = torch_bkd
@@ -451,16 +458,25 @@ def test_assembly_keeps_the_graph_through_the_port_nodes(torch_bkd: TorchBkd) ->
     geometry = TensorBoxGeometry(topo, bkd)
     faces = _subdomain_faces(topo, space.faces(), 0)
     dofs = subdomain_port_dofs(topo, space, 0)
-    y = torch.tensor([[-0.3]], dtype=torch.float64, requires_grad=True)
-    point = torch.cat([torch.ones((1, 1), dtype=torch.float64), y], dim=0)
-    matrix = _interpolation(space, point, geometry, faces, dofs, RefuseCrossPoints())
     lam = bkd.reshape(_poly(bkd, coords), (-1, 1))
-    value = PortMatrixTransfer(
-        BackendPortRows(space.descriptor(), dofs, bkd), matrix
-    ).scatter(lam)
-    (dy,) = torch.autograd.grad(value.sum(), [y])
+
+    def value(y: Array) -> Array:
+        point = bkd.concatenate([bkd.ones((1, 1)), bkd.reshape(y, (1, 1))], axis=0)
+        matrix = _interpolation(
+            space, point, geometry, faces, dofs, RefuseCrossPoints()
+        )
+        transfer = PortMatrixTransfer(
+            BackendPortRows(space.descriptor(), dofs, bkd), matrix
+        )
+        return bkd.reshape(transfer.scatter(lam), (1,))
+
+    y = -0.3
     # d/dy of (0.5 + x - x^2/4)(0.5 + y - y^2/4) at x = 1.
-    bkd.assert_allclose(dy, 1.25 * (1.0 - 0.5 * y.detach()), rtol=1e-12)
+    bkd.assert_allclose(
+        bkd.jacobian(value, bkd.asarray([y])),
+        bkd.asarray([[1.25 * (1.0 - 0.5 * y)]]),
+        rtol=1e-12,
+    )
 
 
 def test_port_stacks_assemble_the_same_map() -> None:

@@ -5,15 +5,14 @@ closed-form linear-hat mass; k = 2 takes each component's moments
 separately; a point trace's moments are the values themselves; a 1D
 chain with one closed-form piece behind :class:`PointwiseFluxResponse`
 matches the exact interface values; the response's tangent is the
-model's, and absent when the model has none; a torch graph through the
-values survives.
+model's, and absent when the model has none; an autodiff graph through
+the values survives (``bkd.jacobian``).
 """
 
 from typing import Any, Generic, Sequence
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
@@ -41,8 +40,8 @@ from pyapprox.pde.coupling.skeleton import (
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
 from pyapprox.pde.coupling.traces import LinearSegmentTrace, LumpedNodalTrace
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendVectorSpace,
@@ -229,14 +228,22 @@ def test_tangent_follows_the_model(bkd: Backend[Array]) -> None:
     assert without.derivatives().jvp_trace is None
 
 
-def test_a_graph_through_the_values_survives(torch_bkd: TorchBkd) -> None:
-    trace = _trace(torch_bkd)
+def test_a_graph_through_the_values_survives(
+    torch_bkd: AutodiffBackend[Array],
+) -> None:
+    bkd = torch_bkd
+    trace = _trace(bkd)
     npoints = int(trace.points().shape[1])
-    values = torch.ones((npoints, 1), dtype=torch.float64, requires_grad=True)
-    (grad,) = torch.autograd.grad(flux_moments(trace, values).sum(), [values])
+
+    def total(values: Array) -> Array:
+        moments = flux_moments(trace, bkd.reshape(values, (npoints, 1)))
+        return bkd.reshape(bkd.sum(moments), (1,))
+
     # The hats sum to 1, so each point's value enters with its weight.
-    torch_bkd.assert_allclose(
-        grad, torch_bkd.reshape(trace.weights(), (npoints, 1)), rtol=1e-14
+    bkd.assert_allclose(
+        bkd.jacobian(total, bkd.ones((npoints,))),
+        bkd.reshape(trace.weights(), (1, npoints)),
+        rtol=1e-14,
     )
 
 

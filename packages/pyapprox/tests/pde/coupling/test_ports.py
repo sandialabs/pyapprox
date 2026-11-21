@@ -11,7 +11,6 @@ from typing import Any, Callable, Generic, Sequence, Union
 
 import numpy as np
 import pytest
-import torch
 from numpy.typing import NDArray
 
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
@@ -31,9 +30,9 @@ from pyapprox.pde.coupling.spaces import (
     UniformBases,
 )
 from pyapprox.pde.coupling.topology import TensorBoxPartition
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.linalg.backend_dense import DenseFormat
 from pyapprox.util.linalg.operators import SpaceDescriptor
 from tests._helpers.coupling import MockPortRows
@@ -144,18 +143,23 @@ def test_backend_port_rows_reject_bad_input(numpy_bkd: Backend[Array]) -> None:
         MatchingNodalTransfer(object())  # type: ignore[arg-type]
 
 
-def test_backend_port_rows_keep_the_torch_graph(torch_bkd: TorchBkd) -> None:
-    rows = BackendPortRows(SpaceDescriptor("skeleton", 5), [3, 0], torch_bkd)
-    x = torch.arange(5.0, dtype=torch.float64).reshape(5, 1).requires_grad_()
-    block = torch.tensor([[2.0], [-1.0]], dtype=torch.float64, requires_grad=True)
-    out = rows.add_to(x, block * rows.take(x))
+def test_backend_port_rows_keep_the_autodiff_graph(
+    torch_bkd: AutodiffBackend[Array],
+) -> None:
+    bkd = torch_bkd
+    rows = BackendPortRows(SpaceDescriptor("skeleton", 5), [3, 0], bkd)
+
+    def total(params: Array) -> Array:
+        x, block = bkd.reshape(params[:5], (5, 1)), bkd.reshape(params[5:], (2, 1))
+        return bkd.reshape(bkd.sum(rows.add_to(x, block * rows.take(x))), (1,))
+
     # out = x + P^T (block * P x): d sum(out)/dx = 1 + P^T block,
     # d sum(out)/d block = P x.
-    dx, dblock = torch.autograd.grad(out.sum(), [x, block])
-    torch_bkd.assert_allclose(
-        dx, torch.tensor([[0.0], [1.0], [1.0], [3.0], [1.0]], dtype=torch.float64)
+    params = bkd.asarray([0.0, 1.0, 2.0, 3.0, 4.0, 2.0, -1.0])
+    bkd.assert_allclose(
+        bkd.jacobian(total, params),
+        bkd.asarray([[0.0, 1.0, 1.0, 3.0, 1.0, 3.0, 0.0]]),
     )
-    torch_bkd.assert_allclose(dblock, torch.tensor([[3.0], [0.0]], dtype=torch.float64))
 
 
 def test_both_spaces_give_entity_dofs() -> None:
