@@ -3,6 +3,7 @@ quadrature, the data the projection builders of
 :mod:`pyapprox.pde.coupling.ports` read.
 """
 
+from dataclasses import dataclass
 from typing import Generic, Sequence
 
 from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
@@ -353,3 +354,238 @@ class LagrangeSegmentTrace(Generic[Array]):
 
     def values(self) -> Array:
         return self._values
+
+
+class ElementTrace(Generic[Array]):
+    r"""Trace functions given element by element, held as the arrays the
+    projection builders read.
+
+    An element may list a node in several local slots; the node's
+    function there is the sum of those slots' values, so a function built
+    from several local ones (a merged end function) needs no extra slot.
+
+    Parameters
+    ----------
+    points
+        The physical quadrature points, element-major. Shape: (ndim,
+        nelems * nquad).
+    weights
+        The quadrature weights in the physical measure. Shape: (nelems,
+        nquad).
+    values
+        Each element's slot functions at its points. Shape: (nelems,
+        nquad, nlocal).
+    element_nodes
+        Each slot's node, int64. Shape: (nelems, nlocal).
+    nnodes
+        The number of trace functions.
+    bkd
+        Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If the shapes disagree or a slot names a node out of range.
+    """
+
+    def __init__(
+        self,
+        points: Array,
+        weights: Array,
+        values: Array,
+        element_nodes: Array,
+        nnodes: int,
+        bkd: Backend[Array],
+    ) -> None:
+        if values.ndim != 3 or element_nodes.ndim != 2:
+            raise ValueError(
+                "values must be (nelems, nquad, nlocal) and element_nodes "
+                f"(nelems, nlocal), got {tuple(values.shape)} and "
+                f"{tuple(element_nodes.shape)}"
+            )
+        nelems, nquad, nlocal = (int(n) for n in values.shape)
+        if tuple(element_nodes.shape) != (nelems, nlocal):
+            raise ValueError(
+                f"element_nodes must have shape ({nelems}, {nlocal}), got "
+                f"{tuple(element_nodes.shape)}"
+            )
+        if tuple(weights.shape) != (nelems, nquad):
+            raise ValueError(
+                f"weights must have shape ({nelems}, {nquad}), got "
+                f"{tuple(weights.shape)}"
+            )
+        if points.ndim != 2 or points.shape[1] != nelems * nquad:
+            raise ValueError(
+                f"points must have shape (ndim, {nelems * nquad}), got "
+                f"{tuple(points.shape)}"
+            )
+        low = bkd.to_int(bkd.min(element_nodes))
+        high = bkd.to_int(bkd.max(element_nodes))
+        if low < 0 or high >= nnodes:
+            raise ValueError(
+                f"element_nodes must lie in [0, {nnodes}), got {low}..{high}"
+            )
+        self._points, self._weights, self._values = points, weights, values
+        self._nodes, self._nnodes, self._bkd = element_nodes, nnodes, bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nnodes(self) -> int:
+        return self._nnodes
+
+    def element_nodes(self) -> Array:
+        return self._nodes
+
+    def points(self) -> Array:
+        return self._points
+
+    def weights(self) -> Array:
+        return self._weights
+
+    def values(self) -> Array:
+        return self._values
+
+
+@dataclass(frozen=True)
+class MortarSegmentTraces(Generic[Array]):
+    r"""A segment port's traces for a mortar projection, whose ends
+    ``ends`` are not port nodes (their values are fixed, e.g. by an outer
+    Dirichlet condition), all on the same quadrature points.
+
+    ``trial`` holds the port nodes' own functions :math:`\psi_i`, node
+    ``t`` the ``t``-th entry of ``interior``; ``ends`` the end functions
+    :math:`\psi_e`, at ``end_points``, in the order given; ``test`` the
+    modified functions :math:`\tilde\psi_t`, one per port node: in an
+    element holding an end, :math:`\tilde\psi_t = \psi_t + a_t \psi_e`,
+    where :math:`a_t` is the value at the end of the degree-(p - 1)
+    Lagrange polynomial of node ``t`` on the element's other nodes. The
+    test functions span the polynomials of degree p - 1 on an end element
+    and sum to one everywhere, so a constant flux is in their span.
+    """
+
+    test: ElementTrace[Array]
+    trial: ElementTrace[Array]
+    ends: ElementTrace[Array]
+    interior: Sequence[int]
+    end_points: Array
+
+
+def _end_weights(degree: int, end_slot: int) -> list[float]:
+    """The degree-(p - 1) Lagrange polynomials on an element's slots other
+    than ``end_slot``, at the end; nodes at s = j / p."""
+    nodes = [j / degree for j in range(degree + 1)]
+    others = [j for j in range(degree + 1) if j != end_slot]
+    weights = []
+    for t in others:
+        value = 1.0
+        for m in others:
+            if m != t:
+                value *= (nodes[end_slot] - nodes[m]) / (nodes[t] - nodes[m])
+        weights.append(value)
+    return weights
+
+
+def mortar_segment_traces(
+    points: Array,
+    elements: Sequence[Sequence[int]],
+    ends: Sequence[int],
+    nquad: int,
+    bkd: Backend[Array],
+) -> MortarSegmentTraces[Array]:
+    r"""The test, trial and end traces of a :class:`LagrangeSegmentTrace`
+    port whose nodes ``ends`` are not port nodes.
+
+    Parameters
+    ----------
+    points, elements, nquad, bkd
+        As for :class:`LagrangeSegmentTrace`, over every node, ends
+        included.
+    ends
+        The end nodes: each the first or last node of exactly one element,
+        no element holding two.
+
+    Raises
+    ------
+    ValueError
+        If ``points``, ``elements`` or ``nquad`` are refused by
+        :class:`LagrangeSegmentTrace`, ``ends`` is empty, repeats a node,
+        names one out of range, or names a node not at the end of exactly
+        one element, or an element holds two ends.
+    """
+    full = LagrangeSegmentTrace(points, elements, nquad, bkd)
+    nnodes = full.nnodes()
+    if not ends or len(set(ends)) != len(ends):
+        raise ValueError(f"ends must be nonempty and distinct, got {tuple(ends)}")
+    if any(e < 0 or e >= nnodes for e in ends):
+        raise ValueError(f"ends must lie in [0, {nnodes}), got {tuple(ends)}")
+    degree = len(elements[0]) - 1
+    end_of = {e: k for k, e in enumerate(ends)}
+    # The element and slot of each end.
+    placed: dict[int, tuple[int, int]] = {}
+    for el, nodes in enumerate(elements):
+        held = [j for j, n in enumerate(nodes) if n in end_of]
+        if len(held) > 1:
+            raise ValueError(f"element {el} holds two ends")
+        for j in held:
+            if j not in (0, degree) or nodes[j] in placed:
+                raise ValueError(
+                    f"end {nodes[j]} must be the first or last node of exactly one "
+                    "element"
+                )
+            placed[nodes[j]] = (el, j)
+    if len(placed) != len(ends):
+        raise ValueError(f"ends {sorted(set(ends) - placed.keys())} are in no element")
+    interior = [n for n in range(nnodes) if n not in end_of]
+    index = {n: t for t, n in enumerate(interior)}
+    slot_of_end = {el: j for el, j in placed.values()}
+    nlocal = degree + 1
+    test_nodes, trial_nodes, end_nodes = [], [], []
+    mixing, keep = [], []
+    for el, nodes in enumerate(elements):
+        mix = [[1.0 if a == b else 0.0 for b in range(nlocal)] for a in range(nlocal)]
+        if el not in slot_of_end:
+            row = [index[n] for n in nodes]
+            test_nodes.append(row)
+            trial_nodes.append(row)
+            end_nodes.append([0] * nlocal)
+            mixing.append(mix)
+            keep.append([1.0] * nlocal)
+            continue
+        j = slot_of_end[el]
+        others = [t for t in range(nlocal) if t != j]
+        weights = _end_weights(degree, j)
+        first = others[0]
+        # Slot j carries a_first psi_e to the first other node; each other
+        # slot t adds a_t psi_e to its own psi_t. mix[a][b]: slot a's
+        # function in slot b's output.
+        mix[j][j] = weights[0]
+        for t, a_t in zip(others[1:], weights[1:]):
+            mix[j][t] = a_t
+        row = [
+            index[nodes[t]] if t != j else index[nodes[first]] for t in range(nlocal)
+        ]
+        test_nodes.append(row)
+        trial_nodes.append(row)
+        end_nodes.append([end_of[nodes[j]] if t == j else 0 for t in range(nlocal)])
+        mixing.append(mix)
+        keep.append([0.0 if t == j else 1.0 for t in range(nlocal)])
+    values, weights_q, quad = full.values(), full.weights(), full.points()
+    keep_array = bkd.asarray(keep)[:, None, :]
+    test_values = bkd.einsum("eqa,eab->eqb", values, bkd.asarray(mixing))
+    int64 = bkd.int64_dtype()
+    nint, nends = len(interior), len(ends)
+
+    def trace(vals: Array, nodes: list[list[int]], n: int) -> ElementTrace[Array]:
+        return ElementTrace(
+            quad, weights_q, vals, bkd.asarray(nodes, dtype=int64), n, bkd
+        )
+
+    end_index = bkd.asarray(list(ends), dtype=int64)
+    return MortarSegmentTraces(
+        test=trace(test_values, test_nodes, nint),
+        trial=trace(values * keep_array, trial_nodes, nint),
+        ends=trace(values * (1.0 - keep_array), end_nodes, nends),
+        interior=interior,
+        end_points=points[:, end_index],
+    )

@@ -729,7 +729,7 @@ def port_trace_coupling(
         If the trace's arrays disagree in shape, a point lies on none of
         ``faces``, or a face's DOFs are not all in ``dofs``.
     """
-    nelems, nquad, nlocal = trace_shape(trace)
+    nelems, nquad, _ = trace_shape(trace)
     if not isinstance(geometry, PointLocatorProtocol):
         raise TypeError(
             f"geometry must satisfy PointLocatorProtocol, got {type(geometry).__name__}"
@@ -738,13 +738,26 @@ def port_trace_coupling(
         raise TypeError(
             f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
         )
-    bkd = trace.bkd()
     psi = _interpolation_rows(
         space, geometry.locate(trace.points(), faces), dofs, cross_points
     )
-    ncols = len(dofs)
     k = int(psi.shape[0]) // (nelems * nquad)
-    psi = bkd.reshape(psi, (nelems, nquad, k, ncols))
+    psi = trace.bkd().reshape(psi, (nelems, nquad, k, len(dofs)))
+    return _tested_coupling(trace, psi, "port", assembly)
+
+
+def _tested_coupling(
+    trace: PortTraceProtocol[Array],
+    psi: Array,
+    range_name: str,
+    assembly: PortAssemblyProtocol[P, F, Array, Array],
+) -> ActionOperatorProtocol[P, F]:
+    r""":math:`\int \phi^\top \psi` for the trace functions :math:`\phi` and
+    the columns ``psi`` at the trace's points, shape (nelems, nquad, k,
+    ncols), assembled into the ``range_name`` space by the port stack."""
+    bkd = trace.bkd()
+    nelems, _, k, ncols = (int(n) for n in psi.shape)
+    nlocal = int(trace.element_nodes().shape[1])
     blocks = bkd.reshape(
         bkd.einsum("eq,eqa,eqcj->eacj", trace.weights(), trace.values(), psi),
         (nelems, nlocal * k, ncols),
@@ -753,13 +766,202 @@ def port_trace_coupling(
     columns = bkd.asarray([list(range(ncols))] * nelems, dtype=bkd.int64_dtype())
     dtype = backend_dtype_name(bkd)
     sink = assembly.matrix_sink(
-        SpaceDescriptor("port", k * trace.nnodes(), dtype),
+        SpaceDescriptor(range_name, k * trace.nnodes(), dtype),
         SpaceDescriptor("port-rows", ncols, dtype),
         rows,
         columns,
     )
     sink.add_element_matrices(rows, columns, blocks)
     return sink.assemble()
+
+
+def _same_points(
+    first: PortTraceProtocol[Array], second: PortTraceProtocol[Array]
+) -> None:
+    """Refuse two traces whose quadrature points or weights differ."""
+    bkd = first.bkd()
+    if tuple(first.weights().shape) != tuple(second.weights().shape) or tuple(
+        first.points().shape
+    ) != tuple(second.points().shape):
+        raise ValueError("the traces must share their quadrature points and weights")
+    gap = bkd.max(bkd.abs(first.points() - second.points())) + bkd.max(
+        bkd.abs(first.weights() - second.weights())
+    )
+    if bkd.to_float(gap) > 1e-12:
+        raise ValueError("the traces must share their quadrature points and weights")
+
+
+def port_trace_pairing(
+    test: PortTraceProtocol[Array],
+    trial: PortTraceProtocol[Array],
+    ncomponents: int,
+    assembly: PortAssemblyProtocol[P, F, Array, Array],
+) -> ActionOperatorProtocol[P, F]:
+    r"""The pairing :math:`\tilde M = \int \tilde\psi^\top \psi \otimes I_k`
+    of a port's test functions with its trial functions, assembled by the
+    port stack: the mass of a mortar projection, square when there are as
+    many test as trial functions and not symmetric in general.
+
+    Parameters
+    ----------
+    test, trial
+        The two traces, on the same quadrature points and weights and
+        with the same elements.
+    ncomponents
+        :math:`k`, the components of the port data.
+    assembly
+        The port stack's assembly.
+
+    Returns
+    -------
+    ActionOperatorProtocol
+        From the ``"port"`` space of size ``k * trial.nnodes()`` to the
+        ``"port-test"`` space of size ``k * test.nnodes()``.
+
+    Raises
+    ------
+    TypeError
+        If a trace or ``assembly`` does not satisfy its protocol.
+    ValueError
+        If ``ncomponents`` is not positive, a trace's arrays disagree in
+        shape, or the traces differ in elements, points or weights.
+    """
+    nelems, _, nlocal = trace_shape(test)
+    if trace_shape(trial)[0] != nelems:
+        raise ValueError("the traces must have the same elements")
+    _same_points(test, trial)
+    if not isinstance(assembly, PortAssemblyProtocol):
+        raise TypeError(
+            f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
+        )
+    if ncomponents < 1:
+        raise ValueError(f"ncomponents must be >= 1, got {ncomponents}")
+    bkd, k = test.bkd(), ncomponents
+    mlocal = int(trial.element_nodes().shape[1])
+    scalar = bkd.einsum(
+        "eq,eqa,eqb->eab", test.weights(), test.values(), trial.values()
+    )
+    eye = bkd.eye(k, dtype=bkd.default_dtype())
+    blocks = bkd.reshape(
+        bkd.einsum("eab,cd->eacbd", scalar, eye), (nelems, nlocal * k, mlocal * k)
+    )
+    rows, columns = _component_rows(test, k), _component_rows(trial, k)
+    dtype = backend_dtype_name(bkd)
+    sink = assembly.matrix_sink(
+        SpaceDescriptor("port-test", k * test.nnodes(), dtype),
+        SpaceDescriptor("port", k * trial.nnodes(), dtype),
+        rows,
+        columns,
+    )
+    sink.add_element_matrices(rows, columns, blocks)
+    return sink.assemble()
+
+
+def port_trace_mortar_coupling(
+    space: FaceValuesProtocol[Array],
+    test: PortTraceProtocol[Array],
+    ends: PortTraceProtocol[Array],
+    end_points: Array,
+    geometry: PointLocatorProtocol[Array],
+    faces: Sequence[int],
+    dofs: Sequence[int],
+    cross_points: CrossPointRuleProtocol[Array],
+    assembly: PortAssemblyProtocol[P, F, Array, Array],
+) -> ActionOperatorProtocol[P, F]:
+    r"""The coupling :math:`\hat B = \int \tilde\psi^\top (\phi - \sum_e
+    \phi(x_e)\, \psi_e)` of a mortar projection: the port's test functions
+    against the skeleton functions of ``dofs`` less their values at the
+    fixed ends ``x_e`` carried by the end functions :math:`\psi_e`.
+
+    With :func:`port_trace_pairing` as the mass, :func:`port_projection`
+    gives :math:`L = \tilde M^{-1} \hat B`: the port data :math:`u` with
+    :math:`\int \tilde\psi\, (u_h - \lambda) = 0`, where :math:`u_h` is the
+    trial function of the data plus the end functions at the skeleton's
+    end values; its transpose tests a flux recovered in the span of the
+    test functions, constants included, against the skeleton functions.
+
+    Parameters
+    ----------
+    space
+        The skeleton field space, of :math:`k` components.
+    test, ends
+        The test and end traces (:func:`~pyapprox.pde.coupling.traces.
+        mortar_segment_traces`), on the same points and weights.
+    end_points
+        The ends' points, in the end trace's node order. Shape: (ndim,
+        nends).
+    geometry
+        Locates points on the skeleton's faces.
+    faces
+        The faces the port lies on.
+    dofs
+        The skeleton DOFs the port reads, in the order of the transfer's
+        rows.
+    cross_points
+        The rule for points on several faces.
+    assembly
+        The port stack's assembly.
+
+    Returns
+    -------
+    ActionOperatorProtocol
+        From the ``"port-rows"`` space of size ``len(dofs)`` to the
+        ``"port-test"`` space of size ``k * test.nnodes()``.
+
+    Raises
+    ------
+    TypeError
+        If an argument does not satisfy its protocol.
+    ValueError
+        If a trace's arrays disagree in shape, the traces differ in
+        elements, points or weights, ``end_points`` has not one column per
+        end, a point lies on none of ``faces``, or a face's DOFs are not
+        all in ``dofs``.
+    """
+    nelems, nquad, _ = trace_shape(test)
+    if trace_shape(ends)[0] != nelems:
+        raise ValueError("the traces must have the same elements")
+    _same_points(test, ends)
+    if not isinstance(geometry, PointLocatorProtocol):
+        raise TypeError(
+            f"geometry must satisfy PointLocatorProtocol, got {type(geometry).__name__}"
+        )
+    if not isinstance(assembly, PortAssemblyProtocol):
+        raise TypeError(
+            f"assembly must satisfy PortAssemblyProtocol, got {type(assembly).__name__}"
+        )
+    nends = ends.nnodes()
+    if end_points.ndim != 2 or end_points.shape[1] != nends:
+        raise ValueError(
+            f"end_points must have shape (ndim, {nends}), got {tuple(end_points.shape)}"
+        )
+    bkd, ncols = test.bkd(), len(dofs)
+    psi = _interpolation_rows(
+        space, geometry.locate(test.points(), faces), dofs, cross_points
+    )
+    k = int(psi.shape[0]) // (nelems * nquad)
+    psi = bkd.reshape(psi, (nelems, nquad, k, ncols))
+    at_ends = bkd.reshape(
+        _interpolation_rows(
+            space, geometry.locate(end_points, faces), dofs, cross_points
+        ),
+        (nends, k, ncols),
+    )
+    # Each slot's end function at the points, placed in its end's column
+    # by a constant 0/1 product, so a graph through the values survives.
+    slots = ends.element_nodes()
+    placement = bkd.asarray(
+        [
+            [
+                [1.0 if bkd.to_int(slots[e, a]) == n else 0.0 for n in range(nends)]
+                for a in range(int(slots.shape[1]))
+            ]
+            for e in range(nelems)
+        ]
+    )
+    end_values = bkd.einsum("eqa,ean->eqn", ends.values(), placement)
+    corrected = psi - bkd.einsum("eqn,ncj->eqcj", end_values, at_ends)
+    return _tested_coupling(test, corrected, "port-test", assembly)
 
 
 def port_projection(
@@ -779,12 +981,19 @@ def port_projection(
     against the skeleton functions. ``solver`` factors :math:`M_p` once,
     and must solve with its transpose.
 
+    A port whose ends are fixed (an outer Dirichlet condition) takes the
+    mortar pair instead: :func:`port_trace_pairing` of its test and trial
+    traces as the mass and :func:`port_trace_mortar_coupling` as the
+    coupling.
+
     Parameters
     ----------
     mass
-        :math:`M_p`, e.g. from :func:`port_trace_mass`.
+        :math:`M_p`, e.g. from :func:`port_trace_mass`, or the mortar
+        pairing.
     coupling
-        :math:`B`, e.g. from :func:`port_trace_coupling`.
+        :math:`B`, e.g. from :func:`port_trace_coupling`, or the mortar
+        coupling.
     solver
         A solver for ``mass``'s format.
 
