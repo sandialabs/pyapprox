@@ -51,7 +51,20 @@ from typing import (
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.implicitfunction.implicit_map import (
+    ArrayParameters,
+    ImplicitMapFunction,
+)
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import crank_nicolson
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.transient_implicit_map import (
+    FixedTrajectoryFunctional,
+    TransientImplicitMap,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldVelocity,
@@ -66,25 +79,29 @@ from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.pde.galerkin.observations import (
-    nodal_outflux_functional,
-    probe_observation_functional,
-)
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
-from pyapprox.pde.models.galerkin.transient import (
-    GalerkinTransientForwardModel,
+from pyapprox.pde.models.galerkin.transient_observations import (
+    nodal_outflux_observations,
+    probe_observations,
+)
+from pyapprox.pde.models.galerkin.transient_system import (
+    GalerkinTransientSystem,
+    galerkin_transient_system,
+    solve_galerkin_transient,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
 
@@ -181,18 +198,14 @@ class StreamFunctionFlow(Generic[Array]):
         decay: float = 2.5,
     ) -> None:
         if nmodes_per_dim < 1:
-            raise ValueError(
-                f"nmodes_per_dim must be positive, got {nmodes_per_dim}"
-            )
+            raise ValueError(f"nmodes_per_dim must be positive, got {nmodes_per_dim}")
         if std < 0.0:
             raise ValueError(f"std must be nonnegative, got {std}")
         self._bkd = bkd
         self._mean_stream_function = mean_stream_function
         self._nmodes_per_dim = nmodes_per_dim
         index = np.arange(1, nmodes_per_dim + 1, dtype=np.float64)
-        self._spectrum = bkd.asarray(
-            std**2 / np.add.outer(index**2, index**2) ** decay
-        )
+        self._spectrum = bkd.asarray(std**2 / np.add.outer(index**2, index**2) ** decay)
 
     def nmodes(self) -> int:
         """Number of stream-function coefficients."""
@@ -246,9 +259,7 @@ class FixedVelocity(Generic[Array]):
         The standardized coefficients. Shape: (nmodes,)
     """
 
-    def __init__(
-        self, flow: StreamFunctionFlow[Array], coefficients: Array
-    ) -> None:
+    def __init__(self, flow: StreamFunctionFlow[Array], coefficients: Array) -> None:
         if tuple(coefficients.shape) != (flow.nmodes(),):
             raise ValueError(
                 f"coefficients must have shape ({flow.nmodes()},), got "
@@ -349,9 +360,7 @@ class ContaminantTransportOEDProblem:
             )
         self._bkd = bkd
         self._velocity_model = velocity_model
-        self._observation_steps = self._steps(
-            observation_times, deltat, final_time
-        )
+        self._observation_steps = self._steps(observation_times, deltat, final_time)
         if initial_condition is None:
             initial_condition = GaussianPlume(bkd)
 
@@ -379,16 +388,12 @@ class ContaminantTransportOEDProblem:
             transform_deriv2=bkd.exp,
         )
         self._nparams = diffusivity_map.nvars()
-        self._velocity_map = velocity_model.flow().velocity_map(
-            self._vel_basis
-        )
+        self._velocity_map = velocity_model.flow().velocity_map(self._vel_basis)
         nvars = self._nparams + velocity_model.nvars()
 
         physics = AdvectionDiffusionReaction(
             basis=self._basis,
-            diffusivity=NodalFieldDiffusion(
-                self._basis, dofs=np.ones(nnodes)
-            ),
+            diffusivity=NodalFieldDiffusion(self._basis, dofs=np.ones(nnodes)),
             bkd=bkd,
             velocity=NodalFieldVelocity(
                 self._vel_basis,
@@ -406,18 +411,19 @@ class ContaminantTransportOEDProblem:
             parameterization = AdvectionDiffusionParameterization(
                 physics, diffusivity_map=diffusivity_map, bkd=bkd
             )
-        system = compose_galerkin_system(physics, [])
-        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
-            method="crank_nicolson",
-            init_time=0.0,
-            final_time=final_time,
-            deltat=deltat,
-            newton_tol=1e-10,
-            newton_maxiter=10,
-            verbosity=0,
+        self._transient: GalerkinTransientSystem[_Np, CSRFormat] = (
+            galerkin_transient_system(
+                skfem_discretization(compose_galerkin_system(physics, [])),
+                ScipySparseLU(),
+                ParameterState(parameterization),
+            )
         )
+        self._method: RungeKutta[_Np, _Np] = RungeKutta(
+            crank_nicolson(), Newton(atol=1e-10, rtol=0.0, maxiters=10)
+        )
+        self._step_plan = FixedStep(deltat, (0.0, final_time))
         coords = self._basis.dof_coordinates()
-        init_state = initial_condition(coords)
+        self._init_state = bkd.reshape(initial_condition(coords), (-1, 1))
 
         grid = np.linspace(0.0, 1.0, nsensors_per_dim)
         self._sensor_locations = bkd.asarray(
@@ -428,46 +434,40 @@ class ContaminantTransportOEDProblem:
                 ]
             )
         )
-        self._obs_functional = probe_observation_functional(
-            self._basis, self._sensor_locations, self._observation_steps, nvars
+        obs_functional = probe_observations(
+            self._basis, self._sensor_locations, self._observation_steps
         )
         coords_np = bkd.to_numpy(coords)
         right = bkd.to_numpy(self._basis.get_dofs("right"))
         right = right[np.argsort(coords_np[1, right])]
         self._outflow_dofs = bkd.asarray(right)
-        mean_gradient = velocity_model.flow().mean_stream_function().gradient(
-            coords[:, self._outflow_dofs]
+        mean_gradient = (
+            velocity_model.flow()
+            .mean_stream_function()
+            .gradient(coords[:, self._outflow_dofs])
         )
-        self._qoi_functional = nodal_outflux_functional(
+        qoi_functional = nodal_outflux_observations(
+            bkd,
+            nnodes,
             self._outflow_dofs,
             mean_gradient[1],
             self._observation_steps,
-            nnodes,
-            nvars,
-            bkd,
         )
-        discretization = skfem_discretization(system)
-        self._obs_model = GalerkinTransientForwardModel(
-            discretization,
-            ScipySparseLU(),
-            parameterization,
-            init_state,
-            config,
-            functional=self._obs_functional,
+        self._obs_model: ImplicitMapFunction[Any, _Np, _Np] = ImplicitMapFunction(
+            self._implicit(obs_functional), ArrayParameters(bkd)
         )
-        self._qoi_model = GalerkinTransientForwardModel(
-            discretization,
-            ScipySparseLU(),
-            parameterization,
-            init_state,
-            config,
-            functional=self._qoi_functional,
+        self._qoi_model: ImplicitMapFunction[Any, _Np, _Np] = ImplicitMapFunction(
+            self._implicit(qoi_functional), ArrayParameters(bkd)
+        )
+        # Observations above the outflux, from one solve.
+        self._both = self._implicit(
+            TrajectoryFunctional.stack(bkd, [obs_functional, qoi_functional])
         )
 
         self._prior = IndependentJoint(
             [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)], bkd
         )
-        nobs = self._obs_functional.nqoi()
+        nobs = obs_functional.nqoi()
         self._noise_variances = bkd.full((nobs,), noise_std**2)
         inference = BayesianInferenceProblem(
             obs_map=self._obs_model,
@@ -488,10 +488,23 @@ class ContaminantTransportOEDProblem:
             ),
         )
 
+    def _implicit(
+        self, functional: TrajectoryFunctional[_Np, _Np]
+    ) -> TransientImplicitMap[_Np, _Np, CSRFormat]:
+        """``functional`` of the Crank--Nicolson trajectory as a map of
+        the inputs."""
+        return TransientImplicitMap(
+            self._transient,
+            self._transient,
+            self._method,
+            RecomputeAlways(self._transient.solved.solver),
+            self._step_plan,
+            self._init_state,
+            FixedTrajectoryFunctional(functional),
+        )
+
     @staticmethod
-    def _steps(
-        times: Sequence[float], deltat: float, final_time: float
-    ) -> List[int]:
+    def _steps(times: Sequence[float], deltat: float, final_time: float) -> List[int]:
         nsteps = int(round(final_time / deltat))
         if not math.isclose(nsteps * deltat, final_time, rel_tol=1e-10):
             raise ValueError(
@@ -502,8 +515,7 @@ class ContaminantTransportOEDProblem:
             step = int(round(time / deltat))
             if not math.isclose(step * deltat, time, rel_tol=1e-10):
                 raise ValueError(
-                    f"observation time {time} is not a multiple of deltat "
-                    f"{deltat}"
+                    f"observation time {time} is not a multiple of deltat {deltat}"
                 )
             if step < 1 or step > nsteps:
                 raise ValueError(
@@ -518,14 +530,11 @@ class ContaminantTransportOEDProblem:
         nsensors = int(self._sensor_locations.shape[1])
         times = bkd.asarray(
             np.repeat(
-                np.asarray(self._observation_steps, dtype=np.float64)
-                * deltat,
+                np.asarray(self._observation_steps, dtype=np.float64) * deltat,
                 nsensors,
             )
         )
-        locations = bkd.hstack(
-            [self._sensor_locations] * len(self._observation_steps)
-        )
+        locations = bkd.hstack([self._sensor_locations] * len(self._observation_steps))
         return bkd.vstack([locations, times[None, :]])
 
     def _velocity(self, sample: _Np) -> _Np:
@@ -541,11 +550,11 @@ class ContaminantTransportOEDProblem:
         """Get the prediction OED problem."""
         return self._problem
 
-    def obs_map(self) -> GalerkinTransientForwardModel[_Np]:
+    def obs_map(self) -> ImplicitMapFunction[Any, _Np, _Np]:
         """Map inputs (nvars, nsamples) to observations (nobs, nsamples)."""
         return self._obs_model
 
-    def qoi_map(self) -> GalerkinTransientForwardModel[_Np]:
+    def qoi_map(self) -> ImplicitMapFunction[Any, _Np, _Np]:
         """Map inputs (nvars, nsamples) to the outflux (nqoi, nsamples)."""
         return self._qoi_model
 
@@ -603,17 +612,33 @@ class ContaminantTransportOEDProblem:
         qoi_values : Array
             Shape: (nqoi, nsamples)
         """
-        obs_values, qoi_values = [], []
-        for ii in range(samples.shape[1]):
-            sample = samples[:, ii : ii + 1]
-            states, _ = self._obs_model.forward_solve(sample)
-            obs_values.append(self._obs_functional(states, sample))
-            qoi_values.append(self._qoi_functional(states, sample))
-        return self._bkd.hstack(obs_values), self._bkd.hstack(qoi_values)
+        bkd = self._bkd
+        nobs = self._obs_model.nqoi()
+        values = bkd.hstack(
+            [
+                self._both.value(samples[:, ii : ii + 1])
+                for ii in range(samples.shape[1])
+            ]
+        )
+        return values[:nobs], values[nobs:]
 
     def solve_trajectory(self, sample: _Np) -> Tuple[_Np, _Np]:
         """Nodal states (nnodes, nsteps + 1) and times (nsteps + 1,)."""
-        return self._obs_model.forward_solve(sample)
+        bkd = self._bkd
+        self._transient.set_param(sample)
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            self._transient,
+            self._method,
+            RecomputeAlways(self._transient.solved.solver),
+            self._step_plan,
+            self._init_state,
+            store,
+        )
+        states = bkd.concatenate(
+            [store.state(n) for n in range(store.ntimes())], axis=1
+        )
+        return states, bkd.asarray(store.times())
 
     def velocity_field(self, sample: _Np) -> _Np:
         """Velocity at the mesh nodes for one sample. Shape: (2, nnodes)"""
@@ -663,16 +688,10 @@ class ContaminantTransportOEDProblem:
         """Observation indices of each sensor across all times."""
         nsensors = int(self._sensor_locations.shape[1])
         ntimes = len(self._observation_steps)
-        return [
-            [jj * nsensors + ss for jj in range(ntimes)]
-            for ss in range(nsensors)
-        ]
+        return [[jj * nsensors + ss for jj in range(ntimes)] for ss in range(nsensors)]
 
     def groups_by_time(self) -> List[List[int]]:
         """Observation indices of all sensors at each time."""
         nsensors = int(self._sensor_locations.shape[1])
         ntimes = len(self._observation_steps)
-        return [
-            [jj * nsensors + ss for ss in range(nsensors)]
-            for jj in range(ntimes)
-        ]
+        return [[jj * nsensors + ss for ss in range(nsensors)] for jj in range(ntimes)]
