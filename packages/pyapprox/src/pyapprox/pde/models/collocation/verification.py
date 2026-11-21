@@ -84,11 +84,7 @@ import sympy as sp
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.ode.residual_derivatives import backend_state_space
-from pyapprox.pde.collocation.basis import (
-    ChebyshevBasis1D,
-    ChebyshevBasis2D,
-    ChebyshevBasis3D,
-)
+from pyapprox.pde.collocation.basis import ChebyshevBasis
 from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureRowsProtocol,
     RobinNormalTermProtocol,
@@ -112,16 +108,8 @@ from pyapprox.pde.collocation.boundary.periodic_rows import (
     PeriodicPart,
     PeriodicRows,
 )
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    TransformedMesh2D,
-    TransformedMesh3D,
-)
-from pyapprox.pde.collocation.mesh.transforms.affine import (
-    AffineTransform1D,
-    AffineTransform2D,
-    AffineTransform3D,
-)
+from pyapprox.pde.collocation.mesh import TransformedMesh
+from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform
 from pyapprox.pde.collocation.mesh.transforms.elliptical import (
     EllipticalTransform,
 )
@@ -382,29 +370,17 @@ class ChebyshevBox(Generic[Array]):
         """
         if not isinstance(domain, Box):
             raise TypeError(f"ChebyshevBox meshes a Box, got {type(domain).__name__}")
-        bkd, bounds = self._bkd, domain.bounds()
-        flat = tuple(value for pair in bounds for value in pair)
+        bkd = self._bkd
+        box = AffineTransform(domain.bounds(), bkd)
         # A side is the mesh boundary at its position in the box's side
         # order, lower side first in each direction.
         parts = {part: (i,) for i, part in enumerate(domain.boundaries())}
         levels: List[ChebyshevLevel[Array]] = []
         for n in self._sizes:
-            if domain.ndim() == 1:
-                mesh1 = TransformedMesh1D(n, bkd, AffineTransform1D(bounds[0], bkd))
-                basis1 = ChebyshevBasis1D(mesh1, bkd)
-                levels.append(ChebyshevLevel(domain, mesh1, basis1, parts))
-            elif domain.ndim() == 2:
-                square = AffineTransform2D((flat[0], flat[1], flat[2], flat[3]), bkd)
-                mesh2 = TransformedMesh2D(n, n, bkd, square)
-                basis2 = ChebyshevBasis2D(mesh2, bkd)
-                levels.append(ChebyshevLevel(domain, mesh2, basis2, parts))
-            else:
-                cube = AffineTransform3D(
-                    (flat[0], flat[1], flat[2], flat[3], flat[4], flat[5]), bkd
-                )
-                mesh3 = TransformedMesh3D(n, n, n, bkd, cube)
-                basis3 = ChebyshevBasis3D(mesh3, bkd)
-                levels.append(ChebyshevLevel(domain, mesh3, basis3, parts))
+            mesh = TransformedMesh((n,) * domain.ndim(), bkd, box)
+            levels.append(
+                ChebyshevLevel(domain, mesh, ChebyshevBasis(mesh, bkd), parts)
+            )
         return levels
 
     def __repr__(self) -> str:
@@ -488,8 +464,8 @@ def _ring_levels(
     closures = (PeriodicSeam[Array](1),)
     levels: List[ChebyshevLevel[Array]] = []
     for n in sizes:
-        mesh = TransformedMesh2D(n, n, bkd, transform)
-        basis = ChebyshevBasis2D(mesh, bkd)
+        mesh = TransformedMesh((n, n), bkd, transform)
+        basis = ChebyshevBasis(mesh, bkd)
         levels.append(ChebyshevLevel(domain, mesh, basis, parts, closures))
     return levels
 

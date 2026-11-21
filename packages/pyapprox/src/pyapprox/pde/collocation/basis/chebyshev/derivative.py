@@ -54,36 +54,21 @@ class ChebyshevDerivativeMatrix1D(Generic[Array]):
             return bkd.zeros((1, 1))
 
         # Barycentric weights: c_i = 2 at endpoints, alternating sign
-        c = bkd.ones((npts,))
-        c = bkd.copy(c)  # Ensure writeable
-        c[0] = 2.0
-        c[npts - 1] = 2.0
-
-        # Alternating sign: multiply by (-1)^i
-        # Use where to avoid numpy roundtrip and preserve backend dtype
-        idx = bkd.arange(npts)
-        signs = bkd.where(idx % 2 == 0, bkd.ones((npts,)), -bkd.ones((npts,)))
-        c = c * signs
+        # (-1)^i
+        c = bkd.asarray(
+            [(-1.0) ** i * (2.0 if i in (0, npts - 1) else 1.0) for i in range(npts)]
+        )
 
         # Compute D[i,j] = (c_i/c_j) / (x_i - x_j) for i != j
         # Using outer operations for full vectorization
         X = nodes[:, None] - nodes[None, :]  # (npts, npts) differences
         C = c[:, None] / c[None, :]  # (npts, npts) weight ratios
 
-        # Create mask for diagonal (where X = 0)
-        diag_idx = bkd.arange(npts)
-        # Avoid division by zero: set diagonal of X to 1 temporarily
-        X_safe = bkd.copy(X)
-        X_safe[diag_idx, diag_idx] = 1.0
-
-        # Compute off-diagonal elements
-        D: Array = C / X_safe
-
-        # Zero out diagonal (will be set via row sum property)
-        D[diag_idx, diag_idx] = 0.0
+        # Avoid division by zero on the diagonal (where X = 0), then
+        # zero it (it is set via the row sum property)
+        eye = bkd.eye(npts)
+        off_diagonal = C / (X + eye) * (1.0 - eye)
 
         # Row sum property: D[i,i] = -sum_{j != i} D[i,j]
-        row_sums = bkd.sum(D, axis=1)
-        D[diag_idx, diag_idx] = -row_sums
-
+        D: Array = off_diagonal - bkd.diag(bkd.sum(off_diagonal, axis=1))
         return D

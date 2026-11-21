@@ -9,7 +9,7 @@ mesh provides non-identity gradient_factors(), physical derivative matrices
 are computed by applying gradient factors to scale reference derivatives.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Dict, Generic, List, Sequence, Tuple, Union
 
 from pyapprox.pde.collocation.protocols.basis import (
     DerivativeMatrix1DProtocol,
@@ -38,22 +38,49 @@ class TensorProductBasis(Generic[Array]):
     ----------
     mesh : MeshWithTransformProtocol
         Mesh providing reference nodes, physical nodes, and gradient factors.
-    deriv_matrix_computer : DerivativeMatrix1DProtocol
-        Computer for 1D derivative matrices (same for all dimensions).
+    deriv_matrix_computer : DerivativeMatrix1DProtocol or Sequence of them
+        The 1D derivative builder of every direction, or one per
+        direction (a direction whose nodes are of another family, Fourier
+        say, takes that family's builder).
     bkd : Backend
         Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If the number of builders differs from the mesh's directions.
+    TypeError
+        If a builder does not satisfy ``DerivativeMatrix1DProtocol``.
     """
 
     def __init__(
         self,
         mesh: MeshWithTransformProtocol[Array],
-        deriv_matrix_computer: DerivativeMatrix1DProtocol[Array],
+        deriv_matrix_computer: Union[
+            DerivativeMatrix1DProtocol[Array],
+            Sequence[DerivativeMatrix1DProtocol[Array]],
+        ],
         bkd: Backend[Array],
     ):
         self._bkd = bkd
         self._mesh = mesh
         self._npts_per_dim = mesh.npts_per_dim()
         self._ndim = mesh.ndim()
+        builders: Sequence[DerivativeMatrix1DProtocol[Array]] = (
+            [deriv_matrix_computer] * self._ndim
+            if isinstance(deriv_matrix_computer, DerivativeMatrix1DProtocol)
+            else deriv_matrix_computer
+        )
+        if len(builders) != self._ndim:
+            raise ValueError(
+                f"{len(builders)} derivative builders for {self._ndim} directions"
+            )
+        for builder in builders:
+            if not isinstance(builder, DerivativeMatrix1DProtocol):
+                raise TypeError(
+                    "derivative builders must satisfy DerivativeMatrix1DProtocol, "
+                    f"got {type(builder).__name__}"
+                )
 
         # Get 1D reference nodes from mesh
         self._nodes_1d: List[Array] = [
@@ -61,9 +88,9 @@ class TensorProductBasis(Generic[Array]):
         ]
 
         # Compute 1D derivative matrices for each dimension
-        self._deriv_matrices_1d: List[Array] = []
-        for nodes in self._nodes_1d:
-            self._deriv_matrices_1d.append(deriv_matrix_computer.compute(nodes))
+        self._deriv_matrices_1d: List[Array] = [
+            builder.compute(nodes) for builder, nodes in zip(builders, self._nodes_1d)
+        ]
 
         # Get gradient factors from mesh
         self._gradient_factors = mesh.gradient_factors()
@@ -245,22 +272,15 @@ class TensorProductBasis(Generic[Array]):
         """
         bkd = self._bkd
 
+        factors = [
+            self._deriv_matrices_1d[d] if d == dim else bkd.eye(n_d)
+            for d, n_d in enumerate(self._npts_per_dim)
+        ]
         # Start with the rightmost factor (dimension 0)
         # Work from right to left in the Kronecker product
-        result: Optional[Array] = None
-
-        for d in range(self._ndim):
-            n_d = self._npts_per_dim[d]
-            if d == dim:
-                factor = self._deriv_matrices_1d[d]
-            else:
-                factor = bkd.eye(n_d)
-
-            if result is None:
-                result = factor
-            else:
-                result = bkd.kron(factor, result)
-
+        result = factors[0]
+        for factor in factors[1:]:
+            result = bkd.kron(factor, result)
         return result
 
     def _build_physical_derivative(self, dim: int) -> Array:
@@ -284,8 +304,8 @@ class TensorProductBasis(Generic[Array]):
             # Get reference derivative matrix
             D_ref = self.reference_derivative_matrix(1, ref_dim)
 
-            # Add contribution: diag(g) @ D_ref
-            # This scales each row of D_ref by the corresponding g value
-            D_phys = D_phys + bkd.diag(g) @ D_ref
+            # Add contribution diag(g) @ D_ref: scale each row of D_ref
+            # by the corresponding g value
+            D_phys = D_phys + g[:, None] * D_ref
 
         return D_phys

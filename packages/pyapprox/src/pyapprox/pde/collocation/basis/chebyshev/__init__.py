@@ -1,5 +1,6 @@
 """Chebyshev polynomial basis for spectral collocation."""
 
+from pyapprox.pde.collocation.basis.chebyshev.basis import ChebyshevBasis
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -20,7 +21,8 @@ __all__ = [
     # 1D Components
     "ChebyshevGaussLobattoNodes1D",
     "ChebyshevDerivativeMatrix1D",
-    # Convenience Wrappers
+    # Bases
+    "ChebyshevBasis",
     "ChebyshevBasis1D",
     "ChebyshevBasis2D",
     "ChebyshevBasis3D",
