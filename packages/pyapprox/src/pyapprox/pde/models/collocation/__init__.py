@@ -5,18 +5,11 @@ pattern documented in ``pde/collocation/physics/base.py`` and
 ``docs/conventions/pde_solver_extension.md``.
 """
 
-from pyapprox.pde.models.collocation.factory import (
-    create_collocation_model,
-)
 from pyapprox.pde.models.collocation.physics_adapter import (
     CollocationPhysicsToODEResidualWithHVPAdapter,
     CollocationPhysicsToODEResidualWithParamJacobianAdapter,
     CollocationPhysicsToODEResidualWithSetParamAdapter,
     create_collocation_physics_ode_residual,
-)
-from pyapprox.pde.models.collocation.steady import (
-    CollocationParameterizedStateEquation,
-    SteadyForwardModel,
 )
 from pyapprox.pde.models.collocation.transient import (
     TransientForwardModel,
@@ -27,8 +20,5 @@ __all__ = [
     "CollocationPhysicsToODEResidualWithParamJacobianAdapter",
     "CollocationPhysicsToODEResidualWithHVPAdapter",
     "create_collocation_physics_ode_residual",
-    "create_collocation_model",
-    "CollocationParameterizedStateEquation",
-    "SteadyForwardModel",
     "TransientForwardModel",
 ]

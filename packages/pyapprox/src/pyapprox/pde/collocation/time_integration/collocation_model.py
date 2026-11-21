@@ -3,14 +3,12 @@
 Provides a high-level interface for solving time-dependent PDEs using
 spectral collocation with various time integration methods.
 
-BC ownership (deliberate split): STEADY solves apply boundary
-conditions through the physics's public ``apply_boundary_conditions``
-surface — the steady state-equation adapters call it directly.
-TRANSIENT solves route every step through the BC-enforcing
+Transient solves route every step through the BC-enforcing
 time-residual wrapper (``create_bc_enforcing_residual``), which also
 owns the adjoint/sensitivity/HVP row-and-column corrections derived
-from ``bc_dof_classification``. The physics is the single source of
-BC truth in both paths; only the enforcement point differs.
+from ``bc_dof_classification``; the physics holds the boundary
+conditions. Steady problems are solved with ``collocation_steady_residual``
+and ``SteadySystem`` (``pyapprox.pde.models.collocation``).
 """
 
 from typing import Generic, Optional, Tuple
@@ -39,8 +37,7 @@ from pyapprox.util.rootfinding.newton import NewtonSolver
 class CollocationModel(Generic[Array]):
     """High-level model for spectral collocation PDE problems.
 
-    Provides a unified interface for solving steady and time-dependent
-    PDE problems using spectral collocation methods.
+    Solves time-dependent PDE problems with spectral collocation.
 
     The model wraps physics, boundary conditions, and time integration
     into a single coherent interface.
@@ -62,9 +59,6 @@ class CollocationModel(Generic[Array]):
     >>>
     >>> # Create model
     >>> model = CollocationModel(physics, bkd)
-    >>>
-    >>> # Solve steady problem
-    >>> u_steady = model.solve_steady(initial_guess, tol=1e-10)
     >>>
     >>> # Solve transient problem
     >>> config = TimeIntegrationConfig(
@@ -134,132 +128,6 @@ class CollocationModel(Generic[Array]):
                 "solve_transient() must be called before last_integrator()"
             )
         return self._last_integrator
-
-    def _apply_bc_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
-        """Apply boundary conditions to residual only.
-
-        Used by the line search where the Jacobian is not needed.
-        """
-        if self._physics.boundary_conditions():
-            for bc in self._physics.boundary_conditions():
-                residual = bc.apply_to_residual(residual, state, time)
-        return residual
-
-    def _apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array, time: float
-    ) -> Tuple[Array, Array]:
-        """Apply boundary conditions to residual and Jacobian.
-
-        This method applies boundary conditions directly to the Newton residual
-        for transient problems, enforcing u[boundary] = g(t) at boundaries.
-
-        Parameters
-        ----------
-        residual : Array
-            Newton residual. Shape: (nstates,)
-        jacobian : Array
-            Physics Jacobian (not the Newton Jacobian). Shape: (nstates, nstates)
-        state : Array
-            Current state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            Modified residual and Jacobian with boundary conditions applied.
-        """
-        if self._physics.boundary_conditions():
-            residual, jacobian = self._physics.apply_boundary_conditions(
-                residual, jacobian, state, time
-            )
-        return residual, jacobian
-
-    def solve_steady(
-        self,
-        initial_guess: Array,
-        tol: float = 1e-10,
-        maxiter: int = 50,
-        verbosity: int = 0,
-    ) -> Array:
-        """Solve the steady-state problem.
-
-        Finds u such that residual(u, t=0) = 0 with boundary conditions.
-
-        Uses Newton's method with damping for robustness.
-
-        Parameters
-        ----------
-        initial_guess : Array
-            Initial guess for solution. Shape: (nstates,)
-        tol : float
-            Convergence tolerance on residual norm.
-        maxiter : int
-            Maximum Newton iterations.
-        verbosity : int
-            Verbosity level.
-
-        Returns
-        -------
-        Array
-            Steady-state solution. Shape: (nstates,)
-
-        Raises
-        ------
-        RuntimeError
-            If Newton iteration fails to converge.
-        """
-        bkd = self._bkd
-
-        state = bkd.copy(initial_guess)
-
-        for iteration in range(maxiter):
-            # Compute residual and Jacobian. Steady problem evaluated at
-            # t = 0 here and in the line search: collocation physics have
-            # no time-free view yet, so time-dependent data is read at
-            # t = 0.
-            residual = self._adapter(state, 0.0)
-            jacobian = self._adapter.jacobian(state, 0.0)
-
-            # Apply boundary conditions
-            residual, jacobian = self._apply_boundary_conditions(
-                residual, jacobian, state, 0.0
-            )
-
-            # Check convergence
-            res_norm = bkd.to_float(bkd.norm(residual))
-            if verbosity >= 1:
-                print(f"Newton iter {iteration}: ||res|| = {res_norm:.3e}")
-
-            if res_norm < tol:
-                if verbosity >= 1:
-                    print(f"Converged in {iteration} iterations")
-                return state
-
-            # Solve for update
-            delta = bkd.solve(jacobian, -residual)
-
-            # Line search with backtracking
-            alpha = 1.0
-            for _ in range(10):
-                state_new = state + alpha * delta
-                res_new = self._adapter(state_new, 0.0)
-                res_new = self._apply_bc_to_residual(res_new, state_new, 0.0)
-                if bkd.to_float(bkd.norm(res_new)) < res_norm:
-                    break
-                alpha *= 0.5
-            else:
-                if verbosity >= 1:
-                    print(f"Warning: Line search failed at iteration {iteration}")
-
-            state = state_new
-
-        raise RuntimeError(
-            f"Newton iteration failed to converge after {maxiter} iterations. "
-            f"Final residual norm: {res_norm:.3e}"
-        )
 
     def solve_transient(
         self,

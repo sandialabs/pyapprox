@@ -161,49 +161,6 @@ class TestCollocationModel:
         assert model.physics() is physics
         assert model.bkd() is bkd
 
-    def test_solve_steady_poisson(self, bkd):
-        """Test steady-state solve for Poisson equation.
-
-        Solve: D * laplacian(u) + f = 0 with u(-1) = 0, u(1) = 0
-
-        For u = sin(pi*x), laplacian(u) = -pi^2 * sin(pi*x)
-        So D * laplacian(u) = -D * pi^2 * sin(pi*x)
-        For residual = 0, need f = D * pi^2 * sin(pi*x)
-        """
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
-
-        D = 1.0
-        nodes = basis.nodes()
-
-        # Forcing f such that D*laplacian(u) + f = 0 for u = sin(pi*x)
-        def forcing(t):
-            return (math.pi**2) * bkd.sin(math.pi * nodes)
-
-        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=D, forcing=forcing)
-
-        # BCs: u(-1) = 0, u(1) = 0 (consistent with sin(pi*x))
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-        bc_left = zero_dirichlet_bc(bkd, left_idx)
-        bc_right = zero_dirichlet_bc(bkd, right_idx)
-        physics.set_boundary_conditions([bc_left, bc_right])
-
-        model = CollocationModel(physics, bkd)
-
-        # Initial guess - use exact solution for better convergence
-        initial_guess = bkd.sin(math.pi * nodes) * 0.5
-
-        # Solve
-        u_steady = model.solve_steady(initial_guess, tol=1e-10, maxiter=50)
-
-        # Compare to exact solution
-        u_exact = bkd.sin(math.pi * nodes)
-        bkd.assert_allclose(u_steady, u_exact, atol=1e-6)
-
     def test_solve_transient_decay(self, bkd):
         """Test transient solve for exponential decay.
 

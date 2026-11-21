@@ -9,11 +9,8 @@ Steady (``collocation_steady_function`` defaults):
 - with :math:`D = 1 + p_0` and :math:`f = \pi^2 \sin \pi x`, every state
   equals :math:`\sin(\pi x)/(1 + p_0)` at :math:`p_0 = 0` and 0.5 to 1e-9
   (20 nodes);
-- with a two-term lognormal KLE diffusivity, the values and Jacobian at
-  :math:`p = (0.1, -0.1)` equal ``SteadyForwardModel``'s on the same
-  physics with the old conditions to 1e-10 relative to the larger entry,
-  and the Jacobian and HVP pass central finite differences (smallest
-  relative error below 1e-6).
+- with a two-term lognormal KLE diffusivity, the Jacobian and HVP pass
+  central finite differences (smallest relative error below 1e-6).
 
 Transient (still the old model): the initial-state function receives the
 physical nodes, which span :math:`[0, 2]`; the Jacobian passes finite
@@ -26,9 +23,6 @@ from typing import Generic, List, Sequence, Tuple
 
 import pytest
 
-from pyapprox.implicitfunction.functionals.weighted_sum import (
-    WeightedSumFunctional,
-)
 from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -36,20 +30,15 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     BoundarySide,
     TransformedMesh1D,
 )
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReaction,
-)
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.kle_factory import create_lognormal_kle_field_map
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
-from pyapprox.pde.models.collocation.steady import SteadyForwardModel
 from pyapprox.pde.models.collocation.steady_function import (
     collocation_steady_function,
 )
@@ -129,42 +118,6 @@ class TestSteadyDiffusion:
             exact = bkd.reshape(bkd.sin(math.pi * x) / (1.0 + p0), (20, 1))
             sample = bkd.reshape(bkd.asarray([p0]), (1, 1))
             bkd.assert_allclose(function(sample), exact, rtol=0.0, atol=1e-9)
-
-    def test_matches_the_old_model(self, bkd: Backend[Array]) -> None:
-        mesh = _mesh(bkd, 20)
-        configured = build_steady_diffusion_1d(
-            mesh, TimeIndependent(_SineForcing(bkd)), _kle_map(bkd, mesh.points())
-        )
-        function = collocation_steady_function(
-            configured.system,
-            ParameterState(configured.parameterization),
-            _middle(bkd, 20),
-        )
-        assert isinstance(function, FunctionProtocol)
-        physics = configured.system.physics()
-        assert isinstance(physics, AdvectionDiffusionReaction)
-        physics.set_boundary_conditions(
-            [
-                zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
-                zero_dirichlet_bc(bkd, mesh.boundary_indices(1)),
-            ]
-        )
-        weights = bkd.reshape(
-            bkd.asarray([1.0 if row == 10 else 0.0 for row in range(20)]), (20, 1)
-        )
-        old = SteadyForwardModel(
-            physics,
-            bkd,
-            bkd.zeros((20,)),
-            functional=WeightedSumFunctional(weights, 2, bkd),
-            parameterization=configured.parameterization,
-        )
-        sample = bkd.reshape(bkd.asarray([0.1, -0.1]), (2, 1))
-        _close(bkd, function(sample), old(sample), 1e-10)
-        new_jacobian = function.derivatives().jacobian
-        old_jacobian = old.derivatives().jacobian
-        assert new_jacobian is not None and old_jacobian is not None
-        _close(bkd, new_jacobian(sample), old_jacobian(sample), 1e-10)
 
     def test_derivatives_pass_finite_differences(self, bkd: Backend[Array]) -> None:
         mesh = _mesh(bkd, 20)

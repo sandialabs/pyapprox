@@ -31,10 +31,12 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.time_integration.collocation_model import (
+    CollocationModel,
+)
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
-from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.transient import (
     TransientForwardModel,
 )
@@ -113,7 +115,7 @@ class TestTransientForwardModel:
 
         # Direct solve
         param.apply(param_1d)
-        model = create_collocation_model(physics, bkd, parameterization=param)
+        model = CollocationModel(physics, bkd)
         solutions, times = model.solve_transient(init_state, time_config)
 
         # Forward model
@@ -122,9 +124,7 @@ class TestTransientForwardModel:
         # Default functional returns all states at final time
         # atol covers the exactly-zero Dirichlet endpoints, whose
         # roundoff-level representations differ between the two paths.
-        bkd.assert_allclose(
-            qoi[:, 0], solutions[:, -1], rtol=1e-10, atol=1e-14
-        )
+        bkd.assert_allclose(qoi[:, 0], solutions[:, -1], rtol=1e-10, atol=1e-14)
 
     def test_call_multiple_samples(self, bkd):
         """__call__ handles multiple parameter samples correctly."""
@@ -160,9 +160,7 @@ class TestTransientForwardModel:
         )
         # A steady functional lacks set_time_quadrature, so the
         # protocol check rejects it before the time-dependence check.
-        with pytest.raises(
-            TypeError, match="TransientFunctionalProtocol"
-        ):
+        with pytest.raises(TypeError, match="TransientFunctionalProtocol"):
             TransientForwardModel(
                 physics,
                 bkd,
@@ -444,6 +442,7 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
 
 class TestTransientRobinBC:
     """Tests for transient forward model with Robin BCs on both boundaries."""
+
     def test_vector_qoi_derivative_checker(self, bkd):
         """Forward sensitivity Jacobian passes DerivativeChecker with Robin BCs."""
         physics, param, init_state, tc = _create_robin_transient_problem(bkd)
@@ -529,6 +528,7 @@ class TestTransientRobinBC:
 
 class TestTransientMixedBC:
     """Tests for transient forward model with mixed Robin + Dirichlet BCs."""
+
     def test_vector_qoi_derivative_checker(self, bkd):
         """Forward sensitivity Jacobian passes DerivativeChecker with mixed BCs."""
         physics, param, init_state, tc = _create_mixed_bc_transient_problem(bkd)
@@ -636,9 +636,7 @@ class TestTransientForwardModelTiers:
                     zero_dirichlet_bc(bkd, mesh_obj.boundary_indices(1)),
                 ]
             )
-        functional = EndpointFunctional(
-            npts // 2, npts, param.nparams(), bkd
-        )
+        functional = EndpointFunctional(npts // 2, npts, param.nparams(), bkd)
         fwd = TransientForwardModel(
             physics,
             bkd,
@@ -683,9 +681,7 @@ class TestTransientForwardModelTiers:
         uvec = bkd.asarray(np.array([[-0.5], [0.9]]))
         h_v = derivs.hvp(sample, vvec)
         h_u = derivs.hvp(sample, uvec)
-        bkd.assert_allclose(
-            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
-        )
+        bkd.assert_allclose(bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12)
 
     def test_bc_active_ic_hvp_derivative_checker(self, numpy_bkd):
         """A raw initial condition violating a NONZERO Dirichlet value
@@ -757,9 +753,7 @@ class TestTransientForwardModelTiers:
         without reconstructing the adapter."""
         fwd, _ = self._scalar_model(bkd)
         adapter_before = fwd.adapter()
-        samples = bkd.asarray(
-            np.array([[0.3, -0.1, 0.2], [-0.2, 0.15, 0.05]])
-        )
+        samples = bkd.asarray(np.array([[0.3, -0.1, 0.2], [-0.2, 0.15, 0.05]]))
         fwd(samples)
         assert fwd.adapter() is adapter_before
 
@@ -804,18 +798,14 @@ class TestTransientPolarTripleAgreement:
         from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 
         npts_1d = 6
-        transform = PolarTransform(
-            (1.0, 2.0), (-math.pi / 2, math.pi / 2), bkd
-        )
+        transform = PolarTransform((1.0, 2.0), (-math.pi / 2, math.pi / 2), bkd)
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd, transform)
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=2.0)
         bcs = []
         for bndry in range(4):
-            bcs.append(
-                zero_dirichlet_bc(bkd, mesh.boundary_indices(bndry))
-            )
+            bcs.append(zero_dirichlet_bc(bkd, mesh.boundary_indices(bndry)))
         physics.set_boundary_conditions(bcs)
 
         pts = bkd.to_numpy(mesh.points())
@@ -836,9 +826,7 @@ class TestTransientPolarTripleAgreement:
             newton_maxiter=20,
             verbosity=0,
         )
-        init_state = bkd.asarray(
-            np.sin(math.pi * (pts[0] ** 2 + pts[1] ** 2) / 4.0)
-        )
+        init_state = bkd.asarray(np.sin(math.pi * (pts[0] ** 2 + pts[1] ** 2) / 4.0))
         scalar = TransientForwardModel(
             physics,
             bkd,

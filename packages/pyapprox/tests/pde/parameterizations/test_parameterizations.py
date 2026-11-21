@@ -43,9 +43,6 @@ from pyapprox.pde.field_maps.kle_factory import (
 from pyapprox.pde.field_maps.scalar import (
     ScalarAmplitude,
 )
-from pyapprox.pde.models.collocation.steady import (
-    SteadyForwardModel,
-)
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
 )
@@ -982,61 +979,3 @@ class TestParameterizations:
             CollocationAdvectionDiffusionParameterization(
                 physics, reaction_map="not_a_field_map", bkd=bkd
             )
-
-
-class TestCompositeWithSteadyForwardModel:
-    """Integration test: CompositeParameterization with SteadyForwardModel."""
-    def _create_composite_forward_model(self, bkd) :
-        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
-        npts = basis.npts()
-        num_kle_terms = 2
-        mesh_coords = ((nodes + 1.0) / 2.0)[None, :]
-        mean_log = bkd.zeros((npts,))
-        fm_d = create_lognormal_kle_field_map(
-            mesh_coords,
-            mean_log,
-            bkd,
-            num_kle_terms=num_kle_terms,
-            sigma=0.3,
-        )
-        dp = create_diffusion_parameterization(physics, bkd, fm_d)
-
-        base_forcing = bkd.sin(math.pi * nodes)
-        fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = CollocationAdvectionDiffusionParameterization(
-            physics, forcing_map=fm_f, bkd=bkd
-        )
-
-        comp = CompositeParameterization([dp, fp], bkd)
-        init_state = bkd.zeros((npts,))
-        fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=comp)
-        return fwd
-
-    def test_nvars_is_sum(self, bkd) -> None:
-        """Forward model nvars = nkle + 1 (diffusion + forcing)."""
-        fwd = self._create_composite_forward_model(bkd)
-        assert fwd.nvars() == 3
-
-    def test_call_works(self, bkd) -> None:
-        """Forward model __call__ works with CompositeParameterization."""
-        fwd = self._create_composite_forward_model(bkd)
-        samples = bkd.array([0.1, -0.1, 2.0])[:, None]
-        result = fwd(samples)
-        assert result.shape[0] == fwd.nqoi()
-        assert result.shape[1] == 1
-
-    def test_jacobian_derivative_checker(self, bkd) -> None:
-        """Forward model Jacobian passes DerivativeChecker."""
-        fwd = self._create_composite_forward_model(bkd)
-        wrapper = FunctionWithJacobianFromCallable(
-            nqoi=fwd.nqoi(),
-            nvars=fwd.nvars(),
-            fun=fwd,
-            jacobian=fwd.derivatives().jacobian,
-            bkd=bkd,
-        )
-        checker = DerivativeChecker(wrapper)
-        sample = bkd.array([0.1, -0.1, 2.0])[:, None]
-        errors = checker.check_derivatives(sample)[0]
-        ratio = float(bkd.min(errors) / bkd.max(errors))
-        assert ratio <= 1e-5

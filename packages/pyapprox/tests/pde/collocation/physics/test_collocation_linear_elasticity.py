@@ -48,7 +48,6 @@ from pyapprox.pde.models.collocation.transient import TransientForwardModel
 from pyapprox.pde.models.collocation.verification import (
     ChebyshevBox,
     ChebyshevLevel,
-    field,
     stacked_forcing,
 )
 from pyapprox.pde.parameterizations.collocation_elasticity import (
@@ -207,19 +206,6 @@ class TestCollocationElasticityTimeOrder:
                 _time_config(),
                 parameterization=_parameterization(physics, bkd),
             )
-
-    def test_steady_solve_still_works(self, bkd: Backend[Array]) -> None:
-        physics = _physics(bkd, "LinearElasticityPhysics")
-        problem, level = _manufactured(bkd)
-        exact = []
-        for component in _DISPLACEMENT:
-            values = field(problem, component, level)
-            assert not isinstance(values, float)
-            exact.append(values.values(0.0))
-        solution = CollocationModel(physics, bkd).solve_steady(
-            bkd.zeros((physics.nstates(),)), tol=1e-10
-        )
-        bkd.assert_allclose(solution, bkd.concatenate(exact), atol=1e-8)
 
     @pytest.mark.parametrize("physics_name", _PHYSICS_NAMES)
     def test_mass_matrix_still_available(

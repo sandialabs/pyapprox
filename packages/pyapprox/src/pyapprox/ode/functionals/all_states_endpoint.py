@@ -21,8 +21,7 @@ class AllStatesEndpointFunctional(Generic[Array]):
     All-states endpoint functional Q = y(T).
 
     Returns the full state vector at the final time. Useful as the default
-    functional for TransientForwardModel, analogous to the identity
-    functional used for SteadyForwardModel.
+    functional for TransientForwardModel.
 
     Parameters
     ----------

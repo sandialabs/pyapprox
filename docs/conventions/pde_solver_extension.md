@@ -100,8 +100,9 @@ physics capability, the BC rows, and the functional's own bundle
 (downgrades from missing physics capability warn; functional-driven
 downgrades are silent; a functional without Jacobians gives a
 value-only model). Build the pipeline once and rebind parameters
-per sample. Reference: `pde/models/collocation/steady.py` and
-`transient.py`, `pde/models/galerkin/transient.py`.
+per sample. Reference: `pde/models/collocation/steady_function.py`
+(`collocation_steady_function`) and `transient.py`,
+`pde/models/galerkin/transient.py`.
 
 ## Testing contract
 

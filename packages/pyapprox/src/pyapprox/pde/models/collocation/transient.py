@@ -62,8 +62,8 @@ class TransientForwardModel(CollocationModel[Array]):
     bundle, the functional's ``derivatives()`` bundle, and the adapter
     tier — never by ``hasattr`` or protocol tier.
 
-    Extends :class:`CollocationModel`, so the plain ``solve_steady`` /
-    ``solve_transient`` surface remains available.
+    Extends :class:`CollocationModel`, so the plain ``solve_transient``
+    surface remains available.
 
     Parameters
     ----------
