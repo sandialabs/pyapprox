@@ -28,6 +28,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.models.collocation.closed_system import (
     CollocationSystem,
@@ -74,8 +75,7 @@ def _robin_2d(bkd: Backend[Array]) -> CollocationSystem[Array]:
     derivatives = [basis.derivative_matrix(1, 0), basis.derivative_matrix(1, 1)]
     robin = RobinRows(
         bkd,
-        npts,
-        1,
+        StateLayout.uniform(npts, 1),
         [
             RobinPart(
                 mesh.boundary_indices(side),
@@ -94,8 +94,7 @@ def _robin_2d(bkd: Backend[Array]) -> CollocationSystem[Array]:
     )
     essential = DirichletRows(
         bkd,
-        npts,
-        1,
+        StateLayout.uniform(npts, 1),
         [
             DirichletPart(mesh.boundary_indices(0), 0.5),
             DirichletPart(mesh.boundary_indices(1), -0.3),
@@ -140,8 +139,7 @@ def _time_dependent_case(
     derivatives = [basis.derivative_matrix(1, 0), basis.derivative_matrix(1, 1)]
     robin = RobinRows(
         bkd,
-        npts,
-        1,
+        StateLayout.uniform(npts, 1),
         [
             RobinPart(
                 bottom,
@@ -156,8 +154,7 @@ def _time_dependent_case(
     )
     essential = DirichletRows(
         bkd,
-        npts,
-        1,
+        StateLayout.uniform(npts, 1),
         [DirichletPart(left, NodalSupplier(supplier, points[:, left]))],
     )
     return physics, CollocationSystem(physics, essential, [robin])
@@ -178,8 +175,7 @@ class TestTime:
         supplier: TimeDependent[Array] = TimeDependent(_growing)
         essential = DirichletRows(
             bkd,
-            physics.npts(),
-            1,
+            StateLayout.uniform(physics.npts(), 1),
             [DirichletPart(left, NodalSupplier(supplier, points[:, left]))],
         )
         with pytest.raises(ValueError, match="essential data are time-dependent"):
@@ -204,8 +200,7 @@ class TestTime:
         bottom = mesh.boundary_indices(2)
         flux = RobinRows(
             bkd,
-            npts,
-            1,
+            StateLayout.uniform(npts, 1),
             [
                 RobinPart(
                     bottom,
@@ -232,8 +227,7 @@ class TestTime:
         derivatives = [basis.derivative_matrix(1, 0), basis.derivative_matrix(1, 1)]
         robin = RobinRows(
             bkd,
-            basis.npts(),
-            1,
+            StateLayout.uniform(basis.npts(), 1),
             [
                 RobinPart(
                     bottom,

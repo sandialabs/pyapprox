@@ -61,6 +61,7 @@ from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.advection import (
     AdvectionFormProtocol,
     ConservativeAdvection,
@@ -563,7 +564,7 @@ class _NoSpring(_ADR):
                     side_values(problem, level, part, problem.boundary_data(part)["u"]),
                 )
             )
-        rows = RobinRows(bkd, level.npts(), 1, parts)
+        rows = RobinRows(bkd, StateLayout.uniform(level.npts(), 1), parts)
         return CollocationSystem(physics, None, [rows])
 
 
@@ -592,8 +593,7 @@ class _ReversedNormal(_ADR):
         )
         reversed_rows = RobinRows(
             bkd,
-            level.npts(),
-            1,
+            StateLayout.uniform(level.npts(), 1),
             [
                 RobinPart(
                     right,
@@ -605,7 +605,9 @@ class _ReversedNormal(_ADR):
             ],
         )
         essential = DirichletRows(
-            bkd, level.npts(), 1, [DirichletPart(left, left_values)]
+            bkd,
+            StateLayout.uniform(level.npts(), 1),
+            [DirichletPart(left, left_values)],
         )
         return CollocationSystem(physics, essential, [reversed_rows])
 

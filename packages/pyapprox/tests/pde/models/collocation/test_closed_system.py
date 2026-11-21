@@ -41,6 +41,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
 from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.hyperelasticity import HyperelasticityPhysics
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.models.collocation.closed_system import (
@@ -97,7 +98,7 @@ def _dirichlet(bkd: Backend[Array], sides: Tuple[int, ...]) -> DirichletRows[Arr
         )
         for side in sides
     ]
-    return DirichletRows(bkd, _NPTS, 1, parts)
+    return DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), parts)
 
 
 def _gradient_robin(
@@ -120,7 +121,7 @@ def _gradient_robin(
         )
         for side in sides
     ]
-    return RobinRows(bkd, _NPTS, 1, parts)
+    return RobinRows(bkd, StateLayout.uniform(_NPTS, 1), parts)
 
 
 def _flux_robin(
@@ -144,7 +145,7 @@ def _flux_robin(
         )
         for side in sides
     ]
-    return RobinRows(bkd, _NPTS, 1, parts)
+    return RobinRows(bkd, StateLayout.uniform(_NPTS, 1), parts)
 
 
 def _periodic_in_x(bkd: Backend[Array]) -> PeriodicRows[Array]:
@@ -154,7 +155,12 @@ def _periodic_in_x(bkd: Backend[Array]) -> PeriodicRows[Array]:
         mesh.boundary_indices(1),
         _basis(bkd).derivative_matrix(1, 0),
     )
-    return PeriodicRows(bkd, mesh.reference_points(), 1, [part])
+    return PeriodicRows(
+        bkd,
+        StateLayout.uniform(mesh.reference_points().shape[1], 1),
+        mesh.reference_points(),
+        [part],
+    )
 
 
 def _parameterized_adr(
@@ -237,7 +243,7 @@ class TestPeriodicEssentialConsistency:
             )
             for side in (2, 3)
         ]
-        essential = DirichletRows(bkd, _NPTS, 1, parts)
+        essential = DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), parts)
         return CollocationSystem(_adr(bkd), essential, [_periodic_in_x(bkd)])
 
     def test_periodic_data_accepted(self, bkd: Backend[Array]) -> None:
@@ -359,7 +365,7 @@ class TestHyperelasticTraction:
             for side in (0, 2)
             for component in (0, 1)
         ]
-        rows = RobinRows(bkd, _NPTS, 2, parts)
+        rows = RobinRows(bkd, StateLayout.uniform(_NPTS, 2), parts)
         closure: ClosureRowsProtocol[Array] = (
             _ZeroSensitivity(rows) if zero_sensitivity else rows
         )
@@ -542,8 +548,7 @@ class TestOwnParametersRefused:
         mesh = _mesh(bkd)
         essential = DirichletRows(
             bkd,
-            _NPTS,
-            1,
+            StateLayout.uniform(_NPTS, 1),
             [DirichletPart(mesh.boundary_indices(2), self._mapped(bkd, 2))],
         )
         system = CollocationSystem(physics, essential)
@@ -565,7 +570,7 @@ class TestOwnParametersRefused:
             else GradientNormalOperator(bkd, indices, normals, derivatives)
         )
         part = RobinPart(indices, normal_term, 1.0, 0.5, self._mapped(bkd, 2))
-        return RobinRows(bkd, _NPTS, 1, [part])
+        return RobinRows(bkd, StateLayout.uniform(_NPTS, 1), [part])
 
     def test_robin(self, bkd: Backend[Array]) -> None:
         physics, parameters = _parameterized_adr(bkd)
@@ -611,7 +616,9 @@ class TestRefusals:
             0.0,
         )
         with pytest.raises(ValueError, match="space of size"):
-            CollocationSystem(_adr(bkd), None, [RobinRows(bkd, _NPTS, 2, [part])])
+            CollocationSystem(
+                _adr(bkd), None, [RobinRows(bkd, StateLayout.uniform(_NPTS, 2), [part])]
+            )
 
 
 class _ZeroSensitivity(Generic[Array]):

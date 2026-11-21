@@ -32,6 +32,7 @@ from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
     collocation_steady_residual,
@@ -66,9 +67,7 @@ NMODES = 5
 NPTS = 33
 
 
-def _poisson_solution_operator(
-    bkd: Backend[Array], npts: int
-) -> Tuple[Array, Array]:
+def _poisson_solution_operator(bkd: Backend[Array], npts: int) -> Tuple[Array, Array]:
     """Return (nodes, solution operator) for -u'' = f on [0, 1].
 
     With constant diffusion and no advection or reaction the residual
@@ -82,23 +81,22 @@ def _poisson_solution_operator(
     physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
     essential = DirichletRows(
         bkd,
-        npts,
-        1,
+        StateLayout.uniform(npts, 1),
         [
             DirichletPart(mesh.boundary_indices(BoundarySide.LEFT), 0.0),
             DirichletPart(mesh.boundary_indices(BoundarySide.RIGHT), 0.0),
         ],
     )
-    residual = collocation_steady_residual(
-        CollocationSystem(physics, essential, [])
-    )
+    residual = collocation_steady_residual(CollocationSystem(physics, essential, []))
 
     # The residual with the Dirichlet rows pinned to identity rows.
     jacobian_operator = residual.derivatives().jacobian
     assert jacobian_operator is not None
-    jacobian = jacobian_operator(
-        bkd.zeros((npts, 1)), LinearizationPoint(0, ("poisson",))
-    ).format().matrix()
+    jacobian = (
+        jacobian_operator(bkd.zeros((npts, 1)), LinearizationPoint(0, ("poisson",)))
+        .format()
+        .matrix()
+    )
 
     # The residual is D u'' + f, so solving it against -f gives -u'' = f.
     operator = -bkd.inv(jacobian)
@@ -154,9 +152,7 @@ def _linear_expansion(
     """Expansion over the first-order terms, so the fit stays linear."""
     marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
     basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
-    basis.set_indices(
-        bkd.asarray(np.eye(nvars, dtype=int), dtype=bkd.int64_dtype())
-    )
+    basis.set_indices(bkd.asarray(np.eye(nvars, dtype=int), dtype=bkd.int64_dtype()))
     return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
 
 
@@ -182,9 +178,7 @@ class TestPoissonOperatorLearning:
         rho = IndependentJoint(
             [UniformMarginal(-1.0, 1.0, bkd) for _ in range(NMODES)], bkd
         )
-        sampler = InducedSampler(
-            expansion._ortho_basis(), rho, bkd, nquad=200
-        )
+        sampler = InducedSampler(expansion._ortho_basis(), rho, bkd, nquad=200)
         drawn = sampler(nsamples)
 
         # Each realization is a forcing field; solving gives the
@@ -192,14 +186,12 @@ class TestPoissonOperatorLearning:
         forcings = encoder.decode(drawn.samples)
         solutions = bkd.dot(operator, forcings)
 
-        result = WeightedLeastSquaresOperatorFitter(
-            encoder, encoder, bkd
-        ).fit(expansion, forcings, solutions, weights=drawn.weights)
+        result = WeightedLeastSquaresOperatorFitter(encoder, encoder, bkd).fit(
+            expansion, forcings, solutions, weights=drawn.weights
+        )
         return _Fit(nodes, operator, encoder, result)
 
-    def test_recovers_the_solution_operator(
-        self, numpy_bkd: Backend[Array]
-    ) -> None:
+    def test_recovers_the_solution_operator(self, numpy_bkd: Backend[Array]) -> None:
         """The surrogate reproduces solves it was never shown.
 
         Error is measured on held-out forcings, in the Bochner norm the
@@ -211,9 +203,7 @@ class TestPoissonOperatorLearning:
         operator, encoder, result = fit.operator, fit.encoder, fit.result
 
         np.random.seed(1)
-        held_out = numpy_bkd.asarray(
-            np.random.uniform(-1.0, 1.0, (NMODES, 50))
-        )
+        held_out = numpy_bkd.asarray(np.random.uniform(-1.0, 1.0, (NMODES, 50)))
         forcings = encoder.decode(held_out)
         truth = numpy_bkd.dot(operator, forcings)
 
@@ -254,12 +244,8 @@ class TestPoissonOperatorLearning:
         # Legendre degree one is sqrt(3) x, so the fitted coefficients
         # carry that factor relative to the operator's eigenvalues.
         diagonal = np.diag(numpy_bkd.to_numpy(result.operator_matrix()))
-        analytic = np.array(
-            [1.0 / (math.pi * (n + 1)) ** 2 for n in range(NMODES)]
-        )
-        np.testing.assert_allclose(
-            diagonal * np.sqrt(3.0), analytic, rtol=1e-6
-        )
+        analytic = np.array([1.0 / (math.pi * (n + 1)) ** 2 for n in range(NMODES)])
+        np.testing.assert_allclose(diagonal * np.sqrt(3.0), analytic, rtol=1e-6)
 
     @staticmethod
     def _greens_integral(
@@ -274,8 +260,7 @@ class TestPoissonOperatorLearning:
         """
         quad = np.linspace(0.0, 1.0, nquad)
         greens = (
-            np.minimum(nodes[:, None], quad[None, :])
-            - nodes[:, None] * quad[None, :]
+            np.minimum(nodes[:, None], quad[None, :]) - nodes[:, None] * quad[None, :]
         )
         forcing = np.sqrt(2.0) * np.sin(mode * np.pi * quad)
         integral: NDArray[np.floating[Any]] = np.trapezoid(
@@ -334,16 +319,12 @@ class TestPoissonOperatorLearning:
         operator, encoder, result = fit.operator, fit.encoder, fit.result
 
         np.random.seed(3)
-        held_out = numpy_bkd.asarray(
-            np.random.uniform(-1.0, 1.0, (NMODES, 20))
-        )
+        held_out = numpy_bkd.asarray(np.random.uniform(-1.0, 1.0, (NMODES, 20)))
         forcings = encoder.decode(held_out)
         truth = numpy_bkd.dot(operator, forcings)
         predicted = result.surrogate()(forcings)
 
         fitted = bochner_error(encoder, predicted, truth, numpy_bkd)
-        trivial = bochner_error(
-            encoder, numpy_bkd.zeros(truth.shape), truth, numpy_bkd
-        )
+        trivial = bochner_error(encoder, numpy_bkd.zeros(truth.shape), truth, numpy_bkd)
         assert trivial == pytest.approx(1.0)
         assert fitted < 1e-6 * trivial

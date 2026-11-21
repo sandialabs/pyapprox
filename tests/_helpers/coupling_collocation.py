@@ -70,6 +70,7 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
     GaussLegendreSideRule,
     SideRuleProtocol,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.advection import (
     AdvectionFormProtocol,
     ConservativeAdvection,
@@ -264,6 +265,23 @@ def _posed(
     )
 
 
+def diffusion_at(
+    coefs: Coefficients,
+    problem: ManufacturedProblem,
+    points: Array,
+    bkd: Backend[Array],
+) -> Union[float, NodalField[Array]]:
+    """The diffusion as the physics takes it: the constant itself, or the
+    expression evaluated at ``points`` (shape (ndim, npts))."""
+    if isinstance(coefs.diffusion, float):
+        return coefs.diffusion
+    return NodalField(
+        PointExpressions(
+            [coefs.diffusion], problem.names(), problem.coordinates(), bkd
+        )(points)[0]
+    )
+
+
 def adr_problem(
     coefs: Coefficients, solution: str, region: DomainProtocol
 ) -> ManufacturedProblem:
@@ -326,19 +344,10 @@ class Adr(Generic[Array]):
             if coefs.velocity is None
             else [bkd.full((npts,), v) for v in coefs.velocity]
         )
-        diffusion: Union[float, NodalField[Array]] = (
-            coefs.diffusion
-            if isinstance(coefs.diffusion, float)
-            else NodalField(
-                PointExpressions(
-                    [coefs.diffusion], problem.names(), problem.coordinates(), bkd
-                )(mesh.points())[0]
-            )
-        )
         physics = AdvectionDiffusionReaction(
             basis(mesh, bkd),
             bkd,
-            diffusion=diffusion,
+            diffusion=diffusion_at(coefs, problem, mesh.points(), bkd),
             velocity=velocity,
             reaction=coefs.reaction,
             forcing=NodalField(forcing_at(problem, mesh.points(), bkd)[0]),
@@ -496,7 +505,9 @@ class Box(Generic[Array]):
         parts = self.dirichlet(sides, free)
         if not parts:
             return None
-        return DirichletRows(self._bkd, self._mesh.npts(), self.ncomponents(), parts)
+        return DirichletRows(
+            self._bkd, StateLayout.uniform(self._mesh.npts(), self.ncomponents()), parts
+        )
 
 
 def node_at(points: Array, point: Array, bkd: Backend[Array]) -> int:

@@ -20,6 +20,7 @@ from pyapprox.pde.collocation.boundary.essential_rows import (
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
     collocation_steady_residual,
@@ -172,7 +173,9 @@ def solve_steady_dirichlet(
         The converged state. Shape: (nstates,).
     """
     bkd, nstates = physics.bkd(), physics.nstates()
-    essential = DirichletRows(bkd, nstates // ncomponents, ncomponents, list(parts))
+    essential = DirichletRows(
+        bkd, StateLayout.uniform(nstates // ncomponents, ncomponents), list(parts)
+    )
     steady = SteadySystem(
         collocation_steady_residual(CollocationSystem(physics, essential, [])),
         backend_state_space(bkd, nstates),
@@ -221,6 +224,4 @@ class PhysicsTestBase:
         """Verify residual is zero at manufactured solution."""
         residual = physics.interior_residual(exact_state, time)
         norm = bkd.to_float(bkd.norm(residual))
-        assert norm < atol, (
-            f"Residual norm {norm:.2e} exceeds tolerance {atol:.2e}"
-        )
+        assert norm < atol, f"Residual norm {norm:.2e} exceeds tolerance {atol:.2e}"

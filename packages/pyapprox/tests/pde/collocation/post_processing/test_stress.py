@@ -35,6 +35,7 @@ from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.post_processing.stress import (
     StressPostProcessor2D,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
     collocation_steady_residual,
@@ -78,8 +79,7 @@ def _traction(
     value = data if isinstance(data, float) else NodalField(data)
     return RobinRows(
         bkd,
-        mesh.npts(),
-        2,
+        StateLayout.uniform(mesh.npts(), 2),
         [RobinPart(indices, operator, 0.0, 1.0, value, component)],
     )
 
@@ -92,9 +92,7 @@ def _setup_lame_problem(
     youngs = 1.0
     mu = youngs / (2.0 * (1.0 + poisson_ratio))
     lamda = (
-        youngs
-        * poisson_ratio
-        / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
+        youngs * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     )
 
     transform = PolarTransform(
@@ -135,8 +133,7 @@ def _setup_lame_problem(
     )
     essential = DirichletRows(
         bkd,
-        npts,
-        2,
+        StateLayout.uniform(npts, 2),
         [
             DirichletPart(mesh.boundary_indices(BoundarySide.BOTTOM), 0.0, 1),
             DirichletPart(mesh.boundary_indices(BoundarySide.TOP), 0.0, 0),
@@ -256,9 +253,9 @@ class TestStressPostProcessor2D:
             state_p[dof] = state_p[dof] + eps
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
-            fd = (
-                proc.hoop_stress(state_p, *mat) - proc.hoop_stress(state_m, *mat)
-            ) / (2.0 * eps)
+            fd = (proc.hoop_stress(state_p, *mat) - proc.hoop_stress(state_m, *mat)) / (
+                2.0 * eps
+            )
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
     def test_strain_energy_density_jacobian_fd(self, bkd: Backend[Array]) -> None:
@@ -289,9 +286,7 @@ class TestStressPostProcessor2D:
     def test_cartesian_stress_shapes(self, bkd: Backend[Array]) -> None:
         """Cartesian stresses have correct shapes."""
         setup = _setup_lame_problem(bkd)
-        sxx, sxy, syy = setup.proc.cartesian_stress(
-            setup.state, *setup.material
-        )
+        sxx, sxy, syy = setup.proc.cartesian_stress(setup.state, *setup.material)
         npts = setup.npts
         assert sxx.shape == (npts,)
         assert sxy.shape == (npts,)
@@ -301,9 +296,7 @@ class TestStressPostProcessor2D:
         """Cartesian stress Jacobians have correct shapes."""
         setup = _setup_lame_problem(bkd)
         npts = setup.npts
-        dsxx, dsxy, dsyy = setup.proc.cartesian_stress_state_jacobian(
-            *setup.material
-        )
+        dsxx, dsxy, dsyy = setup.proc.cartesian_stress_state_jacobian(*setup.material)
         assert dsxx.shape == (npts, 2 * npts)
         assert dsxy.shape == (npts, 2 * npts)
         assert dsyy.shape == (npts, 2 * npts)

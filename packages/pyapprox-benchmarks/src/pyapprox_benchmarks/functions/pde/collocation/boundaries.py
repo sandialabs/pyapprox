@@ -66,6 +66,7 @@ from pyapprox.pde.collocation.protocols.boundary import FluxProviderProtocol
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.util.backends.protocols import Array, Backend
 
 Array_co = TypeVar("Array_co", covariant=True)
@@ -193,7 +194,9 @@ class GradientRobin:
         )
         part = RobinPart(indices, normal_term, self.alpha, self.beta, self.value)
         return BoundaryRows(
-            closure=RobinRows(bkd, mesh.npts(), context.ncomponents(), [part])
+            closure=RobinRows(
+                bkd, StateLayout.uniform(mesh.npts(), context.ncomponents()), [part]
+            )
         )
 
 
@@ -224,7 +227,9 @@ class FluxNeumann:
         )
         part = RobinPart(indices, normal_term, 0.0, 1.0, self.value)
         return BoundaryRows(
-            closure=RobinRows(bkd, mesh.npts(), context.ncomponents(), [part])
+            closure=RobinRows(
+                bkd, StateLayout.uniform(mesh.npts(), context.ncomponents()), [part]
+            )
         )
 
 
@@ -254,7 +259,12 @@ class Periodic:
         )
         return BoundaryRows(
             closure=PeriodicRows(
-                mesh.bkd(), mesh.reference_points(), context.ncomponents(), [part]
+                mesh.bkd(),
+                StateLayout.uniform(
+                    mesh.reference_points().shape[1], context.ncomponents()
+                ),
+                mesh.reference_points(),
+                [part],
             )
         )
 
@@ -286,7 +296,9 @@ def _traction_rows(
 ) -> BoundaryRows[Array]:
     mesh = context.mesh
     return BoundaryRows(
-        closure=RobinRows(mesh.bkd(), mesh.npts(), context.ncomponents(), parts)
+        closure=RobinRows(
+            mesh.bkd(), StateLayout.uniform(mesh.npts(), context.ncomponents()), parts
+        )
     )
 
 
@@ -500,6 +512,8 @@ def assemble_boundaries(
             f"{list(specs)}"
         )
     essential = (
-        DirichletRows(mesh.bkd(), mesh.npts(), ncomponents, parts) if parts else None
+        DirichletRows(mesh.bkd(), StateLayout.uniform(mesh.npts(), ncomponents), parts)
+        if parts
+        else None
     )
     return essential, closures

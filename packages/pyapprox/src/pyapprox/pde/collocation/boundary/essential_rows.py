@@ -189,24 +189,63 @@ class MappedBoundaryData(Generic[Array]):
 SHARED_ROW_RTOL = 1e-10
 
 
+@runtime_checkable
+class StateRowsLayoutProtocol(Protocol):
+    """Where each component of the state sits, as the row builders read
+    it; :class:`~pyapprox.pde.collocation.state_layout.StateLayout`
+    satisfies it."""
+
+    def nfields(self) -> int:
+        """The number of components."""
+        ...
+
+    def nstates(self) -> int:
+        """The number of state entries."""
+        ...
+
+    def npts(self, field: int) -> int:
+        """The number of nodes of component ``field``."""
+        ...
+
+    def offset(self, field: int) -> int:
+        """The row of node 0 of component ``field``."""
+        ...
+
+
+def check_state_layout(layout: StateRowsLayoutProtocol) -> None:
+    """Refuse a ``layout`` that does not satisfy
+    :class:`StateRowsLayoutProtocol`.
+
+    Raises
+    ------
+    TypeError
+        If it does not.
+    """
+    if not isinstance(layout, StateRowsLayoutProtocol):
+        raise TypeError(
+            f"layout must satisfy StateRowsLayoutProtocol, got {type(layout).__name__}"
+        )
+
+
 def component_state_rows(
     bkd: Backend[Array],
     boundary_indices: Array,
     component: int,
-    npts: int,
-    ncomponents: int,
+    layout: StateRowsLayoutProtocol,
 ) -> List[int]:
-    """The rows of the component-stacked state for a component's boundary
-    nodes: ``boundary_indices + component * npts``.
+    """The state rows of a component's boundary nodes:
+    ``layout.offset(component) + boundary_indices``, the indices being the
+    component's own nodes.
 
     Raises
     ------
     ValueError
-        If ``component`` is not in ``[0, ncomponents)`` or an index is not
-        in ``[0, npts)``.
+        If ``component`` is not in ``[0, layout.nfields())`` or an index is
+        not in ``[0, layout.npts(component))``.
     """
-    if not 0 <= component < ncomponents:
-        raise ValueError(f"component {component} is not in [0, {ncomponents})")
+    if not 0 <= component < layout.nfields():
+        raise ValueError(f"component {component} is not in [0, {layout.nfields()})")
+    npts = layout.npts(component)
     # Read once at construction to build the row set
     indices = [bkd.to_int(index) for index in boundary_indices]
     if indices and (min(indices) < 0 or max(indices) >= npts):
@@ -214,7 +253,8 @@ def component_state_rows(
             f"boundary indices must lie in [0, {npts}), got "
             f"[{min(indices)}, {max(indices)}]"
         )
-    return [index + component * npts for index in indices]
+    start = layout.offset(component)
+    return [start + index for index in indices]
 
 
 BoundaryDataInput = Union[
@@ -275,8 +315,8 @@ class DirichletRows(Generic[Array]):
     r"""The essential rows of a collocation system and their data, as
     :class:`~pyapprox.ode.pinned_rows.PinnedRowsProtocol` declares them.
 
-    A part's rows are its boundary node indices offset by
-    ``component * npts`` in the component-stacked state. Parts may share
+    A part's rows are its boundary node indices, on its component's own
+    nodes, offset by the layout to that component's rows. Parts may share
     rows (neighboring sides share corner nodes): a later part's data win a
     shared row, and its parameter derivatives with them.
 
@@ -289,34 +329,37 @@ class DirichletRows(Generic[Array]):
     ----------
     bkd : Backend
         Computational backend.
-    npts : int
-        The number of collocation nodes.
-    ncomponents : int
-        The number of state components; the state has
-        ``ncomponents * npts`` entries.
+    layout : StateRowsLayoutProtocol
+        Where each component sits in the state, e.g.
+        ``StateLayout.uniform(npts, ncomponents)``.
     parts : sequence of DirichletPart
         The parts, in the order that settles shared rows.
 
     Raises
     ------
+    TypeError
+        If ``layout`` does not satisfy :class:`StateRowsLayoutProtocol`.
     ValueError
-        If there are no parts, a component is not in
-        ``[0, ncomponents)``, a boundary index is not in ``[0, npts)``, or
+        If there are no parts, a component is not in the layout, a
+        boundary index is not one of its component's nodes, or
         parameterized parts disagree on the number of parameters.
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
-        npts: int,
-        ncomponents: int,
+        layout: StateRowsLayoutProtocol,
         parts: Sequence[DirichletPart[Array]],
     ) -> None:
+        check_state_layout(layout)
         if not parts:
             raise ValueError("a Dirichlet declaration needs at least one part")
         self._bkd = bkd
-        self._nstates = npts * ncomponents
-        rows_per_part = [self._part_rows(part, npts, ncomponents) for part in parts]
+        self._nstates = layout.nstates()
+        rows_per_part = [
+            component_state_rows(bkd, part.boundary_indices, part.component, layout)
+            for part in parts
+        ]
         self._rows_per_part = [
             bkd.asarray(rows, dtype=bkd.int64_dtype()) for rows in rows_per_part
         ]
@@ -349,13 +392,6 @@ class DirichletRows(Generic[Array]):
             self._states, [row for rows in rows_per_part for row in rows], bkd
         )
         self._params = self._parameter_space()
-
-    def _part_rows(
-        self, part: DirichletPart[Array], npts: int, ncomponents: int
-    ) -> List[int]:
-        return component_state_rows(
-            self._bkd, part.boundary_indices, part.component, npts, ncomponents
-        )
 
     def _shared_rows(
         self, rows_per_part: List[List[int]]

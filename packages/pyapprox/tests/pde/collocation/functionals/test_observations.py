@@ -55,6 +55,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.steady_residual import (
@@ -172,7 +173,9 @@ class _SteadyADR(Generic[Array]):
         )
         left, right = mesh.boundary_indices(0), mesh.boundary_indices(1)
         essential = DirichletRows(
-            bkd, 16, 1, [DirichletPart(left, 0.5), DirichletPart(right, -0.3)]
+            bkd,
+            StateLayout.uniform(16, 1),
+            [DirichletPart(left, 0.5), DirichletPart(right, -0.3)],
         )
         rng = np.random.default_rng(5)
         parameterization = CollocationAdvectionDiffusionParameterization(

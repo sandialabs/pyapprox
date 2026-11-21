@@ -34,6 +34,8 @@ from pyapprox.ode.residual_derivatives import (
 from pyapprox.pde.collocation.boundary.essential_rows import (
     BoundaryDataInput,
     ParameterizedBoundaryDataProtocol,
+    StateRowsLayoutProtocol,
+    check_state_layout,
     component_state_rows,
 )
 from pyapprox.pde.collocation.physics.coefficients import (
@@ -297,10 +299,9 @@ class RobinRows(Generic[Array]):
     ----------
     bkd : Backend
         Computational backend.
-    npts : int
-        The number of collocation nodes.
-    ncomponents : int
-        The number of state components.
+    layout : StateRowsLayoutProtocol
+        Where each component sits in the state, e.g.
+        ``StateLayout.uniform(npts, ncomponents)``.
     parts : sequence of RobinPart
         The parts, in the order that settles shared rows.
 
@@ -311,25 +312,25 @@ class RobinRows(Generic[Array]):
         range, or parameterized coefficients disagree on the number of
         parameters.
     TypeError
-        If a part's normal term does not satisfy
+        If ``layout`` does not satisfy
+        :class:`~pyapprox.pde.collocation.boundary.essential_rows.StateRowsLayoutProtocol`,
+        or a part's normal term does not satisfy
         :class:`RobinNormalTermProtocol`.
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
-        npts: int,
-        ncomponents: int,
+        layout: StateRowsLayoutProtocol,
         parts: Sequence[RobinPart[Array]],
     ) -> None:
+        check_state_layout(layout)
         if not parts:
             raise ValueError("a Robin declaration needs at least one part")
         self._bkd = bkd
-        self._nstates = npts * ncomponents
+        self._nstates = layout.nstates()
         row_lists = [
-            component_state_rows(
-                bkd, part.boundary_indices, part.component, npts, ncomponents
-            )
+            component_state_rows(bkd, part.boundary_indices, part.component, layout)
             for part in parts
         ]
         self._parts = [

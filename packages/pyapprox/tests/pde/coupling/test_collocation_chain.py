@@ -40,6 +40,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.advection import ConservativeAdvection
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
@@ -85,6 +86,7 @@ from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.coupling_collocation import (
     Coefficients,
     adr_problem,
+    diffusion_at,
     forcing_at,
     solution_at,
 )
@@ -126,7 +128,7 @@ class _Interval(Generic[Array]):
         self._physics = AdvectionDiffusionReaction(
             ChebyshevBasis1D(self._mesh, bkd),
             bkd,
-            diffusion=coefs.diffusion,
+            diffusion=diffusion_at(coefs, problem, self._mesh.points(), bkd),
             velocity=velocity,
             reaction=coefs.reaction,
             forcing=NodalField(forcing_at(problem, self._mesh.points(), bkd)[0]),
@@ -209,7 +211,11 @@ class _Piece(Generic[Array]):
     def response(self) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
         bkd, n = self._bkd, self._n
         # The middle piece has no physical boundary: no essential rows.
-        essential = DirichletRows(bkd, n, 1, self._physical) if self._physical else None
+        essential = (
+            DirichletRows(bkd, StateLayout.uniform(n, 1), self._physical)
+            if self._physical
+            else None
+        )
         pinned = collocation_steady_residual(
             CollocationSystem(self._interval.physics(), essential)
         )

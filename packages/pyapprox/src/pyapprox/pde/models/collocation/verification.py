@@ -121,6 +121,7 @@ from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.pde.collocation.protocols.physics import (
     CollocationInteriorOperatorProtocol,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.expressions.symbols import coordinates, time
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
@@ -446,7 +447,12 @@ class PeriodicSeam(Generic[Array]):
             PeriodicPart(lower, upper, derivative, component)
             for component in range(ncomponents)
         ]
-        return PeriodicRows(level.bkd(), mesh.reference_points(), ncomponents, parts)
+        return PeriodicRows(
+            level.bkd(),
+            StateLayout.uniform(mesh.reference_points().shape[1], ncomponents),
+            mesh.reference_points(),
+            parts,
+        )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._direction})"
@@ -1103,13 +1109,24 @@ def boundary_conditions(
     ]
     if periodic:
         closures.append(
-            PeriodicRows(bkd, level.mesh().reference_points(), ncomponents, periodic)
+            PeriodicRows(
+                bkd,
+                StateLayout.uniform(
+                    level.mesh().reference_points().shape[1], ncomponents
+                ),
+                level.mesh().reference_points(),
+                periodic,
+            )
         )
     if robin:
         # After the periodic rows, so a side's own condition wins the
         # nodes it shares with a periodic side.
-        closures.append(RobinRows(bkd, npts, ncomponents, robin))
-    essential = DirichletRows(bkd, npts, ncomponents, dirichlet) if dirichlet else None
+        closures.append(RobinRows(bkd, StateLayout.uniform(npts, ncomponents), robin))
+    essential = (
+        DirichletRows(bkd, StateLayout.uniform(npts, ncomponents), dirichlet)
+        if dirichlet
+        else None
+    )
     return BoundaryDeclarations(essential, tuple(closures))
 
 

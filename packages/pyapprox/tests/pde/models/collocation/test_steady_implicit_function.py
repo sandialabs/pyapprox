@@ -74,6 +74,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
@@ -165,7 +166,9 @@ def _dirichlet(bkd: Backend[Array]) -> _Problem[Array]:
         bkd,
         physics,
         DirichletRows(
-            bkd, 20, 1, [DirichletPart(left, 0.0), DirichletPart(right, 0.0)]
+            bkd,
+            StateLayout.uniform(20, 1),
+            [DirichletPart(left, 0.0), DirichletPart(right, 0.0)],
         ),
         [],
         create_diffusion_parameterization(
@@ -187,8 +190,7 @@ def _flux_neumann(bkd: Backend[Array]) -> _Problem[Array]:
     normals = mesh.boundary_normals(1)
     flux = RobinRows(
         bkd,
-        20,
-        1,
+        StateLayout.uniform(20, 1),
         [
             RobinPart(
                 right, FluxNormalOperator(bkd, right, normals, physics), 0.0, 1.0, 0.0
@@ -198,7 +200,7 @@ def _flux_neumann(bkd: Backend[Array]) -> _Problem[Array]:
     return _Problem(
         bkd,
         physics,
-        DirichletRows(bkd, 20, 1, [DirichletPart(left, 0.0)]),
+        DirichletRows(bkd, StateLayout.uniform(20, 1), [DirichletPart(left, 0.0)]),
         [flux],
         create_diffusion_parameterization(
             physics, bkd, _diffusion_map(bkd, 2.0, [bkd.ones((20,)), nodes])
@@ -232,7 +234,7 @@ def _gradient_robin(bkd: Backend[Array]) -> _Problem[Array]:
         bkd,
         physics,
         None,
-        [RobinRows(bkd, 20, 1, parts)],
+        [RobinRows(bkd, StateLayout.uniform(20, 1), parts)],
         create_diffusion_parameterization(
             physics, bkd, _diffusion_map(bkd, 2.0, [bkd.ones((20,)), nodes])
         ),
@@ -268,8 +270,7 @@ class _ZeroEnds(Generic[Array]):
             self.physics,
             DirichletRows(
                 bkd,
-                self.npts,
-                1,
+                StateLayout.uniform(self.npts, 1),
                 [DirichletPart(left, 0.0), DirichletPart(right, 0.0)],
             ),
             [],
@@ -365,7 +366,10 @@ def _periodic(bkd: Backend[Array]) -> _Problem[Array]:
         None,
         [
             PeriodicRows(
-                bkd, mesh.reference_points(), 1, [PeriodicPart(left, right, derivative)]
+                bkd,
+                StateLayout.uniform(mesh.reference_points().shape[1], 1),
+                mesh.reference_points(),
+                [PeriodicPart(left, right, derivative)],
             )
         ],
         create_diffusion_parameterization(
@@ -494,7 +498,9 @@ class TestBuilder:
         )
         left, right = mesh.boundary_indices(0), mesh.boundary_indices(1)
         essential = DirichletRows(
-            bkd, 20, 1, [DirichletPart(left, 0.0), DirichletPart(right, 0.0)]
+            bkd,
+            StateLayout.uniform(20, 1),
+            [DirichletPart(left, 0.0), DirichletPart(right, 0.0)],
         )
         system = CollocationSystem(physics, essential)
         parameterization = create_diffusion_parameterization(

@@ -46,6 +46,7 @@ from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap, _ExpTransform
 from pyapprox.pde.models.collocation.closed_system import (
@@ -128,15 +129,16 @@ class _Cylinder(Generic[Array]):
         traction(0, 1, -0.5 * inner_normals[:, 1])
         essential = DirichletRows(
             bkd,
-            npts,
-            2,
+            StateLayout.uniform(npts, 2),
             [
                 DirichletPart(mesh.boundary_indices(2), 0.0, component=1),
                 DirichletPart(mesh.boundary_indices(3), 0.0, component=0),
             ],
         )
         self.system = CollocationSystem(
-            self.physics, essential, [RobinRows(bkd, npts, 2, parts)]
+            self.physics,
+            essential,
+            [RobinRows(bkd, StateLayout.uniform(npts, 2), parts)],
         )
         points = mesh.points()
         self.facade = CollocationElasticityParameterization(
@@ -301,8 +303,7 @@ class TestAffineEquivalence:
         )
         essential = DirichletRows(
             bkd,
-            npts,
-            2,
+            StateLayout.uniform(npts, 2),
             [
                 DirichletPart(mesh.boundary_indices(side), 0.0, component=component)
                 for side in range(4)

@@ -34,6 +34,7 @@ from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
@@ -139,8 +140,7 @@ def _piola_traction(
     )
     return RobinRows(
         bkd,
-        mesh.npts(),
-        2,
+        StateLayout.uniform(mesh.npts(), 2),
         [RobinPart(indices, operator, 0.0, 1.0, data, component)],
     )
 
@@ -285,9 +285,9 @@ class TestHyperelasticStressPostProcessor2D:
             state_p[dof] = state_p[dof] + eps
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
-            fd = (
-                proc.hoop_stress(state_p, *mat) - proc.hoop_stress(state_m, *mat)
-            ) / (2.0 * eps)
+            fd = (proc.hoop_stress(state_p, *mat) - proc.hoop_stress(state_m, *mat)) / (
+                2.0 * eps
+            )
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
     def test_strain_energy_density_jacobian_fd(self, bkd: Backend[Array]) -> None:
@@ -361,8 +361,7 @@ class TestHyperelasticStressPostProcessor2D:
         # Bottom: v=0 (symmetry); top: u=0 (symmetry)
         essential = DirichletRows(
             bkd,
-            npts,
-            2,
+            StateLayout.uniform(npts, 2),
             [
                 DirichletPart(mesh.boundary_indices(BoundarySide.BOTTOM), 0.0, 1),
                 DirichletPart(mesh.boundary_indices(BoundarySide.TOP), 0.0, 0),

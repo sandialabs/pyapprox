@@ -34,6 +34,7 @@ from pyapprox.pde.collocation.physics.coefficients import (
     NodalField,
     NodalSupplier,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
@@ -86,7 +87,7 @@ class TestDirichletRows:
         """On each side's rows the column holds f(x_b, t); elsewhere 0."""
         time = 0.4
         mesh = _mesh(bkd)
-        rows = DirichletRows(bkd, _NPTS, 1, _all_sides(bkd, True))
+        rows = DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, True))
         column = rows.values(time)
         assert column.shape == (_NPTS, 1)
         boundary = sorted(
@@ -102,7 +103,9 @@ class TestDirichletRows:
         """A part on component 1 of a two-component state pins rows
         offset by npts and leaves component 0 alone."""
         mesh = _mesh(bkd)
-        rows = DirichletRows(bkd, _NPTS, 2, _all_sides(bkd, False, component=1))
+        rows = DirichletRows(
+            bkd, StateLayout.uniform(_NPTS, 2), _all_sides(bkd, False, component=1)
+        )
         boundary = sorted(
             {bkd.to_int(i) for side in range(4) for i in mesh.boundary_indices(side)}
         )
@@ -125,11 +128,15 @@ class TestDirichletRows:
         assert len(corner) == 1
         near = 2.0 * (1.0 + 1e-12)
         rows = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(left, 2.0), DirichletPart(bottom, near)]
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [DirichletPart(left, 2.0), DirichletPart(bottom, near)],
         )
         assert bkd.to_float(rows.values(0.0)[corner[0], 0]) == near
         swapped = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(bottom, near), DirichletPart(left, 2.0)]
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [DirichletPart(bottom, near), DirichletPart(left, 2.0)],
         )
         assert bkd.to_float(swapped.values(0.0)[corner[0], 0]) == 2.0
 
@@ -141,7 +148,9 @@ class TestDirichletRows:
         mesh = _mesh(bkd)
         left, bottom = mesh.boundary_indices(0), mesh.boundary_indices(2)
         rows = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(left, 2.0), DirichletPart(bottom, 2.0 + gap)]
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [DirichletPart(left, 2.0), DirichletPart(bottom, 2.0 + gap)],
         )
         with pytest.raises(ValueError, match=r"parts 0 and 1 disagree"):
             rows.values(0.0)
@@ -157,7 +166,9 @@ class TestDirichletRows:
             dtype=bkd.int64_dtype(),
         )
         rows = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(left, 1.0), DirichletPart(trimmed, 2.0)]
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [DirichletPart(left, 1.0), DirichletPart(trimmed, 2.0)],
         )
         column = rows.values(0.0)
         bkd.assert_allclose(column[left, 0], bkd.ones((left.shape[0],)))
@@ -165,17 +176,23 @@ class TestDirichletRows:
     def test_time_invariance_from_the_data(self, bkd: Backend[Array]) -> None:
         """Invariant exactly when every part's data are declared so."""
         mesh = _mesh(bkd)
-        assert DirichletRows(bkd, _NPTS, 1, _all_sides(bkd, False)).is_time_invariant()
+        assert DirichletRows(
+            bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, False)
+        ).is_time_invariant()
         constant = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(mesh.boundary_indices(0), 3.0)]
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [DirichletPart(mesh.boundary_indices(0), 3.0)],
         )
         assert constant.is_time_invariant()
         mixed = _all_sides(bkd, False)
         mixed[2] = DirichletPart(mesh.boundary_indices(2), _on_side(bkd, 2, True))
-        assert not DirichletRows(bkd, _NPTS, 1, mixed).is_time_invariant()
+        assert not DirichletRows(
+            bkd, StateLayout.uniform(_NPTS, 1), mixed
+        ).is_time_invariant()
 
     def test_no_rates_and_independent_of_parameters(self, bkd: Backend[Array]) -> None:
-        rows = DirichletRows(bkd, _NPTS, 1, _all_sides(bkd, True))
+        rows = DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, True))
         assert rows.rates() is None
         bundle = rows.parameter_derivatives()
         assert bundle.values is STATED_ZERO
@@ -187,22 +204,29 @@ class TestDirichletRows:
         mesh = _mesh(bkd)
         side = mesh.boundary_indices(0)
         with pytest.raises(ValueError, match="at least one part"):
-            DirichletRows(bkd, _NPTS, 1, [])
+            DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), [])
         with pytest.raises(ValueError, match="component 1"):
-            DirichletRows(bkd, _NPTS, 1, [DirichletPart(side, 0.0, component=1)])
+            DirichletRows(
+                bkd,
+                StateLayout.uniform(_NPTS, 1),
+                [DirichletPart(side, 0.0, component=1)],
+            )
         outside = bkd.asarray([0, _NPTS], dtype=bkd.int64_dtype())
         with pytest.raises(ValueError, match="boundary indices"):
-            DirichletRows(bkd, _NPTS, 1, [DirichletPart(outside, 0.0)])
+            DirichletRows(
+                bkd, StateLayout.uniform(_NPTS, 1), [DirichletPart(outside, 0.0)]
+            )
         raw = bkd.zeros((side.shape[0],))
         with pytest.raises(TypeError, match="NodalField"):
             DirichletRows(
                 bkd,
-                _NPTS,
-                1,
+                StateLayout.uniform(_NPTS, 1),
                 [DirichletPart(side, raw)],  # type: ignore[arg-type]
             )
         short = DirichletRows(
-            bkd, _NPTS, 1, [DirichletPart(side, NodalField(bkd.zeros((2,))))]
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [DirichletPart(side, NodalField(bkd.zeros((2,))))],
         )
         with pytest.raises(ValueError, match="shape"):
             short.values(0.0)
@@ -226,7 +250,9 @@ class TestDirichletRows:
             old_jacobian = old.apply_to_jacobian(old_jacobian, state, time)
 
         space = backend_state_space(bkd, _NPTS)
-        declaration = DirichletRows(bkd, _NPTS, 1, _all_sides(bkd, True))
+        declaration = DirichletRows(
+            bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, True)
+        )
         pin: RowPin[Array] = RowPin(declaration)
         new_residual = pin.residual(
             bkd.reshape(residual, (_NPTS, 1)),
@@ -240,7 +266,7 @@ class TestDirichletRows:
         bkd.assert_allclose(new_jacobian, old_jacobian, rtol=1e-14, atol=1e-14)
 
     def test_pickle_round_trip(self, bkd: Backend[Array]) -> None:
-        rows = DirichletRows(bkd, _NPTS, 1, _all_sides(bkd, True))
+        rows = DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, True))
         loaded = pickle.loads(pickle.dumps(rows))
         bkd.assert_allclose(loaded.values(0.6), rows.values(0.6), rtol=1e-14)
         assert loaded.rows().indices() == rows.rows().indices()
@@ -333,7 +359,9 @@ def _with_mapped_sides(
         DirichletPart(_off_mapped_sides(bkd, side), 1.0) for side in _CONSTANT_SIDES
     ]
     return DirichletRows(
-        bkd, _NPTS, 1, constants + (mapped[::-1] if reverse else mapped)
+        bkd,
+        StateLayout.uniform(_NPTS, 1),
+        constants + (mapped[::-1] if reverse else mapped),
     )
 
 
@@ -479,8 +507,7 @@ class TestParameterizedDirichletRows:
         matching = bkd.to_float(data.values(0.0)[position])
         rows = DirichletRows(
             bkd,
-            _NPTS,
-            1,
+            StateLayout.uniform(_NPTS, 1),
             [
                 DirichletPart(mesh.boundary_indices(0), data),
                 DirichletPart(mesh.boundary_indices(2), matching),
@@ -531,8 +558,7 @@ class TestParameterizedDirichletRows:
         with pytest.raises(ValueError, match="number of parameters"):
             DirichletRows(
                 bkd,
-                _NPTS,
-                1,
+                StateLayout.uniform(_NPTS, 1),
                 [
                     DirichletPart(mesh.boundary_indices(0), _mapped(bkd, 0)),
                     DirichletPart(mesh.boundary_indices(1), three),

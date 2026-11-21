@@ -40,6 +40,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
 from pyapprox.pde.collocation.physics.coefficients import NodalField, NodalSupplier
 from pyapprox.pde.collocation.physics.hyperelasticity import HyperelasticityPhysics
 from pyapprox.pde.collocation.physics.neo_hookean_law import NeoHookeanLaw
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
@@ -119,7 +120,7 @@ class TestRobinRows:
             )
             old_residual = old.apply_to_residual(old_residual, state, 0.0)
             old_jacobian = old.apply_to_jacobian(old_jacobian, state, 0.0)
-        rows = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, kind))
+        rows = RobinRows(bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, kind))
         assert isinstance(rows, ClosureRowsProtocol)
         bkd.assert_allclose(
             rows.residual(state, 0.0), old_residual, rtol=1e-14, atol=1e-14
@@ -131,7 +132,7 @@ class TestRobinRows:
     @pytest.mark.parametrize("kind", ["gradient", "flux"])
     def test_state_jacobian(self, bkd: Backend[Array], kind: str) -> None:
         """c_u passes DerivativeChecker."""
-        rows = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, kind))
+        rows = RobinRows(bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, kind))
         function = _VectorFunction(
             bkd,
             _NPTS,
@@ -149,14 +150,22 @@ class TestRobinRows:
         normal = _normal_term(bkd, 0, "flux")
         g = NodalField(_side_coordinate(bkd, 0))
         state = _state(bkd)
-        neumann = RobinRows(bkd, _NPTS, 1, [RobinPart(indices, normal, 0.0, 1.0, g)])
+        neumann = RobinRows(
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [RobinPart(indices, normal, 0.0, 1.0, g)],
+        )
         bkd.assert_allclose(
             neumann.residual(state, 0.0)[indices],
             normal(state, 0.0) - g.values(0.0),
             rtol=0.0,
             atol=0.0,
         )
-        dirichlet = RobinRows(bkd, _NPTS, 1, [RobinPart(indices, normal, 1.0, 0.0, g)])
+        dirichlet = RobinRows(
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [RobinPart(indices, normal, 1.0, 0.0, g)],
+        )
         bkd.assert_allclose(
             dirichlet.residual(state, 0.0)[indices],
             state[indices] - g.values(0.0),
@@ -182,8 +191,16 @@ class TestRobinRows:
         g = NodalField(alpha * (1.0 - y_side) + beta * (2.0 - y_side))
         normal = _normal_term(bkd, 0, "gradient")
         state = x * y + x**2
-        right = RobinRows(bkd, _NPTS, 1, [RobinPart(indices, normal, alpha, beta, g)])
-        wrong = RobinRows(bkd, _NPTS, 1, [RobinPart(indices, normal, -alpha, beta, g)])
+        right = RobinRows(
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [RobinPart(indices, normal, alpha, beta, g)],
+        )
+        wrong = RobinRows(
+            bkd,
+            StateLayout.uniform(_NPTS, 1),
+            [RobinPart(indices, normal, -alpha, beta, g)],
+        )
         assert bkd.to_float(bkd.max(bkd.abs(right.residual(state, 0.0)))) < 1e-12
         assert bkd.to_float(bkd.max(bkd.abs(wrong.residual(state, 0.0)))) > 1e-2
 
@@ -282,21 +299,24 @@ class TestRobinRows:
         derivative left to the system. c_up stated zero when only g
         depends on the parameters; c_pp absent when a map has no second
         derivative."""
-        gradient = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, "gradient"))
+        gradient = RobinRows(
+            bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, "gradient")
+        )
         bundle = gradient.derivatives()
         assert bundle.state_curvature is STATED_ZERO
         assert bundle.param_jacobian is STATED_ZERO
         assert bundle.mixed is STATED_ZERO
         assert bundle.param_curvature is STATED_ZERO
-        flux = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, "flux")).derivatives()
+        flux = RobinRows(
+            bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, "flux")
+        ).derivatives()
         assert flux.state_curvature is None
         assert flux.param_jacobian is None
         assert flux.mixed is None and flux.param_curvature is None
         mesh = _mesh(bkd)
         g_only = RobinRows(
             bkd,
-            _NPTS,
-            1,
+            StateLayout.uniform(_NPTS, 1),
             [
                 RobinPart(
                     mesh.boundary_indices(0),
@@ -319,10 +339,10 @@ class TestRobinRows:
         rows over a steady diffusion; flux rows over a diffusion declared
         time-dependent are not."""
         assert RobinRows(
-            bkd, _NPTS, 1, _constant_parts(bkd, "gradient")
+            bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, "gradient")
         ).is_time_invariant()
         assert RobinRows(
-            bkd, _NPTS, 1, _constant_parts(bkd, "flux")
+            bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, "flux")
         ).is_time_invariant()
         mesh = _mesh(bkd)
         supplier: TimeDependent[Array] = TimeDependent(_growing)
@@ -340,21 +360,26 @@ class TestRobinRows:
             1.0,
             0.0,
         )
-        assert not RobinRows(bkd, _NPTS, 1, [part]).is_time_invariant()
+        assert not RobinRows(
+            bkd, StateLayout.uniform(_NPTS, 1), [part]
+        ).is_time_invariant()
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         mesh = _mesh(bkd)
         indices = mesh.boundary_indices(0)
         normal = _normal_term(bkd, 0, "gradient")
         with pytest.raises(ValueError, match="at least one part"):
-            RobinRows(bkd, _NPTS, 1, [])
+            RobinRows(bkd, StateLayout.uniform(_NPTS, 1), [])
         with pytest.raises(ValueError, match="component"):
-            RobinRows(bkd, _NPTS, 1, [RobinPart(indices, normal, 1.0, 1.0, 0.0, 1)])
+            RobinRows(
+                bkd,
+                StateLayout.uniform(_NPTS, 1),
+                [RobinPart(indices, normal, 1.0, 1.0, 0.0, 1)],
+            )
         with pytest.raises(TypeError, match="RobinNormalTermProtocol"):
             RobinRows(
                 bkd,
-                _NPTS,
-                1,
+                StateLayout.uniform(_NPTS, 1),
                 [RobinPart(indices, 1.0, 1.0, 1.0, 0.0)],  # type: ignore[arg-type]
             )
         three = MappedBoundaryData(
@@ -363,19 +388,24 @@ class TestRobinRows:
         with pytest.raises(ValueError, match="number of parameters"):
             RobinRows(
                 bkd,
-                _NPTS,
-                1,
+                StateLayout.uniform(_NPTS, 1),
                 [RobinPart(indices, normal, _mapped(bkd, 1.0), three, 0.0)],
             )
         # A scalar normal term on a two-component state has the wrong width
-        two = RobinRows(bkd, _NPTS, 2, [RobinPart(indices, normal, 1.0, 1.0, 0.0)])
+        two = RobinRows(
+            bkd,
+            StateLayout.uniform(_NPTS, 2),
+            [RobinPart(indices, normal, 1.0, 1.0, 0.0)],
+        )
         with pytest.raises(ValueError):
             two.jacobian(bkd.zeros((2 * _NPTS,)), 0.0)
         with pytest.raises(ValueError, match="state must have shape"):
             two.residual(bkd.zeros((_NPTS,)), 0.0)
 
     def test_pickle_round_trip(self, bkd: Backend[Array]) -> None:
-        rows = RobinRows(bkd, _NPTS, 1, _constant_parts(bkd, "flux"))
+        rows = RobinRows(
+            bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, "flux")
+        )
         loaded = pickle.loads(pickle.dumps(rows))
         state = _state(bkd)
         bkd.assert_allclose(
@@ -421,7 +451,7 @@ class TestHyperelasticTractionRows:
             for side in (0, 2)
             for component in (0, 1)
         ]
-        return RobinRows(bkd, npts, 2, parts), npts
+        return RobinRows(bkd, StateLayout.uniform(npts, 2), parts), npts
 
     def _displacement(self, bkd: Backend[Array], npts: int) -> Array:
         rng = np.random.default_rng(42)
@@ -523,7 +553,7 @@ def _mapped_rows(
     )
     others = _constant_parts(bkd, "gradient")[1:]
     parts = others + [mapped] if mapped_last else [mapped] + others
-    return RobinRows(bkd, _NPTS, 1, parts), [alpha, beta, g]
+    return RobinRows(bkd, StateLayout.uniform(_NPTS, 1), parts), [alpha, beta, g]
 
 
 def _set(data: Sequence[MappedBoundaryData[Array]], params: Array) -> None:

@@ -68,6 +68,7 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
     SideRuleProtocol,
     boundary_quadrature_weights,
 )
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.coupling.pinned_response import SteadyPinnedResponse
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.stacks.collocation import (
@@ -108,7 +109,9 @@ def test_a_1d_end_returns_the_exact_flux(bkd: Backend[Array]) -> None:
         diffusion=_D,
         forcing=NodalField(bkd.full((8,), 4.0)),
     )
-    essential = DirichletRows(bkd, 8, 1, [DirichletPart(mesh.boundary_indices(0), 1.0)])
+    essential = DirichletRows(
+        bkd, StateLayout.uniform(8, 1), [DirichletPart(mesh.boundary_indices(0), 1.0)]
+    )
     response = collocation_pinned_response(
         CollocationSystem(physics, essential),
         ComponentFluxes([physics]),
@@ -171,7 +174,8 @@ class _Rectangle(Generic[Array]):
         index = bkd.asarray(fixed, dtype=bkd.int64_dtype())
         part = DirichletPart(index, NodalField(_exact(self._mesh.points()[:, index])))
         return CollocationSystem(
-            self._physics, DirichletRows(bkd, self._mesh.npts(), 1, [part])
+            self._physics,
+            DirichletRows(bkd, StateLayout.uniform(self._mesh.npts(), 1), [part]),
         )
 
     def response(
@@ -270,7 +274,9 @@ def _two_component_response(
     index = bkd.asarray(fixed, dtype=bkd.int64_dtype())
     parts = [DirichletPart(index, NodalField(exact[c, index]), c) for c in range(2)]
     return collocation_pinned_response(
-        CollocationSystem(physics, DirichletRows(bkd, mesh.npts(), 2, parts)),
+        CollocationSystem(
+            physics, DirichletRows(bkd, StateLayout.uniform(mesh.npts(), 2), parts)
+        ),
         fluxes,
         mesh,
         [PortSide(_RIGHT, _nodes(bkd, mesh.boundary_indices(_RIGHT)))],

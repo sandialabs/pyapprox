@@ -15,7 +15,11 @@ from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureRowsDerivatives,
     NormalTermParamFn,
 )
-from pyapprox.pde.collocation.boundary.essential_rows import component_state_rows
+from pyapprox.pde.collocation.boundary.essential_rows import (
+    StateRowsLayoutProtocol,
+    check_state_layout,
+    component_state_rows,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import BackendRowSet
 
@@ -55,6 +59,7 @@ class _PeriodicPartRows(Generic[Array]):
         part: PeriodicPart[Array],
         primary: List[int],
         partner: List[int],
+        start: int,
         npts: int,
         nstates: int,
     ) -> None:
@@ -63,13 +68,13 @@ class _PeriodicPartRows(Generic[Array]):
         identity = bkd.eye(nstates)
         # Rows of A: u_A - u_B
         self.value_block = identity[self.primary] - identity[self.partner]
-        # Rows of B: (D_A - D_B) u on the part's component columns
-        mesh_primary = self.primary - part.component * npts
-        mesh_partner = self.partner - part.component * npts
+        # Rows of B: (D_A - D_B) u on the part's component columns, which
+        # start at row ``start`` and span the component's ``npts`` nodes
+        mesh_primary = self.primary - start
+        mesh_partner = self.partner - start
         derivative = (
             part.derivative_matrix[mesh_primary] - part.derivative_matrix[mesh_partner]
         )
-        start = part.component * npts
         self.derivative_block = bkd.hstack(
             [
                 bkd.zeros((len(partner), start)),
@@ -92,18 +97,23 @@ class PeriodicRows(Generic[Array]):
     ----------
     bkd : Backend
         Computational backend.
+    layout : StateRowsLayoutProtocol
+        Where each component sits in the state, e.g.
+        ``StateLayout.uniform(npts, ncomponents)``.
     reference_points : Array
-        The mesh's reference coordinates, used to check each pairing.
-        Shape: (ndim, npts)
-    ncomponents : int
-        The number of state components.
+        The reference coordinates of the periodic components' mesh, used to
+        check each pairing. Shape: (ndim, npts)
     parts : sequence of PeriodicPart
         The pairs, in the order that settles shared rows.
 
     Raises
     ------
+    TypeError
+        If ``layout`` does not satisfy
+        :class:`~pyapprox.pde.collocation.boundary.essential_rows.StateRowsLayoutProtocol`.
     ValueError
-        If there are no parts, a component or index is out of range, A
+        If there are no parts, a component or index is out of range, a
+        part's component does not have one node per reference point, A
         and B differ in length or share a node, the derivative matrix is
         not (npts, npts), or a pair's nodes differ in a reference
         coordinate other than one periodic direction common to all pairs
@@ -113,27 +123,42 @@ class PeriodicRows(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
+        layout: StateRowsLayoutProtocol,
         reference_points: Array,
-        ncomponents: int,
         parts: Sequence[PeriodicPart[Array]],
     ) -> None:
+        check_state_layout(layout)
         if not parts:
             raise ValueError("a periodic declaration needs at least one part")
         self._bkd = bkd
         npts = reference_points.shape[1]
-        self._nstates = npts * ncomponents
+        self._nstates = layout.nstates()
         self._parts: List[_PeriodicPartRows[Array]] = []
         all_rows: List[int] = []
         for part in parts:
             primary = component_state_rows(
-                bkd, part.primary_indices, part.component, npts, ncomponents
+                bkd, part.primary_indices, part.component, layout
             )
             partner = component_state_rows(
-                bkd, part.partner_indices, part.component, npts, ncomponents
+                bkd, part.partner_indices, part.component, layout
             )
+            if layout.npts(part.component) != npts:
+                raise ValueError(
+                    f"component {part.component} has "
+                    f"{layout.npts(part.component)} nodes, but the reference "
+                    f"points give {npts}"
+                )
             self._check_part(part, reference_points)
             self._parts.append(
-                _PeriodicPartRows(bkd, part, primary, partner, npts, self._nstates)
+                _PeriodicPartRows(
+                    bkd,
+                    part,
+                    primary,
+                    partner,
+                    layout.offset(part.component),
+                    npts,
+                    self._nstates,
+                )
             )
             all_rows.extend(primary + partner)
         self._rows = BackendRowSet(

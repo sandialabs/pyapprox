@@ -42,6 +42,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.pde.coupling.normal_flux import (
     NormalFluxMoments,
     NormalFluxPart,
@@ -108,7 +109,9 @@ class _Piece(Generic[Array]):
     ) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
         bkd = self._bkd
         left = self._mesh.boundary_indices(0)
-        essential = DirichletRows(bkd, _N, 1, [DirichletPart(left, 1.0)])
+        essential = DirichletRows(
+            bkd, StateLayout.uniform(_N, 1), [DirichletPart(left, 1.0)]
+        )
         pinned = collocation_steady_residual(
             CollocationSystem(self._physics, essential)
         )

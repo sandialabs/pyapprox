@@ -21,6 +21,7 @@ from pyapprox.pde.collocation.boundary.periodic_rows import (
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
+from pyapprox.pde.collocation.state_layout import StateLayout
 from pyapprox.util.backends.protocols import Array, Backend
 
 _N1D = 5
@@ -44,7 +45,10 @@ def _pair(bkd: Backend[Array], dim: int, component: int = 0) -> PeriodicPart[Arr
 
 def _torus(bkd: Backend[Array]) -> PeriodicRows[Array]:
     return PeriodicRows(
-        bkd, _mesh(bkd).reference_points(), 1, [_pair(bkd, 0), _pair(bkd, 1)]
+        bkd,
+        StateLayout.uniform(_mesh(bkd).reference_points().shape[1], 1),
+        _mesh(bkd).reference_points(),
+        [_pair(bkd, 0), _pair(bkd, 1)],
     )
 
 
@@ -104,8 +108,18 @@ class TestPeriodicRows:
         """A pair on component 1 of a two-component state replaces rows
         offset by npts and reads only component 1's columns."""
         mesh = _mesh(bkd)
-        rows = PeriodicRows(bkd, mesh.reference_points(), 2, [_pair(bkd, 0, 1)])
-        single = PeriodicRows(bkd, mesh.reference_points(), 1, [_pair(bkd, 0)])
+        rows = PeriodicRows(
+            bkd,
+            StateLayout.uniform(mesh.reference_points().shape[1], 2),
+            mesh.reference_points(),
+            [_pair(bkd, 0, 1)],
+        )
+        single = PeriodicRows(
+            bkd,
+            StateLayout.uniform(mesh.reference_points().shape[1], 1),
+            mesh.reference_points(),
+            [_pair(bkd, 0)],
+        )
         replaced = rows.rows().indices()
         assert all(i >= _NPTS for i in replaced)
         assert [i - _NPTS for i in replaced] == list(single.rows().indices())
@@ -139,7 +153,12 @@ class TestPeriodicRows:
             mesh.boundary_indices(3),
             basis.derivative_matrix(1, 1),
         )
-        PeriodicRows(bkd, mesh.reference_points(), 1, [part])
+        PeriodicRows(
+            bkd,
+            StateLayout.uniform(mesh.reference_points().shape[1], 1),
+            mesh.reference_points(),
+            [part],
+        )
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         mesh = _mesh(bkd)
@@ -147,23 +166,44 @@ class TestPeriodicRows:
         left, right = mesh.boundary_indices(0), mesh.boundary_indices(1)
         derivative = ChebyshevBasis2D(mesh, bkd).derivative_matrix(1, 0)
         with pytest.raises(ValueError, match="at least one part"):
-            PeriodicRows(bkd, reference, 1, [])
+            PeriodicRows(bkd, StateLayout.uniform(reference.shape[1], 1), reference, [])
         with pytest.raises(ValueError, match="differ in length"):
-            PeriodicRows(bkd, reference, 1, [PeriodicPart(left, right[1:], derivative)])
+            PeriodicRows(
+                bkd,
+                StateLayout.uniform(reference.shape[1], 1),
+                reference,
+                [PeriodicPart(left, right[1:], derivative)],
+            )
         with pytest.raises(ValueError, match="share nodes"):
-            PeriodicRows(bkd, reference, 1, [PeriodicPart(left, left, derivative)])
+            PeriodicRows(
+                bkd,
+                StateLayout.uniform(reference.shape[1], 1),
+                reference,
+                [PeriodicPart(left, left, derivative)],
+            )
         with pytest.raises(ValueError, match="periodic reference coordinate"):
             PeriodicRows(
-                bkd, reference, 1, [PeriodicPart(left, bkd.flip(right), derivative)]
+                bkd,
+                StateLayout.uniform(reference.shape[1], 1),
+                reference,
+                [PeriodicPart(left, bkd.flip(right), derivative)],
             )
         with pytest.raises(ValueError, match="periodic reference coordinate"):
             # the right side shifted by one node: the pairs differ in both
             # x and y
             shifted = bkd.hstack([right[1:], right[:1]])
-            PeriodicRows(bkd, reference, 1, [PeriodicPart(left, shifted, derivative)])
+            PeriodicRows(
+                bkd,
+                StateLayout.uniform(reference.shape[1], 1),
+                reference,
+                [PeriodicPart(left, shifted, derivative)],
+            )
         with pytest.raises(ValueError, match="derivative matrix"):
             PeriodicRows(
-                bkd, reference, 1, [PeriodicPart(left, right, derivative[:-1])]
+                bkd,
+                StateLayout.uniform(reference.shape[1], 1),
+                reference,
+                [PeriodicPart(left, right, derivative[:-1])],
             )
         with pytest.raises(ValueError, match="state must have shape"):
             _torus(bkd).residual(bkd.zeros((_NPTS + 1,)), 0.0)
