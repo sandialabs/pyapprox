@@ -412,8 +412,9 @@ from pyapprox.statest import (
     MCEstimator, MLMCEstimator, MFMCEstimator, GMFEstimator, GISEstimator,
 )
 from pyapprox.statest.acv import (
-    ACVAllocatorViaTorch, default_allocator_factory,
+    ACVAllocatorViaAutodiff, default_allocator_factory,
 )
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.allocation import MCAllocator
 from pyapprox.optimization.minimize.scipy.slsqp import (
@@ -435,6 +436,8 @@ target_cost = 100.0
 ri_zeros = bkd.zeros(M, dtype=int)
 
 optimizer = ScipySLSQPOptimizer(maxiter=200)
+# The ACV allocations are optimized on a torch copy, with autograd jacobians
+torch_bkd = TorchBkd()
 
 templates = {
     "MLMC":  MLMCEstimator(stat, costs),
@@ -447,7 +450,7 @@ for name, est in templates.items():
     if name in ("MLMC", "MFMC"):
         allocator = default_allocator_factory(est)
     else:
-        allocator = ACVAllocatorViaTorch(est, optimizer=optimizer)
+        allocator = ACVAllocatorViaAutodiff(est, torch_bkd, optimizer=optimizer)
     estimators[name] = FittedACVEstimator(est, allocator.allocate(target_cost))
 
 from pyapprox_tutorials.figures._cv_acv import plot_allocation_matrices
@@ -494,7 +497,7 @@ for P_t in target_costs_sweep:
     mfmc_vars_pred.append(float(mf_fitted.covariance()[0, 0]))
 
     acv_e = GMFEstimator(stat, costs, recursion_index=ri_zeros)
-    acv_allocator = ACVAllocatorViaTorch(acv_e, optimizer=opt_verify)
+    acv_allocator = ACVAllocatorViaAutodiff(acv_e, torch_bkd, optimizer=opt_verify)
     acv_fitted = FittedACVEstimator(acv_e, acv_allocator.allocate(float(P_t)))
     acvmf_vars_pred.append(float(acv_fitted.covariance()[0, 0]))
 

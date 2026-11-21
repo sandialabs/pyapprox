@@ -2,10 +2,11 @@
 
 from pyapprox.statest.acv.allocation import (
     ACVAllocator,
-    ACVAllocatorViaTorch,
+    ACVAllocatorViaAutodiff,
     Allocator,
     AnalyticalAllocator,
     AnalyticallyAllocatable,
+    ViaAutodiffAllocatorFactory,
     default_allocator_factory,
 )
 from pyapprox.statest.acv.base import ACVEstimator, FittedACVEstimator
@@ -50,10 +51,11 @@ __all__ = [
     "ACVAllocationResult",
     "Allocator",
     "ACVAllocator",
-    "ACVAllocatorViaTorch",
+    "ACVAllocatorViaAutodiff",
     "AnalyticalAllocator",
     "AnalyticallyAllocatable",
     "default_allocator_factory",
+    "ViaAutodiffAllocatorFactory",
     # Strategies
     "RecursionIndexStrategy",
     "DefaultRecursionStrategy",

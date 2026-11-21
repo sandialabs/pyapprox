@@ -700,10 +700,7 @@ def plot_pacv_enumeration(ax):
     Predicted variance for all valid GMF recursion indices at budget P=100.
     """
     from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
-    from pyapprox.statest.acv.allocation import (
-        ACVAllocatorViaTorch,
-        default_allocator_factory,
-    )
+    from pyapprox.statest.acv.allocation import ViaAutodiffAllocatorFactory
     from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.acv.search import ACVSearch
     from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
@@ -711,6 +708,7 @@ def plot_pacv_enumeration(ax):
     from pyapprox.statest.mc_estimator import MCEstimator
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.backends.torch import TorchBkd
     from pyapprox_benchmarks.statest import (
         PolynomialEnsembleBenchmark,
     )
@@ -731,12 +729,9 @@ def plot_pacv_enumeration(ax):
     mc_var = bkd.to_float(mc_fitted.covariance()[0, 0])
 
     _slsqp = ScipySLSQPOptimizer(maxiter=200)
-
-    def _fast_allocator(est):
-        alloc = default_allocator_factory(est)
-        if isinstance(alloc, ACVAllocatorViaTorch):
-            return ACVAllocatorViaTorch(est, optimizer=_slsqp)
-        return alloc
+    # Analytical cases get the closed form; the others are optimized with
+    # SLSQP on a torch copy, with autograd jacobians.
+    _fast_allocator = ViaAutodiffAllocatorFactory(TorchBkd(), optimizer=_slsqp)
 
     search = ACVSearch(
         stat,
@@ -959,9 +954,11 @@ def plot_moacv_vs_soacv(ax):
 
     Estimator variance for QoI 0 vs target cost: MOACV vs SOACV vs MC.
     """
+    from pyapprox.statest.acv.allocation import ViaAutodiffAllocatorFactory
     from pyapprox.statest.acv.search import ACVSearch
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.backends.torch import TorchBkd
     from pyapprox_benchmarks.statest import (
         MultiOutputEnsembleBenchmark,
     )
@@ -981,9 +978,11 @@ def plot_moacv_vs_soacv(ax):
             idx.append(a * full_nqoi + q)
     cov_true = cov_full[np.ix_(idx, idx)]
 
+    # Allocations are optimized on a torch copy, with autograd jacobians
+    allocator_factory = ViaAutodiffAllocatorFactory(TorchBkd())
     stat_mo = MultiOutputMean(nqoi, bkd)
     stat_mo.set_pilot_quantities(cov_true)
-    search_mo = ACVSearch(stat_mo, costs)
+    search_mo = ACVSearch(stat_mo, costs, allocator_factory=allocator_factory)
 
     qoi_idx = [0]
     (cov_so,) = stat_mo.get_pilot_quantities_subset(
@@ -991,7 +990,7 @@ def plot_moacv_vs_soacv(ax):
     )
     stat_so = MultiOutputMean(len(qoi_idx), bkd)
     stat_so.set_pilot_quantities(cov_so)
-    search_so = ACVSearch(stat_so, costs)
+    search_so = ACVSearch(stat_so, costs, allocator_factory=allocator_factory)
 
     cov_true_np = bkd.to_numpy(cov_true)
     mc_var_q0 = cov_true_np[0, 0]
@@ -1119,13 +1118,16 @@ def plot_bad_model(ax):
     Three-model vs best two-model ACVMF variance across rho_01 values.
     """
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
-    from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.allocation import ViaAutodiffAllocatorFactory
     from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.backends.torch import TorchBkd
     from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
     bkd = NumpyBkd()
+    # GMF allocations are optimized on a torch copy, with autograd jacobians
+    allocator_factory = ViaAutodiffAllocatorFactory(TorchBkd())
     np.random.seed(42)
     P = 100.0
 
@@ -1159,7 +1161,7 @@ def plot_bad_model(ax):
             stat2 = MultiOutputMean(1, bkd)
             stat2.set_pilot_quantities(bkd.array(sub_cov))
             est2 = GMFEstimator(stat2, sub_costs, recursion_index=bkd.asarray([0]))
-            alloc2 = default_allocator_factory(est2).allocate(P)
+            alloc2 = allocator_factory(est2).allocate(P)
             fitted2 = FittedACVEstimator(est2, alloc2)
             v = bkd.to_float(fitted2.covariance()[0, 0])
             best2 = min(best2, v)
@@ -1168,7 +1170,7 @@ def plot_bad_model(ax):
         stat3 = MultiOutputMean(1, bkd)
         stat3.set_pilot_quantities(cov)
         est3 = GMFEstimator(stat3, costs, recursion_index=bkd.asarray([0, 0]))
-        alloc3 = default_allocator_factory(est3).allocate(P)
+        alloc3 = allocator_factory(est3).allocate(P)
         fitted3 = FittedACVEstimator(est3, alloc3)
         v3 = bkd.to_float(fitted3.covariance()[0, 0])
         three_model_vars.append(v3)
@@ -1263,13 +1265,16 @@ def plot_ensemble_nmodels(ax):
     Best 1-LF vs 2-LF ACVMF variance ratio across rho_01 values.
     """
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
-    from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.allocation import ViaAutodiffAllocatorFactory
     from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.backends.torch import TorchBkd
     from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
     bkd = NumpyBkd()
+    # GMF allocations are optimized on a torch copy, with autograd jacobians
+    allocator_factory = ViaAutodiffAllocatorFactory(TorchBkd())
     P = 100.0
 
     theta_vals = np.linspace(0.5, 1.5, 30)
@@ -1300,7 +1305,7 @@ def plot_ensemble_nmodels(ax):
             stat2 = MultiOutputMean(1, bkd)
             stat2.set_pilot_quantities(bkd.array(sub_cov))
             est2 = GMFEstimator(stat2, sub_costs, recursion_index=bkd.asarray([0]))
-            alloc2 = default_allocator_factory(est2).allocate(P)
+            alloc2 = allocator_factory(est2).allocate(P)
             fitted2 = FittedACVEstimator(est2, alloc2)
             v = bkd.to_float(fitted2.covariance()[0, 0])
             best1 = min(best1, v)
@@ -1309,7 +1314,7 @@ def plot_ensemble_nmodels(ax):
         stat3 = MultiOutputMean(1, bkd)
         stat3.set_pilot_quantities(cov)
         est3 = GMFEstimator(stat3, costs, recursion_index=bkd.asarray([0, 0]))
-        alloc3 = default_allocator_factory(est3).allocate(P)
+        alloc3 = allocator_factory(est3).allocate(P)
         fitted3 = FittedACVEstimator(est3, alloc3)
         v3 = bkd.to_float(fitted3.covariance()[0, 0])
         two_lf.append(v3 / mc_var)

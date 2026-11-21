@@ -1,7 +1,8 @@
 """Tests for ACV allocation module.
 
-Allocation through ACVAllocatorViaTorch, which optimizes on a torch copy of
-the estimator whatever its backend, is tested in test_allocation_torch.py.
+Allocation through ACVAllocatorViaAutodiff, which optimizes a copy of the
+estimator on an autodiff backend whatever its backend, is tested in
+test_allocation_autodiff.py.
 """
 
 from typing import Any, Tuple
@@ -13,7 +14,6 @@ from numpy.typing import NDArray
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest.acv.allocation import (
     ACVAllocator,
-    ACVAllocatorViaTorch,
     AnalyticalAllocator,
     AnalyticallyAllocatable,
     default_allocator_factory,
@@ -144,8 +144,8 @@ class TestACVAllocatorOnOwnBackend:
 
         SLSQP falls back to finite differences when the objective and
         constraint declare no jacobian, so no torch copy is needed.
-        test_allocation_torch.py checks the allocation matches the one
-        optimized on torch with autograd.
+        test_allocation_autodiff.py checks the allocation matches the one
+        optimized with autograd.
         """
         est = _gmf_estimator(numpy_bkd)
         result = ACVAllocator(
@@ -196,13 +196,21 @@ class TestAllocatorFactory:
     """Tests for default_allocator_factory."""
 
     @pytest.mark.parametrize("recursion_index", [(0, 1), (0, 0)])
-    def test_factory_returns_via_torch_for_gmf(
+    def test_factory_returns_acv_allocator_for_gmf(
         self, bkd: Backend[Array], recursion_index: Tuple[int, ...]
     ) -> None:
-        """Returns ACVAllocatorViaTorch for GMF with chain and non-chain
-        recursion indices."""
+        """Returns ACVAllocator for GMF with chain and non-chain recursion
+        indices."""
         allocator = default_allocator_factory(_gmf_estimator(bkd, recursion_index))
-        assert isinstance(allocator, ACVAllocatorViaTorch)
+        assert isinstance(allocator, ACVAllocator)
+
+    def test_factory_allocates_gmf_on_own_backend(self, bkd: Backend[Array]) -> None:
+        """The default allocation succeeds on every backend, autograd or
+        not, and returns the estimator's array type."""
+        result = default_allocator_factory(_gmf_estimator(bkd)).allocate(1000.0)
+        assert result.success
+        assert result.actual_cost <= result.target_cost
+        assert isinstance(result.partition_ratios, type(bkd.zeros((1,))))
 
     def test_factory_returns_analytical_for_mfmc(self, bkd: Backend[Array]) -> None:
         """Returns AnalyticalAllocator for MFMC (satisfies AnalyticallyAllocatable)."""

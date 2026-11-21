@@ -229,10 +229,14 @@ from pyapprox_benchmarks.statest import (
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv import GMFEstimator
+from pyapprox.statest.acv.allocation import ViaAutodiffAllocatorFactory
 from pyapprox.statest.acv.search import ACVSearch
+from pyapprox.util.backends.torch import TorchBkd
 
 bkd = NumpyBkd()
 np.random.seed(1)
+# Allocations are optimized on a torch copy, with autograd jacobians
+allocator_factory = ViaAutodiffAllocatorFactory(TorchBkd())
 benchmark = MultiOutputEnsembleBenchmark(bkd)
 costs     = benchmark.problem().costs()
 nqoi      = benchmark.problem().models()[0].nqoi()
@@ -244,7 +248,7 @@ models    = benchmark.problem().models()
 # Multi-output stat (MOACV)
 stat_mo = MultiOutputMean(nqoi, bkd)
 stat_mo.set_pilot_quantities(cov_true)
-search_mo = ACVSearch(stat_mo, costs)
+search_mo = ACVSearch(stat_mo, costs, allocator_factory=allocator_factory)
 result_mo = search_mo.search(100.0)
 est_mo    = result_mo.best
 
@@ -256,7 +260,7 @@ for qi in range(nqoi):
     )
     stat_qi = MultiOutputMean(1, bkd)
     stat_qi.set_pilot_quantities(cov_qi)
-    search_qi = ACVSearch(stat_qi, costs)
+    search_qi = ACVSearch(stat_qi, costs, allocator_factory=allocator_factory)
     result_qi = search_qi.search(100.0)
     ests_so.append(result_qi.best)
 

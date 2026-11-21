@@ -70,7 +70,10 @@ from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest import (
     MLMCEstimator, MFMCEstimator, GMFEstimator, GRDEstimator, GISEstimator,
 )
-from pyapprox.statest.acv import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv import (
+    ACVAllocator, ViaAutodiffAllocatorFactory, default_allocator_factory,
+)
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.strategies import (
@@ -85,9 +88,11 @@ from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 bkd = NumpyBkd()
 np.random.seed(42)
 
-# SLSQP is more robust than the default trust-constr optimizer for ACV allocation
+# SLSQP is more robust than the default trust-constr optimizer for ACV
+# allocation; the allocations are optimized on a torch copy, with autograd
+# jacobians
 optimizer = ScipySLSQPOptimizer(maxiter=200)
-allocator_factory = lambda est: default_allocator_factory(est, optimizer=optimizer)
+allocator_factory = ViaAutodiffAllocatorFactory(TorchBkd(), optimizer=optimizer)
 
 benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
 models    = benchmark.problem().models()        # f_0 (HF) ... f_4 (cheapest)
@@ -496,12 +501,12 @@ print(f"Smallest eigenvalue: {eigvals.min():.2e}")
 ### Optimizer convergence (trust-constr vs SLSQP)
 
 The default `trust-constr` optimizer can stall when the optimal allocation sits on a
-constraint boundary. Fix: pass an SLSQP optimizer to `default_allocator_factory`.
+constraint boundary. Fix: pass an SLSQP optimizer to the allocator factory.
 
 ```{python}
-# Pass optimizer to default_allocator_factory
+# Pass optimizer to the allocator factory
 slsqp = ScipySLSQPOptimizer(maxiter=200)
-slsqp_factory = lambda est: default_allocator_factory(est, optimizer=slsqp)
+slsqp_factory = ViaAutodiffAllocatorFactory(TorchBkd(), optimizer=slsqp)
 
 # Use with ACVSearch
 search_slsqp = ACVSearch(stat, costs, allocator_factory=slsqp_factory)
