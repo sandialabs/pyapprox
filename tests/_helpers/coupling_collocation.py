@@ -52,6 +52,7 @@ from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform3D,
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionFlux,
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
@@ -69,7 +70,10 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
     GaussLegendreSideRule,
     SideRuleProtocol,
 )
-from pyapprox.pde.constitutive.advection import ConservativeAdvection
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    ConservativeAdvection,
+)
 from pyapprox.pde.coupling.basis import TensorLagrangeBasis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.geometry import TensorBoxGeometry, skeleton_dof_points
@@ -296,10 +300,19 @@ class Model(Protocol[Array]):
 class Adr(Generic[Array]):
     """Scalar advection-diffusion-reaction with constant ``coefs``,
     :math:`D \\Delta u - \\nabla\\cdot(v u) + r u + f = 0`, exact solution
-    ``solution``; the ports return the total flux."""
+    ``solution``; the ports return the total flux, or with ``port_form``
+    the diffusive flux plus that form's advective flux (none for
+    :class:`~pyapprox.pde.constitutive.advection.NonConservativeAdvection`,
+    the flux a Galerkin port returns)."""
 
-    def __init__(self, coefs: Coefficients, solution: str) -> None:
+    def __init__(
+        self,
+        coefs: Coefficients,
+        solution: str,
+        port_form: Optional[AdvectionFormProtocol] = None,
+    ) -> None:
         self._coefs, self._solution = coefs, solution
+        self._port_form = port_form
 
     def problem(self, region: DomainProtocol) -> ManufacturedProblem:
         return adr_problem(self._coefs, self._solution, region)
@@ -331,7 +344,11 @@ class Adr(Generic[Array]):
             forcing=NodalField(forcing_at(problem, mesh.points(), bkd)[0]),
             advection_form=ConservativeAdvection(),
         )
-        return physics, ComponentFluxes([physics])
+        if self._port_form is None:
+            return physics, ComponentFluxes([physics])
+        return physics, ComponentFluxes(
+            [AdvectionDiffusionFlux(physics, self._port_form)]
+        )
 
 
 class TwoSpecies(Generic[Array]):
@@ -491,6 +508,44 @@ def node_at(points: Array, point: Array, bkd: Backend[Array]) -> int:
     return node
 
 
+def box_response(
+    box: Box[Array],
+    port_sides: Sequence[PortSide],
+    outer: Sequence[Side],
+    ports: set[int],
+    rule: SideRuleProtocol,
+) -> Response[Array]:
+    """The box's response with ports ``port_sides``, each side's flux
+    tested by ``rule``, and the exact data on its ``outer`` sides except
+    at the nodes ``ports``."""
+    bkd = box.mesh().bkd()
+    return collocation_pinned_response(
+        CollocationSystem(box.physics(), box.essential(outer, ports)),
+        box.fluxes(),
+        box.mesh(),
+        port_sides,
+        rule,
+        RecomputeAlways(BackendDenseLU(bkd)),
+        # The pointwise residual's roundoff floor grows like D n^4 eps |u|
+        # (5.6e-12 for two species at 12 nodes); a linear subproblem
+        # reaches it in one step, so the tolerance only stays above it.
+        Newton(atol=1e-10, rtol=0.0, maxiters=30),
+    )
+
+
+def interior_port_sides(
+    box: Box[Array], interface: Sequence[Side], outer: Sequence[Side]
+) -> list[PortSide]:
+    """Each ``interface`` side's nodes off the ``outer`` sides, which keep
+    their own Dirichlet rows: the ports of a box reading the skeleton
+    through a non-matching transfer."""
+    on_outer = {i for side in outer for i in box.side(side)}
+    return [
+        PortSide(2 * d + upper, [i for i in box.side((d, upper)) if i not in on_outer])
+        for d, upper in interface
+    ]
+
+
 @dataclass(frozen=True)
 class Piece(Generic[Array]):
     """A subdomain: its box, its response, and the transfer from the
@@ -603,18 +658,7 @@ class CoupledCollocation(Generic[Array]):
     ) -> Response[Array]:
         """The box's response with ports ``port_sides`` and the exact data
         on its ``outer`` sides except at the nodes ``ports``."""
-        return collocation_pinned_response(
-            CollocationSystem(box.physics(), box.essential(outer, ports)),
-            box.fluxes(),
-            box.mesh(),
-            port_sides,
-            self._rule,
-            RecomputeAlways(BackendDenseLU(self._bkd)),
-            # The pointwise residual's roundoff floor grows like D n^4 eps |u|
-            # (5.6e-12 for two species at 12 nodes); a linear subproblem
-            # reaches it in one step, so the tolerance only stays above it.
-            Newton(atol=1e-10, rtol=0.0, maxiters=30),
-        )
+        return box_response(box, port_sides, outer, ports, self._rule)
 
     def _piece(self, subdomain: int) -> Piece[Array]:
         bkd, ncells = self._bkd, self._ncells
@@ -642,13 +686,7 @@ class CoupledCollocation(Generic[Array]):
         outer: Sequence[Side],
     ) -> Piece[Array]:
         bkd = self._bkd
-        on_outer = {i for side in outer for i in box.side(side)}
-        port_sides = [
-            PortSide(
-                2 * d + upper, [i for i in box.side((d, upper)) if i not in on_outer]
-            )
-            for d, upper in interface
-        ]
+        port_sides = interior_port_sides(box, interface, outer)
         # Each node once, first appearance first: the response's port order.
         ports = list(dict.fromkeys(node for side in port_sides for node in side.nodes))
         dofs = self._field_dofs(self._dofs(subdomain))
