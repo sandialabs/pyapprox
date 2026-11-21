@@ -221,6 +221,30 @@ class KirchhoffResponse1D(Generic[Array]):
         ) / self._length
         return self._port_rows(-d_slope, d_slope)
 
+    def _vjp(self, port_data: Array, weights: Array) -> Array:
+        r""":math:`J^\top W`: with :math:`r_a = -s - fL/2`, :math:`r_b = s -
+        fL/2` and :math:`\partial s = (k(\beta)\, \partial\beta -
+        k(\alpha)\, \partial\alpha)/L`, the weight on :math:`\alpha` is
+        :math:`k(\alpha) (w_a - w_b)/L` and on :math:`\beta` its negative
+        with :math:`k(\beta)`; an end that is not a port has no weight."""
+        if weights.ndim != 2 or weights.shape[0] != self.nport():
+            raise ValueError(
+                f"weights must have shape ({self.nport()}, ncols), got "
+                f"{tuple(weights.shape)}"
+            )
+        alpha, beta = self._end_values(port_data)
+        ncols = weights.shape[1]
+        zeros = self._bkd.zeros((1, ncols))
+        w_a, w_b, row = zeros, zeros, 0
+        if self._ends[0] is None:
+            w_a, row = weights[0:1, :], 1
+        if self._ends[1] is None:
+            w_b = weights[row : row + 1, :]
+        jump = (w_a - w_b) / self._length
+        return self._port_rows(
+            self.conductivity(alpha) * jump, -self.conductivity(beta) * jump
+        )
+
 
 class KirchhoffPoint1D(Generic[Array]):
     """A :class:`KirchhoffResponse1D` at one set of port data."""
@@ -229,7 +253,7 @@ class KirchhoffPoint1D(Generic[Array]):
         self._response = response
         self._port_data = port_data
         self._flux = response._flux(port_data)
-        self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
+        self._derivs = ResponseDerivatives.adjoint(self.jvp_trace, self.vjp_trace)
 
     def output(self) -> Array:
         """The outward fluxes at the port ends."""
@@ -242,6 +266,11 @@ class KirchhoffPoint1D(Generic[Array]):
         r""":math:`(\partial r/\partial \lambda)` ``directions``, for a
         block of shape (nport, ncols)."""
         return self._response._jvp(self._port_data, directions)
+
+    def vjp_trace(self, weights: Array) -> Array:
+        r""":math:`(\partial r/\partial \lambda)^\top` ``weights``, for a
+        block of shape (nport, ncols)."""
+        return self._response._vjp(self._port_data, weights)
 
     def derivatives(self) -> ResponseDerivatives[Array]:
         return self._derivs
@@ -391,7 +420,8 @@ class KirchhoffNtDPoint1D(Generic[Array]):
 
     def __init__(self, trace: Array, slope: Array, bkd: Backend[Array]) -> None:
         self._trace, self._slope, self._bkd = trace, slope, bkd
-        self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
+        # A scalar derivative: its own transpose.
+        self._derivs = ResponseDerivatives.adjoint(self.jvp_trace, self.jvp_trace)
 
     def output(self) -> Array:
         """The trace at the port end, shape (1, 1)."""

@@ -63,6 +63,7 @@ from pyapprox.pde.coupling.responses import (
     ResponsePointProtocol,
     TimeWindow,
     TraceJVP,
+    TraceVJP,
 )
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.linalg.backend_dense import BackendDenseOperator
@@ -100,6 +101,10 @@ class CouplingProtocol(Protocol[V]):
 
     def apply_add(self, x: V, y: V) -> V:
         r""":math:`y + C x` for a block ``x``; ``y`` is not modified."""
+        ...
+
+    def apply_transpose_add(self, x: V, y: V) -> V:
+        r""":math:`y + C^\top x` for a block ``x``; ``y`` is not modified."""
         ...
 
 
@@ -150,6 +155,9 @@ class RowCoupling(Generic[V, Array]):
 
     def apply_add(self, x: V, y: V) -> V:
         return self._rows.add_to(y, self._signs * self._unknowns.take(x))
+
+    def apply_transpose_add(self, x: V, y: V) -> V:
+        return self._unknowns.add_to(y, self._signs * self._rows.take(x))
 
 
 @runtime_checkable
@@ -269,6 +277,19 @@ def _tangents(points: Sequence[ResponsePointProtocol[Array]]) -> list[TraceJVP[A
     return tangents
 
 
+def _adjoints(
+    points: Sequence[ResponsePointProtocol[Array]],
+) -> Optional[list[TraceVJP[Array]]]:
+    """Every point's ``vjp_trace``, or ``None`` when one has none."""
+    adjoints = []
+    for point in points:
+        adjoint = point.derivatives().vjp_trace
+        if adjoint is None:
+            return None
+        adjoints.append(adjoint)
+    return adjoints
+
+
 class MatrixFreeSchur(Generic[V, Array]):
     """Builds :class:`SchurOperator`: applied, never stored. Pairs with
     any solver that only applies its operator (Krylov)."""
@@ -330,7 +351,9 @@ class DenseSchur(Generic[Array]):
 class SchurOperator(Generic[V, Array]):
     r""":math:`J = \sum_i E_i^\top (\partial r_i/\partial \lambda_i) E_i + C`
     at one set of response points, applied matrix-free; :math:`C` is
-    absent when ``coupling`` is ``None``.
+    absent when ``coupling`` is ``None``. Transposable when every point's
+    bundle carries ``vjp_trace``: :math:`J^\top = \sum_i E_i^\top
+    (\partial r_i/\partial \lambda_i)^\top E_i + C^\top`.
 
     Raises
     ------
@@ -349,6 +372,7 @@ class SchurOperator(Generic[V, Array]):
         self._space = space
         self._transfers = [sd.transfer for sd in subdomains]
         self._tangents = _tangents(points)
+        self._adjoints = _adjoints(points)
         self._executor = executor
         self._coupling = coupling
 
@@ -359,8 +383,8 @@ class SchurOperator(Generic[V, Array]):
         return self._space.descriptor()
 
     def properties(self) -> OperatorProperties:
-        """No transpose: the responses carry no ``vjp_trace``."""
-        return OperatorProperties(transposable=False)
+        """Transposable exactly when every point carries ``vjp_trace``."""
+        return OperatorProperties(transposable=self._adjoints is not None)
 
     def format(self) -> MatrixFree:
         return MatrixFree()
@@ -369,19 +393,35 @@ class SchurOperator(Generic[V, Array]):
         def local(i: int) -> Array:
             return self._tangents[i](self._transfers[i].scatter(x))
 
-        blocks = self._executor.map(local, range(len(self._transfers)))
-        total = self._space.zeros(self._space.ncols(x))
-        for transfer, block in zip(self._transfers, blocks):
-            total = transfer.gather_add(block, total)
+        total = self._sum(local, x)
         if self._coupling is not None:
             total = self._coupling.apply_add(x, total)
         return total
 
     def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
-        raise TypeError(
-            "the responses' bundles carry no vjp_trace, so the Schur "
-            "operator has no transpose action"
-        )
+        """Raises ``TypeError`` when a point carries no ``vjp_trace``."""
+        adjoints = self._adjoints
+        if adjoints is None:
+            raise TypeError(
+                "a response point carries no vjp_trace, so the Schur operator "
+                "has no transpose action"
+            )
+
+        def local(i: int) -> Array:
+            return adjoints[i](self._transfers[i].scatter(y))
+
+        total = self._sum(local, y)
+        if self._coupling is not None:
+            total = self._coupling.apply_transpose_add(y, total)
+        return total
+
+    def _sum(self, local: Callable[[int], Array], x: V) -> V:
+        r""":math:`\sum_i E_i^\top` ``local(i)``."""
+        blocks = self._executor.map(local, range(len(self._transfers)))
+        total = self._space.zeros(self._space.ncols(x))
+        for transfer, block in zip(self._transfers, blocks):
+            total = transfer.gather_add(block, total)
+        return total
 
 
 class SkeletonResidual(Generic[V, A, Array, F]):

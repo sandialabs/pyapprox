@@ -43,6 +43,7 @@ from pyapprox.pde.coupling.skeleton import (
     MatrixFreeSchur,
     PointStoreProtocol,
     RecomputePoints,
+    RowCoupling,
     SkeletonResidual,
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
@@ -258,6 +259,13 @@ class _NoTangent(Generic[Array]):
         return ResponseDerivatives.none()
 
 
+class _TangentOnly(_NoTangent[Array]):
+    def derivatives(self) -> ResponseDerivatives[Array]:
+        jvp = self._inner.derivatives().jvp_trace
+        assert jvp is not None
+        return ResponseDerivatives.tangent(jvp)
+
+
 class _Untangent(_Counting[Array]):
     def linearize(
         self, port_data: Array, params: Array, window: TimeWindow
@@ -265,11 +273,67 @@ class _Untangent(_Counting[Array]):
         return _NoTangent(super().linearize(port_data, params, window))
 
 
-def test_invalid_input(bkd: Backend[Array]) -> None:
-    residual, space, responses = _chain(bkd, [(1.0,), (2.0,)])
+class _Unadjoint(_Counting[Array]):
+    def linearize(
+        self, port_data: Array, params: Array, window: TimeWindow
+    ) -> ResponsePointProtocol[Array]:
+        return _TangentOnly(super().linearize(port_data, params, window))
+
+
+def test_schur_transpose_is_its_adjoint(bkd: Backend[Array]) -> None:
+    """<J x, y> = <x, J^T y> on a nonlinear chain, and J^T is the
+    transpose of the dense assembly."""
+    coefs = [(1.5, 0.0, 1.5), (1.0, 0.4), (2.0,), (0.5,)]
+    residual, space, _ = _chain(bkd, coefs)
+    state = bkd.asarray([[0.3], [-0.4], [0.7]])
     jacobian = residual.derivatives().jacobian
     assert jacobian is not None
-    op = jacobian(bkd.zeros((1, 1)), _LABEL)
+    op = jacobian(state, _LABEL)
+    assert op.properties().transposable
+    x = bkd.asarray([[1.0, 0.2], [-0.5, 0.4], [2.0, -1.0]])
+    y = bkd.asarray([[0.3, -2.0], [1.1, 0.5], [-0.7, 0.9]])
+    lhs = bkd.sum(op.apply(x) * y)
+    rhs = bkd.sum(x * op.apply_transpose(y))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13)
+    dense = SkeletonResidual(space, residual.subdomains(), DenseSchur(bkd))
+    dense_jacobian = dense.derivatives().jacobian
+    assert dense_jacobian is not None
+    matrix = dense_jacobian(state, _LABEL).format().matrix()
+    bkd.assert_allclose(
+        op.apply_transpose(bkd.eye(3)), bkd.transpose(matrix), rtol=1e-12
+    )
+
+
+def test_row_coupling_transpose_is_its_adjoint(bkd: Backend[Array]) -> None:
+    descriptor = SpaceDescriptor("pair", 5)
+    coupling = RowCoupling(
+        BackendPortRows(descriptor, [0, 3, 2], bkd),
+        BackendPortRows(descriptor, [4, 1, 3], bkd),
+        bkd.asarray([[1.0], [-1.0], [1.0]]),
+    )
+    x = bkd.reshape(bkd.linspace(-1.0, 2.0, 10), (5, 2))
+    y = bkd.reshape(bkd.linspace(0.5, -1.5, 10), (5, 2))
+    zero = bkd.zeros((5, 2))
+    lhs = bkd.sum(coupling.apply_add(x, zero) * y)
+    rhs = bkd.sum(x * coupling.apply_transpose_add(y, zero))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13)
+
+
+def test_invalid_input(bkd: Backend[Array]) -> None:
+    _, space, _ = _chain(bkd, [(1.0,), (2.0,)])
+    transfer = MatchingNodalTransfer(BackendPortRows(space.descriptor(), [0], bkd))
+    unadjoint = _Unadjoint(KirchhoffResponse1D(0.5, 1.0, (1.0,), 0.0, None, bkd))
+    right = KirchhoffResponse1D(0.5, 1.0, (1.0,), None, 0.0, bkd)
+    schur_free: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    tangent_only = SkeletonResidual(
+        space,
+        [CoupledSubdomain(unadjoint, transfer), CoupledSubdomain(right, transfer)],
+        schur_free,
+    )
+    tangent_jacobian = tangent_only.derivatives().jacobian
+    assert tangent_jacobian is not None
+    op = tangent_jacobian(bkd.zeros((1, 1)), _LABEL)
+    assert not op.properties().transposable
     with pytest.raises(TypeError, match="vjp_trace"):
         op.apply_transpose(bkd.zeros((1, 1)))
     transfer = MatchingNodalTransfer(BackendPortRows(space.descriptor(), [0], bkd))

@@ -1,5 +1,6 @@
-"""Closed-form 1D responses: values against independent facts, and their
-trace directional derivatives against finite differences.
+"""Closed-form 1D responses: values against independent facts, their
+trace directional derivatives against finite differences, and the
+transposed products against the directional ones (dot tests).
 
 Value checks are derivation-free: the outward fluxes of a subdomain sum
 to minus the integrated source (divergence theorem); constant data with
@@ -17,7 +18,10 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
-from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
+from pyapprox.pde.coupling.analytic import (
+    KirchhoffNtDResponse1D,
+    KirchhoffResponse1D,
+)
 from pyapprox.pde.coupling.responses import (
     Flux,
     LocalResponseProtocol,
@@ -125,7 +129,41 @@ def test_jvp_trace_acts_on_blocks(bkd: Backend[Array]) -> None:
     bkd.assert_allclose(tangent(block), columns, rtol=1e-12)
 
 
+@pytest.mark.parametrize("coefs", [_LINEAR, _NONLINEAR])
+@pytest.mark.parametrize("ends", _ENDS)
+def test_vjp_trace_is_the_transpose_of_jvp_trace(
+    bkd: Backend[Array],
+    coefs: tuple[float, ...],
+    ends: tuple[Optional[float], Optional[float]],
+) -> None:
+    """<J V, W> = <V, J^T W> on blocks, one or two ports."""
+    r = _response(bkd, coefs, *ends)
+    n = r.nport()
+    sample = bkd.asarray([[0.4], [-1.1]][:n])
+    bundle = r.linearize(sample, bkd.zeros((0, 1)), _STEADY).derivatives()
+    jvp, vjp = bundle.jvp_trace, bundle.vjp_trace
+    assert jvp is not None and vjp is not None
+    v = bkd.asarray([[1.0, 0.5, -2.0], [0.3, -1.0, 0.7]][:n])
+    w = bkd.asarray([[-0.6, 2.0, 0.1], [1.4, 0.2, -0.9]][:n])
+    lhs = bkd.sum(jvp(v) * w)
+    rhs = bkd.sum(v * vjp(w))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13)
+    with pytest.raises(ValueError):
+        vjp(bkd.zeros((n + 1, 1)))
+
+
+def test_ntd_vjp_trace_is_its_own_transpose(bkd: Backend[Array]) -> None:
+    r = KirchhoffNtDResponse1D(0.8, 1.7, _NONLINEAR, 0.3, None, bkd)
+    bundle = r.linearize(bkd.asarray([[0.5]]), bkd.zeros((0, 1)), _STEADY).derivatives()
+    jvp, vjp = bundle.jvp_trace, bundle.vjp_trace
+    assert jvp is not None and vjp is not None
+    w = bkd.asarray([[0.7, -1.3]])
+    bkd.assert_allclose(vjp(w), jvp(w), rtol=1e-14)
+
+
 def test_invalid_input(bkd: Backend[Array]) -> None:
+    with pytest.raises(ValueError, match="vjp_trace comes only with jvp_trace"):
+        ResponseDerivatives(vjp_trace=lambda w: w)
     with pytest.raises(ValueError):
         KirchhoffResponse1D(0.0, 1.0, _LINEAR, None, None, bkd)
     with pytest.raises(ValueError):

@@ -32,6 +32,11 @@ r"""Directional derivatives of the output in the port data,
 :math:`(\partial r_i/\partial \lambda_i) V` for a block :math:`V` of
 shape (nport, ncols)."""
 
+TraceVJP = Callable[[Array], Array]
+r"""Transposed products of the output in the port data,
+:math:`(\partial r_i/\partial \lambda_i)^\top W` for a block :math:`W` of
+shape (nport, ncols)."""
+
 
 @dataclass(frozen=True)
 class PortQuantity:
@@ -91,19 +96,30 @@ class TimeWindow:
 class ResponseDerivatives(Generic[Array]):
     r"""The optional derivatives of a response at one linearization point.
 
-    ``jvp_trace`` is :math:`\partial r_i/\partial \lambda_i` applied to a
-    block of port directions: what Newton on the skeleton needs. Build
-    with the named constructors.
+    - ``jvp_trace``: :math:`(\partial r_i/\partial \lambda_i) V` for a
+      block :math:`V` of port directions, what Newton on the skeleton
+      needs.
+    - ``vjp_trace``: :math:`(\partial r_i/\partial \lambda_i)^\top W` for
+      a block :math:`W` of output weights, shape (nport, ncols) both ways:
+      the skeleton Jacobian's transpose, what adjoints need. It comes only
+      with ``jvp_trace``.
+
+    Build with the named constructors.
     """
 
     jvp_trace: Optional[TraceJVP[Array]] = None
+    vjp_trace: Optional[TraceVJP[Array]] = None
 
     def __post_init__(self) -> None:
-        if self.jvp_trace is not None and not callable(self.jvp_trace):
-            raise TypeError(
-                "ResponseDerivatives field 'jvp_trace' must be callable or "
-                f"None; got {type(self.jvp_trace).__name__}"
-            )
+        for name in ("jvp_trace", "vjp_trace"):
+            value = getattr(self, name)
+            if value is not None and not callable(value):
+                raise TypeError(
+                    f"ResponseDerivatives field '{name}' must be callable or "
+                    f"None; got {type(value).__name__}"
+                )
+        if self.vjp_trace is not None and self.jvp_trace is None:
+            raise ValueError("vjp_trace comes only with jvp_trace")
 
     @staticmethod
     def none() -> "ResponseDerivatives[Array]":
@@ -114,6 +130,14 @@ class ResponseDerivatives(Generic[Array]):
     def tangent(jvp_trace: TraceJVP[Array]) -> "ResponseDerivatives[Array]":
         """Trace directional derivatives: a forward skeleton solve."""
         return ResponseDerivatives(jvp_trace=jvp_trace)
+
+    @staticmethod
+    def adjoint(
+        jvp_trace: TraceJVP[Array], vjp_trace: TraceVJP[Array]
+    ) -> "ResponseDerivatives[Array]":
+        """Trace directional derivatives and their transpose: forward
+        solves and adjoints."""
+        return ResponseDerivatives(jvp_trace=jvp_trace, vjp_trace=vjp_trace)
 
 
 @runtime_checkable
