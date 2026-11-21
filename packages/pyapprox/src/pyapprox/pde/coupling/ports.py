@@ -232,6 +232,86 @@ class PortMatrixTransfer(Generic[V, P]):
         return self._rows.add_to(y, self._local.apply_transpose(block))
 
 
+class NormalProjectionTransfer(Generic[V, Array]):
+    r"""A scalar skeleton read by a vector port: :math:`E = s\, (n \otimes)
+    E_0`, the scalar transfer :math:`E_0`'s port values spread along each
+    port node's unit normal, so its transpose :math:`E^\top = s\,
+    E_0^\top (n \cdot)` reads the normal component of a vector block back.
+
+    For a scalar interface unknown (a pressure, a normal velocity) beside
+    a subdomain whose port data and output are vectors (a traction in, a
+    velocity out). Port data and output are node-major: row :math:`k a +
+    c` is component :math:`c` at port node :math:`a`, :math:`k` the
+    dimension. The sign :math:`s` orients the port, as signs do in port
+    transfers: e.g. :math:`s = -1` makes the traction :math:`-p\, n` of an
+    interface pressure :math:`p`, and then gathers :math:`-n \cdot u`.
+    The normals enter by a constant product, so a graph through the
+    skeleton values survives.
+
+    Parameters
+    ----------
+    inner
+        :math:`E_0`, the scalar transfer, one port value per node.
+    normals
+        The unit normal at each of ``inner``'s port nodes. Shape: (nnodes,
+        ndim).
+    bkd
+        The backend of the port blocks.
+    sign
+        :math:`s`.
+
+    Raises
+    ------
+    TypeError
+        If ``inner`` does not satisfy :class:`PortTransferProtocol`.
+    ValueError
+        If ``normals`` is not (inner.nport(), ndim) or a normal is not of
+        unit length.
+    """
+
+    def __init__(
+        self,
+        inner: PortTransferProtocol[V, Array],
+        normals: Array,
+        bkd: Backend[Array],
+        sign: float = 1.0,
+    ) -> None:
+        if not isinstance(inner, PortTransferProtocol):
+            raise TypeError(
+                f"inner must satisfy PortTransferProtocol, got {type(inner).__name__}"
+            )
+        nnodes = inner.nport()
+        if normals.ndim != 2 or normals.shape[0] != nnodes:
+            raise ValueError(
+                f"normals must have shape ({nnodes}, ndim), got {tuple(normals.shape)}"
+            )
+        lengths = bkd.sqrt(bkd.sum(normals**2, axis=1))
+        if bkd.to_float(bkd.max(bkd.abs(lengths - 1.0))) > 1e-12:
+            raise ValueError("the normals must be of unit length")
+        ndim = int(normals.shape[1])
+        # (ndim * nnodes, nnodes): row k a + c holds n_c at node a.
+        placement = bkd.asarray(
+            [
+                [1.0 if b == a else 0.0 for b in range(nnodes)]
+                for a in range(nnodes)
+                for _ in range(ndim)
+            ]
+        )
+        spread = sign * (bkd.reshape(normals, (-1,))[:, None] * placement)
+        self._inner, self._spread = inner, spread
+        self._read = bkd.transpose(spread)
+        self._nport = ndim * nnodes
+
+    def nport(self) -> int:
+        return self._nport
+
+    def scatter(self, lam: V) -> Array:
+        return self._spread @ self._inner.scatter(lam)
+
+    def gather_add(self, block: Array, y: V) -> V:
+        return self._inner.gather_add(self._read @ block, y)
+
+
 @runtime_checkable
 class FaceValuesProtocol(Protocol, Generic[Array]):
     """What :func:`port_interpolation` asks of a skeleton field space: its
