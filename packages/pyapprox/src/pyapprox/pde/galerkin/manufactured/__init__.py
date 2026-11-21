@@ -1,6 +1,10 @@
 """Manufactured solution integration for Galerkin finite element tests.
 
 Adapts the collocation manufactured solutions for use with Galerkin tests.
+
+Superseded by :mod:`pyapprox.pde.verification` and its Galerkin adapter,
+``pyapprox.pde.models.galerkin.verification``. New code must not import
+this package; it is deleted once its remaining users move.
 """
 
 from pyapprox.util.optional_deps import package_available

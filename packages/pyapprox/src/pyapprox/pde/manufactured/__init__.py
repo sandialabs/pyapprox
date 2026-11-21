@@ -2,6 +2,12 @@
 
 This module provides manufactured solution classes for verifying
 spectral collocation PDE solvers using the Method of Manufactured Solutions (MMS).
+
+Superseded by :mod:`pyapprox.pde.verification` (a strong form as terms,
+with the collocation and Galerkin adapters in
+``pyapprox.pde.models.collocation.verification`` and
+``pyapprox.pde.models.galerkin.verification``). New code must not import
+this package; it is deleted once its remaining users move.
 """
 
 from pyapprox.pde.manufactured.advection_diffusion import (
