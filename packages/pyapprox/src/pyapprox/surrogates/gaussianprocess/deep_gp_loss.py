@@ -12,8 +12,6 @@ and the inner expectation is closed-form for Gaussian likelihoods.
 import math
 from typing import Dict, Generic, Hashable, Tuple
 
-import torch
-
 from pyapprox.interface.functions.autograd import autograd_derivatives
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
@@ -21,7 +19,6 @@ from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
 )
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter import HyperParameterList
 
 
@@ -109,12 +106,14 @@ class DGPELBOLoss(Generic[Array]):
             layer = layers[node]
             lik = layer.likelihood()
             if lik is None:
-                raise ValueError(
-                    f"Node {node} has training data but no likelihood"
-                )
+                raise ValueError(f"Node {node} has training data but no likelihood")
 
             means, variances, weights = propagator.predict_at(
-                dag, layers, X, node, n_samples=self._n_propagation,
+                dag,
+                layers,
+                X,
+                node,
+                n_samples=self._n_propagation,
             )
 
             sigma2 = lik.noise_var()[0]
@@ -126,69 +125,15 @@ class DGPELBOLoss(Generic[Array]):
             # weighted sum of data-dependent term: einsum avoids Python loop
             mse_plus_var = residual * residual + fvar  # (S, N)
             weighted_sum = bkd.einsum(
-                "s,sn->", weights, mse_plus_var,
+                "s,sn->",
+                weights,
+                mse_plus_var,
             )
             const = math.log(2.0 * math.pi) + bkd.log(sigma2)
             w_total = bkd.sum(weights)
-            neg_elbo = neg_elbo + (
-                0.5 * (w_total * N * const + weighted_sum / sigma2)
-            )
+            neg_elbo = neg_elbo + (0.5 * (w_total * N * const + weighted_sum / sigma2))
 
         return bkd.reshape(neg_elbo, (1, 1))
 
     def __repr__(self) -> str:
-        return (
-            f"DGPELBOLoss(nvars={self.nvars()}, "
-            f"n_propagation={self._n_propagation})"
-        )
-
-
-class TorchDGPELBOLoss(DGPELBOLoss[torch.Tensor]):
-    """DGP ELBO loss with autograd-based jacobian for torch optimizers.
-
-    Parameters are identical to DGPELBOLoss. The jacobian method uses
-    bkd.jacobian (torch.autograd.functional.jacobian) to compute
-    gradients of the negative ELBO w.r.t. active hyperparameters.
-    """
-
-    def __init__(
-        self,
-        dgp: DeepGaussianProcess[torch.Tensor],
-        data: Dict[Hashable, Tuple[torch.Tensor, torch.Tensor]],
-        n_propagation: int = 10,
-    ) -> None:
-        torch_bkd = dgp.bkd()
-        if not isinstance(torch_bkd, TorchBkd):
-            raise TypeError(
-                "TorchDGPELBOLoss requires a TorchBkd backend, "
-                f"got {type(torch_bkd).__name__}"
-            )
-        super().__init__(dgp, data, n_propagation)
-        self._torch_bkd = torch_bkd
-
-    def derivatives(self) -> Derivatives[torch.Tensor]:
-        """Autograd jacobian (unconditional on this torch subclass)."""
-        return Derivatives.first_order(jacobian=self.jacobian)
-
-    def jacobian(self, params: torch.Tensor) -> torch.Tensor:
-        """Gradient of negative ELBO via torch autograd.
-
-        Parameters
-        ----------
-        params : torch.Tensor
-            Active hyperparameters, shape (nactive,) or (nactive, 1).
-
-        Returns
-        -------
-        torch.Tensor
-            Jacobian, shape (1, nactive).
-        """
-        bkd = self._torch_bkd
-        if len(params.shape) == 2 and params.shape[1] == 1:
-            params = params[:, 0]
-
-        def loss_scalar(p: torch.Tensor) -> torch.Tensor:
-            return self(p)[0, 0]
-
-        jac = bkd.jacobian(loss_scalar, params)
-        return bkd.reshape(jac, (1, len(params)))
+        return f"DGPELBOLoss(nvars={self.nvars()}, n_propagation={self._n_propagation})"

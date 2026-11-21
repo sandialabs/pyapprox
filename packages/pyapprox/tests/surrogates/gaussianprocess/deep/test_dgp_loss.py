@@ -1,5 +1,7 @@
 """Tests for DGPELBOLoss (Phase 8)."""
 
+from typing import Any, Dict, Hashable, Tuple
+
 import networkx as nx
 import numpy as np
 import pytest
@@ -19,7 +21,6 @@ from pyapprox.surrogates.gaussianprocess.deep.propagator import (
 )
 from pyapprox.surrogates.gaussianprocess.deep_gp_loss import (
     DGPELBOLoss,
-    TorchDGPELBOLoss,
 )
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
@@ -41,8 +42,15 @@ from pyapprox.surrogates.gaussianprocess.variational import (
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 
-def _make_layer(bkd, nvars=1, num_inducing=5, noise_std=0.1,
-                with_likelihood=True, fixed=True, seed=42):
+def _make_layer(
+    bkd,
+    nvars=1,
+    num_inducing=5,
+    noise_std=0.1,
+    with_likelihood=True,
+    fixed=True,
+    seed=42,
+):
     rng = np.random.RandomState(seed)
     kernel = Matern52Kernel(
         lenscale=[1.0] * nvars,
@@ -83,7 +91,7 @@ class TestDGPELBOLossSingleLayer:
         rng = np.random.RandomState(0)
         X = bkd.array(rng.randn(1, 8))
         y = bkd.array(np.sin(rng.randn(1, 8)))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data, n_propagation=1)
         params = dgp.hyp_list().get_active_values()
@@ -101,7 +109,7 @@ class TestDGPELBOLossSingleLayer:
         rng = np.random.RandomState(0)
         X = bkd.array(rng.randn(2, 5))
         y = bkd.array(rng.randn(1, 5))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data, n_propagation=3)
         result = loss(dgp.hyp_list().get_active_values())
@@ -110,14 +118,15 @@ class TestDGPELBOLossSingleLayer:
     def test_no_likelihood_raises(self, bkd):
         dag = nx.DiGraph()
         dag.add_node(0)
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            with_likelihood=False, seed=10)
+        layer = _make_layer(
+            bkd, nvars=1, num_inducing=3, with_likelihood=False, seed=10
+        )
         prop = LayerPropagator(bkd)
         dgp = DeepGaussianProcess(dag, {0: layer}, prop, bkd)
 
         X = bkd.array(np.random.RandomState(0).randn(1, 5))
         y = bkd.array(np.random.RandomState(1).randn(1, 5))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data, n_propagation=1)
         with pytest.raises(ValueError, match="no likelihood"):
@@ -128,12 +137,16 @@ class TestDGPELBOLossChain:
     def test_chain_elbo_is_finite(self, bkd):
         dag = nx.DiGraph()
         dag.add_edge(0, 1)
-        layer0 = _make_layer(bkd, nvars=1, num_inducing=3,
-                             with_likelihood=False, seed=10)
+        layer0 = _make_layer(
+            bkd, nvars=1, num_inducing=3, with_likelihood=False, seed=10
+        )
         layer1 = _make_layer(bkd, nvars=2, num_inducing=3, seed=20)
         prop = LayerPropagator(bkd)
         dgp = DeepGaussianProcess(
-            dag, {0: layer0, 1: layer1}, prop, bkd,
+            dag,
+            {0: layer0, 1: layer1},
+            prop,
+            bkd,
         )
 
         rng = np.random.RandomState(0)
@@ -162,7 +175,7 @@ class TestDGPELBOLossChain:
 
         X = bkd.array(rng.randn(1, 5))
         y = bkd.array(rng.randn(1, 5))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data, n_propagation=1)
         loss(dgp.hyp_list().get_active_values())
@@ -176,14 +189,13 @@ class TestDGPELBOLossInterface:
     def test_nvars_and_nqoi(self, bkd):
         dag = nx.DiGraph()
         dag.add_node(0)
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            fixed=False, seed=10)
+        layer = _make_layer(bkd, nvars=1, num_inducing=3, fixed=False, seed=10)
         prop = LayerPropagator(bkd)
         dgp = DeepGaussianProcess(dag, {0: layer}, prop, bkd)
 
         X = bkd.array(np.random.RandomState(0).randn(1, 5))
         y = bkd.array(np.random.RandomState(1).randn(1, 5))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data)
         assert loss.nvars() == dgp.hyp_list().nactive_params()
@@ -198,7 +210,7 @@ class TestDGPELBOLossInterface:
 
         X = bkd.array(np.random.RandomState(0).randn(1, 5))
         y = bkd.array(np.random.RandomState(1).randn(1, 5))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data, n_propagation=5)
         r = repr(loss)
@@ -228,57 +240,89 @@ class TestDGPELBOMatchesExactGP:
 
         # ExactGP: K + noise_var*I (nugget=noise_var)
         exact_kernel = Matern52Kernel(
-            lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
-            nvars=nvars, bkd=bkd, fixed=True,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         exact_gp = ExactGaussianProcess(
-            exact_kernel, nvars, bkd, nugget=noise_var,
+            exact_kernel,
+            nvars,
+            bkd,
+            nugget=noise_var,
         )
         exact_gp._fit_internal(X_train, y_train)
         exact_nlml = exact_gp.neg_log_marginal_likelihood()
 
         # VGP (collapsed Titsias) as intermediate check
         vgp_kernel = Matern52Kernel(
-            lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
-            nvars=nvars, bkd=bkd, fixed=True,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         ip_vgp = InducingPoints(
-            nvars=nvars, num_inducing=N, bkd=bkd,
-            inducing_locations=X_train, inducing_bounds=(-10.0, 10.0),
+            nvars=nvars,
+            num_inducing=N,
+            bkd=bkd,
+            inducing_locations=X_train,
+            inducing_bounds=(-10.0, 10.0),
         )
         lik_vgp = GaussianLikelihood(noise_std, (1e-8, 1.0), bkd)
         ip_vgp.hyp_list().set_all_inactive()
         lik_vgp.hyp_list().set_all_inactive()
         vgp = VariationalGaussianProcess(
-            vgp_kernel, nvars, ip_vgp, lik_vgp, bkd,
-            mean_function=ZeroMean(bkd), nugget=nugget,
+            vgp_kernel,
+            nvars,
+            ip_vgp,
+            lik_vgp,
+            bkd,
+            mean_function=ZeroMean(bkd),
+            nugget=nugget,
         )
         vgp._fit_internal(X_train, y_train)
         vgp_neg_elbo = vgp.neg_log_marginal_likelihood()
 
         # DGPLayer at Titsias optimum with M=N, inducing=training
         layer_kernel = Matern52Kernel(
-            lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
-            nvars=nvars, bkd=bkd, fixed=True,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         ip = InducingPoints(
-            nvars=nvars, num_inducing=N, bkd=bkd,
-            inducing_locations=X_train, inducing_bounds=(-10.0, 10.0),
+            nvars=nvars,
+            num_inducing=N,
+            bkd=bkd,
+            inducing_locations=X_train,
+            inducing_bounds=(-10.0, 10.0),
         )
         K_uu = layer_kernel(X_train, X_train)
         K_uu_nug = K_uu + bkd.eye(N) * nugget
         L_uu = bkd.cholesky(K_uu_nug)
 
         m_tilde, L_tilde = titsias_optimal_whitened_q_u(
-            K_uu_nug, K_uu, y_train[0, :], bkd.asarray([noise_var]),
-            L_uu, bkd,
+            K_uu_nug,
+            K_uu,
+            y_train[0, :],
+            bkd.asarray([noise_var]),
+            L_uu,
+            bkd,
         )
         vd = GaussianVariationalDistribution(N, bkd, m_tilde, L_tilde)
         lik = GaussianLikelihood(noise_std, (1e-8, 1.0), bkd)
 
         layer = DGPLayer(
-            layer_kernel, ZeroMean(bkd), ip, vd, bkd,
-            likelihood=lik, nugget=nugget,
+            layer_kernel,
+            ZeroMean(bkd),
+            ip,
+            vd,
+            bkd,
+            likelihood=lik,
+            nugget=nugget,
         )
         ip.hyp_list().set_all_inactive()
         vd.hyp_list().set_all_inactive()
@@ -329,30 +373,47 @@ class TestDGPELBOMatchesVGP:
         Z = bkd.array(rng.randn(nvars, M))
 
         vgp_kernel = Matern52Kernel(
-            lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
-            nvars=nvars, bkd=bkd, fixed=True,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         ip_vgp = InducingPoints(
-            nvars=nvars, num_inducing=M, bkd=bkd,
-            inducing_locations=Z, inducing_bounds=(-10.0, 10.0),
+            nvars=nvars,
+            num_inducing=M,
+            bkd=bkd,
+            inducing_locations=Z,
+            inducing_bounds=(-10.0, 10.0),
         )
         lik_vgp = GaussianLikelihood(noise_std, (1e-8, 1.0), bkd)
         ip_vgp.hyp_list().set_all_inactive()
         lik_vgp.hyp_list().set_all_inactive()
         vgp = VariationalGaussianProcess(
-            vgp_kernel, nvars, ip_vgp, lik_vgp, bkd,
-            mean_function=ZeroMean(bkd), nugget=nugget,
+            vgp_kernel,
+            nvars,
+            ip_vgp,
+            lik_vgp,
+            bkd,
+            mean_function=ZeroMean(bkd),
+            nugget=nugget,
         )
         vgp._fit_internal(X_train, y_train)
         vgp_neg_elbo = vgp.neg_log_marginal_likelihood()
 
         layer_kernel = Matern52Kernel(
-            lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
-            nvars=nvars, bkd=bkd, fixed=True,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         ip_layer = InducingPoints(
-            nvars=nvars, num_inducing=M, bkd=bkd,
-            inducing_locations=Z, inducing_bounds=(-10.0, 10.0),
+            nvars=nvars,
+            num_inducing=M,
+            bkd=bkd,
+            inducing_locations=Z,
+            inducing_bounds=(-10.0, 10.0),
         )
         K_uu = layer_kernel(Z, Z)
         K_uf = layer_kernel(Z, X_train)
@@ -360,15 +421,24 @@ class TestDGPELBOMatchesVGP:
         L_uu = bkd.cholesky(K_uu_nug)
 
         m_tilde, L_tilde = titsias_optimal_whitened_q_u(
-            K_uu_nug, K_uf, y_train[0, :], bkd.asarray([noise_var]),
-            L_uu, bkd,
+            K_uu_nug,
+            K_uf,
+            y_train[0, :],
+            bkd.asarray([noise_var]),
+            L_uu,
+            bkd,
         )
         vd = GaussianVariationalDistribution(M, bkd, m_tilde, L_tilde)
         lik_layer = GaussianLikelihood(noise_std, (1e-8, 1.0), bkd)
 
         layer = DGPLayer(
-            layer_kernel, ZeroMean(bkd), ip_layer, vd, bkd,
-            likelihood=lik_layer, nugget=nugget,
+            layer_kernel,
+            ZeroMean(bkd),
+            ip_layer,
+            vd,
+            bkd,
+            likelihood=lik_layer,
+            nugget=nugget,
         )
         ip_layer.hyp_list().set_all_inactive()
         vd.hyp_list().set_all_inactive()
@@ -410,12 +480,18 @@ class TestDGPELBOMatchesVGP:
             Z = X_train[:, :M]
 
             kernel = Matern52Kernel(
-                lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
-                nvars=nvars, bkd=bkd, fixed=True,
+                lenscale=[1.0],
+                lenscale_bounds=(0.1, 10.0),
+                nvars=nvars,
+                bkd=bkd,
+                fixed=True,
             )
             ip = InducingPoints(
-                nvars=nvars, num_inducing=M, bkd=bkd,
-                inducing_locations=Z, inducing_bounds=(-10.0, 10.0),
+                nvars=nvars,
+                num_inducing=M,
+                bkd=bkd,
+                inducing_locations=Z,
+                inducing_bounds=(-10.0, 10.0),
             )
             K_uu = kernel(Z, Z)
             K_uf = kernel(Z, X_train)
@@ -423,14 +499,23 @@ class TestDGPELBOMatchesVGP:
             L_uu = bkd.cholesky(K_uu_nug)
 
             m_tilde, L_tilde = titsias_optimal_whitened_q_u(
-                K_uu_nug, K_uf, y_train[0, :], bkd.asarray([noise_var]),
-                L_uu, bkd,
+                K_uu_nug,
+                K_uf,
+                y_train[0, :],
+                bkd.asarray([noise_var]),
+                L_uu,
+                bkd,
             )
             vd = GaussianVariationalDistribution(M, bkd, m_tilde, L_tilde)
             lik = GaussianLikelihood(noise_std, (1e-8, 1.0), bkd)
             layer = DGPLayer(
-                kernel, ZeroMean(bkd), ip, vd, bkd,
-                likelihood=lik, nugget=nugget,
+                kernel,
+                ZeroMean(bkd),
+                ip,
+                vd,
+                bkd,
+                likelihood=lik,
+                nugget=nugget,
             )
             ip.hyp_list().set_all_inactive()
             vd.hyp_list().set_all_inactive()
@@ -442,11 +527,13 @@ class TestDGPELBOMatchesVGP:
             dgp = DeepGaussianProcess(dag, {0: layer}, prop, bkd)
 
             loss = DGPELBOLoss(
-                dgp, {0: (X_train, y_train)}, n_propagation=1,
+                dgp,
+                {0: (X_train, y_train)},
+                n_propagation=1,
             )
-            val = float(bkd.to_numpy(loss(
-                dgp.hyp_list().get_active_values()
-            ).ravel())[0])
+            val = float(
+                bkd.to_numpy(loss(dgp.hyp_list().get_active_values()).ravel())[0]
+            )
             neg_elbos.append(val)
 
         for i in range(len(neg_elbos) - 1):
@@ -455,8 +542,10 @@ class TestDGPELBOMatchesVGP:
             )
 
 
-class TestTorchDGPELBOLoss:
-    def test_numpy_backend_raises(self, numpy_bkd):
+class TestDGPELBOLossAutograd:
+    """The generic loss carries an autograd Jacobian on autodiff backends."""
+
+    def test_numpy_backend_has_no_jacobian(self, numpy_bkd):
         dag = nx.DiGraph()
         dag.add_node(0)
         layer = _make_layer(numpy_bkd, nvars=1, num_inducing=3, seed=10)
@@ -465,28 +554,28 @@ class TestTorchDGPELBOLoss:
 
         X = numpy_bkd.array(np.random.RandomState(0).randn(1, 5))
         y = numpy_bkd.array(np.random.RandomState(1).randn(1, 5))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
-        with pytest.raises(TypeError, match="TorchBkd"):
-            TorchDGPELBOLoss(dgp, data)
+        assert DGPELBOLoss(dgp, data).derivatives().jacobian is None
 
     def test_jacobian_shape(self, torch_bkd):
         bkd = torch_bkd
         dag = nx.DiGraph()
         dag.add_node(0)
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            fixed=False, seed=10)
+        layer = _make_layer(bkd, nvars=1, num_inducing=3, fixed=False, seed=10)
         prop = LayerPropagator(bkd)
         dgp = DeepGaussianProcess(dag, {0: layer}, prop, bkd)
 
         rng = np.random.RandomState(0)
         X = bkd.array(rng.randn(1, 5))
         y = bkd.array(np.sin(rng.randn(1, 5)))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
-        loss = TorchDGPELBOLoss(dgp, data, n_propagation=1)
+        loss = DGPELBOLoss(dgp, data, n_propagation=1)
+        jacobian = loss.derivatives().jacobian
+        assert jacobian is not None
         params = dgp.hyp_list().get_active_values()
-        jac = loss.jacobian(params)
+        jac = jacobian(bkd.reshape(params, (loss.nvars(), 1)))
         assert jac.shape == (1, loss.nvars())
 
     def test_autograd_jacobian_matches_fd(self, torch_bkd):
@@ -494,37 +583,45 @@ class TestTorchDGPELBOLoss:
         bkd = torch_bkd
         dag = nx.DiGraph()
         dag.add_node(0)
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            fixed=False, seed=10)
+        layer = _make_layer(bkd, nvars=1, num_inducing=3, fixed=False, seed=10)
         prop = LayerPropagator(bkd)
         dgp = DeepGaussianProcess(dag, {0: layer}, prop, bkd)
 
         rng = np.random.RandomState(0)
         X = bkd.array(rng.randn(1, 5))
         y = bkd.array(np.sin(rng.randn(1, 5)))
-        data = {0: (X, y)}
+        data: Dict[Hashable, Tuple[Any, Any]] = {0: (X, y)}
 
-        loss = TorchDGPELBOLoss(dgp, data, n_propagation=1)
+        loss = DGPELBOLoss(dgp, data, n_propagation=1)
         n_active = loss.nvars()
+        jacobian = loss.derivatives().jacobian
+        assert jacobian is not None
 
         def value_fn(sample):
             return loss(sample[:, 0])
 
         def jac_fn(sample):
-            return loss.jacobian(sample[:, 0])
+            return jacobian(sample)
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=n_active, fun=value_fn,
-            jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=n_active,
+            fun=value_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
 
         checker = DerivativeChecker(wrapper)
         x0 = bkd.reshape(
-            dgp.hyp_list().get_active_values(), (n_active, 1),
+            dgp.hyp_list().get_active_values(),
+            (n_active, 1),
         )
         fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
         errors = checker.check_derivatives(
-            x0, fd_eps=fd_eps, relative=True, verbosity=0,
+            x0,
+            fd_eps=fd_eps,
+            relative=True,
+            verbosity=0,
         )
         jac_error = errors[0]
         assert bkd.all_bool(bkd.isfinite(jac_error))

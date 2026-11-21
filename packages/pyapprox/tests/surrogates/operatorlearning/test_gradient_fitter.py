@@ -19,10 +19,12 @@ from pyapprox.surrogates.operatorlearning import (
     IdentityFieldEncoder,
     WeightedLeastSquaresOperatorFitter,
 )
-from pyapprox.surrogates.operatorlearning.latent_maps import (
-    ChainedTorchOptimizer,
-    MLPLatentMap,
+from pyapprox.surrogates.operatorlearning.latent_maps.gradient_fitter import (
     TorchGradientLatentMapFitter,
+)
+from pyapprox.surrogates.operatorlearning.latent_maps.mlp import MLPLatentMap
+from pyapprox.surrogates.operatorlearning.latent_maps.torch_optimizers import (
+    ChainedTorchOptimizer,
     TorchOptimizerSpec,
     torch_adam,
     torch_lbfgs,
@@ -71,22 +73,17 @@ class TestAgreementWithTheClosedFormSolver:
     exact check rather than a tolerance.
     """
 
-    def test_recovers_the_generating_map(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_recovers_the_generating_map(self, torch_bkd: Backend) -> None:
         """An affine map on affine data: the fit should be exact."""
         codes_in, codes_out, matrix, _ = _affine_data(torch_bkd)
-        surrogate = _fitter(torch_bkd).fit_encoded(
-            MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out
-        ).surrogate()
-        assert (
-            _max_residual(torch_bkd, surrogate, codes_in, codes_out)
-            < 1e-8
+        surrogate = (
+            _fitter(torch_bkd)
+            .fit_encoded(MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out)
+            .surrogate()
         )
+        assert _max_residual(torch_bkd, surrogate, codes_in, codes_out) < 1e-8
         weight = next(surrogate.latent_map().parameters())
-        torch_bkd.assert_allclose(
-            weight, torch_bkd.asarray(matrix), atol=1e-8
-        )
+        torch_bkd.assert_allclose(weight, torch_bkd.asarray(matrix), atol=1e-8)
 
     def test_matches_least_squares_on_inconsistent_data(
         self, torch_bkd: Backend
@@ -105,13 +102,13 @@ class TestAgreementWithTheClosedFormSolver:
         squared = torch_bkd.to_numpy(codes_in) ** 2
         codes_out = torch_bkd.asarray(squared[:2] + 0.5 * squared[1:])
 
-        gradient_fit = _fitter(torch_bkd).fit_encoded(
-            MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out
-        ).surrogate()
-
-        reference = _least_squares_affine_fit(
-            torch_bkd, codes_in, codes_out
+        gradient_fit = (
+            _fitter(torch_bkd)
+            .fit_encoded(MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out)
+            .surrogate()
         )
+
+        reference = _least_squares_affine_fit(torch_bkd, codes_in, codes_out)
         # Looser than the exactly-fittable case above, and not because
         # of a tolerance -- tightening the optimizer's changes nothing
         # here. The minimizer itself sits at a nonzero residual, so the
@@ -119,9 +116,7 @@ class TestAgreementWithTheClosedFormSolver:
         # settles near the solution rather than on it. A closed-form
         # solve has no such limit, which is why it is the reference
         # rather than the peer.
-        torch_bkd.assert_allclose(
-            gradient_fit(codes_in), reference, atol=1e-5
-        )
+        torch_bkd.assert_allclose(gradient_fit(codes_in), reference, atol=1e-5)
 
 
 def _least_squares_affine_fit(bkd: Backend, codes_in, codes_out):
@@ -144,16 +139,10 @@ def _least_squares_affine_fit(bkd: Backend, codes_in, codes_out):
 
     nvars = int(codes_in.shape[0])
     marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-    basis = OrthonormalPolynomialBasis(
-        create_bases_1d(marginals, bkd), bkd
-    )
-    indices = np.vstack(
-        [np.zeros((1, nvars), dtype=int), np.eye(nvars, dtype=int)]
-    ).T
+    basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
+    indices = np.vstack([np.zeros((1, nvars), dtype=int), np.eye(nvars, dtype=int)]).T
     basis.set_indices(bkd.asarray(indices, dtype=bkd.int64_dtype()))
-    expansion = PolynomialChaosExpansion(
-        basis, bkd, nqoi=int(codes_out.shape[0])
-    )
+    expansion = PolynomialChaosExpansion(basis, bkd, nqoi=int(codes_out.shape[0]))
     result = WeightedLeastSquaresOperatorFitter(
         IdentityFieldEncoder(nvars, bkd),
         IdentityFieldEncoder(int(codes_out.shape[0]), bkd),
@@ -178,12 +167,8 @@ class TestTheOptimizerSeam:
         [
             torch_adam(learning_rate=0.05, nsteps=2000),
             torch_lbfgs(nsteps=2000),
-            ChainedTorchOptimizer(
-                [torch_adam(nsteps=500), torch_lbfgs(nsteps=500)]
-            ),
-            TorchOptimizerSpec(
-                torch.optim.SGD, nsteps=2000, lr=1e-3, momentum=0.9
-            ),
+            ChainedTorchOptimizer([torch_adam(nsteps=500), torch_lbfgs(nsteps=500)]),
+            TorchOptimizerSpec(torch.optim.SGD, nsteps=2000, lr=1e-3, momentum=0.9),
         ],
         ids=["adam", "lbfgs", "chained", "sgd_momentum"],
     )
@@ -197,9 +182,7 @@ class TestTheOptimizerSeam:
         growing a union of every optimizer's arguments.
         """
         codes_in, codes_out, _, _ = _affine_data(torch_bkd)
-        result = _fitter(
-            torch_bkd, optimizer=optimizer
-        ).fit_encoded(
+        result = _fitter(torch_bkd, optimizer=optimizer).fit_encoded(
             MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out
         )
         surrogate = result.surrogate()
@@ -207,14 +190,9 @@ class TestTheOptimizerSeam:
         # Usable, not optimal: every spec here should get most of the
         # way on data an affine map fits exactly, while none is required
         # to beat any other.
-        assert (
-            _max_residual(torch_bkd, surrogate, codes_in, codes_out)
-            < 1e-2
-        )
+        assert _max_residual(torch_bkd, surrogate, codes_in, codes_out) < 1e-2
 
-    def test_the_reported_loss_covers_every_sample(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_the_reported_loss_covers_every_sample(self, torch_bkd: Backend) -> None:
         """Not just the last mini-batch a stage happened to draw.
 
         A batched stage sees a different subset each step, so a loss read
@@ -227,22 +205,16 @@ class TestTheOptimizerSeam:
             torch_bkd,
             optimizer=torch_adam(nsteps=300),
             batch_size=16,
-        ).fit_encoded(
-            MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out
-        )
+        ).fit_encoded(MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out)
         predicted = result.surrogate()(codes_in)
-        full_sample_loss = float(
-            torch_bkd.sum((predicted - codes_out) ** 2)
-        )
+        full_sample_loss = float(torch_bkd.sum((predicted - codes_out) ** 2))
         torch_bkd.assert_allclose(
             torch_bkd.asarray([result.fun()]),
             torch_bkd.asarray([full_sample_loss]),
             rtol=1e-10,
         )
 
-    def test_the_result_reports_how_each_stage_ended(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_the_result_reports_how_each_stage_ended(self, torch_bkd: Backend) -> None:
         """One record per stage, which is what makes a fit diagnosable.
 
         Whether a remaining error is the model's limit or the iteration
@@ -292,12 +264,10 @@ class TestLeavesItsArgumentAlone:
         codes_in, codes_out, _, _ = _affine_data(torch_bkd)
         template = MLPLatentMap(3, 2, [], torch_bkd)
         before = next(template.parameters()).detach().clone()
-        surrogate = _fitter(torch_bkd).fit_encoded(
-            template, codes_in, codes_out
-        ).surrogate()
-        torch_bkd.assert_allclose(
-            next(template.parameters()), before, atol=0.0
+        surrogate = (
+            _fitter(torch_bkd).fit_encoded(template, codes_in, codes_out).surrogate()
         )
+        torch_bkd.assert_allclose(next(template.parameters()), before, atol=0.0)
         assert surrogate.latent_map() is not template
 
 
@@ -310,9 +280,7 @@ class TestRejects:
                 NumpyBkd(),
             )
 
-    def test_rejects_a_non_isometric_output_encoder(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_rejects_a_non_isometric_output_encoder(self, torch_bkd: Backend) -> None:
         """This fitter reads a coefficient residual as a field error."""
         codes_in, codes_out, _, _ = _affine_data(torch_bkd)
         fitter = TorchGradientLatentMapFitter(
@@ -321,9 +289,7 @@ class TestRejects:
             torch_bkd,
         )
         with pytest.raises(ValueError, match="isometry"):
-            fitter.fit_encoded(
-                MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out
-            )
+            fitter.fit_encoded(MLPLatentMap(3, 2, [], torch_bkd), codes_in, codes_out)
 
     def test_allow_proxy_accepts_one(self, torch_bkd: Backend) -> None:
         codes_in, codes_out, _, _ = _affine_data(torch_bkd)
@@ -339,9 +305,7 @@ class TestRejects:
         ).surrogate()
         assert surrogate(codes_in).shape == (2, 200)
 
-    def test_rejects_a_map_with_no_parameters(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_rejects_a_map_with_no_parameters(self, torch_bkd: Backend) -> None:
         """Nothing to optimize is a mistake, not a no-op fit."""
 
         class _Parameterless(torch.nn.Module):
@@ -356,13 +320,9 @@ class TestRejects:
 
         codes_in, codes_out, _, _ = _affine_data(torch_bkd)
         with pytest.raises(ValueError, match="no trainable"):
-            _fitter(torch_bkd).fit_encoded(
-                _Parameterless(), codes_in, codes_out
-            )
+            _fitter(torch_bkd).fit_encoded(_Parameterless(), codes_in, codes_out)
 
-    def test_rejects_mismatched_sample_counts(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_rejects_mismatched_sample_counts(self, torch_bkd: Backend) -> None:
         codes_in, codes_out, _, _ = _affine_data(torch_bkd)
         with pytest.raises(ValueError, match="realizations"):
             _fitter(torch_bkd).fit_encoded(
@@ -375,8 +335,6 @@ class TestRejects:
         with pytest.raises(ValueError, match="batch_size"):
             _fitter(torch_bkd, batch_size=0)
 
-    def test_rejects_a_non_spec_optimizer(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_rejects_a_non_spec_optimizer(self, torch_bkd: Backend) -> None:
         with pytest.raises(TypeError, match="TorchOptimizerSpecProtocol"):
             _fitter(torch_bkd, optimizer="adam")

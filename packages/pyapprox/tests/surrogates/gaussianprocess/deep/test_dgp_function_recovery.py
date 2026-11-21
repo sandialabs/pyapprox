@@ -22,7 +22,7 @@ from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
     TensorProductGHRule,
 )
 from pyapprox.surrogates.gaussianprocess.deep_gp_loss import (
-    TorchDGPELBOLoss,
+    DGPELBOLoss,
 )
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.fitters.deep_gp_fitter import (
@@ -50,7 +50,9 @@ def _matern_factory(nvars, bkd):
 def _make_fitter(bkd, maxiter=_MAXITER):
     optimizer = AdamOptimizer(lr=_LR, maxiter=maxiter, verbosity=0)
     return DGPMaximumLikelihoodFitter(
-        bkd, optimizer=optimizer, n_propagation=_TRAIN_NPROP,
+        bkd,
+        optimizer=optimizer,
+        n_propagation=_TRAIN_NPROP,
     )
 
 
@@ -66,9 +68,14 @@ class TestSingleFidelityRecovery:
         y_train = bkd.array(np.sin(bkd.to_numpy(X_train)))
 
         dgp = build_single_fidelity_dgp(
-            2, nvars=1, num_inducing=10,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.01, n_propagation=_TRAIN_NPROP, seed=0,
+            2,
+            nvars=1,
+            num_inducing=10,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.01,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
 
         result = _make_fitter(bkd).fit(dgp, {1: (X_train, y_train)})
@@ -102,12 +109,19 @@ class TestSingleFidelityRecovery:
         )
 
         dgp_1 = build_single_fidelity_dgp(
-            1, nvars=1, num_inducing=10,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.05, n_propagation=_TRAIN_NPROP, seed=0,
+            1,
+            nvars=1,
+            num_inducing=10,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.05,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
         fitter_1 = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=_TRAIN_NPROP,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=_TRAIN_NPROP,
         )
         result_1 = fitter_1.fit(dgp_1, {0: (X_train, y_train)})
         pred_1 = bkd.to_numpy(
@@ -116,17 +130,22 @@ class TestSingleFidelityRecovery:
         rmse_1 = np.sqrt(np.mean((pred_1 - y_test_np) ** 2))
 
         gh_order = 5
-        gh_nprop = gh_order ** 2
+        gh_nprop = gh_order**2
         dgp_2 = build_single_fidelity_dgp(
-            2, nvars=1, num_inducing=10,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.05, n_propagation=gh_nprop, seed=0,
+            2,
+            nvars=1,
+            num_inducing=10,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.05,
+            n_propagation=gh_nprop,
+            seed=0,
         )
-        dgp_2.set_propagator(
-            LayerPropagator(bkd, rule=TensorProductGHRule(gh_order))
-        )
+        dgp_2.set_propagator(LayerPropagator(bkd, rule=TensorProductGHRule(gh_order)))
         fitter_2 = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=gh_nprop,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=gh_nprop,
         )
         result_2 = fitter_2.fit(dgp_2, {1: (X_train, y_train)})
         pred_2 = bkd.to_numpy(
@@ -148,9 +167,14 @@ class TestSingleFidelityRecovery:
         y_train = bkd.array(np.sin(bkd.to_numpy(X_train)))
 
         dgp = build_single_fidelity_dgp(
-            2, nvars=1, num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.01, n_propagation=_TRAIN_NPROP, seed=0,
+            2,
+            nvars=1,
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.01,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
 
         result = _make_fitter(bkd).fit(dgp, {1: (X_train, y_train)})
@@ -163,9 +187,7 @@ class TestSingleFidelityRecovery:
 
         residuals = np.abs(y_pred - y_true)
         coverage = np.mean(residuals < 3.0 * y_std)
-        assert coverage > 0.7, (
-            f"3-sigma coverage {coverage:.2f} too low (expect > 0.7)"
-        )
+        assert coverage > 0.7, f"3-sigma coverage {coverage:.2f} too low (expect > 0.7)"
 
     @slow_test
     def test_nonzero_predictive_skewness(self, torch_bkd):
@@ -180,18 +202,21 @@ class TestSingleFidelityRecovery:
         y_train = bkd.array(y_train_np)
 
         dgp = build_single_fidelity_dgp(
-            2, nvars=1, num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.01, n_propagation=_TRAIN_NPROP, seed=0,
+            2,
+            nvars=1,
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.01,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
 
         result = _make_fitter(bkd).fit(dgp, {1: (X_train, y_train)})
         fitted = result.surrogate()
 
         X_test = bkd.array(np.array([[-0.1, 0.0, 0.1]]))
-        samples = bkd.to_numpy(
-            fitted.predictive_samples(X_test, n_samples=100)
-        )
+        samples = bkd.to_numpy(fitted.predictive_samples(X_test, n_samples=100))
         skewness_per_point = np.zeros(X_test.shape[1])
         for j in range(X_test.shape[1]):
             s = samples[:, 0, j]
@@ -235,21 +260,26 @@ class TestMultilevelRecovery:
             LBFGSBOptimizer(maxiter=500),
         )
         gh_order = 5
-        gh_nprop = gh_order ** 2
+        gh_nprop = gh_order**2
 
         dgp_mf = build_multilevel_dgp(
-            level_nvars=[1, 1], num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.05, n_propagation=gh_nprop, seed=0,
+            level_nvars=[1, 1],
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.05,
+            n_propagation=gh_nprop,
+            seed=0,
         )
-        dgp_mf.set_propagator(
-            LayerPropagator(bkd, rule=TensorProductGHRule(gh_order))
-        )
+        dgp_mf.set_propagator(LayerPropagator(bkd, rule=TensorProductGHRule(gh_order)))
         fitter_mf = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=gh_nprop,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=gh_nprop,
         )
         result_mf = fitter_mf.fit(
-            dgp_mf, {0: (X_lo, y_lo), 1: (X_hi, y_hi)},
+            dgp_mf,
+            {0: (X_lo, y_lo), 1: (X_hi, y_hi)},
         )
         fitted_mf = result_mf.surrogate()
         assert fitted_mf.is_fitted()
@@ -258,18 +288,23 @@ class TestMultilevelRecovery:
         y_true = 2.0 * np.sin(X_test_np) + 0.5
         X_test = bkd.array(X_test_np)
 
-        pred_mf = bkd.to_numpy(
-            fitted_mf.predict(X_test, n_propagation=gh_nprop)
-        )
+        pred_mf = bkd.to_numpy(fitted_mf.predict(X_test, n_propagation=gh_nprop))
         rmse_mf = np.sqrt(np.mean((pred_mf - y_true) ** 2))
 
         dgp_sf = build_single_fidelity_dgp(
-            1, nvars=1, num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.05, n_propagation=_TRAIN_NPROP, seed=0,
+            1,
+            nvars=1,
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.05,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
         fitter_sf = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=_TRAIN_NPROP,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=_TRAIN_NPROP,
         )
         result_sf = fitter_sf.fit(dgp_sf, {0: (X_hi, y_hi)})
         pred_sf = bkd.to_numpy(
@@ -295,15 +330,21 @@ class TestMultilevelRecovery:
         y_hi_np = np.sin(X_hi_np) + 0.05 * rng.randn(1, 20)
 
         dgp_mf = build_multilevel_dgp(
-            level_nvars=[1, 1], num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.1, n_propagation=_TRAIN_NPROP, seed=0,
+            level_nvars=[1, 1],
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.1,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
 
         result = _make_fitter(bkd).fit(
             dgp_mf,
-            {0: (bkd.array(X_lo_np), bkd.array(y_lo_np)),
-             1: (bkd.array(X_hi_np), bkd.array(y_hi_np))},
+            {
+                0: (bkd.array(X_lo_np), bkd.array(y_lo_np)),
+                1: (bkd.array(X_hi_np), bkd.array(y_hi_np)),
+            },
         )
         fitted = result.surrogate()
 
@@ -334,9 +375,13 @@ class TestMultilevelRecovery:
         y_2_np = np.sin(X_2_np) + 0.1 * X_2_np + 0.05 * rng.randn(1, 6)
 
         dgp = build_multilevel_dgp(
-            level_nvars=[1, 1, 1], num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.1, n_propagation=_TRAIN_NPROP, seed=0,
+            level_nvars=[1, 1, 1],
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.1,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
 
         data = {
@@ -355,9 +400,7 @@ class TestMultilevelRecovery:
         pred = bkd.to_numpy(fitted.predict(X_test, n_propagation=_PRED_NPROP))
         rmse = np.sqrt(np.mean((pred - y_true) ** 2))
 
-        assert rmse < 0.5, (
-            f"3-level DGP RMSE {rmse:.4f} should be < 0.5"
-        )
+        assert rmse < 0.5, f"3-level DGP RMSE {rmse:.4f} should be < 0.5"
 
 
 def _build_generative_two_layer_dgp(
@@ -389,14 +432,22 @@ def _build_generative_two_layer_dgp(
 
     def kernel_factory(nv, b):
         return Matern52Kernel(
-            lenscale=[2.0] * nv, lenscale_bounds=(0.1, 10.0),
-            nvars=nv, bkd=b, fixed=True,
+            lenscale=[2.0] * nv,
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nv,
+            bkd=b,
+            fixed=True,
         )
 
     dgp = build_single_fidelity_dgp(
-        n_layers=2, nvars=nvars, num_inducing=num_inducing,
-        kernel_factory=kernel_factory, bkd=bkd,
-        noise_std=noise_std, n_propagation=50, seed=seed,
+        n_layers=2,
+        nvars=nvars,
+        num_inducing=num_inducing,
+        kernel_factory=kernel_factory,
+        bkd=bkd,
+        noise_std=noise_std,
+        n_propagation=50,
+        seed=seed,
     )
 
     for node_id, layer in dgp.layers().items():
@@ -466,11 +517,17 @@ class TestDGPClosedFormRecovery:
         y_train = bkd.array(y_train_np)
 
         kernel_exact = Matern52Kernel(
-            lenscale=[1.0] * nvars, lenscale_bounds=(0.1, 10.0),
-            nvars=nvars, bkd=bkd, fixed=True,
+            lenscale=[1.0] * nvars,
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+            fixed=True,
         )
         noise_kernel = IIDGaussianNoise(
-            noise_std**2, (1e-6, 1.0), bkd, fixed=True,
+            noise_std**2,
+            (1e-6, 1.0),
+            bkd,
+            fixed=True,
         )
         gp_kernel = kernel_exact + noise_kernel
         exact_gp = ExactGaussianProcess(gp_kernel, nvars, bkd, nugget=1e-10)
@@ -478,14 +535,22 @@ class TestDGPClosedFormRecovery:
 
         def dgp_kernel_factory(nv, b):
             return Matern52Kernel(
-                lenscale=[1.0] * nv, lenscale_bounds=(0.1, 10.0),
-                nvars=nv, bkd=b, fixed=True,
+                lenscale=[1.0] * nv,
+                lenscale_bounds=(0.1, 10.0),
+                nvars=nv,
+                bkd=b,
+                fixed=True,
             )
 
         dgp = build_single_fidelity_dgp(
-            n_layers=1, nvars=nvars, num_inducing=M,
-            kernel_factory=dgp_kernel_factory, bkd=bkd,
-            noise_std=noise_std, n_propagation=1, seed=0,
+            n_layers=1,
+            nvars=nvars,
+            num_inducing=M,
+            kernel_factory=dgp_kernel_factory,
+            bkd=bkd,
+            noise_std=noise_std,
+            n_propagation=1,
+            seed=0,
             inducing_bounds=(-3.5, 3.5),
         )
         dgp.layers()[0].likelihood().hyp_list().set_all_inactive()
@@ -495,7 +560,9 @@ class TestDGPClosedFormRecovery:
             LBFGSBOptimizer(maxiter=500),
         )
         fitter = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=1,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=1,
         )
         result = fitter.fit(dgp, {0: (X_train, y_train)})
         fitted = result.surrogate()
@@ -515,8 +582,7 @@ class TestDGPClosedFormRecovery:
         std_mask = gp_std > 1e-3
         if np.any(std_mask):
             rel_err = np.mean(
-                np.abs(dgp_std[std_mask] - gp_std[std_mask])
-                / gp_std[std_mask]
+                np.abs(dgp_std[std_mask] - gp_std[std_mask]) / gp_std[std_mask]
             )
             assert rel_err < 0.30, (
                 f"DGP std relative error = {rel_err:.4f}, expect < 0.30"
@@ -546,70 +612,66 @@ class TestDGPClosedFormRecovery:
         X_extrap_np = np.array([[-3.5, -3.0, 3.0, 3.5]])
 
         X_all_np = np.concatenate(
-            [X_train_np, X_test_np, X_extrap_np], axis=1,
+            [X_train_np, X_test_np, X_extrap_np],
+            axis=1,
         )
         X_all = bkd.array(X_all_np)
         _check_generative_snr(gen_dgp, bkd.array(X_test_np), bkd)
 
-        all_samples = bkd.to_numpy(
-            gen_dgp.predictive_samples(X_all, n_samples=1)
-        )
+        all_samples = bkd.to_numpy(gen_dgp.predictive_samples(X_all, n_samples=1))
         f_truth_all = all_samples[0, 0, :]
         f_truth_train = f_truth_all[:n_train]
-        f_truth_test = f_truth_all[n_train:n_train + n_test]
+        f_truth_test = f_truth_all[n_train : n_train + n_test]
 
-        y_train_np = f_truth_train.reshape(1, -1) + (
-            noise_std * rng.randn(1, n_train)
-        )
+        y_train_np = f_truth_train.reshape(1, -1) + (noise_std * rng.randn(1, n_train))
         X_train = bkd.array(X_train_np)
         y_train = bkd.array(y_train_np)
 
         def kernel_factory(nv, b):
             return Matern52Kernel(
-                lenscale=[2.0] * nv, lenscale_bounds=(0.1, 10.0),
-                nvars=nv, bkd=b,
+                lenscale=[2.0] * nv,
+                lenscale_bounds=(0.1, 10.0),
+                nvars=nv,
+                bkd=b,
             )
 
         gh_order = 5
-        gh_nprop = gh_order ** 2
+        gh_nprop = gh_order**2
         fit_dgp = build_single_fidelity_dgp(
-            n_layers=2, nvars=1, num_inducing=10,
-            kernel_factory=kernel_factory, bkd=bkd,
-            noise_std=noise_std, n_propagation=gh_nprop, seed=7,
+            n_layers=2,
+            nvars=1,
+            num_inducing=10,
+            kernel_factory=kernel_factory,
+            bkd=bkd,
+            noise_std=noise_std,
+            n_propagation=gh_nprop,
+            seed=7,
         )
-        fit_dgp.set_propagator(
-            LayerPropagator(bkd, rule=TensorProductGHRule(gh_order))
-        )
+        fit_dgp.set_propagator(LayerPropagator(bkd, rule=TensorProductGHRule(gh_order)))
 
         optimizer = ChainedOptimizer(
             AdamOptimizer(lr=1e-2, maxiter=300, verbosity=0),
             LBFGSBOptimizer(maxiter=500),
         )
         fitter = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=gh_nprop,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=gh_nprop,
         )
         result = fitter.fit(fit_dgp, {1: (X_train, y_train)})
         fitted = result.surrogate()
 
         X_test = bkd.array(X_test_np)
-        fit_mean = bkd.to_numpy(
-            fitted.predict(X_test, n_propagation=gh_nprop)
-        )
-        fit_std = bkd.to_numpy(
-            fitted.predict_std(X_test, n_propagation=gh_nprop)
-        )
+        fit_mean = bkd.to_numpy(fitted.predict(X_test, n_propagation=gh_nprop))
+        fit_std = bkd.to_numpy(fitted.predict_std(X_test, n_propagation=gh_nprop))
 
-        mean_rmse = np.sqrt(
-            np.mean((fit_mean[0, :] - f_truth_test) ** 2)
-        )
+        mean_rmse = np.sqrt(np.mean((fit_mean[0, :] - f_truth_test) ** 2))
         assert mean_rmse < 0.05, (
             f"Fitted DGP mean RMSE vs truth realization = {mean_rmse:.4f}, "
             "expect < 0.05"
         )
 
-        std_at_train = bkd.to_numpy(
-            fitted.predict_std(X_train, n_propagation=gh_nprop)
-        )
+        std_at_train = bkd.to_numpy(fitted.predict_std(X_train, n_propagation=gh_nprop))
         avg_std_train = np.mean(std_at_train)
         assert abs(avg_std_train - noise_std) / noise_std < 0.5, (
             f"avg std at training = {avg_std_train:.4f}, "
@@ -626,13 +688,10 @@ class TestDGPClosedFormRecovery:
             f"2x training std ({avg_std_train:.4f})"
         )
 
-        within_ci = (
-            np.abs(fit_mean[0, :] - f_truth_test) < 1.96 * fit_std[0, :]
-        )
+        within_ci = np.abs(fit_mean[0, :] - f_truth_test) < 1.96 * fit_std[0, :]
         coverage = np.mean(within_ci)
         assert coverage > 0.95, (
-            f"95% CI coverage of truth realization = {coverage:.2f}, "
-            "expect > 0.95"
+            f"95% CI coverage of truth realization = {coverage:.2f}, expect > 0.95"
         )
 
 
@@ -653,7 +712,9 @@ class TestDGPCalibration:
 
         noise_std = 0.05
         gen_dgp = _build_generative_two_layer_dgp(
-            bkd, noise_std=noise_std, seed=11,
+            bkd,
+            noise_std=noise_std,
+            seed=11,
         )
 
         n_train = 40
@@ -665,62 +726,57 @@ class TestDGPCalibration:
         X_all = bkd.array(X_all_np)
         _check_generative_snr(gen_dgp, bkd.array(X_test_np), bkd)
 
-        all_samples = bkd.to_numpy(
-            gen_dgp.predictive_samples(X_all, n_samples=1)
-        )
+        all_samples = bkd.to_numpy(gen_dgp.predictive_samples(X_all, n_samples=1))
         f_truth_all = all_samples[0, 0, :]
         f_truth_train = f_truth_all[:n_train]
         f_truth_test = f_truth_all[n_train:]
 
-        y_train_np = f_truth_train.reshape(1, -1) + (
-            noise_std * rng.randn(1, n_train)
-        )
+        y_train_np = f_truth_train.reshape(1, -1) + (noise_std * rng.randn(1, n_train))
         X_train = bkd.array(X_train_np)
         y_train = bkd.array(y_train_np)
 
         def kernel_factory(nv, b):
             return Matern52Kernel(
-                lenscale=[2.0] * nv, lenscale_bounds=(0.1, 10.0),
-                nvars=nv, bkd=b,
+                lenscale=[2.0] * nv,
+                lenscale_bounds=(0.1, 10.0),
+                nvars=nv,
+                bkd=b,
             )
 
         gh_order = 5
-        gh_nprop = gh_order ** 2
+        gh_nprop = gh_order**2
         fit_dgp = build_single_fidelity_dgp(
-            n_layers=2, nvars=1, num_inducing=10,
-            kernel_factory=kernel_factory, bkd=bkd,
-            noise_std=noise_std, n_propagation=gh_nprop, seed=11,
+            n_layers=2,
+            nvars=1,
+            num_inducing=10,
+            kernel_factory=kernel_factory,
+            bkd=bkd,
+            noise_std=noise_std,
+            n_propagation=gh_nprop,
+            seed=11,
         )
-        fit_dgp.set_propagator(
-            LayerPropagator(bkd, rule=TensorProductGHRule(gh_order))
-        )
+        fit_dgp.set_propagator(LayerPropagator(bkd, rule=TensorProductGHRule(gh_order)))
 
         optimizer = ChainedOptimizer(
             AdamOptimizer(lr=1e-2, maxiter=300, verbosity=0),
             LBFGSBOptimizer(maxiter=500),
         )
         fitter = DGPMaximumLikelihoodFitter(
-            bkd, optimizer=optimizer, n_propagation=gh_nprop,
+            bkd,
+            optimizer=optimizer,
+            n_propagation=gh_nprop,
         )
         result = fitter.fit(fit_dgp, {1: (X_train, y_train)})
         fitted = result.surrogate()
 
         X_test = bkd.array(X_test_np)
-        fit_mean = bkd.to_numpy(
-            fitted.predict(X_test, n_propagation=gh_nprop)
-        )
-        fit_std = bkd.to_numpy(
-            fitted.predict_std(X_test, n_propagation=gh_nprop)
-        )
+        fit_mean = bkd.to_numpy(fitted.predict(X_test, n_propagation=gh_nprop))
+        fit_std = bkd.to_numpy(fitted.predict_std(X_test, n_propagation=gh_nprop))
 
-        within_ci = (
-            np.abs(fit_mean[0, :] - f_truth_test) < 1.96 * fit_std[0, :]
-        )
+        within_ci = np.abs(fit_mean[0, :] - f_truth_test) < 1.96 * fit_std[0, :]
         coverage = np.mean(within_ci)
 
-        assert coverage > 0.95, (
-            f"95% CI coverage = {coverage:.2f}, expect > 0.90"
-        )
+        assert coverage > 0.95, f"95% CI coverage = {coverage:.2f}, expect > 0.90"
 
 
 class TestELBOConvergence:
@@ -735,22 +791,23 @@ class TestELBOConvergence:
         y_train = bkd.array(np.sin(bkd.to_numpy(X_train)))
 
         dgp = build_single_fidelity_dgp(
-            2, nvars=1, num_inducing=8,
-            kernel_factory=_matern_factory, bkd=bkd,
-            noise_std=0.1, n_propagation=_TRAIN_NPROP, seed=0,
+            2,
+            nvars=1,
+            num_inducing=8,
+            kernel_factory=_matern_factory,
+            bkd=bkd,
+            noise_std=0.1,
+            n_propagation=_TRAIN_NPROP,
+            seed=0,
         )
 
         data = {1: (X_train, y_train)}
-        loss_before = TorchDGPELBOLoss(dgp, data, n_propagation=_TRAIN_NPROP)
+        loss_before = DGPELBOLoss(dgp, data, n_propagation=_TRAIN_NPROP)
         params_before = dgp.hyp_list().get_active_values()
-        neg_elbo_before = float(
-            bkd.to_numpy(loss_before(params_before))[0, 0]
-        )
+        neg_elbo_before = float(bkd.to_numpy(loss_before(params_before))[0, 0])
 
         result = _make_fitter(bkd).fit(dgp, data)
-        neg_elbo_after = float(
-            bkd.to_numpy(result.neg_log_marginal_likelihood())[0, 0]
-        )
+        neg_elbo_after = float(bkd.to_numpy(result.neg_log_marginal_likelihood())[0, 0])
 
         assert neg_elbo_after < neg_elbo_before, (
             f"Neg ELBO after ({neg_elbo_after:.2f}) should be less than "

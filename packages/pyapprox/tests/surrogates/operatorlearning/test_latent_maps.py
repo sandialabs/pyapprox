@@ -19,7 +19,7 @@ from pyapprox.surrogates.operatorlearning import (
     MultiIndexLatentMapProtocol,
     OperatorSurrogate,
 )
-from pyapprox.surrogates.operatorlearning.latent_maps import MLPLatentMap
+from pyapprox.surrogates.operatorlearning.latent_maps.mlp import MLPLatentMap
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
 
@@ -69,13 +69,9 @@ class TestProtocolLevel:
     """It satisfies the narrowest level, and that is load bearing."""
 
     def test_is_a_latent_map(self, torch_bkd: Backend) -> None:
-        assert isinstance(
-            MLPLatentMap(3, 2, [8], torch_bkd), LatentMapProtocol
-        )
+        assert isinstance(MLPLatentMap(3, 2, [8], torch_bkd), LatentMapProtocol)
 
-    def test_is_not_linear_in_its_parameters(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_is_not_linear_in_its_parameters(self, torch_bkd: Backend) -> None:
         """Which is why the closed-form fitter must refuse it.
 
         A network has no ``basis_matrix``, so there is no single linear
@@ -83,14 +79,10 @@ class TestProtocolLevel:
         fitter's guard is only as good as this being genuinely False.
         """
         latent_map = MLPLatentMap(3, 2, [8], torch_bkd)
-        assert not isinstance(
-            latent_map, LinearInParamsLatentMapProtocol
-        )
+        assert not isinstance(latent_map, LinearInParamsLatentMapProtocol)
         assert not isinstance(latent_map, MultiIndexLatentMapProtocol)
 
-    def test_declares_no_derivatives_bundle(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_declares_no_derivatives_bundle(self, torch_bkd: Backend) -> None:
         """Fitting differentiates parameters, not inputs.
 
         A ``Derivatives`` bundle describes derivatives with respect to
@@ -103,9 +95,7 @@ class TestProtocolLevel:
 
 class TestShapes:
     @pytest.mark.parametrize("hidden", [[], [4], [8, 8]])
-    def test_maps_codes_to_codes(
-        self, torch_bkd: Backend, hidden
-    ) -> None:
+    def test_maps_codes_to_codes(self, torch_bkd: Backend, hidden) -> None:
         """Empty hidden dims give a single affine map, the linear case."""
         latent_map = MLPLatentMap(3, 2, hidden, torch_bkd)
         codes = torch_bkd.asarray(np.random.uniform(-1.0, 1.0, (3, 11)))
@@ -142,9 +132,7 @@ class TestAutogradLiveness:
         codes = torch.zeros((3, 4), dtype=torch.float64, requires_grad=True)
         assert torch_bkd.tracks_gradient(latent_map(codes))
 
-    def test_every_parameter_receives_a_gradient(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_every_parameter_receives_a_gradient(self, torch_bkd: Backend) -> None:
         latent_map = MLPLatentMap(3, 2, [8, 8], torch_bkd)
         codes = torch.zeros((3, 4), dtype=torch.float64, requires_grad=True)
         latent_map(codes).sum().backward()
@@ -152,9 +140,7 @@ class TestAutogradLiveness:
         assert len(parameters) == 6
         assert all(p.grad is not None for p in parameters)
 
-    def test_affine_jacobian_is_the_weight_matrix(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_affine_jacobian_is_the_weight_matrix(self, torch_bkd: Backend) -> None:
         """A closed-form check, available only in the degenerate case.
 
         With no hidden layers the map is affine and its Jacobian *is* the
@@ -191,9 +177,7 @@ class TestAutogradLiveness:
         checking nothing at all. A smooth activation is what makes the
         comparison meaningful.
         """
-        latent_map = MLPLatentMap(
-            3, 2, [6, 6], torch_bkd, activation=activation
-        )
+        latent_map = MLPLatentMap(3, 2, [6, 6], torch_bkd, activation=activation)
         checker = JVPChecker(_AutogradJVPView(latent_map), "J")
         sample = torch_bkd.asarray(np.random.uniform(0.3, 0.7, (3, 1)))
         errors = checker.check(sample)
@@ -204,7 +188,6 @@ class TestAutogradLiveness:
         # a derivative wrong by a few percent would pass a loose bound
         # and is exactly what this should catch.
         assert ratio < 3e-6
-
 
 
 class TestBackendPolicy:
@@ -238,9 +221,7 @@ class TestInsideASurrogate:
         codes = torch_bkd.asarray(np.random.uniform(-1.0, 1.0, (3, 7)))
         assert surrogate(codes).shape == (2, 7)
 
-    def test_width_validation_still_applies(
-        self, torch_bkd: Backend
-    ) -> None:
+    def test_width_validation_still_applies(self, torch_bkd: Backend) -> None:
         with pytest.raises(ValueError, match="nqoi"):
             OperatorSurrogate(
                 IdentityFieldEncoder(3, torch_bkd),

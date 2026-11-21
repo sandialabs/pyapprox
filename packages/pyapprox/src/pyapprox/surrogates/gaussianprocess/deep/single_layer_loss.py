@@ -24,14 +24,11 @@ is deterministic, there is a single sample (S=1), and the weight is 1.
 import math
 from typing import Generic
 
-import torch
-
 from pyapprox.interface.functions.autograd import autograd_derivatives
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter import HyperParameterList
 
 
@@ -55,9 +52,7 @@ class SingleLayerELBOLoss(Generic[Array]):
         y: Array,
     ) -> None:
         if layer.likelihood() is None:
-            raise ValueError(
-                "SingleLayerELBOLoss requires a layer with a likelihood"
-            )
+            raise ValueError("SingleLayerELBOLoss requires a layer with a likelihood")
         self._layer = layer
         self._h = h
         self._y = y
@@ -118,57 +113,9 @@ class SingleLayerELBOLoss(Generic[Array]):
         mse_plus_var = residual * residual + var[0, :]
 
         const = math.log(2.0 * math.pi) + bkd.log(sigma2)
-        neg_elbo = neg_elbo + 0.5 * (
-            N * const + bkd.sum(mse_plus_var) / sigma2
-        )
+        neg_elbo = neg_elbo + 0.5 * (N * const + bkd.sum(mse_plus_var) / sigma2)
 
         return bkd.reshape(neg_elbo, (1, 1))
 
     def __repr__(self) -> str:
         return f"SingleLayerELBOLoss(nvars={self.nvars()})"
-
-
-class TorchSingleLayerELBOLoss(SingleLayerELBOLoss[torch.Tensor]):
-    """Single-layer ELBO loss with autograd jacobian for torch optimizers."""
-
-    def __init__(
-        self,
-        layer: DGPLayer[torch.Tensor],
-        h: torch.Tensor,
-        y: torch.Tensor,
-    ) -> None:
-        torch_bkd = layer.bkd()
-        if not isinstance(torch_bkd, TorchBkd):
-            raise TypeError(
-                "TorchSingleLayerELBOLoss requires a TorchBkd backend, "
-                f"got {type(torch_bkd).__name__}"
-            )
-        super().__init__(layer, h, y)
-        self._torch_bkd = torch_bkd
-
-    def derivatives(self) -> Derivatives[torch.Tensor]:
-        """Autograd jacobian (unconditional on this torch subclass)."""
-        return Derivatives.first_order(jacobian=self.jacobian)
-
-    def jacobian(self, params: torch.Tensor) -> torch.Tensor:
-        """Gradient of negative ELBO via torch autograd.
-
-        Parameters
-        ----------
-        params : torch.Tensor
-            Active hyperparameters, shape (nactive,) or (nactive, 1).
-
-        Returns
-        -------
-        torch.Tensor
-            Jacobian, shape (1, nactive).
-        """
-        bkd = self._torch_bkd
-        if len(params.shape) == 2 and params.shape[1] == 1:
-            params = params[:, 0]
-
-        def loss_scalar(p: torch.Tensor) -> torch.Tensor:
-            return self(p)[0, 0]
-
-        jac = bkd.jacobian(loss_scalar, params)
-        return bkd.reshape(jac, (1, len(params)))

@@ -5,10 +5,12 @@ The torch-dependent pieces are deliberately **not** re-exported here:
 that configure it. ``MLPLatentMap`` is an ``nn.Module``, so importing any
 of them eagerly pulls torch in and raises this package's import cost from
 2.4s to 4.9s -- paid by every numpy-only caller who touches it. Import
-them from ``pyapprox.surrogates.operatorlearning.latent_maps``, as the
-flow-matching velocity fields are imported from their own module for the
-same reason. The omission is deliberate; adding them here would be a
-regression rather than a fix.
+them from their modules under
+``pyapprox.surrogates.operatorlearning.latent_maps`` (``mlp``,
+``gradient_fitter``, ``torch_optimizers``), as the flow-matching velocity
+fields are imported from their own module for the same reason. The
+omission is deliberate; adding them here would be a regression rather
+than a fix.
 
 ``IterativeOperatorFitResult`` and ``OptimizerStageResult`` *are* exported,
 despite describing a gradient fit, because neither imports torch -- they

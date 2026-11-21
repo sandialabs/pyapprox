@@ -20,7 +20,6 @@ from pyapprox.surrogates.gaussianprocess.deep.propagator import (
 )
 from pyapprox.surrogates.gaussianprocess.deep.single_layer_loss import (
     SingleLayerELBOLoss,
-    TorchSingleLayerELBOLoss,
 )
 from pyapprox.surrogates.gaussianprocess.deep_gp_loss import (
     DGPELBOLoss,
@@ -44,8 +43,15 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import ZeroMean
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 
-def _make_layer(bkd, nvars=1, num_inducing=5, noise_std=0.1,
-                with_likelihood=True, fixed=False, seed=42):
+def _make_layer(
+    bkd,
+    nvars=1,
+    num_inducing=5,
+    noise_std=0.1,
+    with_likelihood=True,
+    fixed=False,
+    seed=42,
+):
     rng = np.random.RandomState(seed)
     kernel = Matern52Kernel(
         lenscale=[1.0] * nvars,
@@ -85,11 +91,17 @@ def _make_two_layer_dgp(bkd, num_inducing=8, seed=10):
     dag.add_edge(0, 1)
     locs0 = bkd.array(rng.rand(1, num_inducing))
     ip0 = InducingPoints(
-        nvars=1, num_inducing=num_inducing, bkd=bkd,
-        inducing_locations=locs0, inducing_bounds=(0.0, 1.0),
+        nvars=1,
+        num_inducing=num_inducing,
+        bkd=bkd,
+        inducing_locations=locs0,
+        inducing_bounds=(0.0, 1.0),
     )
     kernel0 = Matern52Kernel(
-        lenscale=[0.3], lenscale_bounds=(0.01, 5.0), nvars=1, bkd=bkd,
+        lenscale=[0.3],
+        lenscale_bounds=(0.01, 5.0),
+        nvars=1,
+        bkd=bkd,
     )
     vd0 = GaussianVariationalDistribution(num_inducing, bkd)
     lik0 = GaussianLikelihood(0.1, (1e-6, 1.0), bkd)
@@ -97,11 +109,17 @@ def _make_two_layer_dgp(bkd, num_inducing=8, seed=10):
 
     locs1 = bkd.array(rng.rand(2, num_inducing))
     ip1 = InducingPoints(
-        nvars=2, num_inducing=num_inducing, bkd=bkd,
-        inducing_locations=locs1, inducing_bounds=(0.0, 1.0),
+        nvars=2,
+        num_inducing=num_inducing,
+        bkd=bkd,
+        inducing_locations=locs1,
+        inducing_bounds=(0.0, 1.0),
     )
     kernel1 = Matern52Kernel(
-        lenscale=[0.3, 0.3], lenscale_bounds=(0.01, 5.0), nvars=2, bkd=bkd,
+        lenscale=[0.3, 0.3],
+        lenscale_bounds=(0.01, 5.0),
+        nvars=2,
+        bkd=bkd,
     )
     vd1 = GaussianVariationalDistribution(num_inducing, bkd)
     lik1 = GaussianLikelihood(0.1, (1e-6, 1.0), bkd)
@@ -161,8 +179,9 @@ class TestSingleLayerELBOLossBasic:
         assert np.isfinite(float(bkd.to_numpy(result).ravel()[0]))
 
     def test_no_likelihood_raises(self, bkd):
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            with_likelihood=False, seed=10)
+        layer = _make_layer(
+            bkd, nvars=1, num_inducing=3, with_likelihood=False, seed=10
+        )
         X = bkd.array(np.random.RandomState(0).randn(1, 5))
         y = bkd.array(np.random.RandomState(1).randn(1, 5))
         with pytest.raises(ValueError, match="likelihood"):
@@ -177,54 +196,65 @@ class TestSingleLayerELBOLossBasic:
         assert loss.nqoi() == 1
 
 
-class TestTorchSingleLayerELBOLoss:
-    def test_numpy_backend_raises(self, numpy_bkd):
+class TestSingleLayerELBOLossAutograd:
+    """The generic loss carries an autograd Jacobian on autodiff backends."""
+
+    def test_numpy_backend_has_no_jacobian(self, numpy_bkd):
         layer = _make_layer(numpy_bkd, nvars=1, num_inducing=3, seed=10)
         X = numpy_bkd.array(np.random.RandomState(0).randn(1, 5))
         y = numpy_bkd.array(np.random.RandomState(1).randn(1, 5))
-        with pytest.raises(TypeError, match="TorchBkd"):
-            TorchSingleLayerELBOLoss(layer, X, y)
+        loss = SingleLayerELBOLoss(layer, X, y)
+        assert loss.derivatives().jacobian is None
 
     def test_jacobian_shape(self, torch_bkd):
         bkd = torch_bkd
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            fixed=False, seed=10)
+        layer = _make_layer(bkd, nvars=1, num_inducing=3, fixed=False, seed=10)
         rng = np.random.RandomState(0)
         X = bkd.array(rng.randn(1, 5))
         y = bkd.array(np.sin(rng.randn(1, 5)))
-        loss = TorchSingleLayerELBOLoss(layer, X, y)
+        loss = SingleLayerELBOLoss(layer, X, y)
+        jacobian = loss.derivatives().jacobian
+        assert jacobian is not None
         params = layer.hyp_list().get_active_values()
-        jac = loss.jacobian(params)
+        jac = jacobian(bkd.reshape(params, (loss.nvars(), 1)))
         assert jac.shape == (1, loss.nvars())
 
     def test_autograd_jacobian_matches_fd(self, torch_bkd):
         bkd = torch_bkd
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            fixed=False, seed=10)
+        layer = _make_layer(bkd, nvars=1, num_inducing=3, fixed=False, seed=10)
         rng = np.random.RandomState(0)
         X = bkd.array(rng.randn(1, 5))
         y = bkd.array(np.sin(rng.randn(1, 5)))
-        loss = TorchSingleLayerELBOLoss(layer, X, y)
+        loss = SingleLayerELBOLoss(layer, X, y)
         n_active = loss.nvars()
+        jacobian = loss.derivatives().jacobian
+        assert jacobian is not None
 
         def value_fn(sample):
             return loss(sample[:, 0])
 
         def jac_fn(sample):
-            return loss.jacobian(sample[:, 0])
+            return jacobian(sample)
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=n_active, fun=value_fn,
-            jacobian=jac_fn, bkd=bkd,
+            nqoi=1,
+            nvars=n_active,
+            fun=value_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
 
         checker = DerivativeChecker(wrapper)
         x0 = bkd.reshape(
-            layer.hyp_list().get_active_values(), (n_active, 1),
+            layer.hyp_list().get_active_values(),
+            (n_active, 1),
         )
         fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
         errors = checker.check_derivatives(
-            x0, fd_eps=fd_eps, relative=True, verbosity=0,
+            x0,
+            fd_eps=fd_eps,
+            relative=True,
+            verbosity=0,
         )
         jac_error = errors[0]
         assert bkd.all_bool(bkd.isfinite(jac_error))
@@ -243,9 +273,9 @@ class TestMFDGPSequentialFitterBasic:
         data = _make_two_level_data(bkd)
 
         initial_joint_loss = DGPELBOLoss(dgp, data, n_propagation=1)
-        initial_joint_val = float(bkd.to_numpy(
-            initial_joint_loss(dgp.hyp_list().get_active_values())
-        )[0, 0])
+        initial_joint_val = float(
+            bkd.to_numpy(initial_joint_loss(dgp.hyp_list().get_active_values()))[0, 0]
+        )
 
         X_test_np = np.linspace(0.0, 1.0, 50).reshape(1, -1)
         X_test = bkd.array(X_test_np)
@@ -255,28 +285,25 @@ class TestMFDGPSequentialFitterBasic:
         fitter = MFDGPSequentialFitter(bkd, optimizer=optimizer)
         result = fitter.fit(dgp, data)
 
-        seq_nll = float(bkd.to_numpy(
-            result.neg_log_marginal_likelihood()
-        ).ravel()[0])
+        seq_nll = float(bkd.to_numpy(result.neg_log_marginal_likelihood()).ravel()[0])
         assert np.isfinite(seq_nll)
 
         fitted_dgp = result.surrogate()
         fitted_joint_loss = DGPELBOLoss(fitted_dgp, data, n_propagation=1)
-        fitted_joint_val = float(bkd.to_numpy(
-            fitted_joint_loss(fitted_dgp.hyp_list().get_active_values())
-        )[0, 0])
+        fitted_joint_val = float(
+            bkd.to_numpy(fitted_joint_loss(fitted_dgp.hyp_list().get_active_values()))[
+                0, 0
+            ]
+        )
         assert fitted_joint_val < initial_joint_val, (
-            f"Joint ELBO did not improve: {fitted_joint_val} >= "
-            f"{initial_joint_val}"
+            f"Joint ELBO did not improve: {fitted_joint_val} >= {initial_joint_val}"
         )
 
         fitted_pred = fitted_dgp.predict(X_test, target=1, n_propagation=20)
-        fitted_rmse = float(np.sqrt(np.mean(
-            (bkd.to_numpy(fitted_pred) - y_test_np) ** 2
-        )))
-        assert fitted_rmse < 0.5, (
-            f"Fitted RMSE too high: {fitted_rmse:.4f}"
+        fitted_rmse = float(
+            np.sqrt(np.mean((bkd.to_numpy(fitted_pred) - y_test_np) ** 2))
         )
+        assert fitted_rmse < 0.5, f"Fitted RMSE too high: {fitted_rmse:.4f}"
 
     def test_parent_posteriors_propagated(self, torch_bkd):
         """After sequential fit, layer 0 should track low-fidelity data
@@ -297,7 +324,7 @@ class TestMFDGPSequentialFitterBasic:
         X_lo, y_lo = data[0]
         mean0, _ = layer0.predict_marginal(X_lo)
         residual = bkd.to_numpy(mean0) - bkd.to_numpy(y_lo)
-        rmse = float(np.sqrt(np.mean(residual ** 2)))
+        rmse = float(np.sqrt(np.mean(residual**2)))
         assert rmse < 0.15, f"Layer 0 training RMSE too high: {rmse:.4f}"
 
     def test_clone_independence(self, torch_bkd):
@@ -335,7 +362,8 @@ class TestMFDGPSequentialFitterBasic:
             result.surrogate().layers()[0].hyp_list().get_values()
         )
         np.testing.assert_array_equal(
-            layer0_vals_before, fitted_layer0_vals,
+            layer0_vals_before,
+            fitted_layer0_vals,
             err_msg="Layer 0 params changed despite no data",
         )
 
@@ -344,8 +372,7 @@ class TestMFDGPSequentialFitterBasic:
         bkd = torch_bkd
         dag = nx.DiGraph()
         dag.add_node(0)
-        layer = _make_layer(bkd, nvars=1, num_inducing=3,
-                            fixed=True, seed=10)
+        layer = _make_layer(bkd, nvars=1, num_inducing=3, fixed=True, seed=10)
         layer.inducing_points().hyp_list().set_all_inactive()
         layer.variational_dist().hyp_list().set_all_inactive()
         if layer.likelihood() is not None:
