@@ -167,9 +167,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         """The form's advection term. Shape: (npts,)"""
         if self._velocity is None:
             return self._bkd.zeros((self.npts(),))
-        return self._advection_form.strong_term(
-            self._velocity, state, self._derivative
-        )
+        return self._advection_form.strong_term(self._velocity, state, self._derivative)
 
     def _advection_jacobian(self) -> Array:
         """The advection term's state Jacobian: the form applied to the
@@ -311,9 +309,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
     def interior_is_time_invariant(self) -> bool:
         """Whether, besides the Jacobian, the forcing is declared
         time-invariant."""
-        return declared_time_invariant(
-            self._diffusion, self._reaction, self._forcing
-        )
+        return declared_time_invariant(self._diffusion, self._reaction, self._forcing)
 
     # -- full-matrix field-derivative assemblies (engine slots)
 
@@ -341,14 +337,12 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         bkd = self._bkd
         result = bkd.diag(self._D2_matrix @ state)
         for dim in range(self._basis.ndim()):
-            result = result + bkd.diag(
-                self._D_matrices[dim] @ state
-            ) @ self._D_matrices[dim]
+            result = (
+                result + bkd.diag(self._D_matrices[dim] @ state) @ self._D_matrices[dim]
+            )
         return result
 
-    def residual_diffusion_state_jacobian(
-        self, delta: Array, state: Array
-    ) -> Array:
+    def residual_diffusion_state_jacobian(self, delta: Array, state: Array) -> Array:
         """Assemble the mixed operator
         :math:`A(\\delta) = \\partial/\\partial u \\,[S(u) \\delta]`.
 
@@ -378,9 +372,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         bkd = self._bkd
         result = bkd.diag(delta) @ self._D2_matrix
         for dim in range(self._basis.ndim()):
-            result = result + bkd.diag(
-                self._D_matrices[dim] @ delta
-            ) @ self._D_matrices[dim]
+            result = (
+                result + bkd.diag(self._D_matrices[dim] @ delta) @ self._D_matrices[dim]
+            )
         return result
 
     def residual_reaction_jacobian(self, state: Array) -> Array:
@@ -399,9 +393,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         """
         return self._bkd.diag(state)
 
-    def residual_reaction_state_jacobian(
-        self, delta: Array, state: Array
-    ) -> Array:
+    def residual_reaction_state_jacobian(self, delta: Array, state: Array) -> Array:
         """Assemble :math:`\\partial/\\partial u\\,[\\mathrm{diag}(u)
         \\delta] = \\mathrm{diag}(\\delta)`.
 
@@ -468,9 +460,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         grad_u_dot_n = bkd.zeros((nbnd,))
         for dim in range(self._basis.ndim()):
             grad_u_dim = self._D_matrices[dim] @ state
-            grad_u_dot_n = (
-                grad_u_dot_n + grad_u_dim[bc_indices] * normals[:, dim]
-            )
+            grad_u_dot_n = grad_u_dot_n + grad_u_dim[bc_indices] * normals[:, dim]
         result = bkd.copy(bkd.zeros((nbnd, self.npts())))
         for i in range(nbnd):
             result[i, bkd.to_int(bc_indices[i])] = -grad_u_dot_n[i]
@@ -611,57 +601,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         List[Array]
             Jacobian of each flux component. Each shape: (npts, npts)
         """
-        return AdvectionDiffusionFlux(
-            self, self._advection_form
-        ).compute_flux_jacobian(state, time)
-
-    def compute_interface_flux(
-        self, state: Array, boundary_indices: Array, normal: Array
-    ) -> Array:
-        """Compute diffusive flux at boundary for DtN domain decomposition.
-
-        Computes D * grad(u) · n at the specified boundary points.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (npts,)
-        boundary_indices : Array
-            Mesh indices at interface. Shape: (nboundary,)
-        normal : Array
-            Outward unit normal. Shape: (ndim,)
-
-        Returns
-        -------
-        Array
-            Flux at boundary points. Shape: (nboundary,)
-
-        Raises
-        ------
-        ValueError
-            If the diffusivity is declared time-dependent: this flux takes
-            no time at which to evaluate it.
-        """
-        if self._diffusion is None:
-            return self._bkd.zeros((boundary_indices.shape[0],))
-        if self._diffusion.is_time_dependent():
-            raise ValueError(
-                "compute_interface_flux takes no time, so it supports only a "
-                "diffusivity declared time-independent"
-            )
-        ndim = self._basis.ndim()
-        nboundary = boundary_indices.shape[0]
-
-        # Compute grad(u) · n at boundary points
-        flux = self._bkd.zeros((nboundary,))
-        for dim in range(ndim):
-            D_dim = self._D_matrices[dim]
-            grad_u_dim = D_dim @ state
-            flux = flux + grad_u_dim[boundary_indices] * self._bkd.to_float(normal[dim])
-
-        # Scale by the diffusion coefficient at the boundary points; it is
-        # time-independent, so any time reads it
-        return self._get_diffusion(0.0)[boundary_indices] * flux
+        return AdvectionDiffusionFlux(self, self._advection_form).compute_flux_jacobian(
+            state, time
+        )
 
 
 class AdvectionDiffusionFlux(Generic[Array]):

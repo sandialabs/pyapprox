@@ -300,9 +300,8 @@ class TestLinearElasticityInterior:
         bkd.assert_allclose(applied, difference, rtol=0.0, atol=1e-12 * scale)
 
     def test_time_dependent_modulus(self, bkd: Backend[Array]) -> None:
-        """A time-dependent shear modulus makes the Jacobian time-dependent,
-        is read at the evaluation time, and is refused by the interface
-        traction, which takes no time."""
+        """A time-dependent shear modulus makes the Jacobian time-dependent
+        and is read at the evaluation time."""
         time = 0.7
         moving = LinearElasticityPhysics(
             _basis(bkd), bkd, lamda=1.5, mu=_growing(bkd, _growing_modulus)
@@ -318,7 +317,3 @@ class TestLinearElasticityInterior:
         bkd.assert_allclose(
             moving.jacobian(state, time), frozen.jacobian(state, 0.0), rtol=1e-12
         )
-        with pytest.raises(ValueError, match="takes no time"):
-            moving.compute_interface_flux(
-                state, bkd.array([0], dtype=int), bkd.array([1.0, 0.0])
-            )

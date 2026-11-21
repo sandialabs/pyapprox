@@ -341,8 +341,7 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         super().__init__(basis, bkd, ncomponents=2)
         if not isinstance(reaction, ReactionProtocol):
             raise TypeError(
-                "reaction must satisfy ReactionProtocol, got "
-                f"{type(reaction).__name__}"
+                f"reaction must satisfy ReactionProtocol, got {type(reaction).__name__}"
             )
 
         npts = basis.npts()
@@ -400,7 +399,9 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         return state[:npts], state[npts:]
 
     def _diffusion_term(
-        self, coefficient: Optional[NodalCoefficientProtocol[Array]], u: Array,
+        self,
+        coefficient: Optional[NodalCoefficientProtocol[Array]],
+        u: Array,
         time: float,
     ) -> Array:
         """div(D grad u) = D lap(u) + grad(D) . grad(u); zero without D."""
@@ -506,55 +507,6 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         """Whether, besides the diffusivities, both forcings are declared
         time-invariant."""
         return declared_time_invariant(*self._diffusions, *self._forcings)
-
-    def compute_interface_flux(
-        self, state: Array, boundary_indices: Array, normal: Array
-    ) -> Array:
-        """Compute diffusive flux at boundary for DtN domain decomposition.
-
-        Computes D_i * grad(u_i) · n for each species at the specified
-        boundary points.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state [u0, u1]. Shape: (2*npts,)
-        boundary_indices : Array
-            Mesh indices at interface. Shape: (nboundary,)
-        normal : Array
-            Outward unit normal. Shape: (ndim,)
-
-        Returns
-        -------
-        Array
-            Flux [flux0, flux1] at boundary points.
-            Shape: (2*nboundary,) with component-stacked ordering.
-
-        Raises
-        ------
-        ValueError
-            If a diffusivity is declared time-dependent: this flux takes no
-            time at which to evaluate it.
-        """
-        bkd = self._bkd
-        nboundary = boundary_indices.shape[0]
-        fluxes: List[Array] = []
-        for coefficient, u in zip(self._diffusions, self._split_state(state)):
-            if coefficient is None:
-                fluxes.append(bkd.zeros((nboundary,)))
-                continue
-            if coefficient.is_time_dependent():
-                raise ValueError(
-                    "compute_interface_flux takes no time, so it supports "
-                    "only diffusivities declared time-independent"
-                )
-            flux = bkd.zeros((nboundary,))
-            for dim, D1 in enumerate(self._D1_matrices):
-                flux = flux + (D1 @ u)[boundary_indices] * bkd.to_float(normal[dim])
-            # time-independent, so any time reads it
-            fluxes.append(coefficient.values(0.0)[boundary_indices] * flux)
-        # Component-stacked ordering: [flux0_0, ..., flux0_n, flux1_0, ...]
-        return bkd.concatenate(fluxes)
 
 
 class SpeciesDiffusiveFlux(Generic[Array]):

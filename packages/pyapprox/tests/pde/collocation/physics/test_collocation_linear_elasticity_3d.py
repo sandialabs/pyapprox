@@ -22,6 +22,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis3D
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    TractionNormalOperator,
+)
 from pyapprox.pde.collocation.mesh import (
     AffineTransform3D,
     TransformedMesh1D,
@@ -144,56 +147,32 @@ class TestPatchUniformStrain:
         self, bkd: Backend[Array], mesh: TransformedMesh3D[Array]
     ) -> Array:
         pts = mesh.points()
-        return bkd.concatenate(
-            [self._A * pts[0], -self._B * pts[1], -self._B * pts[2]]
-        )
+        return bkd.concatenate([self._A * pts[0], -self._B * pts[1], -self._B * pts[2]])
 
     def test_residual_zero(self, bkd: Backend[Array]) -> None:
         mesh, basis = _make_basis(bkd, npts_1d=6)
-        physics = LinearElasticityPhysics(
-            basis, bkd, self._LAM, self._MU
-        )
+        physics = LinearElasticityPhysics(basis, bkd, self._LAM, self._MU)
         state = self._patch_state(bkd, mesh)
         res = physics.residual(state, 0.0)
-        bkd.assert_allclose(
-            res, bkd.zeros((physics.nstates(),)), atol=1e-9
-        )
+        bkd.assert_allclose(res, bkd.zeros((physics.nstates(),)), atol=1e-9)
 
-    def test_interface_flux_faces(self, bkd: Backend[Array]) -> None:
+    def test_traction_on_faces(self, bkd: Backend[Array]) -> None:
+        """Each component's TractionNormalOperator on a face gives sigma . n:
+        (sigma_xx, 0, 0) on the face x = 1, (0, sigma_yy, 0) on y = 1."""
         mesh, basis = _make_basis(bkd, npts_1d=6)
-        physics = LinearElasticityPhysics(
-            basis, bkd, self._LAM, self._MU
-        )
+        physics = LinearElasticityPhysics(basis, bkd, self._LAM, self._MU)
         state = self._patch_state(bkd, mesh)
         trace = self._A - 2.0 * self._B
         sigma_xx = self._LAM * trace + 2.0 * self._MU * self._A
         sigma_yy = self._LAM * trace - 2.0 * self._MU * self._B
-
-        # Face with outward normal (1, 0, 0): t = (sigma_xx, 0, 0)
-        idx_x = mesh.boundary_indices(1)
-        normal_x = mesh.boundary_normals(1)[0]
-        flux = physics.compute_interface_flux(state, idx_x, normal_x)
-        nb = idx_x.shape[0]
-        assert flux.shape == (3 * nb,)
-        bkd.assert_allclose(
-            flux[:nb], bkd.full((nb,), sigma_xx), atol=1e-8
-        )
-        bkd.assert_allclose(
-            flux[nb:], bkd.zeros((2 * nb,)), atol=1e-8
-        )
-
-        # Face with outward normal (0, 1, 0): t = (0, sigma_yy, 0)
-        idx_y = mesh.boundary_indices(3)
-        normal_y = mesh.boundary_normals(3)[0]
-        flux = physics.compute_interface_flux(state, idx_y, normal_y)
-        nb = idx_y.shape[0]
-        bkd.assert_allclose(
-            flux[nb : 2 * nb], bkd.full((nb,), sigma_yy), atol=1e-8
-        )
-        bkd.assert_allclose(flux[:nb], bkd.zeros((nb,)), atol=1e-8)
-        bkd.assert_allclose(
-            flux[2 * nb :], bkd.zeros((nb,)), atol=1e-8
-        )
+        for boundary, nonzero, sigma in ((1, 0, sigma_xx), (3, 1, sigma_yy)):
+            indices = mesh.boundary_indices(boundary)
+            normals = mesh.boundary_normals(boundary)
+            nb = indices.shape[0]
+            for c in range(3):
+                traction = TractionNormalOperator(bkd, indices, normals, physics, c)
+                expected = bkd.full((nb,), sigma if c == nonzero else 0.0)
+                bkd.assert_allclose(traction(state, 0.0), expected, atol=1e-8)
 
 
 class TestJacobian:
@@ -218,9 +197,7 @@ class TestJacobian:
         return physics, state, npts
 
     @pytest.mark.parametrize("field_lame", [False, True])
-    def test_linearity_identity(
-        self, bkd: Backend[Array], field_lame: bool
-    ) -> None:
+    def test_linearity_identity(self, bkd: Backend[Array], field_lame: bool) -> None:
         """J @ state == residual(state) - residual(0) exactly: the
         residual is affine in the displacement."""
         physics, state, npts = self._setup(bkd, field_lame=field_lame)
@@ -231,32 +208,28 @@ class TestJacobian:
 
     def test_jacobian_derivative_checker(self, bkd: Backend[Array]) -> None:
         physics, state, _ = self._setup(bkd)
-        checker = DerivativeChecker(
-            PhysicsDerivativeWrapper(physics, time=0.0)
-        )
+        checker = DerivativeChecker(PhysicsDerivativeWrapper(physics, time=0.0))
         errors = checker.check_derivatives(state[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
     def test_jacobian_affine_transform(self, bkd: Backend[Array]) -> None:
         """Curvilinear-ordering guard: on a non-unit box the mixed
         blocks D_i @ diag @ D_j depend on operator order."""
-        transform = AffineTransform3D(
-            (0.0, 2.0, -1.0, 0.5, 0.0, 1.0), bkd
-        )
+        transform = AffineTransform3D((0.0, 2.0, -1.0, 0.5, 0.0, 1.0), bkd)
         physics, state, npts = self._setup(bkd, transform=transform)
         jac = physics.jacobian(state, 0.0)
         res = physics.residual(state, 0.0)
         res0 = physics.residual(bkd.zeros((3 * npts,)), 0.0)
         _assert_identity(bkd, jac @ state, res - res0)
-        checker = DerivativeChecker(
-            PhysicsDerivativeWrapper(physics, time=0.0)
-        )
+        checker = DerivativeChecker(PhysicsDerivativeWrapper(physics, time=0.0))
         errors = checker.check_derivatives(state[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
 
 class TestAssemblies:
-    def _setup(self, bkd: Backend[Array]) -> Tuple[
+    def _setup(
+        self, bkd: Backend[Array]
+    ) -> Tuple[
         ChebyshevBasis3D[Array],
         LinearElasticityPhysics[Array],
         Array,
@@ -326,9 +299,7 @@ class TestAssemblies:
         checker = DerivativeChecker(
             _VectorFunctionWrapper(bkd, npts, 3 * npts, fun, jac)
         )
-        errors = checker.check_derivatives(
-            lam_field[:, None], verbosity=0
-        )
+        errors = checker.check_derivatives(lam_field[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
 
     def test_mixed_assemblies_derivative_checker(self, bkd: Backend[Array]) -> None:
@@ -355,9 +326,7 @@ class TestAssemblies:
             return physics.residual_lamda_state_jacobian(delta, uvec)
 
         checker = DerivativeChecker(
-            _VectorFunctionWrapper(
-                bkd, 3 * npts, 3 * npts, fun_lam, jac_lam
-            )
+            _VectorFunctionWrapper(bkd, 3 * npts, 3 * npts, fun_lam, jac_lam)
         )
         errors = checker.check_derivatives(state[:, None], verbosity=0)
         assert checker.error_ratio(errors[0]) <= 1e-6
@@ -374,14 +343,10 @@ class TestAssemblies:
 
         comps = [state[i * npts : (i + 1) * npts] for i in range(3)]
         dmats = [basis.derivative_matrix(1, d) for d in range(3)]
-        grads = [
-            [dmats[j] @ comps[i] for j in range(3)] for i in range(3)
-        ]
+        grads = [[dmats[j] @ comps[i] for j in range(3)] for i in range(3)]
         eps = [
             [
-                grads[i][j]
-                if i == j
-                else 0.5 * (grads[i][j] + grads[j][i])
+                grads[i][j] if i == j else 0.5 * (grads[i][j] + grads[j][i])
                 for j in range(3)
             ]
             for i in range(3)
@@ -396,11 +361,9 @@ class TestAssemblies:
             bmat = physics.boundary_traction_lame_jacobian(
                 state, 0.0, mesh_idx + comp * npts, normals
             )
-            dt_dmu = sum(
-                2.0 * eps[comp][j][mesh_idx] * normals[:, j]
-                for j in range(3)
+            dt_dmu = sum(2.0 * eps[comp][j][mesh_idx] * normals[:, j] for j in range(3))
+            expected = (
+                dt_dmu * delta_mu[mesh_idx]
+                + trace * normals[:, comp] * delta_lam[mesh_idx]
             )
-            expected = dt_dmu * delta_mu[mesh_idx] + trace * normals[
-                :, comp
-            ] * delta_lam[mesh_idx]
             _assert_identity(bkd, bmat @ stacked, expected)

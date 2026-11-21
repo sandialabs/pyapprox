@@ -655,66 +655,6 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             result[i, npts + idx] = dt_dlam[i]
         return result
 
-    def compute_interface_flux(
-        self, state: Array, boundary_indices: Array, normal: Array
-    ) -> Array:
-        r"""Compute traction at boundary for DtN domain decomposition.
-
-        Computes :math:`t = \sigma \cdot n` at the specified boundary
-        points, where :math:`\sigma` is the stress tensor and :math:`n`
-        the outward unit normal.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (ndim*npts,)
-        boundary_indices : Array
-            Mesh indices at interface. Shape: (nboundary,)
-        normal : Array
-            Outward unit normal. Shape: (ndim,)
-
-        Returns
-        -------
-        Array
-            Traction components at boundary points.
-            Shape: (ndim*nboundary,) with component-stacked ordering.
-
-        Raises
-        ------
-        ValueError
-            If a Lamé parameter is declared time-dependent: this traction
-            takes no time at which to evaluate it.
-        """
-        bkd = self._bkd
-        ndim = self._ndim
-        if not declared_time_invariant(self._lamda, self._mu):
-            raise ValueError(
-                "compute_interface_flux takes no time, so it supports only "
-                "Lamé parameters declared time-independent"
-            )
-        # time-independent, so any time reads them
-        lam, mu = self.lame_values(0.0)
-        lam_b = lam[boundary_indices]
-        two_mu_b = 2.0 * mu[boundary_indices]
-        eps = self._strain_tensor(state)
-        eps_b = [
-            [eps[i][j][boundary_indices] for j in range(ndim)] for i in range(ndim)
-        ]
-        trace_b = eps_b[0][0]
-        for k in range(1, ndim):
-            trace_b = trace_b + eps_b[k][k]
-        tractions = []
-        for i in range(ndim):
-            t_i = bkd.zeros((boundary_indices.shape[0],))
-            for j in range(ndim):
-                sigma_ij = two_mu_b * eps_b[i][j]
-                if i == j:
-                    sigma_ij = sigma_ij + lam_b * trace_b
-                t_i = t_i + sigma_ij * bkd.to_float(normal[j])
-            tractions.append(t_i)
-        # Component-stacked ordering: [t_x_0, ..., t_x_n, t_y_0, ..., t_y_n]
-        return bkd.concatenate(tractions)
-
 
 def create_linear_elasticity(
     basis: TensorProductBasisProtocol[Array],

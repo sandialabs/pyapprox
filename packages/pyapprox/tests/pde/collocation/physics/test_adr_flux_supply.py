@@ -10,9 +10,9 @@ matrices.
 from typing import TYPE_CHECKING, Generic, List, Optional
 
 import numpy as np
-import pytest
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary.normal_operators import FluxNormalOperator
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
@@ -117,29 +117,17 @@ class TestADRFluxSupply:
         bkd.assert_allclose(residual, 2.0 * (laplacian @ state), rtol=1e-12)
         bkd.assert_allclose(physics.jacobian(state, 0.0) @ state, residual, rtol=1e-12)
 
-    def test_interface_flux_reads_a_time_independent_field(
-        self, bkd: Backend[Array]
-    ) -> None:
-        """D grad(u) . n at the chosen nodes, with D read from the field."""
-        diffusion = _random_diffusion(bkd)
-        basis, physics, state = _setup(bkd, NodalField(diffusion))
-        indices = bkd.array([0, 3], dtype=int)
-        got = physics.compute_interface_flux(state, indices, bkd.array([1.0, 0.0]))
-        expected = (diffusion * (basis.derivative_matrix(1, 0) @ state))[indices]
-        bkd.assert_allclose(got, expected, rtol=1e-12)
-
-    def test_interface_flux_refuses_time_dependent_diffusion(
-        self, numpy_bkd: Backend[Array]
-    ) -> None:
-        """The interface flux takes no time, so a diffusivity declared
-        time-dependent is refused rather than read at a guessed time."""
-        _, physics, state = _setup(
-            numpy_bkd, _GrowingField(_random_diffusion(numpy_bkd))
-        )
-        with pytest.raises(ValueError, match="takes no time"):
-            physics.compute_interface_flux(
-                state, numpy_bkd.array([0], dtype=int), numpy_bkd.array([1.0, 0.0])
-            )
+    def test_normal_flux_reads_the_field_at_its_time(self, bkd: Backend[Array]) -> None:
+        """A FluxNormalOperator on this physics gives the outward flux
+        -D grad(u) . n at the chosen nodes, D read from a time-dependent
+        field at the operator's time."""
+        diffusion, time = _random_diffusion(bkd), 0.5
+        basis, physics, state = _setup(bkd, _GrowingField(diffusion))
+        indices = bkd.asarray([0, 3], dtype=bkd.int64_dtype())
+        normals = bkd.asarray([[1.0, 0.0], [1.0, 0.0]])
+        got = FluxNormalOperator(bkd, indices, normals, physics)(state, time)
+        expected = _expected_flux(basis, (1.0 + time) * diffusion, state)[0]
+        bkd.assert_allclose(got, expected[indices], rtol=1e-12)
 
     def test_flux_preserves_autograd(self, torch_bkd: "TorchBkd") -> None:
         """d(sum flux_0)/dD through autograd equals -(D_0 u)."""

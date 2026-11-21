@@ -547,11 +547,6 @@ class TestReactionDiffusionInterior:
         assert report.failures() == []
 
     def test_time_dependent_diffusion(self, bkd: Backend[Array]) -> None:
-        """The diffusivity carries the Jacobian's time dependence, and the
-        interface flux, which takes no time, refuses it."""
+        """The diffusivity carries the Jacobian's time dependence."""
         physics = _rd_physics(bkd, _time_dependent(bkd))
         assert not physics.interior_jacobian_is_time_invariant()
-        with pytest.raises(ValueError, match="takes no time"):
-            physics.compute_interface_flux(
-                _rd_state(bkd), bkd.array([0], dtype=int), bkd.array([1.0])
-            )
