@@ -29,7 +29,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import backward_euler
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -53,10 +56,15 @@ from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
 )
-from pyapprox.pde.models.galerkin.transient import GalerkinTransientForwardModel
+from pyapprox.pde.models.galerkin.transient_system import (
+    GalerkinTransientSystem,
+    galerkin_transient_system,
+    solve_galerkin_transient,
+)
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.pde.rom import (
     AlgebraicLift,
     SnapshotSet,
@@ -66,6 +74,7 @@ from pyapprox.pde.rom import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.rom_problem import SteadyStateAt, steady_snapshots
 
@@ -134,10 +143,47 @@ def _steady_problem(
     return system, param_obj, basis
 
 
+class _Transient:
+    """The heat problem's transient system and the solve that makes its
+    snapshots."""
+
+    def __init__(
+        self,
+        system: GalerkinTransientSystem[NumpyArray, Any],
+        parameters: ParameterState[NumpyArray],
+        init_state: NumpyArray,
+        bkd: NumpyBkd,
+    ) -> None:
+        self._system, self._parameters = system, parameters
+        self._init_state, self._bkd = init_state, bkd
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+    def solve(self, sample: NumpyArray) -> Tuple[NumpyArray, NumpyArray]:
+        """Every state of the trajectory at ``sample``, shape
+        ``(nstates, ntimes)``, and its times, shape ``(ntimes,)``."""
+        self._parameters.set_param(sample[:, 0])
+        store: InMemoryTrajectoryStore[NumpyArray] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            self._system,
+            RungeKutta(backward_euler(), Newton(atol=1e-13, rtol=0.0, maxiters=20)),
+            RecomputeAlways(self._system.solved.solver),
+            FixedStep(0.005, (0.0, 0.02)),
+            self._init_state,
+            store,
+        )
+        bkd = self._bkd
+        states = bkd.concatenate(
+            [store.state(n) for n in range(store.ntimes())], axis=1
+        )
+        return states, bkd.asarray(store.times())
+
+
 def _transient_problem(
     bkd: NumpyBkd,
 ) -> Tuple[
-    GalerkinTransientForwardModel[NumpyArray],
+    _Transient,
     GalerkinSystem[NumpyArray],
     LagrangeBasis[NumpyArray],
 ]:
@@ -161,22 +207,12 @@ def _transient_problem(
         physics, diffusivity_map=_log_kle_map(bkd, basis), bkd=bkd
     )
     x = bkd.to_numpy(basis.dof_coordinates())[0]
-    config: TimeIntegrationConfig[NumpyArray] = TimeIntegrationConfig(
-        method="backward_euler",
-        init_time=0.0,
-        final_time=0.02,
-        deltat=0.005,
-        newton_tol=1e-13,
-        newton_maxiter=20,
-        verbosity=0,
+    parameters = ParameterState(param_obj)
+    transient = galerkin_transient_system(
+        skfem_discretization(system), ScipySparseLU(), parameters
     )
-    model = GalerkinTransientForwardModel(
-        skfem_discretization(system),
-        ScipySparseLU(),
-        param_obj,
-        bkd.asarray(0.3 * np.sin(np.pi * x)),
-        config)
-    return model, system, basis
+    init_state = bkd.asarray(0.3 * np.sin(np.pi * x)[:, None])
+    return _Transient(transient, parameters, init_state, bkd), system, basis
 
 
 def _steady_snapshots(
@@ -188,9 +224,7 @@ def _steady_snapshots(
     LagrangeBasis[NumpyArray],
 ]:
     system, param_obj, basis = _steady_problem(bkd)
-    setups: RecomputeAlways[NumpyArray, CSRFormat] = RecomputeAlways(
-        ScipySparseLU()
-    )
+    setups: RecomputeAlways[NumpyArray, CSRFormat] = RecomputeAlways(ScipySparseLU())
     steady_state = SteadyStateAt(
         skfem_discretization(system),
         param_obj,
@@ -203,14 +237,14 @@ def _steady_snapshots(
 
 
 def _transient_snapshots(
-    model: GalerkinTransientForwardModel[NumpyArray], samples: NumpyArray
+    model: _Transient, samples: NumpyArray
 ) -> SnapshotSet[NumpyArray]:
     """Every state of the trajectory at each column of ``samples``."""
     bkd = model.bkd()
     sets = []
     for ii in range(samples.shape[1]):
         sample = samples[:, ii : ii + 1]
-        states, times = model.forward_solve(sample)
+        states, times = model.solve(sample)
         sets.append(SnapshotSet.from_trajectory(states, sample, times, bkd))
     return concatenate_snapshot_sets(sets, bkd)
 
@@ -276,9 +310,7 @@ class TestSnapshotSet:
         with pytest.raises(ValueError, match="1D"):
             SnapshotSet.from_trajectory(states, bkd.zeros((2, 1)), states, bkd)
         with pytest.raises(ValueError, match="columns"):
-            SnapshotSet.from_trajectory(
-                states, bkd.zeros((2, 1)), bkd.zeros((4,)), bkd
-            )
+            SnapshotSet.from_trajectory(states, bkd.zeros((2, 1)), bkd.zeros((4,)), bkd)
 
 
 class TestSteadySnapshots:
