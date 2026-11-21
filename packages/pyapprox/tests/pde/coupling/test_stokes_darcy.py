@@ -29,11 +29,15 @@ if not package_available("skfem"):
 import math
 
 import numpy as np
+import sympy as sp
 
 from pyapprox.pde.coupling.responses import DeclaredKinds, Flux, Trace
 from tests._helpers.coupling_stokes_darcy import (
+    POLYNOMIAL,
+    SMOOTH,
     InterfacePressure,
     NormalVelocity,
+    Solution,
     StokesDarcyStrip,
 )
 
@@ -53,10 +57,44 @@ def _rate(errors: list[dict[str, float]], name: str) -> float:
     return math.log2(errors[-2][name] / errors[-1][name])
 
 
+@pytest.mark.parametrize("solution", [SMOOTH, POLYNOMIAL], ids=["smooth", "poly"])
+def test_the_solutions_satisfy_the_interface_conditions(solution: Solution) -> None:
+    x, y = sp.symbols("x y")
+    u, v, p = (sp.sympify(e) for e in solution.stokes)
+    darcy = sp.sympify(solution.darcy)
+    conditions = [
+        u + sp.diff(darcy, x),
+        sp.diff(u, x) - p + darcy,
+        sp.diff(v, x) + v,
+    ]
+    for condition in conditions:
+        assert sp.simplify(condition.subs(x, sp.Rational(1, 2))) == 0
+    assert sp.simplify(sp.diff(v, x).subs(x, sp.Rational(1, 2))) != 0
+
+
+def test_a_solution_in_the_discrete_spaces_is_reproduced() -> None:
+    strip = StokesDarcyStrip(2, 4, solution=POLYNOMIAL)
+    lam = strip.solve_skeleton()
+    np.testing.assert_allclose(lam, strip.exact_pressure(), atol=1e-10)
+    for name, error in strip.errors(lam).items():
+        assert error < 1e-10, (name, error)
+
+
 def test_bjs_converges_at_the_optimal_rates() -> None:
     errors = _errors()
     for name, expected in (("velocity", 3.0), ("pressure", 2.0), ("darcy", 3.0)):
         assert abs(_rate(errors, name) - expected) < 0.1, (name, errors)
+
+
+def test_the_interface_pressure_converges() -> None:
+    # Max error at the skeleton nodes; at least the Darcy pressure's L2
+    # rate (measured 3.2 and 3.4).
+    errors = []
+    for ncells in _LEVELS:
+        strip = StokesDarcyStrip(ncells, _NSKEL)
+        lam = strip.solve_skeleton()
+        errors.append(float(np.abs(lam - strip.exact_pressure()).max()))
+    assert math.log2(errors[-2] / errors[-1]) > 2.9, errors
 
 
 @pytest.mark.parametrize(

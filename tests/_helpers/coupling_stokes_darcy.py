@@ -35,11 +35,13 @@ and return a :class:`NormalVelocity` (the Darcy one through
 layout gives one unknown per skeleton DOF and the residual is the plain
 sum :math:`-\int \phi\, (u_S \cdot n_S + u_D \cdot n_D)`.
 
-The manufactured solution (:data:`STOKES`, :data:`DARCY`) satisfies the
-three interface conditions at x = 1/2 for every y, with :math:`\nu = K =
-\beta = 1`: mass, :math:`u_S = -\partial_x p_D`; normal stress,
-:math:`\partial_x u_S - p_S = -p_D`; BJS, :math:`\partial_x v_S + v_S =
-0`, with a nonzero tangential traction, so dropping BJS is wrong.
+Each manufactured :class:`Solution` (:data:`SMOOTH`, :data:`POLYNOMIAL`)
+satisfies the three interface conditions at x = 1/2 for every y, with
+:math:`\nu = K = \beta = 1`: mass, :math:`u_S = -\partial_x p_D`; normal
+stress, :math:`\partial_x u_S - p_S = -p_D`; BJS, :math:`\partial_x v_S
++ v_S = 0`, with a nonzero tangential traction, so dropping BJS is
+wrong. :data:`POLYNOMIAL` lies in the discrete spaces, its interface
+pressure of degree 2, so the coupled discretization reproduces it.
 
 NumPy only: skfem is. Importers must skip when skfem is not installed.
 """
@@ -126,14 +128,38 @@ Np = NDArray[Any]
 STEADY = TimeWindow.steady()
 _BKD = NumpyBkd()
 NU, K, BETA = 1.0, 1.0, 1.0
-# Stokes velocity (u, v) and pressure on [0, 1/2] x [0, 1].
-STOKES = (
-    "sin(1/2)*cos(y) - 1 + (x - 1/2)*cos(2*y)",
-    "sin(y)*(3/2 - x)",
-    "cos(1/2)*cos(y) + 1/2 + cos(2*y) + (x - 1/2)*sin(y)",
+
+
+@dataclass(frozen=True)
+class Solution:
+    """A manufactured solution: the Stokes velocity (u, v) and pressure on
+    [0, 1/2] x [0, 1], the Darcy pressure on [1/2, 1] x [0, 1]."""
+
+    stokes: tuple[str, str, str]
+    darcy: str
+
+
+SMOOTH = Solution(
+    (
+        "sin(1/2)*cos(y) - 1 + (x - 1/2)*cos(2*y)",
+        "sin(y)*(3/2 - x)",
+        "cos(1/2)*cos(y) + 1/2 + cos(2*y) + (x - 1/2)*sin(y)",
+    ),
+    "cos(x)*cos(y) + x",
 )
-# Darcy pressure on [1/2, 1] x [0, 1].
-DARCY = "cos(x)*cos(y) + x"
+# With s = x - 1/2: u = -b + s d + s^2, v = m (1 - s) + s^2 y, p = g + s h,
+# p_D = a + s b + s^2 y, b = 1 + y^2, d = y - y^2, m = 1 + y + y^2,
+# g = 1 + y, h = 2 - y, a = g - d. Velocity and Darcy pressure in Q2, the
+# Stokes pressure in Q1, every interface trace of degree 2, so the
+# discretization reproduces it.
+POLYNOMIAL = Solution(
+    (
+        "-(1 + y**2) + (x - 1/2)*(y - y**2) + (x - 1/2)**2",
+        "(1 + y + y**2)*(3/2 - x) + (x - 1/2)**2*y",
+        "1 + y + (x - 1/2)*(2 - y)",
+    ),
+    "1 + y**2 + (x - 1/2)*(1 + y**2) + (x - 1/2)**2*y",
+)
 
 
 @dataclass(frozen=True)
@@ -182,7 +208,7 @@ def _stokes_terms() -> List[TermProtocol]:
     return terms
 
 
-def stokes_problem() -> ManufacturedProblem:
+def stokes_problem(solution: Solution = SMOOTH) -> ManufacturedProblem:
     """The Stokes side's strong form and exact solution; the interface's
     entry only completes the parts (its conditions are built apart)."""
     conditions: dict[str, ConditionProtocol] = {
@@ -192,7 +218,7 @@ def stokes_problem() -> ManufacturedProblem:
         "top": Neumann(),
     }
     return ManufacturedProblem(
-        dict(zip(("u", "v", "p"), STOKES)),
+        dict(zip(("u", "v", "p"), solution.stokes)),
         _stokes_terms(),
         Box([(0.0, 0.5), (0.0, 1.0)]),
         conditions,
@@ -220,10 +246,17 @@ class StokesDarcyStrip:
         traction free (the BJS-dropped control).
     stokes_sign
         The Stokes transfer's sign; +1 flips the normal (the control).
+    solution
+        The manufactured solution.
     """
 
     def __init__(
-        self, ncells: int, nskel: int, bjs: bool = True, stokes_sign: float = -1.0
+        self,
+        ncells: int,
+        nskel: int,
+        bjs: bool = True,
+        stokes_sign: float = -1.0,
+        solution: Solution = SMOOTH,
     ) -> None:
         bkd = _BKD
         self._topo = TensorBoxPartition((2, 1))
@@ -236,11 +269,11 @@ class StokesDarcyStrip:
         self._geometry = TensorBoxGeometry(self._topo, bkd)
         self._coords = skeleton_dof_points(self._space, self._geometry, bases)
         self._nskel = nskel
-        self._stokes(ncells, bjs, stokes_sign)
+        self._stokes(ncells, bjs, stokes_sign, solution)
         faces, dofs = self._faces_and_dofs(1)
         darcy = skfem_adr_piece(
             Coefficients(K, None, None),
-            DARCY,
+            solution.darcy,
             Skeleton(self._space, self._geometry, faces, dofs, nskel),
             ncells,
         )
@@ -257,9 +290,9 @@ class StokesDarcyStrip:
         ]
         return faces, list(subdomain_port_dofs(self._topo, self._space, subdomain))
 
-    def _stokes(self, ncells: int, bjs: bool, sign: float) -> None:
+    def _stokes(self, ncells: int, bjs: bool, sign: float, solution: Solution) -> None:
         bkd = _BKD
-        problem = stokes_problem()
+        problem = stokes_problem(solution)
         mesh = StructuredMesh2D(ncells, ncells, [(0.0, 0.5), (0.0, 1.0)], bkd)
         basis: MixedBasis[Np] = TaylorHood().build(mesh)
         physics = StokesPhysics(
