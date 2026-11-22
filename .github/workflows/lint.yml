@@ -77,4 +77,9 @@ jobs:
       # their superseded-method:<name> baselines in ratchet_baselines.txt.
       - name: superseded-method ratchet
         run: python -m pyapprox._superseded_ratchet
+      # Test modules importing torch, jax or numba at module level without
+      # skipping first must not exceed their optional-test-import:<lib>
+      # baselines in ratchet_baselines.txt.
+      - name: optional-import ratchet
+        run: python -m pyapprox._optional_import_ratchet
 
