@@ -30,10 +30,10 @@ After completing this tutorial, you will be able to:
 
 - Derive the mass matrix from the weak form, and explain why it is the Gram
   matrix of the basis rather than the identity
-- Evolve an existing steady physics object in time by adding one
-  configuration object, without rewriting the physics
-- Switch between backward Euler and Crank--Nicolson by changing one string
-- Recognise when the mass matrix stops being invertible, and what that
+- Evolve an existing steady physics object in time by adding a stepping
+  method and the steps it takes, without rewriting the physics
+- Switch between backward Euler and Crank--Nicolson by changing one tableau
+- Recognize when the mass matrix stops being invertible, and what that
   changes about the system being solved
 - Read the cost of a transient solve from the discretization, before running
   it
@@ -43,7 +43,7 @@ After completing this tutorial, you will be able to:
 
 [The steady tutorial](galerkin_adr_usage.qmd) built a solve from four
 objects: mesh, basis, physics, and boundary conditions. A transient solve
-adds exactly one more --- a time-integration configuration --- and reuses the
+adds two more --- a stepping method and the steps it takes --- and reuses the
 other four unchanged.
 
 That is the whole interface change. Everything interesting is in what the
@@ -135,13 +135,6 @@ solve differs.
 import numpy as np
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
-    skfem_ode_residual,
-)
-from pyapprox.pde.galerkin.time_integration.transient_model import (
-    GalerkinTransientModel,
-)
 from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -174,22 +167,39 @@ its neighbours, because their basis functions share support.
 
 ## Choosing a Time Integrator
 
-`TimeIntegrationConfig` collects everything about *how* to march: the method,
-the interval, the step size, and the tolerances for the nonlinear solve at
-each step.
+Two objects say *how* to march. The stepping method is a Runge--Kutta
+tableau together with the nonlinear solver its implicit stages need. The
+step plan gives the step size and the interval. `galerkin_transient_system`
+puts the composed system in the form the stepper reads: the boundary rows
+pinned to their data at the end of each step, and a sparse LU factorization
+for the linear solves.
 
 The physics is the steady one unchanged: a Gaussian release near the left
 inlet, carried downstream by the frozen flow.
 
 ```{python}
+from pyapprox.implicitfunction.setups import KeepStateFree
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import backward_euler
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore, trajectory_array
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
+from pyapprox.pde.models.galerkin.transient_system import (
+    galerkin_transient_system,
+    solve_galerkin_transient,
+)
 from pyapprox.pde.zoo.obstructed_flow import (
     extract_velocity_callable,
     solve_obstructed_stokes,
 )
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 # The flow is solved once, on its own mesh, and then frozen: it drives
 # the transport but is not affected by it. Without a velocity this would
@@ -231,21 +241,24 @@ system = compose_galerkin_system(
     ],
 )
 
-config = TimeIntegrationConfig(
-    method="backward_euler",   # or "crank_nicolson"
-    init_time=0.0,
-    final_time=10.0,
-    deltat=0.04,
-    newton_tol=1e-8,
-    newton_maxiter=20,
-    verbosity=0,
+transient = galerkin_transient_system(skfem_discretization(system), ScipySparseLU())
+method = RungeKutta(
+    backward_euler(),   # or crank_nicolson()
+    Newton(atol=1e-8, rtol=0.0, maxiters=20),
 )
-
-solutions, times = GalerkinTransientModel(
-    skfem_ode_residual(system)
-).solve_transient(
-    bkd.asarray(np.zeros(system.nstates())), config
+store = InMemoryTrajectoryStore()
+solve_galerkin_transient(
+    transient,
+    method,
+    # The frozen flow makes the operator constant, so each stage matrix
+    # is factored once and reused at every step.
+    KeepStateFree(transient.solved.solver),
+    FixedStep(0.04, (0.0, 10.0)),
+    bkd.zeros((system.nstates(), 1)),
+    store,
 )
+solutions = trajectory_array(store, bkd)
+times = bkd.asarray(store.times())
 print(f"{len(times)} steps to t = {times[-1]:.1f}")
 ```
 
@@ -267,7 +280,7 @@ print(f'<video autoplay loop muted playsinline '
       f'<source src="{transport_video}" type="video/mp4"></video>')
 ```
 
-Switching integrator is a one-string change. Backward Euler is first-order
+Switching integrator is a one-tableau change. Backward Euler is first-order
 and strongly damping; Crank--Nicolson is second-order and preserves
 oscillations that backward Euler would smooth away. That difference matters
 when the physics *is* an oscillation, as in the closing section.
@@ -331,11 +344,14 @@ are two components. That is where most of the cost lives.
 Boundary conditions follow the geometry. The inlet velocity is ramped from
 rest so the flow develops rather than being shocked into motion --- a
 time-dependent condition, so it is wrapped in `TimeDependent` to declare
-that it must be re-evaluated at every step.
+that it must be re-evaluated at every step. Its rate goes with it, in a
+`BoundarySignal`: within a step the boundary rows follow the data's rate,
+and pyapprox never approximates a rate it was not given.
 
 ```{python}
 import numpy as np
 
+from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.galerkin.basis import MixedBasis
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
@@ -353,6 +369,16 @@ def ramped_inlet(coords, time):
     amplitude = min(1.0, time / T_RAMP)
     values = np.zeros((2, coords.shape[1]))
     values[0] = amplitude * 4 * UMAX * y * (geom["H"] - y) / geom["H"] ** 2
+    return values
+
+
+def ramped_inlet_rate(coords, time):
+    """The time derivative of ``ramped_inlet``: the profile over
+    ``T_RAMP`` while ramping, zero after."""
+    y = coords[1]
+    slope = 1.0 / T_RAMP if time < T_RAMP else 0.0
+    values = np.zeros((2, coords.shape[1]))
+    values[0] = slope * 4 * UMAX * y * (geom["H"] - y) / geom["H"] ** 2
     return values
 
 
@@ -379,7 +405,14 @@ cyl_physics = StokesPhysics(
 cyl_system = compose_galerkin_system(
     cyl_physics,
     [
-        DirichletBC(velocity, "inlet", TimeDependent(ramped_inlet), bkd),
+        DirichletBC(
+            velocity,
+            "inlet",
+            BoundarySignal(
+                TimeDependent(ramped_inlet), [TimeDependent(ramped_inlet_rate)]
+            ),
+            bkd,
+        ),
         DirichletBC(velocity, "wall", no_slip, bkd),
         DirichletBC(velocity, "cylinder", no_slip, bkd),
     ],
@@ -393,8 +426,8 @@ there is the natural condition derived earlier: vortices convect out of the
 domain instead of reflecting off a prescribed boundary.
 
 The cost of all this is easiest to see as a table. Both columns use the same
-`GalerkinTransientModel`, the same `TimeIntegrationConfig`, and the same
-`solve_transient` call.
+`galerkin_transient_system`, the same kind of stepping method and step plan,
+and the same `solve_galerkin_transient` call.
 
 | | Transport (above) | Navier--Stokes |
 |---|---|---|
@@ -431,21 +464,25 @@ per unknown, but how many unknowns the physics demands before it will show
 you the phenomenon at all.
 
 ```{python}
-cyl_config = TimeIntegrationConfig(
-    method="crank_nicolson",
-    init_time=0.0,
-    final_time=25.0,
-    deltat=0.1,
-    newton_tol=1e-7,
-    newton_maxiter=20,
-    verbosity=0,
-)
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.ode.tableau import crank_nicolson
 
-cyl_solutions, cyl_times = GalerkinTransientModel(
-    skfem_ode_residual(cyl_system)
-).solve_transient(
-    bkd.asarray(np.zeros(cyl_physics.nstates())), cyl_config
+cyl_transient = galerkin_transient_system(
+    skfem_discretization(cyl_system), ScipySparseLU()
 )
+cyl_store = InMemoryTrajectoryStore()
+solve_galerkin_transient(
+    cyl_transient,
+    RungeKutta(crank_nicolson(), Newton(atol=1e-7, rtol=0.0, maxiters=20)),
+    # The convective term makes the Jacobian change with the state, so it
+    # is refactored at every Newton iteration.
+    RecomputeAlways(cyl_transient.solved.solver),
+    FixedStep(0.1, (0.0, 25.0)),
+    bkd.zeros((cyl_physics.nstates(), 1)),
+    cyl_store,
+)
+cyl_solutions = trajectory_array(cyl_store, bkd)
+cyl_times = bkd.asarray(cyl_store.times())
 print(f"{len(cyl_times)} steps to t = {cyl_times[-1]:.0f}")
 ```
 
