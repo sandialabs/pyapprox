@@ -84,7 +84,7 @@ import sympy as sp
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.ode.residual_derivatives import backend_state_space
-from pyapprox.pde.collocation.basis import ChebyshevBasis
+from pyapprox.pde.collocation.basis import ChebyshevBasis, ChebyshevGauss1D
 from pyapprox.pde.collocation.boundary.closure_rows import (
     ClosureRowsProtocol,
     RobinNormalTermProtocol,
@@ -224,9 +224,24 @@ class InteriorClosureProtocol(Protocol[Array]):
         ...
 
 
+@dataclass(frozen=True)
+class FieldMesh(Generic[Array]):
+    """A field's own mesh and basis on a level, apart from the level's
+    mesh: a staggered pressure on interior Gauss nodes. It shares the
+    level mesh's map, so both describe one geometry.
+
+    ``mesh`` is the field's mesh; ``basis`` the collocation basis on it.
+    """
+
+    mesh: LevelMeshProtocol[Array]
+    basis: TensorProductBasisProtocol[Array]
+
+
 class ChebyshevLevel(Generic[Array]):
     """One level of a study: a mapped Chebyshev mesh of a domain and its
-    basis.
+    basis, on which every field lives unless the level gives it a mesh of
+    its own (:class:`FieldMesh`). Boundary conditions, interior closures
+    and :meth:`h` belong to the level's mesh.
 
     Parameters
     ----------
@@ -243,12 +258,16 @@ class ChebyshevLevel(Generic[Array]):
     closures : Sequence[InteriorClosureProtocol], optional
         Rows for the mesh boundaries no part covers, which lie inside the
         domain. Default none.
+    field_meshes : Mapping[str, FieldMesh], optional
+        By field name, the fields on a mesh of their own. Default none:
+        every field on ``mesh``.
 
     Raises
     ------
     ValueError
         If ``parts`` does not name exactly the domain's boundary parts, or
-        gives a part no mesh boundary.
+        gives a part no mesh boundary, or a field mesh has another
+        dimension or another map than ``mesh``.
     TypeError
         If a closure does not satisfy ``InteriorClosureProtocol``.
     """
@@ -260,6 +279,7 @@ class ChebyshevLevel(Generic[Array]):
         basis: TensorProductBasisProtocol[Array],
         parts: Mapping[str, Sequence[int]],
         closures: Sequence[InteriorClosureProtocol[Array]] = (),
+        field_meshes: Optional[Mapping[str, FieldMesh[Array]]] = None,
     ) -> None:
         if set(parts) != set(domain.boundaries()):
             raise ValueError(
@@ -275,9 +295,22 @@ class ChebyshevLevel(Generic[Array]):
                     "closures must satisfy InteriorClosureProtocol, got "
                     f"{type(closure).__name__}"
                 )
+        own = {} if field_meshes is None else dict(field_meshes)
+        for name, placed in own.items():
+            if placed.mesh.ndim() != mesh.ndim():
+                raise ValueError(
+                    f"field {name!r}'s mesh is {placed.mesh.ndim()}D, the "
+                    f"level's {mesh.ndim()}D"
+                )
+            if placed.mesh.transform() is not mesh.transform():
+                raise ValueError(
+                    f"field {name!r}'s mesh must share the level mesh's map, "
+                    "so both describe one geometry"
+                )
         self._domain, self._mesh, self._basis = domain, mesh, basis
         self._parts = {part: tuple(ids) for part, ids in parts.items()}
         self._closures = tuple(closures)
+        self._field_meshes = own
 
     def bkd(self) -> Backend[Array]:
         return self._basis.bkd()
@@ -292,18 +325,44 @@ class ChebyshevLevel(Generic[Array]):
         return self._basis
 
     def npts(self) -> int:
+        """The number of nodes of the level's mesh."""
         return self._mesh.npts()
 
+    def field_mesh(self, name: str) -> LevelMeshProtocol[Array]:
+        """The mesh field ``name`` lives on: its own, or the level's."""
+        placed = self._field_meshes.get(name)
+        return self._mesh if placed is None else placed.mesh
+
+    def field_basis(self, name: str) -> TensorProductBasisProtocol[Array]:
+        """The basis of field ``name``'s mesh."""
+        placed = self._field_meshes.get(name)
+        return self._basis if placed is None else placed.basis
+
+    def is_uniform(self) -> bool:
+        """Whether every field lives on the level's mesh."""
+        return not self._field_meshes
+
     def layout(self, fields: Sequence[str]) -> StateLayout:
-        """Where each of ``fields`` sits in the state, stacked in order:
-        every field on the level's one mesh.
+        """Where each of ``fields`` sits in the state, stacked in order,
+        each with its mesh's node count.
 
         Raises
         ------
         ValueError
-            If there are no fields or a name repeats.
+            If there are no fields, a name repeats, or the level gives a
+            mesh of its own to a field not among ``fields``.
         """
-        return StateLayout.uniform(self.npts(), len(fields), names=fields)
+        unknown = sorted(set(self._field_meshes) - set(fields))
+        if unknown:
+            raise ValueError(
+                f"the level places {unknown} on their own meshes, but the "
+                f"state's fields are {list(fields)}"
+            )
+        if self.is_uniform():
+            return StateLayout.uniform(self.npts(), len(fields), names=fields)
+        return StateLayout(
+            [self.field_mesh(name).npts() for name in fields], names=fields
+        )
 
     def closures(self) -> Tuple[InteriorClosureProtocol[Array], ...]:
         """Rows for the mesh boundaries inside the domain."""
@@ -347,7 +406,11 @@ class ChebyshevLevel(Generic[Array]):
         return self._parts[part]
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(npts_per_dim={self._mesh.npts_per_dim()})"
+        own = "".join(
+            f", {name}={placed.mesh.npts_per_dim()}"
+            for name, placed in self._field_meshes.items()
+        )
+        return f"{type(self).__name__}(npts_per_dim={self._mesh.npts_per_dim()}{own})"
 
 
 class LevelFamilyProtocol(Protocol[Array]):
@@ -368,10 +431,30 @@ class ChebyshevBox(Generic[Array]):
         Nodes per direction, one entry per level.
     bkd : Backend
         The backend of the meshes, coefficients and states.
+    interior_fields : Sequence[str], optional
+        Fields on ``n - 2`` Chebyshev-Gauss nodes per direction, which
+        reach no boundary (a staggered pressure); default none.
+
+    Raises
+    ------
+    ValueError
+        If a level with interior fields has fewer than 3 nodes per
+        direction.
     """
 
-    def __init__(self, sizes: Sequence[int], bkd: Backend[Array]) -> None:
+    def __init__(
+        self,
+        sizes: Sequence[int],
+        bkd: Backend[Array],
+        interior_fields: Sequence[str] = (),
+    ) -> None:
         self._sizes, self._bkd = tuple(sizes), bkd
+        self._interior_fields = tuple(interior_fields)
+        if self._interior_fields and min(self._sizes) < 3:
+            raise ValueError(
+                "interior fields need at least 3 nodes per direction (one "
+                f"interior node), got sizes {list(self._sizes)}"
+            )
 
     def levels(self, domain: DomainProtocol) -> List[ChebyshevLevel[Array]]:
         """One level per size.
@@ -391,13 +474,30 @@ class ChebyshevBox(Generic[Array]):
         levels: List[ChebyshevLevel[Array]] = []
         for n in self._sizes:
             mesh = TransformedMesh((n,) * domain.ndim(), bkd, box)
+            own: Dict[str, FieldMesh[Array]] = {}
+            if self._interior_fields:
+                interior = TransformedMesh(
+                    (n - 2,) * domain.ndim(),
+                    bkd,
+                    box,
+                    bases=[ChebyshevGauss1D[Array]()] * domain.ndim(),
+                )
+                placed = FieldMesh(interior, ChebyshevBasis(interior, bkd))
+                own = {name: placed for name in self._interior_fields}
             levels.append(
-                ChebyshevLevel(domain, mesh, ChebyshevBasis(mesh, bkd), parts)
+                ChebyshevLevel(
+                    domain, mesh, ChebyshevBasis(mesh, bkd), parts, field_meshes=own
+                )
             )
         return levels
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({list(self._sizes)})"
+        interior = (
+            f", interior_fields={list(self._interior_fields)}"
+            if self._interior_fields
+            else ""
+        )
+        return f"{type(self).__name__}({list(self._sizes)}{interior})"
 
 
 def _reference_derivative(level: ChebyshevLevel[Array], direction: int) -> Array:
@@ -450,6 +550,13 @@ class PeriodicSeam(Generic[Array]):
             raise ValueError(
                 f"the seam's direction {direction} is not a reference direction "
                 f"of a mesh with {len(mesh.npts_per_dim())}"
+            )
+        elsewhere = [
+            name for name in layout.names() if level.field_mesh(name) is not mesh
+        ]
+        if elsewhere:
+            raise ValueError(
+                f"a seam joins the level's mesh; {elsewhere} live on their own"
             )
         derivative = _reference_derivative(level, direction)
         lower = mesh.boundary_indices(2 * direction)
@@ -713,11 +820,21 @@ def field(
     ValueError
         If the expression uses anything else.
     """
+    return _nodal_coefficient(problem, expression, level, level.mesh())
+
+
+def _nodal_coefficient(
+    problem: ManufacturedProblem,
+    expression: Value,
+    level: ChebyshevLevel[Array],
+    mesh: LevelMeshProtocol[Array],
+) -> Union[float, NodalSupplier[Array]]:
+    """:func:`field` at ``mesh``'s nodes."""
     parsed = _parsed(problem, expression, (time(),))
     if parsed.is_number:
         return float(parsed)
     # _Field declares its own time dependence, from the expression.
-    return NodalSupplier(_Field([parsed], problem, level.bkd()), level.mesh().points())
+    return NodalSupplier(_Field([parsed], problem, level.bkd()), mesh.points())
 
 
 def nodal_vector(
@@ -753,8 +870,10 @@ def nodal_vector(
 def forcing(
     problem: ManufacturedProblem, row: str, level: ChebyshevLevel[Array]
 ) -> Union[float, NodalSupplier[Array]]:
-    """The forcing of ``row`` at the level's nodes."""
-    return field(problem, problem.forcing(row), level)
+    """The forcing of ``row`` at the nodes of the mesh its field lives on."""
+    return _nodal_coefficient(
+        problem, problem.forcing(row), level, level.field_mesh(row)
+    )
 
 
 def stacked_forcing(
@@ -763,7 +882,22 @@ def stacked_forcing(
     """The forcing of every field at the level's nodes, stacked in the
     problem's field order, as a vector physics takes it: shape
     ``(nfields * npts,)``. Declared time-dependent exactly when a forcing
-    uses ``t``."""
+    uses ``t``.
+
+    Raises
+    ------
+    ValueError
+        If a field lives on a mesh of its own; such fields take their
+        forcings one at a time (:func:`forcing`).
+    """
+    elsewhere = [
+        row for row in problem.fields() if level.field_mesh(row) is not level.mesh()
+    ]
+    if elsewhere:
+        raise ValueError(
+            f"{elsewhere} live on their own meshes; take each field's forcing "
+            "with forcing()"
+        )
     expressions = [
         _parsed(problem, problem.forcing(row), (time(),)) for row in problem.fields()
     ]
@@ -1082,13 +1216,24 @@ def boundary_conditions(
     ------
     ValueError
         If ``fluxes`` names a field the problem does not have, a side
-        prescribes a flux its field was not given, or only one side of a
-        coordinate is periodic.
+        prescribes a flux its field was not given, only one side of a
+        coordinate is periodic, or a field taking boundary conditions lives
+        on a mesh of its own (its nodes need not reach the boundary).
     TypeError
         If a flux satisfies neither ``FluxProviderProtocol`` nor
         ``NormalTermProtocol``.
     """
     fields = problem.fields()
+    elsewhere = [
+        row
+        for row in problem.boundary_rows()
+        if level.field_mesh(row) is not level.mesh()
+    ]
+    if elsewhere:
+        raise ValueError(
+            f"boundary rows live on the level's mesh; {elsewhere} take boundary "
+            "conditions but live on their own meshes"
+        )
     terms = _normal_terms(fields, fluxes)
     dirichlet: List[DirichletPart[Array]] = []
     robin: List[RobinPart[Array]] = []
@@ -1196,9 +1341,12 @@ class _ErrorGrid(Generic[Array]):
 
     ``points`` are physical, shape (ndim, nquad); ``weights`` integrate
     over the domain (the reference weights times the map's
-    :math:`|\\det J|`), shape (nquad,); ``interpolation`` maps nodal
-    values to the nodes' Lagrange interpolant at the points, shape
-    (nquad, npts). With :math:`2N` points per direction the rule is exact
+    :math:`|\\det J|`), shape (nquad,); ``abscissas`` are the reference
+    points of each direction, shape (nquad_d,) each, from which
+    :meth:`interpolation` builds a mesh's map from nodal values to their
+    Lagrange interpolant at the points, shape (nquad, npts). Every field
+    is measured on this one grid, whichever mesh it lives on. With
+    :math:`2N` points per direction the rule is exact
     to degree :math:`4N - 1` in the reference coordinates, so on a box
     (an affine map) the squared interpolant (degree :math:`2N - 2`) is
     integrated exactly and :math:`u^*` far more accurately than the
@@ -1207,39 +1355,52 @@ class _ErrorGrid(Generic[Array]):
 
     points: Array
     weights: Array
-    interpolation: Array
+    abscissas: Tuple[Array, ...]
+
+    def interpolation(
+        self, mesh: LevelMeshProtocol[Array], bkd: Backend[Array]
+    ) -> Array:
+        """From ``mesh``'s nodal values to their interpolant at the points,
+        first dimension fastest. Shape: (nquad, mesh.npts())"""
+        matrix = univariate_lagrange_polynomial(
+            mesh.reference_nodes_1d(0), self.abscissas[0], bkd
+        )
+        for dim in range(1, len(self.abscissas)):
+            lagrange = univariate_lagrange_polynomial(
+                mesh.reference_nodes_1d(dim), self.abscissas[dim], bkd
+            )
+            matrix = bkd.kron(lagrange, matrix)
+        return matrix
 
 
 def _error_grid(level: ChebyshevLevel[Array]) -> _ErrorGrid[Array]:
     bkd, mesh = level.bkd(), level.mesh()
     coords: List[Array] = []
+    abscissas: List[Array] = []
     weights: Optional[Array] = None
-    interpolation: Optional[Array] = None
     for dim in range(len(mesh.npts_per_dim())):
-        nodes = mesh.reference_nodes_1d(dim)
-        nquad = 2 * nodes.shape[0]
+        nquad = 2 * mesh.reference_nodes_1d(dim).shape[0]
         legendre = LegendrePolynomial1D(bkd)
         legendre.set_nterms(nquad)
         reference, probability = GaussQuadratureRule(legendre)(nquad)
         xi = reference[0, :]
+        abscissas.append(xi)
         # Probability weights sum to 1; the reference interval has length 2.
         w = 2.0 * probability[:, 0]
-        lagrange = univariate_lagrange_polynomial(nodes, xi, bkd)
-        if weights is None or interpolation is None:
-            coords, weights, interpolation = [xi], w, lagrange
+        if weights is None:
+            coords, weights = [xi], w
             continue
         previous = weights.shape[0]
         coords = [bkd.kron(bkd.ones((nquad,)), c) for c in coords]
         coords.append(bkd.kron(xi, bkd.ones((previous,))))
         weights = bkd.kron(w, weights)
-        interpolation = bkd.kron(lagrange, interpolation)
-    if weights is None or interpolation is None:
+    if weights is None:
         raise ValueError("a level has at least one dimension")
     reference_grid = bkd.stack(coords, axis=0)
     transform = mesh.transform()
     volume = bkd.abs(transform.jacobian_determinant(reference_grid))
     return _ErrorGrid(
-        transform.map_to_physical(reference_grid), weights * volume, interpolation
+        transform.map_to_physical(reference_grid), weights * volume, tuple(abscissas)
     )
 
 
@@ -1248,8 +1409,10 @@ class CollocationApproximation(Generic[Array]):
     against the exact solution at the collocation nodes.
 
     The state stacks one component per field in the problem's field
-    order. Errors combine over the fields: the L2 error is the root of the
-    sum of their squared L2 errors, the nodal error their largest.
+    order, each at the nodes of the mesh it lives on
+    (:meth:`ChebyshevLevel.layout`). Errors combine over the fields: the
+    L2 error is the root of the sum of their squared L2 errors, the nodal
+    error their largest.
 
     Parameters
     ----------
@@ -1258,7 +1421,7 @@ class CollocationApproximation(Generic[Array]):
     level : ChebyshevLevel
         The level it was solved on.
     state : Array
-        The nodal values, field by field. Shape: (nfields * npts,)
+        The nodal values, field by field. Shape: (nstates,)
 
     Raises
     ------
@@ -1287,14 +1450,25 @@ class CollocationApproximation(Generic[Array]):
             problem.coordinates(),
             bkd,
         )
-        exact = solution(level.mesh().points())
-        self._error = bkd.reshape(exact, (-1,)) - state
         grid = _error_grid(level)
+        meshes = [level.field_mesh(row) for row in fields]
+        if level.is_uniform():
+            exact = bkd.reshape(solution(level.mesh().points()), (-1,))
+            interpolations = [grid.interpolation(level.mesh(), bkd)] * len(fields)
+        else:
+            # Each field's exact values at its own mesh's nodes.
+            exact = bkd.hstack(
+                [solution(mesh.points())[k] for k, mesh in enumerate(meshes)]
+            )
+            interpolations = [grid.interpolation(mesh, bkd) for mesh in meshes]
+        self._error = exact - state
         blocks = [
             state[layout.offset(k) : layout.offset(k) + layout.npts(k)]
             for k in range(layout.nfields())
         ]
-        interpolated = bkd.hstack([grid.interpolation @ block for block in blocks])
+        interpolated = bkd.hstack(
+            [matrix @ block for matrix, block in zip(interpolations, blocks)]
+        )
         self._grid_error = bkd.reshape(solution(grid.points), (-1,)) - interpolated
         self._weights = bkd.tile(grid.weights, (len(fields),))
         self._bkd, self._state, self._h = bkd, state, level.h()
@@ -1309,7 +1483,7 @@ class CollocationApproximation(Generic[Array]):
         return self._nodes
 
     def state(self) -> Array:
-        """The nodal values, field by field. Shape: (nfields * npts,)"""
+        """The nodal values, field by field. Shape: (nstates,)"""
         return self._state
 
     def l2_error(self) -> float:
