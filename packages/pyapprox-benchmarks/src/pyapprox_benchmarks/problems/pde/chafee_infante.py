@@ -19,7 +19,9 @@ from typing import Any
 
 from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import crank_nicolson
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
@@ -27,6 +29,7 @@ from pyapprox.pde.galerkin.protocols.system import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 # Bound to NumPy: the systems assemble with skfem.
 _Np = NDArray[Any]
@@ -52,9 +55,7 @@ class _ChafeeInfanteSystemFactory:
         self._bkd = bkd
         self._bc_kind = bc_kind
 
-    def __call__(
-        self, parameters: _Np
-    ) -> GalerkinTransientSystemProtocol[_Np]:
+    def __call__(self, parameters: _Np) -> GalerkinTransientSystemProtocol[_Np]:
         parameters_np = self._bkd.to_numpy(parameters)
         diffusivity = float(parameters_np[0, 0])
         bifurcation = float(parameters_np[1, 0])
@@ -123,18 +124,12 @@ def build_chafee_infante_opinf_problem(
     basis = build_line_basis(nx, bounds, bkd, degree=degree)
 
     coords = basis.dof_coordinates()
-    initial_condition = ic_amplitude * bkd.sin(
-        0.5 * math.pi * coords[0]
-    )
+    initial_condition = ic_amplitude * bkd.sin(0.5 * math.pi * coords[0])
 
     prior = IndependentJoint(
         [
-            UniformMarginal(
-                diffusivity_bounds[0], diffusivity_bounds[1], bkd
-            ),
-            UniformMarginal(
-                bifurcation_bounds[0], bifurcation_bounds[1], bkd
-            ),
+            UniformMarginal(diffusivity_bounds[0], diffusivity_bounds[1], bkd),
+            UniformMarginal(bifurcation_bounds[0], bifurcation_bounds[1], bkd),
         ],
         bkd,
     )
@@ -151,19 +146,10 @@ def build_chafee_infante_opinf_problem(
         basis=basis,
         prior=prior,
         domain=BoxDomain(_bounds=domain_bounds, _bkd=bkd),
-        time_config=TimeIntegrationConfig(
-            method="crank_nicolson",
-            init_time=0.0,
-            final_time=final_time,
-            deltat=deltat,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        ),
+        method=RungeKutta(crank_nicolson(), Newton(atol=1e-10, rtol=0.0, maxiters=20)),
+        steps=FixedStep(deltat, (0.0, final_time)),
         initial_condition=initial_condition,
-        nominal_parameters=bkd.array(
-            [[nominal_diffusivity], [nominal_bifurcation]]
-        ),
+        nominal_parameters=bkd.array([[nominal_diffusivity], [nominal_bifurcation]]),
         degree_set=(1, 3),
         ninputs=0,
         lift_vector=bkd.zeros((basis.ndofs(),)),

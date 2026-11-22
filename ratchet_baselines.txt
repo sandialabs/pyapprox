@@ -9,8 +9,8 @@ mypy_benchmarks=210
 moved:pyapprox.surrogates.affine.univariate=206
 moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
-superseded:pyapprox.pde.manufactured=30
-superseded:pyapprox.pde.galerkin.manufactured=12
+superseded:pyapprox.pde.manufactured=29
+superseded:pyapprox.pde.galerkin.manufactured=11
 # Calls to superseded backend methods (pyapprox._superseded_ratchet):
 # none at present.
 # Test modules importing an optional library at module level without

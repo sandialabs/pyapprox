@@ -22,24 +22,46 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import math
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta, SteppingMethodProtocol
+from pyapprox.ode.tableau import crank_nicolson, forward_euler
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    create_adr_manufactured_test,
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
-    skfem_ode_residual,
+    skfem_discretization,
 )
-from pyapprox.pde.galerkin.time_integration.transient_model import (
-    GalerkinTransientModel,
+from pyapprox.pde.models.galerkin.transient_system import (
+    GalerkinTransientSystem,
+    galerkin_transient_system,
+    solve_galerkin_transient,
 )
-from pyapprox.pde.manufactured.burgers import (
-    ManufacturedBurgers1D,
+from pyapprox.pde.models.galerkin.verification import exact_dof_values, forcing
+from pyapprox.pde.verification.conditions import (
+    ConditionProtocol,
+    Dirichlet,
+    Neumann,
+    Periodic,
+)
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from pyapprox_benchmarks.functions.pde.burgers import (
     build_periodic_burgers_physics,
     build_periodic_line_basis,
@@ -54,23 +76,57 @@ from pyapprox_benchmarks.problems.pde import (
 )
 from pyapprox_benchmarks.protocols import DomainProtocol
 
+_Np = NDArray[Any]
+_UNIT = Box([(0.0, 1.0)])
+_CRANK_NICOLSON: RungeKutta[_Np, _Np] = RungeKutta(
+    crank_nicolson(), Newton(atol=1e-10, rtol=0.0, maxiters=20)
+)
 
-def _mass_row_sums(system, bkd):
+
+def _mass_row_sums(system: GalerkinTransientSystemProtocol[_Np], bkd: NumpyBkd) -> _Np:
     """1^T M as a backend array -- the single skfem-seam contraction."""
-    return bkd.asarray(
-        np.asarray(system.mass_matrix().sum(axis=0)).ravel()
+    return bkd.asarray(np.asarray(system.mass_matrix().sum(axis=0)).ravel())
+
+
+def _convergence_rates(errors: List[float]) -> List[float]:
+    return [math.log2(errors[k] / errors[k + 1]) for k in range(len(errors) - 1)]
+
+
+def _transient(
+    system: GalerkinTransientSystemProtocol[_Np],
+) -> GalerkinTransientSystem[_Np, CSRFormat]:
+    return galerkin_transient_system(skfem_discretization(system), ScipySparseLU())
+
+
+def _solve(
+    transient: GalerkinTransientSystem[_Np, CSRFormat],
+    method: SteppingMethodProtocol[_Np, _Np],
+    steps: FixedStep,
+    init_state: _Np,
+) -> Tuple[_Np, _Np]:
+    """Every stored state, shape (nstates, ntimes), and the times, from
+    ``init_state`` (shape (nstates,))."""
+    store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+    solve_galerkin_transient(
+        transient,
+        method,
+        RecomputeAlways(transient.solved.solver),
+        steps,
+        init_state[:, None],
+        store,
     )
+    states = np.concatenate([store.state(n) for n in range(store.ntimes())], axis=1)
+    return states, np.asarray(store.times())
 
 
-def _convergence_rates(errors):
-    return [
-        math.log2(errors[k] / errors[k + 1])
-        for k in range(len(errors) - 1)
-    ]
+def _problem(
+    solution: str, terms: List[TermProtocol], conditions: Dict[str, ConditionProtocol]
+) -> ManufacturedProblem:
+    return ManufacturedProblem({"u": solution}, terms, _UNIT, conditions)
 
 
 class TestPeriodicBurgersOpInfProblem:
-    def test_metadata(self):
+    def test_metadata(self) -> None:
         bkd = NumpyBkd()
         problem = build_periodic_burgers_opinf_problem(bkd, nx=32)
         # periodic mesh: endpoints identified, nstates == nx
@@ -84,78 +140,88 @@ class TestPeriodicBurgersOpInfProblem:
         assert lift.shape[0] == 32
         assert bkd.to_float(bkd.max(bkd.abs(lift))) == 0.0
 
-    def test_model_rebuilds_physics_on_shared_basis(self):
+    def test_system_rebuilds_physics_on_shared_basis(self) -> None:
         bkd = NumpyBkd()
         problem = build_periodic_burgers_opinf_problem(bkd, nx=16)
-        model_nominal = problem.model()
-        model_other = problem.model(bkd.array([[0.3]]))
-        assert model_nominal.system() is not model_other.system()
-        assert model_nominal.nstates() == problem.nstates()
-        assert model_other.nstates() == problem.nstates()
+        nominal = problem.system()
+        other = problem.system(bkd.array([[0.3]]))
+        assert nominal is not other
+        assert nominal.nstates() == problem.nstates()
+        assert other.nstates() == problem.nstates()
 
-    def test_momentum_conservation_through_problem_path(self):
+    def test_method_must_satisfy_its_protocol(self) -> None:
+        bkd = NumpyBkd()
+        problem = build_periodic_burgers_opinf_problem(bkd, nx=8)
+        with pytest.raises(TypeError, match="SteppingMethodProtocol"):
+            type(problem)(
+                problem.name(),
+                lambda param: problem.system(param),
+                problem.basis(),
+                problem.prior(),
+                problem.domain(),
+                "crank_nicolson",  # type: ignore[arg-type]
+                problem.steps(),
+                problem.initial_condition(),
+                problem.nominal_parameters(),
+                problem.degree_set(),
+                problem.ninputs(),
+                problem.lift_vector(),
+                bkd,
+            )
+
+    def test_momentum_conservation_through_problem_path(self) -> None:
         """Forward Euler conserves total momentum 1^T M u_k on the
         periodic mesh -- exercised through the problem builder, not
         hand-assembled physics."""
         bkd = NumpyBkd()
         problem = build_periodic_burgers_opinf_problem(bkd, nx=32)
-        model = problem.model()
-        config = TimeIntegrationConfig(
-            method="forward_euler", init_time=0.0, final_time=0.02,
-            deltat=1e-4, newton_tol=1e-10, newton_maxiter=20,
-            verbosity=0,
+        system = problem.system()
+        states, _ = _solve(
+            problem.transient(system),
+            RungeKutta(forward_euler()),
+            FixedStep(1e-4, (0.0, 0.02)),
+            problem.initial_condition(),
         )
-        states, _ = model.solve_transient(
-            problem.initial_condition(), config
-        )
-        row_sums = _mass_row_sums(model.system(), bkd)
+        row_sums = _mass_row_sums(system, bkd)
         momenta = bkd.sum(row_sums[:, None] * states, axis=0)
         drift = bkd.to_float(bkd.max(bkd.abs(momenta - momenta[0])))
         assert drift < 1e-12
 
-    def test_manufactured_solution_recovered_at_fem_rate(self):
+    def test_manufactured_solution_recovered_at_fem_rate(self) -> None:
         """MMS gate under the SAME periodic boundary treatment the
         problem ships with, through the physics builder: a
         space-periodic exact solution is recovered at the P1 rate."""
         bkd = NumpyBkd()
-        man_sol = ManufacturedBurgers1D(
-            sol_str="(0.5 + 0.2*sin(2*pi*x))*exp(-T)",
-            visc_str="0.1",
-            bkd=bkd,
-            oned=True,
+        problem = _problem(
+            "(0.5 + 0.2*sin(2*pi*x))*exp(-t)",
+            [
+                TimeDerivative("u"),
+                Divergence("u", ["-(0.1)*u_x"]),
+                Source("u", "u*u_x"),
+            ],
+            {"left": Periodic(), "right": Periodic()},
         )
-        solution = man_sol.functions["solution"]
-        forcing = man_sol.functions["forcing"]
-
         errors = []
         for nx in (16, 32, 64):
             basis = build_periodic_line_basis(nx, (0.0, 1.0), bkd)
             physics = build_periodic_burgers_physics(
-                basis, 0.1, bkd, forcing=forcing
+                basis, 0.1, bkd, forcing=forcing(problem, "u")
             )
-            coords = basis.dof_coordinates()
-            u0 = bkd.ravel(solution(coords, 0.0))
-            config = TimeIntegrationConfig(
-                method="crank_nicolson", init_time=0.0,
-                final_time=0.1, deltat=1e-3, newton_tol=1e-10,
-                newton_maxiter=20, verbosity=0,
+            states, times = _solve(
+                _transient(compose_galerkin_system(physics)),
+                _CRANK_NICOLSON,
+                FixedStep(1e-3, (0.0, 0.1)),
+                exact_dof_values(problem, basis, ["u"], 0.0),
             )
-            states, times = GalerkinTransientModel(
-                skfem_ode_residual(compose_galerkin_system(physics))
-            ).solve_transient(u0, config)
-            exact = bkd.ravel(
-                solution(coords, bkd.to_float(times[-1]))
-            )
+            exact = exact_dof_values(problem, basis, ["u"], float(times[-1]))
             errors.append(
-                bkd.to_float(
-                    bkd.norm(states[:, -1] - exact) / bkd.norm(exact)
-                )
+                bkd.to_float(bkd.norm(states[:, -1] - exact) / bkd.norm(exact))
             )
         assert min(_convergence_rates(errors)) > 1.7, errors
 
 
 class TestChafeeInfanteOpInfProblem:
-    def test_metadata(self):
+    def test_metadata(self) -> None:
         bkd = NumpyBkd()
         problem = build_chafee_infante_opinf_problem(bkd, nx=32)
         # standard mesh: nx + 1 P1 dofs (Dirichlet dof included)
@@ -170,75 +236,60 @@ class TestChafeeInfanteOpInfProblem:
         u0 = problem.initial_condition()
         assert bkd.to_float(bkd.abs(u0[0])) == 0.0
 
-    def test_unsupported_bc_kind_raises(self):
+    def test_unsupported_bc_kind_raises(self) -> None:
         bkd = NumpyBkd()
         basis = build_line_basis(8, (0.0, 1.0), bkd)
         with pytest.raises(ValueError, match="bc_kind"):
-            build_chafee_infante_system(
-                basis, 1.0, 1.0, bkd, bc_kind="periodic"
-            )
+            build_chafee_infante_system(basis, 1.0, 1.0, bkd, bc_kind="periodic")
 
-    def test_solve_fom_decays_below_bifurcation_threshold(self):
+    def test_solve_fom_decays_below_bifurcation_threshold(self) -> None:
         """With lambda=1 below the first Dirichlet-Neumann eigenvalue
         gamma*(pi/2)^2 of the diffusion, u=0 is stable: the solution
-        decays and the Dirichlet dof stays pinned at zero."""
+        decays and the Dirichlet dof stays pinned at zero. Stepped with
+        the problem's own default method."""
         bkd = NumpyBkd()
         problem = build_chafee_infante_opinf_problem(bkd, nx=32)
-        model = problem.model()
-        config = TimeIntegrationConfig(
-            method="crank_nicolson", init_time=0.0, final_time=0.5,
-            deltat=5e-3, newton_tol=1e-10, newton_maxiter=20,
-            verbosity=0,
-        )
         u0 = problem.initial_condition()
-        states, _ = model.solve_transient(u0, config)
+        states, _ = _solve(
+            problem.transient(problem.system()),
+            problem.method(),
+            FixedStep(5e-3, (0.0, 0.5)),
+            u0,
+        )
         boundary_drift = bkd.to_float(bkd.max(bkd.abs(states[0, :])))
         assert boundary_drift < 1e-12
-        assert bkd.to_float(bkd.norm(states[:, -1])) < 0.5 * bkd.to_float(
-            bkd.norm(u0)
-        )
+        assert bkd.to_float(bkd.norm(states[:, -1])) < 0.5 * bkd.to_float(bkd.norm(u0))
 
-    def test_manufactured_solution_recovered_at_fem_rate(self):
+    def test_manufactured_solution_recovered_at_fem_rate(self) -> None:
         """MMS gate under the SAME boundary treatment the problem
         ships with (zero Dirichlet left, natural Neumann right),
         through the system builder: sin(pi*x/2) vanishes at x=0 and
         has zero slope at x=1, so both BCs are satisfied exactly and
         the exact solution is recovered at the P1 rate."""
         bkd = NumpyBkd()
-        functions, _ = create_adr_manufactured_test(
-            bounds=[0.0, 1.0],
-            sol_str="sin(pi*x/2)*exp(-T)",
-            diff_str="1.0",
-            react_str="u - u**3",
-            vel_strs=["1e-16*x"],
-            bkd=bkd,
-            time_dependent=True,
+        problem = _problem(
+            "sin(pi*x/2)*exp(-t)",
+            [
+                TimeDerivative("u"),
+                Divergence("u", ["-u_x"]),
+                Source("u", "-(u - u**3)"),
+            ],
+            {"left": Dirichlet(), "right": Neumann()},
         )
-        solution = functions["solution"]
-        forcing = functions["forcing"]
-
         errors = []
         for nx in (16, 32, 64):
             basis = build_line_basis(nx, (0.0, 1.0), bkd)
             system = build_chafee_infante_system(
-                basis, 1.0, 1.0, bkd, forcing=forcing
+                basis, 1.0, 1.0, bkd, forcing=forcing(problem, "u")
             )
-            coords = basis.dof_coordinates()
-            u0 = bkd.ravel(solution(coords, 0.0))
-            config = TimeIntegrationConfig(
-                method="crank_nicolson", init_time=0.0,
-                final_time=0.1, deltat=1e-3, newton_tol=1e-10,
-                newton_maxiter=20, verbosity=0,
+            states, times = _solve(
+                _transient(system),
+                _CRANK_NICOLSON,
+                FixedStep(1e-3, (0.0, 0.1)),
+                exact_dof_values(problem, basis, ["u"], 0.0),
             )
-            states, times = GalerkinTransientModel(
-                skfem_ode_residual(system)
-            ).solve_transient(u0, config)
-            exact = bkd.ravel(
-                solution(coords, bkd.to_float(times[-1]))
-            )
+            exact = exact_dof_values(problem, basis, ["u"], float(times[-1]))
             errors.append(
-                bkd.to_float(
-                    bkd.norm(states[:, -1] - exact) / bkd.norm(exact)
-                )
+                bkd.to_float(bkd.norm(states[:, -1] - exact) / bkd.norm(exact))
             )
         assert min(_convergence_rates(errors)) > 1.7, errors

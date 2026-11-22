@@ -13,7 +13,9 @@ from typing import Any
 
 from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import crank_nicolson
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.system import (
@@ -22,6 +24,7 @@ from pyapprox.pde.galerkin.protocols.system import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 # Bound to NumPy: the systems assemble with skfem.
 _Np = NDArray[Any]
@@ -36,15 +39,11 @@ from pyapprox_benchmarks.problems.pde.opinf_problem import PDEOpInfProblem
 class _PeriodicBurgersSystemFactory:
     """Rebuild the Burgers system per viscosity on the shared basis."""
 
-    def __init__(
-        self, basis: GalerkinBasisProtocol[_Np], bkd: NumpyBkd
-    ) -> None:
+    def __init__(self, basis: GalerkinBasisProtocol[_Np], bkd: NumpyBkd) -> None:
         self._basis = basis
         self._bkd = bkd
 
-    def __call__(
-        self, parameters: _Np
-    ) -> GalerkinTransientSystemProtocol[_Np]:
+    def __call__(self, parameters: _Np) -> GalerkinTransientSystemProtocol[_Np]:
         viscosity = float(self._bkd.to_numpy(parameters)[0, 0])
         # Periodic topology: no boundary conditions.
         return compose_galerkin_system(
@@ -96,17 +95,13 @@ def build_periodic_burgers_opinf_problem(
     basis = build_periodic_line_basis(nx, bounds, bkd, degree=degree)
 
     coords = basis.dof_coordinates()
-    initial_condition = ic_offset + ic_amplitude * bkd.sin(
-        2.0 * math.pi * coords[0]
-    )
+    initial_condition = ic_offset + ic_amplitude * bkd.sin(2.0 * math.pi * coords[0])
 
     prior = IndependentJoint(
         [UniformMarginal(viscosity_bounds[0], viscosity_bounds[1], bkd)],
         bkd,
     )
-    domain_bounds = bkd.array(
-        [[viscosity_bounds[0], viscosity_bounds[1]]]
-    )
+    domain_bounds = bkd.array([[viscosity_bounds[0], viscosity_bounds[1]]])
 
     return PDEOpInfProblem(
         name="periodic_burgers_opinf",
@@ -114,15 +109,8 @@ def build_periodic_burgers_opinf_problem(
         basis=basis,
         prior=prior,
         domain=BoxDomain(_bounds=domain_bounds, _bkd=bkd),
-        time_config=TimeIntegrationConfig(
-            method="crank_nicolson",
-            init_time=0.0,
-            final_time=final_time,
-            deltat=deltat,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        ),
+        method=RungeKutta(crank_nicolson(), Newton(atol=1e-10, rtol=0.0, maxiters=20)),
+        steps=FixedStep(deltat, (0.0, final_time)),
         initial_condition=initial_condition,
         nominal_parameters=bkd.array([[nominal_viscosity]]),
         degree_set=(1, 2),

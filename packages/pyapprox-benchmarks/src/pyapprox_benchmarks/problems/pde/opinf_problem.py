@@ -4,9 +4,10 @@ Bundles a parameterized Galerkin FEM semi-discretization with the
 metadata operator inference needs: the monomial degree set of the
 exact reduced dynamics, the input dimension, the boundary lift, and
 the time-integration defaults.  Composition, not inheritance --
-mirrors ``ODEForwardUQProblem``: the problem returns a solvable
-``GalerkinTransientModel`` and the caller drives it (``model.solve_transient``,
-``model.system()``); the problem itself never solves.
+mirrors ``ODEForwardUQProblem``: the problem returns the semi-discrete
+system and its transient form, with the default stepping method and
+steps, and the caller drives ``solve_galerkin_transient``; the problem
+itself never solves.
 """
 
 from __future__ import annotations
@@ -15,19 +16,22 @@ from typing import Any, Callable, Optional, Tuple
 
 from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import SteppingMethodProtocol
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
-    skfem_ode_residual,
+    skfem_discretization,
 )
-from pyapprox.pde.galerkin.time_integration.transient_model import (
-    GalerkinTransientModel,
+from pyapprox.pde.models.galerkin.transient_system import (
+    GalerkinTransientSystem,
+    galerkin_transient_system,
 )
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
 from pyapprox_benchmarks.protocols import DomainProtocol
 
 # Bound to NumPy: the systems assemble with skfem.
@@ -38,7 +42,7 @@ class PDEOpInfProblem:
     """Parameterized PDE problem for operator-inference recovery.
 
     The semi-discrete FOM is ``M du/dt = f(u; mu)`` on a FIXED basis:
-    ``model`` rebuilds the system per parameter value on the one
+    ``system`` rebuilds the system per parameter value on the one
     shared basis, so snapshots, projections, and the intrusive reduced
     operators all live on the identical discretization.
 
@@ -55,8 +59,11 @@ class PDEOpInfProblem:
         Prior distribution over the parameters.
     domain : DomainProtocol[_Np]
         Parameter domain (bounds).
-    time_config : TimeIntegrationConfig
-        Default time integration configuration for FOM solves.
+    method : SteppingMethodProtocol
+        Default stepping method for FOM solves, with its nonlinear
+        solver when implicit.
+    steps : FixedStep
+        Default steps for FOM solves.
     initial_condition : _Np
         Initial state.  Shape: ``(nstates,)``.
     nominal_parameters : _Np
@@ -82,18 +89,22 @@ class PDEOpInfProblem:
         Human-readable description.
     reference : str
         Literature reference.
+
+    Raises
+    ------
+    TypeError
+        If ``method`` does not satisfy ``SteppingMethodProtocol``.
     """
 
     def __init__(
         self,
         name: str,
-        system_factory: Callable[
-            [_Np], GalerkinTransientSystemProtocol[_Np]
-        ],
+        system_factory: Callable[[_Np], GalerkinTransientSystemProtocol[_Np]],
         basis: GalerkinBasisProtocol[_Np],
         prior: DistributionProtocol[_Np],
         domain: DomainProtocol[_Np],
-        time_config: TimeIntegrationConfig[_Np],
+        method: SteppingMethodProtocol[_Np, _Np],
+        steps: FixedStep,
         initial_condition: _Np,
         nominal_parameters: _Np,
         degree_set: Tuple[int, ...],
@@ -105,12 +116,18 @@ class PDEOpInfProblem:
         description: str = "",
         reference: str = "",
     ) -> None:
+        if not isinstance(method, SteppingMethodProtocol):
+            raise TypeError(
+                "method must satisfy SteppingMethodProtocol, got "
+                f"{type(method).__name__}"
+            )
         self._name = name
         self._system_factory = system_factory
         self._basis = basis
         self._prior = prior
         self._domain = domain
-        self._time_config = time_config
+        self._method = method
+        self._steps = steps
         self._initial_condition = initial_condition
         self._nominal_parameters = nominal_parameters
         self._degree_set = degree_set
@@ -142,9 +159,13 @@ class PDEOpInfProblem:
         """Return parameter domain."""
         return self._domain
 
-    def time_config(self) -> TimeIntegrationConfig[_Np]:
-        """Return the default time integration configuration."""
-        return self._time_config
+    def method(self) -> SteppingMethodProtocol[_Np, _Np]:
+        """Return the default stepping method."""
+        return self._method
+
+    def steps(self) -> FixedStep:
+        """Return the default steps."""
+        return self._steps
 
     def initial_condition(self) -> _Np:
         """Return initial state. Shape: ``(nstates,)``."""
@@ -190,34 +211,32 @@ class PDEOpInfProblem:
         """Return literature reference."""
         return self._reference
 
-    def model(
+    def system(
         self, parameters: Optional[_Np] = None
-    ) -> GalerkinTransientModel[_Np]:
-        """Build the transient FEM model at the given parameters.
+    ) -> GalerkinTransientSystemProtocol[_Np]:
+        """Build the semi-discrete system at the given parameters.
 
-        Rebuilds the system per parameter value on the SHARED basis
-        and wraps it in a solvable ``GalerkinTransientModel`` with the
-        consistent mass; the caller
-        drives it (``model.solve_transient(problem.initial_condition(),
-        problem.time_config())``) and reaches the semi-discrete
-        operator through ``model.system()``.  Downstream recovery
-        code must use ONE returned model for both snapshot generation
-        and the intrusive reference -- two separately built systems
-        agree only up to assembly determinism.
+        Rebuilds the system per parameter value on the SHARED basis.
+        Downstream recovery code must use ONE returned system for both
+        snapshot generation (through :meth:`transient`) and the
+        intrusive reference -- two separately built systems agree only
+        up to assembly determinism.
 
         Parameters
         ----------
         parameters : _Np, optional
             Parameter values of shape ``(nparams, 1)``.  ``None`` uses
             the nominal parameters.
-
-        Returns
-        -------
-        GalerkinTransientModel
-            The solvable model at the requested parameters.
         """
         if parameters is None:
             parameters = self._nominal_parameters
-        return GalerkinTransientModel(
-            skfem_ode_residual(self._system_factory(parameters))
-        )
+        return self._system_factory(parameters)
+
+    def transient(
+        self, system: GalerkinTransientSystemProtocol[_Np]
+    ) -> GalerkinTransientSystem[_Np, CSRFormat]:
+        """``system`` in the form ``solve_galerkin_transient`` steps,
+        with the consistent mass on the SciPy stack; the caller drives
+        it with :meth:`method`, :meth:`steps` and
+        :meth:`initial_condition` (as a column)."""
+        return galerkin_transient_system(skfem_discretization(system), ScipySparseLU())
