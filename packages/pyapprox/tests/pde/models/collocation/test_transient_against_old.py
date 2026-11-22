@@ -13,19 +13,31 @@ Crank-Nicolson and Heun:
 - ADR on a 6 x 6 polar mesh, time-dependent Dirichlet data on all four
   sides.
 
-Every stored state agrees to 1e-10. This checks the new machinery
+Every stored state agrees to 1e-10; with the diffusion parameterized,
+the gradient and HVP of an interior value at the final time from
+``TrajectoryDerivatives`` equal the old model's adjoint to 1e-9. A
+steady start stays put under every placement that pins each stage it
+reads. This checks the new machinery
 against the old numbers while both paths exist; it is no claim that the
 step-end scheme is the right one, which the temporal-order cases judge.
 """
 
 import math
 from dataclasses import dataclass
-from typing import Callable, Generic, List
+from typing import Callable, Generic, List, Optional
 
+import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.ode.differentiated_rows import CoupledRows, differentiated_rows
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.integration import Integrator
+from pyapprox.ode.observation_terms import EndpointTerm
+from pyapprox.ode.pinned_rows import AtEveryBlock, AtStepEnd
+from pyapprox.ode.residual_derivatives import backend_state_space
 from pyapprox.ode.runge_kutta import RungeKuttaStepper
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.tableau import (
@@ -35,7 +47,9 @@ from pyapprox.ode.tableau import (
     forward_euler,
     heun,
 )
+from pyapprox.ode.trajectory_derivatives import TrajectoryDerivatives
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.boundary.closure_rows import (
@@ -69,12 +83,22 @@ from pyapprox.pde.collocation.time_integration import (
     TimeIntegrationConfig,
 )
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
+from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.models.collocation.closed_system import CollocationSystem
 from pyapprox.pde.models.collocation.closure_pinning import ClosurePinning
+from pyapprox.pde.models.collocation.steady_residual import (
+    collocation_steady_residual,
+)
+from pyapprox.pde.models.collocation.transient import TransientForwardModel
 from pyapprox.pde.models.collocation.unconstrained_system import (
     collocation_unconstrained_system,
 )
+from pyapprox.pde.parameterizations.diffusion import (
+    create_diffusion_parameterization,
+)
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendDenseLU, DenseFormat
 from pyapprox.util.rootfinding.nonlinear import Newton
 
 _N1D = 12
@@ -206,36 +230,39 @@ _PROBLEMS: dict[str, Callable[[Backend[Array]], _Problem[Array]]] = {
 }
 
 
-def _new_trajectory(
-    bkd: Backend[Array], problem: _Problem[Array], method: str, times: List[float]
-) -> List[Array]:
-    """The stored states on the new path, every row pinned at the step
+def _stepper(
+    problem: _Problem[Array],
+    method: str,
+    parameters: Optional[ParameterState[Array]] = None,
+) -> RungeKuttaStepper[Array, Array, DenseFormat[Array]]:
+    """The new path's stepper, every boundary row pinned at the step
     end."""
-    system = collocation_unconstrained_system(problem.system)
+    system = collocation_unconstrained_system(problem.system, parameters)
     newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
-    stepper = RungeKuttaStepper(
+    return RungeKuttaStepper(
         _TABLEAUX[method](),
         system,
         RecomputeAlways(system.solver),
         newton,
-        ClosurePinning(problem.system),
+        ClosurePinning(problem.system, parameters=parameters),
     )
+
+
+def _record(
+    bkd: Backend[Array],
+    problem: _Problem[Array],
+    stepper: RungeKuttaStepper[Array, Array, DenseFormat[Array]],
+) -> InMemoryTrajectoryStore[Array]:
     store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+    times = [_DELTAT * n for n in range(_NSTEPS + 1)]
     Integrator(stepper).solve(
         bkd.reshape(problem.init, (-1, 1)), GivenSizes.from_times(times), store
     )
-    return [store.state(n)[:, 0] for n in range(store.ntimes())]
+    return store
 
 
-@pytest.mark.parametrize("method", _METHODS)
-@pytest.mark.parametrize("name", list(_PROBLEMS))
-def test_trajectories_equal_the_old_path(
-    bkd: Backend[Array], name: str, method: str
-) -> None:
-    problem = _PROBLEMS[name](bkd)
-    times = [_DELTAT * n for n in range(_NSTEPS + 1)]
-    new = _new_trajectory(bkd, problem, method, times)
-    config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
+def _config(method: str) -> TimeIntegrationConfig[Array]:
+    return TimeIntegrationConfig(
         method=method,
         init_time=0.0,
         final_time=_DELTAT * _NSTEPS,
@@ -244,7 +271,139 @@ def test_trajectories_equal_the_old_path(
         newton_maxiter=20,
         verbosity=0,
     )
+
+
+@pytest.mark.parametrize("method", _METHODS)
+@pytest.mark.parametrize("name", list(_PROBLEMS))
+def test_trajectories_equal_the_old_path(
+    bkd: Backend[Array], name: str, method: str
+) -> None:
+    problem = _PROBLEMS[name](bkd)
+    store = _record(bkd, problem, _stepper(problem, method))
+    new = [store.state(n)[:, 0] for n in range(store.ntimes())]
+    config: TimeIntegrationConfig[Array] = _config(method)
     old, _ = CollocationModel(problem.old, bkd).solve_transient(problem.init, config)
     assert old.shape[1] == len(new)
     for n, state in enumerate(new):
         bkd.assert_allclose(state, old[:, n], rtol=1e-10, atol=1e-10)
+
+
+_SAMPLE = [0.2, -0.1]
+_DIRECTION = [0.7, -1.1]
+
+
+def _diffusion_map(bkd: Backend[Array], npts: int) -> BasisExpansion[Array]:
+    rng = np.random.default_rng(5)
+    modes = [bkd.ones((npts,)), bkd.asarray(rng.uniform(-0.3, 0.3, npts))]
+    return BasisExpansion(bkd, 0.3, modes)
+
+
+def _observed(npts: int) -> int:
+    """An interior node: the middle of the 1D meshes, the center of the
+    polar one."""
+    return npts // 2 + (3 if npts == 36 else 0)
+
+
+@pytest.mark.parametrize("method", _METHODS)
+@pytest.mark.parametrize("name", list(_PROBLEMS))
+def test_gradient_and_hvp_equal_the_old_path(
+    bkd: Backend[Array], name: str, method: str
+) -> None:
+    """The diffusion D = 0.3 + p_0 + p_1 m(x), the value at an interior
+    node at the final time: ``TrajectoryDerivatives``' gradient and HVP
+    equal the old model's adjoint to 1e-9."""
+    problem = _PROBLEMS[name](bkd)
+    npts = problem.init.shape[0]
+    physics = problem.system.physics()
+    assert isinstance(physics, AdvectionDiffusionReaction)
+    parameters = ParameterState(
+        create_diffusion_parameterization(physics, bkd, _diffusion_map(bkd, npts))
+    )
+    sample = bkd.asarray([_SAMPLE]).T
+    parameters.set_param(sample[:, 0])
+    stepper = _stepper(problem, method, parameters)
+    store = _record(bkd, problem, stepper)
+    observed = _observed(npts)
+    term = EndpointTerm(StateEntries(bkd, npts, [observed]))
+    functional = TrajectoryFunctional.from_terms(bkd, 1, state_terms=(term,))
+    sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(stepper)
+    direction = bkd.asarray([_DIRECTION]).T
+    gradient, hvp = sweeps.gradient_and_hvp(store, functional, direction)
+    old = TransientForwardModel(
+        problem.old,
+        bkd,
+        problem.init,
+        _config(method),
+        functional=EndpointFunctional(observed, npts, 2, bkd),
+        parameterization=create_diffusion_parameterization(
+            problem.old, bkd, _diffusion_map(bkd, npts)
+        ),
+    )
+    derivatives = old.derivatives()
+    assert derivatives.jacobian is not None and derivatives.hvp is not None
+    # Neither is zero, so the agreement is not vacuous
+    for value in (gradient, hvp):
+        assert bkd.to_float(bkd.max(bkd.abs(value))) > 1e-6
+    bkd.assert_allclose(gradient[:, 0], derivatives.jacobian(sample)[0], rtol=1e-9)
+    bkd.assert_allclose(hvp, derivatives.hvp(sample, direction), rtol=1e-9)
+
+
+_STRATEGIES = ["step_end", "every_block", "differentiated"]
+
+
+def _strategy_stepper(
+    problem: _Problem[Array], method: str, strategy: str
+) -> RungeKuttaStepper[Array, Array, DenseFormat[Array]]:
+    """The step-end pin of every boundary row, the pin at every block, or
+    the essential rows differentiated with the step-end pin."""
+    raw = collocation_unconstrained_system(problem.system)
+    essential = problem.system.essential()
+    system = (
+        differentiated_rows(raw, essential, CoupledRows())
+        if strategy == "differentiated" and essential is not None
+        else raw
+    )
+    placement = AtEveryBlock() if strategy == "every_block" else AtStepEnd()
+    newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
+    return RungeKuttaStepper(
+        _TABLEAUX[method](),
+        system,
+        RecomputeAlways(system.solver),
+        newton,
+        ClosurePinning(problem.system, placement),
+    )
+
+
+_STEADY_CASES = [
+    (method, strategy)
+    for method in _METHODS
+    for strategy in _STRATEGIES
+    # A step-end placement leaves Heun's explicit first stage unpinned; a
+    # stage reading an unpinned boundary value need not preserve a steady
+    # state, so only the placements that pin every stage it reads are
+    # checked
+    if not (method == "heun" and strategy != "every_block")
+]
+
+
+@pytest.mark.parametrize("method, strategy", _STEADY_CASES)
+def test_a_steady_start_stays(bkd: Backend[Array], method: str, strategy: str) -> None:
+    """Derivation-free: started from the discrete steady solution of the
+    Dirichlet-Robin problem, every stored state equals it to 1e-10, for
+    every method under a pin at every block, and for the methods whose
+    stages read no unpinned value (BE, FE, CN) under the step-end pin."""
+    problem = _dirichlet_robin(bkd)
+    nstates = problem.init.shape[0]
+    steady = SteadySystem(
+        collocation_steady_residual(problem.system),
+        backend_state_space(bkd, nstates),
+        RecomputeAlways(BackendDenseLU(bkd)),
+    )
+    newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=30)
+    point = steady.solve(newton, bkd.zeros((nstates, 1)))
+    assert point.converged()
+    start = point.state()
+    resting = _Problem(problem.system, problem.old, start[:, 0])
+    store = _record(bkd, resting, _strategy_stepper(resting, method, strategy))
+    for n in range(store.ntimes()):
+        bkd.assert_allclose(store.state(n), start, rtol=1e-10, atol=1e-10)
