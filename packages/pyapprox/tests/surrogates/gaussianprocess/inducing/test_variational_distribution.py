@@ -1,16 +1,18 @@
 """Tests for GaussianVariationalDistribution."""
 
 import numpy as np
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
 from pyapprox.surrogates.gaussianprocess.inducing.variational_distribution import (
     GaussianVariationalDistribution,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 
 class TestGaussianVariationalDistribution:
@@ -38,21 +40,14 @@ class TestGaussianVariationalDistribution:
         """Tier 0: KL matches manual computation for known values."""
         M = 3
         m = bkd.array([1.0, -0.5, 0.3])
-        L = bkd.array([[2.0, 0.0, 0.0],
-                        [0.5, 1.5, 0.0],
-                        [-0.3, 0.2, 0.8]])
+        L = bkd.array([[2.0, 0.0, 0.0], [0.5, 1.5, 0.0], [-0.3, 0.2, 0.8]])
         qd = GaussianVariationalDistribution(M, bkd, m, L)
 
         m_np = np.array([1.0, -0.5, 0.3])
-        L_np = np.array([[2.0, 0.0, 0.0],
-                          [0.5, 1.5, 0.0],
-                          [-0.3, 0.2, 0.8]])
+        L_np = np.array([[2.0, 0.0, 0.0], [0.5, 1.5, 0.0], [-0.3, 0.2, 0.8]])
         S_np = L_np @ L_np.T
         expected = 0.5 * (
-            np.dot(m_np, m_np)
-            + np.trace(S_np)
-            - M
-            - np.log(np.linalg.det(S_np))
+            np.dot(m_np, m_np) + np.trace(S_np) - M - np.log(np.linalg.det(S_np))
         )
         bkd.assert_allclose(
             bkd.asarray([qd.kl_divergence_to_prior()]),
@@ -65,23 +60,17 @@ class TestGaussianVariationalDistribution:
         m_tilde = bkd.array([1.0, 2.0, 3.0])
         qd = GaussianVariationalDistribution(M, bkd, m_tilde)
 
-        L_uu = bkd.array([[2.0, 0.0, 0.0],
-                           [0.5, 1.0, 0.0],
-                           [0.0, 0.3, 0.7]])
+        L_uu = bkd.array([[2.0, 0.0, 0.0], [0.5, 1.0, 0.0], [0.0, 0.3, 0.7]])
         m = qd.mean(L_uu)
         expected = bkd.dot(L_uu, m_tilde)
         bkd.assert_allclose(m, expected, rtol=1e-12)
 
     def test_unwhitened_cholesky(self, bkd):
         M = 3
-        L_tilde = bkd.array([[1.5, 0.0, 0.0],
-                              [0.2, 0.8, 0.0],
-                              [0.1, 0.3, 0.6]])
+        L_tilde = bkd.array([[1.5, 0.0, 0.0], [0.2, 0.8, 0.0], [0.1, 0.3, 0.6]])
         qd = GaussianVariationalDistribution(M, bkd, chol_init=L_tilde)
 
-        L_uu = bkd.array([[2.0, 0.0, 0.0],
-                           [0.5, 1.0, 0.0],
-                           [0.0, 0.3, 0.7]])
+        L_uu = bkd.array([[2.0, 0.0, 0.0], [0.5, 1.0, 0.0], [0.0, 0.3, 0.7]])
         L = qd.cholesky(L_uu)
         expected = bkd.dot(L_uu, L_tilde)
         bkd.assert_allclose(L, expected, rtol=1e-12)
@@ -99,9 +88,7 @@ class TestGaussianVariationalDistribution:
         M = 3
         qd = GaussianVariationalDistribution(M, bkd)
 
-        A = np.array([[1.0, 0.3, 0.1],
-                       [0.3, 1.0, 0.2],
-                       [0.1, 0.2, 1.0]])
+        A = np.array([[1.0, 0.3, 0.1], [0.3, 1.0, 0.2], [0.1, 0.2, 1.0]])
         L_uu = bkd.array(np.linalg.cholesky(A))
 
         S = 50000
@@ -117,54 +104,29 @@ class TestGaussianVariationalDistribution:
 
 
 class TestGaussianVariationalDistributionAutograd:
-    """Torch-only autograd tests using DerivativeChecker."""
+    """The autodiff KL gradient, validated with DerivativeChecker."""
 
-    def setup_method(self):
-        torch.set_default_dtype(torch.float64)
-        self.bkd = TorchBkd()
-
-    def test_kl_gradient_via_derivative_checker(self):
+    def test_kl_gradient_via_derivative_checker(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Tier 0: KL gradient matches finite-difference via DerivativeChecker."""
-        bkd = self.bkd
+        bkd = autodiff_bkd
         M = 3
         m_init = bkd.array([0.5, -0.3, 0.1])
-        L_init = bkd.array([[1.0, 0.0, 0.0],
-                             [0.2, 0.8, 0.0],
-                             [0.1, 0.1, 0.5]])
+        L_init = bkd.array([[1.0, 0.0, 0.0], [0.2, 0.8, 0.0], [0.1, 0.1, 0.5]])
         qd = GaussianVariationalDistribution(M, bkd, m_init, L_init)
 
-        class KLWrapper:
-            def __init__(self, qd, bkd):
-                self._qd = qd
-                self._bkd = bkd
+        def kl(params_flat: Array) -> Array:
+            qd.hyp_list().set_active_values(params_flat)
+            return bkd.reshape(qd.kl_divergence_to_prior(), (1,))
 
-            def bkd(self):
-                return self._bkd
-
-            def nvars(self):
-                return self._qd.hyp_list().nactive_params()
-
-            def nqoi(self):
-                return 1
-
-            def __call__(self, params):
-                params_flat = self._bkd.reshape(params, (-1,))
-                self._qd.hyp_list().set_active_values(params_flat)
-                kl = self._qd.kl_divergence_to_prior()
-                return self._bkd.reshape(kl, (1, 1))
-
-            def jacobian(self, params):
-                params_flat = self._bkd.reshape(params, (-1,))
-                p = params_flat.clone().detach().requires_grad_(True)
-                self._qd.hyp_list().set_active_values(p)
-                kl = self._qd.kl_divergence_to_prior()
-                kl.backward()
-                return self._bkd.reshape(p.grad, (1, -1))
-
-            def derivatives(self):
-                return Derivatives.first_order(jacobian=self.jacobian)
-
-        wrapper = KLWrapper(qd, bkd)
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=1,
+            nvars=qd.hyp_list().nactive_params(),
+            fun=lambda params: bkd.reshape(kl(bkd.flatten(params)), (1, 1)),
+            jacobian=lambda params: bkd.jacobian(kl, bkd.flatten(params)),
+            bkd=bkd,
+        )
         checker = DerivativeChecker(wrapper)
 
         params = qd.hyp_list().get_active_values()

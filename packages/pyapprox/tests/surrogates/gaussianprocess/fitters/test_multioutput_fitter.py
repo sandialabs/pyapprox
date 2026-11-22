@@ -1,5 +1,8 @@
 """Tests for MultiOutputGP fitters."""
 
+from dataclasses import dataclass
+from typing import Generic, List
+
 import numpy as np
 
 from pyapprox.surrogates.gaussianprocess.fitters import (
@@ -19,201 +22,158 @@ from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array, Backend
+
+NVARS = 2
+NOUTPUTS = 2
+NTRAIN = 20
+NTEST = 5
+
+
+@dataclass(frozen=True)
+class _Data(Generic[Array]):
+    X_train_list: List[Array]
+    y_train_list: List[Array]
+    X_test_list: List[Array]
+
+
+def _data(bkd: Backend[Array]) -> _Data[Array]:
+    np.random.seed(42)
+    X_np = np.random.randn(NVARS, NTRAIN)
+    X_train = bkd.array(X_np)
+    y_train_list = [
+        bkd.array(np.sin(X_np[0, :] + X_np[1, :])[None, :]),
+        bkd.array(np.cos(X_np[0, :] - X_np[1, :])[None, :]),
+    ]
+    X_test = bkd.array(np.random.randn(NVARS, NTEST))
+    return _Data([X_train] * NOUTPUTS, y_train_list, [X_test] * NOUTPUTS)
+
+
+def _make_gp(bkd: Backend[Array], fixed: bool) -> MultiOutputGP[Array]:
+    kernels = []
+    for _ in range(NOUTPUTS):
+        matern = Matern52Kernel(
+            bkd.ones((NVARS,)),
+            (0.1, 10.0),
+            NVARS,
+            bkd,
+            fixed=fixed,
+        )
+        constant = PolynomialScalingKernel(
+            [1.0],
+            (0.1, 10.0),
+            bkd,
+            nvars=NVARS,
+            fixed=fixed,
+        )
+        noise = IIDGaussianNoise(
+            0.1,
+            (1e-4, 1.0),
+            bkd,
+            fixed=fixed,
+        )
+        kernel = constant * matern + noise
+        kernels.append(kernel)
+    mo_kernel = IndependentMultiOutputKernel(kernels)
+    return MultiOutputGP(mo_kernel, nugget=1e-6)
 
 
 class TestMultiOutputGPFixedFitter:
-    """Base test class for MultiOutputGPFixedHyperparameterFitter.
+    """Tests for MultiOutputGPFixedHyperparameterFitter.
 
     These tests work with both NumPy and Torch backends since no
     optimization (and thus no autograd) is needed.
     """
 
-    def _setup_data(self, bkd):
-        np.random.seed(42)
-        self.nvars = 2
-        self.noutputs = 2
-        self.n_train = 20
-
-        X_np = np.random.randn(self.nvars, self.n_train)
-        self.X_train = bkd.array(X_np)
-
-        y1_np = np.sin(X_np[0, :] + X_np[1, :])[None, :]
-        y2_np = np.cos(X_np[0, :] - X_np[1, :])[None, :]
-        self.y_train_list = [
-            bkd.array(y1_np),
-            bkd.array(y2_np),
-        ]
-        self.X_train_list = [self.X_train] * self.noutputs
-
-        X_test_np = np.random.randn(self.nvars, 5)
-        self.X_test = bkd.array(X_test_np)
-        self.X_test_list = [self.X_test] * self.noutputs
-
-    def _make_gp(self, bkd, fixed=True):
-        kernels = []
-        for _ in range(self.noutputs):
-            matern = Matern52Kernel(
-                [1.0] * self.nvars,
-                (0.1, 10.0),
-                self.nvars,
-                bkd,
-                fixed=fixed,
-            )
-            constant = PolynomialScalingKernel(
-                [1.0],
-                (0.1, 10.0),
-                bkd,
-                nvars=self.nvars,
-                fixed=fixed,
-            )
-            noise = IIDGaussianNoise(
-                0.1,
-                (1e-4, 1.0),
-                bkd,
-                fixed=fixed,
-            )
-            kernel = constant * matern + noise
-            kernels.append(kernel)
-        mo_kernel = IndependentMultiOutputKernel(kernels)
-        return MultiOutputGP(mo_kernel, nugget=1e-6)
-
-    def test_fixed_returns_gp_fit_result(self, bkd) -> None:
+    def test_fixed_returns_gp_fit_result(self, bkd: Backend[Array]) -> None:
         """Fixed fitter returns GPFitResult."""
-        self._setup_data(bkd)
-        gp = self._make_gp(bkd)
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=True)
         fitter = MultiOutputGPFixedHyperparameterFitter(bkd)
-        result = fitter.fit(gp, self.X_train_list, self.y_train_list)
+        result = fitter.fit(gp, data.X_train_list, data.y_train_list)
         assert isinstance(result, GPFitResult)
 
-    def test_fixed_fitted_can_predict(self, bkd) -> None:
+    def test_fixed_fitted_can_predict(self, bkd: Backend[Array]) -> None:
         """Fixed fitter result can predict."""
-        self._setup_data(bkd)
-        gp = self._make_gp(bkd)
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=True)
         fitter = MultiOutputGPFixedHyperparameterFitter(bkd)
-        result = fitter.fit(gp, self.X_train_list, self.y_train_list)
+        result = fitter.fit(gp, data.X_train_list, data.y_train_list)
 
         fitted = result.surrogate()
         assert fitted.is_fitted()
 
-        mean_list = fitted.predict(self.X_test_list)
-        assert len(mean_list) == self.noutputs
+        mean_list = fitted.predict(data.X_test_list)
+        assert len(mean_list) == NOUTPUTS
         for mean in mean_list:
-            assert mean.shape == (1, 5)
+            assert mean.shape == (1, NTEST)
 
-    def test_fixed_original_not_modified(self, bkd) -> None:
+    def test_fixed_original_not_modified(self, bkd: Backend[Array]) -> None:
         """Original GP must NOT be modified."""
-        self._setup_data(bkd)
-        gp = self._make_gp(bkd)
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=True)
         fitter = MultiOutputGPFixedHyperparameterFitter(bkd)
-        fitter.fit(gp, self.X_train_list, self.y_train_list)
+        fitter.fit(gp, data.X_train_list, data.y_train_list)
         assert not gp.is_fitted()
 
-    def test_fixed_nll_is_finite(self, bkd) -> None:
+    def test_fixed_nll_is_finite(self, bkd: Backend[Array]) -> None:
         """NLL should be finite."""
-        self._setup_data(bkd)
-        gp = self._make_gp(bkd)
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=True)
         fitter = MultiOutputGPFixedHyperparameterFitter(bkd)
-        result = fitter.fit(gp, self.X_train_list, self.y_train_list)
+        result = fitter.fit(gp, data.X_train_list, data.y_train_list)
         nll = result.neg_log_marginal_likelihood()
         assert np.isfinite(float(bkd.to_numpy(nll)))
 
-    def test_ml_no_active_params_skips_optimization(self, bkd) -> None:
+    def test_ml_no_active_params_skips_optimization(self, bkd: Backend[Array]) -> None:
         """When all params are fixed, ML fitter skips optimization."""
-        self._setup_data(bkd)
-        gp = self._make_gp(bkd, fixed=True)
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=True)
         fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
-        result = fitter.fit(gp, self.X_train_list, self.y_train_list)
+        result = fitter.fit(gp, data.X_train_list, data.y_train_list)
         assert result.optimization_result() is None
 
 
-class TestMultiOutputGPMLFitterTorch:
-    """Torch-only tests for MultiOutputGPMaximumLikelihoodFitter.
+class TestMultiOutputGPMLFitterAutodiff:
+    """Tests for MultiOutputGPMaximumLikelihoodFitter with active
+    hyperparameters, whose gradients come from autodiff."""
 
-    ML optimization with active hyperparameters requires autograd
-    for gradient computation, so these tests only run with Torch.
-    """
-
-    def _setup_data(self):
-        import torch
-        torch.set_default_dtype(torch.float64)
-        np.random.seed(42)
-        self._bkd = TorchBkd()
-        self.nvars = 2
-        self.noutputs = 2
-        self.n_train = 20
-
-        X_np = np.random.randn(self.nvars, self.n_train)
-        self.X_train = self._bkd.array(X_np)
-
-        y1_np = np.sin(X_np[0, :] + X_np[1, :])[None, :]
-        y2_np = np.cos(X_np[0, :] - X_np[1, :])[None, :]
-        self.y_train_list = [
-            self._bkd.array(y1_np),
-            self._bkd.array(y2_np),
-        ]
-        self.X_train_list = [self.X_train] * self.noutputs
-
-        X_test_np = np.random.randn(self.nvars, 5)
-        self.X_test = self._bkd.array(X_test_np)
-        self.X_test_list = [self.X_test] * self.noutputs
-
-    def _make_gp(self, fixed=False):
-        kernels = []
-        for _ in range(self.noutputs):
-            matern = Matern52Kernel(
-                [1.0] * self.nvars,
-                (0.1, 10.0),
-                self.nvars,
-                self._bkd,
-                fixed=fixed,
-            )
-            constant = PolynomialScalingKernel(
-                [1.0],
-                (0.1, 10.0),
-                self._bkd,
-                nvars=self.nvars,
-                fixed=fixed,
-            )
-            noise = IIDGaussianNoise(
-                0.1,
-                (1e-4, 1.0),
-                self._bkd,
-                fixed=fixed,
-            )
-            kernel = constant * matern + noise
-            kernels.append(kernel)
-        mo_kernel = IndependentMultiOutputKernel(kernels)
-        return MultiOutputGP(mo_kernel, nugget=1e-6)
-
-    def test_ml_returns_optimized_result(self) -> None:
+    def test_ml_returns_optimized_result(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """ML fitter returns GPOptimizedFitResult."""
-        self._setup_data()
-        gp = self._make_gp()
-        fitter = MultiOutputGPMaximumLikelihoodFitter(self._bkd)
-        result = fitter.fit(gp, self.X_train_list, self.y_train_list)
+        bkd = autodiff_bkd
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=False)
+        fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
+        result = fitter.fit(gp, data.X_train_list, data.y_train_list)
         assert isinstance(result, GPOptimizedFitResult)
 
-    def test_ml_fitted_can_predict(self) -> None:
+    def test_ml_fitted_can_predict(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
         """ML fitter result can predict."""
-        self._setup_data()
-        gp = self._make_gp()
-        fitter = MultiOutputGPMaximumLikelihoodFitter(self._bkd)
-        result = fitter.fit(gp, self.X_train_list, self.y_train_list)
+        bkd = autodiff_bkd
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=False)
+        fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
+        result = fitter.fit(gp, data.X_train_list, data.y_train_list)
 
         fitted = result.surrogate()
-        mean_list = fitted.predict(self.X_test_list)
-        assert len(mean_list) == self.noutputs
+        mean_list = fitted.predict(data.X_test_list)
+        assert len(mean_list) == NOUTPUTS
 
-    def test_ml_original_not_modified(self) -> None:
+    def test_ml_original_not_modified(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Original GP must NOT be modified by ML fitter."""
-        self._setup_data()
-        gp = self._make_gp()
-        hyps_before = self._bkd.to_numpy(gp.hyp_list().get_values()).copy()
+        bkd = autodiff_bkd
+        data = _data(bkd)
+        gp = _make_gp(bkd, fixed=False)
+        hyps_before = bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
-        fitter = MultiOutputGPMaximumLikelihoodFitter(self._bkd)
-        fitter.fit(gp, self.X_train_list, self.y_train_list)
+        fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
+        fitter.fit(gp, data.X_train_list, data.y_train_list)
 
         assert not gp.is_fitted()
-        hyps_after = self._bkd.to_numpy(gp.hyp_list().get_values())
+        hyps_after = bkd.to_numpy(gp.hyp_list().get_values())
         np.testing.assert_array_equal(hyps_before, hyps_after)

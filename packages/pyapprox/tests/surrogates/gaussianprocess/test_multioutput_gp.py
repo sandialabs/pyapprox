@@ -5,8 +5,9 @@ This module tests multi-output GP prediction using IndependentMultiOutputKernel
 and LinearCoregionalizationKernel with a single GP handling all outputs.
 """
 
+from typing import List, Tuple
+
 import numpy as np
-import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -18,6 +19,7 @@ from pyapprox.surrogates.gaussianprocess.gp_loss import (
     GPNegativeLogMarginalLikelihoodLoss,
 )
 from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
@@ -32,23 +34,9 @@ from pyapprox.surrogates.kernels.scalings import (
     PolynomialScalingFunction,
     PolynomialScalingKernel,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
-
-
-def _bind_autograd_jacobian(loss, bkd):
-    """Bind autograd-based jacobian to a loss for torch derivative checking."""
-    def _jacobian_autograd(params):
-        if len(params.shape) == 2 and params.shape[1] == 1:
-            params = params[:, 0]
-
-        def loss_func(p):
-            return loss(p)[0, 0]
-
-        jac = bkd.jacobian(loss_func, params)
-        return bkd.reshape(jac, (1, len(params)))
-
-    loss.jacobian = _jacobian_autograd
 
 
 class TestMultiOutputGPWithIndependentKernel:
@@ -88,12 +76,8 @@ class TestMultiOutputGPWithIndependentKernel:
         # Create independent kernels for each output
         kernels = []
         for i in range(noutputs):
-            matern = Matern52Kernel(
-                [1.0] * nvars, (0.1, 10.0), nvars, bkd
-            )
-            constant = PolynomialScalingKernel(
-                [1.0], (0.1, 10.0), bkd, nvars=nvars
-            )
+            matern = Matern52Kernel([1.0] * nvars, (0.1, 10.0), nvars, bkd)
+            constant = PolynomialScalingKernel([1.0], (0.1, 10.0), bkd, nvars=nvars)
             noise = IIDGaussianNoise(1e-14, (1e-16, 1e-12), bkd)
             kernel = constant * matern + noise
             kernels.append(kernel)
@@ -125,8 +109,9 @@ class TestMultiOutputGPWithIndependentKernel:
             # Check interpolation error
             error_i = bkd.abs(y_pred_i - y_true_i)
             max_error_i = bkd.max(error_i).item()
-            assert max_error_i < 1e-6, \
+            assert max_error_i < 1e-6, (
                 f"Output {i} error {max_error_i:.2e} exceeds 1e-6"
+            )
 
             # Verify correct function: output 0 = sin, output 1 = cos
             y_pred_i_np = bkd.to_numpy(y_pred_i)
@@ -134,14 +119,12 @@ class TestMultiOutputGPWithIndependentKernel:
                 # Output 0: sin(x1 + x2)
                 expected = np.sin(X_train_np[0, :] + X_train_np[1, :])
                 func_error = np.abs(y_pred_i_np - expected)
-                assert np.max(func_error) < 1e-6, \
-                    "Output 0 does not match sin(x1+x2)"
+                assert np.max(func_error) < 1e-6, "Output 0 does not match sin(x1+x2)"
             elif i == 1:
                 # Output 1: cos(x1 - x2)
                 expected = np.cos(X_train_np[0, :] - X_train_np[1, :])
                 func_error = np.abs(y_pred_i_np - expected)
-                assert np.max(func_error) < 1e-6, \
-                    "Output 1 does not match cos(x1-x2)"
+                assert np.max(func_error) < 1e-6, "Output 1 does not match cos(x1-x2)"
 
     def test_prediction_at_new_points(self, bkd) -> None:
         """
@@ -177,9 +160,7 @@ class TestMultiOutputGPWithIndependentKernel:
         # Create multi-output kernel
         kernels = []
         for i in range(noutputs):
-            matern = Matern52Kernel(
-                [1.0] * nvars, (0.1, 10.0), nvars, bkd
-            )
+            matern = Matern52Kernel([1.0] * nvars, (0.1, 10.0), nvars, bkd)
             kernels.append(matern)
 
         mo_kernel = IndependentMultiOutputKernel(kernels)
@@ -261,9 +242,7 @@ class TestMultiOutputGPWithIndependentKernel:
         # Create simple kernels
         kernels = []
         for i in range(noutputs):
-            matern = Matern52Kernel(
-                [1.0] * nvars, (0.1, 10.0), nvars, bkd
-            )
+            matern = Matern52Kernel([1.0] * nvars, (0.1, 10.0), nvars, bkd)
             kernels.append(matern)
 
         mo_kernel = IndependentMultiOutputKernel(kernels)
@@ -284,8 +263,7 @@ class TestMultiOutputGPWithIndependentKernel:
                     K_ij = K[row_start:row_end, col_start:col_end]
                     K_ij_abs = bkd.abs(K_ij)
                     max_val = bkd.max(K_ij_abs).item()
-                    assert max_val < 1e-10, \
-                        f"Off-diagonal block [{i},{j}] not zero"
+                    assert max_val < 1e-10, f"Off-diagonal block [{i},{j}] not zero"
 
 
 class TestMultiOutputGPWithLMCKernel:
@@ -319,12 +297,8 @@ class TestMultiOutputGPWithLMCKernel:
         # Create base kernels
         base_kernels = []
         for q in range(2):  # 2 components
-            matern = Matern52Kernel(
-                [1.0] * nvars, (0.1, 10.0), nvars, bkd
-            )
-            constant = PolynomialScalingKernel(
-                [1.0], (0.1, 10.0), bkd, nvars=nvars
-            )
+            matern = Matern52Kernel([1.0] * nvars, (0.1, 10.0), nvars, bkd)
+            constant = PolynomialScalingKernel([1.0], (0.1, 10.0), bkd, nvars=nvars)
             kernel = constant * matern
             base_kernels.append(kernel)
 
@@ -365,8 +339,9 @@ class TestMultiOutputGPWithLMCKernel:
             error_i = bkd.abs(y_pred_i - y_true_i)
             max_error_i = bkd.max(error_i).item()
 
-            assert max_error_i < 1e-6, \
+            assert max_error_i < 1e-6, (
                 f"LMC output {i} error {max_error_i:.2e} exceeds 1e-6"
+            )
 
     def test_lmc_captures_correlations(self, bkd) -> None:
         """Test that LMC kernel has non-zero off-diagonal blocks."""
@@ -396,298 +371,215 @@ class TestMultiOutputGPWithLMCKernel:
         K_01_abs = bkd.abs(K_01)
         max_val = bkd.max(K_01_abs).item()
 
-        assert max_val > 0.01, \
-            "LMC should have non-zero output correlations"
+        assert max_val > 0.01, "LMC should have non-zero output correlations"
+
+
+NVARS = 2
+NOUTPUTS = 2
+NLEVELS = 3
+
+
+def _stacked_data(bkd: Backend[Array], n_train: int) -> Tuple[Array, Array]:
+    np.random.seed(42)
+    X_np = np.random.randn(NVARS, n_train)
+    X = bkd.array(X_np)
+    y1 = np.sin(X_np[0, :] + X_np[1, :])
+    y2 = np.cos(X_np[0, :] - X_np[1, :])
+    y_stacked = bkd.array(np.concatenate([y1, y2])[:, np.newaxis])
+    return X, y_stacked
+
+
+def _scaled_matern(bkd: Backend[Array], lenscale: float) -> Kernel[Array]:
+    matern = Matern52Kernel(bkd.full((NVARS,), lenscale), (0.1, 10.0), NVARS, bkd)
+    constant = PolynomialScalingKernel([1.0], (0.1, 10.0), bkd, nvars=NVARS)
+    return constant * matern
+
+
+def _independent_gp(bkd: Backend[Array], lenscale: float) -> MultiOutputGP[Array]:
+    kernels = [_scaled_matern(bkd, lenscale) for _ in range(NOUTPUTS)]
+    return MultiOutputGP(IndependentMultiOutputKernel(kernels), nugget=1e-6)
+
+
+def _lmc_gp(bkd: Backend[Array], lenscale: float) -> MultiOutputGP[Array]:
+    base_kernels = [_scaled_matern(bkd, lenscale) for _ in range(2)]
+    B1 = bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
+    B2 = bkd.array(np.array([[0.5, 0.0], [0.0, 0.5]]))
+    lmc_kernel = LinearCoregionalizationKernel(base_kernels, [B1, B2], NOUTPUTS)
+    return MultiOutputGP(lmc_kernel, nugget=1e-6)
+
+
+def _assert_loss_gradient_accurate(
+    bkd: Backend[Array],
+    loss: GPNegativeLogMarginalLikelihoodLoss[Array],
+    params: Array,
+    tol: float,
+) -> None:
+    """The loss bundle's jacobian (analytical, or autograd on an autodiff
+    backend) converges against finite differences."""
+    assert loss.derivatives().jacobian is not None, "loss declares no jacobian"
+    checker = DerivativeChecker(loss)
+    fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+    errors = checker.check_derivatives(
+        params[:, None],
+        fd_eps=fd_eps,
+        relative=True,
+        verbosity=0,
+    )
+    grad_error = errors[0]
+    assert bkd.to_bool(bkd.all(bkd.isfinite(grad_error))), (
+        "Gradient errors contain non-finite values"
+    )
+    min_error = float(bkd.to_numpy(bkd.min(grad_error)))
+    assert min_error < tol, f"Min gradient error {min_error} exceeds threshold"
+    error_ratio = float(bkd.to_numpy(checker.error_ratio(grad_error)))
+    assert error_ratio < tol, f"Error ratio {error_ratio:.2e} suggests poor convergence"
 
 
 class TestMultiOutputGPOptimization:
-    """Torch-only tests for multi-output GP hyperparameter optimization."""
+    """Multi-output GP hyperparameter optimization, with gradients from an
+    autodiff backend."""
 
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        np.random.seed(42)
-        self._bkd = TorchBkd()
-        self.nvars = 2
-        self.noutputs = 2
-
-    def _create_test_data(self, n_train: int):
-        X_np = np.random.randn(self.nvars, n_train)
-        X = self._bkd.array(X_np)
-        y1 = np.sin(X_np[0, :] + X_np[1, :])
-        y2 = np.cos(X_np[0, :] - X_np[1, :])
-        y_stacked = self._bkd.array(np.concatenate([y1, y2])[:, np.newaxis])
-        return X, y_stacked
-
-    def test_independent_kernel_optimization(self) -> None:
+    def test_independent_kernel_optimization(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Test optimization with IndependentMultiOutputKernel."""
-        self.setUp()
-        n_train = 30
-        X_train, y_stacked = self._create_test_data(n_train)
+        bkd = autodiff_bkd
+        X_train, y_stacked = _stacked_data(bkd, 30)
+        gp = _independent_gp(bkd, 0.3)
 
-        kernels = []
-        for _ in range(self.noutputs):
-            matern = Matern52Kernel(
-                [0.3] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
-            )
-            constant = PolynomialScalingKernel(
-                [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
-            )
-            kernels.append(constant * matern)
+        initial_params = bkd.copy(gp.hyp_list().get_active_values())
 
-        mo_kernel = IndependentMultiOutputKernel(kernels)
-        gp = MultiOutputGP(mo_kernel, nugget=1e-6)
-
-        initial_params = gp.hyp_list().get_active_values().clone()
-
-        X_list = [X_train] * self.noutputs
-        result = MultiOutputGPMaximumLikelihoodFitter(self._bkd).fit(
-            gp, X_list, y_stacked
-        )
+        X_list = [X_train] * NOUTPUTS
+        result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(gp, X_list, y_stacked)
         gp = result.surrogate()
 
         final_params = gp.hyp_list().get_active_values()
-        assert not self._bkd.allclose(initial_params, final_params), \
+        assert not bkd.allclose(initial_params, final_params), (
             "Hyperparameters should change during optimization"
+        )
 
     @slow_test
-    def test_lmc_kernel_optimization(self) -> None:
+    def test_lmc_kernel_optimization(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Test optimization with LinearCoregionalizationKernel."""
-        self.setUp()
-        n_train = 30
-        X_train, y_stacked = self._create_test_data(n_train)
+        bkd = autodiff_bkd
+        X_train, y_stacked = _stacked_data(bkd, 30)
+        gp = _lmc_gp(bkd, 0.3)
 
-        base_kernels = []
-        for _ in range(2):
-            matern = Matern52Kernel(
-                [0.3] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
-            )
-            constant = PolynomialScalingKernel(
-                [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
-            )
-            base_kernels.append(constant * matern)
+        initial_params = bkd.copy(gp.hyp_list().get_active_values())
 
-        B1 = self._bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
-        B2 = self._bkd.array(np.array([[0.5, 0.0], [0.0, 0.5]]))
-        coreg_matrices = [B1, B2]
-
-        lmc_kernel = LinearCoregionalizationKernel(
-            base_kernels, coreg_matrices, self.noutputs
-        )
-        gp = MultiOutputGP(lmc_kernel, nugget=1e-6)
-
-        initial_params = gp.hyp_list().get_active_values().clone()
-
-        X_list = [X_train] * self.noutputs
-        result = MultiOutputGPMaximumLikelihoodFitter(self._bkd).fit(
-            gp, X_list, y_stacked
-        )
+        X_list = [X_train] * NOUTPUTS
+        result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(gp, X_list, y_stacked)
         gp = result.surrogate()
 
         final_params = gp.hyp_list().get_active_values()
-        assert not self._bkd.allclose(initial_params, final_params), \
+        assert not bkd.allclose(initial_params, final_params), (
             "Hyperparameters should change during optimization"
+        )
 
-    def test_independent_kernel_loss_gradient_accuracy(self) -> None:
+    def test_independent_kernel_loss_gradient_accuracy(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Test loss gradient accuracy with DerivativeChecker for independent kernel."""
-        self.setUp()
-        n_train = 20
-        X_train, y_stacked = self._create_test_data(n_train)
-        bkd = self._bkd
-
-        kernels = []
-        for _ in range(self.noutputs):
-            matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
-            constant = PolynomialScalingKernel(
-                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
-            )
-            kernels.append(constant * matern)
-
-        mo_kernel = IndependentMultiOutputKernel(kernels)
-        gp = MultiOutputGP(mo_kernel, nugget=1e-6)
-
-        X_list = [X_train] * self.noutputs
+        bkd = autodiff_bkd
+        X_train, y_stacked = _stacked_data(bkd, 20)
+        gp = _independent_gp(bkd, 1.0)
+        X_list = [X_train] * NOUTPUTS
         gp._fit_internal(X_list, y_stacked)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_stacked))
-        _bind_autograd_jacobian(loss, self._bkd)
-
-        checker = DerivativeChecker(loss)
-        params = gp.hyp_list().get_active_values()
-
-        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
-
-        errors = checker.check_derivatives(
-            params[:, None],
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0,
+        _assert_loss_gradient_accurate(
+            bkd, loss, gp.hyp_list().get_active_values(), 2e-6
         )
 
-        grad_error = errors[0]
-        assert bkd.all_bool(bkd.isfinite(grad_error)), \
-            "Gradient errors contain non-finite values"
-        min_error = float(bkd.min(grad_error))
-        assert min_error < 2e-6, \
-            f"Min gradient error {min_error} exceeds threshold"
-
-        error_ratio = float(checker.error_ratio(grad_error))
-        assert error_ratio < 2e-6, \
-            f"Error ratio {error_ratio:.2e} suggests poor convergence"
-
-    def test_lmc_kernel_loss_gradient_accuracy(self) -> None:
+    def test_lmc_kernel_loss_gradient_accuracy(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Test loss gradient accuracy with DerivativeChecker for LMC kernel."""
-        self.setUp()
-        n_train = 20
-        X_train, y_stacked = self._create_test_data(n_train)
-        bkd = self._bkd
-
-        base_kernels = []
-        for _ in range(2):
-            matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
-            constant = PolynomialScalingKernel(
-                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
-            )
-            base_kernels.append(constant * matern)
-
-        B1 = bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
-        B2 = bkd.array(np.array([[0.5, 0.0], [0.0, 0.5]]))
-
-        lmc_kernel = LinearCoregionalizationKernel(
-            base_kernels, [B1, B2], self.noutputs
-        )
-        gp = MultiOutputGP(lmc_kernel, nugget=1e-6)
-
-        X_list = [X_train] * self.noutputs
+        bkd = autodiff_bkd
+        X_train, y_stacked = _stacked_data(bkd, 20)
+        gp = _lmc_gp(bkd, 1.0)
+        X_list = [X_train] * NOUTPUTS
         gp._fit_internal(X_list, y_stacked)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_stacked))
-        _bind_autograd_jacobian(loss, self._bkd)
-
-        checker = DerivativeChecker(loss)
-        params = gp.hyp_list().get_active_values()
-
-        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
-
-        errors = checker.check_derivatives(
-            params[:, None],
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0,
+        _assert_loss_gradient_accurate(
+            bkd, loss, gp.hyp_list().get_active_values(), 1e-6
         )
 
-        grad_error = errors[0]
-        assert bkd.all_bool(bkd.isfinite(grad_error)), \
-            "Gradient errors contain non-finite values"
-        min_error = float(bkd.min(grad_error))
-        assert min_error < 1e-6, \
-            f"Min gradient error {min_error} exceeds threshold"
 
-        error_ratio = float(checker.error_ratio(grad_error))
-        assert error_ratio < 1e-6, \
-            f"Error ratio {error_ratio:.2e} suggests poor convergence"
+def _multilevel_data(bkd: Backend[Array]) -> Tuple[List[Array], List[Array]]:
+    """Multi-level data with different X arrays per level."""
+    np.random.seed(42)
+    # Different number of samples per level (more at cheap levels)
+    n_per_level = [25, 15, 8]
+    X_list = []
+    y_list = []
+    for k, n_k in enumerate(n_per_level):
+        X_np = np.random.randn(NVARS, n_k)
+        # Simulate multi-fidelity: each level is a noisy version of sin
+        bias = 0.1 * (NLEVELS - 1 - k)
+        y_np = np.sin(X_np[0, :] + X_np[1, :]) + bias
+        X_list.append(bkd.array(X_np))
+        y_list.append(bkd.array(y_np.reshape(1, -1)))
+    return X_list, y_list
 
 
-class TestMultiOutputGPWithMultiLevelKernelTorch:
-    """Torch-only tests for MultiOutputGP with MultiLevelKernel.
+def _multilevel_kernel(bkd: Backend[Array]) -> MultiLevelKernel[Array]:
+    """A MultiLevelKernel with SE kernels and polynomial scalings."""
+    level_kernels = [
+        SquaredExponentialKernel(bkd.ones((1,)), (0.05, 5.0), NVARS, bkd)
+        for _ in range(NLEVELS)
+    ]
+    scalings = [
+        PolynomialScalingFunction(
+            [1.0],
+            (-3.0, 3.0),
+            bkd,
+            nvars=NVARS,
+            fixed=False,
+        )
+        for _ in range(NLEVELS - 1)
+    ]
+    return MultiLevelKernel(level_kernels, scalings)
+
+
+class TestMultiOutputGPWithMultiLevelKernelAutodiff:
+    """MultiOutputGP with MultiLevelKernel on an autodiff backend.
 
     Tests autograd-based NLL gradients with different X arrays per level,
     the key scenario where analytical kernel jacobian_wrt_params fails.
     """
 
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        np.random.seed(42)
-        self._bkd = TorchBkd()
-        self.nvars = 2
-        self.nlevels = 3
-
-    def _create_multilevel_data(self):
-        """Create multi-level data with different X arrays per level."""
-        bkd = self._bkd
-        # Different number of samples per level (more at cheap levels)
-        n_per_level = [25, 15, 8]
-        X_list = []
-        y_list = []
-        for k, n_k in enumerate(n_per_level):
-            X_np = np.random.randn(self.nvars, n_k)
-            X_k = bkd.array(X_np)
-            # Simulate multi-fidelity: each level is a noisy version of sin
-            bias = 0.1 * (self.nlevels - 1 - k)
-            y_np = np.sin(X_np[0, :] + X_np[1, :]) + bias
-            y_k = bkd.array(y_np.reshape(1, -1))
-            X_list.append(X_k)
-            y_list.append(y_k)
-        return X_list, y_list
-
-    def _create_kernel(self):
-        """Create a MultiLevelKernel with SE kernels and polynomial scalings."""
-        bkd = self._bkd
-        level_kernels = [
-            SquaredExponentialKernel([1.0], (0.05, 5.0), self.nvars, bkd)
-            for _ in range(self.nlevels)
-        ]
-        scalings = [
-            PolynomialScalingFunction(
-                [1.0], (-3.0, 3.0), bkd,
-                nvars=self.nvars, fixed=False,
-            )
-            for _ in range(self.nlevels - 1)
-        ]
-        return MultiLevelKernel(level_kernels, scalings)
-
-    def test_loss_gradient_accuracy_different_X_per_level(self) -> None:
+    def test_loss_gradient_accuracy_different_X_per_level(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Verify autograd NLL gradients match finite differences."""
-        self.setUp()
-        bkd = self._bkd
-        X_list, y_list = self._create_multilevel_data()
-        mf_kernel = self._create_kernel()
-        gp = MultiOutputGP(mf_kernel, nugget=1e-6)
-
+        bkd = autodiff_bkd
+        X_list, y_list = _multilevel_data(bkd)
+        gp = MultiOutputGP(_multilevel_kernel(bkd), nugget=1e-6)
         gp._fit_internal(X_list, y_list)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_list))
-        _bind_autograd_jacobian(loss, self._bkd)
-
-        assert hasattr(loss, "jacobian"), \
-            "Autograd jacobian should be bound on loss"
-
-        checker = DerivativeChecker(loss)
-        params = gp.hyp_list().get_active_values()
-
-        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
-
-        errors = checker.check_derivatives(
-            params[:, None],
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0,
+        _assert_loss_gradient_accurate(
+            bkd, loss, gp.hyp_list().get_active_values(), 3e-6
         )
 
-        grad_error = errors[0]
-        assert bkd.all_bool(bkd.isfinite(grad_error)), \
-            "Gradient errors contain non-finite values"
-        min_error = float(bkd.min(grad_error))
-        assert min_error < 3e-6, \
-            f"Min gradient error {min_error} exceeds threshold"
-
-        error_ratio = float(checker.error_ratio(grad_error))
-        assert error_ratio < 3e-6, \
-            f"Error ratio {error_ratio:.2e} suggests poor convergence"
-
-    def test_fit_with_different_X_per_level(self) -> None:
+    def test_fit_with_different_X_per_level(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """End-to-end fit() with different X per level optimizes params."""
-        self.setUp()
-        X_list, y_list = self._create_multilevel_data()
-        mf_kernel = self._create_kernel()
-        gp = MultiOutputGP(mf_kernel, nugget=1e-6)
+        bkd = autodiff_bkd
+        X_list, y_list = _multilevel_data(bkd)
+        gp = MultiOutputGP(_multilevel_kernel(bkd), nugget=1e-6)
 
-        initial_params = gp.hyp_list().get_active_values().clone()
+        initial_params = bkd.copy(gp.hyp_list().get_active_values())
 
-        result = MultiOutputGPMaximumLikelihoodFitter(self._bkd).fit(
-            gp, X_list, y_list
-        )
+        result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(gp, X_list, y_list)
         gp = result.surrogate()
 
         final_params = gp.hyp_list().get_active_values()
-        assert not self._bkd.allclose(initial_params, final_params), \
+        assert not bkd.allclose(initial_params, final_params), (
             "Hyperparameters should change during optimization"
+        )
