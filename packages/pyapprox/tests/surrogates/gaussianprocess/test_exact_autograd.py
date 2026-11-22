@@ -1,26 +1,38 @@
 """
-Tests for ExactGaussianProcess autograd-fallback derivatives on TorchBkd
-(kernels without analytic input jacobians, e.g. GeneralMaternKernel).
+Tests for ExactGaussianProcess with a kernel that has no analytic input
+jacobian (GeneralMaternKernel): prediction on every backend, and the
+autograd-fallback derivatives on autodiff backends.
 """
 
-import math
+from typing import Callable, List, Optional, Tuple
 
-import torch
+import numpy as np
+import pytest
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.kernels import Matern52Kernel
 from pyapprox.surrogates.kernels.general_matern import GeneralMaternKernel
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _make_gp(nu=2.5, nvars=1, lenscale=None, nugget=1e-6):
-    """Helper to create an ExactGP (TorchBkd) with params set inactive."""
+def _make_gp(
+    bkd: Backend[Array],
+    nu: float = 2.5,
+    nvars: int = 1,
+    lenscale: Optional[List[float]] = None,
+    nugget: float = 1e-6,
+) -> ExactGaussianProcess[Array]:
+    """Create an ExactGP with all hyperparameters inactive."""
     if lenscale is None:
         lenscale = [1.0] * nvars
-    bkd = TorchBkd()
     kernel = GeneralMaternKernel(
         nu=nu,
         lenscale=lenscale,
@@ -34,503 +46,256 @@ def _make_gp(nu=2.5, nvars=1, lenscale=None, nugget=1e-6):
     return gp
 
 
-def _gp_jacobian(gp):
+def _sin_data(bkd: Backend[Array], ntrain: int) -> Tuple[Array, Array]:
+    """Training data y = sin(x) on ntrain equispaced points in [-2, 2]."""
+    X_train = bkd.reshape(bkd.linspace(-2.0, 2.0, ntrain), (1, -1))
+    return X_train, bkd.sin(X_train)
+
+
+def _fit(
+    bkd: Backend[Array],
+    gp: ExactGaussianProcess[Array],
+    X_train: Array,
+    y_train: Array,
+) -> ExactGaussianProcess[Array]:
+    return GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train).surrogate()
+
+
+def _gp_jacobian(gp: ExactGaussianProcess[Array]) -> Callable[[Array], Array]:
     jacobian = gp.derivatives().jacobian
     assert jacobian is not None
     return jacobian
 
 
-def _gp_jacobian_batch(gp):
+def _gp_jacobian_batch(
+    gp: ExactGaussianProcess[Array],
+) -> Callable[[Array], Array]:
     jacobian_batch = gp.derivatives().jacobian_batch
     assert jacobian_batch is not None
     return jacobian_batch
 
 
-class TestExactGPAutogradDerivatives:
-    """Tests for autograd-fallback derivatives of ExactGaussianProcess."""
+def _fitted_general_and_matern52(
+    bkd: Backend[Array],
+) -> Tuple[ExactGaussianProcess[Array], ExactGaussianProcess[Array]]:
+    """GeneralMatern(nu=2.5) and Matern52 GPs fit to the same data with the
+    same fixed hyperparameters."""
+    general_kernel = GeneralMaternKernel(
+        nu=2.5,
+        lenscale=[1.0],
+        lenscale_bounds=(0.1, 10.0),
+        nvars=1,
+        bkd=bkd,
+    )
+    ref_kernel = Matern52Kernel(
+        lenscale=bkd.array([1.0]),
+        lenscale_bounds=(0.1, 10.0),
+        nvars=1,
+        bkd=bkd,
+    )
+    general_gp = ExactGaussianProcess(general_kernel, nvars=1, bkd=bkd)
+    ref_gp = ExactGaussianProcess(ref_kernel, nvars=1, bkd=bkd)
+    general_gp.hyp_list().set_all_inactive()
+    ref_gp.hyp_list().set_all_inactive()
 
-    def setup_method(self):
-        torch.set_default_dtype(torch.float64)
-        torch.manual_seed(42)
-        self.bkd = TorchBkd()
+    X_train, y_train = _sin_data(bkd, 15)
+    return (
+        _fit(bkd, general_gp, X_train, y_train),
+        _fit(bkd, ref_gp, X_train, y_train),
+    )
 
-    def test_fit_and_predict(self):
-        """Test basic fit and predict."""
-        gp = _make_gp()
 
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
+class TestExactGPGeneralMaternPrediction:
+    """Prediction with fixed hyperparameters; needs no derivatives."""
 
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
+    def test_fit_and_predict(self, bkd: Backend[Array]) -> None:
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, _make_gp(bkd), X_train, y_train)
         assert gp.is_fitted()
 
-        X_test = torch.linspace(-2, 2, 5).reshape(1, -1)
-        mean = gp.predict(X_test)
-
+        mean = gp.predict(bkd.reshape(bkd.linspace(-2.0, 2.0, 5), (1, -1)))
         assert mean.shape == (1, 5)
 
-    def test_predict_interpolates_training_data(self):
-        """Test predictions at training points match training values."""
-        gp = _make_gp(nugget=1e-10)
+    def test_predict_interpolates_training_data(self, bkd: Backend[Array]) -> None:
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, _make_gp(bkd, nugget=1e-10), X_train, y_train)
 
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
+        bkd.assert_allclose(gp.predict(X_train), y_train, rtol=1e-4, atol=1e-4)
 
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
+    def test_predict_std(self, bkd: Backend[Array]) -> None:
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, _make_gp(bkd, nugget=1e-10), X_train, y_train)
 
-        mean = gp.predict(X_train)
-
-        assert torch.allclose(mean, y_train, rtol=1e-4, atol=1e-4)
-
-    def test_predict_std(self):
-        """Test standard deviation prediction."""
-        gp = _make_gp(nugget=1e-10)
-
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        X_test = torch.linspace(-2, 2, 5).reshape(1, -1)
-        std = gp.predict_std(X_test)
-
+        std = gp.predict_std(bkd.reshape(bkd.linspace(-2.0, 2.0, 5), (1, -1)))
         assert std.shape == (1, 5)
-        assert torch.all(std >= 0)
+        assert bkd.to_bool(bkd.all(std >= 0))
 
-    def test_std_near_zero_at_training_points(self):
-        """Test std is near zero at training points."""
-        gp = _make_gp(nugget=1e-10)
+    def test_std_near_zero_at_training_points(self, bkd: Backend[Array]) -> None:
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, _make_gp(bkd, nugget=1e-10), X_train, y_train)
 
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
+        assert bkd.to_bool(bkd.all(gp.predict_std(X_train) < 1e-4))
 
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        std = gp.predict_std(X_train)
-
-        assert torch.all(std < 1e-4)
-
-    def test_jacobian_shape(self):
-        """Test Jacobian has correct shape."""
-        gp = _make_gp(nvars=2, lenscale=[1.0, 1.0])
-
-        X_train = torch.randn(2, 20)
-        y_train = torch.randn(1, 20)
-
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        # Single sample
-        X_test = torch.randn(2, 1, requires_grad=True)
-        jac = _gp_jacobian(gp)(X_test)
-        assert jac.shape == (1, 2)
-
-        # Multiple samples - use jacobian_batch
-        X_test_multi = torch.randn(2, 5, requires_grad=True)
-        jac_multi = _gp_jacobian_batch(gp)(X_test_multi)
-        assert jac_multi.shape == (5, 1, 2)
-
-    def test_jacobian_finite_difference(self):
-        """Test Jacobian matches finite difference approximation."""
-        gp = _make_gp()
-
-        X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        x_test = torch.tensor([[0.5]], requires_grad=True)
-        jac = _gp_jacobian(gp)(x_test)
-
-        # Finite difference
-        eps = 1e-6
-        x_plus = torch.tensor([[0.5 + eps]])
-        x_minus = torch.tensor([[0.5 - eps]])
-
-        f_plus = gp.predict(x_plus)[0, 0]
-        f_minus = gp.predict(x_minus)[0, 0]
-
-        jac_fd = (f_plus - f_minus) / (2 * eps)
-
-        assert torch.allclose(jac[0, 0], jac_fd, rtol=1e-4, atol=1e-5)
-
-    def test_hvp_not_available(self):
-        """Test that hvp method is not available (torch.cdist limitation)."""
-        gp = _make_gp(nvars=2, lenscale=[1.0, 1.0])
-
-        # HVP should not be available due to torch.cdist limitation
-        assert gp.derivatives().hvp is None
-
-        # Jacobian should still be available
-        assert gp.derivatives().jacobian is not None
-
-    def test_neg_log_marginal_likelihood(self):
-        """Test NLML computation."""
-        gp = _make_gp()
-
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
+    def test_neg_log_marginal_likelihood(self, bkd: Backend[Array]) -> None:
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, _make_gp(bkd), X_train, y_train)
 
         nlml = gp.neg_log_marginal_likelihood()
+        assert bkd.to_bool(bkd.all(bkd.isfinite(nlml)))
 
-        # Should be a finite number
-        nlml_float = float(nlml.item())
-        assert not math.isnan(nlml_float)
-        assert not math.isinf(nlml_float)
+    @pytest.mark.parametrize("nu", [3.5, 4.5])
+    def test_higher_half_integer_nu(self, bkd: Backend[Array], nu: float) -> None:
+        X_train, y_train = _sin_data(bkd, 20)
+        gp = _fit(bkd, _make_gp(bkd, nu=nu), X_train, y_train)
 
-    def test_higher_half_integer_nu_gp(self):
-        """Test GP with higher half-integer nu values (3.5, 4.5)."""
-        for nu in [3.5, 4.5]:
-            gp = _make_gp(nu=nu)
+        X_test, y_true = _sin_data(bkd, 10)
+        mean = gp.predict(X_test)
+        assert mean.shape == (1, 10)
+        assert bkd.to_float(bkd.mean(bkd.abs(mean - y_true))) < 0.5
 
-            X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-            y_train = torch.sin(X_train[0])[None, :]
-
-            result = GPMaximumLikelihoodFitter(self.bkd).fit(
-                gp, X_train, y_train
-            )
-            gp = result.surrogate()
-
-            X_test = torch.linspace(-2, 2, 10).reshape(1, -1)
-            mean = gp.predict(X_test)
-
-            assert mean.shape == (1, 10)
-
-            # Check predictions are reasonable
-            y_true = torch.sin(X_test[0])[None, :]
-            error = torch.abs(mean - y_true).mean()
-            assert float(error) < 0.5
-
-    def test_call_interface(self):
-        """Test __call__ interface for compatibility."""
-        gp = _make_gp()
-
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        fit_result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = fit_result.surrogate()
-
-        X_test = torch.linspace(-2, 2, 5).reshape(1, -1)
-        result = gp(X_test)
+    def test_call_interface(self, bkd: Backend[Array]) -> None:
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, _make_gp(bkd), X_train, y_train)
 
         # __call__ returns (nqoi, n_test)
+        result = gp(bkd.reshape(bkd.linspace(-2.0, 2.0, 5), (1, -1)))
         assert result.shape == (1, 5)
 
-    def test_multidimensional_input(self):
-        """Test GP with multi-dimensional inputs."""
-        gp = _make_gp(nvars=3, lenscale=[1.0, 1.0, 1.0])
+    def test_multidimensional_input(self, bkd: Backend[Array]) -> None:
+        nvars = 3
+        X_train = bkd.asarray(np.random.randn(nvars, 30))
+        y_train = bkd.asarray(np.random.randn(1, 30))
+        gp = _fit(bkd, _make_gp(bkd, nvars=nvars), X_train, y_train)
 
-        X_train = torch.randn(3, 30)
-        y_train = torch.randn(1, 30)
-
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        X_test = torch.randn(3, 10)
-        mean = gp.predict(X_test)
-
+        mean = gp.predict(bkd.asarray(np.random.randn(nvars, 10)))
         assert mean.shape == (1, 10)
 
-    def test_repr(self):
-        """Test string representation."""
-        gp = _make_gp()
-
+    def test_repr(self, bkd: Backend[Array]) -> None:
+        gp = _make_gp(bkd)
         repr_str = repr(gp)
         assert "ExactGaussianProcess" in repr_str
         assert "not fitted" in repr_str
 
-        X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
+        X_train, y_train = _sin_data(bkd, 10)
+        gp = _fit(bkd, gp, X_train, y_train)
+        assert "fitted" in repr(gp)
 
-        repr_str = repr(gp)
-        assert "fitted" in repr_str
+    def test_matches_matern52_predictions(self, bkd: Backend[Array]) -> None:
+        """GeneralMatern with nu=2.5 predicts as Matern52 does."""
+        general_gp, ref_gp = _fitted_general_and_matern52(bkd)
 
-    def test_matches_matern52_predictions(self):
-        """Test TorchExactGP with nu=2.5 matches ExactGP with Matern52Kernel."""
-        torch_bkd = TorchBkd()
-
-        # Create both GPs with same hyperparameters
-        torch_kernel = GeneralMaternKernel(
-            nu=2.5,
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=torch_bkd,
-        )
-        ref_kernel = Matern52Kernel(
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=torch_bkd,
+        X_test = bkd.reshape(bkd.linspace(-2.0, 2.0, 10), (1, -1))
+        bkd.assert_allclose(
+            general_gp.predict(X_test), ref_gp.predict(X_test), rtol=1e-6, atol=1e-6
         )
 
-        torch_gp = ExactGaussianProcess(torch_kernel, nvars=1, bkd=torch_bkd)
-        ref_gp = ExactGaussianProcess(
-            ref_kernel, nvars=1, bkd=torch_bkd
+    def test_no_input_derivatives_without_autodiff(self, numpy_bkd: NumpyBkd) -> None:
+        """Without an analytic kernel jacobian or an autodiff backend, the
+        fitted GP declares no input derivatives."""
+        X_train, y_train = _sin_data(numpy_bkd, 10)
+        gp = _fit(numpy_bkd, _make_gp(numpy_bkd), X_train, y_train)
+
+        derivatives = gp.derivatives()
+        assert derivatives.jacobian is None
+        assert derivatives.hvp is None
+
+
+class TestExactGPGeneralMaternAutogradDerivatives:
+    """Autograd-fallback input derivatives and hyperparameter optimization."""
+
+    def test_jacobian_shape(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        bkd = autodiff_bkd
+        X_train = bkd.asarray(np.random.randn(2, 20))
+        y_train = bkd.asarray(np.random.randn(1, 20))
+        gp = _fit(bkd, _make_gp(bkd, nvars=2), X_train, y_train)
+
+        jac = _gp_jacobian(gp)(bkd.asarray(np.random.randn(2, 1)))
+        assert jac.shape == (1, 2)
+
+        jac_batch = _gp_jacobian_batch(gp)(bkd.asarray(np.random.randn(2, 5)))
+        assert jac_batch.shape == (5, 1, 2)
+
+    def test_first_order_only(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        """The fallback declares a jacobian but no hvp: the cdist in the
+        kernel evaluation does not support second-order autograd."""
+        bkd = autodiff_bkd
+        X_train = bkd.asarray(np.random.randn(2, 20))
+        y_train = bkd.asarray(np.random.randn(1, 20))
+        gp = _fit(bkd, _make_gp(bkd, nvars=2), X_train, y_train)
+
+        assert gp.derivatives().jacobian is not None
+        assert gp.derivatives().hvp is None
+
+    def test_matches_matern52_jacobian(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """Autograd jacobian of GeneralMatern(nu=2.5) matches the analytic
+        Matern52 jacobian."""
+        bkd = autodiff_bkd
+        general_gp, ref_gp = _fitted_general_and_matern52(bkd)
+
+        x_test = bkd.array([[0.5]])
+        bkd.assert_allclose(
+            _gp_jacobian(general_gp)(x_test),
+            _gp_jacobian(ref_gp)(x_test),
+            rtol=1e-5,
+            atol=1e-6,
         )
 
-        # Fix hyperparameters on both GPs (no optimization)
-        torch_gp.hyp_list().set_all_inactive()
-        ref_gp.hyp_list().set_all_inactive()
+    @pytest.mark.parametrize("nu, nvars", [(2.5, 1), (2.5, 2), (3.5, 1)])
+    def test_jacobian_derivative_checker(
+        self, autodiff_bkd: AutodiffBackend[Array], nu: float, nvars: int
+    ) -> None:
+        bkd = autodiff_bkd
+        if nvars == 1:
+            X_train, y_train = _sin_data(bkd, 20)
+        else:
+            X_train = bkd.asarray(np.random.randn(nvars, 15))
+            y_train = bkd.reshape(bkd.sin(bkd.sum(X_train, axis=0)), (1, -1))
+        gp = _fit(bkd, _make_gp(bkd, nu=nu, nvars=nvars), X_train, y_train)
 
-        # Same training data
-        X_train = torch.linspace(-2, 2, 15).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        fitter = GPMaximumLikelihoodFitter(torch_bkd)
-        torch_gp = fitter.fit(
-            torch_gp, X_train, y_train
-        ).surrogate()
-        ref_gp = fitter.fit(
-            ref_gp, X_train, y_train
-        ).surrogate()
-
-        # Compare predictions
-        X_test = torch.linspace(-2, 2, 10).reshape(1, -1)
-        torch_pred = torch_gp.predict(X_test)
-        ref_pred = ref_gp.predict(X_test)
-
-        # Predictions should match to high precision
-        assert torch.allclose(torch_pred, ref_pred, rtol=1e-6, atol=1e-6)
-
-    def test_matches_matern52_jacobian(self):
-        """Test autograd Jacobian matches analytical Jacobian from Matern52."""
-        torch_bkd = TorchBkd()
-
-        # Create both GPs
-        torch_kernel = GeneralMaternKernel(
-            nu=2.5,
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=torch_bkd,
-        )
-        ref_kernel = Matern52Kernel(
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=torch_bkd,
-        )
-
-        torch_gp = ExactGaussianProcess(torch_kernel, nvars=1, bkd=torch_bkd)
-        ref_gp = ExactGaussianProcess(
-            ref_kernel, nvars=1, bkd=torch_bkd
-        )
-
-        # Fix hyperparameters on both GPs (no optimization)
-        torch_gp.hyp_list().set_all_inactive()
-        ref_gp.hyp_list().set_all_inactive()
-
-        # Same training data
-        X_train = torch.linspace(-2, 2, 15).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        fitter = GPMaximumLikelihoodFitter(torch_bkd)
-        torch_gp = fitter.fit(
-            torch_gp, X_train, y_train
-        ).surrogate()
-        ref_gp = fitter.fit(
-            ref_gp, X_train, y_train
-        ).surrogate()
-
-        # Compare Jacobians at single point
-        X_test = torch.tensor([[0.5]])
-        torch_jac = _gp_jacobian(torch_gp)(X_test)
-        ref_jac = _gp_jacobian(ref_gp)(X_test)
-
-        # Jacobians should match to high precision
-        assert torch.allclose(torch_jac, ref_jac, rtol=1e-5, atol=1e-6)
-
-    def test_jacobian_derivative_checker(self):
-        """Test Jacobian using DerivativeChecker with finite differences."""
-        from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-            DerivativeChecker,
-        )
-
-        torch_bkd = TorchBkd()
-
-        # Create GP with 2D input
-        gp = _make_gp(nvars=2, lenscale=[1.0, 1.0])
-
-        # Training data
-        X_train = torch.randn(2, 15)
-        y_train = torch.sin(X_train[0] + X_train[1])[None, :]
-        result = GPMaximumLikelihoodFitter(torch_bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        # Create derivative checker
         checker = DerivativeChecker(gp)
-
-        # Test point for Jacobian evaluation
-        x0 = torch_bkd.array([[0.5], [0.5]])
-
-        # Use logarithmically-spaced step sizes from 1 down to 1e-14
-        fd_eps = torch_bkd.flip(torch_bkd.logspace(-14, 0, 15))
-
-        # Check Jacobian accuracy
-        errors = checker.check_derivatives(
+        x0 = bkd.full((nvars, 1), 0.5)
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+        jac_error = checker.check_derivatives(
             x0, fd_eps=fd_eps, relative=True, verbosity=0
-        )
+        )[0]
 
-        # Get Jacobian error (first element of errors list)
-        jac_error = errors[0]
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac_error)))
+        min_error = bkd.to_float(bkd.min(jac_error))
+        assert min_error < 1e-6, f"Minimum jacobian relative error {min_error}"
+        error_ratio = bkd.to_float(checker.error_ratio(jac_error))
+        assert error_ratio < 1e-6, f"Error ratio {error_ratio:.2e}"
 
-        # All errors should be finite
-        assert torch_bkd.all_bool(
-            torch_bkd.isfinite(jac_error)
-        ), "Jacobian errors contain non-finite values"
-
-        # Minimum error should be small, showing accuracy with optimal step size
-        min_error = float(torch_bkd.min(jac_error))
-        assert (
-            min_error < 1e-6
-        ), f"Minimum Jacobian relative error {min_error} exceeds threshold"
-
-        # Test that error ratio (min/max) is very small, indicating good convergence
-        error_ratio = float(checker.error_ratio(jac_error))
-        assert (
-            error_ratio < 1e-6
-        ), f"Error ratio {error_ratio:.2e} suggests poor convergence"
-
-    def test_jacobian_derivative_checker_higher_nu(self):
-        """Test Jacobian using DerivativeChecker for higher half-integer nu."""
-        from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-            DerivativeChecker,
-        )
-
-        torch_bkd = TorchBkd()
-
-        # Test nu=3.5 (higher half-integer)
-        gp = _make_gp(nu=3.5)
-
-        # Training data
-        X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-        result = GPMaximumLikelihoodFitter(torch_bkd).fit(
-            gp, X_train, y_train
-        )
-        gp = result.surrogate()
-
-        # Create derivative checker
-        checker = DerivativeChecker(gp)
-
-        # Test point
-        x0 = torch_bkd.array([[0.5]])
-        fd_eps = torch_bkd.flip(torch_bkd.logspace(-14, 0, 15))
-
-        # Check Jacobian accuracy
-        errors = checker.check_derivatives(
-            x0, fd_eps=fd_eps, relative=True, verbosity=0
-        )
-
-        jac_error = errors[0]
-        min_error = float(torch_bkd.min(jac_error))
-
-        # Jacobian should be accurate
-        assert (
-            min_error < 1e-6
-        ), f"Minimum Jacobian error {min_error} for nu=3.5 exceeds threshold"
-
-        # Error ratio should be small, indicating good convergence
-        error_ratio = float(checker.error_ratio(jac_error))
-        assert (
-            error_ratio < 1e-6
-        ), f"Error ratio {error_ratio:.2e} for nu=3.5 suggests poor convergence"
-
-    def test_optimization_via_autograd(self):
-        """Test hyperparameter optimization works via autograd (no analytical
-        gradients)."""
-        # GeneralMaternKernel lacks jacobian_wrt_params, so optimization
-        # must use autograd through loss.__call__()
+    @pytest.mark.parametrize("initial_lenscale", [0.3, 0.5])
+    def test_fit_optimizes_hyperparameters(
+        self, autodiff_bkd: AutodiffBackend[Array], initial_lenscale: float
+    ) -> None:
+        """GeneralMaternKernel has no parameter jacobian, so the fitter
+        optimizes the hyperparameters through autograd of the loss."""
+        bkd = autodiff_bkd
         kernel = GeneralMaternKernel(
             nu=2.5,
-            lenscale=[0.5],
+            lenscale=[initial_lenscale],
             lenscale_bounds=(0.1, 10.0),
             nvars=1,
-            bkd=self.bkd,
+            bkd=bkd,
         )
-        gp = ExactGaussianProcess(kernel, nvars=1, bkd=self.bkd)
-
-        X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
         assert kernel.param_derivatives().jacobian is None
+        gp = ExactGaussianProcess(kernel, nvars=1, bkd=bkd)
+        initial_values = bkd.copy(kernel.hyp_list().get_values())
 
-        fitter = GPMaximumLikelihoodFitter(self.bkd)
-        result = fitter.fit(gp, X_train, y_train)
-        fitted_gp = result.surrogate()
-
-        assert fitted_gp.is_fitted()
-        nll = result.neg_log_marginal_likelihood()
-        assert torch.all(torch.isfinite(nll))
-
-    def test_fit_optimizes_hyperparameters(self):
-        """Test that fit() optimizes hyperparameters using autograd gradients."""
-        kernel = GeneralMaternKernel(
-            nu=2.5,
-            lenscale=[0.3],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=self.bkd,
-        )
-        gp = ExactGaussianProcess(kernel, nvars=1, bkd=self.bkd)
-        # Leave params active for optimization
-
-        X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[None, :]
-
-        initial_lenscale = kernel.hyp_list().get_values().clone()
-
-        result = GPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, X_train, y_train
-        )
+        X_train, y_train = _sin_data(bkd, 20)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
         gp = result.surrogate()
 
-        final_lenscale = gp.hyp_list().get_values()
+        assert gp.is_fitted()
+        nll = result.neg_log_marginal_likelihood()
+        assert bkd.to_bool(bkd.all(bkd.isfinite(nll)))
+        assert not bkd.allclose(initial_values, gp.hyp_list().get_values()), (
+            "Hyperparameters should change during optimization"
+        )
 
-        # Hyperparameters should have changed during optimization
-        assert not torch.allclose(
-            initial_lenscale, final_lenscale
-        ), "Hyperparameters should change during optimization"
-
-        # Predictions should be reasonable
-        X_test = torch.linspace(-2, 2, 10).reshape(1, -1)
-        mean = gp.predict(X_test)
-        y_true = torch.sin(X_test[0])[None, :]
-        error = torch.abs(mean - y_true).mean()
-        assert (
-            float(error) < 0.5
-        ), f"Mean prediction error {float(error)} too large"
+        X_test, y_true = _sin_data(bkd, 10)
+        error = bkd.to_float(bkd.mean(bkd.abs(gp.predict(X_test) - y_true)))
+        assert error < 0.5, f"Mean prediction error {error} too large"

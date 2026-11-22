@@ -1,5 +1,6 @@
 """
-Tests for VariationalGaussianProcess (including autograd fallback on TorchBkd).
+Tests for VariationalGaussianProcess (including the autograd fallback on
+autodiff backends).
 
 Tests are structured progressively:
 1. No optimization (all params inactive)
@@ -7,8 +8,9 @@ Tests are structured progressively:
 3. All params active (kernel + inducing + noise)
 """
 
+from typing import Tuple
+
 import numpy as np
-import torch
 from scipy.stats import qmc
 
 from pyapprox.surrogates.gaussianprocess.exact import (
@@ -23,8 +25,10 @@ from pyapprox.surrogates.gaussianprocess.likelihoods import GaussianLikelihood
 from pyapprox.surrogates.gaussianprocess.variational import (
     VariationalGaussianProcess,
 )
+from pyapprox.surrogates.kernels.general_matern import GeneralMaternKernel
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _sobol_samples(nvars: int, nsamples: int, lb: float, ub: float):
@@ -226,9 +230,7 @@ class TestVariationalGP:
             bkd=bkd,
             nugget=noise_var,
         )
-        result = GPMaximumLikelihoodFitter(bkd).fit(
-            egp, self.X_train, self.y_train
-        )
+        result = GPMaximumLikelihoodFitter(bkd).fit(egp, self.X_train, self.y_train)
         egp = result.surrogate()
 
         # Compare predictions at test points
@@ -329,9 +331,7 @@ class TestVariationalGP:
             likelihood=lik,
             bkd=bkd,
         )
-        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
-            gp, X_train, y_train
-        )
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
         gp = result.surrogate()
 
         # Test on held-out points
@@ -340,9 +340,9 @@ class TestVariationalGP:
         y_pred = gp.predict(X_test)
 
         max_err = float(bkd.to_numpy(bkd.max(bkd.abs(y_pred - y_test))))
-        assert (
-            max_err <= 2e-3
-        ), f"Max prediction error {max_err:.2e} exceeds 2e-3 for quadratic"
+        assert max_err <= 2e-3, (
+            f"Max prediction error {max_err:.2e} exceeds 2e-3 for quadratic"
+        )
 
     # ---- Test 6: Hyp list structure ----
 
@@ -359,115 +359,86 @@ class TestVariationalGP:
         assert hyps.nparams() == expected
 
 
-class TestTorchVariationalGP:
-    """Torch-specific tests for autograd functionality."""
+_N_TRAIN = 20
+_N_INDUCING = 10
 
-    def setup_method(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        torch.manual_seed(42)
-        np.random.seed(42)
-        self.bkd = TorchBkd()
-        self.nvars = 1
-        self.n_train = 20
-        self.n_inducing = 10
 
-        X_np = np.linspace(-1, 1, self.n_train).reshape(1, -1)
-        y_np = (X_np[0, :] ** 2)[None, :]
-        self.X_train = self.bkd.array(X_np)
-        self.y_train = self.bkd.array(y_np)
+def _make_general_matern_vgp(
+    bkd: Backend[Array], kernel_fixed: bool = True
+) -> Tuple[VariationalGaussianProcess[Array], Array, Array]:
+    """VGP with a GeneralMaternKernel (no analytic jacobians), inducing
+    points and noise fixed, and its training data y = x^2 on [-1, 1]."""
+    X_train = bkd.reshape(bkd.linspace(-1.0, 1.0, _N_TRAIN), (1, -1))
+    y_train = X_train**2
 
-        U_np = _sobol_samples(self.nvars, self.n_inducing, -1.0, 1.0)
-        self.U_init = self.bkd.array(U_np)
+    kernel = GeneralMaternKernel(
+        nu=2.5,
+        lenscale=[1.0],
+        lenscale_bounds=(0.1, 10.0),
+        nvars=1,
+        bkd=bkd,
+    )
+    if kernel_fixed:
+        kernel.hyp_list().set_all_inactive()
+    ip = InducingPoints(
+        nvars=1,
+        num_inducing=_N_INDUCING,
+        bkd=bkd,
+        inducing_locations=bkd.asarray(_sobol_samples(1, _N_INDUCING, -1.0, 1.0)),
+        inducing_bounds=(-2.0, 2.0),
+    )
+    lik = GaussianLikelihood(0.1, (1e-6, 1.0), bkd)
+    ip.hyp_list().set_all_inactive()
+    lik.hyp_list().set_all_inactive()
+    gp = VariationalGaussianProcess(
+        kernel=kernel,
+        nvars=1,
+        inducing_points=ip,
+        likelihood=lik,
+        bkd=bkd,
+    )
+    return gp, X_train, y_train
 
-    def _make_torch_vgp(self, kernel_fixed=True, inducing_fixed=True):
-        from pyapprox.surrogates.kernels.general_matern import (
-            GeneralMaternKernel,
+
+class TestVariationalGPGeneralMatern:
+    """A kernel without analytic jacobians: prediction on every backend,
+    autograd-fallback derivatives on autodiff backends."""
+
+    def test_fit_and_predict(self, bkd: Backend[Array]) -> None:
+        gp, X_train, y_train = _make_general_matern_vgp(bkd)
+        gp = (
+            VariationalGPMaximumLikelihoodFitter(bkd)
+            .fit(gp, X_train, y_train)
+            .surrogate()
         )
-
-        kernel = GeneralMaternKernel(
-            nu=2.5,
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=self.nvars,
-            bkd=self.bkd,
-        )
-        if kernel_fixed:
-            kernel.hyp_list().set_all_inactive()
-
-        ip = InducingPoints(
-            nvars=self.nvars,
-            num_inducing=self.n_inducing,
-            bkd=self.bkd,
-            inducing_locations=self.U_init,
-            inducing_bounds=(-2.0, 2.0),
-        )
-        lik = GaussianLikelihood(0.1, (1e-6, 1.0), self.bkd)
-        if inducing_fixed:
-            ip.hyp_list().set_all_inactive()
-            lik.hyp_list().set_all_inactive()
-
-        return VariationalGaussianProcess(
-            kernel=kernel,
-            nvars=self.nvars,
-            inducing_points=ip,
-            likelihood=lik,
-            bkd=self.bkd,
-        )
-
-    def test_fit_and_predict(self) -> None:
-        """Basic fit and predict with Torch VGP."""
-        gp = self._make_torch_vgp()
-        result = VariationalGPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, self.X_train, self.y_train
-        )
-        gp = result.surrogate()
         assert gp.is_fitted()
+        assert gp.predict(X_train).shape == (1, _N_TRAIN)
 
-        mean = gp.predict(self.X_train)
-        assert mean.shape == (1, self.n_train)
-
-    def test_autograd_prediction_jacobian(self) -> None:
-        """Verify autograd-based prediction Jacobian works."""
-        gp = self._make_torch_vgp()
-        result = VariationalGPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, self.X_train, self.y_train
+    def test_autograd_prediction_jacobian(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
+        bkd = autodiff_bkd
+        gp, X_train, y_train = _make_general_matern_vgp(bkd)
+        gp = (
+            VariationalGPMaximumLikelihoodFitter(bkd)
+            .fit(gp, X_train, y_train)
+            .surrogate()
         )
-        gp = result.surrogate()
 
         jacobian = gp.derivatives().jacobian
         assert jacobian is not None
+        jac = jacobian(bkd.array([[0.3]]))
+        assert jac.shape == (1, 1)
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
-        sample = self.bkd.array([[0.3]])
-        jac = jacobian(sample)
-        assert jac.shape == (1, self.nvars)
-        assert torch.isfinite(jac).all()
-
-    def test_autograd_loss_jacobian(self) -> None:
-        """Verify fitter binds autograd jacobian for torch backend."""
-        from pyapprox.surrogates.gaussianprocess.fitters import (
-            VariationalGPMaximumLikelihoodFitter,
-        )
-        from pyapprox.util.backends.torch import TorchBkd
-
-        gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
-
-        bkd = TorchBkd()
-        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
-        result = fitter.fit(gp, self.X_train, self.y_train)
-        fitted_gp = result.surrogate()
-
-        assert fitted_gp.is_fitted()
+    def test_fit_with_kernel_optimization(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """Kernel params active and no parameter jacobian: the fitter
+        optimizes through autograd of the loss."""
+        bkd = autodiff_bkd
+        gp, X_train, y_train = _make_general_matern_vgp(bkd, kernel_fixed=False)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        assert result.surrogate().is_fitted()
         nll = result.neg_log_marginal_likelihood()
-        assert torch.isfinite(nll).all()
-
-    def test_fit_with_kernel_optimization(self) -> None:
-        """Fit with kernel params active uses autograd for optimization."""
-        gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
-        result = VariationalGPMaximumLikelihoodFitter(self.bkd).fit(
-            gp, self.X_train, self.y_train
-        )
-        gp = result.surrogate()
-        assert gp.is_fitted()
-
-        neg_elbo = gp.neg_log_marginal_likelihood()
-        assert torch.isfinite(neg_elbo)
+        assert bkd.to_bool(bkd.all(bkd.isfinite(nll)))
