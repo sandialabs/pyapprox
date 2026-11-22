@@ -36,22 +36,14 @@ class TestDeviationMeasures:
         self._npred = 2
 
         self._noise_variances = bkd.asarray(np.array([0.1, 0.2, 0.15]))
-        self._shapes_inner = bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        self._observations = bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        self._design_weights = bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        self._shapes_inner = bkd.asarray(np.random.randn(self._nobs, self._ninner))
+        self._observations = bkd.asarray(np.random.randn(self._nobs, self._nouter))
+        self._design_weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
         # QoI values at inner samples
         self._qoi_vals = bkd.asarray(np.random.randn(self._ninner, self._npred))
 
         # Create inner likelihood and evidence
-        self._likelihood = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, bkd
-        )
+        self._likelihood = GaussianOEDInnerLoopLikelihood(self._noise_variances, bkd)
         self._likelihood.set_shapes(self._shapes_inner)
         self._likelihood.set_observations(self._observations)
 
@@ -65,7 +57,7 @@ class TestDeviationMeasures:
 
     def _finite_diff_jacobian(self, bkd, deviation, design_weights):
         """Compute Jacobian via finite differences."""
-        #TODO: use DerivativeChecker
+        # TODO: use DerivativeChecker
         eps = 1e-6
         nobs = design_weights.shape[0]
         nout = self._npred * self._nouter
@@ -179,9 +171,7 @@ class TestDeviationMeasures:
         avar.set_evidence(self._evidence)
 
         # Set positive QoI values (mean 0 but with variance)
-        positive_qoi = bkd.asarray(
-            np.abs(np.random.randn(self._ninner, self._npred))
-        )
+        positive_qoi = bkd.asarray(np.abs(np.random.randn(self._ninner, self._npred)))
         avar.set_qoi_data(positive_qoi)
 
         values = avar(self._design_weights)
@@ -240,7 +230,9 @@ class TestDeviationMeasures:
         assert avar.label() == "AVaRDev"
 
     def test_avar_jacobian_autodiff(self, bkd):
-        """Test AVaR Jacobian using autodiff (Torch only)."""
+        """Test AVaR Jacobian using autodiff (Torch only: the jacobian
+        differentiates through the auto-selected torch.compile kernel)."""
+        pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
         if not isinstance(bkd, TorchBkd):

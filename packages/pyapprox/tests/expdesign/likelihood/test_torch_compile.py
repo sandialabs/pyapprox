@@ -26,6 +26,11 @@ from pyapprox.expdesign.likelihood.compute import (
     jacobian_matrix_vectorized,
     logpdf_matrix_vectorized,
 )
+from pyapprox.expdesign.likelihood.dispatch import (
+    get_evidence_jacobian_impl,
+    get_jacobian_matrix_impl,
+    get_logpdf_matrix_impl,
+)
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.torch import TorchBkd
 from tests._helpers.markers import slow_test
@@ -238,3 +243,23 @@ class TestCompiledAutograd:
         autograd_jac = autograd_jac.squeeze(-1)
 
         self._bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
+
+
+class TestTorchDispatch:
+    """Dispatch selects a compiled implementation for TorchBkd."""
+
+    def test_torch_gets_compiled(self, torch_bkd: TorchBkd) -> None:
+        """Torch backend should use torch.compile, not vectorized."""
+        impl = get_logpdf_matrix_impl(torch_bkd)
+        # torch.compile returns a closure, not the vectorized function
+        assert impl is not logpdf_matrix_vectorized
+
+    def test_jacobian_dispatch_torch(self, torch_bkd: TorchBkd) -> None:
+        """Jacobian dispatch for Torch backend uses compiled."""
+        impl = get_jacobian_matrix_impl(torch_bkd)
+        assert impl is not jacobian_matrix_vectorized
+
+    def test_evidence_jacobian_dispatch_torch(self, torch_bkd: TorchBkd) -> None:
+        """Evidence jacobian dispatch for Torch backend uses compiled."""
+        impl = get_evidence_jacobian_impl(torch_bkd)
+        assert impl is not None

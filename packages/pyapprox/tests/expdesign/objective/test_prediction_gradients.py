@@ -113,11 +113,13 @@ class TestPredictionOEDGradientsStandalone:
         checker = DerivativeChecker(wrapped)
 
         weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
-        errors = checker.check_derivatives(weights)
+        # Central differences: their truncation error is second order, so
+        # the error ratio does not hinge on where the one-sided error
+        # floor happens to fall for these random weights.
+        errors = checker.check_derivatives(weights, central=True)
 
-        # Jacobian errors should show second-order convergence
         ratio = checker.error_ratio(errors[0])
-        assert float(bkd.to_numpy(ratio)) <= 1e-5, (
+        assert bkd.to_float(ratio) <= 1e-6, (
             f"DerivativeChecker failed for {deviation_type}/{risk_type}: ratio={ratio}"
         )
 

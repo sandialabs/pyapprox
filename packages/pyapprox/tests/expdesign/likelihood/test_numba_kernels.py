@@ -189,7 +189,8 @@ class TestNumbaKernels:
 
 
 class TestDispatch:
-    """Test dispatch logic selects correct implementation per backend."""
+    """Test dispatch logic selects the Numba implementation for NumPy; the
+    Torch dispatch tests are in test_torch_compile.py."""
 
     def test_numpy_gets_numba(self):
         """NumPy backend should use Numba when available."""
@@ -198,26 +199,9 @@ class TestDispatch:
         # The Numba impl is a closure, not the vectorized function directly
         assert impl is not logpdf_matrix_vectorized
 
-    def test_torch_gets_compiled(self):
-        """Torch backend should use torch.compile, not vectorized."""
-        from pyapprox.util.backends.torch import TorchBkd
-
-        bkd = TorchBkd()
-        impl = get_logpdf_matrix_impl(bkd)
-        # torch.compile returns a closure, not the vectorized function
-        assert impl is not logpdf_matrix_vectorized
-
     def test_jacobian_dispatch_numpy(self):
         """Jacobian dispatch for NumPy backend uses Numba."""
         bkd = NumpyBkd()
-        impl = get_jacobian_matrix_impl(bkd)
-        assert impl is not jacobian_matrix_vectorized
-
-    def test_jacobian_dispatch_torch(self):
-        """Jacobian dispatch for Torch backend uses compiled."""
-        from pyapprox.util.backends.torch import TorchBkd
-
-        bkd = TorchBkd()
         impl = get_jacobian_matrix_impl(bkd)
         assert impl is not jacobian_matrix_vectorized
 
@@ -226,14 +210,6 @@ class TestDispatch:
         bkd = NumpyBkd()
         impl = get_evidence_jacobian_impl(bkd)
         # Should be a numba closure, not the vectorized fallback
-        assert impl is not None
-
-    def test_evidence_jacobian_dispatch_torch(self):
-        """Evidence jacobian dispatch for Torch backend uses compiled."""
-        from pyapprox.util.backends.torch import TorchBkd
-
-        bkd = TorchBkd()
-        impl = get_evidence_jacobian_impl(bkd)
         assert impl is not None
 
 
@@ -296,9 +272,7 @@ class TestNumbaIntegration:
         self._shapes = bkd.asarray(np.random.randn(self._nobs, self._ninner))
         self._obs = bkd.asarray(np.random.randn(self._nobs, self._nouter))
         self._latent = bkd.asarray(np.random.randn(self._nobs, self._nouter))
-        self._design_weights = bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        self._design_weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
     def test_logpdf_matrix_runs(self, bkd):
         """Inner loop logpdf_matrix runs without error."""
