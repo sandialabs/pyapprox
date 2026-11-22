@@ -370,7 +370,9 @@ class CoupledProblem:
         """The field DOFs of mesh nodes ``nodes``, interleaved."""
         return [self.k * n + c for n in nodes for c in range(self.k)]
 
-    def system(self, grid: Grid, free: Optional[Np] = None) -> Any:
+    def system(
+        self, grid: Grid, free: Optional[Np] = None
+    ) -> tuple[Any, TensorQuadMesh]:
         """The system on ``grid``; no essential rows at the nodes at the
         points ``free`` (shape (2, n))."""
         xs, ys, sides = grid
@@ -407,9 +409,13 @@ class CoupledProblem:
         system, nodes, ports, dofs = self.port_system(subdomain)
         return pinned_piece(system, ports), nodes, dofs
 
+    def single_domain_system(self) -> tuple[Any, TensorQuadMesh]:
+        """The single-domain system and its mesh."""
+        return self.system(self._whole)
+
     def single_domain(self) -> tuple[Np, Np]:
         """The single-domain solution and its node points."""
-        system, mesh = self.system(self._whole)
+        system, mesh = self.single_domain_system()
         _, point = solve_galerkin_steady(
             skfem_discretization(system), RecomputeAlways(ScipySparseLU()), newton()
         )
