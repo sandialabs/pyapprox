@@ -15,7 +15,11 @@ from pyapprox.surrogates.kernels.multioutput.linear_coregionalization import (
     LinearCoregionalizationKernel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
+
+
+class _DistinctBackend(NumpyBkd):
+    """A backend whose class differs from every fixture backend's, for the
+    checks that compare backend classes."""
 
 
 class TestIndependentMultiOutputKernel:
@@ -32,9 +36,7 @@ class TestIndependentMultiOutputKernel:
         # Create independent kernels for each output
         self.kernels = []
         for i in range(self.noutputs):
-            kernel = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd
-            )
+            kernel = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
             self.kernels.append(kernel)
 
         self.mo_kernel = IndependentMultiOutputKernel(self.kernels)
@@ -74,10 +76,7 @@ class TestIndependentMultiOutputKernel:
         """
         self._setup_data(bkd)
         # Create kernel with different backend
-        if isinstance(bkd, NumpyBkd):
-            other_bkd = TorchBkd()
-        else:
-            other_bkd = NumpyBkd()
+        other_bkd = _DistinctBackend()
 
         kernel_other = Matern52Kernel(
             [1.0] * self.nvars, (0.1, 10.0), self.nvars, other_bkd
@@ -428,9 +427,9 @@ class TestIndependentMultiOutputKernel:
 
         # Minimum error should be small
         min_error = float(bkd.min(grad_error))
-        assert (
-            min_error < 1e-6
-        ), f"Minimum gradient relative error {min_error} exceeds threshold"
+        assert min_error < 1e-6, (
+            f"Minimum gradient relative error {min_error} exceeds threshold"
+        )
 
 
 class TestLinearCoregionalizationKernel:
@@ -569,10 +568,7 @@ class TestLinearCoregionalizationKernel:
 
         # Manually compute expected result
         expected_blocks = [
-            [
-                bkd.zeros((self.nsamples, self.nsamples))
-                for _ in range(self.noutputs)
-            ]
+            [bkd.zeros((self.nsamples, self.nsamples)) for _ in range(self.noutputs)]
             for _ in range(self.noutputs)
         ]
 
@@ -632,9 +628,7 @@ class TestIndependentKernelIntegration:
         # Create independent kernels for each output
         self.kernels = []
         for i in range(self.noutputs):
-            kernel = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd
-            )
+            kernel = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
             self.kernels.append(kernel)
 
         self.mo_kernel = IndependentMultiOutputKernel(self.kernels)
@@ -704,9 +698,7 @@ class TestLMCKernelIntegration:
         # Create base kernels
         self.base_kernels = []
         for q in range(self.ncomponents):
-            kernel = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd
-            )
+            kernel = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
             self.base_kernels.append(kernel)
 
         # Create coregionalization matrices

@@ -4,8 +4,10 @@ Tests for MultiLevelKernel with new scaling functions.
 
 import numpy as np
 import pytest
-import torch
 
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    MultiOutputGPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
 )
@@ -16,7 +18,8 @@ from pyapprox.surrogates.kernels.multioutput import (
 from pyapprox.surrogates.kernels.scalings import (
     PolynomialScalingFunction,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 
 class TestMultiLevelKernel:
@@ -385,37 +388,31 @@ class TestMultiLevelKernel:
         )
 
 
-class TestMultiLevelKernelOptimizeTorch:
-    """Torch-only test: ML optimization requires autograd."""
+class TestMultiLevelKernelOptimize:
+    """ML optimization differentiates the loss by autograd."""
 
-    def setup_method(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        self._nvars = 2
-
-    def test_optimize_hyperparameters(self):
+    def test_optimize_hyperparameters(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """Test hyperparameter optimization for multilevel kernel GP."""
-        from pyapprox.surrogates.gaussianprocess.fitters import (
-            MultiOutputGPMaximumLikelihoodFitter,
-        )
-
         np.random.seed(42)
-        bkd = self._bkd
+        bkd = autodiff_bkd
+        nvars = 2
 
         # Create a 2-level kernel
-        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, bkd)
-        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, bkd)
+        k0 = Matern52Kernel(bkd.array([1.0]), (0.1, 10.0), nvars, bkd)
+        k1 = Matern52Kernel(bkd.array([0.5]), (0.1, 10.0), nvars, bkd)
         rho_0 = PolynomialScalingFunction(
             [0.8],
             (0.01, 5.0),
             bkd,
-            nvars=self._nvars,
+            nvars=nvars,
         )
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
         # Generate synthetic data
         n_train = 10
-        X_train = bkd.array(np.random.randn(self._nvars, n_train))
+        X_train = bkd.array(np.random.randn(nvars, n_train))
         X_list = [X_train, X_train]
 
         y0 = bkd.sin(X_train[0, :])

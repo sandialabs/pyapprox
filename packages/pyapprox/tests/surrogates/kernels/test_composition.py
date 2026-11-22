@@ -24,8 +24,12 @@ from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from tests._helpers.markers import slow_test
+
+
+class _DistinctBackend(NumpyBkd):
+    """A backend whose class differs from every fixture backend's, for the
+    composition checks that compare backend classes."""
 
 
 class TestProductKernel:
@@ -62,10 +66,7 @@ class TestProductKernel:
         """
         self._setup_data(bkd)
         # Create kernel with different backend
-        if isinstance(bkd, NumpyBkd):
-            other_bkd = TorchBkd()
-        else:
-            other_bkd = NumpyBkd()
+        other_bkd = _DistinctBackend()
 
         kernel_other = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, other_bkd)
 
@@ -248,10 +249,7 @@ class TestSumKernel:
         """
         self._setup_data(bkd)
         # Create kernel with different backend
-        if isinstance(bkd, NumpyBkd):
-            other_bkd = TorchBkd()
-        else:
-            other_bkd = NumpyBkd()
+        other_bkd = _DistinctBackend()
 
         kernel_other = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, other_bkd)
 
@@ -655,9 +653,7 @@ class TestSeparableProductKernel:
         # GP with multi-dim SE kernel
         se_kernel = SquaredExponentialKernel(init_ls, bounds, nvars, bkd)
         gp_se = ExactGaussianProcess(se_kernel, nvars, bkd, nugget=1e-8)
-        result = GPMaximumLikelihoodFitter(bkd).fit(
-            gp_se, X_train, y_train
-        )
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp_se, X_train, y_train)
         gp_se = result.surrogate()
 
         # GP with separable product kernel
@@ -665,9 +661,7 @@ class TestSeparableProductKernel:
         k2 = SquaredExponentialKernel([init_ls[1]], bounds, 1, bkd)
         sep_kernel = SeparableProductKernel([k1, k2], bkd)
         gp_sep = ExactGaussianProcess(sep_kernel, nvars, bkd, nugget=1e-8)
-        result = GPMaximumLikelihoodFitter(bkd).fit(
-            gp_sep, X_train, y_train
-        )
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp_sep, X_train, y_train)
         gp_sep = result.surrogate()
 
         # Compare optimal hyperparameters
