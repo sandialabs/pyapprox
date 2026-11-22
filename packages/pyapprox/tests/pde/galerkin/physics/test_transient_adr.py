@@ -8,8 +8,10 @@ This module contains:
 4. Explicit integrator tests (Forward Euler + Heun, with/without advection)
 5. Low-level manual Newton test using the BC-enforcing residual wrapper
 
-Implicit cases use GalerkinTransientModel.solve_transient() with backward Euler or
-Crank-Nicolson. Explicit cases use GalerkinTransientModel with CFL-constrained dt.
+Problems are ``pde.verification`` manufactured problems. Every case but
+the manual-Newton one steps ``solve_galerkin_transient``: backward Euler
+or Crank-Nicolson, and the explicit methods with CFL-constrained dt.
+Errors are relative Euclidean norms of the final DOF vector.
 """
 
 import pytest
@@ -19,178 +21,171 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.boundary import BoundaryConditionRole
-from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
-from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolution,
-    create_adr_manufactured_test,
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import (
+    ButcherTableau,
+    backward_euler,
+    crank_nicolson,
+    forward_euler,
+    heun,
 )
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
     skfem_ode_residual,
 )
-from pyapprox.pde.galerkin.time_integration.transient_model import (
-    GalerkinTransientModel,
+from pyapprox.pde.models.galerkin.transient_system import (
+    galerkin_transient_system,
+    solve_galerkin_transient,
+)
+from pyapprox.pde.models.galerkin.verification import (
+    boundary_conditions,
+    exact_dof_values,
+    forcing,
+    state_law,
+    vector_field,
+)
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
+from tests._helpers.galerkin_verification import coded
 from tests._helpers.markers import slow_test
+
+_Np = NDArray[Any]
+_INTERVAL = Box([(0.0, 1.0)])
+_SQUARE = Box([(0.0, 1.0)] * 2)
+_SOLUTION_1D = "(1-x)*x*(1+t)"
+_SOLUTION_2D = "(1-x)*x*(1-y)*y*(1+t)"
 
 # =========================================================================
 # Helpers
 # =========================================================================
 
 
-def _parse_reaction(react_str):
-    """Convert reaction string to physics callable pair."""
-    if react_str == "0*u":
-        return None
-    elif react_str == "u**2":
-        return CallableReaction(
-            lambda x, u: u**2,
-            lambda x, u: 2 * u,
-            lambda x, u: np.full_like(u, 2.0),
-        )
-    else:
-        raise ValueError(f"Unknown react_str: {react_str}")
-
-
-def _has_velocity(vel_strs):
-    """Check if velocity strings represent non-negligible velocity."""
-    return not all("1e-16" in v for v in vel_strs)
-
-
-_ROBIN_ALPHA = 1.0
-_BOUNDARY_NAMES = ["left", "right", "bottom", "top"]
-
-
-def _dirichlet(
-    ms: GalerkinManufacturedSolution[NDArray[Any]],
-    name: str,
-    law: NormalFluxLawProtocol,
-) -> BoundaryConditionRole[NDArray[Any]]:
-    return ms.dirichlet(name)
-
-
-def _neumann(
-    ms: GalerkinManufacturedSolution[NDArray[Any]],
-    name: str,
-    law: NormalFluxLawProtocol,
-) -> BoundaryConditionRole[NDArray[Any]]:
-    return ms.neumann(name, law)
-
-
-def _robin(
-    ms: GalerkinManufacturedSolution[NDArray[Any]],
-    name: str,
-    law: NormalFluxLawProtocol,
-) -> BoundaryConditionRole[NDArray[Any]]:
-    return ms.robin(name, _ROBIN_ALPHA, law)
-
-
-# Test-data codes for the boundary types, in [left, right, bottom, top].
-_BC_BY_CODE: Dict[
-    str,
-    Callable[
-        [GalerkinManufacturedSolution[NDArray[Any]], str, NormalFluxLawProtocol],
-        BoundaryConditionRole[NDArray[Any]],
-    ],
-] = {"D": _dirichlet, "N": _neumann, "R": _robin}
-
-
-def _manufactured_bcs(
-    ms: GalerkinManufacturedSolution[NDArray[Any]],
-    physics: AdvectionDiffusionReaction[NDArray[Any]],
-    bndry_types: List[str],
-) -> List[BoundaryConditionRole[NDArray[Any]]]:
-    """Build the manufactured BCs named by ``bndry_types``."""
-    law = physics.flux_law()
-    return [
-        _BC_BY_CODE[code](ms, name, law)
-        for code, name in zip(bndry_types, _BOUNDARY_NAMES)
+def _setup(
+    bkd: NumpyBkd,
+    box: Box,
+    solution: str,
+    codes: str,
+    nx: int,
+    diffusivity: float,
+    velocity: Optional[Sequence[str]] = None,
+    reaction: Optional[str] = None,
+) -> Tuple[GalerkinSystem[_Np], Callable[[float], _Np]]:
+    r"""Transient ADR :math:`u_t + \nabla\cdot(-D\nabla u) + v\cdot\nabla u
+    - R(u) = f` on ``box`` with P2 on ``nx`` cells per side, the sides'
+    conditions by code (D, N, R with alpha 1): its system and the exact
+    DOF values at a time, shape (ndofs,)."""
+    coords = ("x", "y")[: box.ndim()]
+    terms: List[TermProtocol] = [
+        TimeDerivative("u"),
+        Divergence("u", [f"-({diffusivity})*u_{c}" for c in coords]),
     ]
-
-
-def _setup_1d_problem(
-    bkd, bounds, sol_str, diff_str, react_str, vel_strs, bndry_types, nx, diffusivity
-):
-    """Create physics, model, and exact solution for a 1D problem."""
-    functions, _ = create_adr_manufactured_test(
-        bounds=bounds,
-        sol_str=sol_str,
-        diff_str=diff_str,
-        react_str=react_str,
-        vel_strs=vel_strs,
-        bkd=bkd,
-        time_dependent=True,
+    if velocity is not None:
+        transport = " + ".join(f"({v})*u_{c}" for v, c in zip(velocity, coords))
+        terms.append(Source("u", transport))
+    if reaction is not None:
+        terms.append(Source("u", f"-({reaction})"))
+    problem = ManufacturedProblem({"u": solution}, terms, box, coded(codes, box))
+    mesh = (
+        StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
+        if box.ndim() == 1
+        else StructuredMesh2D(nx=nx, ny=nx, bounds=[(0.0, 1.0)] * 2, bkd=bkd)
     )
-
-    mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
-
-    ms = GalerkinManufacturedSolution(basis, functions, bkd)
-
-    velocity = ms.velocity() if _has_velocity(vel_strs) else None
-    reaction = _parse_reaction(react_str)
-
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=diffusivity,
         bkd=bkd,
-        velocity=velocity,
-        reaction=reaction,
-        forcing=ms.forcing(),
+        velocity=None if velocity is None else vector_field(problem, velocity),
+        reaction=None if reaction is None else state_law(problem, reaction, "u"),
+        forcing=forcing(problem, "u"),
     )
-    system = compose_galerkin_system(
-        physics, _manufactured_bcs(ms, physics, bndry_types)
+    system = compose_galerkin_system(physics, boundary_conditions(problem, basis, "u"))
+
+    def exact_at_time(time: float) -> _Np:
+        return exact_dof_values(problem, basis, ["u"], time)
+
+    return system, exact_at_time
+
+
+def _relative_error(
+    system: GalerkinSystem[_Np],
+    exact_at_time: Callable[[float], _Np],
+    make: Callable[[], ButcherTableau],
+    deltat: float,
+    final_time: float,
+) -> float:
+    """Relative error of the final state stepped by
+    ``solve_galerkin_transient`` from the exact initial state."""
+    transient = galerkin_transient_system(skfem_discretization(system), ScipySparseLU())
+    tableau = make()
+    method: RungeKutta[_Np, _Np] = RungeKutta(
+        tableau,
+        None if tableau.is_explicit() else Newton(atol=1e-10, rtol=0.0, maxiters=20),
     )
-
-    model = GalerkinTransientModel(skfem_ode_residual(system))
-
-    exact_sol_func = functions["solution"]
-    dof_coords = bkd.to_numpy(basis.dof_coordinates())
-
-    def exact_at_time(t):
-        u = exact_sol_func(dof_coords, t)
-        if hasattr(u, "shape") and u.ndim > 1:
-            return u[:, 0] if u.shape[1] == 1 else u.flatten()
-        return u
-
-    return physics, model, exact_at_time
+    store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+    solve_galerkin_transient(
+        transient,
+        method,
+        RecomputeAlways(transient.solved.solver),
+        FixedStep(deltat, (0.0, final_time)),
+        exact_at_time(0.0)[:, None],
+        store,
+    )
+    last = store.ntimes() - 1
+    exact = exact_at_time(store.times()[last])
+    return float(
+        np.linalg.norm(store.state(last)[:, 0] - exact) / np.linalg.norm(exact)
+    )
 
 
 # =========================================================================
 # 1D Transient ADR Cases
 # =========================================================================
 
-# Format: (name, bndry_types, vel_strs, react_str)
-# Fixed: bounds=[0,1], sol_str="(1-x)*x*(1+T)", diff_str="4+1e-16*x"
-TRANSIENT_ADR_1D_CASES: List[Tuple[str, List[str], List[str], str]] = [
-    ("1d_DD_noV_noR", ["D", "D"], ["0+1e-16*x"], "0*u"),
-    ("1d_DD_noV_R", ["D", "D"], ["0+1e-16*x"], "u**2"),
-    ("1d_DD_V_noR", ["D", "D"], ["(1+x)/10"], "0*u"),
-    ("1d_DD_V_R", ["D", "D"], ["(1+x)/10"], "u**2"),
-    ("1d_DN_noV_noR", ["D", "N"], ["0+1e-16*x"], "0*u"),
-    ("1d_DN_noV_R", ["D", "N"], ["0+1e-16*x"], "u**2"),
-    ("1d_DN_V_noR", ["D", "N"], ["(1+x)/10"], "0*u"),
-    ("1d_DN_V_R", ["D", "N"], ["(1+x)/10"], "u**2"),
+# Format: (name, boundary codes, velocity or None, reaction or None)
+# Fixed: u = (1-x)*x*(1+t) on [0, 1], D = 4, P2 on 32 cells.
+_V_1D = ("(1+x)/10",)
+TRANSIENT_ADR_1D_CASES: List[
+    Tuple[str, str, Optional[Tuple[str, ...]], Optional[str]]
+] = [
+    ("1d_DD_noV_noR", "DD", None, None),
+    ("1d_DD_noV_R", "DD", None, "u**2"),
+    ("1d_DD_V_noR", "DD", _V_1D, None),
+    ("1d_DD_V_R", "DD", _V_1D, "u**2"),
+    ("1d_DN_noV_noR", "DN", None, None),
+    ("1d_DN_noV_R", "DN", None, "u**2"),
+    ("1d_DN_V_noR", "DN", _V_1D, None),
+    ("1d_DN_V_R", "DN", _V_1D, "u**2"),
 ]
 
 
@@ -199,59 +194,28 @@ class TestTransientADR1D:
 
     Replicates legacy test_finite_elements.py
     test_transient_advection_diffusion_reaction (8 cases).
-    Uses GalerkinTransientModel.solve_transient() for time integration.
     """
 
     @pytest.mark.parametrize(
-        "name,bndry_types,vel_strs,react_str",
+        "name,codes,velocity,reaction",
         TRANSIENT_ADR_1D_CASES,
     )
     def test_transient_adr_1d(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
-        bndry_types: List[str],
-        vel_strs: List[str],
-        react_str: str,
+        codes: str,
+        velocity: Optional[Tuple[str, ...]],
+        reaction: Optional[str],
     ) -> None:
         """Test transient ADR with manufactured solution."""
-        bkd = numpy_bkd
-        _, model, exact_at_time = _setup_1d_problem(
-            bkd,
-            bounds=[0.0, 1.0],
-            sol_str="(1-x)*x*(1+T)",
-            diff_str="4+1e-16*x",
-            react_str=react_str,
-            vel_strs=vel_strs,
-            bndry_types=bndry_types,
-            nx=32,
-            diffusivity=4.0,
+        system, exact_at_time = _setup(
+            numpy_bkd, _INTERVAL, _SOLUTION_1D, codes, 32, 4.0, velocity, reaction
         )
-
-        y0 = bkd.asarray(exact_at_time(0.0))
-        config = TimeIntegrationConfig(
-            method="backward_euler",
-            init_time=0.0,
-            final_time=5.0,
-            deltat=1.0,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        )
-        solutions, times = model.solve_transient(y0, config)
-
-        u_exact_final = exact_at_time(float(times[-1]))
-        u_num = bkd.to_numpy(solutions[:, -1])
-
-        u_norm = np.linalg.norm(u_exact_final)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_final)
-
+        rel_error = _relative_error(system, exact_at_time, backward_euler, 1.0, 5.0)
         # Nonlinear reaction with Neumann BCs has slightly larger error
         # due to spatial discretization of u^2 term
-        tol = 2e-6 if "R" in name and "N" in "".join(bndry_types) else 1e-6
+        tol = 2e-6 if reaction is not None and "N" in codes else 1e-6
         assert rel_error < tol
 
 
@@ -259,106 +223,37 @@ class TestTransientADR1D:
 # 2D Transient ADR Cases
 # =========================================================================
 
-# Format: (name, bndry_types, vel_strs)
-# Fixed: bounds=[0,1,0,1], sol_str="(1-x)*x*(1-y)*y*(1+T)",
-#        diff_str="4+1e-16*x+1e-16*y", react_str="0*u"
-TRANSIENT_ADR_2D_CASES: List[Tuple[str, List[str], List[str]]] = [
-    ("2d_DDDD_noV", ["D", "D", "D", "D"], ["0+1e-16*x", "0+1e-16*y"]),
-    ("2d_DDDD_V", ["D", "D", "D", "D"], ["(1+x)/10", "(1+y)/10"]),
-    ("2d_DRDN_noV", ["D", "R", "D", "N"], ["0+1e-16*x", "0+1e-16*y"]),
-    ("2d_DRDN_V", ["D", "R", "D", "N"], ["(1+x)/10", "(1+y)/10"]),
+# Format: (name, boundary codes, velocity or None)
+# Fixed: u = (1-x)*x*(1-y)*y*(1+t) on [0, 1]^2, D = 4, P2 on 16 x 16,
+#        no reaction.
+_V_2D = ("(1+x)/10", "(1+y)/10")
+TRANSIENT_ADR_2D_CASES: List[Tuple[str, str, Optional[Tuple[str, ...]]]] = [
+    ("2d_DDDD_noV", "DDDD", None),
+    ("2d_DDDD_V", "DDDD", _V_2D),
+    ("2d_DRDN_noV", "DRDN", None),
+    ("2d_DRDN_V", "DRDN", _V_2D),
 ]
 
 
 class TestTransientADR2D:
-    """Parametrized 2D transient ADR tests with P2 + backward Euler.
-
-    Uses GalerkinTransientModel.solve_transient() for time integration.
-    """
+    """Parametrized 2D transient ADR tests with P2 + backward Euler."""
 
     @pytest.mark.parametrize(
-        "name,bndry_types,vel_strs",
+        "name,codes,velocity",
         TRANSIENT_ADR_2D_CASES,
     )
     def test_transient_adr_2d(
         self,
         numpy_bkd: NumpyBkd,
         name: str,
-        bndry_types: List[str],
-        vel_strs: List[str],
+        codes: str,
+        velocity: Optional[Tuple[str, ...]],
     ) -> None:
         """Test 2D transient ADR with manufactured solution."""
-        bkd = numpy_bkd
-        bounds = [0.0, 1.0, 0.0, 1.0]
-        sol_str = "(1-x)*x*(1-y)*y*(1+T)"
-        diff_str = "4+1e-16*x+1e-16*y"
-        react_str = "0*u"
-
-        functions, _ = create_adr_manufactured_test(
-            bounds=bounds,
-            sol_str=sol_str,
-            diff_str=diff_str,
-            react_str=react_str,
-            vel_strs=vel_strs,
-            bkd=bkd,
-            time_dependent=True,
+        system, exact_at_time = _setup(
+            numpy_bkd, _SQUARE, _SOLUTION_2D, codes, 16, 4.0, velocity
         )
-
-        mesh = StructuredMesh2D(
-            nx=16,
-            ny=16,
-            bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
-            bkd=bkd,
-        )
-        basis = LagrangeBasis(mesh, degree=2)
-
-        ms = GalerkinManufacturedSolution(basis, functions, bkd)
-
-        velocity = ms.velocity() if _has_velocity(vel_strs) else None
-
-        physics = AdvectionDiffusionReaction(
-            basis=basis,
-            diffusivity=4.0,
-            bkd=bkd,
-            velocity=velocity,
-            forcing=ms.forcing(),
-        )
-        system = compose_galerkin_system(
-            physics, _manufactured_bcs(ms, physics, bndry_types)
-        )
-
-        model = GalerkinTransientModel(skfem_ode_residual(system))
-
-        exact_sol_func = functions["solution"]
-        dof_coords = bkd.to_numpy(basis.dof_coordinates())
-
-        def exact_at_time(t):
-            u = exact_sol_func(dof_coords, t)
-            if hasattr(u, "shape") and u.ndim > 1:
-                return u[:, 0] if u.shape[1] == 1 else u.flatten()
-            return u
-
-        y0 = bkd.asarray(exact_at_time(0.0))
-        config = TimeIntegrationConfig(
-            method="backward_euler",
-            init_time=0.0,
-            final_time=5.0,
-            deltat=1.0,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        )
-        solutions, times = model.solve_transient(y0, config)
-
-        u_exact_final = exact_at_time(float(times[-1]))
-        u_num = bkd.to_numpy(solutions[:, -1])
-
-        u_norm = np.linalg.norm(u_exact_final)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_final)
-
+        rel_error = _relative_error(system, exact_at_time, backward_euler, 1.0, 5.0)
         assert rel_error < 1e-6
 
 
@@ -366,64 +261,26 @@ class TestTransientADR2D:
 # 1D Transient ADR with Crank-Nicolson
 # =========================================================================
 
-TRANSIENT_ADR_1D_CN_CASES: List[Tuple[str, List[str], List[str], str]] = [
-    ("1d_DD_noV_noR_CN", ["D", "D"], ["0+1e-16*x"], "0*u"),
-    ("1d_DD_V_noR_CN", ["D", "D"], ["(1+x)/10"], "0*u"),
+TRANSIENT_ADR_1D_CN_CASES: List[Tuple[str, Optional[Tuple[str, ...]]]] = [
+    ("1d_DD_noV_noR_CN", None),
+    ("1d_DD_V_noR_CN", _V_1D),
 ]
 
 
 class TestTransientADR1D_CN:
-    """1D transient ADR tests with P2 + Crank-Nicolson.
+    """1D transient ADR tests with P2 + Crank-Nicolson."""
 
-    Uses GalerkinTransientModel.solve_transient() for time integration.
-    """
-
-    @pytest.mark.parametrize(
-        "name,bndry_types,vel_strs,react_str",
-        TRANSIENT_ADR_1D_CN_CASES,
-    )
+    @pytest.mark.parametrize("name,velocity", TRANSIENT_ADR_1D_CN_CASES)
     def test_transient_adr_1d_cn(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
-        bndry_types: List[str],
-        vel_strs: List[str],
-        react_str: str,
+        velocity: Optional[Tuple[str, ...]],
     ) -> None:
-        bkd = numpy_bkd
-        _, model, exact_at_time = _setup_1d_problem(
-            bkd,
-            bounds=[0.0, 1.0],
-            sol_str="(1-x)*x*(1+T)",
-            diff_str="4+1e-16*x",
-            react_str=react_str,
-            vel_strs=vel_strs,
-            bndry_types=bndry_types,
-            nx=32,
-            diffusivity=4.0,
+        system, exact_at_time = _setup(
+            numpy_bkd, _INTERVAL, _SOLUTION_1D, "DD", 32, 4.0, velocity
         )
-
-        y0 = bkd.asarray(exact_at_time(0.0))
-        config = TimeIntegrationConfig(
-            method="crank_nicolson",
-            init_time=0.0,
-            final_time=5.0,
-            deltat=1.0,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        )
-        solutions, times = model.solve_transient(y0, config)
-
-        u_exact_final = exact_at_time(float(times[-1]))
-        u_num = bkd.to_numpy(solutions[:, -1])
-
-        u_norm = np.linalg.norm(u_exact_final)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_final)
-
+        rel_error = _relative_error(system, exact_at_time, crank_nicolson, 1.0, 5.0)
         assert rel_error < 1e-6
 
 
@@ -431,99 +288,16 @@ class TestTransientADR1D_CN:
 # 2D Transient ADR with Crank-Nicolson
 # =========================================================================
 
-TRANSIENT_ADR_2D_CN_CASES: List[Tuple[str, List[str], List[str]]] = [
-    ("2d_DDDD_noV_CN", ["D", "D", "D", "D"], ["0+1e-16*x", "0+1e-16*y"]),
-]
-
 
 class TestTransientADR2D_CN:
-    """2D transient ADR tests with P2 + Crank-Nicolson.
+    """2D transient ADR tests with P2 + Crank-Nicolson."""
 
-    Uses GalerkinTransientModel.solve_transient() for time integration.
-    """
-
-    @pytest.mark.parametrize(
-        "name,bndry_types,vel_strs",
-        TRANSIENT_ADR_2D_CN_CASES,
-    )
-    def test_transient_adr_2d_cn(
-        self,
-        numpy_bkd: NumpyBkd,
-        name: str,
-        bndry_types: List[str],
-        vel_strs: List[str],
-    ) -> None:
-        bkd = numpy_bkd
-        bounds = [0.0, 1.0, 0.0, 1.0]
-        sol_str = "(1-x)*x*(1-y)*y*(1+T)"
-        diff_str = "4+1e-16*x+1e-16*y"
-        react_str = "0*u"
-
-        functions, _ = create_adr_manufactured_test(
-            bounds=bounds,
-            sol_str=sol_str,
-            diff_str=diff_str,
-            react_str=react_str,
-            vel_strs=vel_strs,
-            bkd=bkd,
-            time_dependent=True,
+    def test_transient_adr_2d_cn(self, numpy_bkd: NumpyBkd) -> None:
+        """All sides Dirichlet, no velocity."""
+        system, exact_at_time = _setup(
+            numpy_bkd, _SQUARE, _SOLUTION_2D, "DDDD", 16, 4.0
         )
-
-        mesh = StructuredMesh2D(
-            nx=16,
-            ny=16,
-            bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
-            bkd=bkd,
-        )
-        basis = LagrangeBasis(mesh, degree=2)
-
-        ms = GalerkinManufacturedSolution(basis, functions, bkd)
-
-        velocity = ms.velocity() if _has_velocity(vel_strs) else None
-
-        physics = AdvectionDiffusionReaction(
-            basis=basis,
-            diffusivity=4.0,
-            bkd=bkd,
-            velocity=velocity,
-            forcing=ms.forcing(),
-        )
-        system = compose_galerkin_system(
-            physics, _manufactured_bcs(ms, physics, bndry_types)
-        )
-
-        model = GalerkinTransientModel(skfem_ode_residual(system))
-
-        exact_sol_func = functions["solution"]
-        dof_coords = bkd.to_numpy(basis.dof_coordinates())
-
-        def exact_at_time(t):
-            u = exact_sol_func(dof_coords, t)
-            if hasattr(u, "shape") and u.ndim > 1:
-                return u[:, 0] if u.shape[1] == 1 else u.flatten()
-            return u
-
-        y0 = bkd.asarray(exact_at_time(0.0))
-        config = TimeIntegrationConfig(
-            method="crank_nicolson",
-            init_time=0.0,
-            final_time=5.0,
-            deltat=1.0,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        )
-        solutions, times = model.solve_transient(y0, config)
-
-        u_exact_final = exact_at_time(float(times[-1]))
-        u_num = bkd.to_numpy(solutions[:, -1])
-
-        u_norm = np.linalg.norm(u_exact_final)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_final)
-
+        rel_error = _relative_error(system, exact_at_time, crank_nicolson, 1.0, 5.0)
         assert rel_error < 1e-6
 
 
@@ -531,17 +305,19 @@ class TestTransientADR2D_CN:
 # 1D Transient ADR with Explicit Methods (Forward Euler, Heun)
 # =========================================================================
 
-# Format: (name, method, vel_strs, has_vel)
-# Fixed: bounds=[0,1], sol_str="(1-x)*x*(1+T)", diff_str="0.1+1e-16*x",
-#        react_str="0*u", bndry_types=["D","D"], nx=4 (P2 exact)
+# Format: (name, tableau, velocity or None)
+# Fixed: u = (1-x)*x*(1+t) on [0, 1], D = 0.1, Dirichlet both ends,
+#        P2 on 4 cells (exact in space), no reaction.
 # D=0.1, h=0.25 → CFL diffusive: dt < h²/(2D) = 0.3125
 # With |v|=0.5 → CFL advective: dt < h/|v| = 0.5
 # Combined: dt < 0.3125. Use dt=0.01.
-TRANSIENT_ADR_1D_EXPLICIT_CASES: List[Tuple[str, str, List[str], bool]] = [
-    ("1d_DD_noV_FE", "forward_euler", ["0+1e-16*x"], False),
-    ("1d_DD_noV_Heun", "heun", ["0+1e-16*x"], False),
-    ("1d_DD_V_FE", "forward_euler", ["0.5"], True),
-    ("1d_DD_V_Heun", "heun", ["0.5"], True),
+TRANSIENT_ADR_1D_EXPLICIT_CASES: List[
+    Tuple[str, Callable[[], ButcherTableau], Optional[Tuple[str, ...]]]
+] = [
+    ("1d_DD_noV_FE", forward_euler, None),
+    ("1d_DD_noV_Heun", heun, None),
+    ("1d_DD_V_FE", forward_euler, ("0.5",)),
+    ("1d_DD_V_Heun", heun, ("0.5",)),
 ]
 
 
@@ -549,57 +325,26 @@ TRANSIENT_ADR_1D_EXPLICIT_CASES: List[Tuple[str, str, List[str], bool]] = [
 class TestTransientADRExplicit1D:
     """1D transient ADR tests with P2 + explicit methods (FE, Heun).
 
-    Uses GalerkinTransientModel.solve_transient() with CFL-constrained dt.
-    P2 on nx=4 exactly represents u=(1-x)*x*(1+T), so spatial error is
-    zero. Remaining error is purely temporal discretization.
+    CFL-constrained dt. P2 on nx=4 exactly represents u=(1-x)*x*(1+t),
+    so spatial error is zero. Remaining error is purely temporal
+    discretization.
     """
 
     @pytest.mark.parametrize(
-        "name,method,vel_strs,has_vel",
+        "name,make,velocity",
         TRANSIENT_ADR_1D_EXPLICIT_CASES,
     )
     def test_transient_adr_1d_explicit(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
-        method: str,
-        vel_strs: List[str],
-        has_vel: bool,
+        make: Callable[[], ButcherTableau],
+        velocity: Optional[Tuple[str, ...]],
     ) -> None:
-        bkd = numpy_bkd
-        _, model, exact_at_time = _setup_1d_problem(
-            bkd,
-            bounds=[0.0, 1.0],
-            sol_str="(1-x)*x*(1+T)",
-            diff_str="0.1+1e-16*x",
-            react_str="0*u",
-            vel_strs=vel_strs,
-            bndry_types=["D", "D"],
-            nx=4,
-            diffusivity=0.1,
+        system, exact_at_time = _setup(
+            numpy_bkd, _INTERVAL, _SOLUTION_1D, "DD", 4, 0.1, velocity
         )
-
-        y0 = bkd.asarray(exact_at_time(0.0))
-        config = TimeIntegrationConfig(
-            method=method,
-            init_time=0.0,
-            final_time=1.0,
-            deltat=0.01,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
-        )
-        solutions, times = model.solve_transient(y0, config)
-
-        u_exact_final = exact_at_time(float(times[-1]))
-        u_num = bkd.to_numpy(solutions[:, -1])
-
-        u_norm = np.linalg.norm(u_exact_final)
-        if u_norm > 1e-10:
-            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
-        else:
-            rel_error = np.linalg.norm(u_num - u_exact_final)
-
+        rel_error = _relative_error(system, exact_at_time, make, 0.01, 1.0)
         assert rel_error < 1e-5
 
 
@@ -618,40 +363,7 @@ class TestManualNewtonWithConstraint:
     def test_manual_newton_backward_euler(self, numpy_bkd: NumpyBkd) -> None:
         """Manual Newton with BE + the BC-enforcing residual."""
         bkd = numpy_bkd
-        _, _, exact_at_time = _setup_1d_problem(
-            bkd,
-            bounds=[0.0, 1.0],
-            sol_str="(1-x)*x*(1+T)",
-            diff_str="4+1e-16*x",
-            react_str="0*u",
-            vel_strs=["0+1e-16*x"],
-            bndry_types=["D", "D"],
-            nx=32,
-            diffusivity=4.0,
-        )
-
-        # Also need physics for manual setup
-        functions, _ = create_adr_manufactured_test(
-            bounds=[0.0, 1.0],
-            sol_str="(1-x)*x*(1+T)",
-            diff_str="4+1e-16*x",
-            react_str="0*u",
-            vel_strs=["0+1e-16*x"],
-            bkd=bkd,
-            time_dependent=True,
-        )
-        mesh = StructuredMesh1D(nx=32, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=2)
-        ms = GalerkinManufacturedSolution(basis, functions, bkd)
-        physics = AdvectionDiffusionReaction(
-            basis=basis,
-            diffusivity=4.0,
-            bkd=bkd,
-            forcing=ms.forcing(),
-        )
-        system = compose_galerkin_system(
-            physics, [ms.dirichlet("left"), ms.dirichlet("right")]
-        )
+        system, exact_at_time = _setup(bkd, _INTERVAL, _SOLUTION_1D, "DD", 32, 4.0)
 
         # Manual setup: adapter + stepper + constrained wrapper
         ode_adapter = skfem_ode_residual(system)
@@ -700,37 +412,7 @@ class TestManualNewtonWithConstraint:
     def test_manual_newton_crank_nicolson(self, numpy_bkd: NumpyBkd) -> None:
         """Manual Newton with CN + the BC-enforcing residual."""
         bkd = numpy_bkd
-
-        functions, _ = create_adr_manufactured_test(
-            bounds=[0.0, 1.0],
-            sol_str="(1-x)*x*(1+T)",
-            diff_str="4+1e-16*x",
-            react_str="0*u",
-            vel_strs=["0+1e-16*x"],
-            bkd=bkd,
-            time_dependent=True,
-        )
-        mesh = StructuredMesh1D(nx=32, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=2)
-        ms = GalerkinManufacturedSolution(basis, functions, bkd)
-        physics = AdvectionDiffusionReaction(
-            basis=basis,
-            diffusivity=4.0,
-            bkd=bkd,
-            forcing=ms.forcing(),
-        )
-        system = compose_galerkin_system(
-            physics, [ms.dirichlet("left"), ms.dirichlet("right")]
-        )
-
-        exact_sol_func = functions["solution"]
-        dof_coords = bkd.to_numpy(basis.dof_coordinates())
-
-        def exact_at_time(t):
-            u = exact_sol_func(dof_coords, t)
-            if hasattr(u, "shape") and u.ndim > 1:
-                return u[:, 0] if u.shape[1] == 1 else u.flatten()
-            return u
+        system, exact_at_time = _setup(bkd, _INTERVAL, _SOLUTION_1D, "DD", 32, 4.0)
 
         ode_adapter = skfem_ode_residual(system)
         stepper = CrankNicolsonHVP(ode_adapter)
