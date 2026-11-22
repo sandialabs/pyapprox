@@ -323,3 +323,91 @@ class StokesPhysics(Generic[Array]):
             f"{type(self).__name__}(ndim={self._ndim}, nvelocity={self._nvelocity}, "
             f"npressure={self._npressure})"
         )
+
+
+class NavierStokesPhysics(StokesPhysics[Array]):
+    r"""The interior operator of steady incompressible Navier-Stokes flow
+    of unit density, velocity and pressure on different nodes: the Stokes
+    operator with the convective term,
+
+    .. math::
+
+        r_i = r_i^{\mathrm{Stokes}} - c_i(u), \qquad
+        c_i(u) = \sum_j u_j \odot D_j u_i,
+
+    collocated at the velocity nodes; :math:`\mu` is the kinematic
+    viscosity. The nodal product aliases (it keeps the interpolant of the
+    exact product), as every collocation nonlinearity does; it decays
+    with the discretization error at resolved node counts.
+
+    Parameters and refusals are those of :class:`StokesPhysics`.
+    """
+
+    def _velocity(self, state: Array) -> List[Array]:
+        n = self._nvelocity
+        return [state[i * n : (i + 1) * n] for i in range(self._ndim)]
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """The Stokes residual minus :math:`c(u)` in the momentum rows.
+        Shape: (nstates,)"""
+        residual = super().interior_residual(state, time)
+        velocity = self._velocity(state)
+        convection = []
+        for i in range(self._ndim):
+            term = velocity[0] * (self._D[0] @ velocity[i])
+            for j in range(1, self._ndim):
+                term = term + velocity[j] * (self._D[j] @ velocity[i])
+            convection.append(term)
+        convection.append(self._bkd.zeros((self._npressure,)))
+        return residual - self._bkd.concatenate(convection)
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        r"""The Stokes Jacobian minus
+        :math:`\partial c_i/\partial u_k = \delta_{ik} \sum_j
+        \operatorname{diag}(u_j) D_j + \operatorname{diag}(D_k u_i)`.
+        Shape: (nstates, nstates)"""
+        jacobian = super().interior_jacobian(state, time)
+        bkd, ndim = self._bkd, self._ndim
+        velocity = self._velocity(state)
+        advection = velocity[0][:, None] * self._D[0]
+        for j in range(1, ndim):
+            advection = advection + velocity[j][:, None] * self._D[j]
+        rows = []
+        for i in range(ndim):
+            blocks = []
+            for k in range(ndim):
+                block = bkd.diag(self._D[k] @ velocity[i])
+                if i == k:
+                    block = block + advection
+                blocks.append(block)
+            blocks.append(bkd.zeros((self._nvelocity, self._npressure)))
+            rows.append(bkd.concatenate(blocks, axis=1))
+        rows.append(bkd.zeros((self._npressure, self.nstates())))
+        return jacobian - bkd.concatenate(rows, axis=0)
+
+    def _state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
+    ) -> Array:
+        r""":math:`\lambda^\top (\partial^2 r/\partial u^2) w`. The
+        convective term is bilinear, :math:`c(u) = B(u, u)` with
+        :math:`B(a, b)_i = \sum_j a_j \odot D_j b_i`, so the contraction
+        with direction :math:`v` is :math:`-\lambda\cdot(B(w, v) + B(v,
+        w))`: component :math:`k` of the result is :math:`-\sum_j D_j^\top
+        (\lambda_k \odot w_j) - \sum_i \lambda_i \odot D_k w_i`; the
+        pressure entries are zero. Shape: (nstates,)"""
+        bkd, ndim = self._bkd, self._ndim
+        weights = self._velocity(adj_state)
+        direction = self._velocity(wvec)
+        blocks = []
+        for k in range(ndim):
+            block = bkd.zeros((self._nvelocity,))
+            for j in range(ndim):
+                block = block + self._D[j].T @ (weights[k] * direction[j])
+                block = block + weights[j] * (self._D[k] @ direction[j])
+            blocks.append(-block)
+        blocks.append(bkd.zeros((self._npressure,)))
+        return bkd.concatenate(blocks)
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """The convective term's curvature, independent of the state."""
+        return StateDerivatives.second_order(self._state_state_hvp)

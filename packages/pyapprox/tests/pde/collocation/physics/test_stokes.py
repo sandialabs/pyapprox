@@ -32,7 +32,10 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
 from pyapprox.pde.collocation.mesh import TransformedMesh
 from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform
 from pyapprox.pde.collocation.physics.coefficients import CoefficientInput, NodalField
-from pyapprox.pde.collocation.physics.stokes import StokesPhysics
+from pyapprox.pde.collocation.physics.stokes import (
+    NavierStokesPhysics,
+    StokesPhysics,
+)
 from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
 from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule
 from pyapprox.util.backends.protocols import Array, Backend
@@ -295,6 +298,50 @@ def test_traction_jacobian(bkd: Backend[Array], component: int) -> None:
     )
     errors = checker.check_derivatives(state, central=True)
     assert checker.error_ratio(errors[0]) <= 1e-6
+
+
+def _navier_stokes(
+    bkd: Backend[Array], meshes: _Pair[Array]
+) -> NavierStokesPhysics[Array]:
+    velocity, pressure = meshes
+    points = velocity.points()
+    return NavierStokesPhysics(
+        ChebyshevBasis(velocity, bkd),
+        grid_transfer_matrix(pressure, velocity, bkd),
+        grid_transfer_matrix(velocity, pressure, bkd),
+        NodalField(1.0 + points[0] * points[1] / 2.0),
+    )
+
+
+@pytest.mark.parametrize("ndim, n", [(2, 5), (3, 4)])
+def test_navier_stokes_jacobian(bkd: Backend[Array], ndim: int, n: int) -> None:
+    """The convective term's Jacobian, a random state."""
+    physics = _navier_stokes(bkd, _meshes(bkd, ndim, n))
+    assert not physics.interior_state_derivatives().affine()
+    checker: DerivativeChecker[Array] = DerivativeChecker(_Residual(physics))
+    state = bkd.asarray(
+        np.random.default_rng(11).normal(0.0, 1.0, (physics.nstates(), 1))
+    )
+    errors = checker.check_derivatives(state, central=True)
+    assert checker.error_ratio(errors[0]) <= 1e-6
+
+
+@pytest.mark.parametrize("ndim, n", [(2, 5), (3, 4)])
+def test_navier_stokes_state_state_hvp(bkd: Backend[Array], ndim: int, n: int) -> None:
+    """The residual is quadratic, so its Jacobian is affine in the state
+    and J(u + w)^T lam - J(u)^T lam is the contraction exactly."""
+    physics = _navier_stokes(bkd, _meshes(bkd, ndim, n))
+    hvp = physics.interior_state_derivatives().state_state_hvp
+    assert hvp is not None
+    rng = np.random.default_rng(13)
+    state, weights, direction = (
+        bkd.asarray(rng.normal(0.0, 1.0, (physics.nstates(),))) for _ in range(3)
+    )
+    expected = (
+        physics.interior_jacobian(state + direction, 0.0)
+        - physics.interior_jacobian(state, 0.0)
+    ).T @ weights
+    bkd.assert_allclose(hvp(state, weights, direction, 0.0), expected, atol=1e-10)
 
 
 def test_refusals(bkd: Backend[Array]) -> None:
