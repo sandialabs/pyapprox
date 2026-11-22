@@ -209,12 +209,84 @@ def _lagrange_derivative(nodes: Sequence[float], s: float) -> list[float]:
     return weights
 
 
+@runtime_checkable
+class TemporalTrialSpaceProtocol(Protocol):
+    r"""The port data's space in time over one window, as
+    :class:`WindowPortRows` reads it: at fraction :math:`s` of the window,
+    :math:`\lambda(s) = c_0(s)\, \lambda_{\mathrm{start}} + \sum_{k \ge 1}
+    c_k(s)\, \lambda_k`, with :math:`\lambda_{\mathrm{start}}` the
+    committed state's trace and :math:`\lambda_k` the window's unknown
+    traces. A space that does not read the start (a jump at the window's
+    start) has :math:`c_0 = 0`. Fixed for its life."""
+
+    def nunknowns(self) -> int:
+        """The number of unknown traces per port row."""
+        ...
+
+    def coefficients(self, fraction: float) -> Sequence[float]:
+        """:math:`(c_0, \\dots, c_n)` at ``fraction``, length
+        :meth:`nunknowns` + 1, the start's first."""
+        ...
+
+    def rate_coefficients(self, fraction: float) -> Sequence[float]:
+        """Their derivatives in the fraction, laid out as
+        :meth:`coefficients`."""
+        ...
+
+
+class StartContinuousLagrange:
+    """The Lagrange interpolant in time through the committed trace at
+    the window's start and one unknown trace at each of ``fractions``:
+    polynomials of degree ``len(fractions)``, continuous across windows.
+    Satisfies :class:`TemporalTrialSpaceProtocol`.
+
+    Parameters
+    ----------
+    fractions : sequence of float, default (1.0,)
+        Where in the window the unknown traces are, as fractions of its
+        length: strictly increasing in (0, 1], the last 1, so the
+        window's end trace is an unknown and the next window starts from
+        it.
+
+    Raises
+    ------
+    ValueError
+        If ``fractions`` is not as described.
+    """
+
+    def __init__(self, fractions: Sequence[float] = (1.0,)) -> None:
+        nodes = (0.0,) + tuple(float(f) for f in fractions)
+        increasing = all(a < b for a, b in zip(nodes[:-1], nodes[1:]))
+        if len(nodes) < 2 or not increasing or nodes[-1] != 1.0:
+            raise ValueError(
+                "fractions must increase strictly in (0, 1] and end at 1, got "
+                f"{tuple(fractions)}"
+            )
+        self._nodes = nodes
+
+    def fractions(self) -> tuple[float, ...]:
+        """Where in the window the unknown traces are."""
+        return self._nodes[1:]
+
+    def nunknowns(self) -> int:
+        return len(self._nodes) - 1
+
+    def coefficients(self, fraction: float) -> list[float]:
+        return _lagrange(self._nodes, fraction)
+
+    def rate_coefficients(self, fraction: float) -> list[float]:
+        return _lagrange_derivative(self._nodes, fraction)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.fractions()})"
+
+
 def runge_kutta_block_fractions(tableau: ButcherTableau) -> tuple[float, ...]:
     r"""The times of a Runge-Kutta step's blocks as fractions of the step:
     :math:`c_i` for each stage that is an unknown (a trivial first stage
     is the stored state), then 1 for the final block unless the method is
-    stiffly accurate. With these as :class:`WindowPortRows`' fractions and
-    every block pinned, each block reads its own port data.
+    stiffly accurate. With these as a :class:`StartContinuousLagrange`'s
+    fractions and every block pinned, each block reads its own port data.
 
     Raises
     ------
@@ -240,18 +312,19 @@ def runge_kutta_block_fractions(tableau: ButcherTableau) -> tuple[float, ...]:
 class WindowPortRows(Generic[V, A]):
     r"""A subdomain's essential rows and its port rows, with their data
     over one window: the essential data :math:`g(t)` and, on the port
-    rows, the Lagrange interpolant in time through the committed state's
-    trace at the window's start and the port data at the window's
-    ``fractions``, its rate the interpolant's derivative.
+    rows, the port data's function of time in ``trial``, built from the
+    committed state's trace at the window's start and the window's unknown
+    traces, its rate that function's derivative.
 
-    The port data hold one trace per fraction, interleaved with the
-    fraction as the fast index: entry ``q * p + j`` is port row ``p`` at
-    fraction ``j`` of ``q``, as a :class:`~pyapprox.pde.coupling.spaces.
-    ComponentSkeletonSpace` with one component per fraction lays out a
-    skeleton vector. With the one fraction 1 the interpolant is linear from
-    the start trace to the end trace. With a Runge-Kutta method's block
-    times (:func:`runge_kutta_block_fractions`) and every block pinned,
-    each block reads its own port data: stage-wise coupling.
+    The port data hold one trace per unknown of ``trial``, interleaved
+    with the unknown as the fast index: entry ``q * p + j`` is port row
+    ``p``'s unknown ``j`` of ``q``, as a :class:`~pyapprox.pde.coupling.
+    spaces.ComponentSkeletonSpace` with one component per unknown lays
+    out a skeleton vector. With :class:`StartContinuousLagrange` at the
+    one fraction 1 the trace is linear from the start trace to the end
+    trace. With a Runge-Kutta method's block times
+    (:func:`runge_kutta_block_fractions`) and every block pinned, each
+    block reads its own port data: stage-wise coupling.
 
     Satisfies :class:`~pyapprox.ode.pinned_rows.PinnedRowsProtocol` (for
     the stepper's pin) and :class:`WindowPortInputProtocol`, receiving a
@@ -270,15 +343,16 @@ class WindowPortRows(Generic[V, A]):
         The port rows of the state space, in port order.
     states : VectorSpaceProtocol
         The state space.
-    fractions : sequence of float, default (1.0,)
-        Where in the window the port data are, as fractions of its
-        length: strictly increasing in (0, 1], the last 1.
+    trial : TemporalTrialSpaceProtocol, optional
+        The port data's space in time;
+        :class:`StartContinuousLagrange` at the fraction 1 when omitted.
 
     Raises
     ------
+    TypeError
+        If ``trial`` does not satisfy its protocol.
     ValueError
-        If ``rows`` does not count the essential and port rows once each,
-        or ``fractions`` is not as described.
+        If ``rows`` does not count the essential and port rows once each.
     """
 
     def __init__(
@@ -287,7 +361,7 @@ class WindowPortRows(Generic[V, A]):
         rows: RowSetProtocol[V],
         ports: PortRowsProtocol[V, A],
         states: VectorSpaceProtocol[V],
-        fractions: Sequence[float] = (1.0,),
+        trial: Optional[TemporalTrialSpaceProtocol] = None,
     ) -> None:
         expected = essential.rows().count() + ports.nrows()
         if rows.count() != expected:
@@ -295,15 +369,15 @@ class WindowPortRows(Generic[V, A]):
                 f"rows must hold the {essential.rows().count()} essential and "
                 f"{ports.nrows()} port rows once each; it has {rows.count()}"
             )
-        nodes = (0.0,) + tuple(float(f) for f in fractions)
-        increasing = all(a < b for a, b in zip(nodes[:-1], nodes[1:]))
-        if len(nodes) < 2 or not increasing or nodes[-1] != 1.0:
-            raise ValueError(
-                "fractions must increase strictly in (0, 1] and end at 1, got "
-                f"{tuple(fractions)}"
+        chosen: TemporalTrialSpaceProtocol = (
+            StartContinuousLagrange() if trial is None else trial
+        )
+        if not isinstance(chosen, TemporalTrialSpaceProtocol):
+            raise TypeError(
+                "trial must satisfy TemporalTrialSpaceProtocol, got "
+                f"{type(chosen).__name__}"
             )
-        # The start trace at 0, then the port data's fractions.
-        self._nodes = nodes
+        self._trial, self._nunknowns = chosen, chosen.nunknowns()
         self._essential, self._rows = essential, rows
         self._ports, self._states = ports, states
         # Read once: a declaration's rates are fixed for its life.
@@ -315,19 +389,18 @@ class WindowPortRows(Generic[V, A]):
         self._traces_held: Optional[list[A]] = None
 
     def nport(self) -> int:
-        return self._ports.nrows() * (len(self._nodes) - 1)
+        return self._ports.nrows() * self._nunknowns
 
-    def fractions(self) -> tuple[float, ...]:
-        """Where in the window the port data are."""
-        return self._nodes[1:]
+    def trial(self) -> TemporalTrialSpaceProtocol:
+        """The port data's space in time."""
+        return self._trial
 
     def receives(self) -> Trace:
         return Trace()
 
     def set_window(self, window: TimeWindow, state: V, port_data: A) -> None:
-        """Hold ``window``, the trace interpolated through ``state``'s
-        port rows at its start and ``port_data`` (:meth:`nport`, 1) at its
-        fractions.
+        """Hold ``window``, ``state``'s port rows as the start trace and
+        ``port_data`` (:meth:`nport`, 1) as the unknown traces.
 
         Raises
         ------
@@ -337,9 +410,9 @@ class WindowPortRows(Generic[V, A]):
         if window.is_steady():
             raise ValueError("port data are interpolated over a nonempty window")
         self._window = window
-        nfractions = len(self._nodes) - 1
+        n = self._nunknowns
         self._traces_held = [self._ports.take(state)] + [
-            port_data[j::nfractions] for j in range(nfractions)
+            port_data[j::n] for j in range(n)
         ]
 
     def _traces(self) -> list[A]:
@@ -365,7 +438,7 @@ class WindowPortRows(Generic[V, A]):
         return self._rows
 
     def values(self, time: float) -> V:
-        trace = self._combined(_lagrange(self._nodes, self._fraction(time)))
+        trace = self._combined(self._trial.coefficients(self._fraction(time)))
         return self._states.axpby(
             1.0, self._essential.values(time), 1.0, self._placed(trace)
         )
@@ -375,7 +448,7 @@ class WindowPortRows(Generic[V, A]):
             raise ValueError("the essential data supply no rate")
         window = self._window
         scale = 1.0 / (window.end - window.start)
-        weights = _lagrange_derivative(self._nodes, self._fraction(time))
+        weights = self._trial.rate_coefficients(self._fraction(time))
         slope = self._combined([scale * w for w in weights])
         return self._states.axpby(
             1.0, self._essential_rates(time), 1.0, self._placed(slope)

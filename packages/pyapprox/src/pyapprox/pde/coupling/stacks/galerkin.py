@@ -48,7 +48,9 @@ from pyapprox.pde.coupling.ports import BackendPortRows, PortMapProtocol
 from pyapprox.pde.coupling.responses import Flux, PortQuantity, Trace
 from pyapprox.pde.coupling.transient import (
     StageReactions,
+    StartContinuousLagrange,
     StepResidualReaction,
+    TemporalTrialSpaceProtocol,
     WindowedResponse,
     WindowPortRows,
     runge_kutta_block_fractions,
@@ -187,7 +189,7 @@ def skfem_windowed_response(
     unconstrained, rows, port_rows, pinning = _window_port_rows(
         system,
         ports,
-        (1.0,),
+        StartContinuousLagrange(),
         AtStepEnd() if port_placement is None else port_placement,
         AtStepEnd() if essential_placement is None else essential_placement,
     )
@@ -248,7 +250,7 @@ def skfem_stagewise_response(
     unconstrained, rows, port_rows, pinning = _window_port_rows(
         system,
         ports,
-        fractions,
+        StartContinuousLagrange(fractions),
         AtEveryBlock(),
         AtStepEnd() if essential_placement is None else essential_placement,
     )
@@ -271,7 +273,7 @@ def skfem_stagewise_response(
 def _window_port_rows(
     system: GalerkinTransientSystemProtocol[_Np],
     ports: Sequence[int],
-    fractions: Sequence[float],
+    trial: TemporalTrialSpaceProtocol,
     port_placement: PinPlacementProtocol,
     essential_placement: PinPlacementProtocol,
 ) -> tuple[
@@ -281,7 +283,7 @@ def _window_port_rows(
     SplitRowPinning[_Np],
 ]:
     """The unconstrained system of ``system``, its essential and port rows
-    with port data at ``fractions`` of a window, the port rows, and the
+    with port data in ``trial`` over a window, the port rows, and the
     pin rule placing the port and the essential rows.
 
     Raises
@@ -304,7 +306,7 @@ def _window_port_rows(
         NumpyRowSet(descriptor, dofs + list(ports)),
         port_rows,
         states,
-        fractions,
+        trial,
     )
     pinning = SplitRowPinning(
         rows,
