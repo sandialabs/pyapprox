@@ -13,10 +13,18 @@ dispatch code (see the lazy-import rule in CLAUDE.md).
 
 from typing import Any, Callable, TypeVar, overload
 
-from numba import njit as _numba_njit
-from numba import prange as _numba_prange
-
 from pyapprox.util.openmp import keep_numba_off_openmp
+from pyapprox.util.optional_deps import missing_dependency_message
+
+# Every *_numba.py kernel imports numba through this module, so this one
+# guard gives all of them the install message.
+try:
+    from numba import njit as _numba_njit
+    from numba import prange as _numba_prange
+except ImportError as err:
+    raise ImportError(
+        missing_dependency_message("numba", "The Numba kernels (*_numba.py)", "numba")
+    ) from err
 
 F = TypeVar("F", bound=Callable[..., Any])
 

@@ -1,11 +1,11 @@
 """Optional-dependency errors: the message names the feature and the pip
-extra, and every library module that imports torch at load time raises it
-when torch is missing."""
+extra, and every library module that imports torch or numba at load time
+raises it when the library is missing."""
 
 import importlib
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import pytest
 
@@ -17,11 +17,13 @@ from pyapprox.util.optional_deps import (
 )
 
 _ROOT = Path(pyapprox.__file__).resolve().parents[4]
+# Optional libraries whose pip extra has the library's name.
+_GUARDED = ("torch", "numba")
 
 
-def _torch_importers() -> List[str]:
+def _importers(lib: str) -> List[str]:
     """Modules of the pyapprox package whose own module-level imports
-    include torch. (Tutorial figure modules raise their own message, about
+    include ``lib``. (Tutorial figure modules raise their own message, about
     rendering the tutorial, not a pyapprox extra.)"""
     if not (_ROOT / "packages").is_dir():
         return []
@@ -30,8 +32,12 @@ def _torch_importers() -> List[str]:
         name
         for name, names in imports.items()
         if name.startswith("pyapprox.")
-        and any(n == "torch" or n.startswith("torch.") for n in names)
+        and any(n == lib or n.startswith(f"{lib}.") for n in names)
     )
+
+
+def _guard_cases() -> List[Tuple[str, str]]:
+    return [(lib, module) for lib in _GUARDED for module in _importers(lib)]
 
 
 def test_message_names_feature_and_extra() -> None:
@@ -55,27 +61,28 @@ def test_import_optional_dependency_raises_the_message() -> None:
     assert import_optional_dependency("math").__name__ == "math"
 
 
-@pytest.mark.parametrize("module", _torch_importers())
-def test_torch_importer_raises_install_message_without_torch(
-    module: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("lib, module", _guard_cases())
+def test_importer_raises_install_message_without_library(
+    lib: str, module: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With torch hidden, importing the module raises the standard message
-    (from it, or from a torch-bound module it imports first)."""
-    bound = bound_modules("torch", _library_imports(_ROOT))
+    """With ``lib`` hidden, importing the module raises the standard message
+    (from it, or from a bound module it imports first)."""
+    bound = bound_modules(lib, _library_imports(_ROOT))
     for name in list(sys.modules):
-        if name == "torch" or name.startswith("torch.") or name in bound:
+        if name == lib or name.startswith(f"{lib}.") or name in bound:
             monkeypatch.delitem(sys.modules, name)
-    # A None entry makes ``import torch`` raise ImportError.
-    monkeypatch.setitem(sys.modules, "torch", None)
-    with pytest.raises(ImportError, match=r"pip install pyapprox\[torch\]"):
+    # A None entry makes ``import <lib>`` raise ImportError.
+    monkeypatch.setitem(sys.modules, lib, None)
+    with pytest.raises(ImportError, match=rf"pip install pyapprox\[{lib}\]"):
         importlib.import_module(module)
 
 
-def test_torch_importers_are_found() -> None:
+def test_importers_are_found() -> None:
     """The scan that parametrizes the guard test finds the known importers,
     so an empty parametrization cannot pass silently."""
     if not (_ROOT / "packages").is_dir():
         pytest.skip("not a source checkout")
-    importers = _torch_importers()
-    assert "pyapprox.util.backends.torch" in importers
-    assert "pyapprox.surrogates.tensorproduct.compute_torch" in importers
+    torch_importers = _importers("torch")
+    assert "pyapprox.util.backends.torch" in torch_importers
+    assert "pyapprox.surrogates.tensorproduct.compute_torch" in torch_importers
+    assert _importers("numba") == ["pyapprox.util.numba_compat"]
