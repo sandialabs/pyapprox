@@ -64,6 +64,7 @@ from pyapprox.ode.protocols.differentiable_stepper import (
     StepperProtocol,
 )
 from pyapprox.ode.step_plan import GivenSizes
+from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
@@ -93,9 +94,11 @@ V_contra = TypeVar("V_contra", contravariant=True)
 A_contra = TypeVar("A_contra", bound=ArrayProtocol, contravariant=True)
 A_co = TypeVar("A_co", bound=ArrayProtocol, covariant=True)
 
-UnknownTangent = Callable[[BlockVector[V]], A]
-"""An output's change for changes of a step's unknown, a block of
-columns."""
+TrajectoryTangent = Callable[[Sequence[BlockVector[V]], Sequence[V]], A]
+"""An output's change for changes of a trial's step unknowns and stored
+states, each a block of columns: ``unknowns[m]`` step ``m``'s and
+``states[k]`` the state after step ``k``. The trial's first state, the
+committed one, does not change."""
 
 
 @runtime_checkable
@@ -153,14 +156,28 @@ class WindowPortOutputProtocol(Protocol[V, A_co]):
         (nport, 1)."""
         ...
 
-    def unknown_tangent(
+    def trajectory_tangent(
         self, trial: InMemoryTrajectoryStore[V]
-    ) -> Optional[UnknownTangent[V, A_co]]:
-        """For a one-step ``trial``, the output's change for changes of the
-        step's unknown (a block of columns), shape (nport, ncols); None
-        when not supplied. Whether it is supplied is fixed for the
-        output's life."""
+    ) -> Optional[TrajectoryTangent[V, A_co]]:
+        """The output's change for changes of ``trial``'s step unknowns
+        and stored states, shape (nport, ncols); None when not supplied
+        for this trial."""
         ...
+
+
+def _read_changes(
+    window: StepWindow[V], step: int, states: Sequence[V]
+) -> list[tuple[int, V]]:
+    """The changes of the stored states step ``step`` reads, by lag: state
+    ``step + 1 - lag`` for each past state of ``window``, the committed
+    first state (index 0) left out since it does not change; ``states[k
+    - 1]`` is state ``k``'s change."""
+    read = []
+    for lag in range(1, len(window.past_states) + 1):
+        index = step + 1 - lag
+        if index >= 1:
+            read.append((lag, states[index - 1]))
+    return read
 
 
 def _lagrange(nodes: Sequence[float], s: float) -> list[float]:
@@ -381,9 +398,10 @@ class StepResidualReaction(Generic[V, A]):
 
     Satisfies :class:`WindowPortOutputProtocol`, returning a
     :class:`~pyapprox.pde.coupling.responses.Flux`, for a trial stepped
-    with the port rows pinned (:class:`WindowPortRows`). For a one-step
-    trial its change with the step's unknown is the unconstrained step
-    Jacobian's action, read on the port rows.
+    with the port rows pinned (:class:`WindowPortRows`). Its change is the
+    unconstrained step Jacobians' action on each step's unknown and stored
+    states, read on the port rows; supplied when the reaction stepper
+    gives its past-state derivatives or the trial is one step.
 
     Parameters
     ----------
@@ -410,16 +428,32 @@ class StepResidualReaction(Generic[V, A]):
             output = output + take(residual(trial.window(step)).blocks[-1])
         return output
 
-    def unknown_tangent(
+    def trajectory_tangent(
         self, trial: InMemoryTrajectoryStore[V]
-    ) -> Optional[UnknownTangent[V, A]]:
-        """Supplied for a one-step trial."""
-        if trial.nsteps() != 1:
+    ) -> Optional[TrajectoryTangent[V, A]]:
+        reaction = self._reaction
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        off_diag = reaction.derivatives().off_diag
+        if off_diag is None and len(windows) > 1:
             return None
-        jacobian = self._reaction.diag(trial.window(0))
+        space = reaction.residual_space()
 
-        def change(delta: BlockVector[V]) -> A:
-            return self._ports.take(jacobian.apply(delta).blocks[-1])
+        def change(unknowns: Sequence[BlockVector[V]], states: Sequence[V]) -> A:
+            total: Optional[A] = None
+            for m, window in enumerate(windows):
+                block = reaction.diag(window).apply(unknowns[m])
+                for lag, state in _read_changes(window, m, states):
+                    # Unreachable without it: a one-step trial reads only
+                    # the committed state, which does not change.
+                    if off_diag is None:
+                        raise ValueError("no past-state derivative")
+                    coupled = off_diag(window, lag).apply(BlockVector((state,)))
+                    block = space.axpby(1.0, coupled, 1.0, block, out=block)
+                taken = self._ports.take(block.blocks[-1])
+                total = taken if total is None else total + taken
+            if total is None:
+                raise ValueError("the trial has no steps")
+            return total
 
         return change
 
@@ -473,31 +507,36 @@ class StageReactions(Generic[V, A]):
             )
         return self._interleaved(self._reaction.step_residual(trial.window(0)))
 
-    def unknown_tangent(
+    def trajectory_tangent(
         self, trial: InMemoryTrajectoryStore[V]
-    ) -> Optional[UnknownTangent[V, A]]:
+    ) -> Optional[TrajectoryTangent[V, A]]:
+        """Supplied for a one-step trial, which reads only the committed
+        state: the change is the step Jacobian's on the unknown."""
         if trial.nsteps() != 1:
             return None
         jacobian = self._reaction.diag(trial.window(0))
 
-        def change(delta: BlockVector[V]) -> A:
-            return self._interleaved(jacobian.apply(delta))
+        def change(unknowns: Sequence[BlockVector[V]], states: Sequence[V]) -> A:
+            return self._interleaved(jacobian.apply(unknowns[0]))
 
         return change
 
 
 class _TraceTangent(Generic[V, A]):
-    r""":math:`(\partial r/\partial \lambda) D` at a one-step trial, for
-    any method, pin placement and port input.
+    r""":math:`(\partial r/\partial \lambda) D` at a trial of any number
+    of steps, for any method, pin placement and port input.
 
-    The step residual :math:`R(u; \lambda)` is affine in the port data, so
-    its change for the columns of :math:`D` is exactly
-    :math:`R(u; \lambda + d_j) - R(u; \lambda)`, both evaluated by the
-    stepper with the input holding those data. The unknown's change solves
-    :math:`(\partial R/\partial u)\, \delta u = -\Delta R` with the step's
-    block-triangular Jacobian, and the output's change is the output's
-    tangent at :math:`\delta u`. Leaves the input holding the trial's
-    own port data.
+    Each step residual :math:`R_m(u_m; y_m, \dots; \lambda)` is affine in
+    the port data, so its change for the columns of :math:`D` at fixed
+    unknown and states is exactly :math:`R_m(\lambda + d_j) -
+    R_m(\lambda)`, both evaluated by the stepper with the input holding
+    those data. A forward sweep then gives the trajectory's change: step
+    :math:`m`'s unknown solves :math:`(\partial R_m/\partial u_m)\, \delta
+    u_m = -\Delta R_m - \sum_l (\partial R_m/\partial y_{m+1-l})\, \delta
+    y_{m+1-l}` with the step's block-triangular Jacobian, the new state
+    is the readout of :math:`\delta u_m`, and the committed start does
+    not change. The output's change is the output's tangent at those
+    changes. Leaves the input holding the trial's own port data.
     """
 
     def __init__(
@@ -508,11 +547,31 @@ class _TraceTangent(Generic[V, A]):
         start: V,
         port_data: A,
         trial: InMemoryTrajectoryStore[V],
-        change: UnknownTangent[V, A],
+        change: TrajectoryTangent[V, A],
     ) -> None:
         self._stepper, self._input = stepper, port_input
         self._window, self._start, self._port_data = window, start, port_data
-        self._step, self._change = trial.window(0), change
+        self._steps = [trial.window(m) for m in range(trial.nsteps())]
+        self._change = change
+
+    def _data_changes(self, directions: A) -> list[BlockVector[V]]:
+        """Per step, :math:`-\\Delta R_m` for every column of
+        ``directions``, concatenated."""
+        stepper, port_input = self._stepper, self._input
+        space = stepper.residual_space()
+        port_input.set_window(self._window, self._start, self._port_data)
+        bases = [stepper.step_residual(step) for step in self._steps]
+        columns: list[list[BlockVector[V]]] = [[] for _ in self._steps]
+        for j in range(int(directions.shape[1])):
+            shifted = self._port_data + directions[:, j : j + 1]
+            port_input.set_window(self._window, self._start, shifted)
+            for m, step in enumerate(self._steps):
+                # -(R_m(lambda + d_j) - R_m(lambda)).
+                columns[m].append(
+                    space.axpby(1.0, bases[m], -1.0, stepper.step_residual(step))
+                )
+        port_input.set_window(self._window, self._start, self._port_data)
+        return [space.concatenate(per_step) for per_step in columns]
 
     def __call__(self, directions: A) -> A:
         nport = self._input.nport()
@@ -521,23 +580,28 @@ class _TraceTangent(Generic[V, A]):
                 f"directions must have shape ({nport}, ncols), got "
                 f"{tuple(directions.shape)}"
             )
-        stepper, port_input = self._stepper, self._input
+        stepper = self._stepper
         space = stepper.residual_space()
-        port_input.set_window(self._window, self._start, self._port_data)
-        base = stepper.step_residual(self._step)
-        changes = []
-        for j in range(int(directions.shape[1])):
-            shifted = self._port_data + directions[:, j : j + 1]
-            port_input.set_window(self._window, self._start, shifted)
-            # -(R(u; lambda + d_j) - R(u; lambda)), the tangent solve's rhs.
-            changes.append(
-                space.axpby(1.0, base, -1.0, stepper.step_residual(self._step))
-            )
-        port_input.set_window(self._window, self._start, self._port_data)
-        delta, info = stepper.diag_handle(self._step).solve(space.concatenate(changes))
-        if not info.converged:
-            raise ValueError("the tangent solve did not converge")
-        return self._change(delta)
+        off_diag = stepper.derivatives().off_diag
+        unknowns: list[BlockVector[V]] = []
+        states: list[V] = []
+        for m, (step, rhs) in enumerate(
+            zip(self._steps, self._data_changes(directions))
+        ):
+            for lag, state in _read_changes(step, m, states):
+                if off_diag is None:
+                    raise ValueError(
+                        "a trial of several steps needs the stepper's past-state "
+                        "derivatives"
+                    )
+                coupled = off_diag(step, lag).apply(BlockVector((state,)))
+                rhs = space.axpby(-1.0, coupled, 1.0, rhs, out=rhs)
+            delta, info = stepper.diag_handle(step).solve(rhs)
+            if not info.converged:
+                raise ValueError(f"the tangent solve of step {m} did not converge")
+            unknowns.append(delta)
+            states.append(stepper.readout().apply(delta).blocks[0])
+        return self._change(unknowns, states)
 
 
 class _Owner:
@@ -602,10 +666,11 @@ class WindowedResponse(Generic[V, A]):
     of interest.
 
     Satisfies :class:`WindowedResponseProtocol`. The trace derivative
-    (``jvp_trace``) is supplied for one step per window when
-    ``port_output`` gives its change with the step's unknown: the step
-    residual's change with the port data, solved with the step's
-    Jacobian, for any method.
+    (``jvp_trace``) is supplied whenever ``port_output`` gives its change
+    with the trial's unknowns and states: the step residuals' changes
+    with the port data, carried through the window's steps by a forward
+    tangent sweep, for any method (several steps need the stepper's
+    past-state derivatives).
 
     Parameters
     ----------
@@ -743,7 +808,7 @@ class WindowedResponse(Generic[V, A]):
         self._integrator.solve(
             self._state, GivenSizes(window.start, [size] * self._nsubsteps), trial
         )
-        change = self._output.unknown_tangent(trial)
+        change = self._output.trajectory_tangent(trial)
         tangent: Optional[TraceJVP[A]] = (
             None
             if change is None

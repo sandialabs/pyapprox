@@ -237,15 +237,13 @@ def test_windows_reproduce_the_single_domain_run() -> None:
 def test_substeps_read_the_interpolated_trace() -> None:
     """With two substeps per window the middle state's port rows are the
     mean of the window's end traces; a held steady trace sums to the
-    steady reaction over the window; the sink gets both steps; there is
-    no trace derivative."""
+    steady reaction over the window; the sink gets both steps."""
     strip = _Strip()
     half = strip.half(0, nsubsteps=2)
     response = half.response
     response.start()
     start, end = strip.trace(0, half), strip.trace(1, half)
     point = response.linearize(end, _NONE, TimeWindow(0.0, _DT))
-    assert point.derivatives().jvp_trace is None
     middle: Np = point.trial().state(1)
     _BKD.assert_allclose(middle[half.ports], 0.5 * (start + end), atol=1e-14)
     response.accept(point)
@@ -298,16 +296,19 @@ def test_an_unaccepted_window_changes_nothing() -> None:
         response.linearize(strip.trace(1, half), _NONE, window)
 
 
+@pytest.mark.parametrize("nsubsteps", [1, 3])
 @pytest.mark.parametrize(
     "tableau", [backward_euler, heun, implicit_midpoint, alexander_sdirk3]
 )
 def test_jvp_trace_matches_finite_differences(
-    tableau: Callable[[], ButcherTableau],
+    tableau: Callable[[], ButcherTableau], nsubsteps: int
 ) -> None:
-    """For any tableau: one block, explicit stages, a final block apart
-    from the last stage, a stiffly accurate three-stage method."""
+    """For any tableau (one block, explicit stages, a final block apart
+    from the last stage, a stiffly accurate three-stage method), with one
+    step per window or three, the later steps reading the changed states
+    through the forward tangent sweep."""
     strip = _Strip()
-    half = strip.half(1, tableau=tableau)
+    half = strip.half(1, tableau=tableau, nsubsteps=nsubsteps)
     response = half.response
     n = response.nport()
     window = TimeWindow(0.0, _DT)
