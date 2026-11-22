@@ -49,7 +49,10 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeIndependent,
 )
 from pyapprox.pde.coupling.responses import TimeWindow
-from pyapprox.pde.coupling.stacks.galerkin import skfem_windowed_response
+from pyapprox.pde.coupling.stacks.galerkin import (
+    skfem_stagewise_response,
+    skfem_windowed_response,
+)
 from pyapprox.pde.coupling.transient import (
     WindowedPoint,
     WindowedResponse,
@@ -334,6 +337,45 @@ def test_jvp_trace_matches_finite_differences(
     _BKD.assert_allclose(tangent(block), columns, rtol=1e-12)
     with pytest.raises(ValueError):
         tangent(np.zeros((n + 1, 1)))
+
+
+def test_stagewise_jvp_trace_matches_finite_differences() -> None:
+    """SDIRK3 coupled stage by stage: three traces per port, every block
+    pinned; the trace tangent passes the derivative checker."""
+    strip = _Strip()
+    system, nodes, ports, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    response = skfem_stagewise_response(
+        system,
+        ports,
+        _method(alexander_sdirk3),
+        RecomputeAlways(ScipySparseLU()),
+        strip.reference.state(0)[rows],
+        InMemoryTrajectoryStore(),
+    )
+    n = response.nport()
+    assert n == 3 * len(ports)
+    window = TimeWindow(0.0, _DT)
+
+    def fun(samples: Np) -> Np:
+        return np.hstack(
+            [
+                response.linearize(samples[:, j : j + 1], _NONE, window).output()
+                for j in range(samples.shape[1])
+            ]
+        )
+
+    def jvp(sample: Np, vec: Np) -> Np:
+        tangent = response.linearize(sample, _NONE, window).derivatives().jvp_trace
+        assert tangent is not None
+        return tangent(vec)
+
+    end: Np = strip.reference.state(1)[rows][ports]
+    sample = np.repeat(end, 3, axis=0)
+    errors = DerivativeChecker(
+        FunctionWithJVPFromCallable(nqoi=n, nvars=n, fun=fun, jvp=jvp, bkd=_BKD)
+    ).check_derivatives(sample, relative=True, central=True)[0]
+    assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
 
 
 def test_invalid_use() -> None:

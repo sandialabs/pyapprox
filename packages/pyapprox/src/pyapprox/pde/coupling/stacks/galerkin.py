@@ -25,9 +25,10 @@ from pyapprox.implicitfunction.setups import (
     SteadyRequest,
 )
 from pyapprox.ode.differentiated_rows import CoupledRows, differentiated_rows
-from pyapprox.ode.pinned_rows import RowPinning
+from pyapprox.ode.mass_form_system import MassFormSystem
+from pyapprox.ode.pinned_rows import AtEveryBlock, RowPinning
 from pyapprox.ode.setups import MassShiftStrategy
-from pyapprox.ode.stepping_methods import SteppingMethodProtocol
+from pyapprox.ode.stepping_methods import RungeKutta, SteppingMethodProtocol
 from pyapprox.ode.trajectory_store import TrajectorySinkProtocol
 from pyapprox.pde.coupling.loaded_response import (
     PortRowsOutput,
@@ -41,9 +42,11 @@ from pyapprox.pde.coupling.pinned_response import (
 from pyapprox.pde.coupling.ports import BackendPortRows, PortMapProtocol
 from pyapprox.pde.coupling.responses import Flux, PortQuantity, Trace
 from pyapprox.pde.coupling.transient import (
+    StageReactions,
     StepResidualReaction,
     WindowedResponse,
     WindowPortRows,
+    runge_kutta_block_fractions,
 )
 from pyapprox.pde.galerkin.protocols.system import GalerkinTransientSystemProtocol
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
@@ -170,19 +173,7 @@ def skfem_windowed_response(
         transient.WindowPortRows` and :class:`~pyapprox.pde.coupling.
         transient.WindowedResponse`.
     """
-    if len(ports) == 0:
-        raise ValueError("an skfem response needs at least one port DOF")
-    bkd = NumpyBkd()
-    disc = skfem_discretization(system)
-    unconstrained = galerkin_unconstrained_system(disc, ScipySparseLU())
-    states = unconstrained.space
-    descriptor = states.descriptor()
-    essential = EssentialPinnedRows(disc)
-    dofs = [bkd.to_int(d) for d in system.constraint_set().dofs()]
-    port_rows = BackendPortRows(descriptor, list(ports), bkd)
-    rows = WindowPortRows(
-        essential, NumpyRowSet(descriptor, dofs + list(ports)), port_rows, states
-    )
+    unconstrained, rows, port_rows = _window_port_rows(system, ports, (1.0,))
     solved = differentiated_rows(unconstrained, rows, CoupledRows())
     stepper = method.stepper(solved, setups, RowPinning(rows))
     # Read for its residual and its Jacobian's action only: never solved.
@@ -194,9 +185,89 @@ def skfem_windowed_response(
         init_state,
         origin,
         sink,
-        bkd,
+        NumpyBkd(),
         nsubsteps,
     )
+
+
+def skfem_stagewise_response(
+    system: GalerkinTransientSystemProtocol[_Np],
+    ports: Sequence[int],
+    method: RungeKutta[_Np, _Np],
+    setups: MassShiftStrategy[_Np, _Np, CSRFormat],
+    init_state: _Np,
+    sink: TrajectorySinkProtocol[_Np],
+    origin: float = 0.0,
+) -> WindowedResponse[_Np, _Np]:
+    """An skfem subdomain coupled stage by stage: one step per window,
+    the port data one trace per block of ``method``'s step
+    (:func:`~pyapprox.pde.coupling.transient.runge_kutta_block_fractions`),
+    every block pinned to its own, the output each block's reaction (see
+    :class:`~pyapprox.pde.coupling.transient.StageReactions`). Subdomains
+    sharing the method then step as the single domain does, at the
+    method's order.
+
+    The essential rows are pinned in every block too, at their data at
+    the block's time. Parameters are as :func:`skfem_windowed_response`.
+
+    Raises
+    ------
+    ValueError
+        If there are no port DOFs, or as :func:`~pyapprox.pde.coupling.
+        transient.runge_kutta_block_fractions`.
+    """
+    fractions = runge_kutta_block_fractions(method.tableau())
+    unconstrained, rows, port_rows = _window_port_rows(system, ports, fractions)
+    solved = differentiated_rows(unconstrained, rows, CoupledRows())
+    stepper = method.stepper(solved, setups, RowPinning(rows, AtEveryBlock()))
+    # Read for its residual and its Jacobian's action only: never solved.
+    reaction = method.stepper(unconstrained, RecomputeAlways(ScipySparseLU()))
+    bkd = NumpyBkd()
+    return WindowedResponse(
+        stepper,
+        rows,
+        StageReactions(reaction, port_rows, bkd),
+        init_state,
+        origin,
+        sink,
+        bkd,
+    )
+
+
+def _window_port_rows(
+    system: GalerkinTransientSystemProtocol[_Np],
+    ports: Sequence[int],
+    fractions: Sequence[float],
+) -> tuple[
+    MassFormSystem[_Np, _Np, CSRFormat],
+    WindowPortRows[_Np, _Np],
+    BackendPortRows[_Np],
+]:
+    """The unconstrained system of ``system``, its essential and port rows
+    with port data at ``fractions`` of a window, and the port rows.
+
+    Raises
+    ------
+    ValueError
+        If there are no port DOFs.
+    """
+    if len(ports) == 0:
+        raise ValueError("an skfem response needs at least one port DOF")
+    bkd = NumpyBkd()
+    disc = skfem_discretization(system)
+    unconstrained = galerkin_unconstrained_system(disc, ScipySparseLU())
+    states = unconstrained.space
+    descriptor = states.descriptor()
+    dofs = [bkd.to_int(d) for d in system.constraint_set().dofs()]
+    port_rows = BackendPortRows(descriptor, list(ports), bkd)
+    rows = WindowPortRows(
+        EssentialPinnedRows(disc),
+        NumpyRowSet(descriptor, dofs + list(ports)),
+        port_rows,
+        states,
+        fractions,
+    )
+    return unconstrained, rows, port_rows
 
 
 def skfem_loaded_response(

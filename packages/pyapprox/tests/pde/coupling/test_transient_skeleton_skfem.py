@@ -36,7 +36,9 @@ from pyapprox.ode.tableau import (
     ButcherTableau,
     alexander_sdirk3,
     backward_euler,
+    crank_nicolson,
     forward_euler,
+    heun,
     implicit_midpoint,
 )
 from pyapprox.ode.trajectory_store import (
@@ -49,16 +51,25 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     TimeIndependent,
 )
-from pyapprox.pde.coupling.ports import BackendPortRows, MatchingNodalTransfer
+from pyapprox.pde.coupling.ports import (
+    BackendPortRows,
+    MatchingNodalTransfer,
+    subdomain_port_dofs,
+)
 from pyapprox.pde.coupling.responses import (
     PortQuantity,
     ResponsePointProtocol,
     TimeWindow,
 )
 from pyapprox.pde.coupling.skeleton import CoupledSubdomain, DenseSchur
-from pyapprox.pde.coupling.stacks.galerkin import skfem_windowed_response
+from pyapprox.pde.coupling.spaces import ComponentSkeletonSpace
+from pyapprox.pde.coupling.stacks.galerkin import (
+    skfem_stagewise_response,
+    skfem_windowed_response,
+)
 from pyapprox.pde.coupling.transient import (
     WindowedResponseProtocol,
+    runge_kutta_block_fractions,
 )
 from pyapprox.pde.coupling.transient_skeleton import TransientSkeletonSolver
 from pyapprox.pde.galerkin.basis import LagrangeBasis
@@ -270,6 +281,79 @@ _CASES = [
     # the interpolated trace gives exactly.
     ((2, 1), _EDGES, implicit_midpoint, 0.01),
 ]
+
+
+@pytest.mark.parametrize(
+    "tableau", [crank_nicolson, implicit_midpoint, alexander_sdirk3]
+)
+def test_stagewise_coupling_is_the_single_domain_step(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """One trace per block of the step, every block pinned to its own and
+    the reactions balanced block by block: the coupled run is the
+    single-domain run (pinned at the step's end, constant essential data)
+    to 1e-10 at every window, so SDIRK3 keeps its third order. The
+    skeleton holds one component per block."""
+    run = _Run((2, 1), _EDGES, tableau, 0.01)
+    problem = run.problem
+    nblocks = len(runge_kutta_block_fractions(tableau()))
+    space = ComponentSkeletonSpace(problem.scalar, nblocks)
+    descriptor = space.descriptor()
+    subdomains: list[CoupledSubdomain[Np, Np]] = []
+    sinks: list[InMemoryTrajectoryStore[Np]] = []
+    rows_of: list[list[int]] = []
+    for s in range(problem.topo.nsubdomains()):
+        sub, nodes, ports, _ = problem.port_system(s)
+        rows = [node_at(run.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+        sink: InMemoryTrajectoryStore[Np] = InMemoryTrajectoryStore()
+        response = skfem_stagewise_response(
+            sub,
+            ports,
+            _method(tableau),
+            RecomputeAlways(ScipySparseLU()),
+            run.reference.state(0)[rows],
+            sink,
+        )
+        dofs = subdomain_port_dofs(problem.topo, space, s)
+        transfer = MatchingNodalTransfer(BackendPortRows(descriptor, dofs, _BKD))
+        subdomains.append(CoupledSubdomain(response, transfer))
+        sinks.append(sink)
+        rows_of.append(rows)
+    lu: RecomputeAlways[Np, DenseFormat[Np]] = RecomputeAlways(BackendDenseLU(_BKD))
+    solver = TransientSkeletonSolver(
+        BackendVectorSpace(descriptor, _BKD),
+        subdomains,
+        DenseSchur(_BKD),
+        lu,
+        Newton(atol=1e-11, rtol=1e-11, maxiters=20),
+    )
+    # Every block's first guess is the start trace.
+    lam0 = np.repeat(run.lam0(), nblocks, axis=0)
+    interface: InMemoryTrajectoryStore[Np] = InMemoryTrajectoryStore()
+    solver.solve(lam0, run.windows(), interface)
+    for rows, sink in zip(rows_of, sinks):
+        for n in range(_NWINDOWS + 1):
+            _BKD.assert_allclose(
+                sink.state(n), run.reference.state(n)[rows], atol=1e-10
+            )
+    # The last block is at the window's end: the single-domain trace.
+    for n in range(1, _NWINDOWS + 1):
+        _BKD.assert_allclose(
+            interface.state(n)[nblocks - 1 :: nblocks],
+            run.reference.state(n)[run.at_skeleton],
+            atol=1e-10,
+        )
+
+
+def test_block_fractions() -> None:
+    assert runge_kutta_block_fractions(backward_euler()) == (1.0,)
+    assert runge_kutta_block_fractions(crank_nicolson()) == (1.0,)
+    assert runge_kutta_block_fractions(implicit_midpoint()) == (0.5, 1.0)
+    sdirk3 = alexander_sdirk3()
+    assert runge_kutta_block_fractions(sdirk3) == tuple(sdirk3.c)
+    # Heun's last stage and final block are both at the step's end.
+    with pytest.raises(ValueError, match="distinct times"):
+        runge_kutta_block_fractions(heun())
 
 
 @pytest.mark.parametrize(

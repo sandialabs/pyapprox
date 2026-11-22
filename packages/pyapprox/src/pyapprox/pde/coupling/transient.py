@@ -47,7 +47,15 @@ the single-domain step residual of the interface rows, so a skeleton
 solve per window reproduces the single-domain transient solution.
 """
 
-from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Sequence,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, PinnedRowsProtocol
@@ -56,6 +64,7 @@ from pyapprox.ode.protocols.differentiable_stepper import (
     StepperProtocol,
 )
 from pyapprox.ode.step_plan import GivenSizes
+from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectorySinkProtocol,
@@ -154,11 +163,78 @@ class WindowPortOutputProtocol(Protocol[V, A_co]):
         ...
 
 
+def _lagrange(nodes: Sequence[float], s: float) -> list[float]:
+    """The Lagrange basis on ``nodes`` at ``s``."""
+    weights = []
+    for k, node in enumerate(nodes):
+        weight = 1.0
+        for m, other in enumerate(nodes):
+            if m != k:
+                weight *= (s - other) / (node - other)
+        weights.append(weight)
+    return weights
+
+
+def _lagrange_derivative(nodes: Sequence[float], s: float) -> list[float]:
+    """The derivative in ``s`` of the Lagrange basis on ``nodes``."""
+    weights = []
+    for k, node in enumerate(nodes):
+        total = 0.0
+        for m, other in enumerate(nodes):
+            if m == k:
+                continue
+            term = 1.0 / (node - other)
+            for n, third in enumerate(nodes):
+                if n not in (k, m):
+                    term *= (s - third) / (node - third)
+            total += term
+        weights.append(total)
+    return weights
+
+
+def runge_kutta_block_fractions(tableau: ButcherTableau) -> tuple[float, ...]:
+    r"""The times of a Runge-Kutta step's blocks as fractions of the step:
+    :math:`c_i` for each stage that is an unknown (a trivial first stage
+    is the stored state), then 1 for the final block unless the method is
+    stiffly accurate. With these as :class:`WindowPortRows`' fractions and
+    every block pinned, each block reads its own port data.
+
+    Raises
+    ------
+    ValueError
+        If two blocks share a time or a block is at the step's start: one
+        trace per time cannot tell them apart (Heun's last stage and final
+        block are both at the step's end).
+    """
+    first = 1 if tableau.has_trivial_first_stage() else 0
+    fractions = [float(tableau.c[i]) for i in range(first, tableau.nstages())]
+    if not tableau.is_stiffly_accurate():
+        fractions.append(1.0)
+    if fractions[0] <= 0.0 or any(
+        a >= b for a, b in zip(fractions[:-1], fractions[1:])
+    ):
+        raise ValueError(
+            f"{tableau.name}'s blocks are at fractions {tuple(fractions)}: "
+            "stage-wise port data need distinct times after the step's start"
+        )
+    return tuple(fractions)
+
+
 class WindowPortRows(Generic[V, A]):
     r"""A subdomain's essential rows and its port rows, with their data
     over one window: the essential data :math:`g(t)` and, on the port
-    rows, the linear interpolant from the committed state's trace at the
-    window's start to the port data at its end.
+    rows, the Lagrange interpolant in time through the committed state's
+    trace at the window's start and the port data at the window's
+    ``fractions``, its rate the interpolant's derivative.
+
+    The port data hold one trace per fraction, interleaved with the
+    fraction as the fast index: entry ``q * p + j`` is port row ``p`` at
+    fraction ``j`` of ``q``, as a :class:`~pyapprox.pde.coupling.spaces.
+    ComponentSkeletonSpace` with one component per fraction lays out a
+    skeleton vector. With the one fraction 1 the interpolant is linear from
+    the start trace to the end trace. With a Runge-Kutta method's block
+    times (:func:`runge_kutta_block_fractions`) and every block pinned,
+    each block reads its own port data: stage-wise coupling.
 
     Satisfies :class:`~pyapprox.ode.pinned_rows.PinnedRowsProtocol` (for
     the stepper's pin) and :class:`WindowPortInputProtocol`, receiving a
@@ -177,11 +253,15 @@ class WindowPortRows(Generic[V, A]):
         The port rows of the state space, in port order.
     states : VectorSpaceProtocol
         The state space.
+    fractions : sequence of float, default (1.0,)
+        Where in the window the port data are, as fractions of its
+        length: strictly increasing in (0, 1], the last 1.
 
     Raises
     ------
     ValueError
-        If ``rows`` does not count the essential and port rows once each.
+        If ``rows`` does not count the essential and port rows once each,
+        or ``fractions`` is not as described.
     """
 
     def __init__(
@@ -190,6 +270,7 @@ class WindowPortRows(Generic[V, A]):
         rows: RowSetProtocol[V],
         ports: PortRowsProtocol[V, A],
         states: VectorSpaceProtocol[V],
+        fractions: Sequence[float] = (1.0,),
     ) -> None:
         expected = essential.rows().count() + ports.nrows()
         if rows.count() != expected:
@@ -197,6 +278,15 @@ class WindowPortRows(Generic[V, A]):
                 f"rows must hold the {essential.rows().count()} essential and "
                 f"{ports.nrows()} port rows once each; it has {rows.count()}"
             )
+        nodes = (0.0,) + tuple(float(f) for f in fractions)
+        increasing = all(a < b for a, b in zip(nodes[:-1], nodes[1:]))
+        if len(nodes) < 2 or not increasing or nodes[-1] != 1.0:
+            raise ValueError(
+                "fractions must increase strictly in (0, 1] and end at 1, got "
+                f"{tuple(fractions)}"
+            )
+        # The start trace at 0, then the port data's fractions.
+        self._nodes = nodes
         self._essential, self._rows = essential, rows
         self._ports, self._states = ports, states
         # Read once: a declaration's rates are fixed for its life.
@@ -205,18 +295,22 @@ class WindowPortRows(Generic[V, A]):
             None if self._essential_rates is None else self._rate
         )
         self._window = TimeWindow(0.0, 1.0)
-        self._start: Optional[A] = None
-        self._end: Optional[A] = None
+        self._traces_held: Optional[list[A]] = None
 
     def nport(self) -> int:
-        return self._ports.nrows()
+        return self._ports.nrows() * (len(self._nodes) - 1)
+
+    def fractions(self) -> tuple[float, ...]:
+        """Where in the window the port data are."""
+        return self._nodes[1:]
 
     def receives(self) -> Trace:
         return Trace()
 
     def set_window(self, window: TimeWindow, state: V, port_data: A) -> None:
-        """Hold ``window``, the trace interpolated from ``state``'s port
-        rows at its start to ``port_data`` at its end.
+        """Hold ``window``, the trace interpolated through ``state``'s
+        port rows at its start and ``port_data`` (:meth:`nport`, 1) at its
+        fractions.
 
         Raises
         ------
@@ -226,12 +320,26 @@ class WindowPortRows(Generic[V, A]):
         if window.is_steady():
             raise ValueError("port data are interpolated over a nonempty window")
         self._window = window
-        self._start, self._end = self._ports.take(state), port_data
+        nfractions = len(self._nodes) - 1
+        self._traces_held = [self._ports.take(state)] + [
+            port_data[j::nfractions] for j in range(nfractions)
+        ]
 
-    def _traces(self) -> tuple[A, A]:
-        if self._start is None or self._end is None:
+    def _traces(self) -> list[A]:
+        if self._traces_held is None:
             raise ValueError("no window is set")
-        return self._start, self._end
+        return self._traces_held
+
+    def _combined(self, weights: Sequence[float]) -> A:
+        traces = self._traces()
+        total = weights[0] * traces[0]
+        for weight, trace in zip(weights[1:], traces[1:]):
+            total = total + weight * trace
+        return total
+
+    def _fraction(self, time: float) -> float:
+        window = self._window
+        return (time - window.start) / (window.end - window.start)
 
     def _placed(self, block: A) -> V:
         return self._ports.add_to(self._states.zeros(1), block)
@@ -240,20 +348,18 @@ class WindowPortRows(Generic[V, A]):
         return self._rows
 
     def values(self, time: float) -> V:
-        start, end = self._traces()
-        window = self._window
-        s = (time - window.start) / (window.end - window.start)
-        trace = start + s * (end - start)
+        trace = self._combined(_lagrange(self._nodes, self._fraction(time)))
         return self._states.axpby(
             1.0, self._essential.values(time), 1.0, self._placed(trace)
         )
 
     def _rate(self, time: float) -> V:
-        start, end = self._traces()
-        window = self._window
         if self._essential_rates is None:
             raise ValueError("the essential data supply no rate")
-        slope = (end - start) / (window.end - window.start)
+        window = self._window
+        scale = 1.0 / (window.end - window.start)
+        weights = _lagrange_derivative(self._nodes, self._fraction(time))
+        slope = self._combined([scale * w for w in weights])
         return self._states.axpby(
             1.0, self._essential_rates(time), 1.0, self._placed(slope)
         )
@@ -314,6 +420,68 @@ class StepResidualReaction(Generic[V, A]):
 
         def change(delta: BlockVector[V]) -> A:
             return self._ports.take(jacobian.apply(delta).blocks[-1])
+
+        return change
+
+
+class StageReactions(Generic[V, A]):
+    r"""Each block's time-discrete reaction on the port rows: block
+    :math:`j` of the unconstrained stepper's step residual there, for a
+    one-step trial whose every block was pinned to its own port data
+    (:class:`WindowPortRows` with :func:`runge_kutta_block_fractions`).
+    Interleaved as the port data are: entry ``q * p + j`` is port row
+    ``p`` of block ``j``. Summed over the subdomains at an interface, each
+    block's entries are the single-domain residual of that block's
+    interface rows, so the coupled step is the single-domain step.
+
+    Satisfies :class:`WindowPortOutputProtocol`, returning a
+    :class:`~pyapprox.pde.coupling.responses.Flux`.
+
+    Parameters
+    ----------
+    reaction : DifferentiableStepperProtocol
+        The trials' method over the unconstrained system.
+    ports : PortRowsProtocol
+        The port rows of the state space, in port order.
+    bkd : Backend
+        The backend of the port blocks.
+    """
+
+    def __init__(
+        self,
+        reaction: DifferentiableStepperProtocol[V, A],
+        ports: PortRowsProtocol[V, A],
+        bkd: Backend[A],
+    ) -> None:
+        self._reaction, self._ports, self._bkd = reaction, ports, bkd
+
+    def returns(self) -> Flux:
+        return Flux()
+
+    def _interleaved(self, residual: BlockVector[V]) -> A:
+        bkd = self._bkd
+        blocks = [self._ports.take(block) for block in residual.blocks]
+        stacked = bkd.stack(blocks, axis=1)
+        nport, nblocks, ncols = stacked.shape
+        return bkd.reshape(stacked, (nport * nblocks, ncols))
+
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
+        """Raises ValueError unless ``trial`` is one step."""
+        if trial.nsteps() != 1:
+            raise ValueError(
+                f"stage-wise reactions read a one-step window, got {trial.nsteps()}"
+            )
+        return self._interleaved(self._reaction.step_residual(trial.window(0)))
+
+    def unknown_tangent(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[UnknownTangent[V, A]]:
+        if trial.nsteps() != 1:
+            return None
+        jacobian = self._reaction.diag(trial.window(0))
+
+        def change(delta: BlockVector[V]) -> A:
+            return self._interleaved(jacobian.apply(delta))
 
         return change
 
