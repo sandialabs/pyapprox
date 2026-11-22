@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.search import ACVSearch
@@ -32,7 +31,6 @@ from pyapprox.statest.statistics import (
     MultiOutputVariance,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox_benchmarks.statest import (
     MultiOutputEnsembleBenchmark,
     PolynomialEnsembleBenchmark,
@@ -448,13 +446,9 @@ TEST_CASES = [
 class TestEstimatorVariances:
     """Replicate legacy test_estimator_variances exactly using @parametrize."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-
     def _check_estimator_variances(
         self,
+        bkd: Backend[Array],
         model_idx: List[int],
         qoi_idx: List[int],
         recursion_index: Optional[List[int]],
@@ -467,7 +461,6 @@ class TestEstimatorVariances:
     ) -> None:
         """Check estimator variances match MC, replicating legacy test."""
         np.random.seed(1)
-        bkd = self._bkd
         rtol, atol = 4.6e-2, 1.01e-3
 
         funs, stat, costs, benchmark, means = _setup_multioutput_model_subproblem(
@@ -558,9 +551,7 @@ class TestEstimatorVariances:
                 allocator = default_allocator_factory(template, optimizer=optimizer)
                 alloc_result = allocator.allocate(target_cost)
                 if not alloc_result.success:
-                    raise RuntimeError(
-                        f"Allocation failed: {alloc_result.message}"
-                    )
+                    raise RuntimeError(f"Allocation failed: {alloc_result.message}")
                 fitted = FittedACVEstimator(template, alloc_result)
             else:
                 fitted = allocate_with_allocator(template, target_cost)
@@ -591,6 +582,7 @@ class TestEstimatorVariances:
     @slower_test
     def test_estimator_variance(
         self,
+        bkd: Backend[Array],
         model_idx: List[int],
         qoi_idx: List[int],
         rec_idx: Optional[List[int]],
@@ -603,6 +595,7 @@ class TestEstimatorVariances:
     ) -> None:
         """Test estimator variance matches MC estimate."""
         self._check_estimator_variances(
+            bkd,
             model_idx,
             qoi_idx,
             rec_idx,
@@ -618,12 +611,6 @@ class TestEstimatorVariances:
 class TestDiscrepancyCovariances:
     """Test discrepancy covariance computation matches MC."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-
     @pytest.mark.parametrize(
         "est_type,recursion_index",
         [
@@ -635,7 +622,10 @@ class TestDiscrepancyCovariances:
     )
     @slow_test
     def test_discrepancy_covariances(
-        self, est_type: str, recursion_index: Optional[List[int]]
+        self,
+        bkd: Backend[Array],
+        est_type: str,
+        recursion_index: Optional[List[int]],
     ) -> None:
         """Test that CF and cf matrices match MC estimates.
 
@@ -643,23 +633,26 @@ class TestDiscrepancyCovariances:
         estimates for each low-fidelity model:
             delta_i = stat(values_i_shared) - stat(values_i_unique)
         """
+        np.random.seed(42)
         ntrials = 5000
         target_cost = 50.0
         nmodels = 3
         nqoi = 1
         rtol, atol = 5e-2, 1e-3
 
-        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        bm = PolynomialEnsembleBenchmark(bkd, nmodels=nmodels)
         cov = bm.ensemble_covariance()
         costs = bm.problem().costs()
         models = bm.problem().models()
 
-        stat = MultiOutputMean(nqoi, self._bkd)
+        stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
 
         kwargs: Dict[str, Any] = {}
         if recursion_index is not None:
-            kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
+            kwargs["recursion_index"] = bkd.array(
+                recursion_index, dtype=bkd.int64_dtype()
+            )
 
         template = get_estimator(est_type, stat, costs, **kwargs)
         fitted = allocate_with_allocator(template, target_cost)
@@ -669,7 +662,7 @@ class TestDiscrepancyCovariances:
         mc_est = stat.sample_estimate
 
         def rvs(n: int) -> Array:
-            return self._bkd.asarray(np.random.rand(1, int(n)))
+            return bkd.asarray(np.random.rand(1, int(n)))
 
         for _ in range(ntrials):
             samples_per_model = fitted.generate_samples_per_model(rvs)
@@ -685,24 +678,20 @@ class TestDiscrepancyCovariances:
             for ii in range(1, nmodels):
                 delta_i = mc_est(acv_values[2 * ii]) - mc_est(acv_values[2 * ii + 1])
                 delta_parts.append(delta_i.flatten())
-            delta = self._bkd.hstack(delta_parts)
+            delta = bkd.hstack(delta_parts)
             delta_list.append(delta)
 
-        Q = self._bkd.stack(Q_list)
-        delta = self._bkd.stack(delta_list)
+        Q = bkd.stack(Q_list)
+        delta = bkd.stack(delta_list)
 
-        CF_mc = self._bkd.cov(delta.T, ddof=1)
+        CF_mc = bkd.cov(delta.T, ddof=1)
         idx = stat.nstats()
-        cf_mc = self._bkd.cov(self._bkd.vstack([Q.T, delta.T]), ddof=1)[:idx, idx:]
+        cf_mc = bkd.cov(bkd.vstack([Q.T, delta.T]), ddof=1)[:idx, idx:]
 
         nps = fitted.npartition_samples()
         CF, cf = fitted._template._get_discrepancy_covariances(nps)
 
-        self._bkd.assert_allclose(
-            self._bkd.asarray([CF.shape[0]]), self._bkd.asarray([CF_mc.shape[0]])
-        )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([cf.shape[0]]), self._bkd.asarray([cf_mc.shape[0]])
-        )
-        self._bkd.assert_allclose(CF, CF_mc, atol=atol, rtol=rtol)
-        self._bkd.assert_allclose(cf, cf_mc, atol=atol, rtol=rtol)
+        bkd.assert_allclose(bkd.asarray([CF.shape[0]]), bkd.asarray([CF_mc.shape[0]]))
+        bkd.assert_allclose(bkd.asarray([cf.shape[0]]), bkd.asarray([cf_mc.shape[0]]))
+        bkd.assert_allclose(CF, CF_mc, atol=atol, rtol=rtol)
+        bkd.assert_allclose(cf, cf_mc, atol=atol, rtol=rtol)
