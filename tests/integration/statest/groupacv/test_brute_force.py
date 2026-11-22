@@ -78,7 +78,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         stat = _make_mean_stat(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         result = fitter.fit(target_cost=100)
 
@@ -98,7 +101,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         costs = bkd.array([3.0, 2.0, 1.0])
 
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         result = fitter.fit(target_cost=100)
         assert result.best_allocation.success
@@ -132,8 +138,11 @@ class TestBruteForceSubsetFitterTorchOnly:
 
         config_thresh = AllocationProblemConfig(bounds_lb="dead_threshold")
         fitter_thresh = BruteForceSubsetFitter(
-            stat_thresh, costs, GroupACVEstimatorIS,
-            optimizer=_slsqp(), problem_config=config_thresh,
+            stat_thresh,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config_thresh,
         )
         result_thresh = fitter_thresh.fit(target_cost=100)
 
@@ -141,8 +150,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         stat_nothresh.set_pilot_quantities(cov)
         config_nothresh = AllocationProblemConfig(bounds_lb=1e-8)
         fitter_nothresh = BruteForceSubsetFitter(
-            stat_nothresh, costs, GroupACVEstimatorIS,
-            optimizer=_slsqp(), problem_config=config_nothresh,
+            stat_nothresh,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config_nothresh,
         )
         result_nothresh = fitter_nothresh.fit(target_cost=100)
 
@@ -169,16 +181,17 @@ class TestBruteForceSubsetFitterTorchOnly:
         # Brute force
         stat2 = _make_mean_stat(bkd, nmodels=3)
         fitter = BruteForceSubsetFitter(
-            stat2, costs, GroupACVEstimatorIS,
-            optimizer=_slsqp(), problem_config=config,
+            stat2,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
         result_bf = fitter.fit(target_cost=100)
 
         assert result_std.success
         assert result_bf.best_allocation.success
-        bf_obj = float(bkd.to_numpy(
-            result_bf.best_allocation.objective_value[0]
-        ))
+        bf_obj = float(bkd.to_numpy(result_bf.best_allocation.objective_value[0]))
         std_obj = float(bkd.to_numpy(result_std.objective_value[0]))
         assert bf_obj <= std_obj + 1e-6
 
@@ -194,7 +207,9 @@ class TestBruteForceSubsetFitterTorchOnly:
 
         est = GroupACVEstimatorIS(stat, costs)
         allocator = GroupACVAllocationOptimizer(
-            est, optimizer=_slsqp(), problem_config=config,
+            est,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
         result_std = allocator.optimize(target_cost=target_cost)
 
@@ -202,8 +217,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         subsets = get_model_subsets(2, bkd)
         all_active = tuple(range(len(subsets)))
         fitter = BruteForceSubsetFitter(
-            stat2, costs, GroupACVEstimatorIS,
-            optimizer=_slsqp(), problem_config=config,
+            stat2,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
         # Find the all-active result
         result_bf = fitter.fit(target_cost=target_cost)
@@ -229,7 +247,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         costs = bkd.array([3.0, 2.0, 1.0])
 
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorNested, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorNested,
+            optimizer=_slsqp(),
         )
         result = fitter.fit(target_cost=100)
 
@@ -257,7 +278,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         costs = bkd.array([2.0, 1.0])
 
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         result = fitter.fit(target_cost=100, allow_failures=True)
         assert result.best_allocation.success
@@ -270,7 +294,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         costs = bkd.array([3.0, 2.0, 1.0])
 
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         result = fitter.fit(target_cost=100, allow_failures=True)
         # K=7, patterns with at least one model-0 subset: 2^7-1 - (2^3-1) = 120
@@ -284,7 +311,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         costs = bkd.array([3.0, 2.0, 1.0])
 
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorNested, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorNested,
+            optimizer=_slsqp(),
         )
         result = fitter.fit(target_cost=100, allow_failures=True)
         # IS: 120, minus the 1 pattern that is only {0}: 119
@@ -298,7 +328,10 @@ class TestBruteForceSubsetFitterTorchOnly:
         costs = bkd.array([100.0, 1.0])
 
         fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         with pytest.raises(RuntimeError):
             fitter.fit(target_cost=50, allow_failures=False)
@@ -309,13 +342,19 @@ class TestBruteForceSubsetFitterTorchOnly:
         stat1 = _make_mean_stat(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
         fitter1 = BruteForceSubsetFitter(
-            stat1, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat1,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         result1 = fitter1.fit(target_cost=100)
 
         stat2 = _make_mean_stat(bkd, nmodels=2)
         fitter2 = BruteForceSubsetFitter(
-            stat2, costs, GroupACVEstimatorIS, optimizer=_slsqp(),
+            stat2,
+            costs,
+            GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
         result2 = fitter2.fit(target_cost=100)
 
@@ -337,7 +376,9 @@ class TestBruteForceSubsetFitterDualBackend:
 
         with pytest.raises(ValueError, match="Too many"):
             BruteForceSubsetFitter(
-                stat, costs, GroupACVEstimatorIS,
+                stat,
+                costs,
+                GroupACVEstimatorIS,
                 candidate_subsets=fake_subsets,
             )
 
@@ -345,9 +386,7 @@ class TestBruteForceSubsetFitterDualBackend:
         """D8: Smoke test on both backends (fit not called — just construction)."""
         stat = _make_mean_stat(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
-        fitter = BruteForceSubsetFitter(
-            stat, costs, GroupACVEstimatorIS
-        )
+        fitter = BruteForceSubsetFitter(stat, costs, GroupACVEstimatorIS)
         assert fitter._bkd is bkd
         count = sum(1 for _ in fitter._iter_patterns())
         assert count > 0

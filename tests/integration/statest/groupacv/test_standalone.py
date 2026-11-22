@@ -73,18 +73,14 @@ def _make_groupacv_allocation(est, npartition_samples):
     Rounds the samples and computes derived quantities.
     """
     bkd = est.bkd()
-    rounded = bkd.asarray(
-        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
-    )
+    rounded = bkd.asarray(bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype())
     nsamples_per_model = bkd.asarray(
-        est._compute_nsamples_per_model(
-            bkd.asarray(rounded, dtype=bkd.double_dtype())
-        ),
+        est._compute_nsamples_per_model(bkd.asarray(rounded, dtype=bkd.double_dtype())),
         dtype=bkd.int64_dtype(),
     )
-    actual_cost = float(est._estimator_cost(
-        bkd.asarray(rounded, dtype=bkd.double_dtype())
-    ))
+    actual_cost = float(
+        est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))
+    )
     return GroupACVAllocationResult(
         npartition_samples=rounded,
         nsamples_per_model=nsamples_per_model,
@@ -700,9 +696,7 @@ class TestMLBLUESPDAllocationOptimizer:
         result = allocator.optimize(target_cost, min_nhf_samples)
 
         # Compute actual cost
-        nps_float = bkd.asarray(
-            result.npartition_samples, dtype=bkd.double_dtype()
-        )
+        nps_float = bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
         actual_cost = est._estimator_cost(nps_float)
 
         # Cost should be <= target (with small tolerance)
@@ -751,7 +745,6 @@ class TestPilotSampleInsertionTorchOnly:
     def _create_optimizer(self):
         """Create optimizer with sufficient iterations for test."""
 
-
         global_opt = ScipyDifferentialEvolutionOptimizer(
             maxiter=3,
             polish=False,
@@ -772,7 +765,6 @@ class TestPilotSampleInsertionTorchOnly:
     @slow_test
     def test_insert_pilot_samples(self, nmodels: int, min_nhf_samples: int):
         """Test that pilot values can be correctly inserted."""
-
 
         ntrials = 5  # Match legacy test
         npilot_samples = 8
@@ -1040,13 +1032,8 @@ class TestMFMCNestedEstimationTorchOnly:
 
         # MFMC subsets: consecutive pairs + tail singleton
         # {0,1}, {1,2}, ..., {L-1,L}, {L}
-        subsets = (
-            [[k, k + 1] for k in range(nmodels - 1)]
-            + [[nmodels - 1]]
-        )
-        recursion_index = self._bkd.asarray(
-            list(range(nmodels - 1)), dtype=int
-        )
+        subsets = [[k, k + 1] for k in range(nmodels - 1)] + [[nmodels - 1]]
+        recursion_index = self._bkd.asarray(list(range(nmodels - 1)), dtype=int)
 
         subsets = [self._bkd.asarray(s, dtype=int) for s in subsets]
 
@@ -1116,19 +1103,12 @@ class TestMFMCNestedEstimationTorchOnly:
         np.random.seed(1)
         target_cost = 20.0
 
-        cov, costs, models, stat = self._setup_polynomial_problem(
-            nmodels, stat_type
-        )
+        cov, costs, models, stat = self._setup_polynomial_problem(nmodels, stat_type)
 
         # MFMC subsets: consecutive pairs + tail singleton
         # {0,1}, {1,2}, ..., {L-1,L}, {L}
-        subsets = (
-            [[k, k + 1] for k in range(nmodels - 1)]
-            + [[nmodels - 1]]
-        )
-        recursion_index = self._bkd.asarray(
-            list(range(nmodels - 1)), dtype=int
-        )
+        subsets = [[k, k + 1] for k in range(nmodels - 1)] + [[nmodels - 1]]
+        recursion_index = self._bkd.asarray(list(range(nmodels - 1)), dtype=int)
         subsets = [self._bkd.asarray(s, dtype=int) for s in subsets]
 
         if acv_type == "gmf_nested":
@@ -1147,13 +1127,24 @@ class TestMFMCNestedEstimationTorchOnly:
         )
 
         self._check_acv_groupacv_match(
-            groupacv_est, stat, costs, models, recursion_index, target_cost,
+            groupacv_est,
+            stat,
+            costs,
+            models,
+            recursion_index,
+            target_cost,
             acv_cls=acv_cls,
         )
 
     def _check_acv_groupacv_match(
-        self, groupacv_est, acv_stat, costs, models, recursion_index,
-        target_cost, acv_cls=GMFEstimator,
+        self,
+        groupacv_est,
+        acv_stat,
+        costs,
+        models,
+        recursion_index,
+        target_cost,
+        acv_cls=GMFEstimator,
     ):
         """Verify GroupACV and ACV estimator produce identical covariance/estimates."""
         acv_template = acv_cls(acv_stat, costs, recursion_index=recursion_index)
@@ -1229,9 +1220,7 @@ class TestSigmaMatrixMonteCarlo:
         """
         # Get analytical values
         t = fitted._template
-        nps_float = bkd.asarray(
-            fitted.npartition_samples(), dtype=bkd.double_dtype()
-        )
+        nps_float = bkd.asarray(fitted.npartition_samples(), dtype=bkd.double_dtype())
         est_var = t._covariance_from_npartition_samples(nps_float)
         Sigma = t._sigma(nps_float)
 
@@ -1395,7 +1384,6 @@ class TestGradientOptimizationTorchOnly:
     def _create_optimizer(self):
         """Create the chained optimizer for sample allocation."""
 
-
         global_opt = ScipyDifferentialEvolutionOptimizer(
             maxiter=3,
             polish=False,
@@ -1430,8 +1418,6 @@ class TestGradientOptimizationTorchOnly:
 
         target_cost = 100.0
         costs = self._bkd.flip(self._bkd.logspace(-nmodels + 1, 0, nmodels))
-
-
 
         # Create GroupACV estimator
         stat_g = MultiOutputMean(nqoi, self._bkd)
@@ -1470,9 +1456,7 @@ class TestGradientOptimizationTorchOnly:
             gest_fitted.npartition_samples(), dtype=self._bkd.double_dtype()
         )
         groupacv_cov = gest._covariance_from_npartition_samples(nps_float)
-        mlblue_cov_at_groupacv = mlest._covariance_from_npartition_samples(
-            nps_float
-        )
+        mlblue_cov_at_groupacv = mlest._covariance_from_npartition_samples(nps_float)
         self._bkd.assert_allclose(
             groupacv_cov,
             mlblue_cov_at_groupacv,
@@ -1561,7 +1545,6 @@ class TestGroupACVAllocationOptimizerTorchOnly:
     def test_allocator_produces_valid_result(self):
         """Test that allocator returns valid GroupACVAllocationResult."""
 
-
         est = self._create_estimator(3)
         allocator = GroupACVAllocationOptimizer(est)
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
@@ -1573,7 +1556,6 @@ class TestGroupACVAllocationOptimizerTorchOnly:
     def test_allocator_with_custom_optimizer(self):
         """Test that custom optimizer is used."""
 
-
         est = self._create_estimator(3)
         opt = ScipyTrustConstrOptimizer(gtol=1e-6, maxiter=500)
         allocator = GroupACVAllocationOptimizer(est, optimizer=opt)
@@ -1584,7 +1566,6 @@ class TestGroupACVAllocationOptimizerTorchOnly:
     @slow_test
     def test_allocator_respects_budget(self):
         """Test that allocator respects budget constraint."""
-
 
         est = self._create_estimator(3)
         target_cost = 100.0
@@ -1600,7 +1581,6 @@ class TestGroupACVAllocationOptimizerTorchOnly:
     @slow_test
     def test_allocator_with_mlblue_objective(self):
         """Test allocator with MLBLUEObjective for analytical derivatives."""
-
 
         np.random.seed(1)
         cov = self._bkd.array(np.random.normal(0, 1, (3, 3)))
@@ -1620,7 +1600,6 @@ class TestGroupACVAllocationOptimizerTorchOnly:
     @slow_test
     def test_allocator_result_into_fitted(self):
         """Test that allocator result can construct a fitted estimator."""
-
 
         est = self._create_estimator(3)
         allocator = GroupACVAllocationOptimizer(est)
@@ -1646,7 +1625,6 @@ class TestGroupACVAllocationOptimizerTorchOnly:
     @slow_test
     def test_allocator_various_configurations(self, nmodels: int, nqoi: int):
         """Test allocator with various model/qoi configurations."""
-
 
         np.random.seed(1)
         est = self._create_estimator(nmodels, nqoi)
@@ -1693,7 +1671,6 @@ class TestGroupACVRecoversMLBLUETorchOnly:
     def _create_optimizer(self):
         """Create the chained optimizer for sample allocation."""
 
-
         global_opt = ScipyDifferentialEvolutionOptimizer(
             maxiter=10,
             polish=False,
@@ -1720,7 +1697,6 @@ class TestGroupACVRecoversMLBLUETorchOnly:
            produces the same allocation as MLBLUE with analytical jacobian
         2. The estimator covariances are identical for the same allocation
         """
-
 
         np.random.seed(42)
         cov_size = nmodels
@@ -1774,12 +1750,8 @@ class TestGroupACVRecoversMLBLUETorchOnly:
             groupacv_result.npartition_samples,
             dtype=self._bkd.double_dtype(),
         )
-        groupacv_cov = groupacv_est._covariance_from_npartition_samples(
-            nps_float
-        )
-        mlblue_cov = mlblue_est._covariance_from_npartition_samples(
-            nps_float
-        )
+        groupacv_cov = groupacv_est._covariance_from_npartition_samples(nps_float)
+        mlblue_cov = mlblue_est._covariance_from_npartition_samples(nps_float)
         self._bkd.assert_allclose(groupacv_cov, mlblue_cov, rtol=1e-10)
 
         # Objective values should be close (both minimize trace)
@@ -1802,7 +1774,6 @@ class TestGroupACVRecoversMLBLUETorchOnly:
            produces similar results to MLBLUE SPD (convex) optimization
         2. SPD should find global optimum, gradient-based should be close
         """
-
 
         np.random.seed(42)
         cov_size = nmodels
@@ -1895,8 +1866,7 @@ class TestSigmaBlockDerivatives:
         nmodels = 3
         nsamples = 500
         pilot_values = [
-            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
-            for i in range(nmodels)
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
         stat = MultiOutputVariance(nqoi, numpy_bkd)
         cov, W = stat.compute_pilot_quantities(pilot_values)
@@ -1911,8 +1881,7 @@ class TestSigmaBlockDerivatives:
         nmodels = 3
         nsamples = 500
         pilot_values = [
-            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
-            for i in range(nmodels)
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
         stat = MultiOutputMeanAndVariance(nqoi, numpy_bkd)
         cov, W, B = stat.compute_pilot_quantities(pilot_values)
@@ -1934,8 +1903,7 @@ class TestAnalyticalGroupACVDerivatives:
         np.random.seed(1)
         nsamples = 500
         pilot_values = [
-            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
-            for i in range(nmodels)
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
         costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
         if stat_type == "mean":
@@ -1973,7 +1941,12 @@ class TestAnalyticalGroupACVDerivatives:
         [GroupACVTraceObjective, GroupACVLogDetObjective],
     )
     def test_analytical_jacobian_and_hvp(
-        self, numpy_bkd, nmodels, nqoi, stat_type, objective_cls,
+        self,
+        numpy_bkd,
+        nmodels,
+        nqoi,
+        stat_type,
+        objective_cls,
     ):
         est = self._create_estimator(numpy_bkd, nmodels, nqoi, stat_type)
         obj = objective_cls(numpy_bkd)
@@ -2004,9 +1977,7 @@ class TestAnalyticalGroupACVDerivatives:
         trace_jac = trace_obj.derivatives().jacobian
         mlblue_jac = mlblue_obj.derivatives().jacobian
         assert trace_jac is not None and mlblue_jac is not None
-        numpy_bkd.assert_allclose(
-            trace_jac(iterate), mlblue_jac(iterate), rtol=1e-10
-        )
+        numpy_bkd.assert_allclose(trace_jac(iterate), mlblue_jac(iterate), rtol=1e-10)
 
 
 class TestGroupACVPsiConsistency:
@@ -2074,7 +2045,9 @@ class TestGroupACVPsiConsistency:
         trace_obj = GroupACVTraceObjective(bkd)
         slsqp = ScipySLSQPOptimizer(maxiter=1000, ftol=1e-15)
         alloc = GroupACVAllocationOptimizer(
-            gacv, optimizer=slsqp, objective=trace_obj,
+            gacv,
+            optimizer=slsqp,
+            objective=trace_obj,
         )
         slsqp_result = alloc.optimize(
             target_cost=100.0,
@@ -2087,9 +2060,7 @@ class TestGroupACVPsiConsistency:
 
         # Evaluate both formulations at the SLSQP solution
         nps_bkd = bkd.asarray(slsqp_nps, dtype=bkd.double_dtype())
-        mlblue_trace = bkd.trace(
-            mlblue._covariance_from_npartition_samples(nps_bkd)
-        )
+        mlblue_trace = bkd.trace(mlblue._covariance_from_npartition_samples(nps_bkd))
         gacv_trace = trace_obj(
             bkd.asarray(np.array(slsqp_nps)[:, None], dtype=bkd.double_dtype())
         ).flatten()
@@ -2117,9 +2088,7 @@ class TestGroupACVPsiConsistency:
         spd_result = spd.optimize(target_cost=100.0, round_nsamples=False)
         spd_nps = spd_result.npartition_samples
 
-        sdp_init = bkd.asarray(
-            np.array(spd_nps)[:, None], dtype=bkd.double_dtype()
-        )
+        sdp_init = bkd.asarray(np.array(spd_nps)[:, None], dtype=bkd.double_dtype())
 
         # Collect (optimizer_name, result_nps) pairs
         optimizer_results = []
@@ -2128,28 +2097,36 @@ class TestGroupACVPsiConsistency:
         trace_obj_slsqp = GroupACVTraceObjective(bkd)
         slsqp = ScipySLSQPOptimizer(maxiter=1000, ftol=1e-15)
         alloc_slsqp = GroupACVAllocationOptimizer(
-            gacv, optimizer=slsqp, objective=trace_obj_slsqp,
+            gacv,
+            optimizer=slsqp,
+            objective=trace_obj_slsqp,
         )
         res_slsqp = alloc_slsqp.optimize(
-            target_cost=100.0, round_nsamples=False, init_guess=sdp_init,
+            target_cost=100.0,
+            round_nsamples=False,
+            init_guess=sdp_init,
         )
         optimizer_results.append(("SLSQP", res_slsqp.npartition_samples))
 
         # Trust-Constr
         stat_tc = MultiOutputMean(1, bkd)
-        stat_tc.set_pilot_quantities(
-            mlblue._stat.pilot_covariance()
-        )
+        stat_tc.set_pilot_quantities(mlblue._stat.pilot_covariance())
         gacv_tc = GroupACVEstimatorIS(
-            stat_tc, costs, model_subsets=subsets,
+            stat_tc,
+            costs,
+            model_subsets=subsets,
         )
         trace_obj_tc = GroupACVTraceObjective(bkd)
         tc = ScipyTrustConstrOptimizer(gtol=1e-12, maxiter=1000)
         alloc_tc = GroupACVAllocationOptimizer(
-            gacv_tc, optimizer=tc, objective=trace_obj_tc,
+            gacv_tc,
+            optimizer=tc,
+            objective=trace_obj_tc,
         )
         res_tc = alloc_tc.optimize(
-            target_cost=100.0, round_nsamples=False, init_guess=sdp_init,
+            target_cost=100.0,
+            round_nsamples=False,
+            init_guess=sdp_init,
         )
         optimizer_results.append(("Trust-Constr", res_tc.npartition_samples))
 
@@ -2158,20 +2135,25 @@ class TestGroupACVPsiConsistency:
             from pyapprox.optimization.minimize.rol.rol_optimizer import (
                 ROLOptimizer,
             )
+
             stat_rol = MultiOutputMean(1, bkd)
-            stat_rol.set_pilot_quantities(
-                mlblue._stat.pilot_covariance()
-            )
+            stat_rol.set_pilot_quantities(mlblue._stat.pilot_covariance())
             gacv_rol = GroupACVEstimatorIS(
-                stat_rol, costs, model_subsets=subsets,
+                stat_rol,
+                costs,
+                model_subsets=subsets,
             )
             trace_obj_rol = GroupACVTraceObjective(bkd)
             rol = ROLOptimizer()
             alloc_rol = GroupACVAllocationOptimizer(
-                gacv_rol, optimizer=rol, objective=trace_obj_rol,
+                gacv_rol,
+                optimizer=rol,
+                objective=trace_obj_rol,
             )
             res_rol = alloc_rol.optimize(
-                target_cost=100.0, round_nsamples=False, init_guess=sdp_init,
+                target_cost=100.0,
+                round_nsamples=False,
+                init_guess=sdp_init,
             )
             optimizer_results.append(("ROL", res_rol.npartition_samples))
 
@@ -2181,16 +2163,18 @@ class TestGroupACVPsiConsistency:
             nps_bkd = bkd.asarray(nps, dtype=bkd.double_dtype())
 
             # MLBLUE trace (ground truth at this point)
-            mlblue_trace = float(bkd.trace(
-                mlblue._covariance_from_npartition_samples(nps_bkd)
-            ))
+            mlblue_trace = float(
+                bkd.trace(mlblue._covariance_from_npartition_samples(nps_bkd))
+            )
 
             # GroupACV trace (what the optimizer actually minimized)
             trace_obj_eval = GroupACVTraceObjective(bkd)
             trace_obj_eval.set_estimator(gacv)
-            gacv_trace = float(trace_obj_eval(
-                bkd.asarray(np.array(nps)[:, None], dtype=bkd.double_dtype())
-            ).flatten()[0])
+            gacv_trace = float(
+                trace_obj_eval(
+                    bkd.asarray(np.array(nps)[:, None], dtype=bkd.double_dtype())
+                ).flatten()[0]
+            )
 
             # The two formulations must agree at any feasible point
             bkd.assert_allclose(
@@ -2208,8 +2192,7 @@ class TestDeadThresholdGuard:
         nsamples = 100
         vals0 = bkd.array(np.random.randn(1, nsamples))
         vals1 = bkd.array(
-            0.8 * np.random.randn(1, nsamples)
-            + 0.2 * np.random.randn(1, nsamples)
+            0.8 * np.random.randn(1, nsamples) + 0.2 * np.random.randn(1, nsamples)
         )
         stat = MultiOutputVariance(1, bkd)
         cov, W = stat.compute_pilot_quantities([vals0, vals1])
@@ -2244,19 +2227,14 @@ class TestDeadThresholdGuard:
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
         subset = bkd.array([0], dtype=int)
-        block = _grouped_acv_sigma_block(
-            subset, subset, 0.001, 0.001, 0.001, stat
-        )
+        block = _grouped_acv_sigma_block(subset, subset, 0.001, 0.001, 0.001, stat)
         assert not bkd.allclose(block, bkd.full((1, 1), 0.0))
 
     def test_continuous_dead_threshold_values(self, numpy_bkd):
         bkd = numpy_bkd
         assert MultiOutputMean(1, bkd).continuous_dead_threshold() == 0.0
         assert MultiOutputVariance(1, bkd).continuous_dead_threshold() == 2.0
-        assert (
-            MultiOutputMeanAndVariance(1, bkd).continuous_dead_threshold()
-            == 2.0
-        )
+        assert MultiOutputMeanAndVariance(1, bkd).continuous_dead_threshold() == 2.0
 
 
 class TestFullSigmaPathMatchesMLBLUE:
@@ -2286,9 +2264,7 @@ class TestFullSigmaPathMatchesMLBLUE:
 
         spd = MLBLUESPDAllocationOptimizer(mlblue)
         spd_result = spd.optimize(target_cost=100.0, round_nsamples=False)
-        nps = bkd.asarray(
-            spd_result.npartition_samples, dtype=bkd.double_dtype()
-        )
+        nps = bkd.asarray(spd_result.npartition_samples, dtype=bkd.double_dtype())
 
         # Manually call the base-class full-Sigma path (not the IS override)
         from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
@@ -2329,20 +2305,16 @@ class TestPsiWellConditionedSparseAllocations:
         # Force many partitions to 1e-8
         nps_sparse = nps.copy()
         nps_sparse[nps_sparse < 1.0] = 1e-8
-        pc = np.array(bkd.einsum(
-            "m,mp->p", costs, gacv._partitions_per_model
-        ))
+        pc = np.array(bkd.einsum("m,mp->p", costs, gacv._partitions_per_model))
         cost = np.sum(nps_sparse * pc)
         if cost > 100.0:
             nps_sparse *= 100.0 / cost
 
         nps_bkd = bkd.asarray(nps_sparse, dtype=bkd.double_dtype())
-        mlblue_tr = float(bkd.trace(
-            mlblue._covariance_from_npartition_samples(nps_bkd)
-        ))
-        gacv_tr = float(bkd.trace(
-            gacv._covariance_from_npartition_samples(nps_bkd)
-        ))
+        mlblue_tr = float(
+            bkd.trace(mlblue._covariance_from_npartition_samples(nps_bkd))
+        )
+        gacv_tr = float(bkd.trace(gacv._covariance_from_npartition_samples(nps_bkd)))
 
         bkd.assert_allclose(
             bkd.asarray([gacv_tr]),
@@ -2359,8 +2331,7 @@ class TestISBetaEquivalence:
         np.random.seed(1)
         nsamples = 500
         pilot_values = [
-            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
-            for i in range(nmodels)
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
         costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
         subsets = get_model_subsets(nmodels, bkd)
@@ -2390,7 +2361,11 @@ class TestISBetaEquivalence:
         ],
     )
     def test_is_beta_matches_full_sigma_reference(
-        self, numpy_bkd, nmodels, nqoi, stat_type,
+        self,
+        numpy_bkd,
+        nmodels,
+        nqoi,
+        stat_type,
     ):
         bkd = numpy_bkd
         est = self._create_estimator(bkd, nmodels, nqoi, stat_type)
@@ -2406,9 +2381,7 @@ class TestISBetaEquivalence:
         psi_ref = BaseGroupACVEstimator._psi_matrix_from_sigma(est, sigma)
         beta_ref = bkd.stack(
             [
-                bkd.multidot(
-                    [est._inv(sigma), est._R.T, bkd.solve(psi_ref, a)]
-                )
+                bkd.multidot([est._inv(sigma), est._R.T, bkd.solve(psi_ref, a)])
                 for a in est._asketch
             ],
             axis=0,
@@ -2422,8 +2395,7 @@ class TestISBetaEquivalence:
         np.random.seed(1)
         nsamples = 500
         pilot_values = [
-            np.random.randn(1, nsamples) * (0.5 + 0.5 * i)
-            for i in range(nmodels)
+            np.random.randn(1, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
         costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
         subsets = get_model_subsets(nmodels, bkd)
@@ -2432,7 +2404,9 @@ class TestISBetaEquivalence:
         cov = stat.compute_pilot_quantities(pilot_values)[0]
         stat.set_pilot_quantities(cov)
         est = GroupACVEstimatorNested(
-            stat, costs, model_subsets=subsets,
+            stat,
+            costs,
+            model_subsets=subsets,
         )
         nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.double_dtype())
 
@@ -2444,9 +2418,7 @@ class TestISBetaEquivalence:
         psi = est._psi_matrix_from_sigma(sigma)
         beta_ref = bkd.stack(
             [
-                bkd.multidot(
-                    [est._inv(sigma), est._R.T, bkd.solve(psi, a)]
-                )
+                bkd.multidot([est._inv(sigma), est._R.T, bkd.solve(psi, a)])
                 for a in est._asketch
             ],
             axis=0,
@@ -2464,16 +2436,17 @@ class TestISBetaEquivalence:
         # (macOS arm CI reports failure); 1e-12 converges on all platforms
         slsqp = ScipySLSQPOptimizer(maxiter=1000, ftol=1e-12)
         alloc_opt = GroupACVAllocationOptimizer(
-            est, optimizer=slsqp, objective=trace_obj,
+            est,
+            optimizer=slsqp,
+            objective=trace_obj,
         )
         alloc = alloc_opt.optimize(
-            target_cost=100.0, round_nsamples=True,
+            target_cost=100.0,
+            round_nsamples=True,
         )
         FittedGroupACVEstimator(est, alloc)
 
-        nps_float = bkd.asarray(
-            alloc.npartition_samples, dtype=bkd.double_dtype()
-        )
+        nps_float = bkd.asarray(alloc.npartition_samples, dtype=bkd.double_dtype())
         beta = est._grouped_acv_beta(nps_float)
 
         # Beta shape: (nstats_output, ntotal_stats)
@@ -2482,7 +2455,9 @@ class TestISBetaEquivalence:
         # Beta rows sum to 1 for mean estimation
         row_sums = bkd.sum(beta, axis=1)
         bkd.assert_allclose(
-            row_sums, bkd.ones((beta.shape[0],)), rtol=1e-10,
+            row_sums,
+            bkd.ones((beta.shape[0],)),
+            rtol=1e-10,
         )
 
         # No NaN in covariance
@@ -2515,21 +2490,20 @@ class TestOptimizedAllocationMonteCarlo:
         bm = PolynomialEnsembleBenchmark(bkd, nmodels=nmodels)
         problem = bm.problem()
         return (
-            bm.ensemble_covariance(), problem.costs(), problem.models(),
+            bm.ensemble_covariance(),
+            problem.costs(),
+            problem.models(),
         )
 
     def _saob_subsets(self, nmodels, max_group_size, bkd):
         """SAOB-M groups: S^k = {k-1, ..., min(k+M-2, L)} for k=1..L+1."""
         nlf = nmodels - 1
         return [
-            bkd.array(
-                list(range(kk, min(kk + max_group_size, nmodels))), dtype=int
-            )
+            bkd.array(list(range(kk, min(kk + max_group_size, nmodels))), dtype=int)
             for kk in range(nlf + 1)
         ]
 
-    def _check(self, bkd, estimator_class, subsets, nmodels, target_cost,
-               ntrials):
+    def _check(self, bkd, estimator_class, subsets, nmodels, target_cost, ntrials):
         cov, costs, models = self._setup(bkd, nmodels)
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -2548,7 +2522,9 @@ class TestOptimizedAllocationMonteCarlo:
             ),
         )
         result = allocator.optimize(
-            target_cost=target_cost, min_nhf_samples=1, round_nsamples=True,
+            target_cost=target_cost,
+            min_nhf_samples=1,
+            round_nsamples=True,
         )
         assert result.success, result.message
         fitted = FittedGroupACVEstimator(template, result)
@@ -2560,8 +2536,7 @@ class TestOptimizedAllocationMonteCarlo:
                 lambda n: bkd.asarray(np.random.rand(1, int(n)))
             )
             values_per_model = [
-                models[ii](samples_per_model[ii])
-                for ii in range(template.nmodels())
+                models[ii](samples_per_model[ii]) for ii in range(template.nmodels())
             ]
             estimates.append(fitted(values_per_model))
         attained = bkd.cov(bkd.stack(estimates), ddof=1, rowvar=False)
@@ -2583,9 +2558,12 @@ class TestOptimizedAllocationMonteCarlo:
         """Nested GACV on SAOB-M groups, the restricted-grouping case."""
         nmodels = 4
         self._check(
-            numpy_bkd, GroupACVEstimatorNested,
+            numpy_bkd,
+            GroupACVEstimatorNested,
             self._saob_subsets(nmodels, 3, numpy_bkd),
-            nmodels, target_cost=100.0, ntrials=5000,
+            nmodels,
+            target_cost=100.0,
+            ntrials=5000,
         )
 
     @slow_test
@@ -2593,8 +2571,12 @@ class TestOptimizedAllocationMonteCarlo:
         """Independent-sample GACV over all subsets, i.e. full ML-BLUE."""
         nmodels = 4
         self._check(
-            numpy_bkd, GroupACVEstimatorIS, get_model_subsets(nmodels, numpy_bkd),
-            nmodels, target_cost=100.0, ntrials=5000,
+            numpy_bkd,
+            GroupACVEstimatorIS,
+            get_model_subsets(nmodels, numpy_bkd),
+            nmodels,
+            target_cost=100.0,
+            ntrials=5000,
         )
 
 
@@ -2628,9 +2610,7 @@ class TestTreeObjectiveDerivatives:
         np.random.seed(1)
         cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = self._bkd.arange(
-            nmodels, 0, -1, dtype=self._bkd.double_dtype()
-        )
+        costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
         return stat, costs
@@ -2647,7 +2627,9 @@ class TestTreeObjectiveDerivatives:
         subsets = self._subsets(nmodels)
         if topology == "nested":
             return GroupACVEstimatorNested(
-                stat, costs, model_subsets=list(subsets),
+                stat,
+                costs,
+                model_subsets=list(subsets),
             )
         parents = {
             # A path, the chain the nested variant hard-codes.
@@ -2659,16 +2641,23 @@ class TestTreeObjectiveDerivatives:
             "forest": [-1, 0, -1] + [2] * (nmodels - 3),
         }[topology]
         return GroupACVEstimatorTree(
-            stat, costs, parents=parents, model_subsets=list(subsets),
+            stat,
+            costs,
+            parents=parents,
+            model_subsets=list(subsets),
         )
 
     @pytest.mark.parametrize(
         "topology,nmodels",
         [
-            ("nested", 3), ("nested", 4),
-            ("chain", 3), ("chain", 4),
-            ("branching", 3), ("branching", 4),
-            ("forest", 3), ("forest", 4),
+            ("nested", 3),
+            ("nested", 4),
+            ("chain", 3),
+            ("chain", 4),
+            ("branching", 3),
+            ("branching", 4),
+            ("forest", 3),
+            ("forest", 4),
         ],
     )
     def test_trace_objective_jacobian(self, topology, nmodels):
@@ -2677,9 +2666,7 @@ class TestTreeObjectiveDerivatives:
         obj.set_estimator(est)
 
         iterate = est._init_guess(100)
-        checker = DerivativeChecker(
-            WithAutogradJacobian(obj, self._bkd)
-        )
+        checker = DerivativeChecker(WithAutogradJacobian(obj, self._bkd))
         errors = checker.check_derivatives(iterate, verbosity=0)
         # 5e-6 rather than 2e-6 because this compares an exact autograd
         # jacobian against finite differences: the ratio measures the
@@ -2694,8 +2681,12 @@ class TestTreeObjectiveDerivatives:
     @pytest.mark.parametrize(
         "topology,nmodels",
         [
-            ("nested", 3), ("chain", 3), ("branching", 3), ("forest", 3),
-            ("branching", 4), ("forest", 4),
+            ("nested", 3),
+            ("chain", 3),
+            ("branching", 3),
+            ("forest", 3),
+            ("branching", 4),
+            ("forest", 4),
         ],
     )
     def test_logdet_objective_jacobian(self, topology, nmodels):
@@ -2704,9 +2695,7 @@ class TestTreeObjectiveDerivatives:
         obj.set_estimator(est)
 
         iterate = est._init_guess(100)
-        checker = DerivativeChecker(
-            WithAutogradJacobian(obj, self._bkd)
-        )
+        checker = DerivativeChecker(WithAutogradJacobian(obj, self._bkd))
         errors = checker.check_derivatives(iterate, verbosity=0)
         assert checker.error_ratio(errors[0]) <= 2e-6
 
@@ -2731,9 +2720,7 @@ class TestTreeObjectiveDerivatives:
         def objective(second):
             nps = bkd.array(np.array([30.0, second, 20.0]))
             return float(
-                bkd.to_numpy(
-                    bkd.trace(est._covariance_from_npartition_samples(nps))
-                )
+                bkd.to_numpy(bkd.trace(est._covariance_from_npartition_samples(nps)))
             )
 
         crossing = 30.0
@@ -2757,7 +2744,8 @@ class TestTreeAllocationMatrix:
     def test_chain_parents_reproduce_nested(self, bkd):
         """A path is the chain, so it must match the nested constructor."""
         subsets = [
-            bkd.array([0, 1, 2]), bkd.array([1, 2]),
+            bkd.array([0, 1, 2]),
+            bkd.array([1, 2]),
             bkd.array([2]),
         ]
         bkd.assert_allclose(
@@ -2768,7 +2756,8 @@ class TestTreeAllocationMatrix:
     def test_isolated_roots_reproduce_independent(self, bkd):
         """A forest of roots shares nothing, so it must match IS."""
         subsets = [
-            bkd.array([0, 1, 2]), bkd.array([1, 2]),
+            bkd.array([0, 1, 2]),
+            bkd.array([1, 2]),
             bkd.array([2]),
         ]
         bkd.assert_allclose(
@@ -2783,11 +2772,10 @@ class TestTreeAllocationMatrix:
         own, and neither contains the other. No row or column permutation
         makes this lower triangular, so it is genuinely outside the chain.
         """
-        amat = bkd.to_numpy(
-            _get_allocation_matrix_tree([-1, 0, 0], bkd)
-        )
+        amat = bkd.to_numpy(_get_allocation_matrix_tree([-1, 0, 0], bkd))
         np.testing.assert_array_equal(
-            amat, np.array([[1, 0, 0], [1, 1, 0], [1, 0, 1]], dtype=float),
+            amat,
+            np.array([[1, 0, 0], [1, 1, 0], [1, 0, 1]], dtype=float),
         )
         # Neither sibling's partition set contains the other's, which is what
         # no chain can produce.
@@ -2796,25 +2784,26 @@ class TestTreeAllocationMatrix:
     def test_deeper_tree(self, bkd):
         """Two levels of branching, to exercise multi-step ancestor walks."""
         # 0 -> {1, 2}; 1 -> {3}; 2 -> {4}
-        amat = bkd.to_numpy(
-            _get_allocation_matrix_tree([-1, 0, 0, 1, 2], bkd)
+        amat = bkd.to_numpy(_get_allocation_matrix_tree([-1, 0, 0, 1, 2], bkd))
+        expected = np.array(
+            [
+                [1, 0, 0, 0, 0],
+                [1, 1, 0, 0, 0],
+                [1, 0, 1, 0, 0],
+                [1, 1, 0, 1, 0],
+                [1, 0, 1, 0, 1],
+            ],
+            dtype=float,
         )
-        expected = np.array([
-            [1, 0, 0, 0, 0],
-            [1, 1, 0, 0, 0],
-            [1, 0, 1, 0, 0],
-            [1, 1, 0, 1, 0],
-            [1, 0, 1, 0, 1],
-        ], dtype=float)
         np.testing.assert_array_equal(amat, expected)
 
     @pytest.mark.parametrize(
         "parents,match",
         [
-            ([0, -1], "does not precede"),   # root is not first
+            ([0, -1], "does not precede"),  # root is not first
             ([-1, 5], "out of range"),
-            ([-1, 1], "does not precede"),   # self-loop
-            ([0, 0], "does not precede"),    # self-loop at the first node
+            ([-1, 1], "does not precede"),  # self-loop
+            ([0, 0], "does not precede"),  # self-loop at the first node
             ([], "non-empty"),
         ],
     )
@@ -2863,24 +2852,30 @@ class TestTreeEstimator:
         """
         nmodels = 3
         subsets = [
-            bkd.array([0, 1, 2]), bkd.array([1, 2]),
+            bkd.array([0, 1, 2]),
+            bkd.array([1, 2]),
             bkd.array([2]),
         ]
         nps = bkd.array(np.array([10.0, 5.0, 5.0]))
 
         nested = GroupACVEstimatorNested(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
             model_subsets=list(subsets),
         )
         tree = GroupACVEstimatorTree(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
-            parents=[-1, 0, 1], model_subsets=list(subsets),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
+            parents=[-1, 0, 1],
+            model_subsets=list(subsets),
         )
         bkd.assert_allclose(
-            tree._allocation_mat, nested._allocation_mat,
+            tree._allocation_mat,
+            nested._allocation_mat,
         )
         bkd.assert_allclose(
-            tree.covariance_at(nps), nested.covariance_at(nps),
+            tree.covariance_at(nps),
+            nested.covariance_at(nps),
         )
 
     def test_siblings_share_only_the_root(self, bkd):
@@ -2892,12 +2887,15 @@ class TestTreeEstimator:
         """
         nmodels = 4
         subsets = [
-            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]),
+            bkd.array([0, 1, 2, 3]),
+            bkd.array([1, 2]),
             bkd.array([2, 3]),
         ]
         tree = GroupACVEstimatorTree(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
-            parents=[-1, 0, 0], model_subsets=list(subsets),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
+            parents=[-1, 0, 0],
+            model_subsets=list(subsets),
         )
         nps = bkd.array(np.array([10.0, 5.0, 5.0]))
         nintersect = bkd.to_numpy(tree._nintersect_samples(nps))
@@ -2914,7 +2912,8 @@ class TestTreeEstimator:
                 self._costs(bkd, nmodels),
                 parents=[-1, 0],
                 model_subsets=[
-                    bkd.array([0, 1, 2]), bkd.array([1, 2]),
+                    bkd.array([0, 1, 2]),
+                    bkd.array([1, 2]),
                     bkd.array([2]),
                 ],
             )
@@ -2937,12 +2936,16 @@ class TestTreeEstimator:
         """
         nmodels = 4
         subsets = [
-            bkd.array([0, 1]), bkd.array([1]),
-            bkd.array([2, 3]), bkd.array([3]),
+            bkd.array([0, 1]),
+            bkd.array([1]),
+            bkd.array([2, 3]),
+            bkd.array([3]),
         ]
         tree = GroupACVEstimatorTree(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
-            parents=[-1, 0, -1, 2], model_subsets=list(subsets),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
+            parents=[-1, 0, -1, 2],
+            model_subsets=list(subsets),
         )
         nps = bkd.array(np.array([10.0, 10.0, 10.0, 10.0]))
         nintersect = bkd.to_numpy(tree._nintersect_samples(nps))
@@ -2960,32 +2963,41 @@ class TestTreeEstimator:
         """Every group its own root is exactly independent sampling."""
         nmodels = 4
         subsets = [
-            bkd.array([0, 1]), bkd.array([1]),
-            bkd.array([2, 3]), bkd.array([3]),
+            bkd.array([0, 1]),
+            bkd.array([1]),
+            bkd.array([2, 3]),
+            bkd.array([3]),
         ]
         nps = bkd.array(np.array([10.0, 10.0, 10.0, 10.0]))
 
         tree = GroupACVEstimatorTree(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
-            parents=[-1] * 4, model_subsets=list(subsets),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
+            parents=[-1] * 4,
+            model_subsets=list(subsets),
         )
         independent = GroupACVEstimatorIS(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
             model_subsets=list(subsets),
         )
         bkd.assert_allclose(
-            tree.covariance_at(nps), independent.covariance_at(nps),
+            tree.covariance_at(nps),
+            independent.covariance_at(nps),
         )
 
     def test_graph_structure(self, bkd):
         nmodels = 4
         subsets = [
-            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]),
+            bkd.array([0, 1, 2, 3]),
+            bkd.array([1, 2]),
             bkd.array([2, 3]),
         ]
         tree = GroupACVEstimatorTree(
-            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
-            parents=[-1, 0, 0], model_subsets=list(subsets),
+            self._stat(bkd, nmodels),
+            self._costs(bkd, nmodels),
+            parents=[-1, 0, 0],
+            model_subsets=list(subsets),
         )
         graph = tree.graph()
         assert sorted(graph.nodes) == [0, 1, 2]
@@ -3018,7 +3030,10 @@ class TestTreeMonteCarlo:
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(benchmark.ensemble_covariance())
         template = GroupACVEstimatorTree(
-            stat, costs, parents=parents, model_subsets=list(subsets),
+            stat,
+            costs,
+            parents=parents,
+            model_subsets=list(subsets),
         )
 
         nps_float = bkd.array(np.asarray(npartition_samples, dtype=float))
@@ -3026,14 +3041,11 @@ class TestTreeMonteCarlo:
 
         result = GroupACVAllocationResult(
             npartition_samples=bkd.asarray(
-                np.round(bkd.to_numpy(nps_float)), dtype=int,
+                np.round(bkd.to_numpy(nps_float)),
+                dtype=int,
             ),
             nsamples_per_model=bkd.asarray(
-                np.round(
-                    bkd.to_numpy(
-                        template._compute_nsamples_per_model(nps_float)
-                    )
-                ),
+                np.round(bkd.to_numpy(template._compute_nsamples_per_model(nps_float))),
                 dtype=int,
             ),
             actual_cost=0.0,
@@ -3049,8 +3061,7 @@ class TestTreeMonteCarlo:
                 lambda n: bkd.asarray(np.random.rand(1, int(n)))
             )
             values_per_model = [
-                models[ii](samples_per_model[ii])
-                for ii in range(template.nmodels())
+                models[ii](samples_per_model[ii]) for ii in range(template.nmodels())
             ]
             estimates.append(fitted(values_per_model))
         attained = bkd.cov(bkd.stack(estimates), ddof=1, rowvar=False)
@@ -3071,7 +3082,8 @@ class TestTreeMonteCarlo:
             numpy_bkd,
             parents=[-1, 0, 0],
             subsets=[
-                numpy_bkd.array([0, 1, 2, 3]), numpy_bkd.array([1, 2]),
+                numpy_bkd.array([0, 1, 2, 3]),
+                numpy_bkd.array([1, 2]),
                 numpy_bkd.array([2, 3]),
             ],
             npartition_samples=[20.0, 30.0, 30.0],
@@ -3091,8 +3103,10 @@ class TestTreeMonteCarlo:
             numpy_bkd,
             parents=[-1, 0, -1, 2],
             subsets=[
-                numpy_bkd.array([0, 1]), numpy_bkd.array([1]),
-                numpy_bkd.array([2, 3]), numpy_bkd.array([3]),
+                numpy_bkd.array([0, 1]),
+                numpy_bkd.array([1]),
+                numpy_bkd.array([2, 3]),
+                numpy_bkd.array([3]),
             ],
             npartition_samples=[20.0, 30.0, 40.0, 50.0],
         )
@@ -3117,10 +3131,15 @@ class TestTreeMonteCarlo:
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(benchmark.ensemble_covariance())
         subsets = [
-            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]), bkd.array([2, 3]),
+            bkd.array([0, 1, 2, 3]),
+            bkd.array([1, 2]),
+            bkd.array([2, 3]),
         ]
         template = GroupACVEstimatorTree(
-            stat, costs, parents=[-1, 0, 0], model_subsets=list(subsets),
+            stat,
+            costs,
+            parents=[-1, 0, 0],
+            model_subsets=list(subsets),
         )
 
         # Log scaling with an inequality budget, as the optimization
@@ -3133,7 +3152,9 @@ class TestTreeMonteCarlo:
             ),
         )
         result = allocator.optimize(
-            target_cost=100.0, min_nhf_samples=1, round_nsamples=True,
+            target_cost=100.0,
+            min_nhf_samples=1,
+            round_nsamples=True,
         )
         assert result.success, result.message
 
@@ -3147,8 +3168,7 @@ class TestTreeMonteCarlo:
                 lambda n: bkd.asarray(np.random.rand(1, int(n)))
             )
             values_per_model = [
-                models[ii](samples_per_model[ii])
-                for ii in range(template.nmodels())
+                models[ii](samples_per_model[ii]) for ii in range(template.nmodels())
             ]
             estimates.append(fitted(values_per_model))
         attained = bkd.cov(bkd.stack(estimates), ddof=1, rowvar=False)
@@ -3168,7 +3188,9 @@ class TestTreeMonteCarlo:
         cov = benchmark.ensemble_covariance()
         costs = benchmark.problem().costs()
         subsets = [
-            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]), bkd.array([2, 3]),
+            bkd.array([0, 1, 2, 3]),
+            bkd.array([1, 2]),
+            bkd.array([2, 3]),
         ]
         nps = bkd.array(np.array([20.0, 30.0, 30.0]))
 
@@ -3176,7 +3198,10 @@ class TestTreeMonteCarlo:
             stat = MultiOutputMean(1, bkd)
             stat.set_pilot_quantities(cov)
             est = GroupACVEstimatorTree(
-                stat, costs, parents=parents, model_subsets=list(subsets),
+                stat,
+                costs,
+                parents=parents,
+                model_subsets=list(subsets),
             )
             return bkd.to_numpy(est.covariance_at(nps))
 
@@ -3189,9 +3214,7 @@ class TestCovarianceAt:
     """Public covariance_at accessor on the estimator template."""
 
     def _estimator(self, bkd):
-        cov = bkd.array(
-            [[1.0, 0.9, 0.8], [0.9, 1.0, 0.7], [0.8, 0.7, 1.0]]
-        )
+        cov = bkd.array([[1.0, 0.9, 0.8], [0.9, 1.0, 0.7], [0.8, 0.7, 1.0]])
         costs = bkd.array([1.0, 0.1, 0.01])
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -3215,9 +3238,7 @@ class TestCovarianceAt:
     def test_rejects_integer_allocation(self, bkd):
         """Discrete counts belong to FittedGroupACVEstimator, not here."""
         est = self._estimator(bkd)
-        nps = bkd.asarray(
-            bkd.full((est.nsubsets(),), 10.0), dtype=bkd.int64_dtype()
-        )
+        nps = bkd.asarray(bkd.full((est.nsubsets(),), 10.0), dtype=bkd.int64_dtype())
         with pytest.raises(TypeError, match="requires float-typed"):
             est.covariance_at(nps)
 
@@ -3226,9 +3247,7 @@ class TestCovarianceAt:
         est = self._estimator(bkd)
         small = est.covariance_at(bkd.full((est.nsubsets(),), 10.0))
         large = est.covariance_at(bkd.full((est.nsubsets(),), 100.0))
-        assert float(bkd.to_numpy(large).flat[0]) < float(
-            bkd.to_numpy(small).flat[0]
-        )
+        assert float(bkd.to_numpy(large).flat[0]) < float(bkd.to_numpy(small).flat[0])
 
 
 # ---------------------------------------------------------------------------
@@ -3251,9 +3270,7 @@ class TestRescaledObjectiveDerivativesTorchOnly:
         cov_size = nmodels * nqoi
         cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
         cov = cov.T @ cov
-        costs = self._bkd.arange(
-            nmodels, 0, -1, dtype=self._bkd.double_dtype()
-        )
+        costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
         return GroupACVEstimatorIS(stat, costs)
@@ -3265,9 +3282,7 @@ class TestRescaledObjectiveDerivativesTorchOnly:
         bkd = self._bkd
         obj = GroupACVTraceObjective(bkd)
         obj.set_estimator(est)
-        partition_costs = bkd.einsum(
-            "m,mp->p", est._costs, est._partitions_per_model
-        )
+        partition_costs = bkd.einsum("m,mp->p", est._costs, est._partitions_per_model)
         scale = partition_costs / bkd.min(partition_costs)
         wrapped = _RescaledObjective(obj, scale)
         iterate = est._init_guess(100) * scale[:, None]
@@ -3282,9 +3297,7 @@ class TestRescaledObjectiveDerivativesTorchOnly:
         bkd = self._bkd
         obj = GroupACVLogDetObjective(bkd)
         obj.set_estimator(est)
-        partition_costs = bkd.einsum(
-            "m,mp->p", est._costs, est._partitions_per_model
-        )
+        partition_costs = bkd.einsum("m,mp->p", est._costs, est._partitions_per_model)
         scale = partition_costs / bkd.min(partition_costs)
         wrapped = _RescaledObjective(obj, scale)
         iterate = est._init_guess(100) * scale[:, None]
@@ -3312,17 +3325,13 @@ class TestRescaledConstraintDerivatives:
         con = GroupACVCostConstraint(bkd)
         con.set_estimator(est)
         con.set_budget(100.0, 1)
-        partition_costs = bkd.einsum(
-            "m,mp->p", est._costs, est._partitions_per_model
-        )
+        partition_costs = bkd.einsum("m,mp->p", est._costs, est._partitions_per_model)
         scale = partition_costs / bkd.min(partition_costs)
         wrapped = _RescaledConstraint(con, scale)
         iterate = est._init_guess(100) * scale[:, None]
         checker = DerivativeChecker(wrapped)
         weights = bkd.asarray([[0.6], [0.4]])
-        errors = checker.check_derivatives(
-            iterate, weights=weights, verbosity=0
-        )
+        errors = checker.check_derivatives(iterate, weights=weights, verbosity=0)
         assert float(errors[0][0]) < 1e-12
 
 
@@ -3351,9 +3360,7 @@ class TestNormalizedConstraintDerivatives:
         iterate = est._init_guess(100)
         checker = DerivativeChecker(wrapped)
         weights = bkd.asarray([[0.6], [0.4]])
-        errors = checker.check_derivatives(
-            iterate, weights=weights, verbosity=0
-        )
+        errors = checker.check_derivatives(iterate, weights=weights, verbosity=0)
         assert float(errors[0][0]) < 1e-12
 
     @pytest.mark.parametrize("nmodels", [2, 3])
@@ -3364,9 +3371,7 @@ class TestNormalizedConstraintDerivatives:
         con = GroupACVCostConstraint(bkd)
         con.set_estimator(est)
         con.set_budget(100.0, 1)
-        partition_costs = bkd.einsum(
-            "m,mp->p", est._costs, est._partitions_per_model
-        )
+        partition_costs = bkd.einsum("m,mp->p", est._costs, est._partitions_per_model)
         scale = partition_costs / bkd.min(partition_costs)
         norm = bkd.array([100.0, 1.0])
         rescaled = _RescaledConstraint(con, scale)
@@ -3374,9 +3379,7 @@ class TestNormalizedConstraintDerivatives:
         iterate = est._init_guess(100) * scale[:, None]
         checker = DerivativeChecker(composed)
         weights = bkd.asarray([[0.6], [0.4]])
-        errors = checker.check_derivatives(
-            iterate, weights=weights, verbosity=0
-        )
+        errors = checker.check_derivatives(iterate, weights=weights, verbosity=0)
         assert float(errors[0][0]) < 1e-12
 
 
@@ -3406,9 +3409,7 @@ class TestVariableRescalingIntegrationTorchOnly:
         cov = cov.T @ cov
         if cost_ratio is not None:
             log_costs = np.linspace(0, np.log10(cost_ratio), nmodels)
-            costs = bkd.array(
-                10.0 ** log_costs[::-1], dtype=bkd.double_dtype()
-            )
+            costs = bkd.array(10.0 ** log_costs[::-1], dtype=bkd.double_dtype())
         else:
             costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
         stat = MultiOutputMean(nqoi, bkd)
@@ -3424,9 +3425,7 @@ class TestVariableRescalingIntegrationTorchOnly:
 
         est2 = self._create_estimator(3)
         config = AllocationProblemConfig()
-        allocator_config = GroupACVAllocationOptimizer(
-            est2, problem_config=config
-        )
+        allocator_config = GroupACVAllocationOptimizer(est2, problem_config=config)
         result_config = allocator_config.optimize(target_cost=100)
 
         self._bkd.assert_allclose(
@@ -3438,18 +3437,14 @@ class TestVariableRescalingIntegrationTorchOnly:
     def test_well_conditioned_full_matches_none(self):
         """Full rescaling matches identity on well-conditioned problem."""
         est_none = self._create_estimator(3, cost_ratio=10)
-        config_none = AllocationProblemConfig(
-            variable_scaling="none", bounds_lb=1e-8
-        )
+        config_none = AllocationProblemConfig(variable_scaling="none", bounds_lb=1e-8)
         allocator_none = GroupACVAllocationOptimizer(
             est_none, problem_config=config_none
         )
         result_none = allocator_none.optimize(target_cost=100)
 
         est_full = self._create_estimator(3, cost_ratio=10)
-        config_full = AllocationProblemConfig(
-            variable_scaling="full", bounds_lb=1e-8
-        )
+        config_full = AllocationProblemConfig(variable_scaling="full", bounds_lb=1e-8)
         allocator_full = GroupACVAllocationOptimizer(
             est_full, problem_config=config_full
         )
@@ -3467,9 +3462,7 @@ class TestVariableRescalingIntegrationTorchOnly:
     def test_constraint_only_matches_none(self):
         """Constraint-only normalization matches identity in allocation."""
         est_none = self._create_estimator(3)
-        config_none = AllocationProblemConfig(
-            variable_scaling="none", bounds_lb=1e-8
-        )
+        config_none = AllocationProblemConfig(variable_scaling="none", bounds_lb=1e-8)
         allocator_none = GroupACVAllocationOptimizer(
             est_none, problem_config=config_none
         )
@@ -3479,9 +3472,7 @@ class TestVariableRescalingIntegrationTorchOnly:
         config_cs = AllocationProblemConfig(
             variable_scaling="constraint_only", bounds_lb=1e-8
         )
-        allocator_cs = GroupACVAllocationOptimizer(
-            est_cs, problem_config=config_cs
-        )
+        allocator_cs = GroupACVAllocationOptimizer(est_cs, problem_config=config_cs)
         result_cs = allocator_cs.optimize(target_cost=100)
 
         assert result_none.success
@@ -3501,9 +3492,7 @@ class TestVariableRescalingIntegrationTorchOnly:
             budget_constraint_form="equality", bounds_lb=1e-8
         )
         allocator = GroupACVAllocationOptimizer(est, problem_config=config)
-        result = allocator.optimize(
-            target_cost=target_cost, round_nsamples=False
-        )
+        result = allocator.optimize(target_cost=target_cost, round_nsamples=False)
 
         assert result.success
         assert result.actual_cost == pytest.approx(target_cost, rel=1e-4)
@@ -3538,7 +3527,8 @@ class TestVariableRescalingIntegrationTorchOnly:
         est = self._create_estimator(3, cost_ratio=cost_ratio)
         target_cost = 10.0 * cost_ratio
         config = AllocationProblemConfig(
-            variable_scaling="full", bounds_lb=1e-8,
+            variable_scaling="full",
+            bounds_lb=1e-8,
         )
         allocator = GroupACVAllocationOptimizer(est, problem_config=config)
         result = allocator.optimize(target_cost=target_cost)
