@@ -823,6 +823,12 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         result[npts:] = 0.0
         return result
 
+    def interior_mass_weights(self) -> Array:
+        """One on the depth rows, zero on the velocity rows: only the depth
+        evolves; the velocity equations are algebraic. Shape: (nstates,)"""
+        bkd, npts = self._bkd, self.npts()
+        return bkd.concatenate([bkd.ones((npts,)), bkd.zeros((2 * npts,))])
+
     # -- the interior operator (CollocationInteriorOperatorProtocol)
 
     def interior_residual(self, state: Array, time: float) -> Array:

@@ -10,6 +10,7 @@ cube, pressure on n - 2 interior Chebyshev-Gauss nodes:
   is the constant pressure (one zero singular value); replacing one
   continuity row with the pressure's mean makes the system nonsingular,
   and its solution is the pair;
+- the mass weights: one on the velocity rows, zero on the continuity rows;
 - the refusals.
 """
 
@@ -118,6 +119,14 @@ def _exact_pair(bkd: Backend[Array], meshes: _Pair[Array]) -> Tuple[Array, Array
     px, py = pressure.points()[0], pressure.points()[1]
     state = bkd.concatenate([y**2, x**2, px * py])
     return state, bkd.stack([y - 2.0, x - 2.0])
+
+
+def test_mass_weights(bkd: Backend[Array]) -> None:
+    """One on the velocity rows, zero on the algebraic continuity rows."""
+    physics = _physics(bkd, _meshes(bkd, 2, 5), 1.0)
+    nvelocity = 2 * 25
+    expected = bkd.concatenate([bkd.ones((nvelocity,)), bkd.zeros((9,))])
+    bkd.assert_allclose(physics.interior_mass_weights(), expected)
 
 
 def test_residual_vanishes_on_a_polynomial_pair(bkd: Backend[Array]) -> None:

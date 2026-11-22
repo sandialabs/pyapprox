@@ -192,11 +192,20 @@ class TestDirichletRows:
         ).is_time_invariant()
 
     def test_no_rates_and_independent_of_parameters(self, bkd: Backend[Array]) -> None:
+        """Time-dependent data declare no rate."""
         rows = DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, True))
         assert rows.rates() is None
         bundle = rows.parameter_derivatives()
         assert bundle.values is STATED_ZERO
         assert bundle.values_curvature is STATED_ZERO
+
+    def test_zero_rates_for_time_invariant_data(self, bkd: Backend[Array]) -> None:
+        """Time-invariant data have the zero rate, a column of the state's
+        size."""
+        rows = DirichletRows(bkd, StateLayout.uniform(_NPTS, 1), _all_sides(bkd, False))
+        rates = rows.rates()
+        assert rates is not None
+        bkd.assert_allclose(rates(0.5), bkd.zeros((_NPTS, 1)))
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         """No parts, a component or index out of range, raw array data, and
@@ -535,11 +544,12 @@ class TestParameterizedDirichletRows:
         bkd.assert_allclose(_dense(term, bkd), expected, rtol=1e-14, atol=1e-15)
 
     def test_declared_fields(self, bkd: Backend[Array]) -> None:
-        """Rates' derivatives are unavailable (no rate is supplied); the
-        curvature is absent when a part's map has no second derivative."""
+        """The rate's derivatives are stated zero (mapped data are
+        time-invariant); the curvature is absent when a part's map has no
+        second derivative."""
         data = [_mapped(bkd, side) for side in _MAPPED_SIDES]
         bundle = _with_mapped_sides(bkd, data, False).parameter_derivatives()
-        assert bundle.rates is None and bundle.rates_curvature is None
+        assert bundle.rates is STATED_ZERO and bundle.rates_curvature is STATED_ZERO
         assert callable(bundle.values_curvature)
         first_order = [_mapped(bkd, 0), _mapped(bkd, 2, False)]
         assert (

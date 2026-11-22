@@ -251,6 +251,13 @@ class AbstractPhysics(ABC, Generic[Array]):
         """
         return vec
 
+    def interior_mass_weights(self) -> Array:
+        r"""The nodal weights :math:`m` of :math:`\mathrm{diag}(m)\, \dot u =
+        f(u, t)`: one on every row, each state evolving. A physics with a
+        weighted time derivative (density, capacity) or with algebraic rows
+        (weight zero) overrides it. Shape: (nstates,)"""
+        return self._bkd.ones((self.nstates(),))
+
 
 class AbstractScalarPhysics(AbstractPhysics[Array]):
     """Abstract base class for scalar (single component) PDE physics."""

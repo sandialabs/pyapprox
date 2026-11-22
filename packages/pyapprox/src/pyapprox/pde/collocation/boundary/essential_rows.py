@@ -28,7 +28,9 @@ from typing import (
 
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives
 from pyapprox.ode.residual_derivatives import (
+    STATED_ZERO,
     DerivativeOperator,
+    StatedZero,
     backend_spaces,
     backend_state_space,
 )
@@ -323,7 +325,8 @@ class DirichletRows(Generic[Array]):
     Parameter derivatives are stated zero when no part depends on the
     parameters. Otherwise :math:`\partial g/\partial p` is supplied, the
     curvature only when every parameterized part supplies it, and the
-    rate's derivatives are not available (no rate is supplied).
+    rate's derivatives are stated zero for time-invariant data and not
+    available otherwise (no part declares its rate).
 
     Parameters
     ----------
@@ -487,27 +490,38 @@ class DirichletRows(Generic[Array]):
         return bkd.reshape(column, (self._nstates, 1))
 
     def rates(self) -> Optional[Callable[[float], Array]]:
-        r"""None: :math:`\dot g` is not supplied. A pin at every block, or
-        at the step end of a stiffly accurate method, needs none."""
+        r""":math:`\dot g = 0` when every part's data are time-invariant;
+        otherwise None, as no part declares its rate. A pin at every
+        block, or at the step end of a stiffly accurate method, needs
+        none."""
+        if self.is_time_invariant():
+            return self._zero_rates
         return None
+
+    def _zero_rates(self, time: float) -> Array:
+        r""":math:`\dot g = 0`. Shape: (nstates, 1)"""
+        return self._bkd.zeros((self._nstates, 1))
 
     def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
         """Stated zero when no part depends on the parameters; otherwise
-        the values' Jacobian, their curvature when every parameterized part
-        supplies one, and no rate derivatives."""
+        the values' Jacobian and their curvature when every parameterized
+        part supplies one. The rate's derivatives are stated zero for
+        time-invariant data (the rate is zero at every parameter) and not
+        available otherwise."""
         if not self._parameterized:
             return PinnedRowsParamDerivatives.independent()
         curvature_available = all(
             data.param_derivatives().curvature is not None
             for _, data in self._parameterized
         )
+        rates: Optional[StatedZero] = STATED_ZERO if self.is_time_invariant() else None
         return PinnedRowsParamDerivatives(
             values=_PlacedDataJacobian(self),
-            rates=None,
+            rates=rates,
             values_curvature=(
                 _SummedDataCurvature(self) if curvature_available else None
             ),
-            rates_curvature=None,
+            rates_curvature=rates,
         )
 
     def _require_params(self) -> SpaceDescriptor:

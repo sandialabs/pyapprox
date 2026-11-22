@@ -166,6 +166,15 @@ class StokesPhysics(Generic[Array]):
         """Where each velocity component and the pressure sit in the state."""
         return StateLayout([self._nvelocity] * self._ndim + [self._npressure])
 
+    def interior_mass_weights(self) -> Array:
+        r"""The nodal weights :math:`m` of :math:`\mathrm{diag}(m)\,
+        \dot{(u, p)} = r`: one on the velocity rows, zero on the continuity
+        rows, which are algebraic. Shape: (nstates,)"""
+        bkd = self._bkd
+        return bkd.concatenate(
+            [bkd.ones((self._ndim * self._nvelocity,)), bkd.zeros((self._npressure,))]
+        )
+
     def viscosity_function(self) -> NodalCoefficientProtocol[Array]:
         """:math:`\\mu` at the velocity nodes."""
         return self._mu
