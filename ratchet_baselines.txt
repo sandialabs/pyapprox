@@ -10,7 +10,7 @@ moved:pyapprox.surrogates.affine.univariate=208
 moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
 superseded:pyapprox.pde.manufactured=31
-superseded:pyapprox.pde.galerkin.manufactured=15
+superseded:pyapprox.pde.galerkin.manufactured=14
 # Calls to superseded backend methods (pyapprox._superseded_ratchet).
 superseded-method:any_bool=24
 superseded-method:all_bool=211
