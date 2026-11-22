@@ -83,11 +83,19 @@ installing a downstream package pulls in the ones above it.
 ### From PyPI (recommended)
 
 ```bash
-pip install pyapprox                        # core library
+pip install pyapprox                        # core library, NumPy backend, no torch
+pip install "pyapprox[torch]"               # plus the PyTorch backend
 pip install pyapprox-benchmarks             # optional: benchmark functions
-pip install pyapprox-tutorials              # optional: tutorial helpers
+pip install pyapprox-tutorials              # optional: tutorial helpers (installs torch)
 pip install "pyapprox[runtime-extras]"      # core plus all runtime extras
 ```
+
+PyTorch is optional. The core install runs everything on the NumPy
+backend; the `torch` extra adds `TorchBkd` (automatic differentiation,
+GPU/MPS, `torch.compile` kernels) and the features built on it, such as
+the variational and flow-matching torch fitters and the torch Adam
+optimizer. Using one of those without torch raises an `ImportError`
+that names the extra.
 
 Upgrading from 1.x? Version 2.0 is a breaking release — see the
 [migration guide](docs/migrations/v1-to-v2.md) and the
@@ -103,7 +111,7 @@ make install-dev
 
 This installs all three packages in editable mode with full dev tooling
 via the `[dev]` extra (tests, docs, linters, plus the runtime extras
-`fem`, `umbridge`, `numba`, `parallel`, `cvxpy`).
+`torch`, `fem`, `umbridge`, `numba`, `parallel`, `cvxpy`).
 
 ### Latest development version from GitHub (no clone)
 
@@ -117,6 +125,7 @@ pip install \
 ### Runtime extras
 
 ```bash
+pip install -e "packages/pyapprox[torch]"           # PyTorch backend (TorchBkd)
 pip install -e "packages/pyapprox[fem]"             # Finite element (scikit-fem)
 pip install -e "packages/pyapprox[umbridge]"        # UMBridge model interface
 pip install -e "packages/pyapprox[numba]"           # Numba JIT acceleration

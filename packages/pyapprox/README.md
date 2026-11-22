@@ -37,12 +37,15 @@ PyTorch autograd computation graphs for automatic differentiation.
 ## Installation
 
 ```bash
-pip install pyapprox                    # core library
+pip install pyapprox                    # core library, NumPy backend, no torch
+pip install "pyapprox[torch]"           # plus the PyTorch backend
 pip install "pyapprox[runtime-extras]"  # plus all runtime extras
 ```
 
-Individual extras are also available: `fem` (scikit-fem), `umbridge`,
-`numba`, `parallel`, and `cvxpy`.
+PyTorch is optional: without the `torch` extra everything runs on the
+NumPy backend, and torch-only features raise an `ImportError` naming the
+extra. Individual extras are also available: `torch`, `fem` (scikit-fem),
+`umbridge`, `numba`, `parallel`, and `cvxpy`.
 
 ## Quick start
 

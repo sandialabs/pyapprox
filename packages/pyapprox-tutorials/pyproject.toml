@@ -14,7 +14,9 @@ authors = [
 ]
 
 dependencies = [
-    "pyapprox",
+    # The tutorials and their figures run on TorchBkd (autograd allocation,
+    # deep GPs), so they need pyapprox's optional torch extra.
+    "pyapprox[torch]",
     "pyapprox-benchmarks",
 ]
 
