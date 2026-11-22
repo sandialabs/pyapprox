@@ -13,6 +13,11 @@ superseded:pyapprox.pde.manufactured=32
 superseded:pyapprox.pde.galerkin.manufactured=16
 # Calls to superseded backend methods (pyapprox._superseded_ratchet).
 superseded-method:any_bool=24
-superseded-method:all_bool=215
+superseded-method:all_bool=211
 superseded-method:any_array=3
 superseded-method:all_array=3
+# Test modules importing an optional library at module level without
+# skipping first (pyapprox._optional_import_ratchet).
+optional-test-import:torch=6
+optional-test-import:jax=0
+optional-test-import:numba=0
