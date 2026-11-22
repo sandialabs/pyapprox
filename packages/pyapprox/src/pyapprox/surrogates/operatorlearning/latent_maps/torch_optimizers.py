@@ -39,7 +39,12 @@ from typing import (
     runtime_checkable,
 )
 
-import torch
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 class TorchAdamOptions(TypedDict, total=False):
@@ -84,9 +89,7 @@ class TorchOptimizerSpecProtocol(Protocol):
     here.
     """
 
-    def build(
-        self, parameters: Iterable[torch.nn.Parameter]
-    ) -> torch.optim.Optimizer:
+    def build(self, parameters: Iterable[torch.nn.Parameter]) -> torch.optim.Optimizer:
         """Return an optimizer over ``parameters``."""
         ...
 
@@ -149,9 +152,7 @@ class TorchOptimizerSpec:
         self._needs_full_sample = needs_full_sample
         self._kwargs: Dict[str, Any] = kwargs
 
-    def build(
-        self, parameters: Iterable[torch.nn.Parameter]
-    ) -> torch.optim.Optimizer:
+    def build(self, parameters: Iterable[torch.nn.Parameter]) -> torch.optim.Optimizer:
         """Return the configured optimizer over ``parameters``."""
         return self._optimizer_cls(list(parameters), **self._kwargs)
 
@@ -292,9 +293,7 @@ def torch_adam_then_lbfgs(
     """
     return ChainedTorchOptimizer(
         [
-            torch_adam(
-                learning_rate=learning_rate, nsteps=nepochs, **options
-            ),
+            torch_adam(learning_rate=learning_rate, nsteps=nepochs, **options),
             torch_lbfgs(nsteps=npolish_iterations),
         ]
     )

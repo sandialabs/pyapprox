@@ -12,7 +12,6 @@ from typing import (
 )
 
 import numpy as np
-import torch
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
@@ -22,6 +21,12 @@ from pyapprox.util.backends.validation import (
     check_to_bool_shape,
 )
 from pyapprox.util.openmp import use_torch_openmp
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", "TorchBkd", "torch")) from err
 
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs

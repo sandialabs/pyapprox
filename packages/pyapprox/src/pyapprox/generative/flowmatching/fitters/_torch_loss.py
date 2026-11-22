@@ -1,6 +1,11 @@
 """Shared torch loss for flow matching fitters."""
 
-import torch
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 def weighted_mse(

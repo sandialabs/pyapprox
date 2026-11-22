@@ -12,7 +12,12 @@ to avoid suboptimal torch.compile handling of Optional types.
 
 import math
 
-import torch
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 def logpdf_matrix_torch(

@@ -7,7 +7,13 @@ All samplers produce torch tensors for direct use in the training loop.
 from typing import Protocol, Tuple
 
 import numpy as np
-import torch
+
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 class SourceSamplerProtocol(Protocol):
@@ -71,9 +77,7 @@ class GaussianSourceSampler:
         torch.Tensor
             Shape ``(d, n)``.
         """
-        return torch.as_tensor(
-            self._rng.randn(self._d, n), dtype=self._dtype
-        )
+        return torch.as_tensor(self._rng.randn(self._d, n), dtype=self._dtype)
 
 
 class WeightedEmpiricalSampler:

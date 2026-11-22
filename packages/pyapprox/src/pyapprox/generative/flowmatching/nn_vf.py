@@ -2,12 +2,16 @@
 
 from typing import Generic
 
-import torch
-import torch.nn as nn
-
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 class MLPVelocityField(nn.Module, Generic[Array]):
@@ -51,15 +55,12 @@ class MLPVelocityField(nn.Module, Generic[Array]):
         self._nqoi = nqoi
         self._bkd = bkd
         self._is_torch = isinstance(bkd, TorchBkd)
-        self._torch_dtype = (
-            bkd.default_dtype() if self._is_torch else torch.float64
-        )
+        self._torch_dtype = bkd.default_dtype() if self._is_torch else torch.float64
 
         act_map = {"silu": nn.SiLU, "relu": nn.ReLU, "tanh": nn.Tanh}
         if activation not in act_map:
             raise ValueError(
-                f"Unknown activation {activation!r}. "
-                f"Choose from {list(act_map.keys())}"
+                f"Unknown activation {activation!r}. Choose from {list(act_map.keys())}"
             )
         act_cls = act_map[activation]
 
@@ -85,9 +86,7 @@ class MLPVelocityField(nn.Module, Generic[Array]):
     def _to_tensor(self, arr: Array) -> torch.Tensor:
         if isinstance(arr, torch.Tensor):
             return arr
-        return torch.as_tensor(
-            self._bkd.to_numpy(arr), dtype=self._torch_dtype
-        )
+        return torch.as_tensor(self._bkd.to_numpy(arr), dtype=self._torch_dtype)
 
     def _from_tensor(self, t: torch.Tensor) -> Array:
         if self._is_torch:
@@ -148,9 +147,7 @@ class MLPVelocityField(nn.Module, Generic[Array]):
         result = self.forward_torch(x)
         return self._from_tensor(result)
 
-    def jacobian_batch_torch(
-        self, vf_input: torch.Tensor
-    ) -> torch.Tensor:
+    def jacobian_batch_torch(self, vf_input: torch.Tensor) -> torch.Tensor:
         """Jacobian on torch tensors (no conversion).
 
         Parameters
@@ -169,9 +166,7 @@ class MLPVelocityField(nn.Module, Generic[Array]):
         # runtime check instead of an unchecked annotation.
         jac = torch.func.vmap(torch.func.jacrev(fn))(x_t)
         if not isinstance(jac, torch.Tensor):
-            raise TypeError(
-                f"expected torch.Tensor jacobian, got {type(jac).__name__}"
-            )
+            raise TypeError(f"expected torch.Tensor jacobian, got {type(jac).__name__}")
         return jac
 
     def jacobian_batch(self, vf_input: Array) -> Array:

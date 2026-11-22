@@ -35,14 +35,25 @@ def _library(root: Path) -> None:
         f"{src}/guarded.py",
         "try:\n    import torch\nexcept ImportError:\n    pass\n",
     )
+    _write(
+        root,
+        f"{src}/reraised.py",
+        "try:\n    import torch\nexcept ImportError as err:\n"
+        "    raise ImportError('pip install pkg[torch]') from err\n",
+    )
     _write(root, f"{src}/fast.py", "from numba import njit\n")
 
 
 def test_bound_modules_follow_module_level_imports(tmp_path: Path) -> None:
     _library(tmp_path)
     imports = _library_imports(tmp_path)
-    # Imports in functions and try blocks do not bind a module.
-    assert bound_modules("torch", imports) == {"pkg.direct", "pkg.through"}
+    # Imports in functions and in try blocks that recover do not bind a
+    # module; a try that re-raises does.
+    assert bound_modules("torch", imports) == {
+        "pkg.direct",
+        "pkg.through",
+        "pkg.reraised",
+    }
     assert bound_modules("numba", imports) == {"pkg.fast"}
     assert bound_modules("jax", imports) == frozenset()
 

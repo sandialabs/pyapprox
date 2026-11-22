@@ -40,7 +40,6 @@ import copy
 from typing import Generic, List, Optional, Tuple, Union, cast
 
 import numpy as np
-import torch
 
 from pyapprox.surrogates.operatorlearning.fitters import (
     IterativeOperatorFitResult,
@@ -59,6 +58,12 @@ from pyapprox.surrogates.operatorlearning.protocols import (
 from pyapprox.surrogates.operatorlearning.surrogate import OperatorSurrogate
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 def _weighted_squared_error(
@@ -149,9 +154,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
                 f"severed and the fit would change nothing silently."
             )
         if batch_size is not None and batch_size < 1:
-            raise ValueError(
-                f"batch_size must be positive, got {batch_size}"
-            )
+            raise ValueError(f"batch_size must be positive, got {batch_size}")
         if optimizer is None:
             optimizer = torch_adam_then_lbfgs()
         if isinstance(optimizer, ChainedTorchOptimizer):
@@ -224,8 +227,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         """
         require_coefficient_error_is_field_error(
             self._output_encoder,
-            f"{type(self).__name__} minimizes a coefficient residual, "
-            f"which",
+            f"{type(self).__name__} minimizes a coefficient residual, which",
             self._allow_proxy,
         )
         if not isinstance(latent_map, torch.nn.Module):
@@ -245,8 +247,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
             )
         if weights is not None and weights.shape != (nsamples,):
             raise ValueError(
-                f"weights has wrong shape {weights.shape}, expected "
-                f"({nsamples},)"
+                f"weights has wrong shape {weights.shape}, expected ({nsamples},)"
             )
 
         if self._seed is not None:
@@ -271,9 +272,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         torch_map = cast(LatentMapProtocol[torch.Tensor], fitted)
         tensor_in = torch.as_tensor(coefs_in)
         tensor_out = torch.as_tensor(coefs_out)
-        tensor_weights = (
-            None if weights is None else torch.as_tensor(weights)
-        )
+        tensor_weights = None if weights is None else torch.as_tensor(weights)
         records = [
             self._run_stage(
                 stage,
@@ -328,18 +327,12 @@ class TorchGradientLatentMapFitter(Generic[Array]):
                 batch_in, batch_out = coefs_in, coefs_out
                 batch_weights = weights
             else:
-                index = np.random.permutation(nsamples)[
-                    : self._batch_size
-                ]
+                index = np.random.permutation(nsamples)[: self._batch_size]
                 batch_in = coefs_in[:, index]
                 batch_out = coefs_out[:, index]
-                batch_weights = (
-                    None if weights is None else weights[index]
-                )
+                batch_weights = None if weights is None else weights[index]
             predicted = torch.as_tensor(fitted(batch_in))
-            loss = _weighted_squared_error(
-                predicted, batch_out, batch_weights
-            )
+            loss = _weighted_squared_error(predicted, batch_out, batch_weights)
             loss.backward()  # type: ignore[no-untyped-call]
             return loss
 
@@ -380,9 +373,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         honestly rather than as a spurious success.
         """
         budget = stage.nsteps()
-        state = optimizer.state.get(
-            optimizer.param_groups[0]["params"][0], {}
-        )
+        state = optimizer.state.get(optimizer.param_groups[0]["params"][0], {})
         taken = state.get("n_iter")
         if taken is None:
             return budget, budget

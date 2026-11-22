@@ -8,7 +8,6 @@ import copy
 from typing import Optional
 
 import numpy as np
-import torch
 
 from pyapprox.generative.flowmatching.fitters._torch_loss import (
     weighted_mse,
@@ -27,6 +26,12 @@ from pyapprox.generative.flowmatching.samplers import (
 )
 from pyapprox.generative.flowmatching.time_weight import UniformWeight
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 class TorchSGDFitter:
@@ -96,9 +101,7 @@ class TorchSGDFitter:
         """
         path_bkd = path.bkd()
         if not isinstance(path_bkd, TorchBkd):
-            raise TypeError(
-                f"path must use TorchBkd, got {type(path_bkd).__name__}"
-            )
+            raise TypeError(f"path must use TorchBkd, got {type(path_bkd).__name__}")
 
         if self._seed is not None:
             np.random.seed(self._seed)
@@ -139,10 +142,7 @@ class TorchSGDFitter:
 
             last_loss = loss.item()
             if self._verbose > 0 and (step + 1) % self._verbose == 0:
-                print(
-                    f"Step {step + 1}/{self._n_steps}: "
-                    f"loss={last_loss:.6e}"
-                )
+                print(f"Step {step + 1}/{self._n_steps}: loss={last_loss:.6e}")
 
         return FlowMatchingFitResult(
             surrogate=fitted_vf,

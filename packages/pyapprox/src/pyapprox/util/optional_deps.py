@@ -7,7 +7,8 @@ with helpful error messages when they are not installed.
 import importlib
 import importlib.util
 import warnings
-from typing import Any, Optional
+from types import ModuleType
+from typing import Optional
 
 _package_cache: dict[str, bool] = {}
 
@@ -60,11 +61,56 @@ def package_available(name: str) -> bool:
         return False
 
 
+def missing_dependency_message(
+    name: str,
+    feature_name: Optional[str] = None,
+    extra_name: Optional[str] = None,
+) -> str:
+    """The error message for a missing optional dependency.
+
+    A module that imports an optional library at module level raises it
+    from the failed import, so the import keeps its static types::
+
+        try:
+            import torch
+        except ImportError as err:
+            raise ImportError(
+                missing_dependency_message("torch", "TorchBkd", "torch")
+            ) from err
+
+    Parameters
+    ----------
+    name : str
+        Name of the missing package.
+
+    feature_name : str, optional
+        Name of the feature that requires it. If None, uses the package name.
+
+    extra_name : str, optional
+        Name of the pip extra that installs it. If None, uses the package
+        name.
+
+    Returns
+    -------
+    str
+        The message, naming the feature and the install command.
+    """
+    if extra_name is None:
+        extra_name = name
+    if feature_name is None:
+        feature_name = name
+    return (
+        f"{feature_name} requires the optional dependency '{name}'. "
+        f"Install it with: pip install pyapprox[{extra_name}] "
+        f"or pip install {name}"
+    )
+
+
 def import_optional_dependency(
     name: str,
     feature_name: Optional[str] = None,
     extra_name: Optional[str] = None,
-) -> Any:
+) -> ModuleType:
     """Import an optional dependency, raising a helpful error if not installed.
 
     Parameters
@@ -98,16 +144,9 @@ def import_optional_dependency(
     ...     extra_name="cvxpy"
     ... )
     """
-    if extra_name is None:
-        extra_name = name
-    if feature_name is None:
-        feature_name = name
-
     try:
         return importlib.import_module(name)
-    except (ModuleNotFoundError, ImportError) as err:
+    except ImportError as err:
         raise ImportError(
-            f"{feature_name} requires the optional dependency '{name}'. "
-            f"Install it with: pip install pyapprox[{extra_name}] "
-            f"or pip install {name}"
+            missing_dependency_message(name, feature_name, extra_name)
         ) from err

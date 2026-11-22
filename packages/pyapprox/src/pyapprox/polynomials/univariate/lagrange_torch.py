@@ -6,7 +6,12 @@ can trace and optimize the computation graph without graph breaks.
 
 from typing import Any
 
-import torch
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 def lagrange_eval_torch(

@@ -14,8 +14,8 @@ before importing it, with ``pytest.importorskip("<lib>")`` or
 library modules under ``packages/*/src`` that import one at load time,
 transitively. :func:`unguarded_test_modules` lists the test modules whose
 module-level imports reach it before such a skip. Imports inside
-functions, ``try`` blocks and ``if`` blocks (``TYPE_CHECKING``) do not
-count. Each count is recorded in ``ratchet_baselines.txt`` as
+functions, ``if`` blocks (``TYPE_CHECKING``) and ``try`` blocks that
+recover do not count; a ``try`` whose handlers re-raise does. Each count is recorded in ``ratchet_baselines.txt`` as
 ``optional-test-import:<lib>=<count>``; under that file's rule a commit
 that lowers a count lowers its baseline in the same commit, and no commit
 raises one.
@@ -35,11 +35,24 @@ OPTIONAL = ("torch", "jax", "numba")
 BASELINE_KEY = "optional-test-import:"
 
 
+def _reraises(node: ast.Try) -> bool:
+    """Whether every handler of ``node`` ends by raising, so the import in
+    its body still fails the module when the library is missing."""
+    return bool(node.handlers) and all(
+        isinstance(handler.body[-1], ast.Raise) for handler in node.handlers
+    )
+
+
 def _module_imports(nodes: Iterable[ast.stmt]) -> list[str]:
-    """Dotted names imported by the import statements among ``nodes``."""
+    """Dotted names imported by the import statements among ``nodes``,
+    including those in a ``try`` whose handlers re-raise (the
+    :func:`~pyapprox.util.optional_deps.missing_dependency_message`
+    guard)."""
     names: list[str] = []
     for node in nodes:
-        if isinstance(node, ast.Import):
+        if isinstance(node, ast.Try) and _reraises(node):
+            names += _module_imports(node.body)
+        elif isinstance(node, ast.Import):
             names += [alias.name for alias in node.names]
         elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
             names.append(node.module)

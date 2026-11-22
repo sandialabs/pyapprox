@@ -24,11 +24,15 @@ from __future__ import annotations
 
 from typing import Generic, List
 
-import torch
-import torch.nn as nn
-
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 class MLPLatentMap(nn.Module, Generic[Array]):
@@ -95,8 +99,7 @@ class MLPLatentMap(nn.Module, Generic[Array]):
         activations = {"silu": nn.SiLU, "relu": nn.ReLU, "tanh": nn.Tanh}
         if activation not in activations:
             raise ValueError(
-                f"unknown activation {activation!r}, choose from "
-                f"{sorted(activations)}"
+                f"unknown activation {activation!r}, choose from {sorted(activations)}"
             )
         self._ncodes_in = ncodes_in
         self._ncodes_out = ncodes_out
@@ -136,8 +139,7 @@ class MLPLatentMap(nn.Module, Generic[Array]):
         """
         if coefs.ndim != 2:
             raise ValueError(
-                f"coefs must be 2D (nvars, nsamples), got shape "
-                f"{coefs.shape}"
+                f"coefs must be 2D (nvars, nsamples), got shape {coefs.shape}"
             )
         if int(coefs.shape[0]) != self._ncodes_in:
             raise ValueError(
@@ -147,8 +149,7 @@ class MLPLatentMap(nn.Module, Generic[Array]):
         out = self._net(coefs.T)
         if not isinstance(out, torch.Tensor):
             raise TypeError(
-                f"expected a tensor from the network, got "
-                f"{type(out).__name__}"
+                f"expected a tensor from the network, got {type(out).__name__}"
             )
         # asarray, not array: the former passes a tensor through
         # untouched so the graph survives, the latter detaches and would

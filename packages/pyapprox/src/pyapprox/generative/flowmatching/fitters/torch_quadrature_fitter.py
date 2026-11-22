@@ -8,7 +8,6 @@ import copy
 from typing import Optional
 
 import numpy as np
-import torch
 
 from pyapprox.generative.flowmatching.fitters._torch_loss import (
     weighted_mse,
@@ -26,11 +25,15 @@ from pyapprox.generative.flowmatching.quad_data import (
 )
 from pyapprox.generative.flowmatching.time_weight import UniformWeight
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
-def _to_tensor(
-    arr: np.ndarray | torch.Tensor, dtype: torch.dtype
-) -> torch.Tensor:
+def _to_tensor(arr: np.ndarray | torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
     """Convert array to torch tensor with specified dtype."""
     if isinstance(arr, torch.Tensor):
         return arr.to(dtype)
@@ -101,9 +104,7 @@ class TorchQuadratureFitter:
         """
         path_bkd = path.bkd()
         if not isinstance(path_bkd, TorchBkd):
-            raise TypeError(
-                f"path must use TorchBkd, got {type(path_bkd).__name__}"
-            )
+            raise TypeError(f"path must use TorchBkd, got {type(path_bkd).__name__}")
 
         if self._seed is not None:
             np.random.seed(self._seed)
@@ -150,10 +151,7 @@ class TorchQuadratureFitter:
             optimizer.step()
 
             if self._verbose > 0 and (epoch + 1) % self._verbose == 0:
-                print(
-                    f"Epoch {epoch + 1}/{self._n_epochs}: "
-                    f"loss={loss.item():.6e}"
-                )
+                print(f"Epoch {epoch + 1}/{self._n_epochs}: loss={loss.item():.6e}")
 
         with torch.no_grad():
             v_final = fitted_vf.forward_torch(vf_input)

@@ -12,7 +12,12 @@ and torch operations directly. Preserves autograd graph throughout.
 
 from typing import List
 
-import torch
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 def _gather_indices(

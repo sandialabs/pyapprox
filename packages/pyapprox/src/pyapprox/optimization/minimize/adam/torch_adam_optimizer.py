@@ -6,8 +6,6 @@ per iteration. No numpy conversions, no redundant forward pass.
 
 from typing import Optional, Protocol, Self, cast, runtime_checkable
 
-import torch
-
 from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
@@ -21,6 +19,12 @@ from pyapprox.optimization.minimize.result_protocol import (
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.optional_deps import missing_dependency_message
+
+try:
+    import torch
+except ImportError as err:
+    raise ImportError(missing_dependency_message("torch", __name__, "torch")) from err
 
 
 @runtime_checkable
@@ -78,9 +82,7 @@ class TorchAdamOptimizer:
         self,
         objective: ObjectiveProtocol[torch.Tensor],
         bounds: torch.Tensor,
-        constraints: Optional[
-            SequenceOfConstraintProtocols[torch.Tensor]
-        ] = None,
+        constraints: Optional[SequenceOfConstraintProtocols[torch.Tensor]] = None,
     ) -> Self:
         if constraints is not None:
             raise NotImplementedError(
@@ -137,9 +139,7 @@ class TorchAdamOptimizer:
         lb = self._bounds[:, 0]
         ub = self._bounds[:, 1]
 
-        param = torch.nn.Parameter(
-            init_guess[:, 0].detach().clone()
-        )
+        param = torch.nn.Parameter(init_guess[:, 0].detach().clone())
         n = param.shape[0]
 
         opt = torch.optim.Adam(
