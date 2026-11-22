@@ -31,6 +31,7 @@ at t = 0, and moving).
 from dataclasses import dataclass
 from typing import Callable, Generic, List, Optional
 
+import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.observation_terms import StateEntries
@@ -42,10 +43,12 @@ from pyapprox.ode.pinned_rows import (
     AtStepEnd,
     BlockPinProtocol,
     PinnedRowsConstraint,
+    PinnedRowsParamDerivatives,
     PinnedRowsProtocol,
     PinPlacementProtocol,
     RowPinning,
     RowPinningProtocol,
+    SplitRowPinning,
     StepBlock,
 )
 from pyapprox.ode.residual_derivatives import backend_spaces
@@ -57,6 +60,7 @@ from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.backend_dense import BackendRowSet
 from pyapprox.util.linalg.operators import BlockVector
 from tests._helpers.ode.runge_kutta_cases import (
     LV_PARAM,
@@ -219,6 +223,132 @@ class TestAnotherPlacement:
         )
         assert min_gradient_fd_error(bkd, problem) < 1e-7
         assert min_hvp_fd_error(bkd, problem) < 1e-7
+
+
+class _PinnedBoth(Generic[Array]):
+    r"""The prey pinned to :math:`10 + \sin 3t` and the predator to
+    :math:`5 + \sin 2t / 2`, both equal to the start at t = 0."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+        states, _ = backend_spaces(bkd, 2, 4)
+        self._rows: BackendRowSet[Array] = BackendRowSet(
+            states.descriptor(), [0, 1], bkd
+        )
+
+    def rows(self) -> BackendRowSet[Array]:
+        return self._rows
+
+    def predator(self, time: float) -> float:
+        return 5.0 + 0.5 * float(np.sin(2.0 * time))
+
+    def values(self, time: float) -> Array:
+        prey = 10.0 + float(np.sin(3.0 * time))
+        return self._bkd.asarray([[prey], [self.predator(time)]])
+
+    def rates(self) -> Optional[Callable[[float], Array]]:
+        return self._rate
+
+    def _rate(self, time: float) -> Array:
+        return self._bkd.asarray(
+            [[3.0 * float(np.cos(3.0 * time))], [float(np.cos(2.0 * time))]]
+        )
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        return PinnedRowsParamDerivatives.independent()
+
+
+def _split(bkd: Backend[Array]) -> SplitRowPinning[Array]:
+    """The prey pinned in every block, the predator at the step's end."""
+    states, _ = backend_spaces(bkd, 2, 4)
+    descriptor = states.descriptor()
+    return SplitRowPinning[Array](
+        _PinnedBoth(bkd),
+        BackendRowSet(descriptor, [0], bkd),
+        BackendRowSet(descriptor, [1], bkd),
+        AtEveryBlock(),
+        AtStepEnd(),
+    )
+
+
+class TestSplitPlacements:
+    """Two parts of a declaration's rows pinned at blocks chosen
+    separately (:class:`SplitRowPinning`), SDIRK3."""
+
+    def test_each_part_is_pinned_where_its_placement_says(
+        self, bkd: Backend[Array]
+    ) -> None:
+        tableau = alexander_sdirk3()
+        both = _PinnedBoth(bkd)
+        prey = PinnedPrey(bkd)
+        store = _Pinned(bkd, tableau, _split(bkd)).store
+        gaps = []
+        for n in range(store.nsteps()):
+            window = store.window(n)
+            blocks = window.unknown.blocks
+            for r, block in enumerate(blocks):
+                time = window.time() + tableau.c[r] * window.deltat()
+                assert abs(bkd.to_float(block[0, 0]) - prey.data(time)) <= 1e-12
+                if r < len(blocks) - 1:
+                    gaps.append(abs(bkd.to_float(block[1, 0]) - both.predator(time)))
+            end = window.time() + window.deltat()
+            assert abs(bkd.to_float(blocks[-1][1, 0]) - both.predator(end)) <= 1e-12
+        # The inner stages solve the predator's equation: not its data.
+        assert max(gaps) > 1e-6
+
+    def test_a_block_pins_the_rows_its_placements_select(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """A pin's residual reads Y_R - g_R on its rows only: the prey in
+        an inner block, both at the step's end, none when no placement
+        selects the block."""
+        states, _ = backend_spaces(bkd, 2, 4)
+        zero = states.zeros(1)
+        g = _PinnedBoth(bkd).values(0.3)
+        split = _split(bkd)
+        assert isinstance(split, RowPinningProtocol)
+        inner, last = split.at(StepBlock(0, 3)), split.at(StepBlock(2, 3))
+        assert inner is not None and last is not None
+        mask = bkd.asarray([[1.0], [0.0]])
+        bkd.assert_allclose(inner.residual(zero, zero, 0.3, states), -mask * g)
+        bkd.assert_allclose(last.residual(zero, zero, 0.3, states), -g)
+        neither = SplitRowPinning[Array](
+            _PinnedBoth(bkd),
+            BackendRowSet(states.descriptor(), [0], bkd),
+            BackendRowSet(states.descriptor(), [1], bkd),
+            AtStepEnd(),
+            AtStepEnd(),
+        )
+        assert neither.at(StepBlock(0, 3)) is None
+
+    def test_derivatives(self, bkd: Backend[Array]) -> None:
+        problem: TrajectoryProblem[Array] = TrajectoryProblem(
+            bkd, alexander_sdirk3(), row_pinning=_split(bkd)
+        )
+        assert min_gradient_fd_error(bkd, problem) < 1e-7
+        assert min_hvp_fd_error(bkd, problem) < 1e-7
+
+    def test_refusals(self, bkd: Backend[Array]) -> None:
+        states, _ = backend_spaces(bkd, 2, 4)
+        one = BackendRowSet(states.descriptor(), [0], bkd)
+        with pytest.raises(TypeError, match="PinnedRowsProtocol"):
+            SplitRowPinning[Array](object(), one, one, AtStepEnd(), AtStepEnd())  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="second_placement"):
+            SplitRowPinning[Array](_PinnedBoth(bkd), one, one, AtStepEnd(), object())  # type: ignore[arg-type]
+        both = BackendRowSet(states.descriptor(), [0, 1], bkd)
+        # Overlapping, though their counts sum to the declaration's; and
+        # covering a row twice.
+        for second in (one, both):
+            with pytest.raises(ValueError, match="each row in one part"):
+                SplitRowPinning[Array](
+                    _PinnedBoth(bkd), one, second, AtStepEnd(), AtStepEnd()
+                )
+        other, _ = backend_spaces(bkd, 3, 4)
+        foreign = BackendRowSet(other.descriptor(), [1], bkd)
+        with pytest.raises(ValueError):
+            SplitRowPinning[Array](
+                _PinnedBoth(bkd), one, foreign, AtStepEnd(), AtStepEnd()
+            )
 
 
 class TestTheContinuousExtension:

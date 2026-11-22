@@ -16,7 +16,9 @@ declaration at different points of a step:
   are solved with the data, so for implicit methods this is a different
   scheme from pinning after the solve. :class:`RowPinning` pins the
   blocks a placement selects: :class:`AtStepEnd` the one producing
-  :math:`y_{n+1}`, :class:`AtEveryBlock` every one. A stepper describes
+  :math:`y_{n+1}`, :class:`AtEveryBlock` every one;
+  :class:`SplitRowPinning` places two parts of the rows separately. A
+  stepper describes
   each block to the rule as a :class:`StepBlock`. A rule that does not
   split into rows and a placement implements :class:`RowPinningProtocol`
   itself; the steppers need no change for it.
@@ -568,6 +570,111 @@ class RowPinning(Generic[V]):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._pin!r}, {self._placement!r})"
+
+
+class _RowsOf(Generic[V]):
+    """A declaration read on a subset of its rows: the same data, whose
+    rows outside the subset are ignored."""
+
+    def __init__(self, declaration: PinnedRowsProtocol[V], rows: RowSetProtocol[V]):
+        self._declaration, self._rows = declaration, rows
+
+    def rows(self) -> RowSetProtocol[V]:
+        return self._rows
+
+    def values(self, time: float) -> V:
+        return self._declaration.values(time)
+
+    def rates(self) -> Optional[Callable[[float], V]]:
+        return self._declaration.rates()
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[V]:
+        return self._declaration.parameter_derivatives()
+
+
+class SplitRowPinning(Generic[V]):
+    """Pins two disjoint parts of a declaration's rows in the blocks each
+    part's own placement selects: in a block both select, the declaration's
+    rows; in a block one selects, that part's rows alone, to the same data.
+
+    A coupled subdomain, say, pins its port rows in every block and its
+    essential rows at the step's end only, as the single-domain step does.
+
+    Parameters
+    ----------
+    declaration : PinnedRowsProtocol
+        The rows, the union of ``first`` and ``second``, and their data.
+        Its rates serve every block: the rows a block leaves are solved
+        with them.
+    first, second : RowSetProtocol
+        The two parts, row sets of the declaration's space.
+    first_placement, second_placement : PinPlacementProtocol
+        Which blocks pin each part.
+
+    Raises
+    ------
+    TypeError
+        If an argument does not satisfy its protocol.
+    ValueError
+        If a part belongs to another space, or the parts do not split the
+        declaration's rows, each row in exactly one.
+    """
+
+    def __init__(
+        self,
+        declaration: PinnedRowsProtocol[V],
+        first: RowSetProtocol[V],
+        second: RowSetProtocol[V],
+        first_placement: PinPlacementProtocol,
+        second_placement: PinPlacementProtocol,
+    ) -> None:
+        if not isinstance(declaration, PinnedRowsProtocol):
+            raise TypeError(
+                "declaration must satisfy PinnedRowsProtocol, got "
+                f"{type(declaration).__name__}"
+            )
+        for name, placement in (
+            ("first_placement", first_placement),
+            ("second_placement", second_placement),
+        ):
+            if not isinstance(placement, PinPlacementProtocol):
+                raise TypeError(
+                    f"{name} must satisfy PinPlacementProtocol, got "
+                    f"{type(placement).__name__}"
+                )
+        union = declaration.rows()
+        for part in (first, second):
+            union.descriptor().require_same(part.descriptor(), "a part of the rows")
+        disjoint = first.difference(second).count() == first.count()
+        inside = all(part.difference(union).count() == 0 for part in (first, second))
+        if not (
+            disjoint and inside and first.count() + second.count() == union.count()
+        ):
+            raise ValueError(
+                f"the parts ({first.count()} and {second.count()} rows) must split "
+                f"the declaration's {union.count()} rows, each row in one part"
+            )
+        self._both = RowPin(declaration)
+        self._first = RowPin(_RowsOf(declaration, first))
+        self._second = RowPin(_RowsOf(declaration, second))
+        self._placements = (first_placement, second_placement)
+
+    def at(self, block: StepBlock) -> Optional[RowPin[V]]:
+        first, second = (placement.pins(block) for placement in self._placements)
+        if first and second:
+            return self._both
+        if first:
+            return self._first
+        if second:
+            return self._second
+        return None
+
+    def __repr__(self) -> str:
+        first, second = self._placements
+        return (
+            f"{self.__class__.__name__}({self._first!r} {first!r}, "
+            f"{self._second!r} {second!r})"
+        )
 
 
 class _ConstraintParam(Generic[V]):

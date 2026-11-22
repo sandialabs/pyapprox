@@ -26,7 +26,12 @@ from pyapprox.implicitfunction.setups import (
 )
 from pyapprox.ode.differentiated_rows import CoupledRows, differentiated_rows
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.pinned_rows import AtEveryBlock, RowPinning
+from pyapprox.ode.pinned_rows import (
+    AtEveryBlock,
+    AtStepEnd,
+    PinPlacementProtocol,
+    SplitRowPinning,
+)
 from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.stepping_methods import RungeKutta, SteppingMethodProtocol
 from pyapprox.ode.trajectory_store import TrajectorySinkProtocol
@@ -133,6 +138,8 @@ def skfem_windowed_response(
     sink: TrajectorySinkProtocol[_Np],
     origin: float = 0.0,
     nsubsteps: int = 1,
+    port_placement: Optional[PinPlacementProtocol] = None,
+    essential_placement: Optional[PinPlacementProtocol] = None,
 ) -> WindowedResponse[_Np, _Np]:
     """An skfem subdomain stepped through time windows, its field DOFs
     ``ports`` pinned to the port trace beside its essential rows, returning
@@ -141,8 +148,9 @@ def skfem_windowed_response(
 
     The pinned rows are treated as :func:`~pyapprox.pde.models.galerkin.
     transient_system.galerkin_transient_system` treats essential rows:
-    differentiated, with the coupling kept in the mass, pinned at each
-    step's end.
+    differentiated, with the coupling kept in the mass, pinned in the
+    blocks each placement selects (:class:`~pyapprox.ode.pinned_rows.
+    SplitRowPinning`), at each step's end by default.
 
     Parameters
     ----------
@@ -165,6 +173,9 @@ def skfem_windowed_response(
         The initial time.
     nsubsteps
         Equal steps per window.
+    port_placement, essential_placement
+        Which blocks of a step pin the port rows and the essential rows;
+        :class:`~pyapprox.ode.pinned_rows.AtStepEnd` when omitted.
 
     Raises
     ------
@@ -173,9 +184,15 @@ def skfem_windowed_response(
         transient.WindowPortRows` and :class:`~pyapprox.pde.coupling.
         transient.WindowedResponse`.
     """
-    unconstrained, rows, port_rows = _window_port_rows(system, ports, (1.0,))
+    unconstrained, rows, port_rows, pinning = _window_port_rows(
+        system,
+        ports,
+        (1.0,),
+        AtStepEnd() if port_placement is None else port_placement,
+        AtStepEnd() if essential_placement is None else essential_placement,
+    )
     solved = differentiated_rows(unconstrained, rows, CoupledRows())
-    stepper = method.stepper(solved, setups, RowPinning(rows))
+    stepper = method.stepper(solved, setups, pinning)
     # Read for its residual and its Jacobian's action only: never solved.
     reaction = method.stepper(unconstrained, RecomputeAlways(ScipySparseLU()))
     return WindowedResponse(
@@ -198,37 +215,45 @@ def skfem_stagewise_response(
     init_state: _Np,
     sink: TrajectorySinkProtocol[_Np],
     origin: float = 0.0,
+    essential_placement: Optional[PinPlacementProtocol] = None,
 ) -> WindowedResponse[_Np, _Np]:
     """An skfem subdomain coupled stage by stage: one step per window,
     the port data one trace per block of ``method``'s step
     (:func:`~pyapprox.pde.coupling.transient.runge_kutta_block_fractions`),
-    every block pinned to its own, the output each block's reaction (see
-    :class:`~pyapprox.pde.coupling.transient.StageReactions`). Subdomains
-    sharing the method then step as the single domain does, at the
-    method's order.
+    every block's port rows pinned to its own, the output each block's
+    reaction (see :class:`~pyapprox.pde.coupling.transient.StageReactions`).
+    Subdomains sharing the method then step as the single domain does, at
+    the method's order.
 
-    The essential rows are pinned in every block too, which is the
-    single-domain step-end pin only for time-invariant essential data, so
-    time-dependent ones are refused. Parameters are as
-    :func:`skfem_windowed_response`.
+    The essential rows are pinned at the step's end by default, as the
+    single-domain step pins them, and solved with their data's rate in the
+    other blocks. Parameters are as :func:`skfem_windowed_response`.
+
+    Parameters
+    ----------
+    essential_placement
+        Which blocks pin the essential rows;
+        :class:`~pyapprox.ode.pinned_rows.AtStepEnd` when omitted.
+        :class:`~pyapprox.ode.pinned_rows.AtEveryBlock` is another scheme,
+        equal to the single-domain step only for time-invariant essential
+        data.
 
     Raises
     ------
     ValueError
-        If there are no port DOFs, the essential data depend on time, or
-        as :func:`~pyapprox.pde.coupling.transient.
-        runge_kutta_block_fractions`.
+        If there are no port DOFs, or as :func:`~pyapprox.pde.coupling.
+        transient.runge_kutta_block_fractions`.
     """
-    if not system.constraint_set().is_time_invariant():
-        raise ValueError(
-            "stage-wise coupling pins the essential rows in every block, which "
-            "matches the single-domain step only for time-invariant essential "
-            "data"
-        )
     fractions = runge_kutta_block_fractions(method.tableau())
-    unconstrained, rows, port_rows = _window_port_rows(system, ports, fractions)
+    unconstrained, rows, port_rows, pinning = _window_port_rows(
+        system,
+        ports,
+        fractions,
+        AtEveryBlock(),
+        AtStepEnd() if essential_placement is None else essential_placement,
+    )
     solved = differentiated_rows(unconstrained, rows, CoupledRows())
-    stepper = method.stepper(solved, setups, RowPinning(rows, AtEveryBlock()))
+    stepper = method.stepper(solved, setups, pinning)
     # Read for its residual and its Jacobian's action only: never solved.
     reaction = method.stepper(unconstrained, RecomputeAlways(ScipySparseLU()))
     bkd = NumpyBkd()
@@ -247,13 +272,17 @@ def _window_port_rows(
     system: GalerkinTransientSystemProtocol[_Np],
     ports: Sequence[int],
     fractions: Sequence[float],
+    port_placement: PinPlacementProtocol,
+    essential_placement: PinPlacementProtocol,
 ) -> tuple[
     MassFormSystem[_Np, _Np, CSRFormat],
     WindowPortRows[_Np, _Np],
     BackendPortRows[_Np],
+    SplitRowPinning[_Np],
 ]:
     """The unconstrained system of ``system``, its essential and port rows
-    with port data at ``fractions`` of a window, and the port rows.
+    with port data at ``fractions`` of a window, the port rows, and the
+    pin rule placing the port and the essential rows.
 
     Raises
     ------
@@ -269,14 +298,22 @@ def _window_port_rows(
     descriptor = states.descriptor()
     dofs = [bkd.to_int(d) for d in system.constraint_set().dofs()]
     port_rows = BackendPortRows(descriptor, list(ports), bkd)
+    essential = EssentialPinnedRows(disc)
     rows = WindowPortRows(
-        EssentialPinnedRows(disc),
+        essential,
         NumpyRowSet(descriptor, dofs + list(ports)),
         port_rows,
         states,
         fractions,
     )
-    return unconstrained, rows, port_rows
+    pinning = SplitRowPinning(
+        rows,
+        NumpyRowSet(descriptor, list(ports)),
+        essential.rows(),
+        port_placement,
+        essential_placement,
+    )
+    return unconstrained, rows, port_rows, pinning
 
 
 def skfem_loaded_response(

@@ -23,13 +23,14 @@ if not package_available("skfem"):
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.npz_trajectory_store import NpzTrajectoryStore
+from pyapprox.ode.pinned_rows import AtEveryBlock, PinPlacementProtocol
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
 from pyapprox.ode.tableau import (
@@ -46,9 +47,11 @@ from pyapprox.ode.trajectory_store import (
     TrajectoryStoreProtocol,
 )
 from pyapprox.pde.boundary.except_dofs import ExceptDofs
+from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     ConstantDiffusion,
+    TimeDependent,
     TimeIndependent,
 )
 from pyapprox.pde.coupling.ports import (
@@ -92,6 +95,7 @@ from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.coupling_skfem import (
     CoupledProblem,
     Np,
+    SystemBuilder,
     TensorQuadMesh,
     Value,
     box_problem,
@@ -118,8 +122,27 @@ def _initial(x: Np) -> Np:
     return np.asarray(1.0 + x[0] + np.sin(np.pi * x[0]) * np.sin(np.pi * x[1]))
 
 
-def _build(
+def _moving(x: Np, time: float) -> Np:
+    return np.full(x.shape[1], 1.0 + np.sin(20.0 * time))
+
+
+def _moving_rate(x: Np, time: float) -> Np:
+    return np.full(x.shape[1], 20.0 * np.cos(20.0 * time))
+
+
+def _build_moving_left(
     mesh: TensorQuadMesh, sides: Sequence[tuple[str, Value]], exempt: set[int]
+) -> Any:
+    """As :func:`_build`, the left side's value :math:`1 + \\sin 20t`
+    with its rate in place of the value given."""
+    return _build(mesh, sides, exempt, moving_left=True)
+
+
+def _build(
+    mesh: TensorQuadMesh,
+    sides: Sequence[tuple[str, Value]],
+    exempt: set[int],
+    moving_left: bool = False,
 ) -> Any:
     bkd = mesh.bkd()
     basis = LagrangeBasis(mesh, degree=1)
@@ -132,9 +155,14 @@ def _build(
     )
     conditions = []
     for side, v in sides:
-        bc = DirichletBC(
-            basis, side, v if isinstance(v, float) else TimeIndependent(v), bkd
+        value: Union[float, TimeIndependent, BoundarySignal] = (
+            v if isinstance(v, float) else TimeIndependent(v)
         )
+        if moving_left and side == "left":
+            value = BoundarySignal(
+                TimeDependent(_moving), [TimeDependent(_moving_rate)]
+            )
+        bc = DirichletBC(basis, side, value, bkd)
         on_side = exempt & {int(d) for d in bc.constrained_dofs()}
         conditions.append(ExceptDofs(bc, sorted(on_side)))
     return compose_galerkin_system(physics, conditions)
@@ -200,10 +228,11 @@ class _Run:
         dt: float,
         store: Optional[Callable[[int], TrajectoryStoreProtocol[Np]]] = None,
         nwindows: int = _NWINDOWS,
+        build: SystemBuilder = _build,
     ) -> None:
         self.nwindows = nwindows
         self.dt = dt
-        self.problem: CoupledProblem = box_problem(ncells, _build, essentials)
+        self.problem: CoupledProblem = box_problem(ncells, build, essentials)
         whole, mesh = self.problem.single_domain_system()
         self.nodes = mesh.nodes()
         system = galerkin_transient_system(skfem_discretization(whole), ScipySparseLU())
@@ -283,18 +312,13 @@ _CASES = [
 ]
 
 
-@pytest.mark.parametrize(
-    "tableau", [crank_nicolson, implicit_midpoint, alexander_sdirk3]
-)
-def test_stagewise_coupling_is_the_single_domain_step(
+def _stagewise(
+    run: _Run,
     tableau: Callable[[], ButcherTableau],
-) -> None:
-    """One trace per block of the step, every block pinned to its own and
-    the reactions balanced block by block: the coupled run is the
-    single-domain run (pinned at the step's end, constant essential data)
-    to 1e-10 at every window, so SDIRK3 keeps its third order. The
-    skeleton holds one component per block."""
-    run = _Run((2, 1), _EDGES, tableau, 0.01)
+    essential_placement: Optional[PinPlacementProtocol] = None,
+) -> tuple[list[list[int]], list[InMemoryTrajectoryStore[Np]], Np]:
+    """``run``'s partition coupled stage by stage: each subdomain's
+    reference rows, its sink, and the interface trajectory's states."""
     problem = run.problem
     nblocks = len(runge_kutta_block_fractions(tableau()))
     space = ComponentSkeletonSpace(problem.scalar, nblocks)
@@ -313,6 +337,7 @@ def test_stagewise_coupling_is_the_single_domain_step(
             RecomputeAlways(ScipySparseLU()),
             run.reference.state(0)[rows],
             sink,
+            essential_placement=essential_placement,
         )
         dofs = subdomain_port_dofs(problem.topo, space, s)
         transfer = MatchingNodalTransfer(BackendPortRows(descriptor, dofs, _BKD))
@@ -331,6 +356,24 @@ def test_stagewise_coupling_is_the_single_domain_step(
     lam0 = np.repeat(run.lam0(), nblocks, axis=0)
     interface: InMemoryTrajectoryStore[Np] = InMemoryTrajectoryStore()
     solver.solve(lam0, run.windows(), interface)
+    states = np.hstack([interface.state(n) for n in range(run.nwindows + 1)])
+    return rows_of, sinks, states
+
+
+@pytest.mark.parametrize(
+    "tableau", [crank_nicolson, implicit_midpoint, alexander_sdirk3]
+)
+def test_stagewise_coupling_is_the_single_domain_step(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """One trace per block of the step, every block pinned to its own and
+    the reactions balanced block by block: the coupled run is the
+    single-domain run (pinned at the step's end, constant essential data)
+    to 1e-10 at every window, so SDIRK3 keeps its third order. The
+    skeleton holds one component per block."""
+    run = _Run((2, 1), _EDGES, tableau, 0.01)
+    nblocks = len(runge_kutta_block_fractions(tableau()))
+    rows_of, sinks, interface = _stagewise(run, tableau)
     for rows, sink in zip(rows_of, sinks):
         for n in range(_NWINDOWS + 1):
             _BKD.assert_allclose(
@@ -339,10 +382,33 @@ def test_stagewise_coupling_is_the_single_domain_step(
     # The last block is at the window's end: the single-domain trace.
     for n in range(1, _NWINDOWS + 1):
         _BKD.assert_allclose(
-            interface.state(n)[nblocks - 1 :: nblocks],
+            interface[nblocks - 1 :: nblocks, n : n + 1],
             run.reference.state(n)[run.at_skeleton],
             atol=1e-10,
         )
+
+
+def test_stagewise_coupling_with_moving_essential_data() -> None:
+    """SDIRK3 stage by stage with u = 1 + sin 20t on the left, its rate
+    supplied: the essential rows pinned at the step's end (the default)
+    and solved with the data's rate in the inner stages, as the
+    single-domain step treats them, so the coupled run equals it to
+    1e-10. Pinned in every block instead (the control), the essential
+    rows hold the data at each stage's time, another scheme: the run
+    differs from the single-domain one by far more than the tolerance."""
+    run = _Run((2, 1), _EDGES, alexander_sdirk3, 0.01, build=_build_moving_left)
+    rows_of, sinks, _ = _stagewise(run, alexander_sdirk3)
+    for rows, sink in zip(rows_of, sinks):
+        for n in range(_NWINDOWS + 1):
+            _BKD.assert_allclose(
+                sink.state(n), run.reference.state(n)[rows], atol=1e-10
+            )
+    rows_of, sinks, _ = _stagewise(run, alexander_sdirk3, AtEveryBlock())
+    gap = max(
+        float(np.abs(sink.state(-1) - run.reference.state(-1)[rows]).max())
+        for rows, sink in zip(rows_of, sinks)
+    )
+    assert gap > 1e-6, f"every-block pin differs by only {gap:.2e}"
 
 
 def test_block_fractions() -> None:

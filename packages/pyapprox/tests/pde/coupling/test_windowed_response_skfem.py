@@ -46,7 +46,6 @@ from pyapprox.pde.boundary.except_dofs import ExceptDofs
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     ConstantDiffusion,
-    TimeDependent,
     TimeIndependent,
 )
 from pyapprox.pde.coupling.responses import TimeWindow
@@ -377,36 +376,6 @@ def test_stagewise_jvp_trace_matches_finite_differences() -> None:
         FunctionWithJVPFromCallable(nqoi=n, nvars=n, fun=fun, jvp=jvp, bkd=_BKD)
     ).check_derivatives(sample, relative=True, central=True)[0]
     assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
-
-
-def _moving(x: Np, time: float) -> Np:
-    return np.full(x.shape[1], 1.0 + time)
-
-
-def test_stagewise_refuses_time_dependent_essential_data() -> None:
-    """Pinned in every block, time-dependent essential data would not be
-    the single-domain step: refused rather than silently different."""
-    mesh = TensorQuadMesh(np.linspace(0.0, 1.0, 3), np.linspace(0.0, 1.0, 3), _BKD)
-    basis = LagrangeBasis(mesh, degree=1)
-    physics = AdvectionDiffusionReaction(
-        basis=basis,
-        diffusivity=ConstantDiffusion(1.0),
-        bkd=_BKD,
-        reaction=CallableReaction(_sink, _sink_derivative),
-        forcing=TimeIndependent(_forcing),
-    )
-    left = DirichletBC(basis, "left", TimeDependent(_moving), _BKD)
-    system = compose_galerkin_system(physics, [left])
-    right = [int(d) for d in mesh.boundary_nodes("right")]
-    with pytest.raises(ValueError, match="time-invariant"):
-        skfem_stagewise_response(
-            system,
-            right,
-            _method(alexander_sdirk3),
-            RecomputeAlways(ScipySparseLU()),
-            np.zeros((mesh.nnodes(), 1)),
-            InMemoryTrajectoryStore(),
-        )
 
 
 def test_invalid_use() -> None:
