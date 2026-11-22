@@ -11,7 +11,6 @@ NumPy does not yet support analytical or autograd derivatives.
 """
 
 import numpy as np
-import pytest
 
 from pyapprox.expdesign.quadrature.gaussian import (
     GaussianQuadratureSampler,
@@ -193,17 +192,6 @@ def _make_cond_low_rank_nd(
         rank,
         bkd,
     )
-
-
-@pytest.fixture()
-def torch_bkd():
-    """Lazy-import TorchBkd fixture for Torch-only tests."""
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    torch.set_default_dtype(torch.float64)
-    return TorchBkd()
 
 
 class TestAmortizedBase:

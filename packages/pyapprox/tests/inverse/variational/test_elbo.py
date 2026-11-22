@@ -6,7 +6,6 @@ distribution (constant parameters = single-problem VI).
 """
 
 import numpy as np
-import pytest
 
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
@@ -140,14 +139,6 @@ class TestELBOTorch:
             weights,
             bkd,
         )
-
-    @pytest.fixture
-    def torch_bkd(self):
-        import torch
-
-        from pyapprox.util.backends.torch import TorchBkd
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
 
     def test_elbo_jacobian_shape(self, torch_bkd) -> None:
         bkd = torch_bkd

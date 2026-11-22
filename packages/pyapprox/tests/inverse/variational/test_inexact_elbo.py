@@ -464,14 +464,6 @@ class TestInexactELBOConjugateRecovery:
 class TestInexactELBOTorch:
     """Torch-specific tests for autograd jacobian."""
 
-    @pytest.fixture
-    def torch_bkd(self):
-        import torch
-
-        from pyapprox.util.backends.torch import TorchBkd
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
     def test_has_jacobian(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = _make_simple_inexact_elbo(bkd)
