@@ -62,6 +62,7 @@ from skfem import Basis, Functional, MeshTri
 from pyapprox.implicitfunction.setups import KeepAll
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole
+from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.expressions.symbols import coordinates, time
@@ -261,6 +262,33 @@ class _VectorField:
         return self._timed
 
 
+def _essential_data(
+    values: Sequence[sp.Expr], scope: ExpressionScopeProtocol
+) -> Union[_Field, _VectorField, BoundarySignal]:
+    """Dirichlet data, one expression per component (one is scalar data).
+
+    Data using ``t`` carries its exact first and second time derivatives:
+    a transient system's pinned rows step with the data's rate, and a
+    second-order one with its second derivative.
+    """
+
+    def supplier(expressions: Sequence[sp.Expr]) -> Union[_Field, _VectorField]:
+        if len(expressions) == 1:
+            return _Field(expressions[0], scope)
+        return _VectorField(expressions, scope)
+
+    data = supplier(values)
+    if not data.is_time_dependent():
+        return data
+    return BoundarySignal(
+        data,
+        [
+            supplier([sp.diff(value, time(), order) for value in values])
+            for order in (1, 2)
+        ],
+    )
+
+
 class _StateLaw:
     """``R(coords, u)``, in the layout of ``u``."""
 
@@ -423,7 +451,7 @@ class _GalerkinCondition:
         return DirichletBC(
             self._basis,
             self._part,
-            _Field(self._data(), self._problem),
+            _essential_data([self._data()], self._problem),
             _BKD,
         )
 
@@ -640,11 +668,7 @@ def vector_boundary_conditions(
                 data[row] if i in essential else zero for i, row in enumerate(rows)
             ]
             # A one-component basis takes scalar values.
-            supplier: Union[_Field, _VectorField] = (
-                _Field(values[0], problem)
-                if len(rows) == 1
-                else _VectorField(values, problem)
-            )
+            supplier = _essential_data(values, problem)
             components = None if len(essential) == len(rows) else essential
             conditions.append(
                 DirichletBC(target, part, supplier, _BKD, components=components)

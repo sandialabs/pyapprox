@@ -24,121 +24,157 @@ compounds with every step, which is why the comparison runs over the
 whole trajectory rather than the final state alone.
 """
 
-from typing import List
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import backward_euler
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolution,
-    create_adr_manufactured_test,
-)
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
-    skfem_ode_residual,
+    skfem_discretization,
 )
-from pyapprox.pde.galerkin.time_integration.transient_model import (
-    GalerkinTransientModel,
+from pyapprox.pde.models.galerkin.transient_system import (
+    GalerkinTransientSystem,
+    galerkin_transient_system,
+    solve_galerkin_transient,
 )
+from pyapprox.pde.models.galerkin.verification import (
+    boundary_conditions,
+    exact_dof_values,
+    field,
+    forcing,
+    vector_field,
+)
+from pyapprox.pde.verification.conditions import Dirichlet
+from pyapprox.pde.verification.domains import Box
+from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import CSRFormat, ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
+
+_Np = NDArray[Any]
+_UNIT = Box([(0.0, 1.0)])
 
 
-def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
-    """Transient ADR whose coefficients come from the manufactured set.
+def _build(
+    bkd: NumpyBkd,
+    diff_str: str,
+    vel_strs: Sequence[str],
+    nx: int = 8,
+    diffusivity_override: Optional[float] = None,
+) -> Tuple["GalerkinTransientSystem[_Np, CSRFormat]", Callable[[float], _Np]]:
+    r"""Transient ADR :math:`\partial_t u = \nabla\cdot(D\nabla u) -
+    v\cdot\nabla u + f` whose coefficients are the strings themselves.
 
     ``diffusivity_override`` replaces ONLY the diffusivity handed to the
     physics, leaving the forcing, boundary data and exact solution as
     generated for ``diff_str``. That mismatch is what
     :meth:`test_frozen_coefficient_would_be_detected` needs.
     """
-    bounds = [0.0, 1.0]
-    functions, _ = create_adr_manufactured_test(
-        bounds=bounds,
-        sol_str="(1-x)*x*(1+T)",
-        diff_str=diff_str,
-        react_str="0*u",
-        vel_strs=vel_strs,
-        bkd=bkd,
-        time_dependent=True,
+    terms: List[TermProtocol] = [
+        TimeDerivative("u"),
+        Divergence("u", [f"-({diff_str})*u_x"]),
+        Source("u", " + ".join(f"({v})*u_x" for v in vel_strs)),
+    ]
+    problem = ManufacturedProblem(
+        {"u": "(1 - x)*x*(1 + t)"},
+        terms,
+        _UNIT,
+        {side: Dirichlet() for side in _UNIT.boundaries()},
     )
-    mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
+    mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
-    ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
     # The coefficients themselves, not constants standing in for them.
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=(
-            functions["diffusion"]
+            field(problem, diff_str)
             if diffusivity_override is None
             else diffusivity_override
         ),
-        velocity=ms.velocity(),
-        forcing=ms.forcing(),
+        velocity=vector_field(problem, vel_strs),
+        forcing=forcing(problem, "u"),
         bkd=bkd,
     )
-    system = compose_galerkin_system(
-        physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+    system = compose_galerkin_system(physics, boundary_conditions(problem, basis, "u"))
+    transient = galerkin_transient_system(skfem_discretization(system), ScipySparseLU())
+
+    def exact_at_time(time: float) -> _Np:
+        return exact_dof_values(problem, basis, ["u"], time=time)
+
+    return transient, exact_at_time
+
+
+def _solve(
+    bkd: NumpyBkd,
+    transient: "GalerkinTransientSystem[_Np, CSRFormat]",
+    init_state: _Np,
+    deltat: float = 0.5,
+    final_time: float = 2.0,
+) -> Tuple[_Np, _Np]:
+    """Backward Euler from ``init_state`` (shape (nstates,)); every state,
+    shape (nstates, ntimes), and the times."""
+    store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+    solve_galerkin_transient(
+        transient,
+        RungeKutta(backward_euler(), Newton(atol=1e-12, rtol=0.0, maxiters=30)),
+        RecomputeAlways(transient.solved.solver),
+        FixedStep(deltat, (0.0, final_time)),
+        bkd.reshape(bkd.asarray(init_state), (-1, 1)),
+        store,
     )
-
-    exact_func = functions["solution"]
-    coords = bkd.to_numpy(basis.dof_coordinates())
-
-    def exact_at_time(time):
-        values = exact_func(coords, time)
-        if hasattr(values, "shape") and values.ndim > 1:
-            return (
-                values[:, 0] if values.shape[1] == 1 else values.flatten()
-            )
-        return values
-
-    return GalerkinTransientModel(skfem_ode_residual(system)), exact_at_time
+    states = bkd.concatenate([store.state(n) for n in range(store.ntimes())], axis=1)
+    return states, bkd.asarray(store.times())
 
 
-def _config(deltat=0.5, final_time=2.0):
-    return TimeIntegrationConfig(
-        method="backward_euler",
-        init_time=0.0,
-        final_time=final_time,
-        deltat=deltat,
-        newton_tol=1e-12,
-        newton_maxiter=30,
-        verbosity=0,
-    )
-
-
-def _trajectory_errors(bkd, model, exact_at_time, config):
+def _trajectory_errors(
+    bkd: NumpyBkd,
+    transient: "GalerkinTransientSystem[_Np, CSRFormat]",
+    exact_at_time: Callable[[float], _Np],
+    deltat: float = 0.5,
+) -> Tuple[List[float], _Np]:
     """Relative L2 error in the solution at every step, not just the last."""
-    solutions, times = model.solve_transient(
-        bkd.asarray(exact_at_time(0.0)), config
-    )
+    solutions, times = _solve(bkd, transient, exact_at_time(0.0), deltat=deltat)
     errors = []
     for step, time in enumerate(times):
         exact = exact_at_time(float(time))
         norm = np.linalg.norm(exact)
         if norm > 1e-12:
             numeric = bkd.to_numpy(solutions[:, step])
-            errors.append(np.linalg.norm(numeric - exact) / norm)
+            errors.append(float(np.linalg.norm(numeric - exact) / norm))
     return errors, times
 
 
-_CASES: List[tuple] = [
+_CASES: List[Tuple[str, str, List[str]]] = [
     # Diffusivity grows with time; velocity fixed.
-    ("time_varying_diffusivity", "4+T", ["0+1e-16*x"]),
+    ("time_varying_diffusivity", "4 + t", ["0 + 1e-16*x"]),
     # Velocity grows with time; diffusivity fixed.
-    ("time_varying_velocity", "4+1e-16*x", ["(1+T)/10"]),
+    ("time_varying_velocity", "4 + 1e-16*x", ["(1 + t)/10"]),
     # Both vary, which is the transient-flow case.
-    ("both_time_varying", "4+T", ["(1+T)/10"]),
+    ("both_time_varying", "4 + t", ["(1 + t)/10"]),
 ]
 
 # Round-off for this problem size, with headroom for conditioning: the
@@ -151,14 +187,12 @@ _EXACT_TOL = 1e-11
 class TestTransientTimeVaryingCoefficients:
     @pytest.mark.parametrize("name,diff_str,vel_strs", _CASES)
     def test_trajectory_is_exact(
-        self, numpy_bkd, name, diff_str, vel_strs
+        self, numpy_bkd: NumpyBkd, name: str, diff_str: str, vel_strs: List[str]
     ) -> None:
         """The solution is reproduced to round-off at every step."""
         bkd = numpy_bkd
-        model, exact_at_time = _build(bkd, diff_str, vel_strs)
-        errors, times = _trajectory_errors(
-            bkd, model, exact_at_time, _config()
-        )
+        transient, exact_at_time = _build(bkd, diff_str, vel_strs)
+        errors, times = _trajectory_errors(bkd, transient, exact_at_time)
 
         worst = max(errors)
         assert worst < _EXACT_TOL, (
@@ -168,7 +202,7 @@ class TestTransientTimeVaryingCoefficients:
 
     @pytest.mark.parametrize("name,diff_str,vel_strs", _CASES)
     def test_exactness_is_independent_of_step_size(
-        self, numpy_bkd, name, diff_str, vel_strs
+        self, numpy_bkd: NumpyBkd, name: str, diff_str: str, vel_strs: List[str]
     ) -> None:
         """Refining the step must not improve the answer.
 
@@ -179,15 +213,13 @@ class TestTransientTimeVaryingCoefficients:
         """
         bkd = numpy_bkd
         for deltat in (0.5, 0.25, 0.125):
-            model, exact_at_time = _build(bkd, diff_str, vel_strs)
-            errors, _ = _trajectory_errors(
-                bkd, model, exact_at_time, _config(deltat=deltat)
-            )
+            transient, exact_at_time = _build(bkd, diff_str, vel_strs)
+            errors, _ = _trajectory_errors(bkd, transient, exact_at_time, deltat=deltat)
             assert max(errors) < _EXACT_TOL, (
                 f"{name}: deltat={deltat} gave {max(errors):.3e}"
             )
 
-    def test_frozen_coefficient_would_be_detected(self, numpy_bkd) -> None:
+    def test_frozen_coefficient_would_be_detected(self, numpy_bkd: NumpyBkd) -> None:
         """The guard on the guard.
 
         The bound above is only meaningful if a coefficient evaluated at
@@ -204,18 +236,17 @@ class TestTransientTimeVaryingCoefficients:
         replaced UNDER a forcing that was not told about the change.
         """
         bkd = numpy_bkd
-        model, exact_at_time = _build(bkd, "4+T", ["0+1e-16*x"])
+        transient, exact_at_time = _build(bkd, "4 + t", ["0 + 1e-16*x"])
 
         # Same manufactured problem, but the physics is handed a
         # diffusivity frozen at its t=0 value (D(0) = 4).
-        frozen_model, _ = _build(
-            bkd, "4+T", ["0+1e-16*x"], diffusivity_override=4.0
+        frozen_transient, _ = _build(
+            bkd, "4 + t", ["0 + 1e-16*x"], diffusivity_override=4.0
         )
 
-        config = _config()
-        init = bkd.asarray(exact_at_time(0.0))
-        varying, times = model.solve_transient(init, config)
-        frozen, _ = frozen_model.solve_transient(init, config)
+        init = exact_at_time(0.0)
+        varying, times = _solve(bkd, transient, init)
+        frozen, _ = _solve(bkd, frozen_transient, init)
 
         separations = []
         for step in range(len(times)):
@@ -223,8 +254,7 @@ class TestTransientTimeVaryingCoefficients:
             norm = np.linalg.norm(reference)
             if norm > 1e-12:
                 separations.append(
-                    np.linalg.norm(reference - bkd.to_numpy(frozen[:, step]))
-                    / norm
+                    np.linalg.norm(reference - bkd.to_numpy(frozen[:, step])) / norm
                 )
         assert max(separations) > 1e-3, (
             "a frozen diffusivity is indistinguishable from a varying one, "
