@@ -25,6 +25,10 @@ from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis, ChebyshevGauss1D
 from pyapprox.pde.collocation.basis.transfer import grid_transfer_matrix
 from pyapprox.pde.collocation.boundary.mean_value_rows import MeanValueRows
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    CauchyStressSourceProtocol,
+    TractionNormalOperator,
+)
 from pyapprox.pde.collocation.mesh import TransformedMesh
 from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform
 from pyapprox.pde.collocation.physics.coefficients import CoefficientInput, NodalField
@@ -207,6 +211,90 @@ def test_mean_row_determines_the_pressure(bkd: Backend[Array]) -> None:
     )
     solution = -bkd.solve(jacobian, residual[:, None])[:, 0]
     bkd.assert_allclose(solution, exact, atol=1e-11)
+
+
+def _traction(
+    bkd: Backend[Array], physics: StokesPhysics[Array], mesh: TransformedMesh[Array]
+) -> List[TractionNormalOperator[Array]]:
+    """Both traction components on the right side, x = 1."""
+    indices, normals = mesh.boundary_indices(1), mesh.boundary_normals(1)
+    return [TractionNormalOperator(bkd, indices, normals, physics, i) for i in range(2)]
+
+
+def test_traction_on_a_polynomial_pair(bkd: Backend[Array]) -> None:
+    """u = (y^2, x^2), p = x y, mu = 3 on x = 1 with n = (1, 0):
+    t = (2 mu ux_x - p, mu (uy_x + ux_y)) = (-y, 6 + 6 y)."""
+    meshes = _meshes(bkd, 2, 5)
+    state, _ = _exact_pair(bkd, meshes)
+    physics = _physics(bkd, meshes, viscosity=3.0)
+    assert isinstance(physics, CauchyStressSourceProtocol)
+    assert not physics.stress_is_time_dependent()
+    y = meshes[0].points()[1][meshes[0].boundary_indices(1)]
+    tx, ty = _traction(bkd, physics, meshes[0])
+    bkd.assert_allclose(tx(state, 0.0), -y, atol=1e-11)
+    bkd.assert_allclose(ty(state, 0.0), 6.0 + 6.0 * y, atol=1e-11)
+
+
+def test_rigid_motion_has_only_the_pressure_traction(bkd: Backend[Array]) -> None:
+    """A translation plus a rotation, u = (1 - y, 2 + x), has no strain:
+    with p = 5 the traction is -5 n."""
+    velocity, pressure = meshes = _meshes(bkd, 2, 5)
+    x, y = velocity.points()[0], velocity.points()[1]
+    state = bkd.concatenate([1.0 - y, 2.0 + x, bkd.full((pressure.npts(),), 5.0)])
+    physics = _physics(bkd, meshes, viscosity=1.0)
+    tx, ty = _traction(bkd, physics, velocity)
+    nboundary = velocity.boundary_indices(1).shape[0]
+    bkd.assert_allclose(tx(state, 0.0), bkd.full((nboundary,), -5.0), atol=1e-11)
+    bkd.assert_allclose(ty(state, 0.0), bkd.zeros((nboundary,)), atol=1e-11)
+
+
+class _Traction(Generic[Array]):
+    """One traction component as a function of the state."""
+
+    def __init__(
+        self,
+        operator: TractionNormalOperator[Array],
+        nstates: int,
+        bkd: Backend[Array],
+    ) -> None:
+        self._operator, self._nstates, self._bkd = operator, nstates, bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return self._nstates
+
+    def nqoi(self) -> int:
+        return self._operator.normals().shape[0]
+
+    def __call__(self, samples: Array) -> Array:
+        return self._operator(samples[:, 0], 0.0)[:, None]
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
+
+    def jacobian(self, sample: Array) -> Array:
+        return self._operator.jacobian(sample[:, 0], 0.0)
+
+
+@pytest.mark.parametrize("component", [0, 1])
+def test_traction_jacobian(bkd: Backend[Array], component: int) -> None:
+    """Viscosity 1 + x y / 2, a random state."""
+    meshes = _meshes(bkd, 2, 5)
+    points = meshes[0].points()
+    physics = _physics(
+        bkd, meshes, viscosity=NodalField(1.0 + points[0] * points[1] / 2.0)
+    )
+    operator = _traction(bkd, physics, meshes[0])[component]
+    checker: DerivativeChecker[Array] = DerivativeChecker(
+        _Traction(operator, physics.nstates(), bkd)
+    )
+    state = bkd.asarray(
+        np.random.default_rng(7).normal(0.0, 1.0, (physics.nstates(), 1))
+    )
+    errors = checker.check_derivatives(state, central=True)
+    assert checker.error_ratio(errors[0]) <= 1e-6
 
 
 def test_refusals(bkd: Backend[Array]) -> None:

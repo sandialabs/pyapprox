@@ -65,7 +65,10 @@ class StokesPhysics(Generic[Array]):
         r_p &= g - T_p \sum_k D_k u_k.
 
     Its constant pressure is undetermined: a closure row fixes it (one
-    continuity row replaced by a mean or point value).
+    continuity row replaced by a mean or point value). It is a
+    :class:`~pyapprox.pde.collocation.boundary.normal_operators.
+    CauchyStressSourceProtocol`, so the traction operator gives a natural
+    side's :math:`\sigma n` from :meth:`stress`.
 
     Parameters
     ----------
@@ -142,6 +145,7 @@ class StokesPhysics(Generic[Array]):
         )
         self._divergence = optional_nodal_coefficient(divergence, npressure, bkd)
         self._D = [velocity_basis.derivative_matrix(1, d) for d in range(ndim)]
+        self._to_velocity = to_velocity
         # The pressure gradient at the velocity nodes, D_i T_u, and the
         # velocity divergence at the pressure nodes, T_p D_k: both
         # state-independent.
@@ -233,6 +237,73 @@ class StokesPhysics(Generic[Array]):
         continuity.append(bkd.zeros((self._npressure, self._npressure)))
         rows.append(bkd.concatenate(continuity, axis=1))
         return bkd.concatenate(rows, axis=0)
+
+    def stress(self, state: Array, time: float) -> List[List[Array]]:
+        r"""The Cauchy stress :math:`\sigma_{ij} = \mu (D_j u_i + D_i u_j)
+        - \delta_{ij} T_u p` at the velocity nodes, whose traction
+        :math:`\sigma n = 2\mu\varepsilon(u) n - p n` a natural side
+        prescribes.
+
+        Returns
+        -------
+        List[List[Array]]
+            ``sigma[i][j]``, each shape (nvelocity,).
+        """
+        self._check_state(state)
+        ndim, n = self._ndim, self._nvelocity
+        mu = self._checked_mu.values(time)
+        velocity = [state[i * n : (i + 1) * n] for i in range(ndim)]
+        pressure = self._to_velocity @ state[ndim * n :]
+        gradients = [[D @ u for D in self._D] for u in velocity]
+        sigma: List[List[Array]] = []
+        for i in range(ndim):
+            row: List[Array] = []
+            for j in range(ndim):
+                entry = mu * (gradients[i][j] + gradients[j][i])
+                if i == j:
+                    entry = entry - pressure
+                row.append(entry)
+            sigma.append(row)
+        return sigma
+
+    def stress_jacobian(self, state: Array, time: float) -> List[List[Array]]:
+        r""":math:`\partial \sigma_{ij}/\partial (u, p)`, independent of the
+        state: :math:`\mu(\delta_{ik} D_j + \delta_{jk} D_i)` for velocity
+        component :math:`k`, :math:`-\delta_{ij} T_u` for the pressure,
+        with :math:`\mu` scaling rows.
+
+        Returns
+        -------
+        List[List[Array]]
+            ``dsigma[i][j]``, each shape (nvelocity, nstates).
+        """
+        self._check_state(state)
+        bkd, ndim, n = self._bkd, self._ndim, self._nvelocity
+        mu = self._checked_mu.values(time)
+        mu_D = [mu[:, None] * D for D in self._D]
+        zero = bkd.zeros((n, n))
+        no_pressure = bkd.zeros((n, self._npressure))
+        result: List[List[Array]] = []
+        for i in range(ndim):
+            row: List[Array] = []
+            for j in range(ndim):
+                blocks = []
+                for k in range(ndim):
+                    block = zero
+                    if i == k:
+                        block = block + mu_D[j]
+                    if j == k:
+                        block = block + mu_D[i]
+                    blocks.append(block)
+                blocks.append(-self._to_velocity if i == j else no_pressure)
+                row.append(bkd.concatenate(blocks, axis=1))
+            result.append(row)
+        return result
+
+    def stress_is_time_dependent(self) -> bool:
+        """Whether the viscosity, which the stress reads, is declared
+        time-dependent."""
+        return not declared_time_invariant(self._mu)
 
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         """Linear in the state: the second derivative is zero."""
