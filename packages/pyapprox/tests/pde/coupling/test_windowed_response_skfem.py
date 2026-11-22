@@ -32,12 +32,14 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
+from pyapprox.ode.pinned_rows import AtEveryBlock
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
 from pyapprox.ode.tableau import (
     ButcherTableau,
     alexander_sdirk3,
     backward_euler,
+    crank_nicolson,
     heun,
     implicit_midpoint,
 )
@@ -50,10 +52,13 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.stacks.galerkin import (
+    skfem_spacetime_response,
     skfem_stagewise_response,
     skfem_windowed_response,
 )
 from pyapprox.pde.coupling.transient import (
+    LagrangeTestFunctions,
+    StartContinuousLagrange,
     WindowedPoint,
     WindowedResponse,
     WindowedResponseProtocol,
@@ -377,6 +382,132 @@ def test_stagewise_jvp_trace_matches_finite_differences() -> None:
         FunctionWithJVPFromCallable(nqoi=n, nvars=n, fun=fun, jvp=jvp, bkd=_BKD)
     ).check_derivatives(sample, relative=True, central=True)[0]
     assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
+
+
+def _spacetime(
+    strip: _Strip,
+    tableau: Callable[[], ButcherTableau],
+    trial: StartContinuousLagrange,
+    test: Any,
+    nsubsteps: int,
+) -> tuple[WindowedResponse[Np, Np], list[int]]:
+    """Subdomain 1's space-time response and its port DOFs."""
+    system, nodes, ports, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    response = skfem_spacetime_response(
+        system,
+        ports,
+        _method(tableau),
+        RecomputeAlways(ScipySparseLU()),
+        strip.reference.state(0)[rows],
+        InMemoryTrajectoryStore(),
+        trial,
+        test,
+        nsubsteps=nsubsteps,
+    )
+    return response, ports
+
+
+@pytest.mark.parametrize("nsubsteps", [1, 3])
+@pytest.mark.parametrize(
+    "tableau", [backward_euler, implicit_midpoint, alexander_sdirk3]
+)
+def test_a_constant_test_function_gives_the_time_discrete_reaction(
+    tableau: Callable[[], ButcherTableau], nsubsteps: int
+) -> None:
+    """Tested against the constant, the stage quadrature of the stage
+    reactions is the summed final-block residual, on the same trial (port
+    rows pinned in every block): to 1e-12 relative, for a stage-only,
+    a final-block and a stiffly accurate method, one step or three."""
+    strip = _Strip()
+    response, _ = _spacetime(
+        strip,
+        tableau,
+        StartContinuousLagrange(),
+        LagrangeTestFunctions((0.5,)),
+        nsubsteps,
+    )
+    system, nodes, ports, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    reference = skfem_windowed_response(
+        system,
+        ports,
+        _method(tableau),
+        RecomputeAlways(ScipySparseLU()),
+        strip.reference.state(0)[rows],
+        InMemoryTrajectoryStore(),
+        nsubsteps=nsubsteps,
+        port_placement=AtEveryBlock(),
+    )
+    window = TimeWindow(0.0, _DT)
+    trace: Np = strip.reference.state(1)[rows][ports]
+    got = response.linearize(trace, _NONE, window).output()
+    want = reference.linearize(trace, _NONE, window).output()
+    assert float(np.abs(want).max()) > 1e-3
+    _BKD.assert_allclose(got, want, rtol=1e-12, atol=1e-14)
+
+
+def test_spacetime_jvp_trace_matches_finite_differences() -> None:
+    """cG(2): a quadratic trace in time, two test functions, SDIRK3 in two
+    substeps; the tangent passes the derivative checker."""
+    strip = _Strip()
+    response, ports = _spacetime(
+        strip,
+        alexander_sdirk3,
+        StartContinuousLagrange((0.5, 1.0)),
+        LagrangeTestFunctions((0.25, 0.75)),
+        2,
+    )
+    n = response.nport()
+    assert n == 2 * len(ports)
+    window = TimeWindow(0.0, _DT)
+
+    def fun(samples: Np) -> Np:
+        return np.hstack(
+            [
+                response.linearize(samples[:, j : j + 1], _NONE, window).output()
+                for j in range(samples.shape[1])
+            ]
+        )
+
+    def jvp(sample: Np, vec: Np) -> Np:
+        tangent = response.linearize(sample, _NONE, window).derivatives().jvp_trace
+        assert tangent is not None
+        return tangent(vec)
+
+    system, nodes, _, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    end: Np = strip.reference.state(1)[rows][ports]
+    errors = DerivativeChecker(
+        FunctionWithJVPFromCallable(nqoi=n, nvars=n, fun=fun, jvp=jvp, bkd=_BKD)
+    ).check_derivatives(np.repeat(end, 2, axis=0), relative=True, central=True)[0]
+    assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
+
+
+def test_spacetime_refusals() -> None:
+    strip = _Strip()
+    for tableau in (heun, crank_nicolson):
+        with pytest.raises(ValueError, match="explicit stage"):
+            _spacetime(
+                strip,
+                tableau,
+                StartContinuousLagrange(),
+                LagrangeTestFunctions((0.5,)),
+                1,
+            )
+    with pytest.raises(ValueError, match="not be square"):
+        _spacetime(
+            strip,
+            alexander_sdirk3,
+            StartContinuousLagrange((0.5, 1.0)),
+            LagrangeTestFunctions((0.5,)),
+            1,
+        )
+    with pytest.raises(TypeError, match="TemporalTestFunctionsProtocol"):
+        _spacetime(strip, alexander_sdirk3, StartContinuousLagrange(), object(), 1)
+    for nodes in [(), (0.5, 0.5), (1.5,)]:
+        with pytest.raises(ValueError, match="distinct fractions"):
+            LagrangeTestFunctions(nodes)
 
 
 def test_invalid_use() -> None:

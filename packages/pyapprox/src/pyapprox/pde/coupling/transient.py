@@ -180,6 +180,52 @@ def _read_changes(
     return read
 
 
+class _LinearizedResiduals(Generic[V, A]):
+    """Each step residual's change of a trial for changes of its step
+    unknowns and stored states: the step Jacobian on the unknown plus the
+    past-state couplings."""
+
+    def __init__(
+        self,
+        stepper: DifferentiableStepperProtocol[V, A],
+        windows: list[StepWindow[V]],
+    ) -> None:
+        self._stepper, self._windows = stepper, windows
+
+    @staticmethod
+    def of(
+        stepper: DifferentiableStepperProtocol[V, A],
+        trial: InMemoryTrajectoryStore[V],
+    ) -> "Optional[_LinearizedResiduals[V, A]]":
+        """For ``trial``; None for a trial of several steps when the
+        stepper gives no past-state derivatives, or for an empty one."""
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        if not windows:
+            return None
+        if stepper.derivatives().off_diag is None and len(windows) > 1:
+            return None
+        return _LinearizedResiduals(stepper, windows)
+
+    def __call__(
+        self, unknowns: Sequence[BlockVector[V]], states: Sequence[V]
+    ) -> list[BlockVector[V]]:
+        stepper = self._stepper
+        off_diag = stepper.derivatives().off_diag
+        space = stepper.residual_space()
+        changes = []
+        for m, window in enumerate(self._windows):
+            block = stepper.diag(window).apply(unknowns[m])
+            for lag, state in _read_changes(window, m, states):
+                # Unreachable without it: a one-step trial reads only the
+                # committed state, which does not change.
+                if off_diag is None:
+                    raise ValueError("no past-state derivative")
+                coupled = off_diag(window, lag).apply(BlockVector((state,)))
+                block = space.axpby(1.0, coupled, 1.0, block, out=block)
+            changes.append(block)
+        return changes
+
+
 def _lagrange(nodes: Sequence[float], s: float) -> list[float]:
     """The Lagrange basis on ``nodes`` at ``s``."""
     weights = []
@@ -504,28 +550,16 @@ class StepResidualReaction(Generic[V, A]):
     def trajectory_tangent(
         self, trial: InMemoryTrajectoryStore[V]
     ) -> Optional[TrajectoryTangent[V, A]]:
-        reaction = self._reaction
-        windows = [trial.window(m) for m in range(trial.nsteps())]
-        off_diag = reaction.derivatives().off_diag
-        if off_diag is None and len(windows) > 1:
+        linearized = _LinearizedResiduals.of(self._reaction, trial)
+        if linearized is None:
             return None
-        space = reaction.residual_space()
+        take = self._ports.take
 
         def change(unknowns: Sequence[BlockVector[V]], states: Sequence[V]) -> A:
-            total: Optional[A] = None
-            for m, window in enumerate(windows):
-                block = reaction.diag(window).apply(unknowns[m])
-                for lag, state in _read_changes(window, m, states):
-                    # Unreachable without it: a one-step trial reads only
-                    # the committed state, which does not change.
-                    if off_diag is None:
-                        raise ValueError("no past-state derivative")
-                    coupled = off_diag(window, lag).apply(BlockVector((state,)))
-                    block = space.axpby(1.0, coupled, 1.0, block, out=block)
-                taken = self._ports.take(block.blocks[-1])
-                total = taken if total is None else total + taken
-            if total is None:
-                raise ValueError("the trial has no steps")
+            blocks = linearized(unknowns, states)
+            total = take(blocks[0].blocks[-1])
+            for block in blocks[1:]:
+                total = total + take(block.blocks[-1])
             return total
 
         return change
@@ -593,6 +627,236 @@ class StageReactions(Generic[V, A]):
             return self._interleaved(jacobian.apply(unknowns[0]))
 
         return change
+
+
+@runtime_checkable
+class TemporalTestFunctionsProtocol(Protocol):
+    r"""The functions :math:`\psi_k` of the fraction :math:`s` of a window
+    a flux is tested against in time, as :class:`StageQuadratureFlux`
+    reads them. Fixed for their life."""
+
+    def count(self) -> int:
+        """The number of test functions."""
+        ...
+
+    def values(self, fraction: float) -> Sequence[float]:
+        r""":math:`(\psi_1, \dots, \psi_n)` at ``fraction``, length
+        :meth:`count`."""
+        ...
+
+
+class LagrangeTestFunctions:
+    r"""The Lagrange basis on ``nodes`` of the polynomials of degree
+    ``len(nodes) - 1`` in the window's fraction. With :math:`q` nodes and
+    a trial space of degree :math:`q` continuous through the start
+    (:class:`StartContinuousLagrange` on :math:`q` fractions) this is
+    continuous Galerkin in time, cG(q): the test functions sum to one, so
+    the flux tested against their sum is the window's whole flux and the
+    coupled solve conserves it exactly per window. Satisfies
+    :class:`TemporalTestFunctionsProtocol`.
+
+    Parameters
+    ----------
+    nodes : sequence of float
+        Distinct fractions in [0, 1]; any choice spans the same
+        polynomials, so the coupled solution does not depend on it.
+
+    Raises
+    ------
+    ValueError
+        If ``nodes`` is empty, has repeats or leaves [0, 1].
+    """
+
+    def __init__(self, nodes: Sequence[float]) -> None:
+        chosen = tuple(float(n) for n in nodes)
+        if (
+            not chosen
+            or len(set(chosen)) != len(chosen)
+            or any(not 0.0 <= n <= 1.0 for n in chosen)
+        ):
+            raise ValueError(f"nodes must be distinct fractions in [0, 1], got {nodes}")
+        self._nodes = chosen
+
+    def count(self) -> int:
+        return len(self._nodes)
+
+    def values(self, fraction: float) -> list[float]:
+        return _lagrange(self._nodes, fraction)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._nodes})"
+
+
+def _lower_inverse(a: Sequence[Sequence[float]]) -> list[list[float]]:
+    """The inverse of the lower-triangular matrix ``a``, by forward
+    substitution."""
+    n = len(a)
+    inverse = [[0.0] * n for _ in range(n)]
+    for col in range(n):
+        for row in range(col, n):
+            known = sum(a[row][k] * inverse[k][col] for k in range(col, row))
+            target = 1.0 if row == col else 0.0
+            inverse[row][col] = (target - known) / a[row][row]
+    return inverse
+
+
+class StageQuadratureFlux(Generic[V, A]):
+    r"""The port flux tested in time, :math:`\int \psi_k(s)\, \rho\, dt`
+    over the window for each test function, by the Runge-Kutta method's
+    own quadrature: :math:`\sum_m \Delta t_m \sum_j b_j\, \psi_k(s_{m,j})
+    \rho_{m,j}`, :math:`s_{m,j}` stage :math:`j` of step :math:`m` as a
+    fraction of the window.
+
+    :math:`\rho_j = M k_j - f(Y_j)` is stage :math:`j`'s reaction on the
+    port rows; the unconstrained stepper's stage block :math:`i` is
+    :math:`M(Y_i - y_n) - \Delta t \sum_j a_{ij} f(Y_j) = \Delta t \sum_j
+    a_{ij} \rho_j`, so :math:`\Delta t\, \rho = A^{-1}` (stage blocks). For
+    :math:`\psi \equiv 1` the sum is the step's final-block residual, the
+    time-discrete reaction, so a constant among the test functions'
+    span gives exact conservation whatever each side's method and step.
+
+    Interleaved as the port data are: entry ``q * p + k`` is port row
+    ``p`` tested against function ``k`` of ``q``. Its count must equal the
+    trial space's number of unknowns for the skeleton residual to be
+    square; the builder checks it. Satisfies
+    :class:`WindowPortOutputProtocol`, returning a
+    :class:`~pyapprox.pde.coupling.responses.Flux`, with its change for
+    any number of steps when the reaction stepper gives its past-state
+    derivatives.
+
+    Parameters
+    ----------
+    reaction : DifferentiableStepperProtocol
+        The trials' Runge-Kutta method over the unconstrained system.
+    tableau : ButcherTableau
+        Its tableau.
+    ports : PortRowsProtocol
+        The port rows of the state space, in port order.
+    test : TemporalTestFunctionsProtocol
+        The test functions.
+    bkd : Backend
+        The backend of the port blocks.
+
+    Raises
+    ------
+    TypeError
+        If ``test`` does not satisfy its protocol.
+    ValueError
+        If the tableau has a trivial first stage or a zero diagonal entry
+        (an explicit stage): its stage reactions are not determined by
+        the stage blocks.
+    """
+
+    def __init__(
+        self,
+        reaction: DifferentiableStepperProtocol[V, A],
+        tableau: ButcherTableau,
+        ports: PortRowsProtocol[V, A],
+        test: TemporalTestFunctionsProtocol,
+        bkd: Backend[A],
+    ) -> None:
+        if not isinstance(test, TemporalTestFunctionsProtocol):
+            raise TypeError(
+                "test must satisfy TemporalTestFunctionsProtocol, got "
+                f"{type(test).__name__}"
+            )
+        nstages = tableau.nstages()
+        if tableau.has_trivial_first_stage() or any(
+            tableau.a[i][i] == 0.0 for i in range(nstages)
+        ):
+            raise ValueError(
+                f"{tableau.name} has an explicit stage: its stage reactions are "
+                "not determined by the stage blocks"
+            )
+        self._reaction, self._ports, self._test, self._bkd = (
+            reaction,
+            ports,
+            test,
+            bkd,
+        )
+        self._c, self._nstages = tableau.c, nstages
+        inverse = _lower_inverse(tableau.a)
+        # (b^T A^{-1}) split by stage j: _weights[j][i] = b_j (A^{-1})_{ji}.
+        self._weights = [
+            [tableau.b[j] * inverse[j][i] for i in range(nstages)]
+            for j in range(nstages)
+        ]
+
+    def returns(self) -> Flux:
+        return Flux()
+
+    def nfunctions(self) -> int:
+        """The number of test functions."""
+        return self._test.count()
+
+    def _block_weights(
+        self, windows: Sequence[StepWindow[V]]
+    ) -> list[list[list[float]]]:
+        """Per step, per test function, per stage block: the weight of
+        the block's port rows in the output."""
+        start = windows[0].time()
+        last = windows[-1]
+        length = last.time() + last.deltat() - start
+        weights = []
+        for window in windows:
+            per_test: list[list[float]] = [
+                [0.0] * self._nstages for _ in range(self._test.count())
+            ]
+            for j in range(self._nstages):
+                fraction = (window.time() + self._c[j] * window.deltat() - start) / (
+                    length
+                )
+                for k, psi in enumerate(self._test.values(fraction)):
+                    for i in range(self._nstages):
+                        per_test[k][i] += psi * self._weights[j][i]
+            weights.append(per_test)
+        return weights
+
+    def _tested(
+        self,
+        windows: Sequence[StepWindow[V]],
+        residuals: Sequence[BlockVector[V]],
+    ) -> A:
+        bkd, take = self._bkd, self._ports.take
+        tested = []
+        weights = self._block_weights(windows)
+        for k in range(self._test.count()):
+            total: Optional[A] = None
+            for per_test, residual in zip(weights, residuals):
+                for i, weight in enumerate(per_test[k]):
+                    if weight != 0.0:
+                        term = weight * take(residual.blocks[i])
+                        total = term if total is None else total + term
+            if total is None:
+                raise ValueError("the trial has no steps")
+            tested.append(total)
+        stacked = bkd.stack(tested, axis=1)
+        nport, ntests, ncols = stacked.shape
+        return bkd.reshape(stacked, (nport * ntests, ncols))
+
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
+        """Raises ValueError if ``trial`` has no steps."""
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        if not windows:
+            raise ValueError("the trial has no steps")
+        residual = self._reaction.step_residual
+        return self._tested(windows, [residual(window) for window in windows])
+
+    def trajectory_tangent(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryTangent[V, A]]:
+        linearized = _LinearizedResiduals.of(self._reaction, trial)
+        if linearized is None:
+            return None
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+
+        def change(unknowns: Sequence[BlockVector[V]], states: Sequence[V]) -> A:
+            return self._tested(windows, linearized(unknowns, states))
+
+        return change
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(test={self._test!r})"
 
 
 class _TraceTangent(Generic[V, A]):

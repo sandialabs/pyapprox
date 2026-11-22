@@ -47,9 +47,11 @@ from pyapprox.pde.coupling.pinned_response import (
 from pyapprox.pde.coupling.ports import BackendPortRows, PortMapProtocol
 from pyapprox.pde.coupling.responses import Flux, PortQuantity, Trace
 from pyapprox.pde.coupling.transient import (
+    StageQuadratureFlux,
     StageReactions,
     StartContinuousLagrange,
     StepResidualReaction,
+    TemporalTestFunctionsProtocol,
     TemporalTrialSpaceProtocol,
     WindowedResponse,
     WindowPortRows,
@@ -267,6 +269,85 @@ def skfem_stagewise_response(
         origin,
         sink,
         bkd,
+    )
+
+
+def skfem_spacetime_response(
+    system: GalerkinTransientSystemProtocol[_Np],
+    ports: Sequence[int],
+    method: RungeKutta[_Np, _Np],
+    setups: MassShiftStrategy[_Np, _Np, CSRFormat],
+    init_state: _Np,
+    sink: TrajectorySinkProtocol[_Np],
+    trial: TemporalTrialSpaceProtocol,
+    test: TemporalTestFunctionsProtocol,
+    origin: float = 0.0,
+    nsubsteps: int = 1,
+    port_placement: Optional[PinPlacementProtocol] = None,
+    essential_placement: Optional[PinPlacementProtocol] = None,
+) -> WindowedResponse[_Np, _Np]:
+    """An skfem subdomain coupled through a space in time per window: the
+    port rows pinned to the port data's function of time in ``trial``,
+    ``method`` stepping ``nsubsteps`` equal steps inside the window, the
+    output the port flux tested against ``test`` by the method's stage
+    quadrature (:class:`~pyapprox.pde.coupling.transient.
+    StageQuadratureFlux`). Subdomains may differ in method and step.
+
+    Parameters are as :func:`skfem_windowed_response`, and:
+
+    Parameters
+    ----------
+    trial
+        The port data's space in time.
+    test
+        The test functions; as many as ``trial`` has unknowns.
+    port_placement
+        Which blocks pin the port rows;
+        :class:`~pyapprox.ode.pinned_rows.AtEveryBlock` when omitted, so
+        every stage reads the port data at its own time.
+    essential_placement
+        Which blocks pin the essential rows;
+        :class:`~pyapprox.ode.pinned_rows.AtStepEnd` when omitted.
+
+    Raises
+    ------
+    TypeError
+        As :class:`~pyapprox.pde.coupling.transient.WindowPortRows` and
+        :class:`~pyapprox.pde.coupling.transient.StageQuadratureFlux`.
+    ValueError
+        If there are no port DOFs, ``test`` and ``trial`` differ in count,
+        or as :class:`~pyapprox.pde.coupling.transient.
+        StageQuadratureFlux` and :class:`~pyapprox.pde.coupling.transient.
+        WindowedResponse`.
+    """
+    unconstrained, rows, port_rows, pinning = _window_port_rows(
+        system,
+        ports,
+        trial,
+        AtEveryBlock() if port_placement is None else port_placement,
+        AtStepEnd() if essential_placement is None else essential_placement,
+    )
+    # Read for its residual and its Jacobian's action only: never solved.
+    reaction = method.stepper(unconstrained, RecomputeAlways(ScipySparseLU()))
+    bkd = NumpyBkd()
+    flux = StageQuadratureFlux(reaction, method.tableau(), port_rows, test, bkd)
+    if flux.nfunctions() != rows.trial().nunknowns():
+        raise ValueError(
+            f"{flux.nfunctions()} test functions for {rows.trial().nunknowns()} "
+            "unknown traces per port row: the skeleton residual would not be "
+            "square"
+        )
+    solved = differentiated_rows(unconstrained, rows, CoupledRows())
+    stepper = method.stepper(solved, setups, pinning)
+    return WindowedResponse(
+        stepper,
+        rows,
+        flux,
+        init_state,
+        origin,
+        sink,
+        bkd,
+        nsubsteps,
     )
 
 
