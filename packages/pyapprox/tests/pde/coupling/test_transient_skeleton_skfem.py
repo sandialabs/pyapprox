@@ -20,17 +20,23 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
+import os
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from pathlib import Path
+from typing import Any, Callable, Optional, Sequence
 
 import numpy as np
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.accumulating_sink import MultiSink
+from pyapprox.ode.npz_trajectory_store import NpzTrajectoryStore
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
 from pyapprox.ode.tableau import ButcherTableau, backward_euler, forward_euler
-from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_store import (
+    InMemoryTrajectoryStore,
+    TrajectoryStoreProtocol,
+)
 from pyapprox.pde.boundary.except_dofs import ExceptDofs
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
@@ -175,6 +181,7 @@ class _Run:
         essentials: Sequence[tuple[str, Value]],
         tableau: Callable[[], ButcherTableau],
         dt: float,
+        store: Optional[Callable[[int], TrajectoryStoreProtocol[Np]]] = None,
     ) -> None:
         self.dt = dt
         self.problem: CoupledProblem = box_problem(ncells, _build, essentials)
@@ -195,14 +202,16 @@ class _Run:
             [node_at(self.nodes, skel[:, d]) for d in range(skel.shape[1])]
         )
         self.rows: list[list[int]] = []
-        self.sinks: list[InMemoryTrajectoryStore[Np]] = []
+        self.sinks: list[TrajectoryStoreProtocol[Np]] = []
         self.recorded: list[_Accepted] = []
         descriptor = self.problem.space.descriptor()
         self.subdomains: list[CoupledSubdomain[Np, Np]] = []
         for s in range(self.problem.topo.nsubdomains()):
             sub, nodes, ports, dofs = self.problem.port_system(s)
             rows = [node_at(self.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
-            sink: InMemoryTrajectoryStore[Np] = InMemoryTrajectoryStore()
+            sink: TrajectoryStoreProtocol[Np] = (
+                InMemoryTrajectoryStore() if store is None else store(s)
+            )
             response = skfem_windowed_response(
                 sub,
                 ports,
@@ -287,6 +296,41 @@ def test_windows_reproduce_the_single_domain_run(
             balance = sd.transfer.gather_add(output, balance)
         assert largest > 1e3 * 1e-10
         _BKD.assert_allclose(balance, np.zeros_like(balance), atol=1e-10)
+
+
+def test_each_subdomain_writes_its_own_files(tmp_path: Path) -> None:
+    """Each subdomain and the interface keep their trajectories in their
+    own directories, as the ranks of a distributed run would; the files
+    hold the in-memory run."""
+
+    def files(s: int) -> NpzTrajectoryStore[Np]:
+        return NpzTrajectoryStore(str(tmp_path / f"subdomain_{s}"), _BKD)
+
+    on_disk = _Run((4, 1), _EDGES, backward_euler, 0.01, files)
+    interface: NpzTrajectoryStore[Np] = NpzTrajectoryStore(
+        str(tmp_path / "interface"), _BKD
+    )
+    on_disk.solver().solve(on_disk.lam0(), on_disk.windows(), interface)
+    in_memory = _Run((4, 1), _EDGES, backward_euler, 0.01)
+    kept: InMemoryTrajectoryStore[Np] = InMemoryTrajectoryStore()
+    in_memory.solver().solve(in_memory.lam0(), in_memory.windows(), kept)
+    for n in range(_NWINDOWS + 1):
+        _BKD.assert_allclose(interface.state(n), kept.state(n), atol=0.0)
+    for disk, memory in zip(on_disk.sinks, in_memory.sinks):
+        assert isinstance(disk, NpzTrajectoryStore)
+        assert len(os.listdir(disk.directory())) == _NWINDOWS + 1
+        for step in range(_NWINDOWS):
+            got, want = disk.window(step), memory.window(step)
+            assert got.span == want.span
+            _BKD.assert_allclose(got.unknown.blocks[0], want.unknown.blocks[0])
+            _BKD.assert_allclose(got.past_states[0], want.past_states[0])
+    assert sorted(os.listdir(tmp_path)) == [
+        "interface",
+        "subdomain_0",
+        "subdomain_1",
+        "subdomain_2",
+        "subdomain_3",
+    ]
 
 
 def test_the_interface_trajectory_fans_out() -> None:

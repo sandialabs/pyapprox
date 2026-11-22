@@ -465,7 +465,7 @@ class TrajectoryProblem(Generic[Array]):
         return self._start
 
     def solve(
-        self, param: Array, sink: Optional[FunctionalSink[Array, Array]] = None
+        self, param: Array, sink: Optional[TrajectorySinkProtocol[Array]] = None
     ) -> InMemoryTrajectoryStore[Array]:
         """The trajectory at ``param``, also fed to ``sink`` when given."""
         self._model.set_param(param)
