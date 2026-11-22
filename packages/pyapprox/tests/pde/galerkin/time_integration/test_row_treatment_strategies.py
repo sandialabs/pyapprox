@@ -5,8 +5,8 @@ f = (1 + x)(1 + sin 5t), u(0, t) = 0 and a moving right end
 u(1, t) = 0.5 sin 4t (its rate supplied), from 0.3 sin(pi x), to
 T = 0.1. Three strategies:
 
-- A, today's: the coupled mass with the BC wrapper pinning each step's
-  end inside the solve (the forward model's path);
+- A, today's: the coupled mass with each step's end pinned inside the
+  solve (the transient system's path, ``solve_galerkin_transient``);
 - B: the symmetric mass with the mass-consistent projection, stepped
   without the wrapper;
 - C: the symmetric mass with the essential pin, the control.
@@ -21,6 +21,10 @@ midpoint, and Heun's average over y_n and its predictor
 y_n + dt M^{-1} f(y_n), with y_n the stored start of the step and
 z_{n+1} the step's own unknown (the Newton solution, before any
 projection; the stored state under A, which pins it inside the solve).
+Under A only the step's end is pinned: a stage's essential DOFs
+integrate the data's rate from y_n (the midpoint stage's hold
+g(t_n) + dt/2 g'(t_n + dt/2), Heun's predictor's g(t_n) + dt g'(t_n)),
+its interior rows as above.
 A and B are both exact for every stepper here: A because every stepper
 ends its step with a mass solve for y_{n+1}, Heun included, which the
 wrapper pins; B through the projection. For explicit steppers they are
@@ -46,10 +50,21 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.implicitfunction.setups import KeepStateFree
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.protocols import StateConstraintProtocol
+from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepper_table import create_stepper
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import (
+    ButcherTableau,
+    backward_euler,
+    crank_nicolson,
+    forward_euler,
+    heun,
+    implicit_midpoint,
+)
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
@@ -62,22 +77,34 @@ from pyapprox.pde.galerkin.time_integration.neutralized_rows import (
     SymmetricNeutralizedRows,
 )
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
     skfem_ode_residual,
 )
 from pyapprox.pde.galerkin.time_integration.state_constraints import (
     EssentialPin,
     MassConsistentProjection,
 )
-from pyapprox.pde.galerkin.time_integration.transient_model import (
-    GalerkinTransientModel,
+from pyapprox.pde.models.galerkin.transient_system import (
+    galerkin_transient_system,
+    solve_galerkin_transient,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox.util.rootfinding.nonlinear import Newton
 
 _Np = NDArray[Any]
 _FINAL_TIME = 0.1
 _DELTAT = 0.001
 _Strategy = Literal["A", "B", "C"]
+# Strategy A's tableau for each method name the old-path strategies use.
+_TABLEAUS: Dict[str, Callable[[], ButcherTableau]] = {
+    "backward_euler": backward_euler,
+    "forward_euler": forward_euler,
+    "crank_nicolson": crank_nicolson,
+    "implicit_midpoint": implicit_midpoint,
+    "heun": heun,
+}
 
 
 def _forcing(x: _Np, t: float) -> _Np:
@@ -118,13 +145,46 @@ class _Heat:
         self.mass: _Np = (
             np.asarray(raw.toarray()) if isinstance(raw, spmatrix) else np.asarray(raw)
         )
+        nstates = self.mass.shape[0]
         dofs = np.asarray(self.system.constraint_set().dofs())
-        self.interior = np.setdiff1d(np.arange(self.mass.shape[0]), dofs)
+        self.interior = np.setdiff1d(np.arange(nstates), dofs)
+        self._essential = np.isin(np.arange(nstates), dofs)
+        # M with its essential rows replaced by identity rows.
+        self._pinned_mass: _Np = np.where(
+            self._essential[:, None], np.eye(nstates), self.mass
+        )
         x = np.asarray(basis.dof_coordinates())[0]
         self.init_state: _Np = 0.3 * np.sin(np.pi * x)
 
     def spatial(self, state: _Np, time: float) -> _Np:
         return np.asarray(self.system.spatial_operator().spatial_residual(state, time))
+
+    def rate(self, time: float) -> _Np:
+        """The essential data's rate g'(time), at the essential DOFs."""
+        rate = self.system.constraint_set().values_derivative(1)
+        if rate is None:
+            raise ValueError("the essential data supply no rate")
+        return np.asarray(rate(time))
+
+    def stage(self, content: _Np, start: _Np, increment: _Np) -> _Np:
+        """The state whose interior rows of ``M`` equal those of ``content``
+        and whose essential DOFs are ``start``'s plus ``increment``: a
+        stage the transient system leaves unpinned, which integrates the
+        essential data's rate."""
+        data = np.zeros(self.mass.shape[0])
+        data[self._essential] = start[self._essential] + increment
+        state: _Np = np.linalg.solve(
+            self._pinned_mass, np.where(self._essential, data, content)
+        )
+        return state
+
+
+def _stepping_method(method: str) -> RungeKutta[_Np, Any]:
+    """Strategy A's stepper: an explicit tableau takes no nonlinear solver."""
+    tableau = _TABLEAUS[method]()
+    if tableau.is_explicit():
+        return RungeKutta(tableau)
+    return RungeKutta(tableau, Newton(atol=1e-13, rtol=0.0, maxiters=20))
 
 
 def _solve(
@@ -142,18 +202,20 @@ def _solve_with_unknowns(
     n + 1 for step n): the stored state under A, which pins the unknown
     inside the solve, the unprojected Newton solution otherwise."""
     if strategy == "A":
-        model = GalerkinTransientModel(skfem_ode_residual(heat.system))
-        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
-            method=method,
-            init_time=0.0,
-            final_time=_FINAL_TIME,
-            deltat=deltat,
-            newton_tol=1e-13,
-            newton_maxiter=20,
-            verbosity=0,
+        transient = galerkin_transient_system(
+            skfem_discretization(heat.system), ScipySparseLU()
         )
-        traj, times = model.solve_transient(heat.init_state, config)
-        return traj, times, traj
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            transient,
+            _stepping_method(method),
+            KeepStateFree(transient.solved.solver),
+            FixedStep(deltat, (0.0, _FINAL_TIME)),
+            heat.init_state[:, None],
+            store,
+        )
+        traj = np.concatenate([store.state(n) for n in range(store.ntimes())], axis=1)
+        return traj, np.asarray(store.times()), traj
     adapter = skfem_ode_residual(heat.system, row_treatment=SymmetricNeutralizedRows)
     constraint: StateConstraintProtocol[_Np] = (
         MassConsistentProjection(adapter, 0)
@@ -167,21 +229,44 @@ def _solve_with_unknowns(
     return traj, times, integrator.unprojected_states()
 
 
-def _rule(heat: _Heat, method: str) -> Callable[[_Np, _Np, float, float], _Np]:
+def _rule(
+    heat: _Heat, method: str, rate_stages: bool
+) -> Callable[[_Np, _Np, float, float], _Np]:
     """The method's evaluation rule Phi(y_n, z_{n+1}, t_n, dt): from the
     step's stored start and its own unknown (Heun's predictor rebuilt from
-    y_n with the scheme's own mass and right-hand side)."""
+    y_n with the scheme's own mass and right-hand side). With
+    ``rate_stages`` (strategy A, which pins only the step's end) a
+    stage's essential DOFs integrate the data's rate from y_n, so the
+    midpoint stage and Heun's predictor are rebuilt that way."""
     adapter = skfem_ode_residual(heat.system, row_treatment=SymmetricNeutralizedRows)
 
     def heun(y0: _Np, y1: _Np, t0: float, dt: float) -> _Np:
         predictor = y0 + dt * adapter.mass_matrix().solve(adapter(y0, t0))
         return 0.5 * (heat.spatial(y0, t0) + heat.spatial(predictor, t0 + dt))
 
+    def rate_heun(y0: _Np, y1: _Np, t0: float, dt: float) -> _Np:
+        slope = heat.spatial(y0, t0)
+        predictor = heat.stage(heat.mass @ y0 + dt * slope, y0, dt * heat.rate(t0))
+        return 0.5 * (slope + heat.spatial(predictor, t0 + dt))
+
+    def rate_midpoint(y0: _Np, y1: _Np, t0: float, dt: float) -> _Np:
+        middle = t0 + 0.5 * dt
+        stage = heat.stage(
+            heat.mass @ (0.5 * (y0 + y1)), y0, 0.5 * dt * heat.rate(middle)
+        )
+        return heat.spatial(stage, middle)
+
+    if rate_stages and method == "heun":
+        return rate_heun
+    if rate_stages and method == "implicit_midpoint":
+        return rate_midpoint
+
     rules: Dict[str, Callable[[_Np, _Np, float, float], _Np]] = {
         "backward_euler": lambda y0, y1, t0, dt: heat.spatial(y1, t0 + dt),
         "forward_euler": lambda y0, y1, t0, dt: heat.spatial(y0, t0),
-        "crank_nicolson": lambda y0, y1, t0, dt: 0.5
-        * (heat.spatial(y0, t0) + heat.spatial(y1, t0 + dt)),
+        "crank_nicolson": lambda y0, y1, t0, dt: (
+            0.5 * (heat.spatial(y0, t0) + heat.spatial(y1, t0 + dt))
+        ),
         "implicit_midpoint": lambda y0, y1, t0, dt: heat.spatial(
             0.5 * (y0 + y1), t0 + 0.5 * dt
         ),
@@ -205,7 +290,7 @@ def _interior_residuals(
         heat, strategy, method, _DELTAT if deltat is None else deltat
     )
     points = unknowns if at_unknowns else traj
-    rule = _rule(heat, method)
+    rule = _rule(heat, method, rate_stages=strategy == "A")
     rows = heat.mass[heat.interior]
     worst, gap = 0.0, 0.0
     for n in range(traj.shape[1] - 1):
