@@ -1110,6 +1110,15 @@ class WindowedResponse(Generic[V, A]):
         self._sink.append(self._time, self._state)
         self._started = True
 
+    def _substeps(self, window: TimeWindow) -> GivenSizes:
+        """Equal steps over ``window`` whose times add up to its end
+        exactly, so the sink's last time is the next window's start. Equal
+        sizes added in floating point can miss it (three steps of 0.01/3
+        from 0.02 end at 0.030000000000000002)."""
+        n, start, length = self._nsubsteps, window.start, window.end - window.start
+        times = [start + length * k / n for k in range(n)] + [window.end]
+        return GivenSizes.from_times(times)
+
     def linearize(
         self, port_data: A, params: A, window: TimeWindow
     ) -> WindowedPoint[V, A]:
@@ -1140,11 +1149,8 @@ class WindowedResponse(Generic[V, A]):
                 f"{self._time}"
             )
         self._input.set_window(window, self._state, port_data)
-        size = (window.end - window.start) / self._nsubsteps
         trial: InMemoryTrajectoryStore[V] = InMemoryTrajectoryStore()
-        self._integrator.solve(
-            self._state, GivenSizes(window.start, [size] * self._nsubsteps), trial
-        )
+        self._integrator.solve(self._state, self._substeps(window), trial)
         change = self._output.trajectory_tangent(trial)
         tangent: Optional[TraceJVP[A]] = (
             None

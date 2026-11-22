@@ -32,7 +32,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJVPFromCallable,
 )
-from pyapprox.ode.pinned_rows import AtEveryBlock
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
 from pyapprox.ode.tableau import (
@@ -417,7 +416,8 @@ def test_a_constant_test_function_gives_the_time_discrete_reaction(
 ) -> None:
     """Tested against the constant, the stage quadrature of the stage
     reactions is the summed final-block residual, on the same trial (port
-    rows pinned in every block): to 1e-12 relative, for a stage-only,
+    rows pinned at the step's end, both builders' default): to 1e-12
+    relative, for a stage-only,
     a final-block and a stiffly accurate method, one step or three."""
     strip = _Strip()
     response, _ = _spacetime(
@@ -437,7 +437,6 @@ def test_a_constant_test_function_gives_the_time_discrete_reaction(
         strip.reference.state(0)[rows],
         InMemoryTrajectoryStore(),
         nsubsteps=nsubsteps,
-        port_placement=AtEveryBlock(),
     )
     window = TimeWindow(0.0, _DT)
     trace: Np = strip.reference.state(1)[rows][ports]

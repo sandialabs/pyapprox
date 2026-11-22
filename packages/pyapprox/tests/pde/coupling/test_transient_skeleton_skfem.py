@@ -67,10 +67,13 @@ from pyapprox.pde.coupling.responses import (
 from pyapprox.pde.coupling.skeleton import CoupledSubdomain, DenseSchur
 from pyapprox.pde.coupling.spaces import ComponentSkeletonSpace
 from pyapprox.pde.coupling.stacks.galerkin import (
+    skfem_spacetime_response,
     skfem_stagewise_response,
     skfem_windowed_response,
 )
 from pyapprox.pde.coupling.transient import (
+    LagrangeTestFunctions,
+    StartContinuousLagrange,
     WindowedResponseProtocol,
     runge_kutta_block_fractions,
 )
@@ -448,6 +451,123 @@ def test_temporal_order(tableau: Callable[[], ButcherTableau], rate: float) -> N
         )
     observed = np.log2(errors[-2] / errors[-1])
     assert abs(observed - rate) < 0.15, f"rate {observed:.2f}, errors {errors}"
+
+
+_SPACES: dict[int, tuple[StartContinuousLagrange, LagrangeTestFunctions]] = {
+    1: (StartContinuousLagrange(), LagrangeTestFunctions((0.5,))),
+    2: (StartContinuousLagrange((0.5, 1.0)), LagrangeTestFunctions((0.25, 0.75))),
+}
+
+
+@dataclass
+class _Spacetime:
+    """A space-time coupled run: each subdomain's reference rows, sink,
+    recorded outputs and transfer."""
+
+    rows: list[list[int]]
+    sinks: list[InMemoryTrajectoryStore[Np]]
+    recorded: list[_Accepted]
+    subdomains: list[CoupledSubdomain[Np, Np]]
+
+
+def _spacetime(
+    run: _Run,
+    q: int,
+    nsubsteps: Sequence[int],
+    port_placement: Optional[PinPlacementProtocol] = None,
+) -> _Spacetime:
+    """``run``'s two slabs coupled through cG(``q``) in time, SDIRK3 on
+    each with ``nsubsteps[s]`` steps per window."""
+    problem = run.problem
+    space = ComponentSkeletonSpace(problem.scalar, q)
+    descriptor = space.descriptor()
+    trial, test = _SPACES[q]
+    made = _Spacetime([], [], [], [])
+    for s in range(problem.topo.nsubdomains()):
+        sub, nodes, ports, _ = problem.port_system(s)
+        rows = [node_at(run.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+        sink: InMemoryTrajectoryStore[Np] = InMemoryTrajectoryStore()
+        response = skfem_spacetime_response(
+            sub,
+            ports,
+            _method(alexander_sdirk3),
+            RecomputeAlways(ScipySparseLU()),
+            run.reference.state(0)[rows],
+            sink,
+            trial,
+            test,
+            nsubsteps=nsubsteps[s],
+            port_placement=port_placement,
+        )
+        recorded = _Accepted(response, [])
+        dofs = subdomain_port_dofs(problem.topo, space, s)
+        transfer = MatchingNodalTransfer(BackendPortRows(descriptor, dofs, _BKD))
+        made.rows.append(rows)
+        made.sinks.append(sink)
+        made.recorded.append(recorded)
+        made.subdomains.append(CoupledSubdomain(recorded, transfer))
+    lu: RecomputeAlways[Np, DenseFormat[Np]] = RecomputeAlways(BackendDenseLU(_BKD))
+    solver = TransientSkeletonSolver(
+        BackendVectorSpace(descriptor, _BKD),
+        made.subdomains,
+        DenseSchur(_BKD),
+        lu,
+        Newton(atol=1e-11, rtol=1e-11, maxiters=20),
+    )
+    lam0 = np.repeat(run.lam0(), q, axis=0)
+    solver.solve(lam0, run.windows(), InMemoryTrajectoryStore())
+    return made
+
+
+@pytest.mark.parametrize("q", [1, 2])
+def test_spacetime_windows_conserve_the_interface_flux(q: int) -> None:
+    """Two slabs stepping 2 and 3 SDIRK3 steps per window through cG(q):
+    in every window the fluxes tested against the constant (the sum over
+    the test functions) balance on the interface to the Newton
+    tolerance, each alone not small, and each subdomain's sink holds its
+    own steps."""
+    run = _Run((2, 1), _EDGES, alexander_sdirk3, 0.01)
+    made = _spacetime(run, q, (2, 3))
+    assert [sink.nsteps() for sink in made.sinks] == [2 * _NWINDOWS, 3 * _NWINDOWS]
+    nskel = run.problem.space.descriptor().size * q
+    for n in range(_NWINDOWS):
+        balance = np.zeros((nskel, 1))
+        largest = 0.0
+        for sd, recorded in zip(made.subdomains, made.recorded):
+            output = recorded.outputs[n]
+            largest = max(largest, float(np.abs(output).max()))
+            balance = sd.transfer.gather_add(output, balance)
+        assert largest > 1e3 * 1e-10
+        # The constant is the test functions' sum: sum each DOF's q tests.
+        conserved = balance.reshape(-1, q).sum(axis=1)
+        _BKD.assert_allclose(conserved, np.zeros_like(conserved), atol=1e-10)
+
+
+@pytest.mark.parametrize("q, rate", [(1, 2.0), (2, 3.0)])
+def test_spacetime_temporal_order(q: int, rate: float) -> None:
+    """The run above against a fine single-domain SDIRK3 run at T =
+    0.04 (on the same mesh, so the difference is temporal error alone),
+    windows H = 0.01 to 0.0025: cG(1) caps the order at 2, as one trace
+    per window did (2.01); cG(2) lifts it to SDIRK3's own 3 (3.05,
+    errors 2.5e-4 to 1.0e-6), the two sides on different step sizes. The
+    port rows are pinned at the step's end (the default): pinned in every
+    block, cG(2) reaches only 2.16 (stage order reduction)."""
+    final = 0.04
+    fine = _Run((2, 1), _EDGES, alexander_sdirk3, final / 192, nwindows=192)
+    errors = []
+    for nwindows in (4, 8, 16):
+        run = _Run(
+            (2, 1), _EDGES, alexander_sdirk3, final / nwindows, nwindows=nwindows
+        )
+        made = _spacetime(run, q, (2, 3))
+        errors.append(
+            max(
+                float(np.abs(sink.state(-1) - fine.reference.state(-1)[rows]).max())
+                for rows, sink in zip(made.rows, made.sinks)
+            )
+        )
+    observed = np.log2(errors[-2] / errors[-1])
+    assert abs(observed - rate) < 0.2, f"rate {observed:.2f}, errors {errors}"
 
 
 @pytest.mark.parametrize("ncells, essentials, tableau, dt", _CASES)

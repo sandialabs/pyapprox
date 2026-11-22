@@ -303,8 +303,12 @@ def skfem_spacetime_response(
         The test functions; as many as ``trial`` has unknowns.
     port_placement
         Which blocks pin the port rows;
-        :class:`~pyapprox.ode.pinned_rows.AtEveryBlock` when omitted, so
-        every stage reads the port data at its own time.
+        :class:`~pyapprox.ode.pinned_rows.AtStepEnd` when omitted, the
+        inner stages integrating the port rows with the trial's exact
+        rate. Pinned in every block instead, the stages hold the exact
+        trace where the method's stage values are only accurate to its
+        stage order, the order reduction of time-dependent Dirichlet data:
+        cG(2) with SDIRK3 converges at 2.2 rather than 3.
     essential_placement
         Which blocks pin the essential rows;
         :class:`~pyapprox.ode.pinned_rows.AtStepEnd` when omitted.
@@ -324,7 +328,7 @@ def skfem_spacetime_response(
         system,
         ports,
         trial,
-        AtEveryBlock() if port_placement is None else port_placement,
+        AtStepEnd() if port_placement is None else port_placement,
         AtStepEnd() if essential_placement is None else essential_placement,
     )
     # Read for its residual and its Jacobian's action only: never solved.
