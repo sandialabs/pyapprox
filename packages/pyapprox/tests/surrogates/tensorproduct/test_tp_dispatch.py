@@ -1,8 +1,9 @@
 """Tests for tensor product evaluation dispatch.
 
-Verifies that all three dispatch strategies (Numba, torch.compile, vectorized)
-produce results matching the original dense assembly approach, and that
-dispatched implementations survive pickle round-trips.
+Verifies that the vectorized and Numba strategies produce results matching
+the original dense assembly approach, and that dispatched implementations
+survive pickle round-trips. The torch.compile kernel is tested in
+test_tp_dispatch_torch.py.
 """
 
 import pickle
@@ -10,7 +11,6 @@ from typing import List
 
 import numpy as np
 import pytest
-import torch
 
 from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.surrogates.tensorproduct.compute import (
@@ -19,17 +19,12 @@ from pyapprox.surrogates.tensorproduct.compute import (
 from pyapprox.surrogates.tensorproduct.dispatch import (
     get_tp_eval_impl,
 )
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.cartesian import cartesian_product_indices
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("numba"):
     pytest.skip("numba not installed", allow_module_level=True)
 
-from pyapprox.surrogates.affine.univariate import (
-    LagrangeBasis1D,
-    LegendrePolynomial1D,
-)
 from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseLinear,
 )
@@ -40,9 +35,7 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly.dynamic import (
 from pyapprox.surrogates.tensorproduct.compute_numba import (
     tp_eval_numba,
 )
-from pyapprox.surrogates.tensorproduct.compute_torch import (
-    tp_eval_torch,
-)
+from tests._helpers.surrogates.tensorproduct_bases import make_lagrange_bases
 
 
 def _dense_eval(
@@ -59,16 +52,6 @@ def _dense_eval(
     return bkd.dot(values, interp_mat.T)
 
 
-def _make_lagrange_bases(bkd, nvars: int) -> List:
-    """Create separate LagrangeBasis1D instances per dimension."""
-    bases = []
-    for _ in range(nvars):
-        poly = LegendrePolynomial1D(bkd)
-        poly.set_nterms(10)
-        bases.append(LagrangeBasis1D(bkd, poly.gauss_quadrature_rule))
-    return bases
-
-
 def _make_piecewise_bases(bkd, nvars: int) -> List:
     """Create separate DynamicPiecewiseBasis instances per dimension."""
     bases = []
@@ -81,9 +64,7 @@ def _make_piecewise_bases(bkd, nvars: int) -> List:
 class TestTpEvalVectorized:
     """Test tp_eval_vectorized against original dense assembly."""
 
-    def _run_comparison(
-        self, bkd, interp, ntest: int = 100
-    ) -> None:
+    def _run_comparison(self, bkd, interp, ntest: int = 100) -> None:
         """Compare vectorized einsum against dense assembly."""
         nvars = interp.nvars()
         nterms_1d = interp._nterms_1d
@@ -98,21 +79,21 @@ class TestTpEvalVectorized:
         bkd.assert_allclose(result, expected, rtol=1e-10)
 
     def test_lagrange_2d_symmetric(self, bkd) -> None:
-        bases = _make_lagrange_bases(bkd, 2)
+        bases = make_lagrange_bases(bkd, 2)
         interp = TensorProductInterpolant(bkd, bases, [4, 4])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] ** 2 + samples[1:2, :] ** 2)
         self._run_comparison(bkd, interp)
 
     def test_lagrange_2d_asymmetric(self, bkd) -> None:
-        bases = _make_lagrange_bases(bkd, 2)
+        bases = make_lagrange_bases(bkd, 2)
         interp = TensorProductInterpolant(bkd, bases, [3, 5])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] * samples[1:2, :])
         self._run_comparison(bkd, interp)
 
     def test_lagrange_3d(self, bkd) -> None:
-        bases = _make_lagrange_bases(bkd, 3)
+        bases = make_lagrange_bases(bkd, 3)
         interp = TensorProductInterpolant(bkd, bases, [3, 4, 5])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] + samples[1:2, :] + samples[2:3, :])
@@ -122,13 +103,11 @@ class TestTpEvalVectorized:
         bases = _make_piecewise_bases(bkd, 2)
         interp = TensorProductInterpolant(bkd, bases, [10, 12])
         samples = interp.get_samples()
-        interp.set_values(
-            bkd.sin(samples[0:1, :]) + bkd.cos(samples[1:2, :])
-        )
+        interp.set_values(bkd.sin(samples[0:1, :]) + bkd.cos(samples[1:2, :]))
         self._run_comparison(bkd, interp)
 
     def test_multi_qoi(self, bkd) -> None:
-        bases = _make_lagrange_bases(bkd, 2)
+        bases = make_lagrange_bases(bkd, 2)
         interp = TensorProductInterpolant(bkd, bases, [4, 4])
         samples = interp.get_samples()
         q1 = samples[0:1, :] ** 2
@@ -137,7 +116,7 @@ class TestTpEvalVectorized:
         self._run_comparison(bkd, interp)
 
     def test_1d(self, bkd) -> None:
-        bases = _make_lagrange_bases(bkd, 1)
+        bases = make_lagrange_bases(bkd, 1)
         interp = TensorProductInterpolant(bkd, bases, [6])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] ** 3)
@@ -184,117 +163,48 @@ class TestTpEvalNumba:
         numpy_bkd.assert_allclose(numpy_bkd.asarray(result), expected, rtol=1e-10)
 
     def test_2d_symmetric(self, numpy_bkd) -> None:
-        bases = _make_lagrange_bases(numpy_bkd, 2)
+        bases = make_lagrange_bases(numpy_bkd, 2)
         interp = TensorProductInterpolant(numpy_bkd, bases, [4, 4])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] ** 2 + samples[1:2, :] ** 2)
         self._run_numba_comparison(numpy_bkd, interp)
 
     def test_2d_asymmetric(self, numpy_bkd) -> None:
-        bases = _make_lagrange_bases(numpy_bkd, 2)
+        bases = make_lagrange_bases(numpy_bkd, 2)
         interp = TensorProductInterpolant(numpy_bkd, bases, [3, 7])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] * samples[1:2, :])
         self._run_numba_comparison(numpy_bkd, interp)
 
     def test_3d(self, numpy_bkd) -> None:
-        bases = _make_lagrange_bases(numpy_bkd, 3)
+        bases = make_lagrange_bases(numpy_bkd, 3)
         interp = TensorProductInterpolant(numpy_bkd, bases, [3, 4, 5])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] + samples[1:2, :] + samples[2:3, :])
         self._run_numba_comparison(numpy_bkd, interp)
 
     def test_5d(self, numpy_bkd) -> None:
-        bases = _make_lagrange_bases(numpy_bkd, 5)
+        bases = make_lagrange_bases(numpy_bkd, 5)
         interp = TensorProductInterpolant(numpy_bkd, bases, [3, 3, 3, 3, 4])
         samples = interp.get_samples()
         interp.set_values(numpy_bkd.sum(samples, axis=0, keepdims=True))
         self._run_numba_comparison(numpy_bkd, interp)
 
     def test_1d(self, numpy_bkd) -> None:
-        bases = _make_lagrange_bases(numpy_bkd, 1)
+        bases = make_lagrange_bases(numpy_bkd, 1)
         interp = TensorProductInterpolant(numpy_bkd, bases, [8])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] ** 3)
         self._run_numba_comparison(numpy_bkd, interp)
 
     def test_multi_qoi(self, numpy_bkd) -> None:
-        bases = _make_lagrange_bases(numpy_bkd, 2)
+        bases = make_lagrange_bases(numpy_bkd, 2)
         interp = TensorProductInterpolant(numpy_bkd, bases, [4, 5])
         samples = interp.get_samples()
         q1 = samples[0:1, :] ** 2
         q2 = samples[1:2, :] ** 2
         interp.set_values(numpy_bkd.vstack([q1, q2]))
         self._run_numba_comparison(numpy_bkd, interp)
-
-
-class TestTpEvalTorchCompile:
-    """Test torch.compile path matches vectorized (Torch only)."""
-
-    def _get_torch_bkd(self):
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    def _run_torch_comparison(
-        self,
-        torch_bkd,
-        interp,
-        ntest: int = 200,
-    ) -> None:
-        nvars = interp.nvars()
-        nterms_1d = interp._nterms_1d
-
-        np.random.seed(42)
-        test_samples = torch_bkd.asarray(np.random.uniform(-1, 1, (nvars, ntest)))
-        basis_vals_1d = interp._basis_vals_1d(test_samples)
-
-        expected = tp_eval_vectorized(
-            basis_vals_1d, interp._values, nterms_1d, torch_bkd
-        )
-        result = tp_eval_torch(basis_vals_1d, interp._values, nterms_1d)
-        torch_bkd.assert_allclose(result, expected, rtol=1e-10)
-
-    def test_2d_symmetric(self) -> None:
-        torch_bkd = self._get_torch_bkd()
-        bases = _make_lagrange_bases(torch_bkd, 2)
-        interp = TensorProductInterpolant(torch_bkd, bases, [4, 4])
-        samples = interp.get_samples()
-        interp.set_values(samples[0:1, :] ** 2 + samples[1:2, :] ** 2)
-        self._run_torch_comparison(torch_bkd, interp)
-
-    def test_2d_asymmetric(self) -> None:
-        torch_bkd = self._get_torch_bkd()
-        bases = _make_lagrange_bases(torch_bkd, 2)
-        interp = TensorProductInterpolant(torch_bkd, bases, [3, 7])
-        samples = interp.get_samples()
-        interp.set_values(samples[0:1, :] * samples[1:2, :])
-        self._run_torch_comparison(torch_bkd, interp)
-
-    def test_3d(self) -> None:
-        torch_bkd = self._get_torch_bkd()
-        bases = _make_lagrange_bases(torch_bkd, 3)
-        interp = TensorProductInterpolant(torch_bkd, bases, [3, 4, 5])
-        samples = interp.get_samples()
-        interp.set_values(samples[0:1, :] + samples[1:2, :] + samples[2:3, :])
-        self._run_torch_comparison(torch_bkd, interp)
-
-    def test_1d(self) -> None:
-        torch_bkd = self._get_torch_bkd()
-        bases = _make_lagrange_bases(torch_bkd, 1)
-        interp = TensorProductInterpolant(torch_bkd, bases, [8])
-        samples = interp.get_samples()
-        interp.set_values(samples[0:1, :] ** 3)
-        self._run_torch_comparison(torch_bkd, interp)
-
-    def test_multi_qoi(self) -> None:
-        torch_bkd = self._get_torch_bkd()
-        bases = _make_lagrange_bases(torch_bkd, 2)
-        interp = TensorProductInterpolant(torch_bkd, bases, [4, 5])
-        samples = interp.get_samples()
-        q1 = samples[0:1, :] ** 2
-        q2 = samples[1:2, :] ** 2
-        interp.set_values(torch_bkd.vstack([q1, q2]))
-        self._run_torch_comparison(torch_bkd, interp)
 
 
 class TestTpDispatchPickle:
@@ -306,7 +216,7 @@ class TestTpDispatchPickle:
 
     @pytest.mark.slow_on("TorchBkd")
     def test_interpolant_pickle_roundtrip(self, bkd):
-        bases = _make_lagrange_bases(bkd, 2)
+        bases = make_lagrange_bases(bkd, 2)
         interp = TensorProductInterpolant(bkd, bases, [4, 4])
         samples = interp.get_samples()
         interp.set_values(samples[0:1, :] ** 2 + samples[1:2, :] ** 2)
