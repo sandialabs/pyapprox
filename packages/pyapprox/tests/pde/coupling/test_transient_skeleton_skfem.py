@@ -475,9 +475,13 @@ def _spacetime(
     q: int,
     nsubsteps: Sequence[int],
     port_placement: Optional[PinPlacementProtocol] = None,
+    methods: Sequence[Callable[[], ButcherTableau]] = (
+        alexander_sdirk3,
+        alexander_sdirk3,
+    ),
 ) -> _Spacetime:
-    """``run``'s two slabs coupled through cG(``q``) in time, SDIRK3 on
-    each with ``nsubsteps[s]`` steps per window."""
+    """``run``'s two slabs coupled through cG(``q``) in time, subdomain
+    ``s`` stepping ``nsubsteps[s]`` steps of ``methods[s]`` per window."""
     problem = run.problem
     space = ComponentSkeletonSpace(problem.scalar, q)
     descriptor = space.descriptor()
@@ -490,7 +494,7 @@ def _spacetime(
         response = skfem_spacetime_response(
             sub,
             ports,
-            _method(alexander_sdirk3),
+            _method(methods[s]),
             RecomputeAlways(ScipySparseLU()),
             run.reference.state(0)[rows],
             sink,
@@ -543,15 +547,34 @@ def test_spacetime_windows_conserve_the_interface_flux(q: int) -> None:
         _BKD.assert_allclose(conserved, np.zeros_like(conserved), atol=1e-10)
 
 
-@pytest.mark.parametrize("q, rate", [(1, 2.0), (2, 3.0)])
-def test_spacetime_temporal_order(q: int, rate: float) -> None:
-    """The run above against a fine single-domain SDIRK3 run at T =
-    0.04 (on the same mesh, so the difference is temporal error alone),
-    windows H = 0.01 to 0.0025: cG(1) caps the order at 2, as one trace
-    per window did (2.01); cG(2) lifts it to SDIRK3's own 3 (3.05,
-    errors 2.5e-4 to 1.0e-6), the two sides on different step sizes. The
-    port rows are pinned at the step's end (the default): pinned in every
-    block, cG(2) reaches only 2.16 (stage order reduction)."""
+_SDIRK3 = (alexander_sdirk3, alexander_sdirk3)
+
+
+@pytest.mark.parametrize(
+    "methods, q, rate",
+    [
+        (_SDIRK3, 1, 2.0),
+        (_SDIRK3, 2, 3.0),
+        ((crank_nicolson, crank_nicolson), 2, 2.0),
+        ((crank_nicolson, alexander_sdirk3), 2, 2.0),
+    ],
+    ids=["sdirk3-cG1", "sdirk3-cG2", "cn-cG2", "cn-sdirk3-cG2"],
+)
+def test_spacetime_temporal_order(
+    methods: tuple[Callable[[], ButcherTableau], Callable[[], ButcherTableau]],
+    q: int,
+    rate: float,
+) -> None:
+    """Two slabs at 2 and 3 steps per window against a fine single-domain
+    SDIRK3 run at T = 0.04 (on the same mesh, so the difference is
+    temporal error alone), windows H = 0.01 to 0.0025. SDIRK3 on both:
+    cG(1) caps the order at 2, as one trace per window did (2.01); cG(2)
+    lifts it to SDIRK3's own 3 (3.05, errors 2.5e-4 to 1.0e-6). The port
+    rows are pinned at the step's end (the default): pinned in every
+    block, cG(2) reaches only 2.16 (stage order reduction).
+    Crank-Nicolson, whose first stage reaction comes from the step-start
+    slope, converges at its own 2 under cG(2), on both sides or beside
+    SDIRK3."""
     final = 0.04
     fine = _Run((2, 1), _EDGES, alexander_sdirk3, final / 192, nwindows=192)
     errors = []
@@ -559,7 +582,7 @@ def test_spacetime_temporal_order(q: int, rate: float) -> None:
         run = _Run(
             (2, 1), _EDGES, alexander_sdirk3, final / nwindows, nwindows=nwindows
         )
-        made = _spacetime(run, q, (2, 3))
+        made = _spacetime(run, q, (2, 3), methods=methods)
         errors.append(
             max(
                 float(np.abs(sink.state(-1) - fine.reference.state(-1)[rows]).max())

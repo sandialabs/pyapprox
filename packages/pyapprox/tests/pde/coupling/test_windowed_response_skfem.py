@@ -38,6 +38,7 @@ from pyapprox.ode.tableau import (
     ButcherTableau,
     alexander_sdirk3,
     backward_euler,
+    classical_rk4,
     crank_nicolson,
     heun,
     implicit_midpoint,
@@ -57,6 +58,7 @@ from pyapprox.pde.coupling.stacks.galerkin import (
 )
 from pyapprox.pde.coupling.transient import (
     LagrangeTestFunctions,
+    StageQuadratureFlux,
     StartContinuousLagrange,
     WindowedPoint,
     WindowedResponse,
@@ -409,7 +411,15 @@ def _spacetime(
 
 @pytest.mark.parametrize("nsubsteps", [1, 3])
 @pytest.mark.parametrize(
-    "tableau", [backward_euler, implicit_midpoint, alexander_sdirk3]
+    "tableau",
+    [
+        backward_euler,
+        implicit_midpoint,
+        alexander_sdirk3,
+        crank_nicolson,
+        heun,
+        classical_rk4,
+    ],
 )
 def test_a_constant_test_function_gives_the_time_discrete_reaction(
     tableau: Callable[[], ButcherTableau], nsubsteps: int
@@ -446,13 +456,19 @@ def test_a_constant_test_function_gives_the_time_discrete_reaction(
     _BKD.assert_allclose(got, want, rtol=1e-12, atol=1e-14)
 
 
-def test_spacetime_jvp_trace_matches_finite_differences() -> None:
-    """cG(2): a quadratic trace in time, two test functions, SDIRK3 in two
-    substeps; the tangent passes the derivative checker."""
+@pytest.mark.parametrize("tableau", [alexander_sdirk3, crank_nicolson, heun])
+def test_spacetime_jvp_trace_matches_finite_differences(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """cG(2): a quadratic trace in time, two test functions, two substeps;
+    the tangent passes the derivative checker for SDIRK3, for
+    Crank-Nicolson (its step-start reaction reading the second step's
+    changed start state and the port data's rate directly) and for
+    Heun (explicit, reactions from its stage and final blocks)."""
     strip = _Strip()
     response, ports = _spacetime(
         strip,
-        alexander_sdirk3,
+        tableau,
         StartContinuousLagrange((0.5, 1.0)),
         LagrangeTestFunctions((0.25, 0.75)),
         2,
@@ -485,15 +501,17 @@ def test_spacetime_jvp_trace_matches_finite_differences() -> None:
 
 def test_spacetime_refusals() -> None:
     strip = _Strip()
-    for tableau in (heun, crank_nicolson):
-        with pytest.raises(ValueError, match="explicit stage"):
-            _spacetime(
-                strip,
-                tableau,
-                StartContinuousLagrange(),
-                LagrangeTestFunctions((0.5,)),
-                1,
-            )
+    # Crank-Nicolson's blocks leave its first stage reaction undetermined:
+    # without the step-start reaction (the builder gives it) the output is
+    # refused before it reads its stepper or ports.
+    with pytest.raises(ValueError, match="step-start reaction"):
+        StageQuadratureFlux(
+            None,  # type: ignore[arg-type]
+            crank_nicolson(),
+            None,  # type: ignore[arg-type]
+            LagrangeTestFunctions((0.5,)),
+            _BKD,
+        )
     with pytest.raises(ValueError, match="not be square"):
         _spacetime(
             strip,

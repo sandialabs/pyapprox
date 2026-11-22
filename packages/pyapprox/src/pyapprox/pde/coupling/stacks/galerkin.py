@@ -47,6 +47,7 @@ from pyapprox.pde.coupling.pinned_response import (
 from pyapprox.pde.coupling.ports import BackendPortRows, PortMapProtocol
 from pyapprox.pde.coupling.responses import Flux, PortQuantity, Trace
 from pyapprox.pde.coupling.transient import (
+    MassFormStartReaction,
     StageQuadratureFlux,
     StageReactions,
     StartContinuousLagrange,
@@ -334,14 +335,22 @@ def skfem_spacetime_response(
     # Read for its residual and its Jacobian's action only: never solved.
     reaction = method.stepper(unconstrained, RecomputeAlways(ScipySparseLU()))
     bkd = NumpyBkd()
-    flux = StageQuadratureFlux(reaction, method.tableau(), port_rows, test, bkd)
+    solved = differentiated_rows(unconstrained, rows, CoupledRows())
+    tableau = method.tableau()
+    # A first stage that is the stored state has its reaction from the
+    # stepped system's slope there (read only when the blocks lack it).
+    start = (
+        MassFormStartReaction(solved, unconstrained)
+        if tableau.has_trivial_first_stage()
+        else None
+    )
+    flux = StageQuadratureFlux(reaction, tableau, port_rows, test, bkd, start)
     if flux.nfunctions() != rows.trial().nunknowns():
         raise ValueError(
             f"{flux.nfunctions()} test functions for {rows.trial().nunknowns()} "
             "unknown traces per port row: the skeleton residual would not be "
             "square"
         )
-    solved = differentiated_rows(unconstrained, rows, CoupledRows())
     stepper = method.stepper(solved, setups, pinning)
     return WindowedResponse(
         stepper,

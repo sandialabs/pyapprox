@@ -58,6 +58,7 @@ from typing import (
 )
 
 from pyapprox.ode.integration import Integrator
+from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, PinnedRowsProtocol
 from pyapprox.ode.protocols.differentiable_stepper import (
     DifferentiableStepperProtocol,
@@ -84,15 +85,18 @@ from pyapprox.pde.coupling.responses import (
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import (
     BlockVector,
+    FormatProtocol,
     RowSetProtocol,
     VectorSpaceProtocol,
 )
+from pyapprox.util.linalg.operators.linearization import LinearizationPoint
 
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 V_contra = TypeVar("V_contra", contravariant=True)
 A_contra = TypeVar("A_contra", bound=ArrayProtocol, contravariant=True)
 A_co = TypeVar("A_co", bound=ArrayProtocol, covariant=True)
+F = TypeVar("F", bound=FormatProtocol)
 
 TrajectoryTangent = Callable[[Sequence[BlockVector[V]], Sequence[V]], A]
 """An output's change for changes of a trial's step unknowns and stored
@@ -154,6 +158,12 @@ class WindowPortOutputProtocol(Protocol[V, A_co]):
     def output(self, trial: InMemoryTrajectoryStore[V]) -> A_co:
         """The output over the window ``trial`` stepped. Shape:
         (nport, 1)."""
+        ...
+
+    def reads_port_data(self) -> bool:
+        """Whether :meth:`output` reads the port data the input holds
+        beside the trial, affinely; its change with them is then taken
+        by differences at the trial. Fixed for the output's life."""
         ...
 
     def trajectory_tangent(
@@ -540,6 +550,10 @@ class StepResidualReaction(Generic[V, A]):
     def returns(self) -> Flux:
         return Flux()
 
+    def reads_port_data(self) -> bool:
+        """The unconstrained residual does not read the port data."""
+        return False
+
     def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
         take, residual = self._ports.take, self._reaction.step_residual
         output = take(residual(trial.window(0)).blocks[-1])
@@ -598,6 +612,10 @@ class StageReactions(Generic[V, A]):
 
     def returns(self) -> Flux:
         return Flux()
+
+    def reads_port_data(self) -> bool:
+        """The unconstrained residual does not read the port data."""
+        return False
 
     def _interleaved(self, residual: BlockVector[V]) -> A:
         bkd = self._bkd
@@ -687,17 +705,114 @@ class LagrangeTestFunctions:
         return f"{type(self).__name__}({self._nodes})"
 
 
-def _lower_inverse(a: Sequence[Sequence[float]]) -> list[list[float]]:
-    """The inverse of the lower-triangular matrix ``a``, by forward
-    substitution."""
-    n = len(a)
-    inverse = [[0.0] * n for _ in range(n)]
+def _inverse(matrix: Sequence[Sequence[float]], name: str) -> list[list[float]]:
+    """The inverse of a small square ``matrix`` of method coefficients,
+    by Gauss-Jordan elimination with partial pivoting.
+
+    Raises
+    ------
+    ValueError
+        If ``matrix`` is singular.
+    """
+    n = len(matrix)
+    work = [
+        list(map(float, row)) + [float(i == j) for j in range(n)]
+        for i, row in enumerate(matrix)
+    ]
     for col in range(n):
-        for row in range(col, n):
-            known = sum(a[row][k] * inverse[k][col] for k in range(col, row))
-            target = 1.0 if row == col else 0.0
-            inverse[row][col] = (target - known) / a[row][row]
-    return inverse
+        pivot = max(range(col, n), key=lambda r: abs(work[r][col]))
+        if abs(work[pivot][col]) < 1e-14:
+            raise ValueError(
+                f"{name}'s stage reactions are not determined by its step blocks"
+            )
+        work[col], work[pivot] = work[pivot], work[col]
+        scale = work[col][col]
+        work[col] = [value / scale for value in work[col]]
+        for row in range(n):
+            if row != col and work[row][col] != 0.0:
+                factor = work[row][col]
+                work[row] = [v - factor * w for v, w in zip(work[row], work[col])]
+    return [row[n:] for row in work]
+
+
+@runtime_checkable
+class StepStartReactionProtocol(Protocol[V]):
+    r"""The port reaction at a step's start, :math:`\rho = M k - f(y)`
+    with :math:`k` the stepped (differentiated) system's slope at the
+    stored state, as :class:`StageQuadratureFlux` reads it for a method
+    whose first stage is that state and whose blocks do not determine
+    its reaction. Read with the port data the input holds."""
+
+    def reaction(self, state: V, time: float) -> V:
+        """:math:`M k - f(y)` at ``state``, a single column of the state
+        space."""
+        ...
+
+    def tangent(self, state: V, time: float, delta: V, version: int) -> V:
+        """Its change for changes ``delta`` (a block of columns) of the
+        state, at fixed port data, parameters at ``version``."""
+        ...
+
+
+class MassFormStartReaction(Generic[V, A, F]):
+    r""":math:`\rho = M k - f(y)` with :math:`M_s k = f_s(y)`: the slope
+    of the stepped system (its port and essential rows in differentiated
+    form, so :math:`k` there is the data's rate) put into the
+    unconstrained system's equation. Satisfies
+    :class:`StepStartReactionProtocol`.
+
+    The stepped system's mass is set up once and kept: a mass-form
+    system's mass does not change. A singular stepped mass (a saddle-point
+    system such as Stokes) cannot be solved with; such systems need a
+    method without an explicit first stage.
+
+    Parameters
+    ----------
+    solved : MassFormSystem
+        The stepped system.
+    unconstrained : MassFormSystem
+        The system without pinned or differentiated rows, on the same
+        space.
+    """
+
+    def __init__(
+        self,
+        solved: MassFormSystem[V, A, F],
+        unconstrained: MassFormSystem[V, A, F],
+    ) -> None:
+        self._solved, self._unconstrained = solved, unconstrained
+        self._mass = solved.solver.setup(solved.mass)
+
+    @staticmethod
+    def _rhs(system: MassFormSystem[V, A, F], state: V, time: float) -> V:
+        form = system.form
+        return form.from_residual(system.rhs(form.to_residual(state), time))
+
+    def _slope(self, value: V) -> V:
+        slope, info = self._mass.solve(value)
+        if not info.converged:
+            raise ValueError("the step-start slope's mass solve did not converge")
+        return slope
+
+    def reaction(self, state: V, time: float) -> V:
+        free = self._unconstrained
+        slope = self._slope(self._rhs(self._solved, state, time))
+        return free.space.axpby(
+            1.0, free.mass.apply(slope), -1.0, self._rhs(free, state, time)
+        )
+
+    def tangent(self, state: V, time: float, delta: V, version: int) -> V:
+        def jacobian(system: MassFormSystem[V, A, F]) -> V:
+            point = LinearizationPoint(version, object())
+            at = system.form.to_residual(state)
+            return system.jacobian(at, time, point).apply(delta)
+
+        free = self._unconstrained
+        slope = self._slope(jacobian(self._solved))
+        return free.space.axpby(1.0, free.mass.apply(slope), -1.0, jacobian(free))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
 
 class StageQuadratureFlux(Generic[V, A]):
@@ -708,12 +823,21 @@ class StageQuadratureFlux(Generic[V, A]):
     fraction of the window.
 
     :math:`\rho_j = M k_j - f(Y_j)` is stage :math:`j`'s reaction on the
-    port rows; the unconstrained stepper's stage block :math:`i` is
+    port rows. The unconstrained stepper's stage block :math:`i` is
     :math:`M(Y_i - y_n) - \Delta t \sum_j a_{ij} f(Y_j) = \Delta t \sum_j
-    a_{ij} \rho_j`, so :math:`\Delta t\, \rho = A^{-1}` (stage blocks). For
-    :math:`\psi \equiv 1` the sum is the step's final-block residual, the
-    time-discrete reaction, so a constant among the test functions'
-    span gives exact conservation whatever each side's method and step.
+    a_{ij} \rho_j`, and its final block, when the method has one,
+    :math:`\Delta t \sum_j b_j \rho_j`: the blocks are :math:`R = \Delta
+    t\, W \rho`. The stage blocks are used, and the final block too when a
+    trivial first stage (the stored state) leaves them one short, as for
+    explicit methods; :math:`W` is then square and solved once from the
+    tableau. A stiffly accurate method with a trivial first stage
+    (Crank-Nicolson) has no final block, so its first reaction comes from
+    ``start`` and the others from the remaining stage blocks. For
+    :math:`\psi \equiv 1` the sum is the step's final-block residual (for
+    a stiffly accurate method :math:`b` is :math:`A`'s last row, whatever
+    the first reaction), the time-discrete reaction, so a constant among
+    the test functions' span gives exact conservation whatever each
+    side's method and step.
 
     Interleaved as the port data are: entry ``q * p + k`` is port row
     ``p`` tested against function ``k`` of ``q``. Its count must equal the
@@ -736,15 +860,17 @@ class StageQuadratureFlux(Generic[V, A]):
         The test functions.
     bkd : Backend
         The backend of the port blocks.
+    start : StepStartReactionProtocol, optional
+        The reaction at each step's start; read only for a stiffly
+        accurate method with a trivial first stage, which needs it.
 
     Raises
     ------
     TypeError
-        If ``test`` does not satisfy its protocol.
+        If ``test`` or ``start`` does not satisfy its protocol.
     ValueError
-        If the tableau has a trivial first stage or a zero diagonal entry
-        (an explicit stage): its stage reactions are not determined by
-        the stage blocks.
+        If the method needs ``start`` and it is omitted, or its blocks do
+        not determine its stage reactions.
     """
 
     def __init__(
@@ -754,33 +880,51 @@ class StageQuadratureFlux(Generic[V, A]):
         ports: PortRowsProtocol[V, A],
         test: TemporalTestFunctionsProtocol,
         bkd: Backend[A],
+        start: Optional[StepStartReactionProtocol[V]] = None,
     ) -> None:
         if not isinstance(test, TemporalTestFunctionsProtocol):
             raise TypeError(
                 "test must satisfy TemporalTestFunctionsProtocol, got "
                 f"{type(test).__name__}"
             )
-        nstages = tableau.nstages()
-        if tableau.has_trivial_first_stage() or any(
-            tableau.a[i][i] == 0.0 for i in range(nstages)
-        ):
-            raise ValueError(
-                f"{tableau.name} has an explicit stage: its stage reactions are "
-                "not determined by the stage blocks"
+        if start is not None and not isinstance(start, StepStartReactionProtocol):
+            raise TypeError(
+                "start must satisfy StepStartReactionProtocol, got "
+                f"{type(start).__name__}"
             )
+        nstages = tableau.nstages()
+        first = 1 if tableau.has_trivial_first_stage() else 0
+        # The step's residual blocks: the unknown stages, then the final
+        # block unless the method is stiffly accurate.
+        rows: list[tuple[int, tuple[float, ...]]] = [
+            (i - first, tuple(tableau.a[i])) for i in range(first, nstages)
+        ]
+        if len(rows) < nstages and not tableau.is_stiffly_accurate():
+            rows.append((nstages - first, tuple(tableau.b)))
+        self._needs_start = len(rows) < nstages
+        if self._needs_start and start is None:
+            raise ValueError(
+                f"{tableau.name} is stiffly accurate with a trivial first stage: "
+                "its first stage reaction needs the step-start reaction"
+            )
+        # The stages whose reactions the blocks give.
+        self._solved = list(range(1 if self._needs_start else 0, nstages))
+        inverse = _inverse(
+            [[row[j] for j in self._solved] for _, row in rows], tableau.name
+        )
         self._reaction, self._ports, self._test, self._bkd = (
             reaction,
             ports,
             test,
             bkd,
         )
-        self._c, self._nstages = tableau.c, nstages
-        inverse = _lower_inverse(tableau.a)
-        # (b^T A^{-1}) split by stage j: _weights[j][i] = b_j (A^{-1})_{ji}.
-        self._weights = [
-            [tableau.b[j] * inverse[j][i] for i in range(nstages)]
-            for j in range(nstages)
-        ]
+        self._start = start
+        self._c, self._b = tableau.c, tableau.b
+        self._blocks = [block for block, _ in rows]
+        self._inverse = inverse
+        # Each equation's coefficient of the first reaction, moved to the
+        # known side when it comes from the start.
+        self._first = [row[0] for _, row in rows]
 
     def returns(self) -> Flux:
         return Flux()
@@ -789,43 +933,66 @@ class StageQuadratureFlux(Generic[V, A]):
         """The number of test functions."""
         return self._test.count()
 
-    def _block_weights(
+    def reads_port_data(self) -> bool:
+        """Whether the output reads the port data beside the trial: the
+        step-start reaction does, through the trial's rate."""
+        return self._needs_start
+
+    def _weights(
         self, windows: Sequence[StepWindow[V]]
-    ) -> list[list[list[float]]]:
-        """Per step, per test function, per stage block: the weight of
-        the block's port rows in the output."""
-        start = windows[0].time()
+    ) -> list[tuple[list[list[float]], list[float]]]:
+        """Per step: per test function the weight of each used block's
+        port rows, and of the step-start reaction's."""
+        origin = windows[0].time()
         last = windows[-1]
-        length = last.time() + last.deltat() - start
+        length = last.time() + last.deltat() - origin
+        ntests, nblocks = self._test.count(), len(self._blocks)
         weights = []
         for window in windows:
-            per_test: list[list[float]] = [
-                [0.0] * self._nstages for _ in range(self._test.count())
-            ]
-            for j in range(self._nstages):
-                fraction = (window.time() + self._c[j] * window.deltat() - start) / (
-                    length
-                )
-                for k, psi in enumerate(self._test.values(fraction)):
-                    for i in range(self._nstages):
-                        per_test[k][i] += psi * self._weights[j][i]
-            weights.append(per_test)
+            deltat = window.deltat()
+
+            def psi(j: int) -> Sequence[float]:
+                time = window.time() + self._c[j] * deltat
+                return self._test.values((time - origin) / length)
+
+            blocks = [[0.0] * nblocks for _ in range(ntests)]
+            start = [0.0] * ntests
+            for jj, j in enumerate(self._solved):
+                for k, value in enumerate(psi(j)):
+                    for r in range(nblocks):
+                        weight = self._b[j] * value * self._inverse[jj][r]
+                        blocks[k][r] += weight
+                        start[k] -= deltat * weight * self._first[r]
+            if self._needs_start:
+                for k, value in enumerate(psi(0)):
+                    start[k] += deltat * self._b[0] * value
+            weights.append((blocks, start))
         return weights
 
     def _tested(
         self,
         windows: Sequence[StepWindow[V]],
         residuals: Sequence[BlockVector[V]],
+        starts: Sequence[Optional[V]],
     ) -> A:
+        """The output from each step's residual blocks and, when the
+        method needs it, its step-start reaction (None where it does not
+        change)."""
         bkd, take = self._bkd, self._ports.take
         tested = []
-        weights = self._block_weights(windows)
+        weights = self._weights(windows)
         for k in range(self._test.count()):
             total: Optional[A] = None
-            for per_test, residual in zip(weights, residuals):
-                for i, weight in enumerate(per_test[k]):
+            for (blocks, start), residual, reaction in zip(weights, residuals, starts):
+                terms = [
+                    (weight, residual.blocks[block])
+                    for weight, block in zip(blocks[k], self._blocks)
+                ]
+                if self._needs_start and reaction is not None:
+                    terms.append((start[k], reaction))
+                for weight, vector in terms:
                     if weight != 0.0:
-                        term = weight * take(residual.blocks[i])
+                        term = weight * take(vector)
                         total = term if total is None else total + term
             if total is None:
                 raise ValueError("the trial has no steps")
@@ -834,13 +1001,23 @@ class StageQuadratureFlux(Generic[V, A]):
         nport, ntests, ncols = stacked.shape
         return bkd.reshape(stacked, (nport * ntests, ncols))
 
+    def _start_reactions(self, windows: Sequence[StepWindow[V]]) -> list[Optional[V]]:
+        start = self._start
+        if not self._needs_start or start is None:
+            return [None] * len(windows)
+        return [start.reaction(w.past_state(1), w.time()) for w in windows]
+
     def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
         """Raises ValueError if ``trial`` has no steps."""
         windows = [trial.window(m) for m in range(trial.nsteps())]
         if not windows:
             raise ValueError("the trial has no steps")
         residual = self._reaction.step_residual
-        return self._tested(windows, [residual(window) for window in windows])
+        return self._tested(
+            windows,
+            [residual(window) for window in windows],
+            self._start_reactions(windows),
+        )
 
     def trajectory_tangent(
         self, trial: InMemoryTrajectoryStore[V]
@@ -849,9 +1026,21 @@ class StageQuadratureFlux(Generic[V, A]):
         if linearized is None:
             return None
         windows = [trial.window(m) for m in range(trial.nsteps())]
+        start = self._start
 
         def change(unknowns: Sequence[BlockVector[V]], states: Sequence[V]) -> A:
-            return self._tested(windows, linearized(unknowns, states))
+            starts: list[Optional[V]] = [None] * len(windows)
+            if self._needs_start and start is not None:
+                # Step m starts from state m, which changes for m >= 1.
+                for m in range(1, len(windows)):
+                    window = windows[m]
+                    starts[m] = start.tangent(
+                        window.past_state(1),
+                        window.time(),
+                        states[m - 1],
+                        window.parameters_version,
+                    )
+            return self._tested(windows, linearized(unknowns, states), starts)
 
         return change
 
@@ -873,7 +1062,9 @@ class _TraceTangent(Generic[V, A]):
     y_{m+1-l}` with the step's block-triangular Jacobian, the new state
     is the readout of :math:`\delta u_m`, and the committed start does
     not change. The output's change is the output's tangent at those
-    changes. Leaves the input holding the trial's own port data.
+    changes, plus, for an output reading the port data itself, its change
+    with them at the fixed trial, by differences again (it reads them
+    affinely). Leaves the input holding the trial's own port data.
     """
 
     def __init__(
@@ -885,20 +1076,27 @@ class _TraceTangent(Generic[V, A]):
         port_data: A,
         trial: InMemoryTrajectoryStore[V],
         change: TrajectoryTangent[V, A],
+        port_output: WindowPortOutputProtocol[V, A],
+        bkd: Backend[A],
     ) -> None:
         self._stepper, self._input = stepper, port_input
         self._window, self._start, self._port_data = window, start, port_data
+        self._trial = trial
         self._steps = [trial.window(m) for m in range(trial.nsteps())]
-        self._change = change
+        self._change, self._output, self._bkd = change, port_output, bkd
 
-    def _data_changes(self, directions: A) -> list[BlockVector[V]]:
+    def _data_changes(self, directions: A) -> tuple[list[BlockVector[V]], Optional[A]]:
         """Per step, :math:`-\\Delta R_m` for every column of
-        ``directions``, concatenated."""
+        ``directions``, concatenated; and the output's direct change with
+        the port data, None when it reads none."""
         stepper, port_input = self._stepper, self._input
         space = stepper.residual_space()
+        reads = self._output.reads_port_data()
         port_input.set_window(self._window, self._start, self._port_data)
         bases = [stepper.step_residual(step) for step in self._steps]
+        base_output = self._output.output(self._trial) if reads else None
         columns: list[list[BlockVector[V]]] = [[] for _ in self._steps]
+        outputs: list[A] = []
         for j in range(int(directions.shape[1])):
             shifted = self._port_data + directions[:, j : j + 1]
             port_input.set_window(self._window, self._start, shifted)
@@ -907,8 +1105,11 @@ class _TraceTangent(Generic[V, A]):
                 columns[m].append(
                     space.axpby(1.0, bases[m], -1.0, stepper.step_residual(step))
                 )
+            if base_output is not None:
+                outputs.append(self._output.output(self._trial) - base_output)
         port_input.set_window(self._window, self._start, self._port_data)
-        return [space.concatenate(per_step) for per_step in columns]
+        direct = self._bkd.hstack(outputs) if outputs else None
+        return [space.concatenate(per_step) for per_step in columns], direct
 
     def __call__(self, directions: A) -> A:
         nport = self._input.nport()
@@ -922,9 +1123,8 @@ class _TraceTangent(Generic[V, A]):
         off_diag = stepper.derivatives().off_diag
         unknowns: list[BlockVector[V]] = []
         states: list[V] = []
-        for m, (step, rhs) in enumerate(
-            zip(self._steps, self._data_changes(directions))
-        ):
+        changes, direct = self._data_changes(directions)
+        for m, (step, rhs) in enumerate(zip(self._steps, changes)):
             for lag, state in _read_changes(step, m, states):
                 if off_diag is None:
                     raise ValueError(
@@ -938,7 +1138,8 @@ class _TraceTangent(Generic[V, A]):
                 raise ValueError(f"the tangent solve of step {m} did not converge")
             unknowns.append(delta)
             states.append(stepper.readout().apply(delta).blocks[0])
-        return self._change(unknowns, states)
+        through = self._change(unknowns, states)
+        return through if direct is None else through + direct
 
 
 class _Owner:
@@ -1163,6 +1364,8 @@ class WindowedResponse(Generic[V, A]):
                 port_data,
                 trial,
                 change,
+                self._output,
+                self._bkd,
             )
         )
         return WindowedPoint(
