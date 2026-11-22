@@ -15,7 +15,8 @@ library modules under ``packages/*/src`` that import one at load time,
 transitively. :func:`unguarded_test_modules` lists the test modules whose
 module-level imports reach it before such a skip. Imports inside
 functions, ``if`` blocks (``TYPE_CHECKING``) and ``try`` blocks that
-recover do not count; a ``try`` whose handlers re-raise does. Each count is recorded in ``ratchet_baselines.txt`` as
+recover do not count; a ``try`` whose handlers re-raise does. Each count
+is recorded in ``ratchet_baselines.txt`` as
 ``optional-test-import:<lib>=<count>``; under that file's rule a commit
 that lowers a count lowers its baseline in the same commit, and no commit
 raises one.

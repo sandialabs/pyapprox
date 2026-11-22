@@ -16,5 +16,6 @@ from pyapprox.polynomials.univariate.lagrange import compute_barycentric_weights
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial as univariate_lagrange_polynomial
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_first_derivative as univariate_lagrange_first_derivative
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_second_derivative as univariate_lagrange_second_derivative
+from pyapprox.polynomials.univariate.lagrange import lagrange_differentiation_matrix as lagrange_differentiation_matrix
 from pyapprox.polynomials.univariate.lagrange import LagrangeBasis1D as LagrangeBasis1D
-__all__ = ['compute_barycentric_weights', 'univariate_lagrange_polynomial', 'univariate_lagrange_first_derivative', 'univariate_lagrange_second_derivative', 'LagrangeBasis1D']
+__all__ = ['compute_barycentric_weights', 'univariate_lagrange_polynomial', 'univariate_lagrange_first_derivative', 'univariate_lagrange_second_derivative', 'lagrange_differentiation_matrix', 'LagrangeBasis1D']

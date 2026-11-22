@@ -6,18 +6,18 @@ mypy_src=297
 # signatures. Measured alone it reports a fraction of this, because the
 # unresolved pyapprox imports become Any and the errors never surface.
 mypy_benchmarks=226
-moved:pyapprox.surrogates.affine.univariate=208
+moved:pyapprox.surrogates.affine.univariate=206
 moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
 superseded:pyapprox.pde.manufactured=30
 superseded:pyapprox.pde.galerkin.manufactured=12
 # Calls to superseded backend methods (pyapprox._superseded_ratchet).
 superseded-method:any_bool=24
-superseded-method:all_bool=211
+superseded-method:all_bool=210
 superseded-method:any_array=3
 superseded-method:all_array=3
 # Test modules importing an optional library at module level without
 # skipping first (pyapprox._optional_import_ratchet).
-optional-test-import:torch=6
+optional-test-import:torch=0
 optional-test-import:jax=0
 optional-test-import:numba=0
