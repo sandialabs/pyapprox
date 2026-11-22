@@ -5,7 +5,7 @@ per-output candidate sets, cost-weighted priority, and multi-fidelity
 Monte Carlo P matrix computation.
 """
 
-from typing import Generic, List
+from typing import Generic, List, Sequence
 
 import numpy as np
 
@@ -101,7 +101,8 @@ class MultiOutputIVARSampler(Generic[Array]):
 
         # Compute K matrix via multioutput kernel (stacked format)
         K_result = kernel(self._candidates_list)
-        assert not isinstance(K_result, list)
+        if isinstance(K_result, Sequence):
+            raise TypeError("kernel must return a stacked Array by default")
         K: Array = K_result
         if self._ivar._nugget > 0:
             K = K + self._ivar._nugget * bkd.eye(self._n_total)
@@ -164,7 +165,8 @@ class MultiOutputIVARSampler(Generic[Array]):
 
         # K(quad, candidates): stacked format (not block_format)
         K_qc_result = kernel(quad_list, self._candidates_list)
-        assert not isinstance(K_qc_result, list)
+        if isinstance(K_qc_result, Sequence):
+            raise TypeError("kernel must return a stacked Array by default")
         K_qc: Array = K_qc_result
 
         # P_ij = (1/nquad) sum_m K(z_m, x_i) K(z_m, x_j)

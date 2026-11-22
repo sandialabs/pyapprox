@@ -5,7 +5,7 @@ This module provides the MultiLevelKernel, which is a convenience wrapper around
 DAGMultiOutputKernel for the special case of sequential (hierarchical) structures.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple, Union
+from typing import Callable, Dict, Generic, List, Optional, Sequence, Tuple, Union
 
 import networkx as nx
 
@@ -97,17 +97,17 @@ class MultiLevelKernel(Generic[Array]):
 
     def __init__(
         self,
-        kernels: List[Kernel[Array]],
-        scalings: List[ScalingFunctionProtocol[Array]],
+        kernels: Sequence[Kernel[Array]],
+        scalings: Sequence[ScalingFunctionProtocol[Array]],
     ):
         """
         Initialize the MultiLevelKernel.
 
         Parameters
         ----------
-        kernels : List[Kernel]
+        kernels : Sequence[Kernel]
             Discrepancy kernels for each level.
-        scalings : List[ScalingFunctionProtocol]
+        scalings : Sequence[ScalingFunctionProtocol]
             Scaling functions between levels (length = len(kernels) - 1).
 
         Raises

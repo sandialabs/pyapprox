@@ -6,7 +6,7 @@ arbitrary directed acyclic graph (DAG) structures for output dependencies.
 Uses NetworkX DiGraph directly for graph operations.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple, Union
+from typing import Callable, Dict, Generic, List, Optional, Sequence, Tuple, Union
 
 import networkx as nx
 
@@ -118,7 +118,7 @@ class DAGMultiOutputKernel(Generic[Array]):
     def __init__(
         self,
         dag: nx.DiGraph,
-        discrepancy_kernels: List[Kernel[Array]],
+        discrepancy_kernels: Sequence[Kernel[Array]],
         edge_scalings: Optional[
             Dict[Tuple[int, int], ScalingFunctionProtocol[Array]]
         ] = None,
@@ -130,7 +130,7 @@ class DAGMultiOutputKernel(Generic[Array]):
         ----------
         dag : nx.DiGraph
             NetworkX directed acyclic graph.
-        discrepancy_kernels : List[Kernel]
+        discrepancy_kernels : Sequence[Kernel]
             Discrepancy kernels, one per node.
         edge_scalings : Dict[Tuple[int, int], ScalingFunctionProtocol], optional
             Scaling functions for edges.
@@ -154,7 +154,7 @@ class DAGMultiOutputKernel(Generic[Array]):
         expected_nodes = set(range(self._noutputs))
         if set(dag.nodes()) != expected_nodes:
             raise ValueError(
-                f"DAG nodes must be {{0, 1, ..., {self._noutputs-1}}}, "
+                f"DAG nodes must be {{0, 1, ..., {self._noutputs - 1}}}, "
                 f"got {set(dag.nodes())}"
             )
 
@@ -186,7 +186,7 @@ class DAGMultiOutputKernel(Generic[Array]):
         else:
             raise ValueError("discrepancy_kernels cannot be empty")
 
-        self._discrepancy_kernels = discrepancy_kernels
+        self._discrepancy_kernels = list(discrepancy_kernels)
 
         # Set up edge scalings (default to constant 1.0 if not provided)
         self._edge_scalings: Dict[Tuple[int, int], ScalingFunctionProtocol[Array]] = {}
@@ -239,9 +239,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                         nx.all_simple_paths(self._dag, ancestor, node)
                     )
 
-    def _compute_scaling_product(
-        self, X: Array, path: List[int]
-    ) -> Array:
+    def _compute_scaling_product(self, X: Array, path: List[int]) -> Array:
         """
         Compute the product of scaling functions along a path.
 
@@ -445,17 +443,13 @@ class DAGMultiOutputKernel(Generic[Array]):
 
         # Stack into single matrix (DAG blocks are always dense)
         rows = [
-            self._bkd.hstack(
-                [block for block in blocks[i] if block is not None]
-            )
+            self._bkd.hstack([block for block in blocks[i] if block is not None])
             for i in range(self._noutputs)
         ]
         return self._bkd.vstack(rows)
 
     def jacobian_wrt_params(
-        self,
-        X1_list: List[Array],
-        X2_list: Optional[List[Array]] = None
+        self, X1_list: List[Array], X2_list: Optional[List[Array]] = None
     ) -> Array:
         """
         Compute Jacobian of kernel matrix w.r.t. hyperparameters.
@@ -484,8 +478,7 @@ class DAGMultiOutputKernel(Generic[Array]):
             kernel_param_jac = kernel.param_derivatives().jacobian
             if kernel_param_jac is None:
                 raise NotImplementedError(
-                    f"Discrepancy kernel {idx} does not declare a "
-                    "parameter jacobian"
+                    f"Discrepancy kernel {idx} does not declare a parameter jacobian"
                 )
             kernel_param_jacs.append(kernel_param_jac)
         n_total = sum(n_list)
@@ -528,13 +521,9 @@ class DAGMultiOutputKernel(Generic[Array]):
                         # For cross-covariance (X1 != X2), gradients not yet supported
                         if X1_list[i] is not X2_list[j]:
                             # Check if arrays are the same
-                            if (
-                                X1_list[i].shape
-                                != X2_list[j].shape
-                                or not self._bkd.allclose(
-                                    X1_list[i], X2_list[j]
-                                )
-                            ):
+                            if X1_list[i].shape != X2_list[
+                                j
+                            ].shape or not self._bkd.allclose(X1_list[i], X2_list[j]):
                                 raise NotImplementedError(
                                     "Cross-covariance Jacobians "
                                     "not yet supported for "
@@ -562,14 +551,17 @@ class DAGMultiOutputKernel(Generic[Array]):
                                     contrib = scaling_i * dk_dtheta * scaling_j.T
 
                                     jac_full[
-                                        row_offset:row_offset+n_i,
-                                        col_offset:col_offset+n_j,
-                                        param_offset + p_idx
-                                    ] = jac_full[
-                                        row_offset:row_offset+n_i,
-                                        col_offset:col_offset+n_j,
-                                        param_offset + p_idx
-                                    ] + contrib
+                                        row_offset : row_offset + n_i,
+                                        col_offset : col_offset + n_j,
+                                        param_offset + p_idx,
+                                    ] = (
+                                        jac_full[
+                                            row_offset : row_offset + n_i,
+                                            col_offset : col_offset + n_j,
+                                            param_offset + p_idx,
+                                        ]
+                                        + contrib
+                                    )
 
                     col_offset += n_j
                 row_offset += n_i
@@ -613,11 +605,11 @@ class DAGMultiOutputKernel(Generic[Array]):
                             for path_j in paths_j:
                                 # Check if edge is in path_i or path_j
                                 edge_in_path_i = any(
-                                    path_i[k] == parent and path_i[k+1] == child
+                                    path_i[k] == parent and path_i[k + 1] == child
                                     for k in range(len(path_i) - 1)
                                 )
                                 edge_in_path_j = any(
-                                    path_j[k] == parent and path_j[k+1] == child
+                                    path_j[k] == parent and path_j[k + 1] == child
                                     for k in range(len(path_j) - 1)
                                 )
 
@@ -652,25 +644,20 @@ class DAGMultiOutputKernel(Generic[Array]):
                                             (n_i, 1),
                                         )
                                         # Recompute scaling_i_other
-                                        scaling_i_other = self._bkd.ones(
-                                            (n_i, 1)
-                                        )
+                                        scaling_i_other = self._bkd.ones((n_i, 1))
                                         for k in range(len(path_i) - 1):
-                                            p, c = path_i[k], path_i[k+1]
+                                            p, c = path_i[k], path_i[k + 1]
                                             if (p, c) != edge:
-                                                s = self._edge_scalings[
-                                                    (p, c)
-                                                ](
+                                                s = self._edge_scalings[(p, c)](
                                                     X_for_scaling_i
                                                 )
-                                                scaling_i_other = (
-                                                    scaling_i_other * s
-                                                )
+                                                scaling_i_other = scaling_i_other * s
 
                                         contrib = (
                                             contrib
                                             + (dscaling_i * scaling_i_other)
-                                            * K_ancestor * scaling_j.T
+                                            * K_ancestor
+                                            * scaling_j.T
                                         )
 
                                     if edge_in_path_j:
@@ -679,36 +666,34 @@ class DAGMultiOutputKernel(Generic[Array]):
                                             scaling_jac_j[:, p_idx],
                                             (n_j, 1),
                                         )
-                                        scaling_j_other = self._bkd.ones(
-                                            (n_j, 1)
-                                        )
+                                        scaling_j_other = self._bkd.ones((n_j, 1))
                                         for k in range(len(path_j) - 1):
-                                            p, c = path_j[k], path_j[k+1]
+                                            p, c = path_j[k], path_j[k + 1]
                                             if (p, c) != edge:
-                                                s = self._edge_scalings[
-                                                    (p, c)
-                                                ](
+                                                s = self._edge_scalings[(p, c)](
                                                     X_for_scaling_j
                                                 )
-                                                scaling_j_other = (
-                                                    scaling_j_other * s
-                                                )
+                                                scaling_j_other = scaling_j_other * s
 
                                         contrib = (
                                             contrib
-                                            + scaling_i * K_ancestor
+                                            + scaling_i
+                                            * K_ancestor
                                             * (dscaling_j * scaling_j_other).T
                                         )
 
                                     jac_full[
-                                        row_offset:row_offset+n_i,
-                                        col_offset:col_offset+n_j,
-                                        param_offset + p_idx
-                                    ] = jac_full[
-                                        row_offset:row_offset+n_i,
-                                        col_offset:col_offset+n_j,
-                                        param_offset + p_idx
-                                    ] + contrib
+                                        row_offset : row_offset + n_i,
+                                        col_offset : col_offset + n_j,
+                                        param_offset + p_idx,
+                                    ] = (
+                                        jac_full[
+                                            row_offset : row_offset + n_i,
+                                            col_offset : col_offset + n_j,
+                                            param_offset + p_idx,
+                                        ]
+                                        + contrib
+                                    )
 
                     col_offset += n_j
                 row_offset += n_i

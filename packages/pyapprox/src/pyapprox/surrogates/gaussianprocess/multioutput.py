@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Generic, List, Optional, Tuple, Union
+from typing import Generic, List, Optional, Sequence, Tuple, Union
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.mean_functions import MeanFunction
@@ -179,10 +179,8 @@ class MultiOutputGP(Generic[Array]):
             K = self._kernel(X1_list, block_format=False)
         else:
             K = self._kernel(X1_list, X2_list, block_format=False)
-        if isinstance(K, list):
-            raise TypeError(
-                "kernel must return a stacked Array for block_format=False"
-            )
+        if isinstance(K, Sequence):
+            raise TypeError("kernel must return a stacked Array for block_format=False")
         return K
 
     def hyp_list(self) -> HyperParameterList[Array]:
@@ -448,9 +446,7 @@ class MultiOutputGP(Generic[Array]):
             )
 
         # Cross-covariance: K(X_test, X_train)
-        K_star = self._stacked_kernel_matrix(
-            X_test_list, self._fitted_x_train_list()
-        )
+        K_star = self._stacked_kernel_matrix(X_test_list, self._fitted_x_train_list())
 
         # Mean prediction: μ* = K_star @ alpha (stacked format)
         y_pred_stacked = K_star @ self.alpha()
@@ -495,26 +491,20 @@ class MultiOutputGP(Generic[Array]):
         mean = self.predict(X_test_list)
 
         # Cross-covariance for variance computation
-        K_star = self._stacked_kernel_matrix(
-            X_test_list, self._fitted_x_train_list()
-        )
+        K_star = self._stacked_kernel_matrix(X_test_list, self._fitted_x_train_list())
 
         # Prior variance (diagonal of K(X_test, X_test))
         # Use block format to efficiently get diagonals
         K_star_star_blocks = self._kernel(X_test_list, block_format=True)
-        if not isinstance(K_star_star_blocks, list):
-            raise TypeError(
-                "kernel must return blocks for block_format=True"
-            )
+        if not isinstance(K_star_star_blocks, Sequence):
+            raise TypeError("kernel must return blocks for block_format=True")
 
         # Extract diagonal from each diagonal block
         diag_blocks = []
         for i in range(len(X_test_list)):
             block_ii = K_star_star_blocks[i][i]
             if block_ii is None:
-                raise RuntimeError(
-                    f"kernel returned no diagonal block for output {i}"
-                )
+                raise RuntimeError(f"kernel returned no diagonal block for output {i}")
             # Diagonal of this block
             diag_i = self._bkd.diag(block_ii)
             diag_blocks.append(diag_i)
@@ -583,9 +573,7 @@ class MultiOutputGP(Generic[Array]):
         mean = self.predict(X_test_list)
 
         # Cross-covariance
-        K_star = self._stacked_kernel_matrix(
-            X_test_list, self._fitted_x_train_list()
-        )
+        K_star = self._stacked_kernel_matrix(X_test_list, self._fitted_x_train_list())
 
         # Prior covariance
         K_star_star = self._stacked_kernel_matrix(X_test_list)

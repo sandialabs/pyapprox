@@ -11,6 +11,7 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Union,
     runtime_checkable,
 )
@@ -96,7 +97,7 @@ class MultiOutputKernelProtocol(Protocol, Generic[Array]):
         X1_list: List[Array],
         X2_list: Optional[List[Array]] = None,
         block_format: bool = False,
-    ) -> Union[Array, List[List[Optional[Array]]]]:
+    ) -> Union[Array, Sequence[Sequence[Optional[Array]]]]:
         """
         Compute the multi-output kernel matrix.
 
@@ -114,8 +115,9 @@ class MultiOutputKernelProtocol(Protocol, Generic[Array]):
 
         Returns
         -------
-        K : Array or List[List[Optional[Array]]]
-            Multi-output kernel matrix.
+        K : Array or Sequence[Sequence[Optional[Array]]]
+            Multi-output kernel matrix. The block form is read-only, so an
+            implementation whose blocks are never None conforms as is.
 
             If block_format=False (default):
                 Single array of shape (n_total_1, n_total_2) where
