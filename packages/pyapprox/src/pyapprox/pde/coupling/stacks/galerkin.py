@@ -207,15 +207,24 @@ def skfem_stagewise_response(
     sharing the method then step as the single domain does, at the
     method's order.
 
-    The essential rows are pinned in every block too, at their data at
-    the block's time. Parameters are as :func:`skfem_windowed_response`.
+    The essential rows are pinned in every block too, which is the
+    single-domain step-end pin only for time-invariant essential data, so
+    time-dependent ones are refused. Parameters are as
+    :func:`skfem_windowed_response`.
 
     Raises
     ------
     ValueError
-        If there are no port DOFs, or as :func:`~pyapprox.pde.coupling.
-        transient.runge_kutta_block_fractions`.
+        If there are no port DOFs, the essential data depend on time, or
+        as :func:`~pyapprox.pde.coupling.transient.
+        runge_kutta_block_fractions`.
     """
+    if not system.constraint_set().is_time_invariant():
+        raise ValueError(
+            "stage-wise coupling pins the essential rows in every block, which "
+            "matches the single-domain step only for time-invariant essential "
+            "data"
+        )
     fractions = runge_kutta_block_fractions(method.tableau())
     unconstrained, rows, port_rows = _window_port_rows(system, ports, fractions)
     solved = differentiated_rows(unconstrained, rows, CoupledRows())
