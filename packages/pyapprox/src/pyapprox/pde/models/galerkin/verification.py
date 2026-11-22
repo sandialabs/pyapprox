@@ -62,7 +62,7 @@ from skfem import Basis, Functional, MeshTri
 from pyapprox.implicitfunction.setups import KeepAll
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole
-from pyapprox.pde.boundary.signal import BoundarySignal
+from pyapprox.pde.boundary.signal import BoundarySignal, DofSignal
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.expressions.evaluation import PointExpressions
 from pyapprox.pde.expressions.symbols import coordinates, time
@@ -73,6 +73,7 @@ from pyapprox.pde.galerkin.basis import (
 )
 from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
 from pyapprox.pde.galerkin.boundary.implementations import (
+    CallableDirichletBC,
     DirectDirichletBC,
     DirichletBC,
     NeumannBC,
@@ -710,16 +711,32 @@ def vector_boundary_conditions(
     return conditions
 
 
+class _PointValue:
+    """``s(time)``, one expression at fixed points, shape ``(npts,)``."""
+
+    def __init__(
+        self, expression: sp.Expr, scope: ExpressionScopeProtocol, points: _Np
+    ) -> None:
+        self._values = SkfemPoints([expression], scope)
+        self._points = points
+
+    def __call__(self, time: float) -> _Np:
+        values: _Np = self._values(self._points, t=time)[0]
+        return values
+
+
 def pinned_value(
     problem: ManufacturedProblem, basis: MixedBasis[_Np], field_name: str, row: str
-) -> DirectDirichletBC[_Np]:
+) -> Union[DirectDirichletBC[_Np], CallableDirichletBC[_Np]]:
     """The first DOF of scalar field ``field_name`` of a mixed basis fixed at
     the exact solution of ``row`` there.
 
     Removes the constant a field is determined only up to, such as the
     pressure when the velocity is prescribed on the whole boundary; any
     one DOF does, and fixing it at the exact value leaves the discrete
-    solution's error unchanged in order.
+    solution's error unchanged in order. A solution using ``t`` is pinned
+    at its value at each time, with its exact first and second time
+    derivatives for a transient system.
 
     Raises
     ------
@@ -730,8 +747,18 @@ def pinned_value(
         raise ValueError(f"field {field_name!r} is a vector; pin a scalar field")
     dof = basis.offset(field_name)
     point = np.asarray(basis.dof_coordinates())[:, dof : dof + 1]
-    value = SkfemPoints([problem.solution(row)], problem)(point)[0]
-    return DirectDirichletBC(np.array([dof]), value, _BKD)
+    solution = problem.solution(row)
+    if time() not in solution.free_symbols:
+        value = SkfemPoints([solution], problem)(point)[0]
+        return DirectDirichletBC(np.array([dof]), value, _BKD)
+    signal = DofSignal(
+        _PointValue(solution, problem, point),
+        [
+            _PointValue(sp.diff(solution, time(), order), problem, point)
+            for order in (1, 2)
+        ],
+    )
+    return CallableDirichletBC(np.array([dof]), signal, _BKD)
 
 
 def exact_dof_values(

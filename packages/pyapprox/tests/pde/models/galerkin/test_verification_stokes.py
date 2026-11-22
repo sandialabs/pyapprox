@@ -24,6 +24,9 @@ Cases:
   pressure 2, on 1D, 2D quads and triangles, all-Dirichlet and with
   traction, Robin and mixed-component sides; Navier-Stokes in 1D and 2D
   from a zero initial guess;
+- transient: the old suite's time-linear cases, 1D and 2D, Stokes and
+  Navier-Stokes, stepped exactly (below 1e-10) by backward Euler and
+  Crank-Nicolson;
 - wrong-model controls, which stall (fitted rate below 0.5): the
   continuity forcing given with the wrong sign, and the Navier-Stokes
   problem solved without convection;
@@ -32,7 +35,7 @@ Cases:
   and the mixed-field helpers given the wrong kind of field.
 """
 
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 import pytest
 
@@ -44,16 +47,30 @@ if not package_available("skfem"):
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import ButcherTableau, backward_euler, crank_nicolson
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole
-from pyapprox.pde.galerkin.basis import MixedBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, MixedBasis, VectorLagrangeBasis
+from pyapprox.pde.galerkin.basis.mixed import MixedFieldBasisProtocol
 from pyapprox.pde.galerkin.boundary.implementations import NeumannBC, RobinBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
+    skfem_discretization,
+)
+from pyapprox.pde.models.galerkin.transient_system import (
+    galerkin_transient_system,
+    solve_galerkin_transient,
+)
 from pyapprox.pde.models.galerkin.verification import (
     GalerkinDiscretizer,
     StructuredBox,
     TaylorHood,
+    exact_dof_values,
     forcing,
     pinned_value,
     vector_boundary_conditions,
@@ -68,8 +85,15 @@ from pyapprox.pde.verification.conditions import (
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.study import L2Error, run_study
-from pyapprox.pde.verification.terms import Divergence, Source, TermProtocol
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.linalg.scipy_stack import ScipySparseLU
+from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.galerkin_verification import (
     converges_on,
     recovers_on,
@@ -384,6 +408,83 @@ class TestControls:
             convection=True,
         )
         stalls_on(problem, _LEVELS_2D, TaylorHood(), _Stokes(viscosity=0.5))
+
+
+class TestTransient:
+    @pytest.mark.parametrize("navier_stokes", [False, True], ids=["stokes", "ns"])
+    @pytest.mark.parametrize(
+        "tableau", [backward_euler, crank_nicolson], ids=["BE", "CN"]
+    )
+    @pytest.mark.parametrize(
+        "velocity,pressure,box,nx",
+        [
+            (("(2*x - 1)**2*(1 + t)",), "x*(1 + t)", _UNIT_INTERVAL, 20),
+            (
+                ("y*(1 + t)", "(x + 1)*(y + 1)*(1 + t)"),
+                "x*(1 + t)",
+                _UNIT_SQUARE,
+                5,
+            ),
+        ],
+        ids=["1d", "2d"],
+    )
+    def test_time_linear_solution_is_stepped_exactly(
+        self,
+        velocity: Tuple[str, ...],
+        pressure: str,
+        box: Box,
+        nx: int,
+        tableau: Callable[[], ButcherTableau],
+        navier_stokes: bool,
+    ) -> None:
+        """The old suite's transient cases, :math:`\\partial_t u` added to
+        each momentum row, all sides Dirichlet and the pressure pinned at
+        one DOF: a velocity and pressure in Taylor-Hood space times
+        :math:`1 + t` are stepped exactly by backward Euler and
+        Crank-Nicolson, since the rate is constant in time (the
+        convection included). The velocity data and the pinned pressure
+        step with their exact rates."""
+        ndim = box.ndim()
+        rows = _VELOCITY[:ndim]
+        solution = dict(zip(rows, velocity))
+        solution["p"] = pressure
+        terms: List[TermProtocol] = [TimeDerivative(row) for row in rows]
+        terms += _terms(ndim, 1.0, navier_stokes)
+        problem = ManufacturedProblem(solution, terms, box, _sides(box, "D" * 2 * ndim))
+        mesh = StructuredBox([nx]).meshes(box)[0]
+        velocity_basis = VectorLagrangeBasis(mesh, degree=2)
+        pressure_basis = LagrangeBasis(mesh, degree=1)
+        fields: List[Tuple[str, MixedFieldBasisProtocol[_Np]]] = [
+            ("velocity", velocity_basis),
+            ("pressure", pressure_basis),
+        ]
+        system = _Stokes(navier_stokes=navier_stokes).system(
+            problem, MixedBasis(fields)
+        )
+        transient = galerkin_transient_system(
+            skfem_discretization(system), ScipySparseLU()
+        )
+
+        def exact(time: float) -> _Np:
+            return np.concatenate(
+                [
+                    exact_dof_values(problem, velocity_basis, rows, time),
+                    exact_dof_values(problem, pressure_basis, ["p"], time),
+                ]
+            )
+
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            transient,
+            RungeKutta(tableau(), Newton(atol=1e-12, rtol=0.0, maxiters=50)),
+            RecomputeAlways(transient.solved.solver),
+            FixedStep(0.1, (0.0, 0.5)),
+            exact(0.0)[:, None],
+            store,
+        )
+        last = store.ntimes() - 1
+        error = np.max(np.abs(store.state(last)[:, 0] - exact(store.times()[last])))
+        assert error < 1e-10
 
 
 class TestRefusals:
