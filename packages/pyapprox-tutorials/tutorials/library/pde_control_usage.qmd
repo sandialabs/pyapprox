@@ -147,13 +147,13 @@ off_diagonal = np.abs(correlation - np.eye(ndev))
 print(f"largest footprint overlap: {off_diagonal.max():.3f}")
 ```
 
-They overlap by more than 20%, so the diagonal shortcut is not available
+They overlap by about 15%, so the diagonal shortcut is not available
 here: two devices in the same corridor partly do each other's work, and a
 cost that ignores this prices a redundant pair as though it were two
 independent ones. We use the true Gram matrix.
 
-`TikhonovAugmentedFunctional` takes any symmetric positive definite
-weight, so this costs nothing but passing it. The same finite element
+`TikhonovTerm` takes any symmetric positive definite weight, so this
+costs nothing but passing it. The same finite element
 mass matrix that the time stepper already assembles supplies $M_q$.
 
 ::: {.callout-note collapse="true"}
@@ -194,11 +194,6 @@ what it costs for one second. That bookkeeping is what makes this
 problem comparable to the time-varying one later.
 
 ```{python}
-from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
-from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
-    TimeIntegratedWeightedL2Functional,
-)
-
 FINAL_TIME, DELTAT = 8.0, 0.25
 zone_mass = problem.zone_weight().assemble_weighted_mass(
     problem.basis(), bkd
@@ -207,16 +202,33 @@ steady_weight = FINAL_TIME * gram
 ```
 
 The benchmark assembles its model with an unweighted cost, so we build
-one around the same physics with the weighted functional instead. The
+one around the same physics with the weighted cost instead. The
 helper below is the assembly the benchmark itself performs --- mesh,
 frozen velocity, fixed release, and a Danckwerts inlet condition --- with
-the reaction and functional left open, because those are the two pieces
-this tutorial varies.
+the reaction and the effort weight left open, because those are the two
+pieces this tutorial varies. It returns the objective, and a function
+that solves for the whole trajectory, which the videos below draw.
 
 ```{python}
 #| code-fold: true
-#| code-summary: "Assembling a model around a given reaction and functional"
-from pyapprox.ode.config import TimeIntegrationConfig
+#| code-summary: "Assembling a model around a given reaction and effort weight"
+from pyapprox.implicitfunction.implicit_map import (
+    ArrayParameters,
+    ImplicitMapFunction,
+)
+from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import crank_nicolson
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.transient_implicit_map import (
+    FixedTrajectoryFunctional,
+    ParameterFanOut,
+    SummedFunctional,
+    TransientImplicitMap,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
@@ -224,28 +236,34 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.galerkin import compose_galerkin_system
-from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
-from pyapprox.pde.models.galerkin.transient import (
-    GalerkinTransientForwardModel,
+from pyapprox.pde.models.galerkin.transient_observations import (
+    time_integrated_weighted_l2,
+)
+from pyapprox.pde.models.galerkin.transient_system import (
+    galerkin_transient_system,
+    solve_galerkin_transient,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
+from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
-from pyapprox_benchmarks.problems.optimization.obstructed_flow_control import (
-    _InletNormalSpeed,
-)
+from pyapprox.util.rootfinding.nonlinear import Newton
+from pyapprox_benchmarks.problems.optimization import DanckwertsInlet
 
 DIFFUSIVITY = 0.01
 basis = problem.basis()
+method = RungeKutta(crank_nicolson(), Newton(atol=1e-12, rtol=0.0, maxiters=5))
+steps = FixedStep(DELTAT, (0.0, FINAL_TIME))
 
 
 def build_model(reaction, reaction_map, weight):
-    """Assemble the transport model with a Gram-weighted effort cost."""
+    """Assemble the transport objective with a Gram-weighted effort cost,
+    and a solver for its trajectory."""
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=NodalFieldDiffusion(
@@ -258,38 +276,74 @@ def build_model(reaction, reaction_map, weight):
     )
     system = compose_galerkin_system(
         physics,
-        [RobinBC(basis, "left", _InletNormalSpeed(2.5, 2.5), 0.0, bkd)],
+        [DanckwertsInlet().boundary_condition(basis, (2.5, 2.5), bkd)],
     )
     parameterization = AdvectionDiffusionParameterization(
         physics, reaction_map=reaction_map, bkd=bkd
     )
-    functional = TikhonovAugmentedFunctional(
-        TimeIntegratedWeightedL2Functional(
-            zone_mass, parameterization.nparams(), bkd
-        ),
-        problem.alpha(),
-        bkd,
-        weight=bkd.asarray(weight),
-    )
-    return GalerkinTransientForwardModel(
+    transient = galerkin_transient_system(
         skfem_discretization(system),
         ScipySparseLU(),
-        parameterization,
-        bkd.zeros((physics.nstates(),)),
-        TimeIntegrationConfig(
-            method="crank_nicolson", init_time=0.0,
-            final_time=FINAL_TIME, deltat=DELTAT, newton_tol=1e-12,
-            newton_maxiter=5, verbosity=0,
-        ),
-        functional=functional,
+        ParameterState(parameterization),
     )
+    init_state = bkd.zeros((physics.nstates(), 1))
+    # J = damage + effort: the zone's time-integrated mass, by the
+    # method the plume is stepped with, plus (alpha/2) p^T W p, which
+    # reads the controls each solve is set to.
+    effort = TikhonovTerm(bkd, problem.alpha(), bkd.asarray(weight))
+    functional = SummedFunctional(
+        [
+            time_integrated_weighted_l2(
+                transient,
+                method,
+                RecomputeAlways(transient.solved.solver),
+                zone_mass,
+            ),
+            FixedTrajectoryFunctional(
+                TrajectoryFunctional.from_terms(
+                    bkd, 1, parameter_terms=(effort,)
+                )
+            ),
+        ]
+    )
+    objective = ImplicitMapFunction(
+        TransientImplicitMap(
+            transient,
+            ParameterFanOut(transient, [effort.set_param]),
+            method,
+            RecomputeAlways(transient.solved.solver),
+            steps,
+            init_state,
+            functional,
+        ),
+        ArrayParameters(bkd),
+    )
+
+    def trajectory(controls):
+        """Every state, shape (nstates, ntimes), and the times."""
+        transient.set_param(controls)
+        store = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            transient,
+            method,
+            RecomputeAlways(transient.solved.solver),
+            steps,
+            init_state,
+            store,
+        )
+        states = bkd.concatenate(
+            [store.state(n) for n in range(store.ntimes())], axis=1
+        )
+        return states, bkd.asarray(store.times())
+
+    return objective, trajectory
 ```
 
 The steady control maps its eight amplitudes onto the reaction through a
 `BasisExpansion` whose columns are the device footprints.
 
 ```{python}
-steady_model = build_model(
+steady_model, steady_trajectory = build_model(
     NodalFieldLinearReaction(basis, dofs=np.zeros(basis.ndofs())),
     BasisExpansion(
         bkd, 0.0,
@@ -363,8 +417,8 @@ optimizer where the plume goes.
 #| output: asis
 from pyapprox_tutorials.figures._control import save_control_gif
 
-sols_uncontrolled, times = steady_model.forward_solve(uncontrolled)
-sols_steady, _ = steady_model.forward_solve(steady_rates)
+sols_uncontrolled, times = steady_trajectory(uncontrolled)
+sols_steady, _ = steady_trajectory(steady_rates)
 color_bound = float(
     max(bkd.to_numpy(sols_uncontrolled).max(),
         bkd.to_numpy(sols_steady).max())
@@ -528,7 +582,7 @@ time-varying problem would price identical behaviour eight times higher
 and lose for a reason having nothing to do with control.
 
 ```{python}
-tv_model = build_model(reaction, FROM_FIELD, spacetime_weight)
+tv_model, tv_trajectory = build_model(reaction, FROM_FIELD, spacetime_weight)
 
 nparams = tv_model.nvars()
 print(f"{nparams} parameters")
@@ -585,7 +639,7 @@ plt.show()
 #| echo: false
 #| label: fig-tv-video
 #| output: asis
-sols_tv, tv_times = tv_model.forward_solve(tv_rates)
+sols_tv, tv_times = tv_trajectory(tv_rates)
 
 
 def rates_at(time):
@@ -672,8 +726,9 @@ print(f"\n{per_coordinate:.3f} s per coordinate "
 print(f"the adjoint delivers all {nparams} in {t_adjoint:.3f} s")
 ```
 
-Finite differences agree to six digits and take about **190 times** as
-long --- minutes against a couple of seconds, for the same vector. That
+Finite differences agree to four or five digits, as close as a one-sided
+difference can get, and take about **150 times** as long --- minutes
+against under a second, for the same vector. That
 ratio grows with every parameter added, because the adjoint cost does
 not move. Refining the control in time is what makes this bite: the
 steady problem has eight parameters, where finite differences are merely
@@ -727,7 +782,7 @@ for name, model in (("steady", steady_model), ("time-varying", tv_model)):
   derivatives.
 - Price effort with the mass matrix. A plain sum of squared coefficients
   is a field norm only when the actuator footprints do not overlap ---
-  here they overlap by more than 20%.
+  here they overlap by about 15%.
 - Comparing two discretizations of the same control requires pricing
   them consistently. A cost charged per unit time makes a constant
   schedule cost the same whether it is written as one number or as one
