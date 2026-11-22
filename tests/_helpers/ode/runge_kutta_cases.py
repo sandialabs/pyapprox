@@ -142,7 +142,7 @@ def lotka_volterra_with_mass(bkd: Backend[Array]) -> LotkaVolterra[Array]:
 def rk_stepper(
     tableau: ButcherTableau,
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
-    row_pinning: Optional[RowPinningProtocol[Array]] = None,
+    row_pinning: Optional[RowPinningProtocol[Array, DenseFormat[Array]]] = None,
 ) -> RungeKuttaStepper[Array, Array, DenseFormat[Array]]:
     """A backend stepper, with Newton (atol 1e-13) for implicit stages,
     the given row pinning, and setups recomputed on the system's solver."""

@@ -139,7 +139,7 @@ class _Discretization(Generic[Array]):
     def system(self) -> MassFormSystem[Array, Array, DenseFormat[Array]]:
         return self._system
 
-    def pinning(self) -> Optional[RowPinningProtocol[Array]]:
+    def pinning(self) -> Optional[RowPinningProtocol[Array, DenseFormat[Array]]]:
         return None
 
     def initial_state(self, state: Array, time: float) -> Array:

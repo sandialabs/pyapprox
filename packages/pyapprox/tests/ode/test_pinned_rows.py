@@ -60,7 +60,7 @@ from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.ode.trajectory_terms import TrajectoryFunctional
 from pyapprox.ode.trajectory_terms_check import TrajectoryTermChecker
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendRowSet
+from pyapprox.util.linalg.backend_dense import BackendRowSet, DenseFormat
 from pyapprox.util.linalg.operators import BlockVector
 from tests._helpers.ode.runge_kutta_cases import (
     LV_PARAM,
@@ -120,7 +120,10 @@ class _Pinned(Generic[Array]):
     """
 
     def __init__(
-        self, bkd: Backend[Array], method: Method, pinning: RowPinningProtocol[Array]
+        self,
+        bkd: Backend[Array],
+        method: Method,
+        pinning: RowPinningProtocol[Array, DenseFormat[Array]],
     ) -> None:
         self.model = lotka_volterra_with_mass(bkd)
         self.param = bkd.asarray(LV_PARAM)
@@ -433,7 +436,9 @@ class TestProtocols:
         pinning = RowPinning(prey)
         assert isinstance(pinning, RowPinningProtocol)
         assert pinning.at(StepBlock(0, 2)) is None
-        pin: Optional[BlockPinProtocol[Array]] = pinning.at(StepBlock(1, 2))
+        pin: Optional[BlockPinProtocol[Array, DenseFormat[Array]]] = pinning.at(
+            StepBlock(1, 2)
+        )
         assert isinstance(pin, BlockPinProtocol)
         for placement in (AtStepEnd(), AtEveryBlock()):
             assert isinstance(placement, PinPlacementProtocol)

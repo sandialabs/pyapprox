@@ -35,7 +35,7 @@ METHOD_IDS = [make().name for make, *_ in METHODS]
 def lm_stepper(
     method: MultistepFormulaProtocol,
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
-    row_pinning: Optional[RowPinningProtocol[Array]] = None,
+    row_pinning: Optional[RowPinningProtocol[Array, DenseFormat[Array]]] = None,
 ) -> LinearMultistepStepper[Array, Array, DenseFormat[Array]]:
     """A backend stepper, with Newton (atol 1e-13) for implicit methods,
     the given row pinning, and setups recomputed on the system's solver."""

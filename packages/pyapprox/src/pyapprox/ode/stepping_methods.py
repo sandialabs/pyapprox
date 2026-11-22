@@ -45,7 +45,7 @@ class SteppingMethodProtocol(Protocol[V, A]):
         self,
         system: MassFormSystem[V, A, F],
         setups: MassShiftStrategy[V, A, F],
-        row_pinning: Optional[RowPinningProtocol[V]] = None,
+        row_pinning: Optional[RowPinningProtocol[V, F]] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> StepperProtocol[V, A]:
         """A stepper of this method for ``system``.
@@ -154,7 +154,7 @@ class RungeKutta(Generic[V, A]):
         self,
         system: MassFormSystem[V, A, F],
         setups: MassShiftStrategy[V, A, F],
-        row_pinning: Optional[RowPinningProtocol[V]] = None,
+        row_pinning: Optional[RowPinningProtocol[V, F]] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> RungeKuttaStepper[V, A, F]:
         """A :class:`RungeKuttaStepper` of this tableau for ``system``."""
@@ -213,7 +213,7 @@ class LinearMultistep(Generic[V, A]):
         self,
         system: MassFormSystem[V, A, F],
         setups: MassShiftStrategy[V, A, F],
-        row_pinning: Optional[RowPinningProtocol[V]] = None,
+        row_pinning: Optional[RowPinningProtocol[V, F]] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> LinearMultistepStepper[V, A, F]:
         """A :class:`LinearMultistepStepper` of this method for

@@ -9,7 +9,8 @@ bundle reads them. Pinned blocks pin the first row
 (``PinnedPrey``).
 
 - Keys: which changes to a request leave its key equal, per level, for
-  :math:`s \ne 0` and for :math:`s = 0`.
+  :math:`s \ne 0` and for :math:`s = 0`; a pin whose own block changes
+  with time keys the time even where the operator ignores it.
 - Positions: equal for one trajectory, step and block; refused when
   negative or given the wrong type.
 - The builder forms :math:`a M - s J(y, t)` with the pinned rows identity
@@ -23,7 +24,7 @@ bundle reads them. Pinned blocks pin the first row
 """
 
 from dataclasses import dataclass, replace
-from typing import Generic, List, Optional, Tuple, Type, Union
+from typing import Generic, List, Optional, Tuple, Type, TypeVar, Union
 
 import pytest
 
@@ -38,6 +39,7 @@ from pyapprox.ode.mass_form_system import MassFormSystem, dense_mass_form_system
 from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix
 from pyapprox.ode.pinned_rows import BlockPinProtocol, RowPin
 from pyapprox.ode.residual_derivatives import (
+    DerivativeOperator,
     ODEResidualDerivatives,
     backend_state_space,
     constant_jacobian,
@@ -52,7 +54,12 @@ from pyapprox.util.linalg.backend_dense import (
     BackendDenseOperator,
     DenseFormat,
 )
-from pyapprox.util.linalg.operators import ActionOperatorProtocol
+from pyapprox.util.linalg.operators import (
+    ActionOperatorProtocol,
+    FormatProtocol,
+    RowsZeroedOperator,
+    VectorSpaceProtocol,
+)
 from tests._helpers.linalg.counting_solver import CountingSolver
 from tests._helpers.ode.trajectory_cases import PinnedPrey
 
@@ -61,6 +68,8 @@ _K = [[-1.0, 0.3], [0.2, -0.8]]
 
 _System = MassFormSystem[Array, Array, DenseFormat[Array]]
 _Request = MassShiftRequest[Array, Array, DenseFormat[Array]]
+_Space = VectorSpaceProtocol[Array]
+G = TypeVar("G", bound=FormatProtocol)
 
 
 class _Model(Generic[Array]):
@@ -139,7 +148,7 @@ class _Args(Generic[Array]):
     source: _System[Array]
     a: float
     s: float
-    pin: Optional[BlockPinProtocol[Array]]
+    pin: Optional[BlockPinProtocol[Array, DenseFormat[Array]]]
     time: float
     state: Array
     position: Optional[StatePosition]
@@ -148,6 +157,51 @@ class _Args(Generic[Array]):
         return MassShiftRequest(
             self.source, self.a, self.s, self.pin, self.time, self.state, self.position
         )
+
+
+class _TimedPin(Generic[Array]):
+    """A row pin declaring that its own block changes with time."""
+
+    def __init__(self, pin: RowPin[Array]) -> None:
+        self._pin = pin
+
+    def residual(
+        self, block: Array, state: Array, time: float, space: _Space[Array]
+    ) -> Array:
+        return self._pin.residual(block, state, time, space)
+
+    def right_hand_side(self, rhs: Array, time: float) -> Array:
+        return self._pin.right_hand_side(rhs, time)
+
+    def own(
+        self, op: ActionOperatorProtocol[Array, DenseFormat[Array]], time: float
+    ) -> ActionOperatorProtocol[Array, DenseFormat[Array]]:
+        return self._pin.own(op, time)
+
+    def own_is_time_invariant(self) -> bool:
+        return False
+
+    def coupled(
+        self, op: ActionOperatorProtocol[Array, G]
+    ) -> RowsZeroedOperator[Array, G]:
+        return self._pin.coupled(op)
+
+    def adjoint(self, block: Array, space: _Space[Array]) -> Array:
+        return self._pin.adjoint(block, space)
+
+    def data_param_jacobian(
+        self, time: float, space: _Space[Array], params: _Space[Array]
+    ) -> Optional[DerivativeOperator[Array]]:
+        return self._pin.data_param_jacobian(time, space, params)
+
+    def data_param_curvature(
+        self,
+        weights: Array,
+        time: float,
+        space: _Space[Array],
+        params: _Space[Array],
+    ) -> Optional[DerivativeOperator[Array]]:
+        return self._pin.data_param_curvature(weights, time, space, params)
 
 
 class _Case(Generic[Array]):
@@ -229,6 +283,19 @@ class TestKeys:
         assert pinned.request().key() == pinned.request().key()
         copy = replace(pinned, pin=RowPin(PinnedPrey(bkd)))
         assert copy.request().key() != pinned.request().key()
+
+    @pytest.mark.parametrize("s", [0.0, 0.25], ids=["mass_only", "shifted"])
+    def test_a_pin_changing_with_time_keys_the_time(
+        self, bkd: Backend[Array], s: float
+    ) -> None:
+        """A pin whose own block changes with time puts the time in the
+        key even where the system's operator ignores it (constant level);
+        a time-invariant pin does not."""
+        case = _Case(bkd, _Constant)
+        for pin, keyed in ((case.pin, False), (_TimedPin(case.pin), True)):
+            base = replace(case.args(s), pin=pin)
+            later = replace(base, time=0.3)
+            assert (base.request().key() != later.request().key()) == keyed
 
 
 class TestPositions:

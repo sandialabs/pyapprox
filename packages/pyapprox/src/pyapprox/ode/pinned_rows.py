@@ -79,6 +79,7 @@ from pyapprox.util.linalg.operators import (
 V = TypeVar("V")
 W = TypeVar("W")
 F = TypeVar("F", bound=FormatProtocol)
+G = TypeVar("G", bound=FormatProtocol)
 
 DataParamFn = Callable[[float], DerivativeOperator[V]]
 r""":math:`t \mapsto \partial d/\partial p`, parameters to states, for
@@ -295,9 +296,16 @@ def values_at_time(
 
 
 @runtime_checkable
-class BlockPinProtocol(Protocol[V]):
+class BlockPinProtocol(Protocol[V, F]):
     """How one residual block of a step is pinned (see the module
-    docstring); ``time`` is the block's time."""
+    docstring); ``time`` is the block's time.
+
+    ``F`` is the format of the block's own operator, the stepped system's
+    format: a pin that writes rows of its own into that operator works
+    only for the format those rows are stored in, so it names it, and a
+    stepper accepts it only for a system of that format. A pin editing
+    rows through the format's own algebra (:class:`RowPin`) satisfies the
+    protocol for every format."""
 
     def residual(
         self, block: V, state: V, time: float, space: VectorSpaceProtocol[V]
@@ -311,12 +319,22 @@ class BlockPinProtocol(Protocol[V]):
         operator: ``rhs`` with its pinned rows the data."""
         ...
 
-    def own(self, op: ActionOperatorProtocol[V, F]) -> ActionOperatorProtocol[V, F]:
-        """The block's own diagonal block, its pinned rows identity rows."""
+    def own(
+        self, op: ActionOperatorProtocol[V, F], time: float
+    ) -> ActionOperatorProtocol[V, F]:
+        """The block's own diagonal block at the block's time, its pinned
+        rows identity rows."""
         ...
 
-    def coupled(self, op: ActionOperatorProtocol[V, F]) -> ActionOperatorProtocol[V, F]:
-        """A coupling block of the block's row, its pinned rows zeroed."""
+    def own_is_time_invariant(self) -> bool:
+        """Whether :meth:`own` ignores the time, so a factorization of its
+        result may be kept across blocks of different times."""
+        ...
+
+    def coupled(self, op: ActionOperatorProtocol[V, G]) -> ActionOperatorProtocol[V, G]:
+        """A coupling block of the block's row, its pinned rows zeroed:
+        a block of the step operator or of its parameter Jacobian, in that
+        block's own format."""
         ...
 
     def adjoint(self, block: V, space: VectorSpaceProtocol[V]) -> V:
@@ -352,7 +370,7 @@ class BlockPinProtocol(Protocol[V]):
 
 
 def data_jacobian_term(
-    pin: BlockPinProtocol[V],
+    pin: BlockPinProtocol[V, F],
     time: float,
     space: VectorSpaceProtocol[V],
     params: VectorSpaceProtocol[V],
@@ -373,7 +391,7 @@ def data_jacobian_term(
 
 
 def data_curvature_term(
-    pin: BlockPinProtocol[V],
+    pin: BlockPinProtocol[V, F],
     weights: V,
     time: float,
     space: VectorSpaceProtocol[V],
@@ -434,10 +452,11 @@ class StepBlock:
 
 
 @runtime_checkable
-class RowPinningProtocol(Protocol[V]):
-    """Which residual blocks of a step a stepper pins, and how."""
+class RowPinningProtocol(Protocol[V, F]):
+    """Which residual blocks of a step a stepper pins, and how, for a
+    system whose operators are in format ``F``."""
 
-    def at(self, block: StepBlock) -> Optional[BlockPinProtocol[V]]:
+    def at(self, block: StepBlock) -> Optional[BlockPinProtocol[V, F]]:
         """How to pin ``block``, or None to leave it."""
         ...
 
@@ -502,8 +521,14 @@ class RowPin(Generic[V]):
     def right_hand_side(self, rhs: V, time: float) -> V:
         return self._at(time).right_hand_side(rhs)
 
-    def own(self, op: ActionOperatorProtocol[V, F]) -> RowReplacedOperator[V, F]:
+    def own(
+        self, op: ActionOperatorProtocol[V, F], time: float
+    ) -> RowReplacedOperator[V, F]:
+        """Identity rows: independent of the block's time."""
         return self._algebra.own(op)
+
+    def own_is_time_invariant(self) -> bool:
+        return True
 
     def coupled(self, op: ActionOperatorProtocol[V, F]) -> RowsZeroedOperator[V, F]:
         return self._algebra.coupled(op)

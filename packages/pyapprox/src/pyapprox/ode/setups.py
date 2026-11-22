@@ -69,9 +69,7 @@ class StatePosition:
 
     def __init__(self, origin: StepOrigin, block: int) -> None:
         if not isinstance(origin, StepOrigin):
-            raise TypeError(
-                f"origin must be a StepOrigin, got {type(origin).__name__}"
-            )
+            raise TypeError(f"origin must be a StepOrigin, got {type(origin).__name__}")
         if block < 0:
             raise ValueError(f"block must be nonnegative, got {block}")
         self._origin, self._block = origin, block
@@ -101,7 +99,8 @@ class MassShiftRequest(Generic[V, A, F]):
     The key holds the system and the pin (by identity) and :math:`a`,
     :math:`s`; when :math:`s \ne 0`, also the time if :math:`J` sees it
     and the state's position if :math:`J` sees the state. Which it sees is
-    read from the system's bundle.
+    read from the system's bundle. The time is also held when the pin's
+    own block changes with it.
 
     Parameters
     ----------
@@ -145,7 +144,7 @@ class MassShiftRequest(Generic[V, A, F]):
         source: MassFormSystem[V, A, F],
         a: float,
         s: float,
-        pin: Optional[BlockPinProtocol[V]],
+        pin: Optional[BlockPinProtocol[V, F]],
         time: float,
         state: V,
         position: Optional[StatePosition],
@@ -164,6 +163,9 @@ class MassShiftRequest(Generic[V, A, F]):
                 )
             self._sees_state = not jacobian.affine()
             sees_time = not jacobian.time_invariant()
+        # A pin whose own block changes with time makes the operator do so
+        # whatever s is
+        sees_time = sees_time or (pin is not None and not pin.own_is_time_invariant())
         self._source, self._pin = source, pin
         self._state, self._position = state, position
         when = self._time if sees_time else None
@@ -180,7 +182,7 @@ class MassShiftRequest(Generic[V, A, F]):
     def s(self) -> float:
         return self._s
 
-    def pin(self) -> Optional[BlockPinProtocol[V]]:
+    def pin(self) -> Optional[BlockPinProtocol[V, F]]:
         return self._pin
 
     def time(self) -> float:
@@ -243,7 +245,7 @@ class MassShiftBuilder(Generic[V, A, F]):
             terms.append((-request.s(), jacobian))
         operator = ScaledSum(terms, system.space)
         pin = request.pin()
-        return operator if pin is None else pin.own(operator)
+        return operator if pin is None else pin.own(operator, request.time())
 
     def _label(self, request: MassShiftRequest[V, A, F]) -> LinearizationPoint:
         # Nothing reads it; kept truthful so a label-keyed cache could not

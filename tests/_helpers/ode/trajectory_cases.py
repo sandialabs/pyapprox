@@ -102,7 +102,7 @@ Stepper = Union[
 def make_stepper(
     method: Method,
     system: MassFormSystem[Array, Array, DenseFormat[Array]],
-    row_pinning: Optional[RowPinningProtocol[Array]] = None,
+    row_pinning: Optional[RowPinningProtocol[Array, DenseFormat[Array]]] = None,
 ) -> Stepper[Array]:
     """The stepper of a tableau or of a multistep method, with the given
     row pinning."""
@@ -425,7 +425,7 @@ class TrajectoryProblem(Generic[Array]):
         times: Optional[List[float]] = None,
         prey: tuple[int, ...] = (2, 5, 10),
         predator: tuple[int, ...] = (3, 10),
-        row_pinning: Optional[RowPinningProtocol[Array]] = None,
+        row_pinning: Optional[RowPinningProtocol[Array, DenseFormat[Array]]] = None,
         stack_constraint: Optional[DifferentiableStackConstraintProtocol[Array]] = None,
         plan: Optional[StepPlanProtocol] = None,
     ) -> None:

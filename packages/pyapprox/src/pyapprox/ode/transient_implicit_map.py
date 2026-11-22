@@ -80,7 +80,7 @@ class TransientDiscretizationProtocol(Protocol[V, A, F]):
         """The system stepped."""
         ...
 
-    def pinning(self) -> Optional[RowPinningProtocol[V]]:
+    def pinning(self) -> Optional[RowPinningProtocol[V, F]]:
         """The rows pinned inside each step's solves; None for none."""
         ...
 

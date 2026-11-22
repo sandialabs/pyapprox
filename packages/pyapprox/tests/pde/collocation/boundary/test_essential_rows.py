@@ -271,7 +271,7 @@ class TestDirichletRows:
         )
         bkd.assert_allclose(new_residual[:, 0], old_residual, rtol=1e-14, atol=1e-14)
         operator = BackendDenseOperator(jacobian, space.descriptor(), bkd)
-        new_jacobian = pin.own(operator).apply(bkd.eye(_NPTS))
+        new_jacobian = pin.own(operator, time).apply(bkd.eye(_NPTS))
         bkd.assert_allclose(new_jacobian, old_jacobian, rtol=1e-14, atol=1e-14)
 
     def test_pickle_round_trip(self, bkd: Backend[Array]) -> None:

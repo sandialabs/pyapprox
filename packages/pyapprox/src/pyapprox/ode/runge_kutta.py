@@ -130,7 +130,7 @@ class _StageSystem(Generic[V, A, F]):
         scale: float,
         deltat: float,
         block: int,
-        pin: Optional[BlockPinProtocol[V]],
+        pin: Optional[BlockPinProtocol[V, F]],
     ) -> None:
         self._stepper = stepper
         self._state, self._known = state, known
@@ -276,16 +276,12 @@ class _TableauExtension(Generic[V, A, F]):
             )
         return BlockOperator([row], unknown, stepper.state_space())
 
-    def _wrt_lag(
-        self, window: StepWindow[V], time: float, lag: int
-    ) -> StepOperator[V]:
+    def _wrt_lag(self, window: StepWindow[V], time: float, lag: int) -> StepOperator[V]:
         if lag != 1:
             raise ValueError(f"a one-step method has lag 1 only, got {lag}")
         stepper = self._stepper
         system = stepper.system()
-        terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = [
-            (1.0, system.mass)
-        ]
+        terms: List[tuple[float, ActionOperatorProtocol[V, F]]] = [(1.0, system.mass)]
         weight = self._weights(window, time)[0]
         if stepper.tableau().has_trivial_first_stage() and weight != 0.0:
             jacobian = stepper._jacobian_at(window, window.past_state(1), 0)
@@ -319,9 +315,7 @@ class _TableauExtension(Generic[V, A, F]):
         )
         if data is None:
             block = (
-                self._solved(
-                    ScaledSum(terms, space, params.component(0)), window, time
-                )
+                self._solved(ScaledSum(terms, space, params.component(0)), window, time)
                 if terms
                 else None
             )
@@ -504,7 +498,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
         system: MassFormSystem[V, A, F],
         setups: MassShiftStrategy[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
-        row_pinning: Optional[RowPinningProtocol[V]] = None,
+        row_pinning: Optional[RowPinningProtocol[V, F]] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> None:
         self._setups, self._builder = stepper_setups(system, setups, builder)
@@ -615,7 +609,7 @@ class RungeKuttaStepper(Generic[V, A, F]):
     def _shift_handle(
         self,
         scale: float,
-        pin: Optional[BlockPinProtocol[V]],
+        pin: Optional[BlockPinProtocol[V, F]],
         time: float,
         state: V,
         position: Optional[StatePosition],
@@ -639,12 +633,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
             Names ``state`` when it is a converged stage of a stored
             step; None for a Newton iterate.
         """
-        request = MassShiftRequest(
-            self._system, 1.0, scale, pin, time, state, position
-        )
+        request = MassShiftRequest(self._system, 1.0, scale, pin, time, state, position)
         return self._setups.handle(request, self._builder)
 
-    def _block_pin(self, block: int) -> Optional[BlockPinProtocol[V]]:
+    def _block_pin(self, block: int) -> Optional[BlockPinProtocol[V, F]]:
         """How residual block ``block`` is pinned, or None."""
         if self._row_pinning is None:
             return None
@@ -928,21 +920,25 @@ class RungeKuttaStepper(Generic[V, A, F]):
                 # The final block's own column: M.
                 row[-1] = system.mass
             grid.append(row)
-        return self._pin_rows(grid)
+        return self._pin_rows(window, grid)
 
     def _pin_rows(
-        self, grid: List[List[Optional[ActionOperatorProtocol[V, F]]]]
+        self,
+        window: StepWindow[V],
+        grid: List[List[Optional[ActionOperatorProtocol[V, F]]]],
     ) -> List[List[Optional[ActionOperatorProtocol[V, F]]]]:
         """``diag``'s grid with each pinned block row edited: its own block
-        row-replaced, its other blocks with the rows zeroed."""
+        row-replaced at the block's time, its other blocks with the rows
+        zeroed."""
         for r in range(len(grid)):
             pin = self._block_pin(r)
             if pin is None:
                 continue
+            time = self._block_time(window, r)
             grid[r] = [
                 None
                 if block is None
-                else pin.own(block)
+                else pin.own(block, time)
                 if k == r
                 else pin.coupled(block)
                 for k, block in enumerate(grid[r])

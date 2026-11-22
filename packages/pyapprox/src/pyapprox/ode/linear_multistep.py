@@ -106,8 +106,6 @@ F = TypeVar("F", bound=FormatProtocol)
 G = TypeVar("G", bound=FormatProtocol)
 
 
-
-
 class _NewStateSystem(Generic[V, A, F]):
     r"""An implicit step's equation for the nonlinear solver,
 
@@ -303,9 +301,7 @@ class _MultistepExtension(Generic[V, A, F]):
             stepper.state_space(),
         )
 
-    def _wrt_lag(
-        self, window: StepWindow[V], time: float, lag: int
-    ) -> StepOperator[V]:
+    def _wrt_lag(self, window: StepWindow[V], time: float, lag: int) -> StepOperator[V]:
         if not 1 <= lag <= len(window.past_states):
             raise ValueError(
                 f"lag must be between 1 and {len(window.past_states)}, got {lag}"
@@ -337,9 +333,7 @@ class _MultistepExtension(Generic[V, A, F]):
         )
         if data is None:
             block = (
-                self._solved(
-                    ScaledSum(terms, space, params.component(0)), window, time
-                )
+                self._solved(ScaledSum(terms, space, params.component(0)), window, time)
                 if terms
                 else None
             )
@@ -514,7 +508,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         system: MassFormSystem[V, A, F],
         setups: MassShiftStrategy[V, A, F],
         nonlinear_solver: Optional[NonlinearSolverProtocol[V, A]] = None,
-        row_pinning: Optional[RowPinningProtocol[V]] = None,
+        row_pinning: Optional[RowPinningProtocol[V, F]] = None,
         builder: Optional[MassShiftBuilderProtocol[V, A, F]] = None,
     ) -> None:
         self._setups, self._builder = stepper_setups(system, setups, builder)
@@ -555,7 +549,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
         """The method."""
         return self._method
 
-    def pin(self) -> Optional[BlockPinProtocol[V]]:
+    def pin(self) -> Optional[BlockPinProtocol[V, F]]:
         """How the step's block is pinned, or None."""
         return self._pin
 
@@ -834,7 +828,10 @@ class LinearMultistepStepper(Generic[V, A, F]):
         pin = self._pin
         if pin is None:
             return block
-        return pin.own(block) if lag == 0 else pin.coupled(block)
+        if lag == 0:
+            # The step's one block is its end, at t_{n+1}
+            return pin.own(block, window.span.end())
+        return pin.coupled(block)
 
     def diag(self, window: StepWindow[V]) -> BlockOperator[V]:
         r""":math:`\partial R_n/\partial u_n = \alpha_0 M - \Delta t\,
@@ -874,9 +871,7 @@ class LinearMultistepStepper(Generic[V, A, F]):
                 None if origin is None else StatePosition(origin, 0),
             )
         else:
-            handle = self._mass_handle(
-                alpha0, window.lag_time(0), window.past_state(1)
-            )
+            handle = self._mass_handle(alpha0, window.lag_time(0), window.past_state(1))
         operator = BlockOperator([[block]], self._unknown_space, self._residual_space)
         return BlockLowerTriangularHandle(operator, [handle])
 
