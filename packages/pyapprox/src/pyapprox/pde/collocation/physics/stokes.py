@@ -314,6 +314,12 @@ class StokesPhysics(Generic[Array]):
         time-dependent."""
         return not declared_time_invariant(self._mu)
 
+    def stress_is_linear_in_state(self) -> bool:
+        """True: :math:`-pI + \\mu(\\nabla u + \\nabla u^\\top)`, the
+        viscosity not reading the state; Navier-Stokes convection is not in
+        the stress."""
+        return True
+
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         """Linear in the state: the second derivative is zero."""
         return StateDerivatives.linear(self._bkd)

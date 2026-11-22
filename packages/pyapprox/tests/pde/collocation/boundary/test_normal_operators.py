@@ -1,6 +1,5 @@
 """Tests for normal operators."""
 
-
 import numpy as np
 import pytest
 
@@ -21,6 +20,11 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionFlux,
     AdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.physics.burgers import (
+    BurgersPhysics1D,
+    BurgersTotalFlux,
+    BurgersViscousFlux,
 )
 from pyapprox.pde.collocation.physics.coefficients import NodalField
 from pyapprox.pde.collocation.physics.linear_elasticity import (
@@ -167,6 +171,22 @@ class TestFluxNormalOperator:
         state = nodes * nodes
         result = flux_op(state, 0.0)
         bkd.assert_allclose(result, bkd.array([-4.0]), atol=1e-10)
+
+    def test_linearity_follows_the_provider(self, bkd: Backend[Array]) -> None:
+        """The operator declares itself linear exactly when its flux
+        provider does: ADR and the Burgers viscous flux are linear, the
+        Burgers total flux, carrying u^2/2, is not."""
+        mesh = TransformedMesh1D(10, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        index, normals = bkd.array([0], dtype=int), bkd.array([[-1.0]])
+        burgers = BurgersPhysics1D(basis, bkd, viscosity=0.1)
+        for provider, linear in (
+            (AdvectionDiffusionReaction(basis, bkd, diffusion=2.0), True),
+            (BurgersViscousFlux(burgers), True),
+            (BurgersTotalFlux(burgers), False),
+        ):
+            operator = FluxNormalOperator(bkd, index, normals, provider)
+            assert operator.is_linear_in_state() is linear
 
     def test_flux_with_velocity(self, bkd: Backend[Array]) -> None:
         """Test FluxNormalOperator with conservative ADR physics including
@@ -362,6 +382,7 @@ class TestTractionNormalOperator:
             normals[i, 0] = -1.0
 
         traction_op = TractionNormalOperator(bkd, left_idx, normals, physics, 0)
+        assert traction_op.is_linear_in_state()
 
         state1 = bkd.ones((2 * npts,))
         state2 = bkd.ones((2 * npts,)) * 5.0

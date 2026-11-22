@@ -393,3 +393,8 @@ class FluxProviderProtocol(Protocol, Generic[Array]):
         """Whether any coefficient the flux reads is declared
         time-dependent."""
         ...
+
+    def flux_is_linear_in_state(self) -> bool:
+        """Whether the flux is linear in the state, so its Jacobian is the
+        same at every state."""
+        ...

@@ -133,11 +133,7 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
             flux = 0.5 * state * state - nu * du_dx
             residual = -(self._D1 @ flux)
         else:
-            residual = (
-                nu * (self._D2 @ state)
-                + (self._D1 @ nu) * du_dx
-                - state * du_dx
-            )
+            residual = nu * (self._D2 @ state) + (self._D1 @ nu) * du_dx - state * du_dx
         return residual + self._get_forcing(time)
 
     def jacobian(self, state: Array, time: float) -> Array:
@@ -237,6 +233,11 @@ class BurgersViscousFlux(Generic[Array]):
         """Whether the viscosity is declared time-dependent."""
         return not declared_time_invariant(self._physics.viscosity_function())
 
+    def flux_is_linear_in_state(self) -> bool:
+        """True: :math:`-\\nu \\nabla u`, the viscosity not reading the
+        state."""
+        return True
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
 
@@ -275,6 +276,10 @@ class BurgersTotalFlux(Generic[Array]):
     def flux_is_time_dependent(self) -> bool:
         """Whether the viscosity is declared time-dependent."""
         return self._viscous.flux_is_time_dependent()
+
+    def flux_is_linear_in_state(self) -> bool:
+        """False: the convective part :math:`u^2/2` is quadratic."""
+        return False
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"

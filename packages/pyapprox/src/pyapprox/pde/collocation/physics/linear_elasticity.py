@@ -386,6 +386,11 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         declared time-dependent."""
         return not declared_time_invariant(self._lamda, self._mu)
 
+    def stress_is_linear_in_state(self) -> bool:
+        """True: Hooke's law with Lamé parameters that do not read the
+        state."""
+        return True
+
     def interior_is_time_invariant(self) -> bool:
         """Whether, besides the Lamé parameters, the forcing is declared
         time-invariant."""

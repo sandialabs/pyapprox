@@ -132,8 +132,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             raise ValueError(f"Unsupported dimension: {ndim}")
         if not isinstance(law, HyperelasticLawProtocol):
             raise TypeError(
-                "law must satisfy HyperelasticLawProtocol, got "
-                f"{type(law).__name__}"
+                f"law must satisfy HyperelasticLawProtocol, got {type(law).__name__}"
             )
 
         super().__init__(basis, bkd, ncomponents=ndim)
@@ -212,8 +211,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         """
         if self._sensitive_law is None:
             raise NotImplementedError(
-                f"{type(self._law).__name__} provides no Lame-parameter "
-                "sensitivities"
+                f"{type(self._law).__name__} provides no Lame-parameter sensitivities"
             )
         return self._sensitive_law
 
@@ -245,9 +243,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         lamda, mu = self.lame_values(0.0)
         return self._law.tangent(F, mu, lamda)
 
-    def _stress_entry_jacobian(
-        self, A_iJ: List[List[Array]]
-    ) -> Array:
+    def _stress_entry_jacobian(self, A_iJ: List[List[Array]]) -> Array:
         """:math:`\\partial P_{iJ}/\\partial u` from its tangent row
         ``A_iJ[k][L]``: block k is :math:`\\sum_L \\operatorname{diag}
         (A_{iJkL}) D_L`, formed by row scaling. Shape: (npts, nstates)"""
@@ -380,9 +376,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
     # -- full-matrix field-derivative assemblies (engine slots)
 
-    def _stress_lame_sensitivity(
-        self, state: Array, which: str
-    ) -> List[List[Array]]:
+    def _stress_lame_sensitivity(self, state: Array, which: str) -> List[List[Array]]:
         """:math:`\\partial P_{iJ}/\\partial \\mu` (``which="mu"``) or
         :math:`\\partial P_{iJ}/\\partial \\lambda` at every node."""
         law = self._sensitivity_law()
@@ -430,9 +424,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             If the law provides no Lame sensitivities (or none in this
             dimension).
         """
-        return self._residual_field_jacobian(
-            self._stress_lame_sensitivity(state, "mu")
-        )
+        return self._residual_field_jacobian(self._stress_lame_sensitivity(state, "mu"))
 
     def residual_lamda_jacobian(self, state: Array) -> Array:
         """Assemble :math:`S_\\lambda(u) = \\partial R/\\partial
@@ -600,6 +592,10 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         """False: the flux is the PK1 stress, whose law takes no time."""
         return False
 
+    def flux_is_linear_in_state(self) -> bool:
+        """False: the PK1 stress is nonlinear in the displacement."""
+        return False
+
     def stress_is_time_dependent(self) -> bool:
         """False: the PK1 stress law takes no time."""
         return False
@@ -607,4 +603,3 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     def interior_is_time_invariant(self) -> bool:
         """Whether the body force is declared time-invariant."""
         return declared_time_invariant(self._forcing)
-

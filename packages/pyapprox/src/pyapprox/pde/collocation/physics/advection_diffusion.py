@@ -301,6 +301,11 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         it and the velocity, which is fixed in time."""
         return not declared_time_invariant(self._diffusion)
 
+    def flux_is_linear_in_state(self) -> bool:
+        """True: :math:`-D \\nabla u + v u` with coefficients that do not
+        read the state."""
+        return True
+
     def interior_jacobian_is_time_invariant(self) -> bool:
         """Whether the diffusion and reaction are declared time-invariant
         (the velocity is fixed in time)."""
@@ -677,6 +682,10 @@ class AdvectionDiffusionFlux(Generic[Array]):
         """Whether the diffusivity is declared time-dependent (the
         velocity is fixed in time)."""
         return self._physics.flux_is_time_dependent()
+
+    def flux_is_linear_in_state(self) -> bool:
+        """True: either advection form is linear in the state."""
+        return self._physics.flux_is_linear_in_state()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._advection_form!r})"

@@ -578,6 +578,11 @@ class SpeciesDiffusiveFlux(Generic[Array]):
         coefficient = self._physics.diffusion_functions()[self._species]
         return not declared_time_invariant(coefficient)
 
+    def flux_is_linear_in_state(self) -> bool:
+        """True: :math:`-D_s \\nabla u_s`, the diffusivity not reading the
+        state; the reaction, which may be nonlinear, is not in the flux."""
+        return True
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}(species={self._species})"
 

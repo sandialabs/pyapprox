@@ -428,6 +428,11 @@ class ShallowIceFlux(Generic[Array]):
             self._physics.bed_function(), self._physics.friction_function()
         )
 
+    def flux_is_linear_in_state(self) -> bool:
+        """False: the shallow-ice flux is a power of the thickness and its
+        gradient."""
+        return False
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
 

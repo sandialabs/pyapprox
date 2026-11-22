@@ -57,8 +57,7 @@ class GradientNormalOperator(Generic[Array]):
         normal_deriv_matrix = bkd.zeros((self._nboundary_pts, npts))
         for d in range(self._ndim):
             normal_deriv_matrix = normal_deriv_matrix + (
-                normals[:, d : d + 1]
-                * derivative_matrices[d][boundary_indices, :]
+                normals[:, d : d + 1] * derivative_matrices[d][boundary_indices, :]
             )
         self._normal_deriv_matrix = normal_deriv_matrix
 
@@ -157,9 +156,9 @@ class FluxNormalOperator(Generic[Array]):
         return True
 
     def is_linear_in_state(self) -> bool:
-        """Return False: the flux provider declares no linearity (the
-        hyperelastic flux is nonlinear), so linearity is not known."""
-        return False
+        """Whether the flux provider declares the flux linear in the
+        state."""
+        return self._flux_provider.flux_is_linear_in_state()
 
     def is_time_dependent(self) -> bool:
         """Whether the flux provider declares the flux time-dependent."""
@@ -204,16 +203,13 @@ class FluxNormalOperator(Generic[Array]):
             for a scalar physics). Shape: (nboundary_pts, nstates)
         """
         bkd = self._bkd
-        flux_jac_components = self._flux_provider.compute_flux_jacobian(
-            state, time
-        )
+        flux_jac_components = self._flux_provider.compute_flux_jacobian(state, time)
         nstates = flux_jac_components[0].shape[1]
         result = bkd.zeros((self._nboundary_pts, nstates))
         # Vectorized row gather (per-row python loops are slow on torch)
         for d, jac_d in enumerate(flux_jac_components):
             result = result + (
-                self._normals[:, d : d + 1]
-                * jac_d[self._boundary_indices, :]
+                self._normals[:, d : d + 1] * jac_d[self._boundary_indices, :]
             )
         return result
 
@@ -236,6 +232,11 @@ class CauchyStressSourceProtocol(Protocol, Generic[Array]):
     def stress_is_time_dependent(self) -> bool:
         """Whether any coefficient the stress reads is declared
         time-dependent."""
+        ...
+
+    def stress_is_linear_in_state(self) -> bool:
+        """Whether the stress is linear in the state, so its Jacobian is
+        the same at every state."""
         ...
 
 
@@ -297,9 +298,9 @@ class TractionNormalOperator(Generic[Array]):
         return True
 
     def is_linear_in_state(self) -> bool:
-        """Return False: the stress source declares no linearity, so
-        linearity is not known."""
-        return False
+        """Whether the stress source declares the stress linear in the
+        state."""
+        return self._stress_source.stress_is_linear_in_state()
 
     def is_time_dependent(self) -> bool:
         """Whether the stress source declares the stress time-dependent."""
@@ -350,5 +351,3 @@ class TractionNormalOperator(Generic[Array]):
         for j in range(1, len(row)):
             jac = jac + self._normals[:, j : j + 1] * row[j][idx]
         return jac
-
-

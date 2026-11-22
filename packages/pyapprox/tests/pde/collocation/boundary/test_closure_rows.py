@@ -295,8 +295,9 @@ class TestRobinRows:
 
     def test_declared_derivatives(self, bkd: Backend[Array]) -> None:
         """Gradient rows: c_uu, c_p, c_up, c_pp stated zero with nothing
-        parameterized. Flux rows: c_uu not known and every parameter
-        derivative left to the system. c_up stated zero when only g
+        parameterized. ADR flux rows: c_uu stated zero, the flux being
+        declared linear, and every parameter derivative left to the
+        system. c_up stated zero when only g
         depends on the parameters; c_pp absent when a map has no second
         derivative."""
         gradient = RobinRows(
@@ -310,7 +311,7 @@ class TestRobinRows:
         flux = RobinRows(
             bkd, StateLayout.uniform(_NPTS, 1), _constant_parts(bkd, "flux")
         ).derivatives()
-        assert flux.state_curvature is None
+        assert flux.state_curvature is STATED_ZERO
         assert flux.param_jacobian is None
         assert flux.mixed is None and flux.param_curvature is None
         mesh = _mesh(bkd)

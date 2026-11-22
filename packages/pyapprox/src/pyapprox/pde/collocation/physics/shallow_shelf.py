@@ -539,6 +539,10 @@ class ShallowShelfStressFlux(Generic[Array]):
         """Whether the depth is declared time-dependent."""
         return not declared_time_invariant(self._physics.depth_function())
 
+    def flux_is_linear_in_state(self) -> bool:
+        """False: the effective viscosity reads the strain rate."""
+        return False
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}(component={self._component})"
 
