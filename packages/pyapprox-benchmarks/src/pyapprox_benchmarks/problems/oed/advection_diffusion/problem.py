@@ -24,13 +24,15 @@ from typing import (
     Callable,
     Dict,
     List,
-    Literal,
     Optional,
+    Protocol,
     Tuple,
     Union,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
+    from pyapprox.ode.stepping_methods import SteppingMethodProtocol
     from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
@@ -63,6 +65,48 @@ from pyapprox_benchmarks.problems.oed.prediction_problem import (
 
 # Bound to NumPy: the Stokes and transport solves assemble with skfem.
 _Np = NDArray[Any]
+
+
+@runtime_checkable
+class KLESourceProtocol(Protocol):
+    """How the KLE random field enters the transport equation."""
+
+    def forcing(self, field: Callable[[_Np], _Np]) -> Optional[Callable[[_Np], _Np]]:
+        """The forcing, given ``field``, the KLE field evaluated at points
+        of shape ``(2, npts)``; ``None`` for an unforced equation."""
+        ...
+
+    def initial_state(self, kle_nodal: _Np, bkd: NumpyBkd) -> _Np:
+        """The initial state, shape ``(nstates, 1)``, given the KLE field's
+        nodal values ``kle_nodal``, shape ``(nstates,)``."""
+        ...
+
+
+class KLEForcing:
+    """The KLE field is the forcing; the initial state is zero."""
+
+    def forcing(self, field: Callable[[_Np], _Np]) -> Optional[Callable[[_Np], _Np]]:
+        return field
+
+    def initial_state(self, kle_nodal: _Np, bkd: NumpyBkd) -> _Np:
+        return bkd.zeros_like(bkd.reshape(kle_nodal, (-1, 1)))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
+
+class KLEInitialCondition:
+    """The KLE field is the initial state; the equation is unforced."""
+
+    def forcing(self, field: Callable[[_Np], _Np]) -> Optional[Callable[[_Np], _Np]]:
+        return None
+
+    def initial_state(self, kle_nodal: _Np, bkd: NumpyBkd) -> _Np:
+        return bkd.reshape(kle_nodal, (-1, 1))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
 
 # ---------------------------------------------------------------------------
 # AdvectionDiffusionOEDProblem
@@ -99,6 +143,13 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         - KLE coefficients (10) for log-normal forcing field
         - Inlet velocity shape parameters (2): U[2, 3]
         - Reynolds number (1): U[5, 20]
+
+    The transport solve is configured by two injected objects:
+    ``source`` (a :class:`KLESourceProtocol`; default
+    :class:`KLEForcing`, or :class:`KLEInitialCondition`) and
+    ``method`` (a ``SteppingMethodProtocol``; default Crank--Nicolson
+    with a one-iteration Newton solve). Either that does not satisfy
+    its protocol raises ``TypeError``.
 
     Subclass extension points
     -------------------------
@@ -138,20 +189,40 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         ),
         kle_correlation_length: float = 0.1,
         kle_sigma: float = 0.3,
-        source_mode: Literal["forcing", "initial_condition"] = "forcing",
-        time_integrator: Literal[
-            "backward_euler", "crank_nicolson"
-        ] = "crank_nicolson",
+        source: Optional[KLESourceProtocol] = None,
+        method: Optional["SteppingMethodProtocol[_Np, _Np]"] = None,
     ) -> None:
-        if source_mode not in ("forcing", "initial_condition"):
-            raise ValueError(
-                f"source_mode must be 'forcing' or 'initial_condition', "
-                f"got {source_mode!r}"
+        from pyapprox.ode.stepping_methods import (
+            RungeKutta,
+            SteppingMethodProtocol,
+        )
+        from pyapprox.ode.tableau import crank_nicolson
+        from pyapprox.util.rootfinding.nonlinear import Newton
+
+        if source is None:
+            source = KLEForcing()
+        if not isinstance(source, KLESourceProtocol):
+            raise TypeError(
+                f"source must satisfy KLESourceProtocol, got {type(source).__name__}"
             )
-        if time_integrator not in ("backward_euler", "crank_nicolson"):
-            raise ValueError(
-                f"time_integrator must be 'backward_euler' or "
-                f"'crank_nicolson', got {time_integrator!r}"
+        if method is None:
+            # ADR with frozen Stokes velocity is linear in u, so the
+            # implicit time step assembles a single linear system and
+            # Newton converges in one iteration to a residual set by
+            # linear-solve roundoff (typically 1e-7..1e-8 for this
+            # stiffness). maxiters=1 is a verification barrier: if anyone
+            # introduces nonlinearity (e.g. a u-dependent reaction),
+            # Newton leaves a residual ~||r_0|| after one step, orders of
+            # magnitude above atol, and the step raises. atol=1e-6 gives
+            # headroom for linear-solve roundoff without masking genuine
+            # nonlinearity.
+            method = RungeKutta(
+                crank_nicolson(), Newton(atol=1e-6, rtol=0.0, maxiters=1)
+            )
+        if not isinstance(method, SteppingMethodProtocol):
+            raise TypeError(
+                "method must satisfy SteppingMethodProtocol, got "
+                f"{type(method).__name__}"
             )
         if not isinstance(bkd, NumpyBkd):
             raise TypeError(
@@ -174,8 +245,8 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         self._kle_subdomain = kle_subdomain
         self._kle_correlation_length = kle_correlation_length
         self._kle_sigma = kle_sigma
-        self._source_mode = source_mode
-        self._time_integrator = time_integrator
+        self._source = source
+        self._method = method
 
         # Step 1: build mesh, KLE, sensors, prior, obs/pred, inference.
         self._build_pde_substrate()
@@ -212,9 +283,7 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         bkd = self._bkd
 
         # Build prior: [kle_params (10), vel_shape (2), reynolds (1)]
-        marginals: List[
-            Union[GaussianMarginal[_Np], UniformMarginal[_Np]]
-        ] = []
+        marginals: List[Union[GaussianMarginal[_Np], UniformMarginal[_Np]]] = []
         for _ in range(self._nkle_terms):
             marginals.append(GaussianMarginal(0.0, 1.0, bkd))
         marginals.append(UniformMarginal(2.0, 3.0, bkd))
@@ -251,7 +320,9 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         rng = np.random.default_rng(42)
         nodes_np = bkd.to_numpy(self._adr_mesh.nodes())
         indices = rng.choice(
-            nodes_np.shape[1], self._nsensors, replace=False,
+            nodes_np.shape[1],
+            self._nsensors,
+            replace=False,
         )
         self._sensor_indices = indices
         self._sensor_locations = bkd.asarray(nodes_np[:, indices])
@@ -286,7 +357,8 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         )
 
         noise_variances = bkd.full(
-            (nqoi_obs,), self._noise_std ** 2,
+            (nqoi_obs,),
+            self._noise_std**2,
         )
         self._inference_problem = BayesianInferenceProblem(
             obs_map=self._obs_model,
@@ -316,9 +388,9 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         """Standard deviation of the observation noise."""
         return self._noise_std
 
-    def source_mode(self) -> str:
-        """KLE source mode: ``"forcing"`` or ``"initial_condition"``."""
-        return self._source_mode
+    def source(self) -> KLESourceProtocol:
+        """How the KLE field enters the transport equation."""
+        return self._source
 
     # ---- Stokes solve (cached entry point) ------------------------------
 
@@ -360,8 +432,14 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
             "LagrangeBasis[_Np]",
         ],
     ) -> Tuple[_Np, _Np]:
-        """Run the ADR transient using a precomputed Stokes result."""
-        from pyapprox.ode.config import TimeIntegrationConfig
+        """Run the ADR transient using a precomputed Stokes result.
+
+        Returns the nodal states, shape ``(nstates, nsteps + 1)``, and
+        their times, shape ``(nsteps + 1,)``.
+        """
+        from pyapprox.implicitfunction.setups import KeepStateFree
+        from pyapprox.ode.step_plan import FixedStep
+        from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
         from pyapprox.pde.constitutive.coefficient_functions import (
             TimeIndependent,
         )
@@ -371,17 +449,24 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
             AdvectionDiffusionReaction,
         )
         from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
-            skfem_ode_residual,
+            skfem_discretization,
         )
-        from pyapprox.pde.galerkin.time_integration.transient_model import (
-            GalerkinTransientModel,
+        from pyapprox.pde.models.galerkin.transient_system import (
+            galerkin_transient_system,
+            solve_galerkin_transient,
         )
+        from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 
         bkd = self._bkd
         sol, stokes, vel_basis, pres_basis = stokes_result
 
         vel_callable = extract_velocity_callable(
-            sol, stokes, vel_basis, pres_basis, self._adr_basis, bkd,
+            sol,
+            stokes,
+            vel_basis,
+            pres_basis,
+            self._adr_basis,
+            bkd,
             probes_cache=self._adr_probes_cache,
         )
 
@@ -389,26 +474,24 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         kle_vals = self._kle_map(kle_coeffs)
         kle_nodal = bkd.to_numpy(kle_vals)
 
-        forcing_func: Optional[Callable[..., np.ndarray]]
-        if self._source_mode == "forcing":
-            adr_skfem = self._adr_basis.skfem_basis()
-            probes_cache = self._adr_probes_cache
+        adr_skfem = self._adr_basis.skfem_basis()
+        probes_cache = self._adr_probes_cache
 
-            def forcing_func(x: np.ndarray) -> np.ndarray:
-                shape = None
-                if len(x.shape) > 2:
-                    shape = x.shape
-                    x = x.reshape(x.shape[0], -1)
-                npts = x.shape[1]
-                if npts not in probes_cache:
-                    probes_cache[npts] = adr_skfem.probes(x).tocsr()
-                # scipy sparse matmul is untyped; pin the ndarray result
-                out = np.asarray(probes_cache[npts] @ kle_nodal)
-                if shape is not None:
-                    return out.reshape(*shape[1:])
-                return out
-        else:
-            forcing_func = None
+        def kle_field(x: np.ndarray) -> np.ndarray:
+            shape = None
+            if len(x.shape) > 2:
+                shape = x.shape
+                x = x.reshape(x.shape[0], -1)
+            npts = x.shape[1]
+            if npts not in probes_cache:
+                probes_cache[npts] = adr_skfem.probes(x).tocsr()
+            # scipy sparse matmul is untyped; pin the ndarray result
+            out = np.asarray(probes_cache[npts] @ kle_nodal)
+            if shape is not None:
+                return out.reshape(*shape[1:])
+            return out
+
+        forcing_func = self._source.forcing(kle_field)
 
         alpha = 0.1
         robin_bcs: List["BoundaryConditionRole[_Np]"] = [
@@ -421,42 +504,36 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
             diffusivity=self._diffusivity,
             bkd=bkd,
             velocity=TimeIndependent(vel_callable),
-            forcing=(
-                None if forcing_func is None else TimeIndependent(forcing_func)
-            ),
+            forcing=(None if forcing_func is None else TimeIndependent(forcing_func)),
         )
 
-        model = GalerkinTransientModel(
-            skfem_ode_residual(compose_galerkin_system(adr, robin_bcs))
+        transient = galerkin_transient_system(
+            skfem_discretization(compose_galerkin_system(adr, robin_bcs)),
+            ScipySparseLU(),
         )
-        if self._source_mode == "initial_condition":
-            ic = kle_nodal.astype(np.float64)
-        else:
-            ic = bkd.to_numpy(bkd.zeros((adr.nstates(),)))
-        # ADR with frozen Stokes velocity is linear in u, so the implicit
-        # time step assembles a single linear system and Newton converges
-        # in one iteration to a residual set by linear-solve roundoff
-        # (typically 1e-7..1e-8 for this stiffness). Setting maxiter=1 is a
-        # verification barrier: if anyone introduces nonlinearity (e.g. a
-        # u-dependent reaction), Newton leaves a residual ~||r_0|| after
-        # one step, orders of magnitude above newton_tol, and raises
-        # RuntimeError. newton_tol=1e-6 gives headroom for linear-solve
-        # roundoff without masking genuine nonlinearity.
-        config: TimeIntegrationConfig[_Np] = TimeIntegrationConfig(
-            method=self._time_integrator,
-            init_time=0.0,
-            final_time=self._final_time,
-            deltat=self._deltat,
-            newton_tol=1e-6,
-            newton_maxiter=1,
-            verbosity=0,
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        # With the Stokes velocity frozen the transport operator does not
+        # depend on the state, so each stage operator is factored once per
+        # sample and kept. The system is rebuilt for every sample, so the
+        # kept factorizations never outlive the operator they factor.
+        solve_galerkin_transient(
+            transient,
+            self._method,
+            KeepStateFree(transient.solved.solver),
+            FixedStep(self._deltat, (0.0, self._final_time)),
+            self._source.initial_state(kle_vals, bkd),
+            store,
         )
-        return model.solve_transient(bkd.asarray(ic), config)
+        states = bkd.concatenate(
+            [store.state(n) for n in range(store.ntimes())], axis=1
+        )
+        return states, bkd.asarray(store.times())
 
     # ---- forward-solve wrappers -----------------------------------------
 
     def _solve_forward_full(
-        self, params_np: np.ndarray,
+        self,
+        params_np: np.ndarray,
     ) -> Dict[str, Any]:
         """Full forward solve returning all intermediates.
 
@@ -474,11 +551,14 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         reynolds_num = float(params_np[self._nkle_terms + 2])
 
         stokes_result = self._compute_stokes_result(
-            vel_shape_a, vel_shape_b, reynolds_num,
+            vel_shape_a,
+            vel_shape_b,
+            reynolds_num,
         )
         sol, stokes, vel_basis, _ = stokes_result
         solutions, times = self._solve_adr_transient(
-            kle_params, stokes_result,
+            kle_params,
+            stokes_result,
         )
         return {
             "adr_solutions": solutions,
@@ -489,7 +569,8 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         }
 
     def _solve_forward(
-        self, params_np: np.ndarray,
+        self,
+        params_np: np.ndarray,
     ) -> Tuple[_Np, _Np]:
         """Full forward solve for a single parameter vector."""
         result = self._solve_forward_full(params_np)
@@ -498,7 +579,8 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
     # ---- plotting assembly ----------------------------------------------
 
     def _assemble_plotting_dict(
-        self, forward_result: Dict[str, Any],
+        self,
+        forward_result: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Translate a ``_solve_forward_full`` dict into plotting data.
 
@@ -514,7 +596,7 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
 
         vel_x = stokes_sol_np[:vel_ndofs:2]
         vel_y = stokes_sol_np[1:vel_ndofs:2]
-        vel_mag = np.sqrt(vel_x ** 2 + vel_y ** 2)
+        vel_mag = np.sqrt(vel_x**2 + vel_y**2)
 
         adr_solutions = forward_result["adr_solutions"]
         concentration = bkd.to_numpy(adr_solutions[:, -1])
@@ -534,7 +616,8 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
         }
 
     def solve_for_plotting(
-        self, sample: _Np,
+        self,
+        sample: _Np,
     ) -> Dict[str, Any]:
         """Solve for a single parameter sample, returning plotting data."""
         params_np = self._bkd.to_numpy(sample).ravel()
@@ -581,7 +664,8 @@ class AdvectionDiffusionOEDProblem(PredictionOEDProblem[_Np]):
     # ---- public PDE evaluation API --------------------------------------
 
     def evaluate_both(
-        self, samples: _Np,
+        self,
+        samples: _Np,
     ) -> Tuple[_Np, _Np]:
         """Evaluate observation and prediction maps with a single solve."""
         bkd = self._bkd
@@ -682,14 +766,21 @@ class FixedVelocityAdvectionDiffusionOEDProblem(AdvectionDiffusionOEDProblem):
 
         nqoi_obs = self._nsensors
         self._obs_model = FunctionFromCallable(
-            nqoi_obs, nkle, self._evaluate_observation, bkd,
+            nqoi_obs,
+            nkle,
+            self._evaluate_observation,
+            bkd,
         )
         self._pred_model = FunctionFromCallable(
-            1, nkle, self._evaluate_prediction, bkd,
+            1,
+            nkle,
+            self._evaluate_prediction,
+            bkd,
         )
 
         noise_variances = bkd.full(
-            (nqoi_obs,), self._noise_std ** 2,
+            (nqoi_obs,),
+            self._noise_std**2,
         )
         self._inference_problem = BayesianInferenceProblem(
             obs_map=self._obs_model,
@@ -699,7 +790,9 @@ class FixedVelocityAdvectionDiffusionOEDProblem(AdvectionDiffusionOEDProblem):
         )
 
         self._cached_stokes_result = self._compute_stokes_result(
-            self._vel_shape_a, self._vel_shape_b, self._reynolds_num,
+            self._vel_shape_a,
+            self._vel_shape_b,
+            self._reynolds_num,
         )
 
     # ---- pinned velocity accessors --------------------------------------
@@ -716,7 +809,8 @@ class FixedVelocityAdvectionDiffusionOEDProblem(AdvectionDiffusionOEDProblem):
     # ---- forward solve (reduced dimension) ------------------------------
 
     def _solve_forward_full(
-        self, params_np: np.ndarray,
+        self,
+        params_np: np.ndarray,
     ) -> Dict[str, Any]:
         """Override: reuse cached Stokes; expects a pure KLE vector.
 
@@ -730,7 +824,8 @@ class FixedVelocityAdvectionDiffusionOEDProblem(AdvectionDiffusionOEDProblem):
             f"{params_np.shape}"
         )
         solutions, times = self._solve_adr_transient(
-            params_np, self._cached_stokes_result,
+            params_np,
+            self._cached_stokes_result,
         )
         sol, stokes, vel_basis, _ = self._cached_stokes_result
         return {
@@ -742,7 +837,8 @@ class FixedVelocityAdvectionDiffusionOEDProblem(AdvectionDiffusionOEDProblem):
         }
 
     def solve_for_plotting(
-        self, sample: _Np,
+        self,
+        sample: _Np,
     ) -> Dict[str, Any]:
         """Plot a reduced KLE sample using the cached Stokes result."""
         kle_np = self._bkd.to_numpy(sample).ravel()

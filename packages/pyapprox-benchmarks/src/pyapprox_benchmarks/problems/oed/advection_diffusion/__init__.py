@@ -1,11 +1,15 @@
 """PDE-specific prediction OED problems for obstructed advection-diffusion.
 
-Re-exports the two public classes:
+Re-exports the two problem classes:
 
 - :class:`AdvectionDiffusionOEDProblem` — full 13-dim parameter
   space (10 KLE terms + 2 inlet shape + 1 Reynolds).
 - :class:`FixedVelocityAdvectionDiffusionOEDProblem` — pinned
   velocity, pre-cached Stokes, reduced KLE-only parameter space.
+
+and the ways the KLE field enters the transport equation:
+:class:`KLESourceProtocol`, with :class:`KLEForcing` and
+:class:`KLEInitialCondition`.
 
 Mesh, Stokes, and KLE helper functions live in the sibling private
 modules (``_mesh``, ``_stokes``, ``_kle``) and are not part of the
@@ -15,9 +19,15 @@ public API.
 from pyapprox_benchmarks.problems.oed.advection_diffusion.problem import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
+    KLEForcing,
+    KLEInitialCondition,
+    KLESourceProtocol,
 )
 
 __all__ = [
     "AdvectionDiffusionOEDProblem",
     "FixedVelocityAdvectionDiffusionOEDProblem",
+    "KLEForcing",
+    "KLEInitialCondition",
+    "KLESourceProtocol",
 ]

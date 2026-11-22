@@ -15,13 +15,13 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    Literal,
     Optional,
     Tuple,
 )
 
 if TYPE_CHECKING:
     from pyapprox.interface.functions.protocols import FunctionProtocol
+    from pyapprox.ode.stepping_methods import SteppingMethodProtocol
     from pyapprox.probability.protocols import DistributionProtocol
 
 from numpy.typing import NDArray
@@ -30,6 +30,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
+    KLESourceProtocol,
 )
 
 # ---------------------------------------------------------------------------
@@ -112,13 +113,15 @@ class ObstructedAdvectionDiffusionOEDProblemWrapper:
         return self._problem.evaluate_nodal(samples)
 
     def evaluate_both(
-        self, samples: _Np,
+        self,
+        samples: _Np,
     ) -> Tuple[_Np, _Np]:
         """Evaluate obs and prediction maps (transitional forwarder)."""
         return self._problem.evaluate_both(samples)
 
     def solve_for_plotting(
-        self, sample: _Np,
+        self,
+        sample: _Np,
     ) -> Dict[str, Any]:
         """Plotting-data forward solve (transitional forwarder)."""
         return self._problem.solve_for_plotting(sample)
@@ -144,16 +147,21 @@ def build_obstructed_advection_diffusion_oed_problem(
     final_time: float = 1.5,
     deltat: float = 0.25,
     kle_subdomain: Optional[Tuple[float, float, float, float]] = (
-        0.0, 0.25, 0.0, 1.0,
+        0.0,
+        0.25,
+        0.0,
+        1.0,
     ),
     kle_correlation_length: float = 0.1,
     kle_sigma: float = 0.3,
-    source_mode: Literal["forcing", "initial_condition"] = "forcing",
-    time_integrator: Literal[
-        "backward_euler", "crank_nicolson"
-    ] = "crank_nicolson",
+    source: Optional[KLESourceProtocol] = None,
+    method: Optional["SteppingMethodProtocol[_Np, _Np]"] = None,
 ) -> ObstructedAdvectionDiffusionOEDProblemWrapper:
-    """Build an :class:`ObstructedAdvectionDiffusionOEDProblemWrapper`."""
+    """Build an :class:`ObstructedAdvectionDiffusionOEDProblemWrapper`.
+
+    ``source`` and ``method`` are as for
+    :class:`AdvectionDiffusionOEDProblem`; ``None`` takes its defaults.
+    """
     problem = AdvectionDiffusionOEDProblem(
         bkd,
         noise_std=noise_std,
@@ -167,8 +175,8 @@ def build_obstructed_advection_diffusion_oed_problem(
         kle_subdomain=kle_subdomain,
         kle_correlation_length=kle_correlation_length,
         kle_sigma=kle_sigma,
-        source_mode=source_mode,
-        time_integrator=time_integrator,
+        source=source,
+        method=method,
     )
     return ObstructedAdvectionDiffusionOEDProblemWrapper(
         problem=problem,
@@ -237,16 +245,21 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
     final_time: float = 1.5,
     deltat: float = 0.25,
     kle_subdomain: Optional[Tuple[float, float, float, float]] = (
-        0.0, 0.25, 0.0, 1.0,
+        0.0,
+        0.25,
+        0.0,
+        1.0,
     ),
     kle_correlation_length: float = 0.1,
     kle_sigma: float = 0.3,
-    source_mode: Literal["forcing", "initial_condition"] = "forcing",
-    time_integrator: Literal[
-        "backward_euler", "crank_nicolson"
-    ] = "crank_nicolson",
+    source: Optional[KLESourceProtocol] = None,
+    method: Optional["SteppingMethodProtocol[_Np, _Np]"] = None,
 ) -> FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
-    """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper`."""
+    """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper`.
+
+    ``source`` and ``method`` are as for
+    :class:`AdvectionDiffusionOEDProblem`; ``None`` takes its defaults.
+    """
     problem = FixedVelocityAdvectionDiffusionOEDProblem(
         bkd,
         vel_shape_a=vel_shape_a,
@@ -263,8 +276,8 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
         kle_subdomain=kle_subdomain,
         kle_correlation_length=kle_correlation_length,
         kle_sigma=kle_sigma,
-        source_mode=source_mode,
-        time_integrator=time_integrator,
+        source=source,
+        method=method,
     )
     return FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(
         problem=problem,

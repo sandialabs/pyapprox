@@ -27,6 +27,8 @@ from pyapprox_benchmarks.expdesign.advection_diffusion import (
 from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
+    KLEForcing,
+    KLEInitialCondition,
 )
 from tests._helpers.markers import slow_test
 
@@ -132,7 +134,10 @@ class TestAdvectionDiffusionOEDProblemWrapper:
         bkd = numpy_bkd
         mesh = build_obstructed_mesh(bkd, nrefine=1)
         sol, stokes, vel_basis, pres_basis = solve_obstructed_stokes(
-            mesh, bkd, reynolds_num=10.0, vel_shape_params=[2.0, 2.0],
+            mesh,
+            bkd,
+            reynolds_num=10.0,
+            vel_shape_params=[2.0, 2.0],
         )
         vel_ndofs = stokes.vel_ndofs()
         vel_state = bkd.to_numpy(sol[:vel_ndofs])
@@ -245,18 +250,32 @@ class TestAdvectionDiffusionOEDProblemWrapper:
         )
         assert bench is not None
 
-    def test_invalid_source_mode_raises(self, numpy_bkd):
-        """source_mode must be 'forcing' or 'initial_condition'."""
+    def test_invalid_source_raises(self, numpy_bkd):
+        """source must satisfy KLESourceProtocol."""
         bkd = numpy_bkd
         self._setup_data(bkd)
-        with pytest.raises(ValueError, match="source_mode"):
+        with pytest.raises(TypeError, match="KLESourceProtocol"):
             build_obstructed_advection_diffusion_oed_problem(
                 bkd,
                 nstokes_refine=self._nstokes_refine,
                 nadvec_diff_refine=self._nadvec_diff_refine,
                 nkle_terms=self._nkle_terms,
                 nsensors=self._nsensors,
-                source_mode="bogus",  # type: ignore[arg-type]
+                source="forcing",  # type: ignore[arg-type]
+            )
+
+    def test_invalid_method_raises(self, numpy_bkd):
+        """method must satisfy SteppingMethodProtocol."""
+        bkd = numpy_bkd
+        self._setup_data(bkd)
+        with pytest.raises(TypeError, match="SteppingMethodProtocol"):
+            build_obstructed_advection_diffusion_oed_problem(
+                bkd,
+                nstokes_refine=self._nstokes_refine,
+                nadvec_diff_refine=self._nadvec_diff_refine,
+                nkle_terms=self._nkle_terms,
+                nsensors=self._nsensors,
+                method="crank_nicolson",  # type: ignore[arg-type]
             )
 
     def test_non_numpy_backend_raises(self, torch_bkd):
@@ -278,7 +297,7 @@ class TestAdvectionDiffusionOEDProblemWrapper:
             )
 
     @slow_test
-    def test_source_mode_initial_condition(self, numpy_bkd):
+    def test_source_initial_condition(self, numpy_bkd):
         """Initial-condition mode: IC equals KLE field, forward is finite.
 
         Under IC mode the ADR equation has zero forcing and ``u(x, 0)``
@@ -296,7 +315,7 @@ class TestAdvectionDiffusionOEDProblemWrapper:
             nadvec_diff_refine=self._nadvec_diff_refine,
             nkle_terms=self._nkle_terms,
             nsensors=self._nsensors,
-            source_mode="initial_condition",
+            source=KLEInitialCondition(),
         )
         bench_fc = build_obstructed_advection_diffusion_oed_problem(
             bkd,
@@ -304,7 +323,7 @@ class TestAdvectionDiffusionOEDProblemWrapper:
             nadvec_diff_refine=self._nadvec_diff_refine,
             nkle_terms=self._nkle_terms,
             nsensors=self._nsensors,
-            source_mode="forcing",
+            source=KLEForcing(),
         )
 
         rng = np.random.default_rng(0)
@@ -317,9 +336,7 @@ class TestAdvectionDiffusionOEDProblemWrapper:
         sample_np[-1] = 12.5
 
         kle_field = bkd.to_numpy(
-            bench_ic.problem()._kle_map(
-                bkd.asarray(sample_np[: self._nkle_terms])
-            )
+            bench_ic.problem()._kle_map(bkd.asarray(sample_np[: self._nkle_terms]))
         )
 
         ic_solutions, _ = bench_ic.problem()._solve_forward(sample_np)
@@ -331,7 +348,9 @@ class TestAdvectionDiffusionOEDProblemWrapper:
         # Initial time step: IC mode == KLE field; forcing mode == 0.
         np.testing.assert_allclose(ic_np[:, 0], kle_field, rtol=1e-12)
         np.testing.assert_allclose(
-            fc_np[:, 0], np.zeros_like(kle_field), atol=1e-12,
+            fc_np[:, 0],
+            np.zeros_like(kle_field),
+            atol=1e-12,
         )
         # Finite everywhere under both modes.
         assert np.all(np.isfinite(ic_np))
@@ -438,7 +457,8 @@ class TestPickleRegression:
         rng = np.random.default_rng(2)
         kle_params = numpy_bkd.asarray(rng.standard_normal(3))
         solutions, times = problem._solve_adr_transient(
-            kle_params, stokes_result2,
+            kle_params,
+            stokes_result2,
         )
         sol_np = numpy_bkd.to_numpy(solutions)
         assert sol_np.ndim == 2
@@ -471,7 +491,8 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
         )
         kwargs.update(overrides)
         return build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
-            bkd, **kwargs,
+            bkd,
+            **kwargs,
         )
 
     def _build_random(self, bkd):
@@ -494,6 +515,7 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
 
     def test_reduced_prior_is_gaussian_only(self, numpy_bkd):
         from pyapprox.probability.univariate.gaussian import GaussianMarginal
+
         bench = self._build_fixed(numpy_bkd)
         marginals = bench.problem().prior().marginals()
         assert len(marginals) == self._nkle_terms
@@ -510,9 +532,7 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
         random_bench = self._build_random(numpy_bkd)
         assert (
             numpy_bkd.to_numpy(problem.design_conditions()).shape
-            == numpy_bkd.to_numpy(
-                random_bench.problem().design_conditions()
-            ).shape
+            == numpy_bkd.to_numpy(random_bench.problem().design_conditions()).shape
         )
 
     @slow_test
@@ -526,7 +546,10 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
         """
         vel_a, vel_b, re = 2.5, 2.5, 12.5
         fixed = self._build_fixed(
-            numpy_bkd, vel_shape_a=vel_a, vel_shape_b=vel_b, reynolds_num=re,
+            numpy_bkd,
+            vel_shape_a=vel_a,
+            vel_shape_b=vel_b,
+            reynolds_num=re,
         )
         random_bench = self._build_random(numpy_bkd)
         rng = np.random.default_rng(3)
@@ -547,7 +570,10 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
         """Reduced qoi_map equals random qoi_map at padded sample."""
         vel_a, vel_b, re = 2.5, 2.5, 12.5
         fixed = self._build_fixed(
-            numpy_bkd, vel_shape_a=vel_a, vel_shape_b=vel_b, reynolds_num=re,
+            numpy_bkd,
+            vel_shape_a=vel_a,
+            vel_shape_b=vel_b,
+            reynolds_num=re,
         )
         random_bench = self._build_random(numpy_bkd)
         rng = np.random.default_rng(4)
@@ -630,7 +656,8 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
         """Build function returns correct type."""
         bench = self._build_fixed(numpy_bkd)
         assert isinstance(
-            bench, FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper,
+            bench,
+            FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper,
         )
         assert bench.problem().nparams() == self._nkle_terms
 
@@ -642,10 +669,20 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper:
         """
         bench = self._build_fixed(numpy_bkd)
         pattern_a_names = [
-            "prior", "obs_map", "qoi_map", "design_conditions",
-            "nparams", "nobservations", "evaluate_nodal",
-            "evaluate_both", "solve_for_plotting", "mesh_nodes",
-            "nnodes", "vel_shape_a", "vel_shape_b", "reynolds_num",
+            "prior",
+            "obs_map",
+            "qoi_map",
+            "design_conditions",
+            "nparams",
+            "nobservations",
+            "evaluate_nodal",
+            "evaluate_both",
+            "solve_for_plotting",
+            "mesh_nodes",
+            "nnodes",
+            "vel_shape_a",
+            "vel_shape_b",
+            "reynolds_num",
         ]
         for name in pattern_a_names:
             assert not hasattr(bench, name), (
