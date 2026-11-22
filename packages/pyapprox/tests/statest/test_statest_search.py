@@ -63,7 +63,7 @@ class TestUnifiedSearch:
 
     def test_acv_only(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """Search with ACV only."""
-        acv_search: ACVSearch[Array] = ACVSearch(
+        acv_search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator],
         )
@@ -79,7 +79,7 @@ class TestUnifiedSearch:
     @slow_test
     def test_groupacv_only(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """Search with GroupACV only."""
-        groupacv_search: GroupACVSearch[Array] = GroupACVSearch(
+        groupacv_search = GroupACVSearch(
             *stat_and_costs,
             estimator_classes=[MLBLUEEstimator],
         )
@@ -99,11 +99,11 @@ class TestUnifiedSearch:
     @slow_test
     def test_both_families(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """Search with both ACV and GroupACV."""
-        acv_search: ACVSearch[Array] = ACVSearch(
+        acv_search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator, GISEstimator],
         )
-        groupacv_search: GroupACVSearch[Array] = GroupACVSearch(
+        groupacv_search = GroupACVSearch(
             *stat_and_costs,
             estimator_classes=[MLBLUEEstimator],
         )

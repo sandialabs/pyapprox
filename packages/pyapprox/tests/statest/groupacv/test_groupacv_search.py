@@ -60,6 +60,15 @@ class TestGroupACVSearch:
     def _seed(self) -> None:
         np.random.seed(42)
 
+    def test_non_constructor_refused(self, stat_and_costs: StatAndCosts[Array]) -> None:
+        """An estimator_classes entry that cannot build an estimator is
+        refused at construction."""
+        with pytest.raises(TypeError, match="GroupACVEstimatorConstructor"):
+            GroupACVSearch(
+                *stat_and_costs,
+                estimator_classes=["MLBLUEEstimator"],  # type: ignore[list-item]
+            )
+
     def test_default_search(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """Default search with MLBLUE."""
         search = GroupACVSearch(*stat_and_costs)
@@ -73,7 +82,7 @@ class TestGroupACVSearch:
         self, stat_and_costs: StatAndCosts[Array]
     ) -> None:
         """Search multiple estimator types."""
-        search: GroupACVSearch[Array] = GroupACVSearch(
+        search = GroupACVSearch(
             *stat_and_costs,
             estimator_classes=[MLBLUEEstimator, GroupACVEstimatorIS],
         )
@@ -112,7 +121,7 @@ class TestGroupACVSearch:
     @slow_test
     def test_search_result_methods(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """Test GroupACVSearchResult methods."""
-        search: GroupACVSearch[Array] = GroupACVSearch(
+        search = GroupACVSearch(
             *stat_and_costs,
             estimator_classes=[MLBLUEEstimator, GroupACVEstimatorIS],
         )

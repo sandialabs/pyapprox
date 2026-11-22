@@ -9,8 +9,9 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Protocol,
     Tuple,
-    Type,
+    runtime_checkable,
 )
 
 from pyapprox.statest.strategies import ModelSubsetStrategy, QoISubsetStrategy
@@ -30,6 +31,27 @@ if TYPE_CHECKING:
     from pyapprox.statest.statistics import MultiOutputStatistic
 
 
+@runtime_checkable
+class GroupACVEstimatorConstructor(Protocol[Array]):
+    """Builds the estimator :class:`GroupACVSearch` evaluates for one
+    configuration: a statistic and costs restricted to a model and QoI
+    subset. Every GroupACV estimator class satisfies it.
+    """
+
+    @property
+    def __name__(self) -> str:
+        """Name used in search descriptions and error messages."""
+        ...
+
+    def __call__(
+        self,
+        stat: MultiOutputStatistic[Array],
+        costs: Array,
+        *,
+        model_subsets: Optional[List[Array]],
+    ) -> BaseGroupACVEstimator[Array]: ...
+
+
 @dataclass
 class GroupACVSearchResult(Generic[Array]):
     """Result of GroupACV estimator configuration search."""
@@ -41,7 +63,7 @@ class GroupACVSearchResult(Generic[Array]):
     ]
 
     # Search configuration
-    estimator_classes: List[Type["BaseGroupACVEstimator[Array]"]]
+    estimator_classes: List[GroupACVEstimatorConstructor[Array]]
     model_strategy: ModelSubsetStrategy
     qoi_strategy: QoISubsetStrategy
 
@@ -83,7 +105,7 @@ class GroupACVSearch(Generic[Array]):
         The statistic containing pilot quantities.
     costs : Array
         Model costs, shape (nmodels,).
-    estimator_classes : List[Type[BaseGroupACVEstimator]], optional
+    estimator_classes : List[GroupACVEstimatorConstructor], optional
         Estimator classes to search. Defaults to [MLBLUEEstimator].
     model_strategy : ModelSubsetStrategy, optional
         Strategy for model subset search. Defaults to AllModelsStrategy.
@@ -99,7 +121,7 @@ class GroupACVSearch(Generic[Array]):
         self,
         stat: "MultiOutputStatistic[Array]",
         costs: Array,
-        estimator_classes: Optional[List[Type["BaseGroupACVEstimator[Array]"]]] = None,
+        estimator_classes: Optional[List[GroupACVEstimatorConstructor[Array]]] = None,
         model_strategy: Optional[ModelSubsetStrategy] = None,
         qoi_strategy: Optional[QoISubsetStrategy] = None,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
@@ -117,7 +139,15 @@ class GroupACVSearch(Generic[Array]):
         self._bkd: Backend[Array] = stat.bkd()
         self._nmodels = len(costs)
         self._nqoi = stat.nqoi()
-        self._estimator_classes = estimator_classes or [MLBLUEEstimator]
+        self._estimator_classes: List[GroupACVEstimatorConstructor[Array]] = (
+            estimator_classes or [MLBLUEEstimator]
+        )
+        for est_class in self._estimator_classes:
+            if not isinstance(est_class, GroupACVEstimatorConstructor):
+                raise TypeError(
+                    "estimator_classes must satisfy GroupACVEstimatorConstructor, "
+                    f"got {type(est_class).__name__}"
+                )
         self._model_strategy = model_strategy or AllModelsStrategy()
         self._qoi_strategy = qoi_strategy or AllQoIStrategy()
         self._optimizer: Optional[BindableOptimizerProtocol[Array]] = optimizer
@@ -130,7 +160,7 @@ class GroupACVSearch(Generic[Array]):
 
     def _iter_configs(
         self,
-    ) -> Iterator[Tuple[Type["BaseGroupACVEstimator[Array]"], List[int], List[int]]]:
+    ) -> Iterator[Tuple[GroupACVEstimatorConstructor[Array], List[int], List[int]]]:
         """Yield all (est_class, model_indices, qoi_indices) tuples."""
         for est_class in self._estimator_classes:
             for model_indices in self._model_strategy.subsets(self._nmodels):
@@ -139,7 +169,7 @@ class GroupACVSearch(Generic[Array]):
 
     def _create_estimator(
         self,
-        est_class: Type["BaseGroupACVEstimator[Array]"],
+        est_class: GroupACVEstimatorConstructor[Array],
         model_indices: List[int],
         qoi_indices: List[int],
     ) -> "BaseGroupACVEstimator[Array]":

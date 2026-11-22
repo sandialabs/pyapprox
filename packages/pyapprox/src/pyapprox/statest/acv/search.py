@@ -1,6 +1,5 @@
 """Unified search for optimal ACV estimator configurations."""
 
-import inspect
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -9,8 +8,9 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Protocol,
     Tuple,
-    Type,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -36,6 +36,31 @@ from pyapprox.statest.strategies import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+@runtime_checkable
+class ACVEstimatorConstructor(Protocol[Array]):
+    """Builds the estimator :class:`ACVSearch` evaluates for one
+    configuration: a statistic and costs restricted to a model and QoI
+    subset, and a recursion index.
+
+    The estimator classes that take a recursion index (GMFEstimator,
+    GISEstimator, GRDEstimator) satisfy it; MFMCEstimator and
+    MLMCEstimator fix their own recursion and do not.
+    """
+
+    @property
+    def __name__(self) -> str:
+        """Name used in search descriptions and error messages."""
+        ...
+
+    def __call__(
+        self,
+        stat: MultiOutputStatistic[Array],
+        costs: Array,
+        *,
+        recursion_index: Array,
+    ) -> "ACVEstimator[Array]": ...
+
+
 @dataclass
 class SearchResult(Generic[Array]):
     """Result of estimator configuration search."""
@@ -45,7 +70,7 @@ class SearchResult(Generic[Array]):
     all_allocations: List[Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]]
 
     # Strategies and config used (for traceability)
-    estimator_classes: List[Type["ACVEstimator[Array]"]]
+    estimator_classes: List[ACVEstimatorConstructor[Array]]
     recursion_strategy: RecursionIndexStrategy[Array]
     model_strategy: ModelSubsetStrategy
     qoi_strategy: QoISubsetStrategy
@@ -92,8 +117,9 @@ class ACVSearch(Generic[Array]):
         The statistic containing pilot quantities.
     costs : Array
         Model costs, shape (nmodels,).
-    estimator_classes : List[Type[ACVEstimator]], optional
-        Estimator classes to search. Defaults to [GMFEstimator].
+    estimator_classes : List[ACVEstimatorConstructor], optional
+        Estimator classes to search, each called with a recursion index.
+        Defaults to [GMFEstimator].
     model_strategy : ModelSubsetStrategy, optional
         Strategy for model subset search. Defaults to AllModelsStrategy.
     qoi_strategy : QoISubsetStrategy, optional
@@ -108,7 +134,7 @@ class ACVSearch(Generic[Array]):
         self,
         stat: MultiOutputStatistic[Array],
         costs: Array,
-        estimator_classes: Optional[List[Type["ACVEstimator[Array]"]]] = None,
+        estimator_classes: Optional[List[ACVEstimatorConstructor[Array]]] = None,
         model_strategy: Optional[ModelSubsetStrategy] = None,
         qoi_strategy: Optional[QoISubsetStrategy] = None,
         recursion_strategy: Optional[RecursionIndexStrategy[Array]] = None,
@@ -123,7 +149,15 @@ class ACVSearch(Generic[Array]):
         self._bkd: Backend[Array] = stat.bkd()
         self._nmodels = len(costs)
         self._nqoi = stat.nqoi()
-        self._estimator_classes = estimator_classes or [GMFEstimator]
+        self._estimator_classes: List[ACVEstimatorConstructor[Array]] = (
+            estimator_classes or [GMFEstimator]
+        )
+        for est_class in self._estimator_classes:
+            if not isinstance(est_class, ACVEstimatorConstructor):
+                raise TypeError(
+                    "estimator_classes must satisfy ACVEstimatorConstructor, "
+                    f"got {type(est_class).__name__}"
+                )
         self._model_strategy = model_strategy or AllModelsStrategy()
         self._qoi_strategy = qoi_strategy or AllQoIStrategy()
         self._recursion_strategy = recursion_strategy or DefaultRecursionStrategy()
@@ -135,7 +169,7 @@ class ACVSearch(Generic[Array]):
 
     def _iter_configs(
         self,
-    ) -> Iterator[Tuple[Type["ACVEstimator[Array]"], List[int], List[int], Array]]:
+    ) -> Iterator[Tuple[ACVEstimatorConstructor[Array], List[int], List[int], Array]]:
         """Yield all (est_class, model_indices, qoi_indices, recursion_idx) tuples."""
         for est_class in self._estimator_classes:
             for model_indices in self._model_strategy.subsets(self._nmodels):
@@ -148,7 +182,7 @@ class ACVSearch(Generic[Array]):
 
     def _create_estimator(
         self,
-        est_class: Type["ACVEstimator[Array]"],
+        est_class: ACVEstimatorConstructor[Array],
         model_indices: List[int],
         qoi_indices: List[int],
         recursion_idx: Array,
@@ -157,10 +191,7 @@ class ACVSearch(Generic[Array]):
         subset_stat = self._stat.subset(model_indices, qoi_indices)
         costs_np = self._bkd.to_numpy(self._costs)
         subset_costs = self._bkd.array([costs_np[i] for i in model_indices])
-        sig = inspect.signature(est_class.__init__)
-        if "recursion_index" in sig.parameters:
-            return est_class(subset_stat, subset_costs, recursion_index=recursion_idx)
-        return est_class(subset_stat, subset_costs)
+        return est_class(subset_stat, subset_costs, recursion_index=recursion_idx)
 
     def search(
         self,

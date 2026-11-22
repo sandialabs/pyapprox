@@ -69,6 +69,15 @@ class TestACVSearch:
     def _seed(self) -> None:
         np.random.seed(42)
 
+    def test_non_constructor_refused(self, stat_and_costs: StatAndCosts[Array]) -> None:
+        """An estimator_classes entry that cannot build an estimator is
+        refused at construction."""
+        with pytest.raises(TypeError, match="ACVEstimatorConstructor"):
+            ACVSearch(
+                *stat_and_costs,
+                estimator_classes=["GMFEstimator"],  # type: ignore[list-item]
+            )
+
     def test_acv_search_default_strategies(
         self, stat_and_costs: StatAndCosts[Array]
     ) -> None:
@@ -136,7 +145,7 @@ class TestACVSearch:
         self, stat_and_costs: StatAndCosts[Array]
     ) -> None:
         """Multiple estimator types work."""
-        search: ACVSearch[Array] = ACVSearch(
+        search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator, GISEstimator],
         )
@@ -145,7 +154,7 @@ class TestACVSearch:
 
     def test_iter_configs_count(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """_iter_configs yields correct number of configurations."""
-        search: ACVSearch[Array] = ACVSearch(
+        search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator, GISEstimator],  # 2
             model_strategy=FixedSubsetStrategy(model_indices=(0, 1, 2)),  # 1
@@ -177,7 +186,7 @@ class TestACVSearch:
 
     def test_search_result_methods(self, stat_and_costs: StatAndCosts[Array]) -> None:
         """SearchResult methods work correctly."""
-        search: ACVSearch[Array] = ACVSearch(
+        search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator, GISEstimator],
         )
@@ -195,7 +204,7 @@ class TestACVSearch:
         self, stat_and_costs: StatAndCosts[Array]
     ) -> None:
         """SearchResult stores estimator_classes for traceability."""
-        search: ACVSearch[Array] = ACVSearch(
+        search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator, GRDEstimator],
         )
@@ -229,7 +238,7 @@ class TestACVSearch:
     ) -> None:
         """Best allocation (lowest objective) is selected."""
         bkd = autodiff_bkd
-        search: ACVSearch[Array] = ACVSearch(
+        search = ACVSearch(
             *stat_and_costs,
             estimator_classes=[GMFEstimator, GISEstimator, GRDEstimator],
         )
