@@ -32,7 +32,13 @@ from pyapprox.ode.accumulating_sink import MultiSink
 from pyapprox.ode.npz_trajectory_store import NpzTrajectoryStore
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
-from pyapprox.ode.tableau import ButcherTableau, backward_euler, forward_euler
+from pyapprox.ode.tableau import (
+    ButcherTableau,
+    alexander_sdirk3,
+    backward_euler,
+    forward_euler,
+    implicit_midpoint,
+)
 from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
     TrajectoryStoreProtocol,
@@ -182,7 +188,9 @@ class _Run:
         tableau: Callable[[], ButcherTableau],
         dt: float,
         store: Optional[Callable[[int], TrajectoryStoreProtocol[Np]]] = None,
+        nwindows: int = _NWINDOWS,
     ) -> None:
+        self.nwindows = nwindows
         self.dt = dt
         self.problem: CoupledProblem = box_problem(ncells, _build, essentials)
         whole, mesh = self.problem.single_domain_system()
@@ -193,7 +201,7 @@ class _Run:
             system,
             _method(tableau),
             RecomputeAlways(ScipySparseLU()),
-            FixedStep(dt, (0.0, _NWINDOWS * dt)),
+            FixedStep(dt, (0.0, nwindows * dt)),
             np.reshape(_initial(mesh.nodes()), (-1, 1)),
             self.reference,
         )
@@ -243,7 +251,9 @@ class _Run:
         )
 
     def windows(self) -> list[TimeWindow]:
-        return [TimeWindow(n * self.dt, (n + 1) * self.dt) for n in range(_NWINDOWS)]
+        return [
+            TimeWindow(n * self.dt, (n + 1) * self.dt) for n in range(self.nwindows)
+        ]
 
     def lam0(self) -> Np:
         state: Np = self.reference.state(0)[self.at_skeleton]
@@ -256,7 +266,38 @@ _CASES = [
     ((4, 1), _EDGES, backward_euler, 0.01),
     ((2, 2), [], backward_euler, 0.01),
     ((2, 1), _EDGES, forward_euler, 1e-4),
+    # Its stage value on every row is the mean of the step's ends, which
+    # the interpolated trace gives exactly.
+    ((2, 1), _EDGES, implicit_midpoint, 0.01),
 ]
+
+
+@pytest.mark.parametrize(
+    "tableau, rate", [(implicit_midpoint, 2.0), (alexander_sdirk3, 2.0)]
+)
+def test_temporal_order(tableau: Callable[[], ButcherTableau], rate: float) -> None:
+    """The coupled run against a fine single-domain SDIRK3 run at T =
+    0.04, one step per window, Δt = 0.01 to 0.0025. The reference is on
+    the same mesh, so both solve the same semi-discrete system and their
+    difference is temporal error alone; its own step (6.25e-4) leaves an
+    error near 1e-7, far below the measured ones. One trace per window,
+    interpolated linearly, caps the order at 2: SDIRK3 alone converges at
+    about 2.9 on these steps, coupled at 2.06 (finer port data in time
+    lift the cap)."""
+    final = 0.04
+    fine = _Run((2, 1), _EDGES, alexander_sdirk3, final / 64, nwindows=64)
+    errors = []
+    for nwindows in (4, 8, 16):
+        run = _Run((2, 1), _EDGES, tableau, final / nwindows, nwindows=nwindows)
+        run.solver().solve(run.lam0(), run.windows(), InMemoryTrajectoryStore())
+        errors.append(
+            max(
+                float(np.abs(sink.state(-1) - fine.reference.state(-1)[rows]).max())
+                for rows, sink in zip(run.rows, run.sinks)
+            )
+        )
+    observed = np.log2(errors[-2] / errors[-1])
+    assert abs(observed - rate) < 0.15, f"rate {observed:.2f}, errors {errors}"
 
 
 @pytest.mark.parametrize("ncells, essentials, tableau, dt", _CASES)

@@ -53,7 +53,7 @@ from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, PinnedRowsProtocol
 from pyapprox.ode.protocols.differentiable_stepper import (
     DifferentiableStepperProtocol,
-    ForwardStepperProtocol,
+    StepperProtocol,
 )
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.trajectory_store import (
@@ -82,6 +82,11 @@ V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 V_contra = TypeVar("V_contra", contravariant=True)
 A_contra = TypeVar("A_contra", bound=ArrayProtocol, contravariant=True)
+A_co = TypeVar("A_co", bound=ArrayProtocol, covariant=True)
+
+UnknownTangent = Callable[[BlockVector[V]], A]
+"""An output's change for changes of a step's unknown, a block of
+columns."""
 
 
 @runtime_checkable
@@ -127,22 +132,25 @@ class WindowPortInputProtocol(Protocol[V_contra, A_contra]):
 
 
 @runtime_checkable
-class WindowPortOutputProtocol(Protocol[V, A]):
+class WindowPortOutputProtocol(Protocol[V, A_co]):
     """What a :class:`WindowedResponse` returns, read from a trial."""
 
     def returns(self) -> PortQuantity:
         """What the output is."""
         ...
 
-    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A_co:
         """The output over the window ``trial`` stepped. Shape:
         (nport, 1)."""
         ...
 
-    def tangent(self, trial: InMemoryTrajectoryStore[V]) -> Optional[TraceJVP[A]]:
-        """The output's derivative in the port data at ``trial``; None when
-        not supplied. Whether it is supplied is fixed for a response's
-        life (it may depend on the steps per window)."""
+    def unknown_tangent(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[UnknownTangent[V, A_co]]:
+        """For a one-step ``trial``, the output's change for changes of the
+        step's unknown (a block of columns), shape (nport, ncols); None
+        when not supplied. Whether it is supplied is fixed for the
+        output's life."""
         ...
 
 
@@ -267,37 +275,24 @@ class StepResidualReaction(Generic[V, A]):
 
     Satisfies :class:`WindowPortOutputProtocol`, returning a
     :class:`~pyapprox.pde.coupling.responses.Flux`, for a trial stepped
-    with the port rows pinned (:class:`WindowPortRows`).
-
-    Its tangent in the end trace is supplied for one step per window of a
-    one-block stepper (backward Euler): the step's pinned port rows read
-    :math:`Y_R - \lambda(t_1)`, so the unknown's change solves
-    :math:`(\partial R/\partial u)\, \delta u = [\delta\lambda]_R`, and
-    the output changes by the unconstrained step residual's derivative at
-    :math:`\delta u` on the port rows.
+    with the port rows pinned (:class:`WindowPortRows`). For a one-step
+    trial its change with the step's unknown is the unconstrained step
+    Jacobian's action, read on the port rows.
 
     Parameters
     ----------
-    stepper : DifferentiableStepperProtocol
-        The stepper the trials are stepped with, its port rows pinned.
     reaction : DifferentiableStepperProtocol
-        The same method over the unconstrained system.
+        The trials' method over the unconstrained system.
     ports : PortRowsProtocol
         The port rows of the state space, in port order.
-    states : VectorSpaceProtocol
-        The state space.
     """
 
     def __init__(
         self,
-        stepper: DifferentiableStepperProtocol[V, A],
         reaction: DifferentiableStepperProtocol[V, A],
         ports: PortRowsProtocol[V, A],
-        states: VectorSpaceProtocol[V],
     ) -> None:
-        self._stepper, self._reaction = stepper, reaction
-        self._ports, self._states = ports, states
-        self._one_block = stepper.unknown_space().nblocks() == 1
+        self._reaction, self._ports = reaction, ports
 
     def returns(self) -> Flux:
         return Flux()
@@ -309,31 +304,72 @@ class StepResidualReaction(Generic[V, A]):
             output = output + take(residual(trial.window(step)).blocks[-1])
         return output
 
-    def tangent(self, trial: InMemoryTrajectoryStore[V]) -> Optional[TraceJVP[A]]:
-        """Supplied for a one-step trial of a one-block stepper."""
-        if not self._one_block or trial.nsteps() != 1:
+    def unknown_tangent(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[UnknownTangent[V, A]]:
+        """Supplied for a one-step trial."""
+        if trial.nsteps() != 1:
             return None
+        jacobian = self._reaction.diag(trial.window(0))
 
-        def jvp(directions: A) -> A:
-            return self._apply(trial, directions)
+        def change(delta: BlockVector[V]) -> A:
+            return self._ports.take(jacobian.apply(delta).blocks[-1])
 
-        return jvp
+        return change
 
-    def _apply(self, trial: InMemoryTrajectoryStore[V], directions: A) -> A:
-        nport = self._ports.nrows()
+
+class _TraceTangent(Generic[V, A]):
+    r""":math:`(\partial r/\partial \lambda) D` at a one-step trial, for
+    any method, pin placement and port input.
+
+    The step residual :math:`R(u; \lambda)` is affine in the port data, so
+    its change for the columns of :math:`D` is exactly
+    :math:`R(u; \lambda + d_j) - R(u; \lambda)`, both evaluated by the
+    stepper with the input holding those data. The unknown's change solves
+    :math:`(\partial R/\partial u)\, \delta u = -\Delta R` with the step's
+    block-triangular Jacobian, and the output's change is the output's
+    tangent at :math:`\delta u`. Leaves the input holding the trial's
+    own port data.
+    """
+
+    def __init__(
+        self,
+        stepper: StepperProtocol[V, A],
+        port_input: WindowPortInputProtocol[V, A],
+        window: TimeWindow,
+        start: V,
+        port_data: A,
+        trial: InMemoryTrajectoryStore[V],
+        change: UnknownTangent[V, A],
+    ) -> None:
+        self._stepper, self._input = stepper, port_input
+        self._window, self._start, self._port_data = window, start, port_data
+        self._step, self._change = trial.window(0), change
+
+    def __call__(self, directions: A) -> A:
+        nport = self._input.nport()
         if directions.ndim != 2 or directions.shape[0] != nport:
             raise ValueError(
                 f"directions must have shape ({nport}, ncols), got "
                 f"{tuple(directions.shape)}"
             )
-        ncols = int(directions.shape[1])
-        window = trial.window(0)
-        rhs = BlockVector((self._ports.add_to(self._states.zeros(ncols), directions),))
-        delta, info = self._stepper.diag_handle(window).solve(rhs)
+        stepper, port_input = self._stepper, self._input
+        space = stepper.residual_space()
+        port_input.set_window(self._window, self._start, self._port_data)
+        base = stepper.step_residual(self._step)
+        changes = []
+        for j in range(int(directions.shape[1])):
+            shifted = self._port_data + directions[:, j : j + 1]
+            port_input.set_window(self._window, self._start, shifted)
+            # -(R(u; lambda + d_j) - R(u; lambda)), the tangent solve's rhs.
+            changes.append(
+                space.axpby(1.0, base, -1.0, stepper.step_residual(self._step))
+            )
+        port_input.set_window(self._window, self._start, self._port_data)
+        delta, info = stepper.diag_handle(self._step).solve(space.concatenate(changes))
         if not info.converged:
             raise ValueError("the tangent solve did not converge")
-        change = self._reaction.diag(window).apply(delta)
-        return self._ports.take(change.blocks[-1])
+        return self._change(delta)
 
 
 class _Owner:
@@ -397,12 +433,15 @@ class WindowedResponse(Generic[V, A]):
     output is read by ``port_output``. Without parameters or quantities
     of interest.
 
-    Satisfies :class:`WindowedResponseProtocol`. The trace derivative is
-    ``port_output``'s.
+    Satisfies :class:`WindowedResponseProtocol`. The trace derivative
+    (``jvp_trace``) is supplied for one step per window when
+    ``port_output`` gives its change with the step's unknown: the step
+    residual's change with the port data, solved with the step's
+    Jacobian, for any method.
 
     Parameters
     ----------
-    stepper : ForwardStepperProtocol
+    stepper : StepperProtocol
         Steps the subdomain, reading the port data ``port_input`` holds.
     port_input : WindowPortInputProtocol
         Sets the port data before each trial.
@@ -430,7 +469,7 @@ class WindowedResponse(Generic[V, A]):
 
     def __init__(
         self,
-        stepper: ForwardStepperProtocol[V],
+        stepper: StepperProtocol[V, A],
         port_input: WindowPortInputProtocol[V, A],
         port_output: WindowPortOutputProtocol[V, A],
         init_state: V,
@@ -440,6 +479,7 @@ class WindowedResponse(Generic[V, A]):
         nsubsteps: int = 1,
     ) -> None:
         for name, value, protocol in (
+            ("stepper", stepper, StepperProtocol),
             ("port_input", port_input, WindowPortInputProtocol),
             ("port_output", port_output, WindowPortOutputProtocol),
             ("sink", sink, TrajectorySinkProtocol),
@@ -457,7 +497,7 @@ class WindowedResponse(Generic[V, A]):
         self._state, self._time = init_state, float(origin)
         self._sink, self._bkd = sink, bkd
         self._nsubsteps = nsubsteps
-        # Checks the stepper.
+        self._stepper = stepper
         self._integrator = Integrator(stepper)
         self._owner = _Owner()
         self._started = False
@@ -535,13 +575,27 @@ class WindowedResponse(Generic[V, A]):
         self._integrator.solve(
             self._state, GivenSizes(window.start, [size] * self._nsubsteps), trial
         )
+        change = self._output.unknown_tangent(trial)
+        tangent: Optional[TraceJVP[A]] = (
+            None
+            if change is None
+            else _TraceTangent(
+                self._stepper,
+                self._input,
+                window,
+                self._state,
+                port_data,
+                trial,
+                change,
+            )
+        )
         return WindowedPoint(
             self._owner,
             window,
             trial,
             self._output.output(trial),
             self._bkd,
-            self._output.tangent(trial),
+            tangent,
         )
 
     def accept(self, point: ResponsePointProtocol[A]) -> None:

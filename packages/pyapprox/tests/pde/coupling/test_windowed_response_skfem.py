@@ -21,7 +21,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 import numpy as np
 
@@ -34,7 +34,13 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
-from pyapprox.ode.tableau import backward_euler
+from pyapprox.ode.tableau import (
+    ButcherTableau,
+    alexander_sdirk3,
+    backward_euler,
+    heun,
+    implicit_midpoint,
+)
 from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.boundary.except_dofs import ExceptDofs
 from pyapprox.pde.constitutive.coefficient_functions import (
@@ -118,8 +124,11 @@ def _newton() -> Newton[Np, Np]:
     return Newton(atol=1e-13, rtol=0.0, maxiters=20)
 
 
-def _method() -> RungeKutta[Np, Np]:
-    return RungeKutta(backward_euler(), _newton())
+def _method(
+    tableau: Callable[[], ButcherTableau] = backward_euler,
+) -> RungeKutta[Np, Np]:
+    made = tableau()
+    return RungeKutta(made, None if made.is_explicit() else _newton())
 
 
 class _Strip:
@@ -143,8 +152,14 @@ class _Strip:
             self.reference,
         )
 
-    def half(self, subdomain: int, init: Any = None, nsubsteps: int = 1) -> "_Half":
-        """The windowed response of ``subdomain``."""
+    def half(
+        self,
+        subdomain: int,
+        init: Any = None,
+        nsubsteps: int = 1,
+        tableau: Callable[[], ButcherTableau] = backward_euler,
+    ) -> "_Half":
+        """The windowed response of ``subdomain`` stepped by ``tableau``."""
         system, nodes, ports, dofs = self.problem.port_system(subdomain)
         rows = [node_at(self.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
         state = self.reference.state(0)[rows] if init is None else init[rows]
@@ -152,7 +167,7 @@ class _Strip:
         response = skfem_windowed_response(
             system,
             ports,
-            _method(),
+            _method(tableau),
             RecomputeAlways(ScipySparseLU()),
             state,
             sink,
@@ -280,9 +295,16 @@ def test_an_unaccepted_window_changes_nothing() -> None:
         response.linearize(strip.trace(1, half), _NONE, window)
 
 
-def test_jvp_trace_matches_finite_differences() -> None:
+@pytest.mark.parametrize(
+    "tableau", [backward_euler, heun, implicit_midpoint, alexander_sdirk3]
+)
+def test_jvp_trace_matches_finite_differences(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """For any tableau: one block, explicit stages, a final block apart
+    from the last stage, a stiffly accurate three-stage method."""
     strip = _Strip()
-    half = strip.half(1)
+    half = strip.half(1, tableau=tableau)
     response = half.response
     n = response.nport()
     window = TimeWindow(0.0, _DT)

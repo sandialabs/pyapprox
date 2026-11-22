@@ -190,7 +190,7 @@ def skfem_windowed_response(
     return WindowedResponse(
         stepper,
         rows,
-        StepResidualReaction(stepper, reaction, port_rows, states),
+        StepResidualReaction(reaction, port_rows),
         init_state,
         origin,
         sink,
