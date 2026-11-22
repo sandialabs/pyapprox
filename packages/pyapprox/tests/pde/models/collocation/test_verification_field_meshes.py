@@ -25,6 +25,7 @@ from pyapprox.pde.models.collocation.verification import (
     PeriodicSeam,
     boundary_conditions,
     forcing,
+    mean_value_rows,
     stacked_forcing,
 )
 from pyapprox.pde.verification.conditions import ConditionProtocol, Dirichlet
@@ -121,6 +122,25 @@ def test_approximation_measures_each_field_on_its_mesh(bkd: Backend[Array]) -> N
     assert off.l2_error() == pytest.approx(1.0, abs=1e-12)
     with pytest.raises(ValueError, match=r"shape \(59,\)"):
         CollocationApproximation(problem, level, bkd.zeros((75,)))
+
+
+def test_mean_value_rows(bkd: Backend[Array]) -> None:
+    """The pressure's integral row on the staggered level: it replaces
+    the first pressure row (state row 50), its weights integrate the
+    interpolant on the 9 pressure nodes (summing to the area 1), and its
+    value is the integral 1/4 of p = x y, so the exact state satisfies
+    it. A name that is not a field is refused."""
+    problem, level = _stokes(), _staggered(bkd)
+    rows = mean_value_rows(problem, level, "p")
+    assert rows.rows().indices() == (50,)
+    jacobian = rows.jacobian(bkd.zeros((59,)), 0.0)
+    bkd.assert_allclose(bkd.sum(jacobian[50]), bkd.asarray(1.0), atol=1e-14)
+    mesh = level.field_mesh("p")
+    pressure = mesh.points()[0] * mesh.points()[1]
+    state = bkd.concatenate([bkd.zeros((50,)), pressure])
+    bkd.assert_allclose(rows.residual(state, 0.0), bkd.zeros((59,)), atol=1e-14)
+    with pytest.raises(ValueError, match="'q' is not one of the problem's fields"):
+        mean_value_rows(problem, level, "q")
 
 
 def test_refusals(bkd: Backend[Array]) -> None:

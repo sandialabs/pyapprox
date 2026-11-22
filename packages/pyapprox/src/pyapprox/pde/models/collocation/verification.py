@@ -99,6 +99,7 @@ from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     HyperelasticTractionNormalOperator,
     PK1StressSourceProtocol,
 )
+from pyapprox.pde.collocation.boundary.mean_value_rows import MeanValueRows
 from pyapprox.pde.collocation.boundary.normal_operators import (
     CauchyStressSourceProtocol,
     FluxNormalOperator,
@@ -116,6 +117,7 @@ from pyapprox.pde.collocation.mesh.transforms.elliptical import (
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics.coefficients import NodalSupplier
 from pyapprox.pde.collocation.protocols.basis import TensorProductBasisProtocol
+from pyapprox.pde.collocation.protocols.basis_1d import CollocationBasis1DProtocol
 from pyapprox.pde.collocation.protocols.boundary import FluxProviderProtocol
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.pde.collocation.protocols.physics import (
@@ -191,6 +193,10 @@ class LevelMeshProtocol(Protocol[Array]):
 
     def reference_nodes_1d(self, dim: int) -> Array:
         """Reference nodes of dimension ``dim``. Shape: (npts_dim,)"""
+        ...
+
+    def basis_1d(self, dim: int) -> CollocationBasis1DProtocol[Array]:
+        """The 1D basis that made dimension ``dim``'s nodes."""
         ...
 
     def boundary_indices(self, boundary_id: int) -> Array:
@@ -1402,6 +1408,37 @@ def _error_grid(level: ChebyshevLevel[Array]) -> _ErrorGrid[Array]:
     return _ErrorGrid(
         transform.map_to_physical(reference_grid), weights * volume, tuple(abscissas)
     )
+
+
+def mean_value_rows(
+    problem: ManufacturedProblem, level: ChebyshevLevel[Array], row: str
+) -> MeanValueRows[Array]:
+    """A closure row fixing field ``row``'s integral over the domain to the
+    exact solution's, replacing the row of the field's first node: for a
+    field the equations determine only up to a constant (the pressure
+    with the velocity prescribed on every side).
+
+    Both integrals use the level's error grid: the weights integrate the
+    interpolant on the field's own nodes, and the value is the grid's
+    quadrature of the exact field, so the condition is consistent with
+    the exact solution to the grid's accuracy.
+
+    Raises
+    ------
+    ValueError
+        If ``row`` is not one of the problem's fields.
+    """
+    fields = problem.fields()
+    if row not in fields:
+        raise ValueError(f"{row!r} is not one of the problem's fields {list(fields)}")
+    bkd = level.bkd()
+    grid = _error_grid(level)
+    weights = grid.weights @ grid.interpolation(level.field_mesh(row), bkd)
+    exact = PointExpressions(
+        [problem.solution(row)], problem.names(), problem.coordinates(), bkd
+    )(grid.points)[0]
+    value = bkd.to_float(bkd.sum(grid.weights * exact))
+    return MeanValueRows(bkd, level.layout(fields), fields.index(row), weights, value)
 
 
 class CollocationApproximation(Generic[Array]):

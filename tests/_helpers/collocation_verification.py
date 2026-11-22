@@ -70,12 +70,14 @@ def recovers(
     bkd: Backend[Array],
     initial_guess: Optional[InitialGuessProtocol] = None,
     nonlinear: Optional[NonlinearSolverProtocol[Array, Array]] = None,
+    family: _Family[Array] = ChebyshevBox,
 ) -> None:
     """``n`` nodes per direction reproduce the solution: L2 error below
-    1e-10. Solves start from ``initial_guess`` (default zero), with
+    1e-10, on the level ``family`` builds (default a Chebyshev box).
+    Solves start from ``initial_guess`` (default zero), with
     ``nonlinear`` (default the discretizer's Newton)."""
     discretizer = CollocationDiscretizer(
-        ChebyshevBox([n], bkd),
+        family([n], bkd),
         factory,
         nonlinear=nonlinear,
         initial_guess=initial_guess,

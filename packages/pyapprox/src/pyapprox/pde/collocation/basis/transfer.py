@@ -9,8 +9,16 @@ other's nodes through the source mesh's interpolant.
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.pde.collocation.protocols.basis_1d import CollocationBasis1DProtocol
-from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+class TransferMapProtocol(Protocol, Generic[Array]):
+    """A mesh's map of the reference cube onto the domain, as a transfer
+    reads it: two meshes must hold the same map object."""
+
+    def map_to_physical(self, reference_pts: Array) -> Array:
+        """Shape: (d, npts) to (ncoords, npts)"""
+        ...
 
 
 @runtime_checkable
@@ -29,7 +37,7 @@ class TransferMeshProtocol(Protocol, Generic[Array]):
         """The 1D basis of direction ``dim``."""
         ...
 
-    def transform(self) -> TransformProtocol[Array]:
+    def transform(self) -> TransferMapProtocol[Array]:
         """The map of the reference cube onto the domain; only its
         identity is read."""
         ...
