@@ -312,6 +312,73 @@ class NormalProjectionTransfer(Generic[V, Array]):
         return self._inner.gather_add(self._read @ block, y)
 
 
+class TimeComponentTransfer(Generic[Array]):
+    r"""A transfer on a skeleton carrying ``ncomponents`` values per DOF,
+    built from one on the plain skeleton: :math:`E \otimes I`, each
+    component transferred alone.
+
+    For a skeleton unknown in a space in time per window (one trace per
+    unknown of the trial space), laid out as a
+    :class:`~pyapprox.pde.coupling.spaces.ComponentSkeletonSpace` lays out
+    its vectors and as the windowed port data are: entry ``q * d + k`` is
+    DOF (or port row) ``d``'s component ``k`` of ``q``. Any plain transfer
+    (interpolation, projection, a normal projection) then serves a space
+    in time unchanged.
+
+    Parameters
+    ----------
+    inner
+        :math:`E`, the transfer on the plain skeleton.
+    ncomponents
+        :math:`q`, the values per DOF.
+    bkd
+        The backend of the skeleton vectors and port blocks.
+
+    Raises
+    ------
+    TypeError
+        If ``inner`` does not satisfy :class:`PortTransferProtocol`.
+    ValueError
+        If ``ncomponents`` is less than 1.
+    """
+
+    def __init__(
+        self,
+        inner: PortTransferProtocol[Array, Array],
+        ncomponents: int,
+        bkd: Backend[Array],
+    ) -> None:
+        if not isinstance(inner, PortTransferProtocol):
+            raise TypeError(
+                f"inner must satisfy PortTransferProtocol, got {type(inner).__name__}"
+            )
+        if ncomponents < 1:
+            raise ValueError(f"ncomponents must be at least 1, got {ncomponents}")
+        self._inner, self._q, self._bkd = inner, ncomponents, bkd
+
+    def _interleaved(self, parts: list[Array]) -> Array:
+        stacked = self._bkd.stack(parts, axis=1)
+        n, q, ncols = stacked.shape
+        return self._bkd.reshape(stacked, (n * q, ncols))
+
+    def nport(self) -> int:
+        return self._inner.nport() * self._q
+
+    def scatter(self, lam: Array) -> Array:
+        q = self._q
+        return self._interleaved([self._inner.scatter(lam[k::q]) for k in range(q)])
+
+    def gather_add(self, block: Array, y: Array) -> Array:
+        q, bkd = self._q, self._bkd
+        nskel, ncols = int(y.shape[0]) // q, int(block.shape[1])
+        zero = bkd.zeros((nskel, ncols))
+        parts = [self._inner.gather_add(block[k::q], zero) for k in range(q)]
+        return y + self._interleaved(parts)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._inner!r}, ncomponents={self._q})"
+
+
 @runtime_checkable
 class FaceValuesProtocol(Protocol, Generic[Array]):
     """What :func:`port_interpolation` asks of a skeleton field space: its
