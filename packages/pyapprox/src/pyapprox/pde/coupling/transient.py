@@ -1,21 +1,18 @@
 r"""Subdomains advancing through time windows.
 
 A windowed response covers a window :math:`[t_0, t_1]` of a transient
-problem. Its port data are the trace at the window's end,
-:math:`\lambda(t_1)`; within the window the trace is the linear
-interpolant from the subdomain's own trace at :math:`t_0` (its committed
-state's port rows) to :math:`\lambda(t_1)`, so the rate of the port data
-is known and a Runge-Kutta stage reads the data at its own time.
+problem: given its port data for the window it steps the subdomain from
+its committed state at :math:`t_0` to :math:`t_1` and returns an output
+on its ports.
 
 **A window is a trial, then a commit.** :meth:`WindowedResponseProtocol.
-linearize` steps the subdomain over the window from its committed state
-and changes nothing it holds: the point keeps the trial trajectory, and
-a skeleton Newton may linearize any number of times.
-:meth:`~WindowedResponseProtocol.accept` commits one point: the
-subdomain's state becomes the trial's last state and the trial's steps
-go into the subdomain's sink. Not accepting is the rollback, so a
-rejected window, or one solved again, needs nothing more. The response
-owns its state: the skeleton never holds a subdomain state.
+linearize` steps the subdomain over the window and changes nothing it
+holds: the point keeps the trial trajectory, and a skeleton Newton may
+linearize any number of times. :meth:`~WindowedResponseProtocol.accept`
+commits one point: the subdomain's state becomes the trial's last state
+and the trial's steps go into the subdomain's sink. Not accepting is the
+rollback, so a rejected window, or one solved again, needs nothing more.
+The response owns its state: the skeleton never holds a subdomain state.
 
 **Storage is injected.** Each response writes its committed steps into a
 :class:`~pyapprox.ode.trajectory_store.TrajectorySinkProtocol` given at
@@ -27,9 +24,20 @@ own, replayed into the sink step by step on commit, so the sink sees the
 same windows (unknowns, sizes, parameter versions) a single-domain
 integration would write.
 
-:class:`WindowedPinnedResponse` is the Dirichlet-to-Neumann response of
-a stepped subdomain: its port rows pinned beside its physical essential
-rows (:class:`WindowPortRows`), its output the step residual of the
+**The transmission is injected.** :class:`WindowedResponse` holds only
+the lifecycle. How the port data enter the subdomain is a
+:class:`WindowPortInputProtocol`, set before each trial; what the
+response returns is a :class:`WindowPortOutputProtocol`, read from the
+trial. A new transmission (port data as a natural load, a Robin datum;
+a trace or pointwise-flux output) is a new input or output, not a new
+response.
+
+The Dirichlet-to-Neumann pair: :class:`WindowPortRows` pins the port
+rows beside the physical essential rows, to the linear interpolant from
+the subdomain's own trace at :math:`t_0` (its committed state's port
+rows) to the port data :math:`\lambda(t_1)`, so the data's rate is known
+and a Runge-Kutta stage reads the data at its own time.
+:class:`StepResidualReaction` returns the step residual of the
 unconstrained stepper on the port rows, summed over the window's steps.
 For a Runge-Kutta step the last block of that residual is
 :math:`M(y_{n+1} - y_n) - \Delta t \sum_i b_i f(Y_i)`: on a port row,
@@ -45,7 +53,7 @@ from pyapprox.ode.integration import Integrator
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, PinnedRowsProtocol
 from pyapprox.ode.protocols.differentiable_stepper import (
     DifferentiableStepperProtocol,
-    StepperProtocol,
+    ForwardStepperProtocol,
 )
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.trajectory_store import (
@@ -56,10 +64,12 @@ from pyapprox.pde.coupling.ports import PortRowsProtocol
 from pyapprox.pde.coupling.responses import (
     Flux,
     LocalResponseProtocol,
+    PortQuantity,
     ResponseDerivatives,
     ResponsePointProtocol,
     TimeWindow,
     Trace,
+    TraceJVP,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import (
@@ -70,6 +80,8 @@ from pyapprox.util.linalg.operators import (
 
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
+V_contra = TypeVar("V_contra", contravariant=True)
+A_contra = TypeVar("A_contra", bound=ArrayProtocol, contravariant=True)
 
 
 @runtime_checkable
@@ -93,14 +105,56 @@ class WindowedResponseProtocol(LocalResponseProtocol[A], Protocol[A]):
         ...
 
 
+@runtime_checkable
+class WindowPortInputProtocol(Protocol[V_contra, A_contra]):
+    """How a :class:`WindowedResponse`'s port data enter its subdomain:
+    set before each trial, read by the stepper while it steps."""
+
+    def nport(self) -> int:
+        """The number of rows of the port data."""
+        ...
+
+    def receives(self) -> PortQuantity:
+        """What the port data are."""
+        ...
+
+    def set_window(
+        self, window: TimeWindow, state: V_contra, port_data: A_contra
+    ) -> None:
+        """Hold ``port_data`` (nport, 1) for ``window``, stepped from the
+        committed ``state`` at the window's start."""
+        ...
+
+
+@runtime_checkable
+class WindowPortOutputProtocol(Protocol[V, A]):
+    """What a :class:`WindowedResponse` returns, read from a trial."""
+
+    def returns(self) -> PortQuantity:
+        """What the output is."""
+        ...
+
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
+        """The output over the window ``trial`` stepped. Shape:
+        (nport, 1)."""
+        ...
+
+    def tangent(self, trial: InMemoryTrajectoryStore[V]) -> Optional[TraceJVP[A]]:
+        """The output's derivative in the port data at ``trial``; None when
+        not supplied. Whether it is supplied is fixed for a response's
+        life (it may depend on the steps per window)."""
+        ...
+
+
 class WindowPortRows(Generic[V, A]):
     r"""A subdomain's essential rows and its port rows, with their data
     over one window: the essential data :math:`g(t)` and, on the port
-    rows, the linear interpolant from the window's start trace to its
-    end trace.
+    rows, the linear interpolant from the committed state's trace at the
+    window's start to the port data at its end.
 
-    Satisfies :class:`~pyapprox.ode.pinned_rows.PinnedRowsProtocol`.
-    Holds the window, set by :meth:`set_window`; the rows, the rates'
+    Satisfies :class:`~pyapprox.ode.pinned_rows.PinnedRowsProtocol` (for
+    the stepper's pin) and :class:`WindowPortInputProtocol`, receiving a
+    :class:`~pyapprox.pde.coupling.responses.Trace`. The rows, the rates'
     presence and the parameter derivatives are fixed for its life.
 
     Parameters
@@ -146,9 +200,15 @@ class WindowPortRows(Generic[V, A]):
         self._start: Optional[A] = None
         self._end: Optional[A] = None
 
-    def set_window(self, window: TimeWindow, start: A, end: A) -> None:
-        """Hold ``window`` with the port trace ``start`` at its start and
-        ``end`` at its end, both of shape (nport, 1).
+    def nport(self) -> int:
+        return self._ports.nrows()
+
+    def receives(self) -> Trace:
+        return Trace()
+
+    def set_window(self, window: TimeWindow, state: V, port_data: A) -> None:
+        """Hold ``window``, the trace interpolated from ``state``'s port
+        rows at its start to ``port_data`` at its end.
 
         Raises
         ------
@@ -157,7 +217,8 @@ class WindowPortRows(Generic[V, A]):
         """
         if window.is_steady():
             raise ValueError("port data are interpolated over a nonempty window")
-        self._window, self._start, self._end = window, start, end
+        self._window = window
+        self._start, self._end = self._ports.take(state), port_data
 
     def _traces(self) -> tuple[A, A]:
         if self._start is None or self._end is None:
@@ -199,13 +260,89 @@ class WindowPortRows(Generic[V, A]):
         return PinnedRowsParamDerivatives.independent()
 
 
+class StepResidualReaction(Generic[V, A]):
+    r"""The time-discrete reaction on the port rows: the last block of the
+    unconstrained stepper's step residual there, summed over the window's
+    steps (see the module docstring).
+
+    Satisfies :class:`WindowPortOutputProtocol`, returning a
+    :class:`~pyapprox.pde.coupling.responses.Flux`, for a trial stepped
+    with the port rows pinned (:class:`WindowPortRows`).
+
+    Its tangent in the end trace is supplied for one step per window of a
+    one-block stepper (backward Euler): the step's pinned port rows read
+    :math:`Y_R - \lambda(t_1)`, so the unknown's change solves
+    :math:`(\partial R/\partial u)\, \delta u = [\delta\lambda]_R`, and
+    the output changes by the unconstrained step residual's derivative at
+    :math:`\delta u` on the port rows.
+
+    Parameters
+    ----------
+    stepper : DifferentiableStepperProtocol
+        The stepper the trials are stepped with, its port rows pinned.
+    reaction : DifferentiableStepperProtocol
+        The same method over the unconstrained system.
+    ports : PortRowsProtocol
+        The port rows of the state space, in port order.
+    states : VectorSpaceProtocol
+        The state space.
+    """
+
+    def __init__(
+        self,
+        stepper: DifferentiableStepperProtocol[V, A],
+        reaction: DifferentiableStepperProtocol[V, A],
+        ports: PortRowsProtocol[V, A],
+        states: VectorSpaceProtocol[V],
+    ) -> None:
+        self._stepper, self._reaction = stepper, reaction
+        self._ports, self._states = ports, states
+        self._one_block = stepper.unknown_space().nblocks() == 1
+
+    def returns(self) -> Flux:
+        return Flux()
+
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
+        take, residual = self._ports.take, self._reaction.step_residual
+        output = take(residual(trial.window(0)).blocks[-1])
+        for step in range(1, trial.nsteps()):
+            output = output + take(residual(trial.window(step)).blocks[-1])
+        return output
+
+    def tangent(self, trial: InMemoryTrajectoryStore[V]) -> Optional[TraceJVP[A]]:
+        """Supplied for a one-step trial of a one-block stepper."""
+        if not self._one_block or trial.nsteps() != 1:
+            return None
+
+        def jvp(directions: A) -> A:
+            return self._apply(trial, directions)
+
+        return jvp
+
+    def _apply(self, trial: InMemoryTrajectoryStore[V], directions: A) -> A:
+        nport = self._ports.nrows()
+        if directions.ndim != 2 or directions.shape[0] != nport:
+            raise ValueError(
+                f"directions must have shape ({nport}, ncols), got "
+                f"{tuple(directions.shape)}"
+            )
+        ncols = int(directions.shape[1])
+        window = trial.window(0)
+        rhs = BlockVector((self._ports.add_to(self._states.zeros(ncols), directions),))
+        delta, info = self._stepper.diag_handle(window).solve(rhs)
+        if not info.converged:
+            raise ValueError("the tangent solve did not converge")
+        change = self._reaction.diag(window).apply(delta)
+        return self._ports.take(change.blocks[-1])
+
+
 class _Owner:
     """Identifies the response a point came from."""
 
 
-class WindowedPinnedPoint(Generic[V, A]):
-    r"""A :class:`WindowedPinnedResponse` stepped over one window at one
-    end trace. Its output and derivatives refer to its own trial, so they
+class WindowedPoint(Generic[V, A]):
+    """A :class:`WindowedResponse` stepped over one window at one set of
+    port data. Its output and derivatives refer to its own trial, so they
     stay valid after the response is linearized again.
     """
 
@@ -216,19 +353,18 @@ class WindowedPinnedPoint(Generic[V, A]):
         trial: InMemoryTrajectoryStore[V],
         output: A,
         bkd: Backend[A],
-        tangent: Optional["_EndTraceTangent[V, A]"],
+        tangent: Optional[TraceJVP[A]],
     ) -> None:
         self._owner, self._window, self._trial = owner, window, trial
         self._output, self._bkd = output, bkd
         self._derivs: ResponseDerivatives[A] = (
             ResponseDerivatives.none()
             if tangent is None
-            else ResponseDerivatives.tangent(tangent.bind(trial))
+            else ResponseDerivatives.tangent(tangent)
         )
 
     def output(self) -> A:
-        """The time-discrete reaction on the ports over the window.
-        Shape: (nport, 1)."""
+        """The output over the window. Shape: (nport, 1)."""
         return self._output
 
     def qoi(self) -> A:
@@ -255,74 +391,25 @@ class WindowedPinnedPoint(Generic[V, A]):
         return self._trial.state(-1)
 
 
-class _EndTraceTangent(Generic[V, A]):
-    r""":math:`\partial r/\partial \lambda(t_1)` for a one-step window of
-    a one-block stepper (backward Euler): the step's pinned port rows read
-    :math:`Y_R - \lambda(t_1)`, so the unknown's change solves
-    :math:`(\partial R/\partial u)\, \delta u = [\delta\lambda]_R`, and the
-    output changes by the unconstrained step residual's derivative at
-    :math:`\delta u` on the port rows."""
+class WindowedResponse(Generic[V, A]):
+    r"""A stepped subdomain as a response over time windows (see the
+    module docstring): the port data enter through ``port_input``, the
+    output is read by ``port_output``. Without parameters or quantities
+    of interest.
 
-    def __init__(
-        self,
-        stepper: StepperProtocol[V, A],
-        reaction: DifferentiableStepperProtocol[V, A],
-        ports: PortRowsProtocol[V, A],
-        states: VectorSpaceProtocol[V],
-    ) -> None:
-        self._stepper, self._reaction = stepper, reaction
-        self._ports, self._states = ports, states
-
-    def bind(self, trial: InMemoryTrajectoryStore[V]) -> Callable[[A], A]:
-        def jvp(directions: A) -> A:
-            return self._apply(trial, directions)
-
-        return jvp
-
-    def _apply(self, trial: InMemoryTrajectoryStore[V], directions: A) -> A:
-        nport = self._ports.nrows()
-        if directions.ndim != 2 or directions.shape[0] != nport:
-            raise ValueError(
-                f"directions must have shape ({nport}, ncols), got "
-                f"{tuple(directions.shape)}"
-            )
-        ncols = int(directions.shape[1])
-        window = trial.window(0)
-        rhs = BlockVector((self._ports.add_to(self._states.zeros(ncols), directions),))
-        delta, info = self._stepper.diag_handle(window).solve(rhs)
-        if not info.converged:
-            raise ValueError("the tangent solve did not converge")
-        change = self._reaction.diag(window).apply(delta)
-        return self._ports.take(change.blocks[-1])
-
-
-class WindowedPinnedResponse(Generic[V, A]):
-    r"""A stepped subdomain as a Dirichlet-to-Neumann response over time
-    windows (see the module docstring). Receives the trace at a window's
-    end, returns the time-discrete reaction on the ports over the window.
-    Without parameters or quantities of interest.
-
-    Satisfies :class:`WindowedResponseProtocol`. The trace derivative
-    (``jvp_trace``) is supplied for one step per window of a one-block
-    stepper (backward Euler); otherwise the bundle is empty.
+    Satisfies :class:`WindowedResponseProtocol`. The trace derivative is
+    ``port_output``'s.
 
     Parameters
     ----------
-    stepper : StepperProtocol
-        Steps the subdomain with ``rows`` pinned: built over the system
-        whose essential rows are ``rows``, with a pin of them.
-    reaction : DifferentiableStepperProtocol
-        The same method over the unconstrained system, whose step
-        residual is read on the port rows.
-    rows : WindowPortRows
-        The rows ``stepper`` pins; the response sets its window.
-    ports : PortRowsProtocol
-        The port rows of the state space, in port order: ``rows``' own.
-    states : VectorSpaceProtocol
-        The state space.
+    stepper : ForwardStepperProtocol
+        Steps the subdomain, reading the port data ``port_input`` holds.
+    port_input : WindowPortInputProtocol
+        Sets the port data before each trial.
+    port_output : WindowPortOutputProtocol
+        Reads the output from each trial.
     init_state : V
-        The state at ``origin``, a single column; its port rows are the
-        initial trace.
+        The state at ``origin``, a single column.
     origin : float
         The initial time.
     sink : TrajectorySinkProtocol
@@ -336,19 +423,16 @@ class WindowedPinnedResponse(Generic[V, A]):
     Raises
     ------
     TypeError
-        If ``stepper``, ``reaction`` or ``sink`` does not satisfy its
-        protocol.
+        If an argument does not satisfy its protocol.
     ValueError
         If ``nsubsteps`` is less than 1 or ``sink`` is not empty.
     """
 
     def __init__(
         self,
-        stepper: StepperProtocol[V, A],
-        reaction: DifferentiableStepperProtocol[V, A],
-        rows: WindowPortRows[V, A],
-        ports: PortRowsProtocol[V, A],
-        states: VectorSpaceProtocol[V],
+        stepper: ForwardStepperProtocol[V],
+        port_input: WindowPortInputProtocol[V, A],
+        port_output: WindowPortOutputProtocol[V, A],
         init_state: V,
         origin: float,
         sink: TrajectorySinkProtocol[V],
@@ -356,8 +440,8 @@ class WindowedPinnedResponse(Generic[V, A]):
         nsubsteps: int = 1,
     ) -> None:
         for name, value, protocol in (
-            ("stepper", stepper, StepperProtocol),
-            ("reaction", reaction, DifferentiableStepperProtocol),
+            ("port_input", port_input, WindowPortInputProtocol),
+            ("port_output", port_output, WindowPortOutputProtocol),
             ("sink", sink, TrajectorySinkProtocol),
         ):
             if not isinstance(value, protocol):
@@ -369,32 +453,26 @@ class WindowedPinnedResponse(Generic[V, A]):
             raise ValueError(f"nsubsteps must be at least 1, got {nsubsteps}")
         if sink.ntimes() != 0:
             raise ValueError("the sink must be empty")
-        self._stepper, self._reaction = stepper, reaction
-        self._rows, self._ports, self._states = rows, ports, states
+        self._input, self._output = port_input, port_output
         self._state, self._time = init_state, float(origin)
         self._sink, self._bkd = sink, bkd
         self._nsubsteps = nsubsteps
+        # Checks the stepper.
         self._integrator = Integrator(stepper)
         self._owner = _Owner()
         self._started = False
-        one_block = stepper.unknown_space().nblocks() == 1
-        self._tangent: Optional[_EndTraceTangent[V, A]] = (
-            _EndTraceTangent(stepper, reaction, ports, states)
-            if one_block and nsubsteps == 1
-            else None
-        )
 
     def bkd(self) -> Backend[A]:
         return self._bkd
 
     def nport(self) -> int:
-        return self._ports.nrows()
+        return self._input.nport()
 
-    def receives(self) -> Trace:
-        return Trace()
+    def receives(self) -> PortQuantity:
+        return self._input.receives()
 
-    def returns(self) -> Flux:
-        return Flux()
+    def returns(self) -> PortQuantity:
+        return self._output.returns()
 
     def nparams(self) -> int:
         return 0
@@ -424,9 +502,9 @@ class WindowedPinnedResponse(Generic[V, A]):
 
     def linearize(
         self, port_data: A, params: A, window: TimeWindow
-    ) -> WindowedPinnedPoint[V, A]:
-        """Step over ``window`` from the committed state, the port trace
-        ending at ``port_data`` (nport, 1); ``params`` is (0, 1).
+    ) -> WindowedPoint[V, A]:
+        """Step over ``window`` from the committed state with
+        ``port_data`` (nport, 1); ``params`` is (0, 1).
 
         Raises
         ------
@@ -451,20 +529,19 @@ class WindowedPinnedResponse(Generic[V, A]):
                 f"the window starts at {window.start}, not at the committed time "
                 f"{self._time}"
             )
-        self._rows.set_window(window, self._ports.take(self._state), port_data)
+        self._input.set_window(window, self._state, port_data)
         size = (window.end - window.start) / self._nsubsteps
         trial: InMemoryTrajectoryStore[V] = InMemoryTrajectoryStore()
         self._integrator.solve(
             self._state, GivenSizes(window.start, [size] * self._nsubsteps), trial
         )
-        output = self._ports.take(
-            self._reaction.step_residual(trial.window(0)).blocks[-1]
-        )
-        for step in range(1, trial.nsteps()):
-            residual = self._reaction.step_residual(trial.window(step))
-            output = output + self._ports.take(residual.blocks[-1])
-        return WindowedPinnedPoint(
-            self._owner, window, trial, output, self._bkd, self._tangent
+        return WindowedPoint(
+            self._owner,
+            window,
+            trial,
+            self._output.output(trial),
+            self._bkd,
+            self._output.tangent(trial),
         )
 
     def accept(self, point: ResponsePointProtocol[A]) -> None:
@@ -480,9 +557,7 @@ class WindowedPinnedResponse(Generic[V, A]):
         """
         if not self._started:
             raise ValueError("start the response before accepting a window")
-        if not isinstance(point, WindowedPinnedPoint) or not point.comes_from(
-            self._owner
-        ):
+        if not isinstance(point, WindowedPoint) or not point.comes_from(self._owner):
             raise ValueError("the point is not one of this response's")
         window = point.window()
         if window.start != self._time:

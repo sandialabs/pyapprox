@@ -45,8 +45,8 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.stacks.galerkin import skfem_windowed_response
 from pyapprox.pde.coupling.transient import (
-    WindowedPinnedPoint,
-    WindowedPinnedResponse,
+    WindowedPoint,
+    WindowedResponse,
     WindowedResponseProtocol,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
@@ -171,7 +171,7 @@ class _Half:
     """A windowed response, the reference rows of its nodes, its port
     DOFs, its skeleton DOFs and its sink."""
 
-    response: WindowedPinnedResponse[Np, Np]
+    response: WindowedResponse[Np, Np]
     rows: list[int]
     ports: list[int]
     dofs: tuple[int, ...]
@@ -321,7 +321,7 @@ def test_invalid_use() -> None:
     trace = strip.trace(1, half)
     window = TimeWindow(0.0, _DT)
     point = response.linearize(trace, _NONE, window)
-    assert isinstance(point, WindowedPinnedPoint)
+    assert isinstance(point, WindowedPoint)
     with pytest.raises(ValueError, match="start"):
         response.accept(point)
     response.start()

@@ -40,7 +40,11 @@ from pyapprox.pde.coupling.pinned_response import (
 )
 from pyapprox.pde.coupling.ports import BackendPortRows, PortMapProtocol
 from pyapprox.pde.coupling.responses import Flux, PortQuantity, Trace
-from pyapprox.pde.coupling.transient import WindowedPinnedResponse, WindowPortRows
+from pyapprox.pde.coupling.transient import (
+    StepResidualReaction,
+    WindowedResponse,
+    WindowPortRows,
+)
 from pyapprox.pde.galerkin.protocols.system import GalerkinTransientSystemProtocol
 from pyapprox.pde.galerkin.time_integration.essential_pinned_rows import (
     EssentialPinnedRows,
@@ -126,7 +130,7 @@ def skfem_windowed_response(
     sink: TrajectorySinkProtocol[_Np],
     origin: float = 0.0,
     nsubsteps: int = 1,
-) -> WindowedPinnedResponse[_Np, _Np]:
+) -> WindowedResponse[_Np, _Np]:
     """An skfem subdomain stepped through time windows, its field DOFs
     ``ports`` pinned to the port trace beside its essential rows, returning
     the time-discrete reaction there (see :mod:`~pyapprox.pde.coupling.
@@ -164,7 +168,7 @@ def skfem_windowed_response(
     ValueError
         If there are no port DOFs, or as :class:`~pyapprox.pde.coupling.
         transient.WindowPortRows` and :class:`~pyapprox.pde.coupling.
-        transient.WindowedPinnedResponse`.
+        transient.WindowedResponse`.
     """
     if len(ports) == 0:
         raise ValueError("an skfem response needs at least one port DOF")
@@ -183,12 +187,10 @@ def skfem_windowed_response(
     stepper = method.stepper(solved, setups, RowPinning(rows))
     # Read for its residual and its Jacobian's action only: never solved.
     reaction = method.stepper(unconstrained, RecomputeAlways(ScipySparseLU()))
-    return WindowedPinnedResponse(
+    return WindowedResponse(
         stepper,
-        reaction,
         rows,
-        port_rows,
-        states,
+        StepResidualReaction(stepper, reaction, port_rows, states),
         init_state,
         origin,
         sink,
