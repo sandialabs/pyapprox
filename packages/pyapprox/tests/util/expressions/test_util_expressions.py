@@ -14,23 +14,24 @@ Parsing, against sympy built by hand:
 Evaluation, on both backends at three points, against the same values
 written with backend methods (1e-12): built-in functions, a constant and
 a one-variable expression broadcast to every point, a custom ``tan``, the
-backend's dtype, and on torch the gradient of :math:`\sum x_1^2`.
-``sign``, ``Heaviside`` (1/2 at zero, as sympy), ``Max`` and ``Min``
-(variadic, with number arguments) on arrays, against hand values at
-three points including zeros, and on torch the gradient of
+backend's dtype, and on autodiff backends the gradient of
+:math:`\sum x_1^2`. ``sign``, ``Heaviside`` (1/2 at zero, as sympy),
+``Max`` and ``Min`` (variadic, with number arguments) on arrays, against
+hand values at three points including zeros, and on autodiff backends the
+gradient of
 :math:`\max(x_1, 0)^2`.
 """
 
 import pickle
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 import sympy as sp
 
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.expressions.evaluation import ExpressionEvaluator
 from pyapprox.util.expressions.names import CustomFunction, Names, numbered
 from pyapprox.util.expressions.parsing import parse
@@ -40,6 +41,18 @@ x1, x2 = sp.symbols("x1 x2")
 
 def _tan(bkd: Backend[Any], value: Any) -> Any:
     return bkd.sin(value) / bkd.cos(value)
+
+
+def _grad_of_sum(
+    bkd: AutodiffBackend[Array], fun: Callable[[Array], Array], samples: Array
+) -> Array:
+    """Autodiff gradient of ``sum(fun(samples))``, shaped like ``samples``."""
+    shape = tuple(samples.shape)
+
+    def total(flat: Array) -> Array:
+        return bkd.reshape(bkd.sum(fun(bkd.reshape(flat, shape))), (1,))
+
+    return bkd.reshape(bkd.jacobian(total, bkd.flatten(samples)), shape)
 
 
 class TestNames:
@@ -183,27 +196,23 @@ class TestEvaluate:
         bkd.assert_allclose(values[3], bkd.asarray([-1.5, 0.0, 0.25]))
         bkd.assert_allclose(values[4], bkd.asarray([0.0, 0.0, 0.0]))
 
-    def test_torch_graph_through_max(self, torch_bkd: TorchBkd) -> None:
-        import torch
-
-        bkd = torch_bkd
-        pts = bkd.asarray([[-1.0, 0.5], [0.0, 0.0]]).requires_grad_(True)
-        values = ExpressionEvaluator(["Max(x1, 0)**2"], Names(["x1", "x2"]), bkd)(pts)
-        (gradient,) = torch.autograd.grad(bkd.sum(values), [pts])
+    def test_graph_through_max(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        bkd = autodiff_bkd
+        pts = bkd.asarray([[-1.0, 0.5], [0.0, 0.0]])
+        evaluator = ExpressionEvaluator(["Max(x1, 0)**2"], Names(["x1", "x2"]), bkd)
+        gradient = _grad_of_sum(bkd, evaluator, pts)
         bkd.assert_allclose(gradient[0], bkd.asarray([0.0, 1.0]), rtol=1e-12)
 
     def test_uses(self, numpy_bkd: Backend[Array]) -> None:
         evaluator = ExpressionEvaluator(["x1"], Names(["x1", "x2"]), numpy_bkd)
         assert evaluator.uses(x1) and not evaluator.uses(x2)
 
-    def test_torch_graph_survives(self, torch_bkd: TorchBkd) -> None:
-        import torch
-
-        bkd = torch_bkd
-        pts = bkd.asarray([[0.1, 0.5, 0.9], [0.2, 0.4, 0.7]]).requires_grad_(True)
-        values = ExpressionEvaluator(["x1**2"], Names(["x1", "x2"]), bkd)(pts)
-        (gradient,) = torch.autograd.grad(bkd.sum(values), [pts])
-        bkd.assert_allclose(gradient[0], 2 * pts.detach()[0], rtol=1e-12)
+    def test_graph_survives(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
+        bkd = autodiff_bkd
+        pts = bkd.asarray([[0.1, 0.5, 0.9], [0.2, 0.4, 0.7]])
+        evaluator = ExpressionEvaluator(["x1**2"], Names(["x1", "x2"]), bkd)
+        gradient = _grad_of_sum(bkd, evaluator, pts)
+        bkd.assert_allclose(gradient[0], 2 * pts[0], rtol=1e-12)
         bkd.assert_allclose(gradient[1], bkd.zeros((3,)), rtol=1e-12)
 
     def test_refusals(self, numpy_bkd: Backend[Array]) -> None:
