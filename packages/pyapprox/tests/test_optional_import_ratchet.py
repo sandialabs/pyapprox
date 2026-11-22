@@ -9,9 +9,11 @@ import pytest
 import pyapprox
 from pyapprox._moved_ratchet import BASELINE_FILE
 from pyapprox._optional_import_ratchet import (
+    OPTIONAL,
     _library_imports,
     bound_modules,
-    problems_at,
+    measure,
+    ratchet_notices,
     ratchet_problems,
     read_baseline,
     unguarded_test_modules,
@@ -109,9 +111,17 @@ def test_ratchet_holds_counts_at_their_baselines(tmp_path: Path) -> None:
         "no baseline for jax: add optional-test-import:jax=0",
         "optional-test-import:gone is stale: gone is not checked",
     ]
-    fell = ratchet_problems(("torch",), {"torch": []}, {"torch": 1})
+    # A count below its baseline does not fail; it is a notice to lower it.
+    assert ratchet_problems(("torch",), {"torch": []}, {"torch": 1}) == []
+    fell = ratchet_notices(("torch",), {"torch": []}, {"torch": 1})
     assert fell == ["torch: down to 0; set optional-test-import:torch=0"]
     assert ratchet_problems(("torch",), {"torch": ["t/a.py"]}, {"torch": 1}) == []
+    assert ratchet_notices(("torch",), {"torch": ["t/a.py"]}, {"torch": 1}) == []
+    # Neither a rise nor a missing baseline is a notice.
+    assert (
+        ratchet_notices(("torch", "jax"), {"torch": ["t/a.py", "t/b.py"]}, baseline)
+        == []
+    )
 
 
 def test_repository_holds_its_baselines() -> None:
@@ -119,4 +129,5 @@ def test_repository_holds_its_baselines() -> None:
     root = Path(pyapprox.__file__).resolve().parents[4]
     if not (root / BASELINE_FILE).exists():
         pytest.skip("not a source checkout")
-    assert problems_at(root) == []
+    modules, baseline = measure(root)
+    assert ratchet_problems(OPTIONAL, modules, baseline) == []

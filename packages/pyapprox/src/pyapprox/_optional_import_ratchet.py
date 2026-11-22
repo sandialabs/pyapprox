@@ -22,7 +22,10 @@ that lowers a count lowers its baseline in the same commit, and no commit
 raises one.
 
 ``python -m pyapprox._optional_import_ratchet`` exits nonzero when a
-count differs from its baseline, listing the modules when it is above.
+count exceeds its baseline (listing the modules), a library has none, or
+a baseline is stale. A count below its baseline is printed as a notice to
+lower it and does not fail, since merging branches lowers counts no
+single branch could record.
 """
 
 import ast
@@ -148,10 +151,10 @@ def ratchet_problems(
     modules: Mapping[str, Sequence[str]],
     baseline: Mapping[str, int],
 ) -> list[str]:
-    """What differs between the unguarded modules (relative paths, per
-    library) and the baseline: a count above it, below it (lower the
-    baseline), or a library without one; and baselines of libraries no
-    longer in ``libs``."""
+    """What fails the ratchet, given the unguarded modules (relative paths,
+    per library): a count above its baseline, a library without one, and
+    baselines of libraries no longer in ``libs``. A count below its
+    baseline is a notice (:func:`ratchet_notices`)."""
     problems = []
     for lib in libs:
         found = modules.get(lib, [])
@@ -166,8 +169,6 @@ def ratchet_problems(
                 f"fixture, or skip the module first with "
                 f'pytest.importorskip("{lib}"):{listed}'
             )
-        elif count < baseline[lib]:
-            problems.append(f"{lib}: down to {count}; set {key}={count}")
     problems += [
         f"{BASELINE_KEY}{lib} is stale: {lib} is not checked"
         for lib in baseline
@@ -176,8 +177,23 @@ def ratchet_problems(
     return problems
 
 
-def problems_at(root: Path) -> list[str]:
-    """The ratchet's problems for the checkout at ``root``."""
+def ratchet_notices(
+    libs: Sequence[str],
+    modules: Mapping[str, Sequence[str]],
+    baseline: Mapping[str, int],
+) -> list[str]:
+    """Counts below their baselines, each with the baseline to set."""
+    return [
+        f"{lib}: down to {len(modules.get(lib, []))}; "
+        f"set {BASELINE_KEY}{lib}={len(modules.get(lib, []))}"
+        for lib in libs
+        if lib in baseline and len(modules.get(lib, [])) < baseline[lib]
+    ]
+
+
+def measure(root: Path) -> tuple[dict[str, list[str]], dict[str, int]]:
+    """The unguarded test modules per library (paths relative to ``root``)
+    and the baselines, for the checkout at ``root``."""
     library_imports = _library_imports(root)
     bound = {lib: bound_modules(lib, library_imports) for lib in OPTIONAL}
     found = unguarded_test_modules(root, bound)
@@ -185,14 +201,18 @@ def problems_at(root: Path) -> list[str]:
         lib: [p.relative_to(root).as_posix() for p in paths]
         for lib, paths in found.items()
     }
-    return ratchet_problems(OPTIONAL, relative, read_baseline(root / BASELINE_FILE))
+    return relative, read_baseline(root / BASELINE_FILE)
 
 
 def main(argv: Sequence[str]) -> int:
     root = Path(__file__).resolve().parents[4]
-    problems = problems_at(root)
+    modules, baseline = measure(root)
+    problems = ratchet_problems(OPTIONAL, modules, baseline)
     for problem in problems:
         print(f"optional-test-import ratchet: {problem}")
+    # GitHub Actions shows a ::notice:: line as an annotation.
+    for notice in ratchet_notices(OPTIONAL, modules, baseline):
+        print(f"::notice::optional-test-import ratchet: {notice}")
     return 1 if problems else 0
 
 
