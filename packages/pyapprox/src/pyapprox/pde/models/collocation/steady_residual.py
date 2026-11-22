@@ -17,49 +17,22 @@ the setup strategy, and differentiates it with
 :class:`~pyapprox.implicitfunction.steady_derivatives.SteadyDerivatives`.
 """
 
-from typing import Callable, Generic, Optional
+from typing import Optional
 
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.pinned_rows import RowPin
-from pyapprox.ode.pinned_rows import (
-    PinnedRowsParamDerivatives,
-    PinnedRowsProtocol,
-    values_at_time,
-)
+from pyapprox.ode.pinned_rows import PinnedRowsProtocol, values_at_time
 from pyapprox.ode.residual_at_time import RightHandSideAtTime
 from pyapprox.ode.residual_derivatives import STATED_ZERO, backend_state_space
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.pde.models.collocation.closed_system import (
     ClosedRightHandSide,
     CollocationSystem,
+    NoEssentialRows,
 )
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendRowSet, DenseFormat
-from pyapprox.util.linalg.operators import RowSetProtocol
-
-
-class _NoEssentialRows(Generic[Array]):
-    """The essential declaration of a system without essential rows: no
-    rows, so the pin leaves every row of :math:`\\tilde f` in place."""
-
-    def __init__(self, bkd: Backend[Array], nstates: int) -> None:
-        self._bkd, self._nstates = bkd, nstates
-        self._rows = BackendRowSet(
-            backend_state_space(bkd, nstates).descriptor(), [], bkd
-        )
-
-    def rows(self) -> RowSetProtocol[Array]:
-        return self._rows
-
-    def values(self, time: float) -> Array:
-        return self._bkd.zeros((self._nstates, 1))
-
-    def rates(self) -> Optional[Callable[[float], Array]]:
-        return None
-
-    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
-        return PinnedRowsParamDerivatives.independent()
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.backend_dense import DenseFormat
 
 
 def _refuse_time_dependence(system: CollocationSystem[Array]) -> None:
@@ -127,7 +100,7 @@ def collocation_steady_residual(
     rhs = ClosedRightHandSide(system, parameters, initial_state=STATED_ZERO)
     declared = system.essential()
     essential: PinnedRowsProtocol[Array] = (
-        _NoEssentialRows(bkd, nstates) if declared is None else declared
+        NoEssentialRows(bkd, nstates) if declared is None else declared
     )
     return PinnedResidual(
         RightHandSideAtTime(rhs, time, BackendColumnForm(bkd)),

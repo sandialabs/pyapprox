@@ -54,7 +54,11 @@ from pyapprox.pde.parameterizations.derivatives import (
 )
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.backend_dense import BackendDenseOperator, DenseFormat
+from pyapprox.util.linalg.backend_dense import (
+    BackendDenseOperator,
+    BackendRowSet,
+    DenseFormat,
+)
 from pyapprox.util.linalg.operators import RowSetProtocol
 
 
@@ -64,6 +68,32 @@ class EssentialRowsProtocol(PinnedRowsProtocol[Array], Protocol[Array]):
     and whether its data are time-invariant."""
 
     def is_time_invariant(self) -> bool: ...
+
+
+class NoEssentialRows(Generic[Array]):
+    """The essential declaration of a system without essential rows: no
+    rows, so a pin built on it leaves every row in place."""
+
+    def __init__(self, bkd: Backend[Array], nstates: int) -> None:
+        self._bkd, self._nstates = bkd, nstates
+        self._rows = BackendRowSet(
+            backend_state_space(bkd, nstates).descriptor(), [], bkd
+        )
+
+    def rows(self) -> RowSetProtocol[Array]:
+        return self._rows
+
+    def values(self, time: float) -> Array:
+        return self._bkd.zeros((self._nstates, 1))
+
+    def rates(self) -> Optional[Callable[[float], Array]]:
+        return None
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        return PinnedRowsParamDerivatives.independent()
+
+    def is_time_invariant(self) -> bool:
+        return True
 
 
 @runtime_checkable
