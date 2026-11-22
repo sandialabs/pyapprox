@@ -9,6 +9,7 @@ All dispatched implementations are module-level functions (not closures) so
 that objects storing them as attributes remain picklable.
 """
 
+import sys
 from functools import lru_cache
 from typing import Callable, cast
 
@@ -26,10 +27,11 @@ LagrangeDerivImpl = Callable[[Array, Array, Array, Backend[Array]], Array]
 
 
 def _is_torch(bkd: Backend[Array]) -> bool:
-    """Check if backend is PyTorch; import deferred to avoid torch load time."""
-    from pyapprox.util.backends.torch import TorchBkd
-
-    return isinstance(bkd, TorchBkd)
+    """Check if backend is PyTorch, without importing torch: a TorchBkd
+    exists only once its module has been imported, and torch may be
+    missing."""
+    module = sys.modules.get("pyapprox.util.backends.torch")
+    return module is not None and isinstance(bkd, module.TorchBkd)
 
 
 # ---------------------------------------------------------------------------

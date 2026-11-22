@@ -77,6 +77,35 @@ def test_importer_raises_install_message_without_library(
         importlib.import_module(module)
 
 
+@pytest.mark.parametrize(
+    "module, selector",
+    [
+        ("pyapprox.surrogates.affine.basis.dispatch", "get_basis_eval_impl"),
+        ("pyapprox.surrogates.affine.basis.dispatch", "get_basis_jacobian_impl"),
+        ("pyapprox.surrogates.affine.basis.dispatch", "get_basis_hessian_impl"),
+        ("pyapprox.polynomials.univariate.lagrange_dispatch", "get_lagrange_eval_impl"),
+        ("pyapprox.surrogates.tensorproduct.dispatch", "get_tp_eval_impl"),
+        ("pyapprox.expdesign.likelihood.dispatch", "get_logpdf_matrix_impl"),
+        ("pyapprox.expdesign.likelihood.dispatch", "get_evidence_jacobian_impl"),
+    ],
+)
+def test_numpy_dispatch_needs_no_torch(
+    module: str, selector: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Choosing a kernel for a NumPy backend neither needs torch nor
+    imports the torch backend (which would load torch when installed)."""
+    from pyapprox.util.backends.numpy import NumpyBkd
+
+    choose = getattr(importlib.import_module(module), selector)
+    bound = bound_modules("torch", _library_imports(_ROOT))
+    for name in list(sys.modules):
+        if name == "torch" or name.startswith("torch.") or name in bound:
+            monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setitem(sys.modules, "torch", None)
+    assert callable(choose(NumpyBkd()))
+    assert "pyapprox.util.backends.torch" not in sys.modules
+
+
 def test_importers_are_found() -> None:
     """The scan that parametrizes the guard test finds the known importers,
     so an empty parametrization cannot pass silently."""
