@@ -34,6 +34,7 @@ from pyapprox.optimization.minimize.scipy.trust_constr import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.optimization import (
+    DanckwertsInlet,
     ObstructedFlowControlProblem,
 )
 from tests._helpers.adjoint_checks import NumpyArray
@@ -102,7 +103,7 @@ def _mass_ledger(
     """
     from skfem import FacetBasis, Functional, asm
 
-    if problem.inlet_bc() != "danckwerts":
+    if not isinstance(problem.inlet(), DanckwertsInlet):
         raise ValueError(
             "the discrete ledger models the Robin inlet exchange; the "
             "Dirichlet inlet replaces rows and needs different "

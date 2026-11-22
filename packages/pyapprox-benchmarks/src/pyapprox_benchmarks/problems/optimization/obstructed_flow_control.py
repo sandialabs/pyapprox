@@ -26,12 +26,14 @@ from typing import (
     Dict,
     List,
     Optional,
+    Protocol,
     Tuple,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
     from pyapprox.implicitfunction.implicit_map import ImplicitMapFunction
-    from pyapprox.ode.stepping_methods import RungeKutta
+    from pyapprox.ode.stepping_methods import SteppingMethodProtocol
     from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.zone_weights import ZoneWeightProtocol
@@ -85,6 +87,60 @@ class _InletNormalSpeed:
     def __call__(self, x: np.ndarray) -> np.ndarray:
         y = x[1]
         return np.asarray(y ** (self._a - 1.0) * (1.0 - y) ** (self._b - 1.0))
+
+
+@runtime_checkable
+class InletConditionProtocol(Protocol):
+    """The transport condition on the inlet (the left boundary)."""
+
+    def boundary_condition(
+        self,
+        basis: "LagrangeBasis[_Np]",
+        vel_shape_params: Tuple[float, float],
+        bkd: NumpyBkd,
+    ) -> "BoundaryConditionRole[_Np]":
+        """The condition on ``basis``'s left boundary, for the parabolic
+        inlet profile of shape ``vel_shape_params``."""
+        ...
+
+
+class DanckwertsInlet:
+    """The total-flux inflow condition kappa*grad(u).n = (v.n) u: a Robin
+    condition whose coefficient is the parabolic inlet speed, so mass
+    enters and leaves the inlet only with the flow, closing the mass
+    ledger."""
+
+    def boundary_condition(
+        self,
+        basis: "LagrangeBasis[_Np]",
+        vel_shape_params: Tuple[float, float],
+        bkd: NumpyBkd,
+    ) -> "BoundaryConditionRole[_Np]":
+        from pyapprox.pde.galerkin.boundary.implementations import RobinBC
+
+        return RobinBC(basis, "left", _InletNormalSpeed(*vel_shape_params), 0.0, bkd)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
+
+class DirichletInlet:
+    """u = 0 on the inlet: simpler, but an absorbing wall, so a release
+    placed diffusively close to the inlet loses roughly half its mass
+    upstream through it."""
+
+    def boundary_condition(
+        self,
+        basis: "LagrangeBasis[_Np]",
+        vel_shape_params: Tuple[float, float],
+        bkd: NumpyBkd,
+    ) -> "BoundaryConditionRole[_Np]":
+        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+
+        return DirichletBC(basis, "left", 0.0, bkd)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
 
 
 class ObstructedFlowControlProblem:
@@ -146,16 +202,18 @@ class ObstructedFlowControlProblem:
     zone_weight : ZoneWeightProtocol, optional
         Spatial weighting of the protected zone. Defaults to the
         element-aligned rectangle above the uppermost block.
-    inlet_bc : str
-        ``"danckwerts"`` (default): the total-flux inflow condition
-        kappa*grad(u).n = (v.n) u, a Robin BC whose coefficient is the
-        parabolic inlet speed — mass enters and leaves the inlet only
-        with the flow, closing the mass ledger. ``"dirichlet"``: u = 0,
-        simpler but an absorbing wall — a release placed diffusively
-        close to the inlet loses roughly half its mass upstream
-        through it.
-    time_integrator : str
-        ``"crank_nicolson"`` (default) or ``"backward_euler"``.
+    inlet : InletConditionProtocol, optional
+        The inflow condition. Default :class:`DanckwertsInlet`, which
+        closes the mass ledger; :class:`DirichletInlet` absorbs.
+    method : SteppingMethodProtocol, optional
+        The time-stepping method. Default Crank--Nicolson with Newton
+        (absolute tolerance 1e-12, at most 5 iterations).
+
+    Raises
+    ------
+    TypeError
+        If ``bkd`` is not a ``NumpyBkd``, or ``inlet`` or ``method`` does
+        not satisfy its protocol.
     """
 
     def __init__(
@@ -177,9 +235,16 @@ class ObstructedFlowControlProblem:
         actuator_width: float = 0.05,
         control_bound: float = 10.0,
         zone_weight: Optional["ZoneWeightProtocol[_Np]"] = None,
-        inlet_bc: str = "danckwerts",
-        time_integrator: str = "crank_nicolson",
+        inlet: Optional[InletConditionProtocol] = None,
+        method: Optional["SteppingMethodProtocol[_Np, _Np]"] = None,
     ) -> None:
+        from pyapprox.ode.stepping_methods import (
+            RungeKutta,
+            SteppingMethodProtocol,
+        )
+        from pyapprox.ode.tableau import crank_nicolson
+        from pyapprox.util.rootfinding.nonlinear import Newton
+
         self._bkd = bkd
         if not isinstance(bkd, NumpyBkd):
             raise TypeError(
@@ -187,16 +252,23 @@ class ObstructedFlowControlProblem:
                 "its forward solve uses skfem, which is NumPy-only. Got "
                 f"{type(bkd).__name__}."
             )
-        if time_integrator not in ("backward_euler", "crank_nicolson"):
-            raise ValueError(
-                f"time_integrator must be 'backward_euler' or "
-                f"'crank_nicolson', got {time_integrator!r}"
+        if inlet is None:
+            inlet = DanckwertsInlet()
+        if not isinstance(inlet, InletConditionProtocol):
+            raise TypeError(
+                f"inlet must satisfy InletConditionProtocol, got {type(inlet).__name__}"
             )
-        if inlet_bc not in ("danckwerts", "dirichlet"):
-            raise ValueError(
-                f"inlet_bc must be 'danckwerts' or 'dirichlet', got {inlet_bc!r}"
+        if method is None:
+            method = RungeKutta(
+                crank_nicolson(), Newton(atol=1e-12, rtol=0.0, maxiters=5)
             )
-        self._inlet_bc = inlet_bc
+        if not isinstance(method, SteppingMethodProtocol):
+            raise TypeError(
+                "method must satisfy SteppingMethodProtocol, got "
+                f"{type(method).__name__}"
+            )
+        self._inlet = inlet
+        self._method = method
         if actuator_centers is None:
             actuator_centers = dict(_DEFAULT_ACTUATORS)
         self._actuator_labels = tuple(actuator_centers)
@@ -219,7 +291,6 @@ class ObstructedFlowControlProblem:
             final_time,
             deltat,
             zone_weight,
-            time_integrator,
         )
 
     def _gaussian_nodal(
@@ -259,7 +330,6 @@ class ObstructedFlowControlProblem:
         final_time: float,
         deltat: float,
         zone_weight: Optional["ZoneWeightProtocol[_Np]"],
-        time_integrator: str,
     ) -> None:
         from pyapprox.implicitfunction.implicit_map import (
             ArrayParameters,
@@ -268,8 +338,6 @@ class ObstructedFlowControlProblem:
         from pyapprox.implicitfunction.setups import RecomputeAlways
         from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
         from pyapprox.ode.step_plan import FixedStep
-        from pyapprox.ode.stepping_methods import RungeKutta
-        from pyapprox.ode.tableau import backward_euler, crank_nicolson
         from pyapprox.ode.trajectory_terms import TrajectoryFunctional
         from pyapprox.ode.transient_implicit_map import (
             FixedTrajectoryFunctional,
@@ -284,10 +352,6 @@ class ObstructedFlowControlProblem:
         )
         from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-        from pyapprox.pde.galerkin.boundary.implementations import (
-            DirichletBC,
-            RobinBC,
-        )
         from pyapprox.pde.galerkin.compose import compose_galerkin_system
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
@@ -314,7 +378,6 @@ class ObstructedFlowControlProblem:
             solve_obstructed_stokes,
         )
         from pyapprox.util.linalg.scipy_stack import ScipySparseLU
-        from pyapprox.util.rootfinding.nonlinear import Newton
 
         bkd = self._bkd
 
@@ -359,7 +422,7 @@ class ObstructedFlowControlProblem:
                 self._basis, dofs=np.zeros(self._basis.ndofs())
             ),
         )
-        # Transport BCs at the inflow: Danckwerts total-flux
+        # Transport BCs at the inflow, by default Danckwerts total-flux
         # kappa*grad(u).n = (v.n)(u - u_in) with u_in = 0, mapped
         # to the Robin convention -D du/dn = alpha u - g as
         # alpha(y) = |v.n|(y) (the parabolic inlet speed), g = 0 —
@@ -373,15 +436,7 @@ class ObstructedFlowControlProblem:
         # boundary layer reflecting the plume) nor zero-total-flux
         # (traps all contaminant).
         boundary_conditions: List[BoundaryConditionRole[_Np]] = [
-            RobinBC(
-                self._basis,
-                "left",
-                _InletNormalSpeed(*vel_shape_params),
-                0.0,
-                bkd,
-            )
-            if self._inlet_bc == "danckwerts"
-            else DirichletBC(self._basis, "left", 0.0, bkd)
+            self._inlet.boundary_condition(self._basis, vel_shape_params, bkd)
         ]
         parameterization = AdvectionDiffusionParameterization(
             physics, reaction_map=extraction_map, bkd=bkd
@@ -400,10 +455,6 @@ class ObstructedFlowControlProblem:
                 ScipySparseLU(),
                 ParameterState(parameterization),
             )
-        )
-        tableau = {"backward_euler": backward_euler, "crank_nicolson": crank_nicolson}
-        self._method: "RungeKutta[_Np, _Np]" = RungeKutta(
-            tableau[time_integrator](), Newton(atol=1e-12, rtol=0.0, maxiters=5)
         )
         self._steps = FixedStep(deltat, (0.0, final_time))
         self._init_state = bkd.zeros((physics.nstates(), 1))
@@ -502,9 +553,9 @@ class ObstructedFlowControlProblem:
             np.tile([0.0, self._control_bound], (self.ncontrols(), 1))
         )
 
-    def inlet_bc(self) -> str:
-        """Return the inflow condition ('danckwerts' or 'dirichlet')."""
-        return self._inlet_bc
+    def inlet(self) -> InletConditionProtocol:
+        """Return the inflow condition."""
+        return self._inlet
 
     def release_center(self) -> Tuple[float, float]:
         """Return the fixed release center (for plotting)."""

@@ -4,10 +4,16 @@ from pyapprox_benchmarks.problems.optimization.constrained import (
     ConstrainedOptimizationProblem,
 )
 from pyapprox_benchmarks.problems.optimization.obstructed_flow_control import (
+    DanckwertsInlet,
+    DirichletInlet,
+    InletConditionProtocol,
     ObstructedFlowControlProblem,
 )
 
 __all__ = [
     "ConstrainedOptimizationProblem",
+    "DanckwertsInlet",
+    "DirichletInlet",
+    "InletConditionProtocol",
     "ObstructedFlowControlProblem",
 ]
