@@ -30,6 +30,7 @@ from pyapprox.ode.pinned_rows import (
     AtEveryBlock,
     AtStepEnd,
     PinPlacementProtocol,
+    RowPinning,
     SplitRowPinning,
 )
 from pyapprox.ode.setups import MassShiftStrategy
@@ -49,13 +50,16 @@ from pyapprox.pde.coupling.responses import Flux, PortQuantity, Trace
 from pyapprox.pde.coupling.transient import (
     MassFormStartReaction,
     StageQuadratureFlux,
+    StageQuadratureTrace,
     StageReactions,
     StartContinuousLagrange,
     StepResidualReaction,
     TemporalTestFunctionsProtocol,
     TemporalTrialSpaceProtocol,
     WindowedResponse,
+    WindowPortLoad,
     WindowPortRows,
+    loaded_system,
     runge_kutta_block_fractions,
 )
 from pyapprox.pde.galerkin.protocols.system import GalerkinTransientSystemProtocol
@@ -361,6 +365,93 @@ def skfem_spacetime_response(
         sink,
         bkd,
         nsubsteps,
+    )
+
+
+def skfem_spacetime_loaded_response(
+    system: GalerkinTransientSystemProtocol[_Np],
+    ports: Sequence[int],
+    method: RungeKutta[_Np, _Np],
+    setups: MassShiftStrategy[_Np, _Np, CSRFormat],
+    init_state: _Np,
+    sink: TrajectorySinkProtocol[_Np],
+    trial: TemporalTrialSpaceProtocol,
+    test: TemporalTestFunctionsProtocol,
+    initial: _Np,
+    origin: float = 0.0,
+    nsubsteps: int = 1,
+    essential_placement: Optional[PinPlacementProtocol] = None,
+    receives: PortQuantity = Flux(),
+    returns: PortQuantity = Trace(),
+) -> WindowedResponse[_Np, _Np]:
+    """An skfem subdomain whose port data enter as a natural load over each
+    window (a Neumann-to-Dirichlet response through a space in time): the
+    load the port data's function of time in ``trial`` on the field DOFs
+    ``ports``, ``method`` stepping ``nsubsteps`` equal steps inside the
+    window, the output the state on the port rows tested against
+    ``test`` by the method's stage quadrature (:class:`~pyapprox.pde.
+    coupling.transient.StageQuadratureTrace`).
+
+    The essential rows are treated as :func:`~pyapprox.pde.models.galerkin.
+    transient_system.galerkin_transient_system` treats them; the port rows
+    stay free. A saddle-point system (Stokes) needs a method whose blocks
+    never solve with the mass alone: an implicit, stiffly accurate one.
+
+    Parameters
+    ----------
+    system
+        The composed skfem system. A port DOF must not be an essential
+        row.
+    ports
+        The port DOFs, in port order; for ``k`` components, node-major.
+    method, setups, init_state, sink, origin, nsubsteps
+        As :func:`skfem_windowed_response`.
+    trial
+        The port data's space in time.
+    test
+        The test functions; as many as ``trial`` has unknowns.
+    initial
+        The port data at the first window's start, one value per port
+        DOF. Shape: (len(ports), 1).
+    essential_placement
+        Which blocks pin the essential rows;
+        :class:`~pyapprox.ode.pinned_rows.AtStepEnd` when omitted.
+    receives, returns
+        The kinds of the port data and the output; a flux in and a trace
+        out by default.
+
+    Raises
+    ------
+    ValueError
+        If there are no port DOFs, ``test`` and ``trial`` differ in count,
+        or as :class:`~pyapprox.pde.coupling.transient.WindowPortLoad` and
+        :class:`~pyapprox.pde.coupling.transient.WindowedResponse`.
+    """
+    if len(ports) == 0:
+        raise ValueError("an skfem response needs at least one port DOF")
+    bkd = NumpyBkd()
+    disc = skfem_discretization(system)
+    unconstrained = galerkin_unconstrained_system(disc, ScipySparseLU())
+    states = unconstrained.space
+    port_rows = BackendPortRows(states.descriptor(), list(ports), bkd)
+    load = WindowPortLoad(port_rows, states, trial, initial, receives)
+    essential = EssentialPinnedRows(disc)
+    solved = differentiated_rows(
+        loaded_system(unconstrained, load), essential, CoupledRows()
+    )
+    placement = AtStepEnd() if essential_placement is None else essential_placement
+    stepper = method.stepper(solved, setups, RowPinning(essential, placement))
+    output = StageQuadratureTrace(
+        stepper, method.tableau(), port_rows, test, states, bkd, returns
+    )
+    if output.nfunctions() != trial.nunknowns():
+        raise ValueError(
+            f"{output.nfunctions()} test functions for {trial.nunknowns()} "
+            "unknown traces per port row: the skeleton residual would not be "
+            "square"
+        )
+    return WindowedResponse(
+        stepper, load, output, init_state, origin, sink, bkd, nsubsteps
     )
 
 

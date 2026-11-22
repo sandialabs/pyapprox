@@ -47,6 +47,7 @@ the single-domain step residual of the interface rows, so a skeleton
 solve per window reproduces the single-domain transient solution.
 """
 
+from dataclasses import replace
 from typing import (
     Callable,
     Generic,
@@ -58,12 +59,18 @@ from typing import (
 )
 
 from pyapprox.ode.integration import Integrator
-from pyapprox.ode.mass_form_system import MassFormSystem
+from pyapprox.ode.mass_form_system import (
+    MassFormSystem,
+    RightHandSideProtocol,
+    parameters_version_reader,
+)
 from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, PinnedRowsProtocol
 from pyapprox.ode.protocols.differentiable_stepper import (
     DifferentiableStepperProtocol,
     StepperProtocol,
 )
+from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
+from pyapprox.ode.residual_form import ResidualFormProtocol
 from pyapprox.ode.step_plan import GivenSizes
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import ButcherTableau
@@ -96,6 +103,7 @@ A = TypeVar("A", bound=ArrayProtocol)
 V_contra = TypeVar("V_contra", contravariant=True)
 A_contra = TypeVar("A_contra", bound=ArrayProtocol, contravariant=True)
 A_co = TypeVar("A_co", bound=ArrayProtocol, covariant=True)
+V_co = TypeVar("V_co", covariant=True)
 F = TypeVar("F", bound=FormatProtocol)
 
 TrajectoryTangent = Callable[[Sequence[BlockVector[V]], Sequence[V]], A]
@@ -144,6 +152,11 @@ class WindowPortInputProtocol(Protocol[V_contra, A_contra]):
     ) -> None:
         """Hold ``port_data`` (nport, 1) for ``window``, stepped from the
         committed ``state`` at the window's start."""
+        ...
+
+    def accept(self, port_data: A_contra) -> None:
+        """The data of the window just committed: the start of the next
+        one for an input whose start is not read from the state."""
         ...
 
 
@@ -471,6 +484,10 @@ class WindowPortRows(Generic[V, A]):
             port_data[j::n] for j in range(n)
         ]
 
+    def accept(self, port_data: A) -> None:
+        """Nothing to keep: the next window's start trace is the committed
+        state's, which the pinned end rows hold."""
+
     def _traces(self) -> list[A]:
         if self._traces_held is None:
             raise ValueError("no window is set")
@@ -518,6 +535,189 @@ class WindowPortRows(Generic[V, A]):
     def parameter_derivatives(self) -> PinnedRowsParamDerivatives[V]:
         """Independent of the parameters: the port data enter as data."""
         return PinnedRowsParamDerivatives.independent()
+
+
+class WindowPortLoad(Generic[V, A]):
+    r"""Port data entering as a natural load on the port rows over one
+    window: :math:`+B \lambda_h(t)` on the right-hand side, with
+    :math:`\lambda_h` the port data's function of time in ``trial``. In
+    right-hand-side form :math:`F = f - K u` a tested outward flux in
+    Neumann form adds with sign +, as for :class:`~pyapprox.pde.coupling.
+    loaded_response.SteadyLoadedResponse`.
+
+    A load's start is not read from the state, so the input keeps it:
+    ``initial`` at first, then on each commit the accepted window's data
+    at its end (:meth:`accept`), so the load is continuous across windows
+    for a trial space continuous through its start.
+
+    Satisfies :class:`WindowPortInputProtocol`; the port data are laid
+    out as :class:`WindowPortRows`' are.
+
+    Parameters
+    ----------
+    ports : PortRowsProtocol
+        The port rows of the state space, in port order.
+    states : VectorSpaceProtocol
+        The state space.
+    trial : TemporalTrialSpaceProtocol
+        The port data's space in time.
+    initial : A
+        The data at the first window's start. Shape: (nrows, 1).
+    receives : PortQuantity, default Flux()
+        What the port data are.
+
+    Raises
+    ------
+    TypeError
+        If ``trial`` does not satisfy its protocol.
+    ValueError
+        If ``initial`` is not one value per port row.
+    """
+
+    def __init__(
+        self,
+        ports: PortRowsProtocol[V, A],
+        states: VectorSpaceProtocol[V],
+        trial: TemporalTrialSpaceProtocol,
+        initial: A,
+        receives: PortQuantity = Flux(),
+    ) -> None:
+        if not isinstance(trial, TemporalTrialSpaceProtocol):
+            raise TypeError(
+                "trial must satisfy TemporalTrialSpaceProtocol, got "
+                f"{type(trial).__name__}"
+            )
+        if tuple(initial.shape) != (ports.nrows(), 1):
+            raise ValueError(
+                f"initial must have shape ({ports.nrows()}, 1), got "
+                f"{tuple(initial.shape)}"
+            )
+        self._ports, self._states, self._trial = ports, states, trial
+        self._n, self._receives = trial.nunknowns(), receives
+        self._start = initial
+        self._window = TimeWindow(0.0, 1.0)
+        self._traces_held: Optional[list[A]] = None
+
+    def nport(self) -> int:
+        return self._ports.nrows() * self._n
+
+    def receives(self) -> PortQuantity:
+        return self._receives
+
+    def trial(self) -> TemporalTrialSpaceProtocol:
+        """The port data's space in time."""
+        return self._trial
+
+    def _split(self, port_data: A) -> list[A]:
+        n = self._n
+        return [self._start] + [port_data[j::n] for j in range(n)]
+
+    def set_window(self, window: TimeWindow, state: V, port_data: A) -> None:
+        """Hold ``window`` and ``port_data`` (:meth:`nport`, 1); the start
+        is the kept data, not ``state``.
+
+        Raises
+        ------
+        ValueError
+            If the window is steady.
+        """
+        if window.is_steady():
+            raise ValueError("a load is interpolated over a nonempty window")
+        self._window, self._traces_held = window, self._split(port_data)
+
+    def accept(self, port_data: A) -> None:
+        """Keep the accepted data's value at the window's end as the next
+        window's start."""
+        self._start = _combined(self._split(port_data), self._trial.coefficients(1.0))
+
+    def load(self, time: float) -> V:
+        """:math:`B \\lambda_h(t)`, a single column of the state space.
+
+        Raises
+        ------
+        ValueError
+            If no window is set.
+        """
+        if self._traces_held is None:
+            raise ValueError("no window is set")
+        window = self._window
+        fraction = (time - window.start) / (window.end - window.start)
+        value = _combined(self._traces_held, self._trial.coefficients(fraction))
+        return self._ports.add_to(self._states.zeros(1), value)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(nport={self.nport()}, trial={self._trial!r})"
+
+
+def _combined(traces: Sequence[A], weights: Sequence[float]) -> A:
+    """:math:`\\sum_k w_k\\, t_k`."""
+    total = weights[0] * traces[0]
+    for weight, trace in zip(weights[1:], traces[1:]):
+        total = total + weight * trace
+    return total
+
+
+@runtime_checkable
+class TimeLoadProtocol(Protocol[V_co]):
+    """A load on the state's rows at a time, as
+    :class:`LoadedRightHandSide` reads it."""
+
+    def load(self, time: float) -> V_co:
+        """A single column of the state space."""
+        ...
+
+
+class LoadedRightHandSide(Generic[V, F]):
+    r""":math:`f(y, t) + L(t)`: a right-hand side plus a load that does
+    not depend on the state or the parameters, so every derivative is
+    ``rhs``'s. Satisfies :class:`~pyapprox.ode.mass_form_system.
+    RightHandSideProtocol`, states in the residual's form.
+
+    Parameters
+    ----------
+    rhs : RightHandSideProtocol
+        :math:`f`.
+    load : TimeLoadProtocol
+        :math:`L`, read at each call.
+    form : ResidualFormProtocol
+        Converts between the state space's columns and the residual's
+        form.
+    space : VectorSpaceProtocol
+        The state space, where the load is added.
+    """
+
+    def __init__(
+        self,
+        rhs: RightHandSideProtocol[V, F],
+        load: TimeLoadProtocol[V],
+        form: ResidualFormProtocol[V, V],
+        space: VectorSpaceProtocol[V],
+    ) -> None:
+        self._rhs, self._load, self._form, self._space = rhs, load, form, space
+        self._version = parameters_version_reader(rhs)
+
+    def __call__(self, state: V, time: float) -> V:
+        form = self._form
+        value = form.from_residual(self._rhs(state, time))
+        loaded = self._space.axpby(1.0, value, 1.0, self._load.load(time))
+        return form.to_residual(loaded)
+
+    def derivatives(self) -> ODEResidualDerivatives[V, F]:
+        return self._rhs.derivatives()
+
+    def parameters_version(self) -> int:
+        return self._version()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._rhs!r})"
+
+
+def loaded_system(
+    system: MassFormSystem[V, A, F], load: TimeLoadProtocol[V]
+) -> MassFormSystem[V, A, F]:
+    """``system`` with ``load`` added to its right-hand side."""
+    rhs = LoadedRightHandSide(system.rhs, load, system.form, system.space)
+    return replace(system, rhs=rhs)
 
 
 class StepResidualReaction(Generic[V, A]):
@@ -1048,6 +1248,149 @@ class StageQuadratureFlux(Generic[V, A]):
         return f"{type(self).__name__}(test={self._test!r})"
 
 
+@runtime_checkable
+class StageValuesProtocol(Protocol[V]):
+    """A Runge-Kutta stepper's stage values at a step's window, as
+    :class:`StageQuadratureTrace` reads them; linear in the window's
+    unknown and stored state."""
+
+    def stage_values(self, window: StepWindow[V]) -> Sequence[V]:
+        """Every stage value: the stored state for a trivial first stage,
+        then the unknown's stage blocks."""
+        ...
+
+
+class StageQuadratureTrace(Generic[V, A]):
+    r"""The state on the port rows tested in time, :math:`\int \psi_k(s)\,
+    u\, dt` over the window for each test function, by the Runge-Kutta
+    method's own quadrature: :math:`\sum_m \Delta t_m \sum_j b_j\,
+    \psi_k(s_{m,j})\, Y_{m,j}` on the port rows. The output of a
+    port-loaded (Neumann-to-Dirichlet) windowed response, tested in time
+    as :class:`StageQuadratureFlux` tests a flux, laid out as it is.
+
+    Satisfies :class:`WindowPortOutputProtocol`, with its change for any
+    number of steps: the stage values are a selection of the unknown's
+    blocks and the stored state.
+
+    Parameters
+    ----------
+    stepper : StageValuesProtocol
+        The trials' stepper.
+    tableau : ButcherTableau
+        Its tableau.
+    ports : PortRowsProtocol
+        The port rows of the state space, in port order.
+    test : TemporalTestFunctionsProtocol
+        The test functions.
+    space : VectorSpaceProtocol
+        The state space.
+    bkd : Backend
+        The backend of the port blocks.
+    returns : PortQuantity, default Trace()
+        What the output is.
+
+    Raises
+    ------
+    TypeError
+        If ``stepper`` or ``test`` does not satisfy its protocol.
+    """
+
+    def __init__(
+        self,
+        stepper: StageValuesProtocol[V],
+        tableau: ButcherTableau,
+        ports: PortRowsProtocol[V, A],
+        test: TemporalTestFunctionsProtocol,
+        space: VectorSpaceProtocol[V],
+        bkd: Backend[A],
+        returns: PortQuantity = Trace(),
+    ) -> None:
+        for name, value, protocol in (
+            ("stepper", stepper, StageValuesProtocol),
+            ("test", test, TemporalTestFunctionsProtocol),
+        ):
+            if not isinstance(value, protocol):
+                raise TypeError(
+                    f"{name} must satisfy {protocol.__name__}, got "
+                    f"{type(value).__name__}"
+                )
+        self._stepper, self._tableau, self._ports = stepper, tableau, ports
+        self._test, self._space, self._bkd = test, space, bkd
+        self._returns = returns
+
+    def returns(self) -> PortQuantity:
+        return self._returns
+
+    def reads_port_data(self) -> bool:
+        """The stage values do not read the port data beside the trial."""
+        return False
+
+    def nfunctions(self) -> int:
+        """The number of test functions."""
+        return self._test.count()
+
+    def _tested(
+        self, windows: Sequence[StepWindow[V]], stages: Sequence[Sequence[V]]
+    ) -> A:
+        bkd, take, tableau = self._bkd, self._ports.take, self._tableau
+        origin = windows[0].time()
+        last = windows[-1]
+        length = last.time() + last.deltat() - origin
+        tested: list[Optional[A]] = [None] * self._test.count()
+        for window, values in zip(windows, stages):
+            deltat = window.deltat()
+            for j, value in enumerate(values):
+                weight = deltat * tableau.b[j]
+                if weight == 0.0:
+                    continue
+                time = window.time() + tableau.c[j] * deltat
+                trace = take(value)
+                for k, psi in enumerate(self._test.values((time - origin) / length)):
+                    term = weight * psi * trace
+                    current = tested[k]
+                    tested[k] = term if current is None else current + term
+        parts = []
+        for part in tested:
+            if part is None:
+                raise ValueError("the trial has no steps")
+            parts.append(part)
+        stacked = bkd.stack(parts, axis=1)
+        nport, ntests, ncols = stacked.shape
+        return bkd.reshape(stacked, (nport * ntests, ncols))
+
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
+        """Raises ValueError if ``trial`` has no steps."""
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        if not windows:
+            raise ValueError("the trial has no steps")
+        stepper = self._stepper
+        return self._tested(windows, [stepper.stage_values(w) for w in windows])
+
+    def trajectory_tangent(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryTangent[V, A]]:
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        if not windows:
+            return None
+        stepper, space = self._stepper, self._space
+
+        def change(unknowns: Sequence[BlockVector[V]], states: Sequence[V]) -> A:
+            stages = []
+            for m, window in enumerate(windows):
+                # Step m starts from state m: the committed one for m = 0.
+                start = (
+                    space.scale(0.0, unknowns[m].blocks[0]) if m == 0 else states[m - 1]
+                )
+                changed = replace(window, past_states=(start,), unknown=unknowns[m])
+                stages.append(stepper.stage_values(changed))
+            return self._tested(windows, stages)
+
+        return change
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(test={self._test!r})"
+
+
 class _TraceTangent(Generic[V, A]):
     r""":math:`(\partial r/\partial \lambda) D` at a trial of any number
     of steps, for any method, pin placement and port input.
@@ -1160,9 +1503,10 @@ class WindowedPoint(Generic[V, A]):
         output: A,
         bkd: Backend[A],
         tangent: Optional[TraceJVP[A]],
+        port_data: A,
     ) -> None:
         self._owner, self._window, self._trial = owner, window, trial
-        self._output, self._bkd = output, bkd
+        self._output, self._bkd, self._port_data = output, bkd, port_data
         self._derivs: ResponseDerivatives[A] = (
             ResponseDerivatives.none()
             if tangent is None
@@ -1195,6 +1539,11 @@ class WindowedPoint(Generic[V, A]):
     def state(self) -> V:
         """The subdomain state at the window's end."""
         return self._trial.state(-1)
+
+    def port_data(self) -> A:
+        """The port data the window was stepped with. Not to be
+        modified."""
+        return self._port_data
 
 
 class WindowedResponse(Generic[V, A]):
@@ -1375,6 +1724,7 @@ class WindowedResponse(Generic[V, A]):
             self._output.output(trial),
             self._bkd,
             tangent,
+            port_data,
         )
 
     def accept(self, point: ResponsePointProtocol[A]) -> None:
@@ -1402,6 +1752,8 @@ class WindowedResponse(Generic[V, A]):
         for step in range(trial.nsteps()):
             self._sink.append_step(trial.window(step), trial.state(step + 1))
         self._state, self._time = trial.state(-1), window.end
+        # An input whose start is not read from the state keeps the data.
+        self._input.accept(point.port_data())
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nport={self.nport()}, time={self._time})"

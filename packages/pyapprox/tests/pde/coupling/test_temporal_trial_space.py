@@ -9,6 +9,10 @@ r"""The port data's space in time over a window, injected into
   in a window of length H = 0.2 equal the polynomial's to 1e-13; a space
   that ignores the start (a jump at the window's start) gives the port
   data alone, whatever the committed trace.
+- :class:`WindowPortLoad` places the same quadratic on the port rows as
+  a load, its start the kept data (``initial``, not the state); after
+  :meth:`~WindowPortLoad.accept` the next window starts from the accepted
+  window's end value, so the load is continuous across windows.
 - Refusals.
 """
 
@@ -24,6 +28,7 @@ from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.transient import (
     StartContinuousLagrange,
     TemporalTrialSpaceProtocol,
+    WindowPortLoad,
     WindowPortRows,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -142,9 +147,53 @@ def test_a_space_may_ignore_the_start(bkd: Backend[Array]) -> None:
         bkd.assert_allclose(ports.take(rows.values(_START + s * _H)), data)
 
 
+def _load(
+    bkd: Backend[Array], initial: Array
+) -> tuple[WindowPortLoad[Array, Array], BackendPortRows[Array]]:
+    states, _ = backend_spaces(bkd, 5, 1)
+    ports = BackendPortRows(states.descriptor(), _PORTS, bkd)
+    return WindowPortLoad(
+        ports, states, StartContinuousLagrange((0.5, 1.0)), initial
+    ), ports
+
+
+def test_a_load_keeps_its_start_across_windows(bkd: Backend[Array]) -> None:
+    initial = bkd.asarray([[v] for v in _quadratic(0.0)])
+    load, ports = _load(bkd, initial)
+    assert load.nport() == 2 * len(_PORTS)
+    data = bkd.asarray(
+        [[_quadratic(s)[p]] for p in range(len(_PORTS)) for s in (0.5, 1.0)]
+    )
+    # The state is ignored: a load's start is the kept data.
+    junk = bkd.asarray(np.full((5, 1), 7.0))
+    load.set_window(TimeWindow(_START, _START + _H), junk, data)
+    for s in (0.0, 0.3, 1.0):
+        want = bkd.asarray([[v] for v in _quadratic(s)])
+        placed = load.load(_START + s * _H)
+        bkd.assert_allclose(ports.take(placed), want, atol=1e-13)
+        # Zero off the port rows.
+        assert float(bkd.to_float(bkd.abs(placed[0, 0]) + bkd.abs(placed[3, 0]))) == 0.0
+    load.accept(data)
+    later = bkd.asarray([[v + 1.0] for v in range(2 * len(_PORTS))])
+    load.set_window(TimeWindow(_START + _H, _START + 2 * _H), junk, later)
+    end = bkd.asarray([[v] for v in _quadratic(1.0)])
+    bkd.assert_allclose(ports.take(load.load(_START + _H)), end, atol=1e-13)
+
+
 def test_refusals(bkd: Backend[Array]) -> None:
     for fractions in [(), (0.5,), (0.5, 0.5, 1.0), (0.0, 1.0), (1.0, 0.5)]:
         with pytest.raises(ValueError, match="fractions must increase"):
             StartContinuousLagrange(fractions)
     with pytest.raises(TypeError, match="TemporalTrialSpaceProtocol"):
         _rows(bkd, object())  # type: ignore[arg-type]
+    states, _ = backend_spaces(bkd, 5, 1)
+    ports = BackendPortRows(states.descriptor(), _PORTS, bkd)
+    with pytest.raises(ValueError, match="initial must have shape"):
+        WindowPortLoad(ports, states, StartContinuousLagrange(), bkd.zeros((2, 1)))
+    with pytest.raises(TypeError, match="TemporalTrialSpaceProtocol"):
+        WindowPortLoad(ports, states, object(), bkd.zeros((3, 1)))  # type: ignore[arg-type]
+    load, _ = _load(bkd, bkd.zeros((3, 1)))
+    with pytest.raises(ValueError, match="no window is set"):
+        load.load(0.0)
+    with pytest.raises(ValueError, match="nonempty window"):
+        load.set_window(TimeWindow(0.0, 0.0), states.zeros(1), bkd.zeros((6, 1)))

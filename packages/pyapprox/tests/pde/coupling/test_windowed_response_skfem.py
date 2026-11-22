@@ -52,6 +52,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.coupling.responses import TimeWindow
 from pyapprox.pde.coupling.stacks.galerkin import (
+    skfem_spacetime_loaded_response,
     skfem_spacetime_response,
     skfem_stagewise_response,
     skfem_windowed_response,
@@ -499,6 +500,85 @@ def test_spacetime_jvp_trace_matches_finite_differences(
     assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
 
 
+def _loaded(
+    strip: _Strip, init: Np, initial: Np, test: Any = None, nsubsteps: int = 2
+) -> tuple[WindowedResponse[Np, Np], list[int], list[int]]:
+    """Subdomain 0 as a port-loaded response through cG(2), SDIRK3, its
+    reference rows and port DOFs."""
+    system, nodes, ports, _ = strip.problem.port_system(0)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    response = skfem_spacetime_loaded_response(
+        system,
+        ports,
+        _method(alexander_sdirk3),
+        RecomputeAlways(ScipySparseLU()),
+        init[rows],
+        InMemoryTrajectoryStore(),
+        StartContinuousLagrange((0.5, 1.0)),
+        LagrangeTestFunctions((0.25, 0.75)) if test is None else test,
+        initial,
+        nsubsteps=nsubsteps,
+    )
+    return response, rows, ports
+
+
+def test_a_held_steady_load_keeps_the_steady_state() -> None:
+    """The steady state, loaded by its own steady reaction at the ports
+    (the pinned piece's output, the Neumann datum the steady loaded
+    response reproduces the trace from), held constant in time: the state
+    does not move, and each tested trace is H times the steady trace
+    times its test function's integral (1/2 for both)."""
+    strip = _Strip()
+    steady, _ = strip.problem.single_domain()
+    piece, _, _ = strip.problem.piece(0)
+    half = strip.half(0, init=steady)
+    trace = steady[half.rows][half.ports]
+    reaction = piece.linearize(trace, _NONE, STEADY).output()
+    response, rows, _ = _loaded(strip, steady, reaction)
+    response.start()
+    window = TimeWindow(0.0, _DT)
+    point = response.linearize(np.repeat(reaction, 2, axis=0), _NONE, window)
+    assert isinstance(point, WindowedPoint)
+    _BKD.assert_allclose(point.state(), steady[rows], atol=1e-11)
+    want = np.repeat(0.5 * _DT * trace, 2, axis=0)
+    _BKD.assert_allclose(point.output(), want, rtol=1e-9, atol=1e-13)
+
+
+def test_loaded_jvp_trace_matches_finite_differences() -> None:
+    """cG(2), SDIRK3 in two substeps, a load near the steady one: the
+    tangent of the tested trace in the load passes the derivative
+    checker."""
+    strip = _Strip()
+    steady, _ = strip.problem.single_domain()
+    piece, _, _ = strip.problem.piece(0)
+    half = strip.half(0, init=steady)
+    reaction = piece.linearize(steady[half.rows][half.ports], _NONE, STEADY).output()
+    response, _, ports = _loaded(strip, strip.reference.state(0), reaction)
+    n = response.nport()
+    assert n == 2 * len(ports)
+    window = TimeWindow(0.0, _DT)
+
+    def fun(samples: Np) -> Np:
+        return np.hstack(
+            [
+                response.linearize(samples[:, j : j + 1], _NONE, window).output()
+                for j in range(samples.shape[1])
+            ]
+        )
+
+    def jvp(sample: Np, vec: Np) -> Np:
+        tangent = response.linearize(sample, _NONE, window).derivatives().jvp_trace
+        assert tangent is not None
+        return tangent(vec)
+
+    errors = DerivativeChecker(
+        FunctionWithJVPFromCallable(nqoi=n, nvars=n, fun=fun, jvp=jvp, bkd=_BKD)
+    ).check_derivatives(
+        np.repeat(1.2 * reaction, 2, axis=0), relative=True, central=True
+    )[0]
+    assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
+
+
 def test_spacetime_refusals() -> None:
     strip = _Strip()
     # Crank-Nicolson's blocks leave its first stage reaction undetermined:
@@ -525,6 +605,15 @@ def test_spacetime_refusals() -> None:
     for nodes in [(), (0.5, 0.5), (1.5,)]:
         with pytest.raises(ValueError, match="distinct fractions"):
             LagrangeTestFunctions(nodes)
+    # The loaded builder: one test function for two unknowns.
+    _, _, ports, _ = strip.problem.port_system(0)
+    with pytest.raises(ValueError, match="not be square"):
+        _loaded(
+            strip,
+            strip.reference.state(0),
+            np.zeros((len(ports), 1)),
+            LagrangeTestFunctions((0.5,)),
+        )
 
 
 def test_invalid_use() -> None:
