@@ -14,8 +14,6 @@ from pyapprox.optimization.linear_solvers.protocols import (
 from pyapprox.pde.collocation.protocols.basis import (
     BasisProtocol,
     BasisWithQuadratureProtocol,
-    DerivativeMatrix1DProtocol,
-    NodesGenerator1DProtocol,
     TensorProductBasisProtocol,
 )
 from pyapprox.pde.collocation.protocols.boundary import (
@@ -50,8 +48,6 @@ __all__ = [
     "TransformProtocol",
     "MeshWithTransformProtocol",
     # Basis (extensibility protocols)
-    "NodesGenerator1DProtocol",
-    "DerivativeMatrix1DProtocol",
     "TensorProductBasisProtocol",
     # Basis (high-level)
     "BasisProtocol",

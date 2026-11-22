@@ -9,11 +9,8 @@ mesh provides non-identity gradient_factors(), physical derivative matrices
 are computed by applying gradient factors to scale reference derivatives.
 """
 
-from typing import Dict, Generic, List, Sequence, Tuple, Union
+from typing import Dict, Generic, List, Tuple
 
-from pyapprox.pde.collocation.protocols.basis import (
-    DerivativeMatrix1DProtocol,
-)
 from pyapprox.pde.collocation.protocols.mesh import (
     MeshWithTransformProtocol,
 )
@@ -23,9 +20,9 @@ from pyapprox.util.backends.protocols import Array, Backend
 class TensorProductBasis(Generic[Array]):
     """Tensor product basis assembling 1D components via Kronecker products.
 
-    Given a mesh (with reference nodes and gradient factors) and a derivative
-    matrix computer, this class constructs:
-    - 1D reference derivative matrices for each dimension
+    Given a mesh (with reference nodes, gradient factors and a 1D basis per
+    direction), this class constructs:
+    - 1D reference derivative matrices for each dimension, from the 1D bases
     - Full multi-D reference derivative matrices via Kronecker products
     - Physical derivative matrices scaled by gradient factors
 
@@ -37,59 +34,33 @@ class TensorProductBasis(Generic[Array]):
     Parameters
     ----------
     mesh : MeshWithTransformProtocol
-        Mesh providing reference nodes, physical nodes, and gradient factors.
-    deriv_matrix_computer : DerivativeMatrix1DProtocol or Sequence of them
-        The 1D derivative builder of every direction, or one per
-        direction (a direction whose nodes are of another family, Fourier
-        say, takes that family's builder).
+        Mesh providing reference nodes, physical nodes, gradient factors
+        and, per direction, the 1D basis that made its nodes and whose
+        derivative matrix is used (a Fourier direction brings its own).
     bkd : Backend
         Computational backend.
-
-    Raises
-    ------
-    ValueError
-        If the number of builders differs from the mesh's directions.
-    TypeError
-        If a builder does not satisfy ``DerivativeMatrix1DProtocol``.
     """
 
     def __init__(
         self,
         mesh: MeshWithTransformProtocol[Array],
-        deriv_matrix_computer: Union[
-            DerivativeMatrix1DProtocol[Array],
-            Sequence[DerivativeMatrix1DProtocol[Array]],
-        ],
         bkd: Backend[Array],
     ):
         self._bkd = bkd
         self._mesh = mesh
         self._npts_per_dim = mesh.npts_per_dim()
         self._ndim = mesh.ndim()
-        builders: Sequence[DerivativeMatrix1DProtocol[Array]] = (
-            [deriv_matrix_computer] * self._ndim
-            if isinstance(deriv_matrix_computer, DerivativeMatrix1DProtocol)
-            else deriv_matrix_computer
-        )
-        if len(builders) != self._ndim:
-            raise ValueError(
-                f"{len(builders)} derivative builders for {self._ndim} directions"
-            )
-        for builder in builders:
-            if not isinstance(builder, DerivativeMatrix1DProtocol):
-                raise TypeError(
-                    "derivative builders must satisfy DerivativeMatrix1DProtocol, "
-                    f"got {type(builder).__name__}"
-                )
 
         # Get 1D reference nodes from mesh
         self._nodes_1d: List[Array] = [
             mesh.reference_nodes_1d(d) for d in range(self._ndim)
         ]
 
-        # Compute 1D derivative matrices for each dimension
+        # Each direction's derivative matrix, from the basis that made its
+        # nodes
         self._deriv_matrices_1d: List[Array] = [
-            builder.compute(nodes) for builder, nodes in zip(builders, self._nodes_1d)
+            mesh.basis_1d(d).derivative_matrix(npts, bkd)
+            for d, npts in enumerate(self._npts_per_dim)
         ]
 
         # Get gradient factors from mesh

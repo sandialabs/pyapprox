@@ -149,6 +149,51 @@ def univariate_lagrange_second_derivative(
     return _generic_lagrange_hessian(abscissa, samples, bary_weights, bkd)
 
 
+def lagrange_differentiation_matrix(
+    abscissa: Array,
+    bkd: Backend[Array],
+    bary_weights: Optional[Array] = None,
+) -> Array:
+    """The differentiation matrix of the Lagrange interpolant on its own
+    nodes, :math:`D_{ij} = \\ell_j'(x_i)`.
+
+    Off the diagonal :math:`D_{ij} = (w_j / w_i) / (x_i - x_j)`; the
+    diagonal makes every row sum to zero, since a constant has zero
+    derivative. Only ratios of the weights enter, so weights known up to
+    a common factor (closed forms for Chebyshev nodes) serve as well as
+    the exact ones.
+
+    Parameters
+    ----------
+    abscissa : Array
+        Interpolation nodes, distinct. Shape: (nabscissa,)
+    bkd : Backend[Array]
+        Computational backend.
+    bary_weights : Array, optional
+        Barycentric weights, up to a common factor. Default: computed from
+        the nodes by :func:`compute_barycentric_weights`.
+
+    Returns
+    -------
+    Array
+        Differentiation matrix; zero for one node. Shape:
+        (nabscissa, nabscissa)
+    """
+    nabscissa = abscissa.shape[0]
+    if nabscissa == 1:
+        return bkd.zeros((1, 1))
+    if bary_weights is None:
+        bary_weights = compute_barycentric_weights(abscissa, bkd)
+    differences = abscissa[:, None] - abscissa[None, :]
+    ratios = bary_weights[None, :] / bary_weights[:, None]
+    # Shift the zero diagonal of the differences before dividing, then
+    # drop it: the row sums set it.
+    eye = bkd.eye(nabscissa)
+    off_diagonal = ratios / (differences + eye) * (1.0 - eye)
+    matrix: Array = off_diagonal - bkd.diag(bkd.sum(off_diagonal, axis=1))
+    return matrix
+
+
 class LagrangeBasis1D(Generic[Array]):
     """Lagrange basis using arbitrary quadrature points.
 
@@ -203,9 +248,9 @@ class LagrangeBasis1D(Generic[Array]):
         self._bkd = bkd
         self._quadrature_rule = quadrature_rule
         self._nterms: int = 0
-        self._abscissa: Optional[Array] = None
-        self._weights: Optional[Array] = None
-        self._bary_weights: Optional[Array] = None
+        # (abscissa, quadrature weights, barycentric weights), set together
+        # by set_nterms
+        self._nodal: Optional[Tuple[Array, Array, Array]] = None
         self._eval_impl = get_lagrange_eval_impl(bkd)
         self._jac_impl = get_lagrange_jacobian_impl(bkd)
         self._hess_impl = get_lagrange_hessian_impl(bkd)
@@ -227,13 +272,28 @@ class LagrangeBasis1D(Generic[Array]):
 
         self._nterms = nterms
         samples, weights = self._quadrature_rule(nterms)
-        self._abscissa = self._bkd.flatten(samples)
-        self._weights = weights
-        self._bary_weights = compute_barycentric_weights(self._abscissa, self._bkd)
+        abscissa = self._bkd.flatten(samples)
+        self._nodal = (
+            abscissa,
+            weights,
+            compute_barycentric_weights(abscissa, self._bkd),
+        )
 
     def nterms(self) -> int:
         """Return the number of basis terms."""
         return self._nterms
+
+    def _nodal_state(self, purpose: str) -> Tuple[Array, Array, Array]:
+        """The abscissa, quadrature and barycentric weights.
+
+        Raises
+        ------
+        ValueError
+            If set_nterms has not been called.
+        """
+        if self._nodal is None:
+            raise ValueError(f"Must call set_nterms before {purpose}")
+        return self._nodal
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate Lagrange basis at sample points.
@@ -248,11 +308,8 @@ class LagrangeBasis1D(Generic[Array]):
         Array
             Basis values. Shape: (nsamples, nterms)
         """
-        if self._abscissa is None:
-            raise ValueError("Must call set_nterms before evaluation")
-        return self._eval_impl(
-            self._abscissa, samples[0], self._bary_weights, self._bkd
-        )
+        abscissa, _, bary_weights = self._nodal_state("evaluation")
+        return self._eval_impl(abscissa, samples[0], bary_weights, self._bkd)
 
     def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of Lagrange basis.
@@ -272,9 +329,8 @@ class LagrangeBasis1D(Generic[Array]):
         ValueError
             If samples is not 2D with shape (1, nsamples).
         """
-        if self._abscissa is None:
-            raise ValueError("Must call set_nterms before evaluation")
-        return self._jac_impl(self._abscissa, samples[0], self._bary_weights, self._bkd)
+        abscissa, _, bary_weights = self._nodal_state("evaluation")
+        return self._jac_impl(abscissa, samples[0], bary_weights, self._bkd)
 
     def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of Lagrange basis.
@@ -294,11 +350,8 @@ class LagrangeBasis1D(Generic[Array]):
         ValueError
             If samples is not 2D with shape (1, nsamples).
         """
-        if self._abscissa is None:
-            raise ValueError("Must call set_nterms before evaluation")
-        return self._hess_impl(
-            self._abscissa, samples[0], self._bary_weights, self._bkd
-        )
+        abscissa, _, bary_weights = self._nodal_state("evaluation")
+        return self._hess_impl(abscissa, samples[0], bary_weights, self._bkd)
 
     def derivatives(self, samples: Array, order: int) -> Array:
         """Evaluate derivatives of specified order.
@@ -341,10 +394,9 @@ class LagrangeBasis1D(Generic[Array]):
         ValueError
             If set_nterms has not been called.
         """
-        if self._abscissa is None:
-            raise ValueError("Must call set_nterms before quadrature_rule")
+        abscissa, weights, _ = self._nodal_state("quadrature_rule")
         # Return cached samples and weights in standard shapes
-        return self._bkd.reshape(self._abscissa, (1, -1)), self._weights
+        return self._bkd.reshape(abscissa, (1, -1)), weights
 
     def get_samples(self, nterms: int) -> Array:
         """Return interpolation nodes for the given number of terms.

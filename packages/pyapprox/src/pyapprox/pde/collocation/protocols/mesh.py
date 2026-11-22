@@ -5,6 +5,7 @@ Defines interfaces for computational meshes supporting 1D, 2D, and 3D domains.
 
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
+from pyapprox.pde.collocation.protocols.basis_1d import CollocationBasis1DProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -279,4 +280,8 @@ class MeshWithTransformProtocol(Protocol, Generic[Array]):
         Array
             1D reference nodes. Shape: (npts_dim,)
         """
+        ...
+
+    def basis_1d(self, dim: int) -> CollocationBasis1DProtocol[Array]:
+        """Return the 1D basis that made direction ``dim``'s nodes."""
         ...

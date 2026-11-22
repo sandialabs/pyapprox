@@ -9,69 +9,6 @@ from pyapprox.pde.collocation.protocols.mesh import MeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 # =============================================================================
-# Extensibility Protocols for 1D Components
-# =============================================================================
-
-
-@runtime_checkable
-class NodesGenerator1DProtocol(Protocol, Generic[Array]):
-    """Protocol for generating 1D collocation nodes.
-
-    Different polynomial families (Chebyshev, Legendre, etc.) use different
-    node distributions. This protocol allows swapping node generators.
-    """
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
-
-    def generate(self, npts: int) -> Array:
-        """Generate npts nodes on reference interval [-1, 1].
-
-        Parameters
-        ----------
-        npts : int
-            Number of nodes to generate.
-
-        Returns
-        -------
-        Array
-            1D array of nodes. Shape: (npts,)
-        """
-        ...
-
-
-@runtime_checkable
-class DerivativeMatrix1DProtocol(Protocol, Generic[Array]):
-    """Protocol for computing 1D derivative matrix given nodes.
-
-    Different polynomial families use different derivative matrix formulas.
-    This protocol decouples matrix computation from node generation.
-    """
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
-
-    def compute(self, nodes: Array) -> Array:
-        """Compute derivative matrix for given nodes.
-
-        Parameters
-        ----------
-        nodes : Array
-            1D collocation nodes. Shape: (npts,)
-
-        Returns
-        -------
-        Array
-            Derivative matrix. Shape: (npts, npts)
-            D[i,j] approximates d(L_j)/dx evaluated at nodes[i],
-            where L_j is the j-th Lagrange basis polynomial.
-        """
-        ...
-
-
-# =============================================================================
 # Tensor Product Basis Protocol
 # =============================================================================
 

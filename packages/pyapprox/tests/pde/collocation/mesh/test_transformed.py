@@ -11,9 +11,11 @@ from typing import Generic, List
 import numpy as np
 import pytest
 
+from pyapprox.pde.collocation.basis.chebyshev.nodal import (
+    ChebyshevGauss1D,
+    ChebyshevGaussLobatto1D,
+)
 from pyapprox.pde.collocation.mesh import (
-    ChebyshevGaussLobattoNodes,
-    ChebyshevGaussNodes,
     TransformedMesh,
     TransformedMesh1D,
     TransformedMesh2D,
@@ -21,6 +23,10 @@ from pyapprox.pde.collocation.mesh import (
     compute_boundary_indices,
 )
 from pyapprox.pde.collocation.mesh.transforms import AffineTransform, PolarTransform
+from pyapprox.polynomials.univariate.lagrange import (
+    lagrange_differentiation_matrix,
+    univariate_lagrange_polynomial,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -134,42 +140,38 @@ def test_reversed_1d_map_normals_point_outward(bkd: Backend[Array]) -> None:
     bkd.assert_allclose(mesh.boundary_normals(1), bkd.asarray([[-1.0]]))
 
 
-class _Uniform:
-    """Equispaced nodes on [-1, 1]."""
+class _Uniform(Generic[Array]):
+    """Equispaced nodes on [-1, 1], differentiated and interpolated by
+    barycentric weights from the nodes."""
 
     def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
         return bkd.linspace(-1.0, 1.0, npts)
 
+    def derivative_matrix(self, npts: int, bkd: Backend[Array]) -> Array:
+        return lagrange_differentiation_matrix(self.nodes(npts, bkd), bkd)
 
-def test_node_generator_per_direction(bkd: Backend[Array]) -> None:
+    def interpolation_matrix(
+        self, npts: int, points: Array, bkd: Backend[Array]
+    ) -> Array:
+        return univariate_lagrange_polynomial(self.nodes(npts, bkd), points, bkd)
+
+
+def test_basis_per_direction(bkd: Backend[Array]) -> None:
     """Equispaced nodes in the second direction, Chebyshev in the first:
-    each direction uses its own generator, first direction fastest."""
+    each direction takes its nodes from its own 1D basis, first direction
+    fastest, and the mesh returns that basis."""
     chebyshev = TransformedMesh2D(4, 5, bkd)
+    uniform = _Uniform[Array]()
     mesh = TransformedMesh(
-        (4, 5), bkd, nodes=[ChebyshevGaussLobattoNodes[Array](), _Uniform()]
+        (4, 5), bkd, bases=[ChebyshevGaussLobatto1D[Array](), uniform]
     )
     bkd.assert_allclose(mesh.reference_nodes_1d(0), chebyshev.reference_nodes_1d(0))
     bkd.assert_allclose(mesh.reference_nodes_1d(1), bkd.linspace(-1.0, 1.0, 5))
     bkd.assert_allclose(
         mesh.reference_points()[1], bkd.repeat(bkd.linspace(-1.0, 1.0, 5), 4)
     )
-
-
-@pytest.mark.parametrize("npts", [1, 2, 5, 8])
-def test_chebyshev_gauss_nodes(bkd: Backend[Array], npts: int) -> None:
-    """Chebyshev-Gauss nodes are the n roots of T_n = cos(n arccos x),
-    increasing, symmetric about 0 and strictly inside (-1, 1); one node
-    is the midpoint."""
-    nodes = ChebyshevGaussNodes[Array]().nodes(npts, bkd)
-    assert nodes.shape == (npts,)
-    bkd.assert_allclose(
-        bkd.cos(npts * bkd.arccos(nodes)), bkd.zeros((npts,)), atol=1e-14
-    )
-    assert bkd.to_bool(bkd.all(bkd.diff(nodes) > 0))
-    bkd.assert_allclose(nodes, -bkd.flip(nodes), atol=1e-15)
-    assert bkd.to_bool(bkd.all(bkd.abs(nodes) < 1.0))
-    with pytest.raises(ValueError, match="at least 1 node"):
-        ChebyshevGaussNodes[Array]().nodes(0, bkd)
+    assert mesh.basis_1d(1) is uniform
+    assert isinstance(chebyshev.basis_1d(0), ChebyshevGaussLobatto1D)
 
 
 def test_mesh_on_gauss_nodes_has_no_boundary(bkd: Backend[Array]) -> None:
@@ -177,13 +179,13 @@ def test_mesh_on_gauss_nodes_has_no_boundary(bkd: Backend[Array]) -> None:
     Chebyshev-Gauss in y: the points are the affine images of the
     reference nodes, the x sides exist with their 3 nodes, and the y
     sides, which no node reaches, are refused."""
-    gauss = ChebyshevGaussNodes[Array]()
+    gauss = ChebyshevGauss1D[Array]()
     transform = AffineTransform([(0.0, 2.0), (1.0, 3.0)], bkd)
     mesh = TransformedMesh(
         (4, 3),
         bkd,
         transform,
-        nodes=[ChebyshevGaussLobattoNodes[Array](), gauss],
+        bases=[ChebyshevGaussLobatto1D[Array](), gauss],
     )
     y = gauss.nodes(3, bkd)
     bkd.assert_allclose(mesh.points()[1], bkd.repeat(y + 2.0, 4), atol=1e-15)
@@ -199,8 +201,8 @@ def test_mesh_on_gauss_nodes_has_no_boundary(bkd: Backend[Array]) -> None:
 def test_one_gauss_node(bkd: Backend[Array]) -> None:
     """A direction may hold a single Gauss node, the interval's midpoint:
     the coarsest pressure grid under a 3-node velocity direction."""
-    gauss = ChebyshevGaussNodes[Array]()
-    mesh = TransformedMesh((1, 1), bkd, nodes=[gauss, gauss])
+    gauss = ChebyshevGauss1D[Array]()
+    mesh = TransformedMesh((1, 1), bkd, bases=[gauss, gauss])
     bkd.assert_allclose(mesh.points(), bkd.zeros((2, 1)), atol=1e-15)
 
 
@@ -218,8 +220,8 @@ def test_per_dimension_meshes_are_the_generic_mesh(bkd: Backend[Array]) -> None:
 
 def test_refusals(bkd: Backend[Array]) -> None:
     """No directions, a direction with no nodes, one Gauss-Lobatto node
-    (refused by its generator), a transform or node list of the wrong
-    length, a non-generator, an unknown boundary or direction."""
+    (refused by its basis), a transform or basis list of the wrong
+    length, a non-basis, an unknown boundary or direction."""
     with pytest.raises(ValueError, match="at least one direction"):
         TransformedMesh((), bkd)
     with pytest.raises(ValueError, match="at least 1 node"):
@@ -228,12 +230,14 @@ def test_refusals(bkd: Backend[Array]) -> None:
         TransformedMesh((3, 1), bkd)
     with pytest.raises(ValueError, match="the transform has 1 directions, the mesh 2"):
         TransformedMesh((3, 3), bkd, AffineTransform([(0.0, 1.0)], bkd))
-    with pytest.raises(ValueError, match="1 node generators for 2 directions"):
-        TransformedMesh((3, 3), bkd, nodes=[_Uniform()])
-    with pytest.raises(TypeError, match="NodeGeneratorProtocol"):
-        TransformedMesh((3,), bkd, nodes=[3])  # type: ignore[list-item]
+    with pytest.raises(ValueError, match="1 1D bases for 2 directions"):
+        TransformedMesh((3, 3), bkd, bases=[_Uniform[Array]()])
+    with pytest.raises(TypeError, match="CollocationBasis1DProtocol"):
+        TransformedMesh((3,), bkd, bases=[3])  # type: ignore[list-item]
     mesh = TransformedMesh2D(3, 3, bkd)
     with pytest.raises(ValueError, match=r"boundary_id must be in \[0, 4\)"):
         mesh.boundary_normals(4)
     with pytest.raises(ValueError, match=r"dim must be in \[0, 2\)"):
         mesh.reference_nodes_1d(2)
+    with pytest.raises(ValueError, match=r"dim must be in \[0, 2\)"):
+        mesh.basis_1d(2)

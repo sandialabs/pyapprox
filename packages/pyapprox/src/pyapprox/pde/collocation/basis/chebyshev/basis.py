@@ -1,8 +1,5 @@
 """Chebyshev collocation basis in any number of directions."""
 
-from pyapprox.pde.collocation.basis.chebyshev.derivative import (
-    ChebyshevDerivativeMatrix1D,
-)
 from pyapprox.pde.collocation.basis.tensor_product import TensorProductBasis
 from pyapprox.pde.collocation.protocols.mesh import MeshWithTransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -11,9 +8,9 @@ from pyapprox.util.backends.protocols import Array, Backend
 class ChebyshevBasis(TensorProductBasis[Array]):
     """Chebyshev collocation basis on a tensor-product mesh.
 
-    Barycentric derivative matrices at the mesh's Chebyshev-Gauss-Lobatto
-    nodes in every direction, assembled by Kronecker products; the number
-    of directions is the mesh's.
+    The derivative matrices of the mesh's 1D bases (Chebyshev-Gauss-Lobatto
+    by default; Chebyshev-Gauss on a staggered grid), assembled by
+    Kronecker products; the number of directions is the mesh's.
 
     Parameters
     ----------
@@ -25,7 +22,7 @@ class ChebyshevBasis(TensorProductBasis[Array]):
     """
 
     def __init__(self, mesh: MeshWithTransformProtocol[Array], bkd: Backend[Array]):
-        super().__init__(mesh, ChebyshevDerivativeMatrix1D(bkd), bkd)
+        super().__init__(mesh, bkd)
 
 
 def check_ndim(mesh: MeshWithTransformProtocol[Array], ndim: int) -> None:

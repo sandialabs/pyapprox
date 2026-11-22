@@ -10,17 +10,15 @@ from pyapprox.pde.collocation.basis.chebyshev.basis_2d import (
 from pyapprox.pde.collocation.basis.chebyshev.basis_3d import (
     ChebyshevBasis3D,
 )
-from pyapprox.pde.collocation.basis.chebyshev.derivative import (
-    ChebyshevDerivativeMatrix1D,
-)
-from pyapprox.pde.collocation.basis.chebyshev.nodes import (
-    ChebyshevGaussLobattoNodes1D,
+from pyapprox.pde.collocation.basis.chebyshev.nodal import (
+    ChebyshevGauss1D,
+    ChebyshevGaussLobatto1D,
 )
 
 __all__ = [
-    # 1D Components
-    "ChebyshevGaussLobattoNodes1D",
-    "ChebyshevDerivativeMatrix1D",
+    # 1D bases
+    "ChebyshevGaussLobatto1D",
+    "ChebyshevGauss1D",
     # Bases
     "ChebyshevBasis",
     "ChebyshevBasis1D",

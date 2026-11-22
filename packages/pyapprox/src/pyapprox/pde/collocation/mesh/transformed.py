@@ -11,10 +11,9 @@ These classes implement ``MeshWithTransformProtocol`` from
 """
 
 import math
-from typing import Generic, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
+from typing import Generic, List, Optional, Sequence, Tuple
 
-import numpy as np
-
+from pyapprox.pde.collocation.basis.chebyshev.nodal import ChebyshevGaussLobatto1D
 from pyapprox.pde.collocation.mesh.base import (
     compute_boundary_indices,
     compute_cartesian_product,
@@ -25,73 +24,19 @@ from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
     AffineTransform3D,
 )
+from pyapprox.pde.collocation.protocols.basis_1d import CollocationBasis1DProtocol
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-
-
-@runtime_checkable
-class NodeGeneratorProtocol(Protocol, Generic[Array]):
-    """The reference nodes of one direction."""
-
-    def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
-        """``npts`` nodes on :math:`[-1, 1]`, increasing. A first node of
-        exactly -1 (a last node of exactly 1) gives the direction a lower
-        (upper) boundary; nodes inside the interval give it none.
-        Shape: ``(npts,)``."""
-        ...
-
-
-class ChebyshevGaussLobattoNodes(Generic[Array]):
-    """Chebyshev-Gauss-Lobatto nodes :math:`-\\cos(\\pi j / (n - 1))`,
-    both ends included."""
-
-    def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
-        """``npts`` nodes from -1 to 1. Shape: ``(npts,)``.
-
-        Raises
-        ------
-        ValueError
-            If ``npts`` is below 2.
-        """
-        if npts < 2:
-            raise ValueError(
-                f"Chebyshev-Gauss-Lobatto nodes need at least 2 nodes, got {npts}"
-            )
-        j = bkd.arange(npts)
-        return -bkd.cos(np.pi * j / (npts - 1))
-
-    def __repr__(self) -> str:
-        return "ChebyshevGaussLobattoNodes()"
-
-
-class ChebyshevGaussNodes(Generic[Array]):
-    """Chebyshev-Gauss nodes :math:`-\\cos(\\pi (2 j + 1) / (2 n))`, the
-    roots of :math:`T_n`: inside :math:`(-1, 1)`, so a direction on them
-    has no boundary. A staggered pressure grid uses them."""
-
-    def nodes(self, npts: int, bkd: Backend[Array]) -> Array:
-        """``npts`` nodes inside (-1, 1), increasing. Shape: ``(npts,)``.
-
-        Raises
-        ------
-        ValueError
-            If ``npts`` is below 1.
-        """
-        if npts < 1:
-            raise ValueError(f"Chebyshev-Gauss nodes need at least 1 node, got {npts}")
-        j = bkd.arange(npts)
-        return -bkd.cos(np.pi * (2 * j + 1) / (2 * npts))
-
-    def __repr__(self) -> str:
-        return "ChebyshevGaussNodes()"
 
 
 class TransformedMesh(Generic[Array]):
     """Tensor-product mesh of the reference cube mapped by a transform.
 
-    Nodes are in tensor order, the first direction fastest. Boundary
-    ``2 d`` is the lower end of reference direction ``d`` and ``2 d + 1``
-    the upper; it exists only when that direction's nodes reach the end
+    Each direction has a 1D basis, which gives its nodes and which the
+    tensor-product basis on the mesh differentiates with. Nodes are in
+    tensor order, the first direction fastest. Boundary ``2 d`` is the
+    lower end of reference direction ``d`` and ``2 d + 1`` the upper; it
+    exists only when that direction's nodes reach the end
     (Chebyshev-Gauss nodes do not).
 
     Implements ``MeshWithTransformProtocol``.
@@ -99,24 +44,24 @@ class TransformedMesh(Generic[Array]):
     Parameters
     ----------
     npts_per_dim : Sequence[int]
-        Nodes per direction, at least 1 each (a generator may need more).
+        Nodes per direction, at least 1 each (a basis may need more).
     bkd : Backend
         Computational backend.
     transform : TransformProtocol, optional
         The map from the reference cube, with as many directions. Default:
         the reference cube itself.
-    nodes : Sequence[NodeGeneratorProtocol], optional
-        One node generator per direction. Default: Chebyshev-Gauss-Lobatto
-        in every direction.
+    bases : Sequence[CollocationBasis1DProtocol], optional
+        One 1D basis per direction. Default: Chebyshev-Gauss-Lobatto in
+        every direction.
 
     Raises
     ------
     ValueError
-        If ``npts_per_dim`` is empty or has a count below 1, a generator
-        refuses its count, or the transform or the node generators do not
-        match its length.
+        If ``npts_per_dim`` is empty or has a count below 1, a basis
+        refuses its count, or the transform or the bases do not match its
+        length.
     TypeError
-        If a node generator does not satisfy ``NodeGeneratorProtocol``.
+        If a basis does not satisfy ``CollocationBasis1DProtocol``.
     """
 
     def __init__(
@@ -124,7 +69,7 @@ class TransformedMesh(Generic[Array]):
         npts_per_dim: Sequence[int],
         bkd: Backend[Array],
         transform: Optional[TransformProtocol[Array]] = None,
-        nodes: Optional[Sequence[NodeGeneratorProtocol[Array]]] = None,
+        bases: Optional[Sequence[CollocationBasis1DProtocol[Array]]] = None,
     ) -> None:
         counts = tuple(int(n) for n in npts_per_dim)
         if len(counts) == 0:
@@ -138,24 +83,25 @@ class TransformedMesh(Generic[Array]):
             raise ValueError(
                 f"the transform has {transform.ndim()} directions, the mesh {ndim}"
             )
-        generators: Sequence[NodeGeneratorProtocol[Array]] = (
-            [ChebyshevGaussLobattoNodes[Array]() for _ in counts]
-            if nodes is None
-            else nodes
+        chosen: Tuple[CollocationBasis1DProtocol[Array], ...] = (
+            tuple(ChebyshevGaussLobatto1D[Array]() for _ in counts)
+            if bases is None
+            else tuple(bases)
         )
-        if len(generators) != ndim:
-            raise ValueError(f"{len(generators)} node generators for {ndim} directions")
-        for generator in generators:
-            if not isinstance(generator, NodeGeneratorProtocol):
+        if len(chosen) != ndim:
+            raise ValueError(f"{len(chosen)} 1D bases for {ndim} directions")
+        for basis in chosen:
+            if not isinstance(basis, CollocationBasis1DProtocol):
                 raise TypeError(
-                    "node generators must satisfy NodeGeneratorProtocol, got "
-                    f"{type(generator).__name__}"
+                    "1D bases must satisfy CollocationBasis1DProtocol, got "
+                    f"{type(basis).__name__}"
                 )
         self._bkd = bkd
         self._npts_per_dim = counts
         self._transform: TransformProtocol[Array] = transform
+        self._bases = chosen
         self._reference_nodes: List[Array] = [
-            generator.nodes(count, bkd) for generator, count in zip(generators, counts)
+            basis.nodes(count, bkd) for basis, count in zip(chosen, counts)
         ]
         reference = compute_cartesian_product(self._reference_nodes, bkd)
         self._reference_points = reference
@@ -205,6 +151,12 @@ class TransformedMesh(Generic[Array]):
         if not 0 <= dim < self.ndim():
             raise ValueError(f"dim must be in [0, {self.ndim()}), got {dim}")
         return self._reference_nodes[dim]
+
+    def basis_1d(self, dim: int) -> CollocationBasis1DProtocol[Array]:
+        """Return the 1D basis of direction ``dim``, which gave its nodes."""
+        if not 0 <= dim < self.ndim():
+            raise ValueError(f"dim must be in [0, {self.ndim()}), got {dim}")
+        return self._bases[dim]
 
     def boundary_indices(self, boundary_id: int) -> Array:
         """Return the indices of the nodes on boundary ``boundary_id``."""
