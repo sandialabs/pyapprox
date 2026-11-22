@@ -18,7 +18,8 @@ from pyapprox.statest.statistics import (
     MultiOutputMeanAndVariance,
     MultiOutputVariance,
 )
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 from tests._helpers.markers import slow_test
 
 
@@ -62,19 +63,15 @@ def _make_mean_and_variance_stat(bkd, nmodels, nqoi=1, seed=1):
     return stat
 
 
-class TestBruteForceSubsetFitterTorchOnly:
-    """Tests requiring Torch for autograd-based optimization."""
+class TestBruteForceSubsetFitterAutodiff:
+    """Fitting tests: GroupACV allocation differentiates its objective by
+    autograd."""
 
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        import torch
-
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-
-    def test_d1_smoke_2model_mean_is(self):
+    def test_d1_smoke_2model_mean_is(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D1: Smoke test — 2-model Mean IS, K=3 subsets."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
         fitter = BruteForceSubsetFitter(
@@ -91,9 +88,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         assert result.patterns_evaluated() > 0
         assert result.patterns_successful() > 0
 
-    def test_d2_uncorrelated_sparse_optimum(self):
+    def test_d2_uncorrelated_sparse_optimum(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D2: Uncorrelated models → optimal pattern uses only model-0 subsets."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         nmodels = 3
         cov = bkd.eye(nmodels, dtype=bkd.double_dtype())
         stat = MultiOutputMean(1, bkd)
@@ -117,9 +116,11 @@ class TestBruteForceSubsetFitterTorchOnly:
             assert 0 in np_subset
 
     @slow_test
-    def test_d3a_threshold_preserves_active_set(self):
+    def test_d3a_threshold_preserves_active_set(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D3a: Threshold doesn't change which subsets are optimally active."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         nmodels = 3
         np.random.seed(42)
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
@@ -163,9 +164,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         )
 
     @slow_test
-    def test_d3b_brute_force_beats_standard(self):
+    def test_d3b_brute_force_beats_standard(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D3b: Brute force objective <= standard allocator objective."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=3)
         costs = bkd.array([3.0, 2.0, 1.0])
 
@@ -196,9 +199,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         assert bf_obj <= std_obj + 1e-6
 
     @slow_test
-    def test_d4_all_active_matches_standard(self):
+    def test_d4_all_active_matches_standard(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D4: All-active pattern matches standard allocator."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
         target_cost = 100.0
@@ -240,9 +245,9 @@ class TestBruteForceSubsetFitterTorchOnly:
         )
 
     @slow_test
-    def test_d6_nested_estimator(self):
+    def test_d6_nested_estimator(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
         """D6: Nested estimator skips [0]-only patterns."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=3)
         costs = bkd.array([3.0, 2.0, 1.0])
 
@@ -271,9 +276,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         [_make_mean_stat, _make_variance_stat, _make_mean_and_variance_stat],
         ids=["Mean", "Variance", "MeanAndVariance"],
     )
-    def test_d7_all_stat_types(self, stat_factory):
+    def test_d7_all_stat_types(
+        self, autodiff_bkd: AutodiffBackend[Array], stat_factory
+    ) -> None:
         """D7: Smoke test for each stat type."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = stat_factory(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
 
@@ -287,9 +294,9 @@ class TestBruteForceSubsetFitterTorchOnly:
         assert result.best_allocation.success
 
     @slow_test
-    def test_d9_pattern_count_is(self):
+    def test_d9_pattern_count_is(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
         """D9: 3 models → K=7 subsets. Verify feasible IS pattern count."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=3)
         costs = bkd.array([3.0, 2.0, 1.0])
 
@@ -304,9 +311,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         assert result.patterns_evaluated() == 120
 
     @slow_test
-    def test_d9_pattern_count_nested(self):
+    def test_d9_pattern_count_nested(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D9: Nested variant filters [0]-only patterns."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=3)
         costs = bkd.array([3.0, 2.0, 1.0])
 
@@ -320,9 +329,11 @@ class TestBruteForceSubsetFitterTorchOnly:
         # IS: 120, minus the 1 pattern that is only {0}: 119
         assert result.patterns_evaluated() == 119
 
-    def test_d10_allow_failures_false_raises(self):
+    def test_d10_allow_failures_false_raises(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
         """D10: allow_failures=False raises on first failure."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat = _make_mean_stat(bkd, nmodels=2)
         # Very tight budget — some patterns will fail
         costs = bkd.array([100.0, 1.0])
@@ -336,9 +347,9 @@ class TestBruteForceSubsetFitterTorchOnly:
         with pytest.raises(RuntimeError):
             fitter.fit(target_cost=50, allow_failures=False)
 
-    def test_d11_seed_determinism(self):
+    def test_d11_seed_determinism(self, autodiff_bkd: AutodiffBackend[Array]) -> None:
         """D11: Same pattern twice → identical objective value."""
-        bkd = self._bkd
+        bkd = autodiff_bkd
         stat1 = _make_mean_stat(bkd, nmodels=2)
         costs = bkd.array([2.0, 1.0])
         fitter1 = BruteForceSubsetFitter(
