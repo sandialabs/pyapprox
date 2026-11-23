@@ -142,8 +142,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             raise LinAlgError(str(err)) from err
 
     @staticmethod
-    def pinv(matrix: NDArray[Any]) -> NDArray[Any]:
-        return np.linalg.pinv(matrix)
+    def pinv(matrix: NDArray[Any], *, rtol: Optional[float] = None) -> NDArray[Any]:
+        if rtol is None:
+            rtol = max(matrix.shape[-2:]) * float(np.finfo(matrix.dtype).eps)
+        return np.linalg.pinv(matrix, rtol=rtol)
 
     @staticmethod
     def asarray(
@@ -790,10 +792,6 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return U, S, Vh
 
     @staticmethod
-    def rank(array: NDArray[Any]) -> int:
-        return int(np.linalg.matrix_rank(array))
-
-    @staticmethod
     def gammaln(array: NDArray[Any]) -> NDArray[Any]:
         result: NDArray[Any] = scipy.special.gammaln(array)
         return result
@@ -925,7 +923,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def qr(
         array: NDArray[Any],
-        mode: Literal["reduced", "complete", "r", "raw"] = "reduced",
+        mode: Literal["reduced", "complete"] = "reduced",
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         result: Tuple[NDArray[Any], NDArray[Any]] = np.linalg.qr(array, mode=mode)
         return result

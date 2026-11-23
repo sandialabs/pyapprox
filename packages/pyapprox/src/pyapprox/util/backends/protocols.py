@@ -151,7 +151,15 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def pinv(matrix: Array) -> Array: ...
+    def pinv(matrix: Array, *, rtol: Optional[float] = None) -> Array:
+        """Moore-Penrose pseudo-inverse of an ``(m, n)`` matrix.
+
+        Singular values at most ``rtol`` times the largest are treated as
+        zero. ``None`` is the Array API cutoff ``max(m, n) * eps`` of the
+        matrix's dtype, computed identically on every backend, so the
+        result does not depend on the library's own default.
+        """
+        ...
 
     def asarray(
         self,
@@ -599,7 +607,12 @@ class Backend(Protocol, Generic[Array]):
         ord: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
         axis: Optional[Union[int, Tuple[int, int]]] = None,
         keepdims: bool = False,
-    ) -> Array: ...
+    ) -> Array:
+        """Vector or matrix norm, as ``numpy.linalg.norm``.
+
+        ``array`` is floating or complex; the result is real.
+        """
+        ...
 
     @staticmethod
     def sign(array: Array) -> Array: ...
@@ -656,6 +669,11 @@ class Backend(Protocol, Generic[Array]):
         -------
         Array
             Solution vector. Shape: (n,).
+
+        Raises
+        ------
+        NotImplementedError
+            On a backend without a sparse solver.
         """
         ...
 
@@ -743,7 +761,10 @@ class Backend(Protocol, Generic[Array]):
     def diag(array: Array, k: int = 0) -> Array: ...
 
     @staticmethod
-    def outer(a: Array, b: Array) -> Array: ...
+    def outer(a: Array, b: Array) -> Array:
+        """Outer product of ``a`` and ``b``, each flattened first:
+        shape ``(a.size, b.size)``."""
+        ...
 
     @staticmethod
     def diff(array: Array, n: int = 1, axis: int = -1) -> Array: ...
@@ -835,7 +856,10 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def trace(array: Array) -> Array: ...
+    def trace(array: Array) -> Array:
+        """Sum of the diagonal over the last two axes, batched over any
+        leading axes (``numpy.linalg.trace``)."""
+        ...
 
     @staticmethod
     def atleast_1d(array: Array) -> Array: ...
@@ -900,11 +924,6 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def svd(array: Array, full_matrices: bool = True) -> Tuple[Array, Array, Array]:
         """Compute singular value decomposition: U, S, Vh = svd(A)."""
-        ...
-
-    @staticmethod
-    def rank(array: Array) -> int:
-        """Compute matrix rank."""
         ...
 
     @staticmethod
@@ -1032,7 +1051,7 @@ class Backend(Protocol, Generic[Array]):
         Parameters
         ----------
         array : Array
-            Square matrix. Shape: (n, n)
+            Square floating or complex matrix. Shape: (n, n)
 
         Returns
         -------
@@ -1186,7 +1205,7 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def qr(
-        array: Array, mode: Literal["reduced", "complete", "r", "raw"] = "reduced"
+        array: Array, mode: Literal["reduced", "complete"] = "reduced"
     ) -> Tuple[Array, Array]:
         """Compute QR factorization.
 

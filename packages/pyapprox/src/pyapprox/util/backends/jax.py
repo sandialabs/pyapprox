@@ -12,7 +12,17 @@ it JAX silently computes in 32 bits.
 """
 
 import functools
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 from numpy.typing import NDArray
@@ -233,3 +243,93 @@ class JaxBkd:
     def index_add(array: jax.Array, index: jax.Array, values: jax.Array) -> jax.Array:
         check_index_add_shapes(tuple(index.shape), tuple(values.shape))
         return array.at[index].add(values)
+
+    # ---- linear algebra
+
+    @staticmethod
+    def qr(
+        array: jax.Array, mode: Literal["reduced", "complete"] = "reduced"
+    ) -> Tuple[jax.Array, jax.Array]:
+        q, r = jnp.linalg.qr(array, mode=mode)
+        return q, r
+
+    @staticmethod
+    def svd(
+        array: jax.Array, full_matrices: bool = True
+    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+        u, s, vh = jnp.linalg.svd(array, full_matrices=full_matrices)
+        return u, s, vh
+
+    @staticmethod
+    def eigh(array: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        values, vectors = jnp.linalg.eigh(array)
+        return values, vectors
+
+    @staticmethod
+    def eigvalsh(array: jax.Array) -> jax.Array:
+        result: jax.Array = jnp.linalg.eigvalsh(array)
+        return result
+
+    @staticmethod
+    def pinv(matrix: jax.Array, *, rtol: Optional[float] = None) -> jax.Array:
+        if rtol is None:
+            # JAX dtypes are NumPy dtypes; jnp.finfo is untyped.
+            rtol = max(matrix.shape[-2:]) * float(np.finfo(matrix.dtype).eps)
+        return jnp.linalg.pinv(matrix, rtol=rtol)
+
+    @staticmethod
+    def lstsq(a: jax.Array, b: jax.Array, rcond: Optional[float] = None) -> jax.Array:
+        return jnp.linalg.lstsq(a, b, rcond=rcond)[0]
+
+    @staticmethod
+    def cond(
+        array: jax.Array,
+        p: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
+    ) -> jax.Array:
+        result: jax.Array = jnp.linalg.cond(array, p)
+        return result
+
+    @staticmethod
+    def norm(
+        array: jax.Array,
+        ord: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
+        axis: Optional[Union[int, Tuple[int, int]]] = None,
+        keepdims: bool = False,
+    ) -> jax.Array:
+        result: jax.Array = jnp.linalg.norm(
+            array, ord=ord, axis=axis, keepdims=keepdims
+        )
+        return result
+
+    @staticmethod
+    def trace(array: jax.Array) -> jax.Array:
+        return jnp.linalg.trace(array)
+
+    @staticmethod
+    def multidot(arrays: List[jax.Array]) -> jax.Array:
+        return jnp.linalg.multi_dot(arrays)
+
+    @staticmethod
+    def kron(a: jax.Array, b: jax.Array) -> jax.Array:
+        return jnp.kron(a, b)
+
+    @staticmethod
+    def outer(a: jax.Array, b: jax.Array) -> jax.Array:
+        return jnp.outer(a, b)
+
+    @staticmethod
+    def solve_sparse(Amat: Any, bvec: jax.Array) -> jax.Array:
+        """Not supported: JAX's sparse direct solver
+        (``jax.experimental.sparse.linalg.spsolve``) is experimental and
+        GPU-only, and a SciPy fallback would not trace or differentiate.
+
+        Raises
+        ------
+        NotImplementedError
+            Always.
+        """
+        raise NotImplementedError(
+            "JaxBkd.solve_sparse() is not supported: JAX's sparse direct "
+            "solver is experimental and GPU-only. Use NumpyBkd for sparse "
+            "solves or convert to dense first."
+        )

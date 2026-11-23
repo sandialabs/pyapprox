@@ -165,11 +165,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return result
 
     @staticmethod
-    def pinv(matrix: torch.Tensor) -> torch.Tensor:
-        result = torch.linalg.pinv(matrix)
-        assert isinstance(result, torch.Tensor), (
-            "Expected torch.linalg.pinv to return a torch.Tensor"
-        )
+    def pinv(matrix: torch.Tensor, *, rtol: Optional[float] = None) -> torch.Tensor:
+        if rtol is None:
+            rtol = max(matrix.shape[-2:]) * torch.finfo(matrix.dtype).eps
+        result: torch.Tensor = torch.linalg.pinv(matrix, rtol=rtol)
         return result
 
     def array(
@@ -630,7 +629,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         b: torch.Tensor,
         rcond: Optional[float] = None,
     ) -> torch.Tensor:
-        """Solve least squares problem min ||ax - b||_2."""
+        """Solve least squares problem min ||ax - b||_2.
+
+        The default CPU driver (gelsy, pivoted QR) gives NumPy's
+        minimum-norm solution when ``a`` is rank deficient. It does not
+        compile under ``fullgraph=True`` (its rank output has a
+        data-dependent shape); a compiled kernel solves through ``pinv``
+        or a QR factorization instead.
+        """
         result = torch.linalg.lstsq(a, b, rcond=rcond)
         return cast(torch.Tensor, result.solution)
 
@@ -716,7 +722,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def outer(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        return torch.outer(a, b)
+        # torch.outer takes vectors only; NumPy flattens.
+        return torch.outer(a.reshape(-1), b.reshape(-1))
 
     @staticmethod
     def diff(array: torch.Tensor, n: int = 1, axis: int = -1) -> torch.Tensor:
@@ -833,12 +840,22 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         array: torch.Tensor,
         p: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
     ) -> torch.Tensor:
-        result: torch.Tensor = torch.linalg.cond(array, p)
-        return result
+        if p is None or p in (2, -2):
+            result: torch.Tensor = torch.linalg.cond(array, p)
+            return result
+        # As NumPy: torch.linalg.cond writes into its inverse in place,
+        # which breaks the backward pass for these norms.
+        dims = (-2, -1)
+        norm: torch.Tensor = torch.linalg.matrix_norm(array, p, dim=dims)
+        inv_norm: torch.Tensor = torch.linalg.matrix_norm(
+            torch.linalg.inv(array), p, dim=dims
+        )
+        return norm * inv_norm
 
     @staticmethod
     def trace(array: torch.Tensor) -> torch.Tensor:
-        return torch.trace(array)
+        # torch.trace takes matrices only; numpy.linalg.trace batches.
+        return torch.diagonal(array, dim1=-2, dim2=-1).sum(dim=-1)
 
     @staticmethod
     def atleast_1d(array: torch.Tensor) -> torch.Tensor:
@@ -1015,10 +1032,6 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         )
 
     @staticmethod
-    def rank(array: torch.Tensor) -> int:
-        return int(torch.linalg.matrix_rank(array))
-
-    @staticmethod
     def split(
         array: torch.Tensor,
         indices_or_sections: torch.Tensor,
@@ -1075,7 +1088,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def qr(
         array: torch.Tensor,
-        mode: Literal["reduced", "complete", "r", "raw"] = "reduced",
+        mode: Literal["reduced", "complete"] = "reduced",
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         result = torch.linalg.qr(array, mode=mode)
         return cast(torch.Tensor, result.Q), cast(torch.Tensor, result.R)

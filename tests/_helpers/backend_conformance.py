@@ -14,6 +14,12 @@ backend's own strict ``assert_allclose``,
 - that the array inputs are unchanged;
 - the exception class, for rows that expect one.
 
+A factorization unique only up to the signs of its vectors (``eigh``,
+``svd``, ``qr``) is compared after its row's ``canonical`` fixes those
+signs on the result and the reference alike. A method the protocol lets
+a backend decline (``solve_sparse``) has ``optional`` rows: a backend
+raising ``NotImplementedError`` there skips them.
+
 So ``asarray`` and ``assert_allclose`` are the first methods a backend
 implements. The harness trusts ``assert_allclose`` only after its own
 rows, which come first and are checked with ``pytest.raises``: it must
@@ -65,6 +71,7 @@ from numpy.typing import NDArray
 
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.errors import LinAlgError
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, ArrayLike, KernelResult
 
 
@@ -95,8 +102,30 @@ class Expect(Enum):
     NONE = "none"
 
 
+@dataclass(frozen=True, eq=False)
+class Sparse:
+    """A dense NumPy matrix that a row passes as a SciPy CSC matrix, to
+    the method and to the reference alike."""
+
+    dense: NDArray[np.float64]
+
+    def to_scipy(self) -> Any:
+        import scipy.sparse
+
+        return scipy.sparse.csc_matrix(self.dense)
+
+
 Arg = Union[
-    NDArray[Any], Role, str, int, float, slice, None, Tuple["Arg", ...], List[Any]
+    NDArray[Any],
+    Role,
+    Sparse,
+    str,
+    int,
+    float,
+    slice,
+    None,
+    Tuple["Arg", ...],
+    List[Any],
 ]
 
 
@@ -111,6 +140,10 @@ class Case:
     a gradient can flow through. ``parts`` gives the dtype role of each
     element of a tuple result whose elements differ (factors and
     pivots); otherwise every element has the role ``expect``.
+    ``canonical(bkd, result)`` removes a sign ambiguity before the
+    comparison; it is applied to the reference with ``NumpyBkd``.
+    ``optional`` rows test a method a backend may decline by raising
+    ``NotImplementedError``.
     """
 
     method: str
@@ -123,6 +156,8 @@ class Case:
     eager_only: bool = False
     differentiable: bool = False
     parts: Tuple[Expect, ...] = ()
+    canonical: Optional[Callable[[Any, Any], Any]] = None
+    optional: bool = False
 
 
 def _rand(shape: Tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
@@ -212,6 +247,59 @@ def _lu_solve(lu: Any, pivots: Any, rhs: Any, transpose: bool = False) -> Any:
 
 
 _LU, _PIVOTS = _lu_factor(_GEN)
+
+# Tall full-rank and rank-deficient (third column the sum of the first
+# two) matrices, their right-hand sides, and a complex Hermitian matrix.
+_TALL = _rand((4, 3), seed=8)
+_DEFICIENT = np.column_stack([_TALL[:, :2], _TALL[:, 0] + _TALL[:, 1]])
+_TALL_RHS = _rand((4, 2), seed=9)
+_CSQ = _crand((3, 3), seed=10)
+_HERM = _CSQ @ _CSQ.conj().T + np.eye(3)
+
+
+def _lstsq(a: Any, b: Any, rcond: Optional[float] = None) -> Any:
+    return np.linalg.lstsq(a, b, rcond=rcond)[0]
+
+
+def _pinv(matrix: Any, rtol: Optional[float] = None) -> Any:
+    # The Array API default cutoff, not NumPy's legacy rcond=1e-15.
+    if rtol is None:
+        rtol = max(matrix.shape[-2:]) * float(np.finfo(matrix.dtype).eps)
+    return np.linalg.pinv(matrix, rtol=rtol)
+
+
+def _solve_sparse(Amat: Any, bvec: Any) -> Any:
+    return np.linalg.solve(Amat.toarray(), bvec)
+
+
+# Fixed weights giving each vector of a factorization a sign: that of its
+# weighted sum, nonzero for any vector met here.
+_SIGN_WEIGHTS = _rand((8,), seed=11)
+
+
+def _column_signs(bkd: Any, vectors: Any) -> Any:
+    # where, not sign: a backend still growing (JaxBkd) has where first.
+    weights = bkd.asarray(_SIGN_WEIGHTS[: vectors.shape[0]])
+    return bkd.where(weights @ vectors >= 0, 1.0, -1.0)
+
+
+def _canonical_eigh(bkd: Any, result: Any) -> Any:
+    values, vectors = result
+    return values, vectors * _column_signs(bkd, vectors)
+
+
+def _canonical_svd(bkd: Any, result: Any) -> Any:
+    # Flipping a left singular vector flips its right one.
+    left, values, right = result
+    signs = _column_signs(bkd, left)
+    return left * signs, values, right * signs[:, None]
+
+
+def _canonical_qr(bkd: Any, result: Any) -> Any:
+    # Flipping a column of Q flips the matching row of R.
+    q, r = result
+    signs = _column_signs(bkd, q)
+    return q * signs, r * signs[:, None]
 
 
 def _reductions(method: str) -> List[Case]:
@@ -368,6 +456,59 @@ CASES: List[Case] = [
     Case("inv", "singular", (_SINGULAR,), raises=LinAlgError),
     Case("det", "general", (_GEN,), differentiable=True),
     Case("slogdet", "general", (_GEN,)),
+    Case("solve_sparse", "vector-rhs", kwargs={"Amat": Sparse(_GEN), "bvec": _RHS1},
+         reference=_solve_sparse, expect=Expect.DEFAULT, eager_only=True,
+         optional=True),
+    Case("solve_sparse", "matrix-rhs", kwargs={"Amat": Sparse(_GEN), "bvec": _RHS},
+         reference=_solve_sparse, expect=Expect.DEFAULT, eager_only=True,
+         optional=True),
+    # ---- linear algebra: decompositions, least squares, norms, products
+    Case("qr", "reduced", (_TALL,), canonical=_canonical_qr),
+    Case("qr", "complete", (_TALL,), {"mode": "complete"},
+         canonical=_canonical_qr),
+    Case("svd", "square", (_GEN,), canonical=_canonical_svd),
+    Case("svd", "tall-reduced", (_TALL,), {"full_matrices": False},
+         canonical=_canonical_svd),
+    Case("eigh", "spd", (_SPD,), canonical=_canonical_eigh),
+    # Not differentiable as a row: eigvalsh reads one triangle, while the
+    # autodiff libraries give the gradient of a symmetric input.
+    Case("eigvalsh", "spd", (_SPD,)),
+    Case("eigvalsh", "hermitian", (_HERM,), expect=Expect.DEFAULT),
+    Case("pinv", "tall", (_TALL,), reference=_pinv, differentiable=True),
+    # 8e-16 is above the default cutoff 2 * eps, below NumPy's legacy 1e-15.
+    Case("pinv", "default-cutoff", (np.diag([1.0, 8e-16]),), reference=_pinv),
+    Case("pinv", "rtol", (np.diag([1.0, 1e-3]),), {"rtol": 1e-2},
+         reference=_pinv),
+    # Eager only: torch's solver has an output of data-dependent shape, so
+    # it does not compile; a compiled kernel solves through pinv or qr.
+    Case("lstsq", "vector-rhs", (_TALL, _TALL_RHS[:, 0]), reference=_lstsq,
+         eager_only=True, differentiable=True),
+    Case("lstsq", "matrix-rhs", (_TALL, _TALL_RHS), reference=_lstsq,
+         eager_only=True, differentiable=True),
+    Case("lstsq", "rank-deficient", (_DEFICIENT, _TALL_RHS), reference=_lstsq,
+         eager_only=True),
+    Case("cond", "2-norm", (_GEN,), differentiable=True),
+    Case("cond", "fro", (_GEN, "fro"), differentiable=True),
+    Case("norm", "vector", (_RHS1,), differentiable=True),
+    Case("norm", "matrix-fro", (_GEN,), differentiable=True),
+    Case("norm", "axis-0-ord-1", (_A,), {"ord": 1, "axis": 0},
+         differentiable=True),
+    Case("norm", "nuc", (_GEN,), {"ord": "nuc"}),
+    Case("norm", "vector-inf", (_RHS1,), {"ord": float("inf")}),
+    Case("norm", "keepdims", (_A,), {"keepdims": True}),
+    Case("norm", "axis-tuple", (_T3,), {"axis": (1, 2)}, differentiable=True),
+    Case("norm", "complex", (_C[0],), expect=Expect.DEFAULT),
+    Case("trace", "matrix", (_GEN,), reference=np.linalg.trace,
+         differentiable=True),
+    Case("trace", "batched", (_T3[:, :, :3],), reference=np.linalg.trace,
+         differentiable=True),
+    Case("multidot", "matrices", ((_GEN, _TALL.T, _TALL),),
+         reference=np.linalg.multi_dot, differentiable=True),
+    Case("multidot", "vector-ends", ((_GEN[0], _GEN, _GEN[1]),),
+         reference=np.linalg.multi_dot, differentiable=True),
+    Case("kron", "matrices", (_GEN[:2, :2], _TALL), differentiable=True),
+    Case("outer", "vectors", (_A[0], _B[0]), differentiable=True),
+    Case("outer", "flattens", (_A, _GEN[0]), differentiable=True),
 ]  # fmt: skip
 
 # Protocol methods without a row. Shrink-only: see the module docstring.
@@ -376,19 +517,19 @@ NOT_YET_COVERED = frozenset(
         "abs", "all_array", "all_bool", "allclose", "any_array", "any_bool",
         "arange", "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
         "arctanh", "argmax", "argmin", "argsort", "array", "array_type",
-        "atleast_1d", "atleast_2d", "block", "cdist", "ceil", "clip", "cond",
+        "atleast_1d", "atleast_2d", "block", "cdist", "ceil", "clip",
         "conj", "copy", "cos", "cosh", "cov", "cumsum", "diag", "diff",
-        "digamma", "eigh", "eigvalsh", "empty", "equal", "erf", "erfinv",
+        "digamma", "empty", "equal", "erf", "erfinv",
         "expm1", "eye", "flatten", "flip", "floor", "floor_divide",
         "full_like", "gammaln", "get_diagonal", "hstack",
         "is_floating_dtype", "is_integer_dtype", "isfinite", "isinf", "isnan",
-        "kron", "linspace", "log", "log1p", "log_ndtr", "logspace", "logsumexp",
-        "lstsq", "max", "maximum", "meshgrid",
-        "min", "minimum", "multidot", "ndtr", "nonzero", "norm", "ones_like",
-        "outer", "pinv", "qr", "quantile", "rank", "ravel", "repeat", "round",
-        "searchsorted", "sign", "sin", "sinh", "solve_sparse",
-        "sort", "split", "squeeze", "std", "svd", "tanh",
-        "tile", "to_float", "to_int", "trace", "tracks_gradient", "transpose",
+        "linspace", "log", "log1p", "log_ndtr", "logspace", "logsumexp",
+        "max", "maximum", "meshgrid",
+        "min", "minimum", "ndtr", "nonzero", "ones_like",
+        "quantile", "ravel", "repeat", "round",
+        "searchsorted", "sign", "sin", "sinh",
+        "sort", "split", "squeeze", "std", "tanh",
+        "tile", "to_float", "to_int", "tracks_gradient", "transpose",
         "tril", "tril_indices", "triu", "unique", "var", "vstack", "zeros_like",
     }
 )  # fmt: skip
@@ -473,6 +614,8 @@ def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
     matching role's dtype, and roles resolved to ``bkd`` dtypes."""
     if isinstance(value, Role):
         return _backend_dtype(bkd, value)
+    if isinstance(value, Sparse):
+        return value.to_scipy()
     if isinstance(value, np.ndarray):
         role = _ROLE_OF_NUMPY[value.dtype]
         return bkd.asarray(value, dtype=_backend_dtype(bkd, role))
@@ -482,6 +625,8 @@ def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
 
 
 def _to_reference(value: Any) -> Any:
+    if isinstance(value, Sparse):
+        return value.to_scipy()
     return _NUMPY_DTYPES[value] if isinstance(value, Role) else value
 
 
@@ -592,8 +737,16 @@ def run_case(
         with pytest.raises(case.raises):
             invoke(method, args)
         return None
-    result = invoke(method, args)
+    try:
+        result = invoke(method, args)
+    except NotImplementedError:
+        if not case.optional:
+            raise
+        pytest.skip(f"{type(bkd).__name__} declines {case.method}")
     expected = _reference(case)
+    if case.canonical is not None:
+        result = case.canonical(bkd, result)
+        expected = case.canonical(NumpyBkd(), expected)
     if case.expect is Expect.NONE:
         assert result is None
     elif case.expect is Expect.HOST:
