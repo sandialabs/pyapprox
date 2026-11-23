@@ -94,6 +94,22 @@ class CoupledSubdomain(Generic[V, Array]):
     transfer: PortTransferProtocol[V, Array]
 
 
+@dataclass(frozen=True)
+class CoupledParameters(Generic[V, Array]):
+    """The coupled problem's parameters :math:`p`: single-column vectors
+    of ``space``, each subdomain reading its own parameters through its
+    entry of ``rows`` (``None`` for a subdomain without parameters), in
+    the order of the residual's subdomains. Rows of different subdomains
+    may overlap: a shared parameter is read by each.
+
+    The skeleton has no parameters of its own: :math:`S(\\lambda; p)`
+    depends on :math:`p` only through the responses. It holds :math:`p`
+    so that the coupled solution can be differentiated in it."""
+
+    space: VectorSpaceProtocol[V]
+    rows: Sequence[Optional[PortRowsProtocol[V, Array]]]
+
+
 @runtime_checkable
 class CouplingProtocol(Protocol[V]):
     r"""A fixed linear coupling :math:`C` added to the skeleton residual
@@ -424,13 +440,99 @@ class SchurOperator(Generic[V, Array]):
         return total
 
 
+class SkeletonParamOperator(Generic[V, Array]):
+    r""":math:`S_p = \sum_i E_i^\top (\partial r_i/\partial p_i) P_i` at
+    one set of response points, applied matrix-free, :math:`P_i` the
+    reading of subdomain :math:`i`'s parameters from :math:`p`. Its
+    transpose is :math:`\sum_i P_i^\top (\partial r_i/\partial
+    p_i)^\top E_i`. Subdomains without parameters contribute nothing.
+
+    Raises
+    ------
+    TypeError
+        From :meth:`apply` (:meth:`apply_transpose`) when a subdomain with
+        parameters has a point without ``jvp_param`` (``vjp_param``).
+    """
+
+    def __init__(
+        self,
+        space: VectorSpaceProtocol[V],
+        parameters: CoupledParameters[V, Array],
+        subdomains: Sequence[CoupledSubdomain[V, Array]],
+        points: Sequence[ResponsePointProtocol[Array]],
+        executor: SubdomainExecutorProtocol,
+    ) -> None:
+        self._space, self._parameters = space, parameters
+        self._transfers = [sd.transfer for sd in subdomains]
+        self._bundles = [point.derivatives() for point in points]
+        self._executor = executor
+        self._with_params = [
+            i for i, rows in enumerate(parameters.rows) if rows is not None
+        ]
+
+    def domain(self) -> SpaceDescriptor:
+        return self._parameters.space.descriptor()
+
+    def range(self) -> SpaceDescriptor:
+        return self._space.descriptor()
+
+    def properties(self) -> OperatorProperties:
+        """Transposable exactly when every subdomain with parameters has a
+        point carrying ``vjp_param``."""
+        return OperatorProperties(
+            transposable=all(
+                self._bundles[i].vjp_param is not None for i in self._with_params
+            )
+        )
+
+    def format(self) -> MatrixFree:
+        return MatrixFree()
+
+    def _rows(self, i: int) -> PortRowsProtocol[V, Array]:
+        rows = self._parameters.rows[i]
+        if rows is None:
+            raise RuntimeError(f"subdomain {i} has no parameters")
+        return rows
+
+    def apply(self, x: V, out: Optional[V] = None) -> V:
+        def local(i: int) -> Array:
+            jvp = self._bundles[i].jvp_param
+            if jvp is None:
+                raise TypeError(f"subdomain {i}'s response point has no jvp_param")
+            return jvp(self._rows(i).take(x))
+
+        blocks = self._executor.map(local, self._with_params)
+        total = self._space.zeros(self._parameters.space.ncols(x))
+        for i, block in zip(self._with_params, blocks):
+            total = self._transfers[i].gather_add(block, total)
+        return total
+
+    def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
+        def local(i: int) -> Array:
+            vjp = self._bundles[i].vjp_param
+            if vjp is None:
+                raise TypeError(f"subdomain {i}'s response point has no vjp_param")
+            return vjp(self._transfers[i].scatter(y))
+
+        blocks = self._executor.map(local, self._with_params)
+        params = self._parameters.space
+        total = params.zeros(self._space.ncols(y))
+        for i, block in zip(self._with_params, blocks):
+            total = self._rows(i).add_to(total, block)
+        return total
+
+
 class SkeletonResidual(Generic[V, A, Array, F]):
     r""":math:`S(\lambda) = \sum_i E_i^\top r_i(E_i \lambda) + C \lambda`.
 
     Satisfies :class:`~pyapprox.implicitfunction.residual.ResidualProtocol`
     with a Jacobian in the format its Schur builder forms. Without
-    parameters: every response must have none, and the parameter version
-    is 0.
+    ``parameters`` every response must have none, and the parameter
+    version is 0. With them, :math:`S(\lambda; p)`: each response
+    linearizes at its own parameters read from :math:`p`
+    (:meth:`set_param`), and the bundle carries the parameter Jacobian
+    :class:`SkeletonParamOperator`, built from the responses' parameter
+    derivatives.
 
     Parameters
     ----------
@@ -460,6 +562,20 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         or ``None`` when every piece receives the same kind. In a
         distributed run exactly one rank holds it. The layout, not the
         residual, checks the responses' declared kinds. Default: ``None``.
+    parameters
+        The coupled parameters and each subdomain's reading of them, or
+        ``None`` when no response has parameters. They start at zero.
+        Default: ``None``.
+
+    Raises
+    ------
+    TypeError
+        If an argument does not satisfy its protocol.
+    ValueError
+        If a response and its transfer disagree on the port count, a
+        response has parameters without ``parameters``, or
+        ``parameters`` has another entry count than the subdomains or
+        rows of another count than their response's parameters.
     """
 
     def __init__(
@@ -471,6 +587,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         window: Optional[TimeWindow] = None,
         executor: Optional[SubdomainExecutorProtocol] = None,
         coupling: Optional[CouplingProtocol[V]] = None,
+        parameters: Optional[CoupledParameters[V, Array]] = None,
     ) -> None:
         if coupling is not None and not isinstance(coupling, CouplingProtocol):
             raise TypeError(
@@ -504,8 +621,7 @@ class SkeletonResidual(Generic[V, A, Array, F]):
                     f"subdomain {i}: the response has {sd.response.nport()} port "
                     f"rows, the transfer {sd.transfer.nport()}"
                 )
-            if sd.response.nparams() != 0:
-                raise ValueError(f"subdomain {i}'s response has parameters")
+        _check_parameters(subdomains, parameters)
         self._space = space
         self._subdomains = tuple(subdomains)
         self._schur = schur
@@ -517,8 +633,18 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         self._executor: SubdomainExecutorProtocol = (
             SerialExecutor() if executor is None else executor
         )
-        self._derivs: ResidualDerivatives[V, F] = ResidualDerivatives.state_only(
-            ResidualJacobian.general(self._jacobian)
+        self._parameters = parameters
+        self._param: Optional[V] = (
+            None if parameters is None else parameters.space.zeros(1)
+        )
+        self._version = 0
+        jacobian: ResidualJacobian[V, F] = ResidualJacobian.general(self._jacobian)
+        self._derivs: ResidualDerivatives[V, F] = (
+            ResidualDerivatives.state_only(jacobian)
+            if parameters is None
+            else ResidualDerivatives.first_order(
+                parameters.space, jacobian, self._param_jacobian
+            )
         )
 
     def subdomains(self) -> tuple[CoupledSubdomain[V, Array], ...]:
@@ -529,12 +655,51 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         """The fixed coupling, or ``None``."""
         return self._coupling
 
+    def nparams(self) -> int:
+        """The number of coupled parameters; 0 without them."""
+        if self._parameters is None:
+            return 0
+        return self._parameters.space.descriptor().size
+
+    def param(self) -> V:
+        """The coupled parameters, a single column.
+
+        Raises
+        ------
+        ValueError
+            If the residual has no parameters.
+        """
+        if self._param is None:
+            raise ValueError("this skeleton residual has no parameters")
+        return self._param
+
+    def set_param(self, param: V) -> None:
+        """Set the coupled parameters from a single column of their
+        space; moves the parameter version and drops the kept points.
+
+        Raises
+        ------
+        ValueError
+            If the residual has no parameters.
+        """
+        if self._parameters is None:
+            raise ValueError("this skeleton residual has no parameters")
+        self._param = self._parameters.space.copy(param)
+        self._version += 1
+        self._store.clear()
+
+    def _own_params(self, i: int) -> Array:
+        response = self._subdomains[i].response
+        rows = None if self._parameters is None else self._parameters.rows[i]
+        if rows is None or self._param is None:
+            return response.bkd().zeros((0, 1))
+        return rows.take(self._param)
+
     def linearize_all(self, state: V) -> Sequence[ResponsePointProtocol[Array]]:
         def linearize(i: int) -> ResponsePointProtocol[Array]:
             sd = self._subdomains[i]
-            params = sd.response.bkd().zeros((0, 1))
             port_data = sd.transfer.scatter(state)
-            return sd.response.linearize(port_data, params, self._window)
+            return sd.response.linearize(port_data, self._own_params(i), self._window)
 
         return self._executor.map(linearize, range(len(self._subdomains)))
 
@@ -566,8 +731,49 @@ class SkeletonResidual(Generic[V, A, Array, F]):
             label,
         )
 
+    def _param_jacobian(self, state: V) -> SkeletonParamOperator[V, Array]:
+        if self._parameters is None:
+            raise RuntimeError(
+                "the residual has no parameters; check derivatives() before calling"
+            )
+        return SkeletonParamOperator(
+            self._space,
+            self._parameters,
+            self._subdomains,
+            self._store.points(state, self),
+            self._executor,
+        )
+
     def derivatives(self) -> ResidualDerivatives[V, F]:
         return self._derivs
 
     def parameters_version(self) -> int:
-        return 0
+        """The number of :meth:`set_param` calls so far."""
+        return self._version
+
+
+def _check_parameters(
+    subdomains: Sequence[CoupledSubdomain[V, Array]],
+    parameters: Optional[CoupledParameters[V, Array]],
+) -> None:
+    """Every response's parameter count matches its reading of the
+    coupled parameters; without them, every response has none."""
+    if parameters is None:
+        for i, sd in enumerate(subdomains):
+            if sd.response.nparams() != 0:
+                raise ValueError(
+                    f"subdomain {i}'s response has parameters; pass parameters"
+                )
+        return
+    if len(parameters.rows) != len(subdomains):
+        raise ValueError(
+            f"parameters has {len(parameters.rows)} entries for "
+            f"{len(subdomains)} subdomains"
+        )
+    for i, (sd, rows) in enumerate(zip(subdomains, parameters.rows)):
+        count = 0 if rows is None else rows.nrows()
+        if count != sd.response.nparams():
+            raise ValueError(
+                f"subdomain {i}'s response has {sd.response.nparams()} parameters, "
+                f"its rows {count}"
+            )

@@ -34,8 +34,16 @@ Torch.
 - The two pieces coupled through the skeleton and solved by Newton
   (atol 1e-11, matrix-free Schur, GMRES tol 1e-13) take more than one
   step and reach the halved single-domain interface value to 1e-10.
+- The two pieces on the skeleton with the left piece's six modal
+  coefficients as the coupled parameters (:class:`CoupledParameters`):
+  :math:`S(\lambda; p)` at :math:`\lambda = 1.3` equals the pieces'
+  outputs with the coefficients set directly (1e-12), and setting
+  :math:`p` moves the version; the parameter Jacobian passes central
+  differences (below 1e-6) and its transpose a dot test (1e-12).
 - Refusals: wrong shapes, an unsteady window, parameters without their
-  placement.
+  placement; on the skeleton, a response with parameters but no
+  coupled parameters, rows of the wrong count, the wrong entry count,
+  and setting parameters on a residual without them.
 """
 
 from typing import Any, Generic, Optional, Sequence
@@ -69,6 +77,7 @@ from pyapprox.pde.coupling.ports import (
 )
 from pyapprox.pde.coupling.responses import LocalResponseProtocol, TimeWindow
 from pyapprox.pde.coupling.skeleton import (
+    CoupledParameters,
     CoupledSubdomain,
     MatrixFreeSchur,
     SkeletonResidual,
@@ -88,7 +97,7 @@ from pyapprox.util.linalg.backend_dense import (
     BackendVectorSpace,
     DenseFormat,
 )
-from pyapprox.util.linalg.operators import MatrixFree
+from pyapprox.util.linalg.operators import MatrixFree, SpaceDescriptor
 from pyapprox.util.linalg.operators.krylov import GMRES
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.mock_elementwise import (
@@ -397,6 +406,130 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     assert point.converged() and point.info().iterations > 1
     reference = _single_domain(bkd)
     bkd.assert_allclose(point.solution(), reference[_NCELLS : _NCELLS + 1], atol=1e-10)
+
+
+def _parametric_chain(
+    bkd: Backend[Array],
+) -> tuple[
+    SkeletonResidual[Array, Array, Array, MatrixFree], BackendVectorSpace[Array]
+]:
+    """The two pieces of the Newton test on one skeleton DOF, the left
+    piece's six modal coefficients the coupled parameters."""
+    topo = TensorBoxPartition((2,))
+    bases = UniformBases(lobatto_lagrange_basis(0, 1, bkd))
+    skeleton = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
+    space = BackendVectorSpace(skeleton.descriptor(), bkd)
+    left = _Piece(bkd, True, (0, 1.0), (_NCELLS,))
+    pieces = [
+        left.response(
+            ParameterState(ModalCoefficientParameterization(left.operator, bkd))
+        ),
+        _Piece(bkd, True, (_NCELLS, 2.0), (0,)).response(),
+    ]
+    subdomains = [
+        CoupledSubdomain(
+            response,
+            MatchingNodalTransfer(
+                BackendPortRows(
+                    skeleton.descriptor(), subdomain_port_dofs(topo, skeleton, s), bkd
+                )
+            ),
+        )
+        for s, response in enumerate(pieces)
+    ]
+    params = SpaceDescriptor("params", len(_PARAM))
+    parameters = CoupledParameters(
+        BackendVectorSpace(params, bkd),
+        [BackendPortRows(params, range(len(_PARAM)), bkd), None],
+    )
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    residual = SkeletonResidual(space, subdomains, schur, parameters=parameters)
+    return residual, space
+
+
+def test_the_skeleton_reads_the_coupled_parameters(bkd: Backend[Array]) -> None:
+    """S(lambda; p) equals the residual of pieces whose coefficients were
+    set directly; setting p moves the version and changes S."""
+    residual, space = _parametric_chain(bkd)
+    lam = bkd.asarray([[1.3]])
+    before = residual(lam)
+    residual.set_param(bkd.asarray(_PARAM)[:, None])
+    assert residual.parameters_version() == 1 and residual.nparams() == len(_PARAM)
+    left = _Piece(bkd, True, (0, 1.0), (_NCELLS,))
+    ParameterState(ModalCoefficientParameterization(left.operator, bkd)).set_param(
+        bkd.asarray(_PARAM)
+    )
+    right = _Piece(bkd, True, (_NCELLS, 2.0), (0,)).response()
+    left_flux = left.response().linearize(lam, _no_params(bkd), _STEADY).output()
+    right_flux = right.linearize(lam, _no_params(bkd), _STEADY).output()
+    bkd.assert_allclose(residual(lam), left_flux + right_flux, rtol=1e-12)
+    assert bkd.to_float(bkd.norm(residual(lam) - before)) > 1e-3
+
+
+def test_the_parameter_jacobian_passes_finite_differences(
+    bkd: Backend[Array],
+) -> None:
+    """S_p passes central differences of p -> S(lambda; p), and its
+    transpose a dot test (1e-12)."""
+    residual, space = _parametric_chain(bkd)
+    lam = bkd.asarray([[1.3]])
+
+    def fun(sample: Array) -> Array:
+        residual.set_param(sample)
+        return residual(lam)
+
+    def jvp(sample: Array, direction: Array) -> Array:
+        residual.set_param(sample)
+        param = residual.derivatives().param
+        assert param is not None
+        return param(lam).apply(direction)
+
+    errors = DerivativeChecker(
+        FunctionWithJVPFromCallable(
+            nqoi=1, nvars=len(_PARAM), fun=fun, jvp=jvp, bkd=bkd
+        )
+    ).check_derivatives(bkd.asarray(_PARAM)[:, None], relative=True, central=True)
+    assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+    residual.set_param(bkd.asarray(_PARAM)[:, None])
+    param = residual.derivatives().param
+    assert param is not None
+    op = param(lam)
+    assert op.properties().transposable
+    rng = np.random.default_rng(7)
+    v = bkd.asarray(rng.normal(size=(len(_PARAM), 2)))
+    w = bkd.asarray(rng.normal(size=(1, 2)))
+    lhs, rhs = bkd.sum(op.apply(v) * w), bkd.sum(v * op.apply_transpose(w))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
+
+
+def test_coupled_parameter_refusals(bkd: Backend[Array]) -> None:
+    residual, space = _parametric_chain(bkd)
+    subdomains = residual.subdomains()
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    with pytest.raises(ValueError, match="pass parameters"):
+        SkeletonResidual(space, subdomains, schur)
+    params = SpaceDescriptor("params", 2)
+    with pytest.raises(ValueError, match="its rows 2"):
+        SkeletonResidual(
+            space,
+            subdomains,
+            schur,
+            parameters=CoupledParameters(
+                BackendVectorSpace(params, bkd),
+                [BackendPortRows(params, range(2), bkd), None],
+            ),
+        )
+    with pytest.raises(ValueError, match="entries"):
+        SkeletonResidual(
+            space,
+            subdomains,
+            schur,
+            parameters=CoupledParameters(BackendVectorSpace(params, bkd), [None]),
+        )
+    plain = SkeletonResidual(space, [subdomains[1]], schur)
+    with pytest.raises(ValueError, match="no parameters"):
+        plain.set_param(bkd.zeros((1, 1)))
+    assert plain.derivatives().param is None and plain.nparams() == 0
 
 
 @pytest.mark.parametrize(
