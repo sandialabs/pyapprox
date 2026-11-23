@@ -42,10 +42,12 @@ from enum import Enum
 from typing import (
     Any,
     Callable,
+    Iterator,
     List,
     Mapping,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     Union,
     runtime_checkable,
@@ -55,7 +57,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, ArrayLike
+from pyapprox.util.backends.protocols import Array, ArrayLike, KernelResult
 
 
 class Role(Enum):
@@ -323,6 +325,10 @@ NOT_YET_COVERED = frozenset(
 ROWS_NOT_YET_ON_JAX: frozenset[str] = frozenset()
 NOT_YET_ON_JAX = NOT_YET_COVERED | ROWS_NOT_YET_ON_JAX
 
+# Protocol methods tested by a column over every row rather than by rows
+# of their own: jit compiles each traceable row (row_kernel).
+COVERED_BY_COLUMNS = frozenset({"jit"})
+
 
 # ---- running a row
 
@@ -348,6 +354,13 @@ class ConformanceBackend(Protocol[Array]):
     def assert_allclose(
         self, actual: Array, desired: Array, rtol: float = 1e-7, atol: float = 0
     ) -> None: ...
+
+    def jit(
+        self,
+        kernel: Callable[..., KernelResult],
+        static_argnames: Sequence[str] = (),
+        dynamic: bool = False,
+    ) -> Callable[..., KernelResult]: ...
 
 
 def _bool_dtype(bkd: ConformanceBackend[Array]) -> Any:
@@ -495,6 +508,47 @@ def run_case(
     for array, original in zip(_arrays(args), fresh):
         bkd.assert_allclose(array, original, rtol=0.0, atol=0.0)
     return result
+
+
+def _substitute(
+    bkd: ConformanceBackend[Array], value: Any, arrays: Iterator[Array]
+) -> Any:
+    """``value`` with its NumPy arrays (also inside tuples) replaced, in
+    order, by ``arrays`` and its roles resolved to ``bkd`` dtypes."""
+    if isinstance(value, Role):
+        return _backend_dtype(bkd, value)
+    if isinstance(value, np.ndarray):
+        return next(arrays)
+    if isinstance(value, tuple) and any(isinstance(v, np.ndarray) for v in value):
+        return tuple(_substitute(bkd, v, arrays) for v in value)
+    return value
+
+
+def row_kernel(*arrays: Array, bkd: ConformanceBackend[Array], case_index: int) -> Any:
+    """The row ``CASES[case_index]`` as a kernel for ``bkd.jit``: its
+    arrays are the traced arguments, in the order they appear in the
+    row's positional arguments; everything else comes from the row, which
+    ``case_index`` (static) selects."""
+    case = CASES[case_index]
+    remaining = iter(arrays)
+    args = tuple(_substitute(bkd, a, remaining) for a in case.args)
+    method: Callable[..., Any] = getattr(bkd, case.method)
+    return method(*args, **{k: _to_backend(bkd, v) for k, v in case.kwargs.items()})
+
+
+def jit_call(
+    bkd: ConformanceBackend[Array], case: Case
+) -> Callable[[Callable[..., Any], Tuple[Any, ...]], Any]:
+    """A ``call`` hook for :func:`run_case` that runs ``case`` through
+    ``bkd.jit(row_kernel)`` instead of the method it is given."""
+    # By identity: rows hold NumPy arrays, which == cannot compare.
+    index = next(i for i, row in enumerate(CASES) if row is case)
+    compiled = bkd.jit(row_kernel, static_argnames=("case_index",))
+
+    def call(method: Callable[..., Any], args: Tuple[Any, ...]) -> Any:
+        return compiled(*_arrays(args), case_index=index)
+
+    return call
 
 
 def case_id(case: Case) -> str:

@@ -1,14 +1,13 @@
-"""Torch conformance beyond values: every traceable row of the table in
-``tests/_helpers/backend_conformance.py`` compiles into one graph under
-``torch.compile(fullgraph=True)``, which fails on any graph break, and
-every differentiable row passes ``gradcheck``. So a generic kernel built
-from protocol methods needs no torch-specific copy to compile or to be
-differentiated.
+"""Torch conformance beyond values: every differentiable row of the
+table in ``tests/_helpers/backend_conformance.py`` passes ``gradcheck``,
+so a generic kernel built from protocol methods needs no torch-specific
+copy to be differentiated. (Compiled rows run on every backend, through
+``bkd.jit``, in ``test_backend_conformance.py``.)
 
 Torch is optional, so the whole module is skipped without it.
 """
 
-from typing import Any, Callable, Iterator, List, Tuple
+from typing import Any, Iterator, List
 
 import pytest
 
@@ -23,21 +22,9 @@ from tests._helpers.backend_conformance import (
     Case,
     case_id,
     prepare,
-    run_case,
 )
 
-_TRACEABLE = [c for c in CASES if not c.eager_only and c.raises is None]
 _DIFFERENTIABLE = [c for c in CASES if c.differentiable]
-
-
-def _compiled(method: Callable[..., Any], args: Tuple[Any, ...]) -> Any:
-    return torch.compile(method, fullgraph=True, dynamic=False)(*args)
-
-
-@pytest.mark.parametrize("case", _TRACEABLE, ids=case_id)
-def test_compiles_fullgraph(torch_bkd: TorchBkd, case: Case) -> None:
-    torch._dynamo.reset()
-    run_case(torch_bkd, case, call=_compiled)
 
 
 def _leaves(value: Any) -> List[torch.Tensor]:

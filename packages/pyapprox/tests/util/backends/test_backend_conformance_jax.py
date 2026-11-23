@@ -1,12 +1,14 @@
-"""The experimental ``JaxBkd`` against the conformance table in
-``tests/_helpers/backend_conformance.py``: every row of a method it
-implements (one not in ``NOT_YET_ON_JAX``) runs under ``jax.jit``, or
-eagerly when the row is ``eager_only``.
+"""The experimental ``JaxBkd``: every row of the conformance table in
+``tests/_helpers/backend_conformance.py`` of a method it implements (one
+not in ``NOT_YET_ON_JAX``), run eagerly, as the general ``bkd`` fixture
+will once ``JaxBkd`` joins it; compiled rows run in
+``test_backend_conformance.py``. Also what ``JaxBkd.jit`` does beyond
+the other backends: ``static_argnames`` and its cache across pickling.
 
 JAX is optional, so the whole module is skipped without it.
 """
 
-from typing import Any, Callable, Iterator, List, Tuple
+import pickle
 
 import pytest
 
@@ -27,29 +29,6 @@ from tests._helpers.backend_conformance import (
 _ON_JAX = [case for case in CASES if case.method not in NOT_YET_ON_JAX]
 
 
-def _leaves(value: Any) -> List[jax.Array]:
-    """The JAX arrays in ``value``, also inside tuples."""
-    if isinstance(value, tuple):
-        return [leaf for v in value for leaf in _leaves(v)]
-    return [value] if isinstance(value, jax.Array) else []
-
-
-def _rebuild(value: Any, leaves: Iterator[jax.Array]) -> Any:
-    """``value`` with its JAX arrays replaced, in order, by ``leaves``."""
-    if isinstance(value, tuple):
-        return tuple(_rebuild(v, leaves) for v in value)
-    return next(leaves) if isinstance(value, jax.Array) else value
-
-
-def _jitted(method: Callable[..., Any], args: Tuple[Any, ...]) -> Any:
-    # The arrays are traced; shapes, axes, strings and scalars are closed
-    # over, so they are static.
-    def traced(*arrays: jax.Array) -> Any:
-        return method(*_rebuild(args, iter(arrays)))
-
-    return jax.jit(traced)(*_leaves(args))
-
-
 @pytest.fixture
 def jax_bkd() -> JaxBkd:
     return JaxBkd()
@@ -57,4 +36,37 @@ def jax_bkd() -> JaxBkd:
 
 @pytest.mark.parametrize("case", _ON_JAX, ids=case_id)
 def test_conforms_on_jax(jax_bkd: JaxBkd, case: Case) -> None:
-    run_case(jax_bkd, case, call=None if case.eager_only else _jitted)
+    run_case(jax_bkd, case)
+
+
+def _ones_sum(scale: jax.Array, *, bkd: JaxBkd, size: int) -> jax.Array:
+    # size sets a shape, so it must be static under jax.jit.
+    return bkd.sum(bkd.ones((size,)) * scale)
+
+
+class TestJaxJit:
+    def test_static_argnames_select_a_shape(self, jax_bkd: JaxBkd) -> None:
+        compiled = jax_bkd.jit(_ones_sum, static_argnames=("size",))
+        scale = jax_bkd.asarray(2.0)
+        jax_bkd.assert_allclose(compiled(scale, size=3), jax_bkd.asarray(6.0))
+        jax_bkd.assert_allclose(compiled(scale, size=5), jax_bkd.asarray(10.0))
+
+    def test_a_shape_argument_must_be_static(self, jax_bkd: JaxBkd) -> None:
+        compiled = jax_bkd.jit(_ones_sum)
+        with pytest.raises(TypeError):
+            compiled(jax_bkd.asarray(2.0), size=3)
+
+    def test_cached_per_kernel_and_options(self, jax_bkd: JaxBkd) -> None:
+        first = jax_bkd.jit(_ones_sum, static_argnames=("size",))
+        assert jax_bkd.jit(_ones_sum, static_argnames=("size",)) is first
+        assert (
+            jax_bkd.jit(_ones_sum, static_argnames=("size",), dynamic=True) is not first
+        )
+
+    def test_pickles_without_its_cache(self, jax_bkd: JaxBkd) -> None:
+        jax_bkd.jit(_ones_sum, static_argnames=("size",))
+        restored = pickle.loads(pickle.dumps(jax_bkd))
+        compiled = restored.jit(_ones_sum, static_argnames=("size",))
+        restored.assert_allclose(
+            compiled(restored.asarray(1.5), size=2), restored.asarray(3.0)
+        )

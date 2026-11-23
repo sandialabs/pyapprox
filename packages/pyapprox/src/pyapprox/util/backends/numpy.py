@@ -1,4 +1,15 @@
-from typing import Any, List, Literal, Optional, Sequence, Tuple, Union, overload
+import functools
+from typing import (
+    Any,
+    Callable,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    overload,
+)
 
 import numpy as np
 import scipy
@@ -6,9 +17,15 @@ from numpy.typing import NDArray
 from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
-from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
+from pyapprox.util.backends.protocols import (
+    ArrayLike,
+    Backend,
+    IndexLike,
+    KernelResult,
+)
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
+    check_jit_kernel,
     check_to_bool_shape,
 )
 
@@ -88,6 +105,16 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         dtype: Optional[Any] = None,
     ) -> None:
         pass
+
+    def jit(
+        self,
+        kernel: Callable[..., KernelResult],
+        static_argnames: Sequence[str] = (),
+        dynamic: bool = False,
+    ) -> Callable[..., KernelResult]:
+        # NumPy has no compiler for array code: the kernel runs as written.
+        check_jit_kernel(kernel)
+        return functools.partial(kernel, bkd=self)
 
     @staticmethod
     def dot(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:

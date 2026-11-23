@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Generic,
     List,
     Literal,
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
 Array = TypeVar("Array", bound="ArrayProtocol")
 Array_co = TypeVar("Array_co", bound="ArrayProtocol", covariant=True)
 Array_contra = TypeVar("Array_contra", bound="ArrayProtocol", contravariant=True)
+# What a kernel compiled by ``Backend.jit`` returns.
+KernelResult = TypeVar("KernelResult")
 
 # Input type for asarray/array — must be accepted by all backends
 ArrayLike = Union[
@@ -1294,6 +1297,54 @@ class Backend(Protocol, Generic[Array]):
         ValueError
             If ``index`` is not 1-D or ``values`` has a different number of
             rows than ``index``.
+        """
+        ...
+
+    def jit(
+        self,
+        kernel: Callable[..., KernelResult],
+        static_argnames: Sequence[str] = (),
+        dynamic: bool = False,
+    ) -> Callable[..., KernelResult]:
+        """``kernel`` with this backend bound as its ``bkd`` keyword,
+        compiled if this backend compiles.
+
+        A kernel is a module-level function or a staticmethod, pure, that
+        takes the backend as the keyword ``bkd``: everything that changes
+        between calls is an argument, and the arguments that select a
+        code path (orders, flags, shapes) are named in ``static_argnames``.
+        Call ``self._bkd.jit(kernel)(...)`` at each use: the backend caches
+        the result per ``(kernel, static_argnames, dynamic)``, so later
+        calls are a lookup, and nothing compiled is stored on the calling
+        object, which keeps it picklable. A composite kernel calls smaller
+        kernels directly and is compiled as one; called while a kernel is
+        being traced, ``jit`` returns the uncompiled bound kernel, so
+        nesting is harmless.
+
+        Parameters
+        ----------
+        kernel : Callable[..., KernelResult]
+            Module-level function or staticmethod with a ``bkd`` keyword.
+        static_argnames : Sequence[str]
+            Arguments compiled as constants: one compilation per distinct
+            value. Must be hashable.
+        dynamic : bool
+            Compile for varying shapes instead of once per shape, where
+            the compiler supports it.
+
+        Returns
+        -------
+        Callable[..., KernelResult]
+            The kernel with ``bkd`` bound; compiled by the backend's
+            compiler, or uncompiled on a backend without one or with
+            compilation off.
+
+        Raises
+        ------
+        TypeError
+            If ``kernel`` is a lambda, a local function or a bound method:
+            each is a new object per call (recompiled every call) and
+            bakes captured values in as constants.
         """
         ...
 

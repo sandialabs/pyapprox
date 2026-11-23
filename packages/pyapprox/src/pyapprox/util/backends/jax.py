@@ -11,14 +11,16 @@ Constructing a ``JaxBkd`` enables 64-bit types process-wide
 it JAX silently computes in 32 bits.
 """
 
-from typing import Any, List, Optional, Sequence, Tuple, Union
+import functools
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import ArrayLike
+from pyapprox.util.backends.protocols import ArrayLike, KernelResult
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
+    check_jit_kernel,
     check_to_bool_shape,
 )
 from pyapprox.util.optional_deps import missing_dependency_message
@@ -30,6 +32,8 @@ except ImportError as err:
     raise ImportError(missing_dependency_message("jax", "JaxBkd", "jax")) from err
 
 Axes = Optional[Union[int, Tuple[int, ...]]]
+# JaxBkd.jit's cache key: kernel, static argument names, dynamic.
+_JitKey = Tuple[Callable[..., Any], Tuple[str, ...], bool]
 
 
 class JaxBkd:
@@ -37,6 +41,35 @@ class JaxBkd:
 
     def __init__(self) -> None:
         jax.enable_x64.set_global(True)
+        self._jit_cache: Dict[_JitKey, Callable[..., Any]] = {}
+
+    def __getstate__(self) -> Dict[str, Any]:
+        # Compiled kernels do not pickle; the cache is rebuilt on use.
+        state = dict(self.__dict__)
+        state["_jit_cache"] = {}
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        jax.enable_x64.set_global(True)
+        self.__dict__.update(state)
+
+    def jit(
+        self,
+        kernel: Callable[..., KernelResult],
+        static_argnames: Sequence[str] = (),
+        dynamic: bool = False,
+    ) -> Callable[..., KernelResult]:
+        # jax.jit caches on the function object, so the bound kernel is
+        # built once per key here. It compiles once per shape whatever
+        # dynamic says, and inlines a jit called while tracing.
+        check_jit_kernel(kernel)
+        key = (kernel, tuple(static_argnames), dynamic)
+        compiled = self._jit_cache.get(key)
+        if compiled is None:
+            bound = functools.partial(kernel, bkd=self)
+            compiled = jax.jit(bound, static_argnames=tuple(static_argnames))
+            self._jit_cache[key] = compiled
+        return compiled
 
     # ---- dtypes and conversion
 

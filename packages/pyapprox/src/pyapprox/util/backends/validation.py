@@ -1,4 +1,5 @@
-from typing import Any, Sequence, Tuple
+import inspect
+from typing import Any, Callable, Sequence, Tuple
 
 from pyapprox.util.backends.protocols import Backend
 
@@ -49,6 +50,39 @@ def check_index_add_shapes(
         raise ValueError(
             f"values must have {index_shape[0]} rows, one per index, got "
             f"shape {values_shape}"
+        )
+
+
+def check_jit_kernel(kernel: Callable[..., Any]) -> None:
+    """Check that ``Backend.jit`` was given a module-level function or a
+    staticmethod.
+
+    Parameters
+    ----------
+    kernel : Callable[..., Any]
+        The function to compile.
+
+    Raises
+    ------
+    TypeError
+        If ``kernel`` is a lambda, a local function, a bound method, a
+        ``functools.partial`` or any other callable object. Each is
+        usually a new object per call, so it would be compiled again on
+        every call, and the values it captures would be compiled in as
+        constants, stale once they change.
+    """
+    qualname = getattr(kernel, "__qualname__", "")
+    if (
+        not inspect.isfunction(kernel)
+        or kernel.__name__ == "<lambda>"
+        or "<locals>" in qualname
+    ):
+        raise TypeError(
+            f"jit needs a module-level function or a staticmethod taking "
+            f"the backend as the keyword bkd, got {kernel!r}; pass what "
+            f"changes as arguments and code-path choices through "
+            f"static_argnames instead of capturing them in a lambda, local "
+            f"function, bound method or partial"
         )
 
 

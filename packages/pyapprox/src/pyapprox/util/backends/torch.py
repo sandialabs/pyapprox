@@ -1,6 +1,8 @@
+import functools
 from typing import (
     Any,
     Callable,
+    Dict,
     List,
     Literal,
     Optional,
@@ -15,9 +17,15 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
-from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
+from pyapprox.util.backends.protocols import (
+    ArrayLike,
+    Backend,
+    IndexLike,
+    KernelResult,
+)
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
+    check_jit_kernel,
     check_to_bool_shape,
 )
 from pyapprox.util.openmp import use_torch_openmp
@@ -31,6 +39,9 @@ except ImportError as err:
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs
 _set_default_dtype: Callable[["torch.dtype"], None] = torch.set_default_dtype
+
+# TorchBkd.jit's cache key: kernel, static argument names, dynamic.
+_JitKey = Tuple[Callable[..., Any], Tuple[str, ...], bool]
 
 
 def _bool_reduction(
@@ -62,7 +73,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         self,
         device: Optional[Union[str, "torch.device"]] = None,
         dtype: Optional[Any] = None,
+        compile: bool = False,
     ) -> None:
+        """``compile=True`` makes :meth:`jit` compile kernels with
+        ``torch.compile``. Off by default: a torch-compiled kernel supports
+        first derivatives only, so compiling by default would take
+        ``hvp`` away from every generic kernel."""
         self._device = (
             torch.device(device) if device is not None else torch.device("cpu")
         )
@@ -71,6 +87,43 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         # this runs before inductor builds its first kernel.
         use_torch_openmp()
         self._dtype = dtype if dtype is not None else torch.get_default_dtype()
+        self._compile = compile
+        self._jit_cache: Dict[_JitKey, Callable[..., Any]] = {}
+
+    def __getstate__(self) -> Dict[str, Any]:
+        # Compiled kernels do not pickle; the cache is rebuilt on use.
+        state = dict(self.__dict__)
+        state["_jit_cache"] = {}
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        self.__dict__.update(state)
+
+    def jit(
+        self,
+        kernel: Callable[..., KernelResult],
+        static_argnames: Sequence[str] = (),
+        dynamic: bool = False,
+    ) -> Callable[..., KernelResult]:
+        # torch.compile specializes on Python scalars and other non-tensor
+        # arguments by itself, so static_argnames needs no translation.
+        # fullgraph=True: a graph break in a kernel raises instead of
+        # silently running part of it eagerly.
+        if torch.compiler.is_compiling():
+            # Nested in a kernel being traced: inlined into its graph. The
+            # check is skipped because dynamo cannot trace it; the same
+            # call is checked whenever it runs uncompiled.
+            return functools.partial(kernel, bkd=self)
+        check_jit_kernel(kernel)
+        bound = functools.partial(kernel, bkd=self)
+        if not self._compile:
+            return bound
+        key = (kernel, tuple(static_argnames), dynamic)
+        compiled = self._jit_cache.get(key)
+        if compiled is None:
+            compiled = torch.compile(bound, fullgraph=True, dynamic=dynamic)
+            self._jit_cache[key] = compiled
+        return compiled
 
     def synchronize(self) -> None:
         """Block until all pending operations on this backend's device complete.
