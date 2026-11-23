@@ -83,12 +83,12 @@ class ArrayProtocol(Protocol):
 
     def __matmul__(self: Array, other: Array) -> Array: ...
 
-    # Array libraries (NumPy/Torch) break the builtins.object contract because
-    # a == b returns a boolean array, not a single bool. We use Union return
-    # types to reflect this dual behavior.
-    def __eq__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore[override]
+    # Elementwise, like the other comparisons: a == b is a boolean array.
+    # That breaks object.__eq__'s contract (any object in, bool out), so
+    # the override is ignored, as the NumPy and JAX stubs ignore it.
+    def __eq__(self: Array, other: Union[float, Array]) -> Array: ...  # type: ignore[override]
 
-    def __ne__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore[override]
+    def __ne__(self: Array, other: Union[float, Array]) -> Array: ...  # type: ignore[override]
 
     def __setitem__(self: Array, index: Any, value: Any) -> None: ...
 

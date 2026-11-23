@@ -362,8 +362,6 @@ class TestIndexAdd:
 def _assert_bool_equal(bkd: Backend[Array], result: Array, expected: ArrayLike) -> None:
     # A comparison is the backend-neutral way to get a boolean array:
     # asarray of Python bools gives the default float dtype on torch.
-    # ``>`` and ``^`` rather than ``!=`` and ``==``, which the array
-    # protocol types as bool-or-array.
     desired = bkd.asarray(expected) > 0
     assert result.shape == desired.shape, (result.shape, desired.shape)
     assert result.dtype == desired.dtype, (result.dtype, desired.dtype)
