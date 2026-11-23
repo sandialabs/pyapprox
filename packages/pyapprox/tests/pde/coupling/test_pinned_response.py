@@ -40,10 +40,20 @@ Torch.
   outputs with the coefficients set directly (1e-12), and setting
   :math:`p` moves the version; the parameter Jacobian passes central
   differences (below 1e-6) and its transpose a dot test (1e-12).
+- The interface value :math:`\lambda^*(p)` as a ``SteadyImplicitFunction``
+  of those coefficients (:class:`CoupledParameterSetter`): its value is
+  the skeleton's Newton solve with :math:`p` set (1e-10); its gradient by
+  one adjoint solve passes central differences (below 1e-6) and equals
+  the tangent-column Jacobian (1e-10), for matrix-free Schur with GMRES
+  (the transpose through ``vjp_trace``) and dense Schur with LU. A left
+  response whose points carry no ``vjp_param`` still gives the tangent
+  Jacobian, and its adjoint gradient is refused: the parameter Jacobian
+  is not transposable.
 - Refusals: wrong shapes, an unsteady window, parameters without their
   placement; on the skeleton, a response with parameters but no
   coupled parameters, rows of the wrong count, the wrong entry count,
-  and setting parameters on a residual without them.
+  and setting parameters on a residual without them or building a
+  setter for one.
 """
 
 from typing import Any, Generic, Optional, Sequence
@@ -51,8 +61,16 @@ from typing import Any, Generic, Optional, Sequence
 import numpy as np
 import pytest
 
+from pyapprox.implicitfunction.implicit_map import (
+    AdjointRows,
+    ImplicitJacobianProtocol,
+    TangentColumns,
+)
+from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.implicitfunction.state_functional import StateFunctional
+from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -75,10 +93,18 @@ from pyapprox.pde.coupling.ports import (
     MatchingNodalTransfer,
     subdomain_port_dofs,
 )
-from pyapprox.pde.coupling.responses import LocalResponseProtocol, TimeWindow
+from pyapprox.pde.coupling.responses import (
+    LocalResponseProtocol,
+    PortQuantity,
+    ResponseDerivatives,
+    ResponsePointProtocol,
+    TimeWindow,
+)
 from pyapprox.pde.coupling.skeleton import (
     CoupledParameters,
+    CoupledParameterSetter,
     CoupledSubdomain,
+    DenseSchur,
     MatrixFreeSchur,
     SkeletonResidual,
 )
@@ -502,6 +528,182 @@ def test_the_parameter_jacobian_passes_finite_differences(
     bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
 
 
+class _NoParamAdjointPoint(Generic[Array]):
+    """A point whose bundle drops ``vjp_param``; otherwise the wrapped
+    point's."""
+
+    def __init__(self, inner: ResponsePointProtocol[Array]) -> None:
+        self._inner = inner
+        bundle = inner.derivatives()
+        assert bundle.jvp_trace is not None and bundle.vjp_trace is not None
+        self._derivs: ResponseDerivatives[Array] = ResponseDerivatives(
+            jvp_trace=bundle.jvp_trace,
+            vjp_trace=bundle.vjp_trace,
+            jvp_param=bundle.jvp_param,
+        )
+
+    def output(self) -> Array:
+        return self._inner.output()
+
+    def qoi(self) -> Array:
+        return self._inner.qoi()
+
+    def derivatives(self) -> ResponseDerivatives[Array]:
+        return self._derivs
+
+
+class _NoParamAdjoint(Generic[Array]):
+    """A response whose points carry no ``vjp_param``."""
+
+    def __init__(self, inner: LocalResponseProtocol[Array]) -> None:
+        self._inner = inner
+
+    def bkd(self) -> Backend[Array]:
+        return self._inner.bkd()
+
+    def nport(self) -> int:
+        return self._inner.nport()
+
+    def receives(self) -> PortQuantity:
+        return self._inner.receives()
+
+    def returns(self) -> PortQuantity:
+        return self._inner.returns()
+
+    def nparams(self) -> int:
+        return self._inner.nparams()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def linearize(
+        self, port_data: Array, params: Array, window: TimeWindow
+    ) -> ResponsePointProtocol[Array]:
+        return _NoParamAdjointPoint(self._inner.linearize(port_data, params, window))
+
+
+def _coupled_function(
+    bkd: Backend[Array],
+    dense: bool,
+    jacobian: Optional[ImplicitJacobianProtocol] = None,
+    without_param_adjoint: bool = False,
+) -> SteadyImplicitFunction[Array, Any]:
+    """The interface value of the parametric chain as a function of the
+    left piece's coefficients: matrix-free Schur with GMRES, or dense
+    Schur with LU."""
+    chain, space = _parametric_chain(bkd)
+    subdomains = list(chain.subdomains())
+    if without_param_adjoint:
+        left = subdomains[0]
+        subdomains[0] = CoupledSubdomain(_NoParamAdjoint(left.response), left.transfer)
+    params = SpaceDescriptor("params", len(_PARAM))
+    parameters = CoupledParameters(
+        BackendVectorSpace(params, bkd),
+        [BackendPortRows(params, range(len(_PARAM)), bkd), None],
+    )
+    functional: StateFunctional[Array, Array] = StateFunctional.from_terms(
+        bkd, 1, state_terms=(ObservedValue(StateEntries(bkd, 1, [0])),)
+    )
+    newton: Newton[Array, Array] = Newton(atol=1e-12, rtol=1e-12, maxiters=20)
+    start = bkd.asarray([[1.5]])
+    if dense:
+        dense_residual = SkeletonResidual(
+            space, subdomains, DenseSchur(bkd), parameters=parameters
+        )
+        lu: RecomputeAlways[Array, DenseFormat[Array]] = RecomputeAlways(
+            BackendDenseLU(bkd)
+        )
+        return SteadyImplicitFunction(
+            dense_residual,
+            space,
+            CoupledParameterSetter(dense_residual, bkd),
+            lu,
+            newton,
+            functional,
+            start,
+            bkd,
+            jacobian,
+        )
+    schur: MatrixFreeSchur[Array, Array] = MatrixFreeSchur()
+    free = SkeletonResidual(space, subdomains, schur, parameters=parameters)
+    gmres: RecomputeAlways[Array, MatrixFree] = RecomputeAlways(
+        GMRES(space, bkd, tol=1e-14)
+    )
+    return SteadyImplicitFunction(
+        free,
+        space,
+        CoupledParameterSetter(free, bkd),
+        gmres,
+        newton,
+        functional,
+        start,
+        bkd,
+        jacobian,
+    )
+
+
+@pytest.mark.parametrize("dense", [False, True])
+def test_the_coupled_gradient_passes_finite_differences(
+    bkd: Backend[Array], dense: bool
+) -> None:
+    """The interface value lambda*(p) as a function of the left piece's
+    coefficients: its gradient (one adjoint solve, through vjp_trace and
+    vjp_param) passes central differences and equals the Jacobian formed
+    by tangent solves (1e-10)."""
+    function = _coupled_function(bkd, dense, AdjointRows())
+    sample = bkd.asarray(_PARAM)[:, None]
+    errors = DerivativeChecker(function).check_derivatives(
+        sample, relative=True, central=True
+    )
+    assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+    adjoint = function.derivatives().jacobian
+    tangent = _coupled_function(bkd, dense, TangentColumns()).derivatives().jacobian
+    assert adjoint is not None and tangent is not None
+    bkd.assert_allclose(adjoint(sample), tangent(sample), rtol=1e-10)
+
+
+def test_a_response_without_vjp_param_has_no_coupled_gradient(
+    bkd: Backend[Array],
+) -> None:
+    """Tangent solves still form the Jacobian; the adjoint is refused
+    because the parameter Jacobian is not transposable."""
+    sample = bkd.asarray(_PARAM)[:, None]
+    tangent = (
+        _coupled_function(bkd, True, TangentColumns(), without_param_adjoint=True)
+        .derivatives()
+        .jacobian
+    )
+    adjoint = (
+        _coupled_function(bkd, True, AdjointRows(), without_param_adjoint=True)
+        .derivatives()
+        .jacobian
+    )
+    assert tangent is not None and adjoint is not None
+    expected = _coupled_function(bkd, True, TangentColumns()).derivatives().jacobian
+    assert expected is not None
+    bkd.assert_allclose(tangent(sample), expected(sample), rtol=1e-12)
+    with pytest.raises(ValueError, match="no transpose"):
+        adjoint(sample)
+
+
+def test_the_coupled_function_is_the_skeleton_solve(bkd: Backend[Array]) -> None:
+    """Its value at p is the Newton solve of the skeleton residual with p
+    set, from the same start."""
+    function = _coupled_function(bkd, dense=True)
+    residual, space = _parametric_chain(bkd)
+    residual.set_param(bkd.asarray(_PARAM)[:, None])
+    gmres: RecomputeAlways[Array, MatrixFree] = RecomputeAlways(
+        GMRES(space, bkd, tol=1e-14)
+    )
+    point = SteadySystem(residual, space, gmres).solve(
+        Newton(atol=1e-12, rtol=1e-12, maxiters=20), bkd.asarray([[1.5]])
+    )
+    assert point.converged()
+    bkd.assert_allclose(
+        function(bkd.asarray(_PARAM)[:, None]), point.solution(), rtol=1e-10
+    )
+
+
 def test_coupled_parameter_refusals(bkd: Backend[Array]) -> None:
     residual, space = _parametric_chain(bkd)
     subdomains = residual.subdomains()
@@ -530,6 +732,8 @@ def test_coupled_parameter_refusals(bkd: Backend[Array]) -> None:
     with pytest.raises(ValueError, match="no parameters"):
         plain.set_param(bkd.zeros((1, 1)))
     assert plain.derivatives().param is None and plain.nparams() == 0
+    with pytest.raises(ValueError, match="no parameters to set"):
+        CoupledParameterSetter(plain, bkd)
 
 
 @pytest.mark.parametrize(

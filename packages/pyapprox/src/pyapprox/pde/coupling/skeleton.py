@@ -752,6 +752,36 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         return self._version
 
 
+class CoupledParameterSetter(Generic[Array, F]):
+    """Sets a backend skeleton residual's coupled parameters from a 1-D
+    array, as :class:`~pyapprox.implicitfunction.steady_function.
+    SteadyImplicitFunction` passes them: the setter that makes the coupled
+    problem a function of its parameters.
+
+    Satisfies :class:`~pyapprox.implicitfunction.steady_function.
+    ParameterSetterProtocol`.
+
+    Raises
+    ------
+    ValueError
+        If ``residual`` has no parameters.
+    """
+
+    def __init__(
+        self, residual: SkeletonResidual[Array, Array, Array, F], bkd: Backend[Array]
+    ) -> None:
+        if residual.nparams() == 0:
+            raise ValueError("the skeleton residual has no parameters to set")
+        self._residual, self._bkd = residual, bkd
+
+    def nparams(self) -> int:
+        return self._residual.nparams()
+
+    def set_param(self, param: Array) -> None:
+        """Apply ``param``, shape ``(nparams,)``."""
+        self._residual.set_param(self._bkd.reshape(param, (-1, 1)))
+
+
 def _check_parameters(
     subdomains: Sequence[CoupledSubdomain[V, Array]],
     parameters: Optional[CoupledParameters[V, Array]],
