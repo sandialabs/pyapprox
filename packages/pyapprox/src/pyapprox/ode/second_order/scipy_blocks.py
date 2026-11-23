@@ -10,6 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.second_order.assembled_blocks import AssembledStateBlocks
+from pyapprox.ode.second_order.condensed_blocks import CondensedStateBlocks
 from pyapprox.util.linalg.operators import LinearSolverProtocol, SpaceDescriptor
 from pyapprox.util.linalg.scipy_stack import (
     CSRFormat,
@@ -39,6 +40,32 @@ def scipy_csr_state_blocks(
     half_space = NumpyVectorSpace(half, np.float64)
     whole = NumpyVectorSpace(space, np.float64)
     return AssembledStateBlocks(
+        half_space,
+        whole,
+        NumpyRowPartition(whole, [half_space, half_space]),
+        ScipyCSROperator.identity(half, np.float64),
+        ScipySparseLU() if solver is None else solver,
+    )
+
+
+def scipy_csr_condensed_state_blocks(
+    half: SpaceDescriptor,
+    space: SpaceDescriptor,
+    solver: Optional[LinearSolverProtocol[_Vector, CSRFormat]] = None,
+) -> CondensedStateBlocks[_Vector, _Vector, CSRFormat]:
+    """The condensed storage on the SciPy CSR stack, in float64.
+
+    Parameters
+    ----------
+    half, space : SpaceDescriptor
+        One block (size :math:`n`) and :math:`w` (:math:`2n`).
+    solver : LinearSolverProtocol, optional
+        Factors the :math:`n \\times n` Schur complement; a sparse LU by
+        default.
+    """
+    half_space = NumpyVectorSpace(half, np.float64)
+    whole = NumpyVectorSpace(space, np.float64)
+    return CondensedStateBlocks(
         half_space,
         whole,
         NumpyRowPartition(whole, [half_space, half_space]),

@@ -253,6 +253,28 @@ class BackendRowPartition(Generic[Array]):
     def join(self, parts: Sequence[Array]) -> Array:
         return self._bkd.concatenate(list(parts), axis=0)
 
+    def split_rows(self, rows: RowSetProtocol[W]) -> list["BackendRowSet[Array]"]:
+        """The rows of ``rows`` in each part, indexed within the part.
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` is not a :class:`BackendRowSet`.
+        """
+        if not isinstance(rows, BackendRowSet):
+            raise TypeError(
+                f"split_rows needs a BackendRowSet, got {type(rows).__name__}"
+            )
+        self._space.descriptor().require_same(rows.descriptor(), "rows to split")
+        return [
+            BackendRowSet(
+                part.descriptor(),
+                [row - lo for row in rows.indices() if lo <= row < hi],
+                self._bkd,
+            )
+            for part, lo, hi in zip(self._parts, self._offsets[:-1], self._offsets[1:])
+        ]
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nparts={len(self._parts)})"
 

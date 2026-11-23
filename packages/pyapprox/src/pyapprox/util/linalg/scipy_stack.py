@@ -285,6 +285,28 @@ class NumpyRowPartition(Generic[S]):
     def join(self, parts: Sequence[NDArray[S]]) -> NDArray[S]:
         return np.concatenate(list(parts), axis=0)
 
+    def split_rows(self, rows: RowSetProtocol[W]) -> list["NumpyRowSet"]:
+        """The rows of ``rows`` in each part, indexed within the part.
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` is not a :class:`NumpyRowSet`.
+        """
+        if not isinstance(rows, NumpyRowSet):
+            raise TypeError(
+                f"split_rows needs a NumpyRowSet, got {type(rows).__name__}"
+            )
+        self._space.descriptor().require_same(rows.descriptor(), "rows to split")
+        indices = rows.indices()
+        return [
+            NumpyRowSet(
+                part.descriptor(),
+                (indices[(indices >= lo) & (indices < hi)] - lo).astype(np.int64),
+            )
+            for part, lo, hi in zip(self._parts, self._offsets[:-1], self._offsets[1:])
+        ]
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nparts={len(self._parts)})"
 
