@@ -12,11 +12,11 @@ Lotka-Volterra with a mass from (10, 5), parameters (1, 0.1, 0.075, 1.5).
   against RK4 stepping to :math:`t^*` exactly in 1350 steps, falls at
   rate :math:`\min(p, p^* + 1)`, :math:`p^*` the extension's order:
   1 (Euler), 2 (Crank-Nicolson, Heun, implicit midpoint), 4 (RK4, whose
-  extension is order 3), 2 for SDIRK3, whose default linear extension
-  caps it, and for the multistep methods their own polynomials' (BDF2
-  and Adams-Bashforth 2: 2; Adams-Moulton 3: 3). Measured for the last
-  refinement: 1.03, 0.97, 2.00, 2.00, 2.00, 3.96, 2.00, 2.00, 2.01,
-  3.00; asserted within 0.2.
+  extension is order 3), 2 for SDIRK3 and ESDIRK3(2)5L[2]SA, whose
+  default linear extension caps them, and for the multistep methods
+  their own polynomials' (BDF2 and Adams-Bashforth 2: 2; Adams-Moulton
+  3: 3). Measured for the last refinement: 1.03, 0.97, 2.00, 2.00, 2.00,
+  3.96, 2.00, 2.00 (ESDIRK), 2.00, 2.01, 3.00; asserted within 0.2.
 - The multistep coefficients on the variable-step span (0, 0.1, 0.25):
   BDF's are its interpolant of y (the new state at theta = 1, y_n at 0,
   constants and linears reproduced), Adams' the partial integrals of
@@ -103,6 +103,7 @@ _RATE = {
     "Heun": 2,
     "classical RK4": 4,
     "Alexander SDIRK3": 2,
+    "ESDIRK3(2)5L[2]SA": 2,
     "BDF2": 2,
     "Adams-Bashforth 2": 2,
     "Adams-Moulton 3": 3,
@@ -114,9 +115,7 @@ class _Case(Generic[Array]):
     """A stepper of a tableau or multistep method on Lotka-Volterra and
     its trajectory at ``LV_PARAM`` over ``times``."""
 
-    def __init__(
-        self, bkd: Backend[Array], method: Method, times: list[float]
-    ) -> None:
+    def __init__(self, bkd: Backend[Array], method: Method, times: list[float]) -> None:
         self.bkd = bkd
         self.model = lotka_volterra_with_mass(bkd)
         self.stepper: Stepper[Array] = make_stepper(
@@ -260,9 +259,7 @@ class TestMultistepCoefficients:
 
 class TestTermAtTimes:
     @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
-    def test_conformance(
-        self, bkd: Backend[Array], make: Callable[[], Method]
-    ) -> None:
+    def test_conformance(self, bkd: Backend[Array], make: Callable[[], Method]) -> None:
         case = _Case(bkd, make(), TIMES)
         functional = TrajectoryFunctional.from_terms(
             bkd, 1, step_terms=(case.misfit(),)
@@ -345,9 +342,7 @@ class TestTermAtTimes:
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd, heun(), TIMES)
-        term = MisfitTerm(
-            bkd, {0: (StateEntries(bkd, 2, [0]), bkd.asarray([[1.0]]))}
-        )
+        term = MisfitTerm(bkd, {0: (StateEntries(bkd, 2, [0]), bkd.asarray([[1.0]]))})
         with pytest.raises(TypeError, match="StateTermProtocol"):
             TermAtTimes(object(), case.extension(), (0.1,), bkd)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="ContinuousExtensionProtocol"):

@@ -6,7 +6,9 @@ y^\top y / 100 + (s^\top p)(\mathbf 1^\top y)` by the stepper's own
 method (a recursion-weighted quadrature step term); an observation state
 term :math:`(c^\top p)\, y_m^\top y_m / 10` at stored states 2, 5 and the
 last; a Tikhonov parameter term :math:`0.15\, p^\top p`. Every check is
-judged by the report with its default tolerances.
+judged by the report with its default tolerances, by central
+differences: forward ones bottom out near 1e-6 for the five-stage
+ESDIRK, at the checker's tolerance.
 
 - Every term passes everywhere it reads the trajectory, first and second
   derivatives, for every tableau and multistep method; so does a stack of
@@ -195,7 +197,11 @@ class _Case(Generic[Array]):
         self.store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
         Integrator(self.stepper).solve(bkd.asarray(START), STEPS, self.store)
         self.checker: TrajectoryTermChecker[Array, Array] = TrajectoryTermChecker(
-            self.stepper, bkd, backend_sample(bkd), set_param=self.set_param
+            self.stepper,
+            bkd,
+            backend_sample(bkd),
+            set_param=self.set_param,
+            central=True,
         )
 
     def set_param(self, param: Array) -> None:

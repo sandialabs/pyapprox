@@ -5,12 +5,14 @@ order (computed from its coefficients: first order :math:`\sum b = 1`,
 second :math:`\sum b c = 1/2`, third :math:`\sum b c^2 = 1/3` and
 :math:`b^\top A c = 1/6`, fourth the four further conditions) and has the
 declared structure (explicit, trivial first stage, stiffly accurate);
-malformed tableaux are refused. Continuous extensions: at theta = 0.25,
-0.5, 0.8 every tableau's weights meet the conditions of its extension's
-order with theta^k/k! on the right (3 for RK4, 2 for Heun and
-Crank-Nicolson, 1 for the default theta b), with b(0) = 0 and b(1) = b;
-RK4's fails an order-4 condition; a misshaped or mis-summed extension and
-a theta outside [0, 1] are refused.
+ESDIRK3(2)5L[2]SA has stage order 2 and SDIRK3 stage order 1, each
+failing the next stage-order condition; malformed tableaux are refused.
+Continuous extensions: at theta = 0.25, 0.5, 0.8 every tableau's weights
+meet the conditions of its extension's order with theta^k/k! on the
+right (3 for RK4, 2 for Heun and Crank-Nicolson, 1 for the default
+theta b), with b(0) = 0 and b(1) = b; RK4's fails an order-4 condition;
+a misshaped or mis-summed extension and a theta outside [0, 1] are
+refused.
 
 Linear step: on :math:`M \dot y = K y` (3 states, a nontrivial mass) one
 step from :math:`y_n` equals the closed-form Runge-Kutta update, stages
@@ -24,7 +26,7 @@ Nonlinear step: on Lotka-Volterra with a nontrivial mass, the step
 residual vanishes at the computed unknown for every tableau, and the
 error at T = 0.2 against an RK4 reference with dt = 1/1600 falls at the
 method's order as dt halves from 0.05 (rates within 0.15 of 1, 1, 2, 2,
-2, 4, 3).
+2, 4, 3, 3).
 
 Opaque stack: on the mock stack, with a residual taking stack vectors
 (identity form), forward and backward Euler steps of a linear system
@@ -45,8 +47,10 @@ from pyapprox.ode.step_span import StepSpan
 from pyapprox.ode.stepper_derivatives import StepWindow
 from pyapprox.ode.tableau import (
     ButcherTableau,
+    alexander_sdirk3,
     backward_euler,
     classical_rk4,
+    esdirk3_5l2sa,
     forward_euler,
     heun,
 )
@@ -110,6 +114,18 @@ class TestTableaux:
         assert tableau.is_explicit() == explicit
         assert tableau.has_trivial_first_stage() == trivial
         assert tableau.is_stiffly_accurate() == stiff
+
+    @pytest.mark.parametrize("make, order", [(esdirk3_5l2sa, 2), (alexander_sdirk3, 1)])
+    def test_stage_order(self, make: Callable[[], ButcherTableau], order: int) -> None:
+        """Stage order q: sum_j a_ij c_j^(k-1) = c_i^k / k on every stage
+        for k <= q, and not for k = q + 1."""
+        a, _, c = _arrays(make())
+
+        def defect(k: int) -> float:
+            return float(np.max(np.abs(a @ c ** (k - 1) - c**k / k)))
+
+        assert all(defect(k) < 1e-14 for k in range(1, order + 1))
+        assert defect(order + 1) > 1e-3
 
     @pytest.mark.parametrize("make", [entry[0] for entry in TABLEAUX], ids=TABLEAU_IDS)
     def test_continuous_extension_order_conditions(

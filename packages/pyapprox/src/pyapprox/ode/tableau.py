@@ -26,6 +26,7 @@ weights are :math:`\theta b`, linear interpolation over the step
 """
 
 from dataclasses import dataclass
+from math import sqrt
 from typing import Optional, Tuple
 
 _TOL = 1e-14
@@ -241,4 +242,40 @@ def alexander_sdirk3() -> ButcherTableau:
         b=(b1, b2, gamma),
         c=(gamma, tau, 1.0),
         name="Alexander SDIRK3",
+    )
+
+
+def esdirk3_5l2sa() -> ButcherTableau:
+    """Kennedy and Carpenter's ESDIRK3(2)5L[2]SA: a trivial explicit first
+    stage and four implicit stages with diagonal :math:`\\gamma = 9/40`,
+    order 3, stage order 2, L-stable and stiffly accurate, every stage
+    I-stable (Kennedy & Carpenter, NASA/TM-2016-219173, Table 10).
+
+    Stage order 2 (:math:`\\sum_j a_{ij} c_j = c_i^2/2` on every stage)
+    limits the order reduction of a stiffly accurate method on
+    differential-algebraic systems, e.g. the pressure of incompressible
+    flow, where a stage-order-1 method such as :func:`alexander_sdirk3`
+    loses more. The embedded pair is not included.
+    """
+    s2 = sqrt(2.0)
+    gamma = 9.0 / 40.0
+    a21 = 9.0 / 40.0
+    a31 = 9.0 * (1.0 + s2) / 80.0
+    a41 = (22.0 + 15.0 * s2) / (80.0 * (1.0 + s2))
+    a43 = -7.0 / (40.0 * (1.0 + s2))
+    b1 = (2398.0 + 1205.0 * s2) / (2835.0 * (4.0 + 3.0 * s2))
+    b3 = -2374.0 * (1.0 + 2.0 * s2) / (2835.0 * (5.0 + 3.0 * s2))
+    b4 = 5827.0 / 7560.0
+    b = (b1, b1, b3, b4, gamma)
+    return ButcherTableau(
+        a=(
+            (0.0, 0.0, 0.0, 0.0, 0.0),
+            (a21, gamma, 0.0, 0.0, 0.0),
+            (a31, a31, gamma, 0.0, 0.0),
+            (a41, a41, a43, gamma, 0.0),
+            b,
+        ),
+        b=b,
+        c=(0.0, 9.0 / 20.0, 9.0 * (2.0 + s2) / 40.0, 3.0 / 5.0, 1.0),
+        name="ESDIRK3(2)5L[2]SA",
     )

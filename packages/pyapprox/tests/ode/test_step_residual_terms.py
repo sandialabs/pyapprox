@@ -15,7 +15,9 @@ prey entry.
   of :math:`M (y_{n+1} - y_n) - h f(y_{n+1}, t_{n+1})` computed from the
   stored states and the model directly (to 1e-12), and is not zero.
 - The term passes the term checker at every step of the pinned
-  trajectory, first and second derivatives, for every method.
+  trajectory, first and second derivatives, for every method, by central
+  differences: forward ones bottom out near 4e-6 for the five-stage
+  ESDIRK, above the checker's 1e-6, though their curves are correct V's.
 - The functional summed over steps has its gradient pass central
   differences and its Hessian-vector product central differences of the
   gradient (smallest error below 1e-7), for backward Euler, Heun and
@@ -143,13 +145,15 @@ class TestTheFlux:
             assert abs(bkd.to_float(expected)) > 1e-3
 
     @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
-    def test_conformance(
-        self, bkd: Backend[Array], make: Callable[[], Method]
-    ) -> None:
+    def test_conformance(self, bkd: Backend[Array], make: Callable[[], Method]) -> None:
         case = _Case(bkd, make(), pinned=True)
         functional = TrajectoryFunctional.from_terms(bkd, 1, step_terms=(case.flux(),))
         checker: TrajectoryTermChecker[Array, Array] = TrajectoryTermChecker(
-            case.unconstrained, bkd, backend_sample(bkd), case.model.set_param
+            case.unconstrained,
+            bkd,
+            backend_sample(bkd),
+            case.model.set_param,
+            central=True,
         )
         report = checker.check(functional, case.store, param=case.param)
         assert report.failures() == []
@@ -163,9 +167,7 @@ class TestTheFlux:
         case = _Case(bkd, make(), pinned=True)
         flux = case.flux()
         functional = TrajectoryFunctional.from_terms(bkd, 1, step_terms=(flux,))
-        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(
-            case.solver
-        )
+        sweeps: TrajectoryDerivatives[Array, Array] = TrajectoryDerivatives(case.solver)
 
         def value(samples: Array) -> Array:
             totals = []
@@ -203,9 +205,7 @@ class TestTheFlux:
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd, backward_euler(), pinned=True)
-        prey = LastBlock(
-            StateEntries(bkd, 2, [0]), case.unconstrained.residual_space()
-        )
+        prey = LastBlock(StateEntries(bkd, 2, [0]), case.unconstrained.residual_space())
         with pytest.raises(TypeError, match="DifferentiableStepperProtocol"):
             StepResidualTerm(object(), prey)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="StateObservationProtocol"):
@@ -239,9 +239,7 @@ class _MockEntry:
 
 class TestOnAnOpaqueStack:
     @pytest.mark.parametrize("make", [forward_euler, backward_euler])
-    def test_the_term_uses_only_the_spaces(
-        self, make: Callable[[], Any]
-    ) -> None:
+    def test_the_term_uses_only_the_spaces(self, make: Callable[[], Any]) -> None:
         bkd = NumpyBkd()
         stepper = mock_stepper(make())
         space = stepper.system().space

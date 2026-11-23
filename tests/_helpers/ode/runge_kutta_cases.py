@@ -43,6 +43,7 @@ from pyapprox.ode.tableau import (
     backward_euler,
     classical_rk4,
     crank_nicolson,
+    esdirk3_5l2sa,
     forward_euler,
     heun,
     implicit_midpoint,
@@ -74,6 +75,7 @@ TABLEAUX: List[tuple[Callable[[], ButcherTableau], int, bool, bool, bool]] = [
     (heun, 2, True, True, False),
     (classical_rk4, 4, True, True, False),
     (alexander_sdirk3, 3, False, False, True),
+    (esdirk3_5l2sa, 3, False, True, True),
 ]
 """``(tableau, order, explicit, trivial first stage, stiffly accurate)``."""
 
