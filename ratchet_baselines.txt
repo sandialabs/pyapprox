@@ -25,3 +25,6 @@ optional-test-import:numba=0
 optional-test-import-in-function:torch=0
 optional-test-import-in-function:jax=0
 optional-test-import-in-function:numba=0
+# Backend protocol methods without a conformance row
+# (NOT_YET_COVERED in tests/util/backends/test_backend_conformance.py).
+conformance_uncovered=116
