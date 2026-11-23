@@ -26,7 +26,8 @@ from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.protocols import Array
 
 
 def _create_basis_expansion(
@@ -346,34 +347,31 @@ class TestConditionalIndependentJoint:
         with pytest.raises(ValueError):
             joint.logpdf(x, y)
 
-    def test_logpdf_jacobian_wrt_params_autograd(self, bkd):
-        """Verify logpdf_jacobian_wrt_params matches torch autograd."""
+    def test_logpdf_jacobian_wrt_params_autograd(
+        self, autodiff_bkd: AutodiffBackend[Array]
+    ) -> None:
+        """Verify logpdf_jacobian_wrt_params matches autodiff."""
         # TODO: Change to verifying with derivative checker
-        if not isinstance(bkd, NumpyBkd):
-            import torch
-            from torch.autograd.functional import jacobian as torch_jacobian
+        bkd = autodiff_bkd
+        joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
-            joint = _create_joint(bkd, nvars=2, nconditionals=2)
+        # Fix x and y values
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
+        y = bkd.asarray(np.random.randn(2, 3))
 
-            # Fix x and y values
-            np.random.seed(42)
-            x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
-            y = bkd.asarray(np.random.randn(2, 3))
+        # Get analytical jacobian
+        analytical_jac = joint.logpdf_jacobian_wrt_params(x, y)
 
-            # Get analytical jacobian
-            analytical_jac = joint.logpdf_jacobian_wrt_params(x, y)
+        # Get autodiff jacobian
+        def logpdf_from_params(params: Array) -> Array:
+            joint.hyp_list().set_active_values(params)
+            for cond in joint._conditionals:
+                cond._mean_func.sync_params()
+                cond._log_stdev_func.sync_params()
+            return bkd.flatten(joint.logpdf(x, y))
 
-            # Get autograd jacobian
-            def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
-                joint.hyp_list().set_active_values(params)
-                for cond in joint._conditionals:
-                    cond._mean_func.sync_params()
-                    cond._log_stdev_func.sync_params()
-                return joint.logpdf(x, y).flatten()
+        params = joint.hyp_list().get_active_values()
+        autodiff_jac = bkd.jacobian(logpdf_from_params, params)
 
-            params = joint.hyp_list().get_active_values()
-            autograd_jac = torch_jacobian(logpdf_from_params, params)
-
-            bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
-        else:
-            pytest.skip("Torch-only test")
+        bkd.assert_allclose(analytical_jac, autodiff_jac, rtol=1e-10)

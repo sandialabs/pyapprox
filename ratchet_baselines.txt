@@ -22,6 +22,6 @@ optional-test-import:torch=0
 optional-test-import:jax=0
 optional-test-import:numba=0
 # Tests and fixtures importing one in their body without skipping first.
-optional-test-import-in-function:torch=5
+optional-test-import-in-function:torch=0
 optional-test-import-in-function:jax=0
 optional-test-import-in-function:numba=0
