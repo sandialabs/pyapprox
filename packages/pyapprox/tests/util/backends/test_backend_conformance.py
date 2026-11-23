@@ -14,6 +14,7 @@ import pytest
 
 import pyapprox
 from pyapprox._moved_ratchet import BASELINE_FILE
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.backend_conformance import (
@@ -25,6 +26,7 @@ from tests._helpers.backend_conformance import (
     Case,
     ConformanceBackend,
     case_id,
+    check_jacobian,
     jit_call,
     run_case,
 )
@@ -65,6 +67,16 @@ def jit_bkd(request: pytest.FixtureRequest) -> ConformanceBackend[Any]:
 
 
 _TRACEABLE = [case for case in CASES if not case.eager_only and case.raises is None]
+
+
+_DIFFERENTIABLE = [case for case in CASES if case.differentiable]
+
+
+@pytest.mark.parametrize("case", _DIFFERENTIABLE, ids=case_id)
+def test_jacobian(autodiff_bkd: AutodiffBackend[Array], case: Case) -> None:
+    """Every differentiable row's ``bkd.jacobian`` against central
+    differences, on every autodiff backend."""
+    check_jacobian(autodiff_bkd, case)
 
 
 @pytest.mark.parametrize("case", _TRACEABLE, ids=case_id)

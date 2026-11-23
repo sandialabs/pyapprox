@@ -32,9 +32,15 @@ only shrink: its length is the ``conformance_uncovered`` baseline in
 it arrives with a row.
 
 The tests are in ``packages/pyapprox/tests/util/backends/``:
-``test_backend_conformance.py`` runs every row on every backend and the
-ratchet; ``test_backend_conformance_torch.py`` runs them compiled and
-under ``gradcheck``.
+``test_backend_conformance.py`` runs every row on every backend, every
+traceable row compiled through ``bkd.jit`` (:func:`row_kernel`), every
+differentiable row's ``bkd.jacobian`` against central differences
+(:func:`check_jacobian`), and the ratchets;
+``test_backend_conformance_jax.py`` runs the rows on ``JaxBkd`` until
+it joins the ``bkd`` fixture.
+
+This module depends only on the backend package, NumPy and pytest, so
+the backend package could ship it as a public suite for other backends.
 """
 
 from dataclasses import dataclass, field
@@ -57,6 +63,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, ArrayLike, KernelResult
 
 
@@ -549,6 +556,70 @@ def jit_call(
         return compiled(*_arrays(args), case_index=index)
 
     return call
+
+
+def _floating(bkd: AutodiffBackend[Array], args: Tuple[Any, ...]) -> List[Array]:
+    """The floating arrays among ``args``, also inside tuples, in order."""
+    return [a for a in _arrays(args) if bkd.is_floating_dtype(a)]
+
+
+def _replace_floating(
+    bkd: AutodiffBackend[Array], value: Any, leaves: Iterator[Array]
+) -> Any:
+    if isinstance(value, tuple):
+        return tuple(_replace_floating(bkd, v, leaves) for v in value)
+    if hasattr(value, "dtype") and hasattr(value, "shape"):
+        return next(leaves) if bkd.is_floating_dtype(value) else value
+    return value
+
+
+def check_jacobian(bkd: AutodiffBackend[Array], case: Case, step: float = 1e-3) -> None:
+    """Check ``bkd.jacobian`` of a differentiable row against central
+    differences.
+
+    The row's floating inputs are flattened into one vector ``x``; along
+    a fixed random direction ``v``, the Jacobian-vector product is
+    compared with ``(f(x + h v) - f(x - h v)) / 2h`` at ``h = step`` and
+    ``step / 2``. Central differences are exact up to rounding for
+    functions linear or quadratic in ``x``, so the row passes if the
+    error is at rounding level, or if it falls by about 4 when the step
+    halves (second order), which shows a correct Jacobian whatever the
+    function's scale. Only the backend and NumPy are used, so the check
+    stays inside the backend layer.
+    """
+    method, args = prepare(bkd, case)
+    leaves = _floating(bkd, args)
+    assert leaves, "a differentiable row needs a floating input"
+    shapes = [tuple(leaf.shape) for leaf in leaves]
+    sizes = [int(np.prod(shape)) for shape in shapes]
+    point = bkd.concatenate([bkd.reshape(leaf, (-1,)) for leaf in leaves])
+
+    def function(flat: Array) -> Array:
+        pieces, start = [], 0
+        for shape, size in zip(shapes, sizes):
+            pieces.append(bkd.reshape(flat[start : start + size], shape))
+            start += size
+        result = method(*_replace_floating(bkd, args, iter(pieces)))
+        return bkd.reshape(result, (-1,))
+
+    direction = np.random.default_rng(7).standard_normal(sum(sizes))
+    vec = bkd.asarray(direction / np.linalg.norm(direction))
+    jvp = bkd.jacobian(function, point) @ vec
+    scale = max(1.0, float(np.max(np.abs(bkd.to_numpy(jvp)), initial=0.0)))
+    errors = []
+    for h in (step, step / 2):
+        central = (function(point + h * vec) - function(point - h * vec)) / (2 * h)
+        diff = bkd.to_numpy(central - jvp)
+        errors.append(float(np.max(np.abs(diff), initial=0.0)) / scale)
+    rounding = 1e-9
+    if errors[0] < rounding and errors[1] < rounding:
+        return
+    ratio = errors[0] / errors[1]
+    assert 3.0 < ratio < 5.0, (
+        f"central-difference errors {errors[0]:.2e} at h={step:g} and "
+        f"{errors[1]:.2e} at h={step / 2:g} (ratio {ratio:.2f}, expected 4): "
+        "the Jacobian does not match the function"
+    )
 
 
 def case_id(case: Case) -> str:
