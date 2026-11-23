@@ -89,6 +89,10 @@ from pyapprox.pde.models.galerkin.verification import (
     boundary_conditions,
     field,
     forcing,
+    galerkin_h1_seminorm_error,
+    galerkin_l2_error,
+    galerkin_max_error,
+    galerkin_nodal_error,
     state_law,
     vector_field,
 )
@@ -103,6 +107,7 @@ from pyapprox.pde.verification.conditions import (
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.protocols import SpaceLevel
+from pyapprox.pde.verification.study import Converges, Recovers, run_study, verify
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
@@ -340,6 +345,68 @@ class TestRates:
         adr = _ADR("1 + x**2/2", ["y", "-x"], "-u", conservative)
         problem = _problem("exp(x)*cos(y)", adr, Disk(), {"circle": Robin(2.0)})
         converges(problem, SkfemDisk([2, 3, 4, 5]), 1, adr, 2.0)
+
+
+class TestNorms:
+    @pytest.mark.parametrize("degree,meshes", [(1, [4, 8, 16, 32]), (2, [2, 4, 8, 16])])
+    def test_rates_of_each_norm(self, degree: int, meshes: List[int]) -> None:
+        """The 2D mixed-condition case of one study, every norm from one
+        solve per level, on quads: L2 at p + 1, the H1 seminorm at p, the
+        largest error at the quadrature points at p + 1, and the nodal
+        error at p + 1, which a structured mesh may beat. Measured: P1
+        2.00, 1.00, 2.00, 2.00; P2 2.99, 1.99, 2.96, and 3.86 at the nodes
+        (Q2 nodal superconvergence)."""
+        adr = _ADR("1 + x*y/4", ["1 - y", "x/2"], "-u - u**3/4", False)
+        box = Box([(0.0, 1.0), (0.0, 1.0)])
+        problem = _problem("exp(x/2)*sin(pi*y) + x*y", adr, box, _MIXED_2D)
+        discretizer = GalerkinDiscretizer(StructuredBox(meshes), Lagrange(degree), adr)
+        study = run_study(
+            problem,
+            discretizer,
+            [
+                galerkin_l2_error(),
+                galerkin_h1_seminorm_error(),
+                galerkin_max_error(),
+                galerkin_nodal_error(),
+            ],
+        )
+        assert study.labels() == ("l2", "h1", "max", "nodal")
+        p = float(degree)
+        for check in [
+            Converges(p + 1, last=3, column="l2"),
+            Converges(p, last=3, column="h1"),
+            Converges(p + 1, last=3, column="max"),
+            Converges(p + 1, last=3, column="nodal", superconvergence=p + 2),
+        ]:
+            result = check.verify(study)
+            assert result.passed, result.message
+
+    def test_recovers_relative_to_the_norm(self) -> None:
+        """A P1 solution scaled by 1e6 is recovered to 1e-12 of its own
+        norm in every norm; no absolute tolerance would serve both
+        scales."""
+        adr = _ADR("1", ["1", "0"], "0", False)
+        box = Box([(0.0, 1.0), (0.0, 1.0)])
+        for scale in (1.0, 1e6):
+            problem = _problem(f"{scale}*(1 + x - 2*y)", adr, box, _MIXED_2D)
+            discretizer = GalerkinDiscretizer(StructuredBox([3]), Lagrange(1), adr)
+            for measure in [
+                galerkin_l2_error(),
+                galerkin_h1_seminorm_error(),
+                galerkin_max_error(),
+                galerkin_nodal_error(),
+            ]:
+                result = verify(problem, discretizer, measure, Recovers(rtol=1e-12))
+                assert result.passed, (measure, result.message)
+
+    def test_refuses_unknown_and_empty_fields(self) -> None:
+        adr = _ADR("1", ["1"], "0", False)
+        problem = _problem("x", adr, Box([(0.0, 1.0)]), _MIXED_1D)
+        discretizer = GalerkinDiscretizer(StructuredBox([2]), Lagrange(1), adr)
+        with pytest.raises(ValueError, match="measure some of the fields"):
+            run_study(problem, discretizer, [galerkin_l2_error(["w"])])
+        with pytest.raises(ValueError, match="at least one field"):
+            galerkin_h1_seminorm_error([])
 
 
 @pytest.mark.parametrize("conservative", [False, True])

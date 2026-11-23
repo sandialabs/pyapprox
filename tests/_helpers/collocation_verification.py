@@ -11,10 +11,12 @@ from typing import Callable, Dict, Optional, Sequence
 
 from pyapprox.pde.models.collocation.verification import (
     ChebyshevBox,
+    CollocationApproximation,
     CollocationDiscretizer,
     InitialGuessProtocol,
     LevelFamilyProtocol,
     SystemFactoryProtocol,
+    collocation_l2_error,
 )
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
@@ -26,7 +28,7 @@ from pyapprox.pde.verification.domains import DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.study import (
     DecaysExponentially,
-    L2Error,
+    Measure,
     Recovers,
     Stalls,
     verify,
@@ -37,6 +39,10 @@ from pyapprox.util.rootfinding.nonlinear import Newton, NonlinearSolverProtocol
 # A level family built from node counts per direction and a backend, as
 # ChebyshevBox, ChebyshevAnnulus and ChebyshevEllipticalAnnulus are.
 _Family = Callable[[Sequence[int], Backend[Array]], LevelFamilyProtocol[Array]]
+
+# The stack's L2 measure on a backend's arrays; written out at each use,
+# since the factory's backend is not inferred inside a ``verify`` call.
+_L2 = Measure[CollocationApproximation[Array]]
 
 _KINDS: Dict[str, ConditionProtocol] = {
     "D": Dirichlet(),
@@ -80,7 +86,8 @@ def recovers(
         nonlinear=nonlinear,
         initial_guess=initial_guess,
     )
-    result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
+    l2: _L2[Array] = collocation_l2_error()
+    result = verify(problem, discretizer, l2, Recovers(1e-10))
     assert result.passed, result.message
 
 
@@ -106,7 +113,8 @@ def decays(
         nonlinear=nonlinear,
         initial_guess=initial_guess,
     )
-    result = verify(problem, discretizer, L2Error(), DecaysExponentially(rate, last))
+    l2: _L2[Array] = collocation_l2_error()
+    result = verify(problem, discretizer, l2, DecaysExponentially(rate, last))
     assert result.passed, result.message
 
 
@@ -130,5 +138,6 @@ def stalls(
         nonlinear=nonlinear,
         initial_guess=initial_guess,
     )
-    result = verify(problem, discretizer, L2Error(), Stalls(below=0.5))
+    l2: _L2[Array] = collocation_l2_error()
+    result = verify(problem, discretizer, l2, Stalls(below=0.5))
     assert result.passed, result.message

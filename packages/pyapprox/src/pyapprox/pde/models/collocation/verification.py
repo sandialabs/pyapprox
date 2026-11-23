@@ -47,10 +47,11 @@ leave it, as floats.
   solving, and solves a level through ``collocation_steady_residual`` +
   ``SteadySystem`` with a dense LU, from the state an injected
   :class:`InitialGuessProtocol` gives (:class:`ConstantGuess` zero by
-  default). It returns :class:`CollocationApproximation` objects, whose
-  L2 errors are measured by Gauss quadrature mapped onto the domain and
-  nodal errors at the collocation nodes. Spectral studies are judged by
-  the core's ``DecaysExponentially`` along the degree.
+  default). It returns :class:`CollocationApproximation` objects, which
+  the stack's measures read per field: :func:`collocation_l2_error` by
+  Gauss quadrature mapped onto the domain, :func:`collocation_nodal_error`
+  at the collocation nodes. Spectral studies are judged by the core's
+  ``DecaysExponentially`` along the degree.
 
 Natural data: the core states them with the outward flux :math:`q\cdot
 n`, which is what this stack's flux normal operator computes, so Neumann
@@ -148,6 +149,7 @@ from pyapprox.pde.verification.protocols import (
     Sizes,
     SpaceLevel,
 )
+from pyapprox.pde.verification.study import Measure, Measurement, field_label
 from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
 from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
@@ -1446,13 +1448,17 @@ def mean_value_rows(
 
 class CollocationApproximation(Generic[Array]):
     """One level's collocation solution of a problem's fields, with errors
-    against the exact solution at the collocation nodes.
+    against the exact solution, each beside the exact solution's norm in
+    the same norm (a :class:`~pyapprox.pde.verification.study.
+    Measurement`).
 
     The state stacks one component per field in the problem's field
     order, each at the nodes of the mesh it lives on
-    (:meth:`ChebyshevLevel.layout`). Errors combine over the fields: the
-    L2 error is the root of the sum of their squared L2 errors, the nodal
-    error their largest.
+    (:meth:`ChebyshevLevel.layout`). Errors combine over the fields asked
+    for (default all): the L2 error is the root of the sum of their
+    squared L2 errors, the nodal error their largest. The measures
+    (:func:`collocation_l2_error`, :func:`collocation_nodal_error`) read
+    it.
 
     Parameters
     ----------
@@ -1501,16 +1507,20 @@ class CollocationApproximation(Generic[Array]):
                 [solution(mesh.points())[k] for k, mesh in enumerate(meshes)]
             )
             interpolations = [grid.interpolation(mesh, bkd) for mesh in meshes]
-        self._error = exact - state
-        blocks = [
-            state[layout.offset(k) : layout.offset(k) + layout.npts(k)]
+        pieces = [
+            slice(layout.offset(k), layout.offset(k) + layout.npts(k))
             for k in range(layout.nfields())
         ]
-        interpolated = bkd.hstack(
-            [matrix @ block for matrix, block in zip(interpolations, blocks)]
-        )
-        self._grid_error = bkd.reshape(solution(grid.points), (-1,)) - interpolated
-        self._weights = bkd.tile(grid.weights, (len(fields),))
+        # Per field: the exact nodal values, and the exact values and the
+        # interpolant's on the error grid.
+        self._nodal = [(exact[piece], state[piece]) for piece in pieces]
+        on_grid = solution(grid.points)
+        self._on_grid = [
+            (on_grid[k], matrix @ state[piece])
+            for k, (matrix, piece) in enumerate(zip(interpolations, pieces))
+        ]
+        self._weights = grid.weights
+        self._fields = tuple(fields)
         self._bkd, self._state, self._h = bkd, state, level.h()
         self._nodes = max(level.mesh().npts_per_dim())
 
@@ -1526,21 +1536,108 @@ class CollocationApproximation(Generic[Array]):
         """The nodal values, field by field. Shape: (nstates,)"""
         return self._state
 
-    def l2_error(self) -> float:
-        r""":math:`\|u^* - u_h\|_{L^2}`, :math:`u_h` the Lagrange
-        interpolant of the nodal values, by Gauss-Legendre quadrature with
-        twice the level's nodes per direction against :math:`u^*` itself,
-        summed over the fields. It sees the error between the nodes, which
-        a quadrature at the nodes would not."""
-        bkd = self._bkd
-        squared = bkd.sum(self._weights * self._grid_error**2)
-        return math.sqrt(bkd.to_float(squared))
+    def _chosen(self, fields: Optional[Sequence[str]]) -> List[int]:
+        """The indices of ``fields`` (default all).
 
-    def nodal_error(self) -> float:
-        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the collocation nodes
-        and the fields."""
+        Raises
+        ------
+        ValueError
+            If ``fields`` is empty or names an unknown field.
+        """
+        if fields is None:
+            return list(range(len(self._fields)))
+        unknown = set(fields) - set(self._fields)
+        if not fields or unknown:
+            raise ValueError(
+                f"measure some of the fields {list(self._fields)}, got {list(fields)}"
+            )
+        return [k for k, name in enumerate(self._fields) if name in fields]
+
+    def l2(self, fields: Optional[Sequence[str]] = None) -> Measurement:
+        r""":math:`\|u^* - u_h\|_{L^2}` and :math:`\|u^*\|_{L^2}` over
+        ``fields`` (default all), :math:`u_h` the Lagrange interpolant of
+        the nodal values, by Gauss-Legendre quadrature with twice the
+        level's nodes per direction against :math:`u^*` itself. It sees
+        the error between the nodes, which a quadrature at the nodes would
+        not.
+
+        Raises
+        ------
+        ValueError
+            If ``fields`` is empty or names an unknown field.
+        """
         bkd = self._bkd
-        return bkd.to_float(bkd.max(bkd.abs(self._error)))
+        error, norm = 0.0, 0.0
+        for k in self._chosen(fields):
+            exact, interpolant = self._on_grid[k]
+            error += bkd.to_float(bkd.sum(self._weights * (exact - interpolant) ** 2))
+            norm += bkd.to_float(bkd.sum(self._weights * exact**2))
+        return Measurement(math.sqrt(error), math.sqrt(norm))
+
+    def l2_error(self, fields: Optional[Sequence[str]] = None) -> float:
+        r""":math:`\|u^* - u_h\|_{L^2}` over ``fields`` (default all); see
+        :meth:`l2`."""
+        return self.l2(fields).value
+
+    def nodal(self, fields: Optional[Sequence[str]] = None) -> Measurement:
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` and :math:`\max_i
+        |u^*(x_i)|` over the collocation nodes of ``fields`` (default all).
+
+        Raises
+        ------
+        ValueError
+            If ``fields`` is empty or names an unknown field.
+        """
+        bkd = self._bkd
+        error, norm = 0.0, 0.0
+        for k in self._chosen(fields):
+            exact, values = self._nodal[k]
+            error = max(error, bkd.to_float(bkd.max(bkd.abs(exact - values))))
+            norm = max(norm, bkd.to_float(bkd.max(bkd.abs(exact))))
+        return Measurement(error, norm)
+
+    def nodal_error(self, fields: Optional[Sequence[str]] = None) -> float:
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over ``fields`` (default
+        all); see :meth:`nodal`."""
+        return self.nodal(fields).value
+
+
+def collocation_l2_error(
+    fields: Optional[Sequence[str]] = None, label: Optional[str] = None
+) -> Measure[CollocationApproximation[Array]]:
+    """The L2 error of ``fields`` (default all) beside the exact
+    solution's L2 norm; see :meth:`CollocationApproximation.l2`. Label
+    ``"l2"`` or ``"l2(<fields>)"`` by default.
+
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    chosen = None if fields is None else tuple(fields)
+    return Measure(
+        label or field_label("l2", chosen),
+        lambda approximation: approximation.l2(chosen),
+    )
+
+
+def collocation_nodal_error(
+    fields: Optional[Sequence[str]] = None, label: Optional[str] = None
+) -> Measure[CollocationApproximation[Array]]:
+    """The largest error at the collocation nodes of ``fields`` (default
+    all); see :meth:`CollocationApproximation.nodal`. Label ``"nodal"``
+    or ``"nodal(<fields>)"`` by default.
+
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    chosen = None if fields is None else tuple(fields)
+    return Measure(
+        label or field_label("nodal", chosen),
+        lambda approximation: approximation.nodal(chosen),
+    )
 
 
 class CollocationDiscretizer(Generic[Array]):

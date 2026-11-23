@@ -31,6 +31,11 @@ repository's skfem Galerkin stack. Bound to skfem and NumPy.
   ``galerkin_steady_residual`` + ``SteadySystem``, and returns
   :class:`GalerkinApproximation` objects, whose errors are integrated by
   skfem quadrature against the exact solution itself.
+- The measures a study records of them, per field and each beside the
+  exact solution's norm: :func:`galerkin_l2_error` (optionally of a
+  zero-mean field), :func:`galerkin_h1_seminorm_error`,
+  :func:`galerkin_max_error` (at quadrature points) and
+  :func:`galerkin_nodal_error`.
 
 Natural data: the core states them with the outward flux :math:`q\,n`;
 this stack's natural terms take :math:`D\,\partial_n u - (v\cdot n) u =
@@ -42,6 +47,7 @@ forms pass quadrature points ``(ndim, nelem, nquad)`` and states
 ``(nelem, nquad)``; :class:`SkfemPoints` is the one place that fits them.
 """
 
+import math
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -59,7 +65,7 @@ from typing import (
 import numpy as np
 import sympy as sp
 from numpy.typing import NDArray
-from skfem import Basis, Functional, MeshTri
+from skfem import Basis, MeshTri
 
 from pyapprox.implicitfunction.setups import KeepAll
 from pyapprox.implicitfunction.steady_system import SteadySystem
@@ -117,6 +123,7 @@ from pyapprox.pde.verification.protocols import (
     Sizes,
     SpaceLevel,
 )
+from pyapprox.pde.verification.study import Measure, Measurement, field_label
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.expressions.names import Names
 from pyapprox.util.expressions.parsing import Value, parse
@@ -1140,15 +1147,37 @@ def _mesh_size(basis: GalerkinBasisProtocol[_Np]) -> float:
     return float(np.sqrt((differences**2).sum(axis=0)).max())
 
 
-class GalerkinApproximation:
-    """One level's Galerkin solution, with errors against the exact
-    solution: of a scalar or vector field, or of the fields of a mixed
-    basis, optionally only some of them.
+@dataclass(frozen=True)
+class _AtQuadrature:
+    """A field's solution and exact solution at the quadrature points.
 
-    Errors combine over the measured fields: the L2 error is the root of
-    the sum of their squared L2 errors, the nodal error their largest.
-    Fields converging at different rates (Taylor-Hood velocity and
-    pressure) are measured apart.
+    Values have shape ``(nrows, nelem, nquad)``, gradients ``(nrows, ndim,
+    nelem, nquad)``, weights (``dx``) ``(nelem, nquad)``."""
+
+    uh: _Np
+    exact: _Np
+    dx: _Np
+
+
+def _integral(values: _Np, dx: _Np) -> float:
+    """The quadrature sum of ``values`` over the cells, ``values`` shaped
+    as ``dx`` after any leading axes are summed."""
+    return float((values * dx).sum())
+
+
+class GalerkinApproximation:
+    """One level's Galerkin solution, with its errors against the exact
+    solution of a scalar or vector field, or of some of the fields of a
+    mixed basis, in several norms. Each error comes with the exact
+    solution's norm in the same norm (a
+    :class:`~pyapprox.pde.verification.study.Measurement`), which a
+    relative tolerance is taken of.
+
+    Errors combine over the fields asked for: an integral norm is the root
+    of the sum of the fields' squared norms, a pointwise one their
+    largest. Fields converging at different rates (Taylor-Hood velocity
+    and pressure) are asked for apart, from the same solution. The
+    measures (:func:`galerkin_l2_error` and the others) read it.
 
     Parameters
     ----------
@@ -1163,16 +1192,12 @@ class GalerkinApproximation:
     state : NDArray
         The solution's DOFs. Shape: ``(ndofs,)``.
     intorder : int
-        The quadrature order of the L2 error.
-    measured : Sequence[str], optional
-        The rows whose error is measured, whole basis fields only.
-        Default: all.
+        The quadrature order of the integral norms.
 
     Raises
     ------
     ValueError
-        If ``rows`` are not one per component, or ``measured`` is empty,
-        names an unknown row, or splits a basis field.
+        If ``rows`` are not one per component of ``basis``.
     """
 
     def __init__(
@@ -1182,33 +1207,16 @@ class GalerkinApproximation:
         basis: _AnyBasis,
         state: _Np,
         intorder: int,
-        measured: Optional[Sequence[str]] = None,
     ) -> None:
+        self._problem, self._rows = problem, tuple(rows)
         self._state, self._intorder = state, intorder
-        blocks = _blocks(basis, rows)
-        if measured is not None:
-            chosen = set(measured)
-            unknown = chosen - set(rows)
-            if not chosen or unknown:
-                raise ValueError(
-                    f"measure some of the rows {list(rows)}, got {list(measured)}"
-                )
-            split = [
-                block.rows
-                for block in blocks
-                if chosen & set(block.rows) and not set(block.rows) <= chosen
-            ]
-            if split:
-                raise ValueError(
-                    f"measure whole basis fields; {list(measured)} splits {split}"
-                )
-            blocks = [block for block in blocks if set(block.rows) <= chosen]
-        self._blocks = blocks
+        self._blocks = _blocks(basis, rows)
         self._exact = [
             SkfemPoints([problem.solution(row) for row in block.rows], problem)
-            for block in blocks
+            for block in self._blocks
         ]
-        self._h = _mesh_size(blocks[0].basis)
+        self._gradients: dict[int, SkfemPoints] = {}
+        self._h = _mesh_size(self._blocks[0].basis)
 
     def h(self) -> float:
         """The largest element diameter."""
@@ -1218,56 +1226,263 @@ class GalerkinApproximation:
         """The solution's DOFs. Shape: ``(ndofs,)``."""
         return self._state
 
-    def l2_error(self) -> float:
-        r""":math:`\|u^* - u_h\|_{L^2}`, integrated by skfem quadrature of
-        order ``intorder`` against :math:`u^*` itself; for a vector field,
-        of the Euclidean norm of the pointwise error; over the measured
-        fields."""
-        return float(
-            np.sqrt(
-                sum(
-                    self._squared_l2_error(block, exact)
-                    for block, exact in zip(self._blocks, self._exact)
-                )
+    def _chosen(self, fields: Optional[Sequence[str]]) -> List[int]:
+        """The indices of the blocks holding ``fields`` (default all).
+
+        Raises
+        ------
+        ValueError
+            If ``fields`` is empty, names an unknown field, or splits a
+            basis field.
+        """
+        if fields is None:
+            return list(range(len(self._blocks)))
+        chosen = set(fields)
+        unknown = chosen - set(self._rows)
+        if not chosen or unknown:
+            raise ValueError(
+                f"measure some of the fields {list(self._rows)}, got {list(fields)}"
             )
-        )
+        split = [
+            block.rows
+            for block in self._blocks
+            if chosen & set(block.rows) and not set(block.rows) <= chosen
+        ]
+        if split:
+            raise ValueError(
+                f"measure whole basis fields; {list(fields)} splits {split}"
+            )
+        return [i for i, block in enumerate(self._blocks) if set(block.rows) <= chosen]
 
     def _field_state(self, block: _Block) -> _Np:
         return self._state[block.offset : block.offset + block.basis.ndofs()]
 
-    def _squared_l2_error(self, block: _Block, exact: SkfemPoints) -> float:
+    def _fine(self, block: _Block) -> Any:
         skfem_basis = block.basis.skfem_basis()
-        fine = Basis(skfem_basis.mesh, skfem_basis.elem, intorder=self._intorder)
-        nrows = len(block.rows)
+        return Basis(skfem_basis.mesh, skfem_basis.elem, intorder=self._intorder)
 
-        def squared_error(w: Any) -> _Np:
-            x = np.asarray(w.x)
-            uh = np.asarray(w["uh"].value).reshape((nrows,) + x.shape[1:])
-            return np.asarray(((uh - exact(x)) ** 2).sum(axis=0))
-
-        value = Functional(squared_error).assemble(
-            fine, uh=fine.interpolate(self._field_state(block))
-        )
-        return float(value)
-
-    def nodal_error(self) -> float:
-        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the DOF locations of
-        the measured fields, each DOF against its own component."""
-        return max(
-            self._nodal_error(block, exact)
-            for block, exact in zip(self._blocks, self._exact)
+    def _values(self, index: int) -> _AtQuadrature:
+        block, fine = self._blocks[index], self._fine(self._blocks[index])
+        x = np.asarray(fine.global_coordinates().value)
+        layout = (len(block.rows),) + x.shape[1:]
+        uh = np.asarray(fine.interpolate(self._field_state(block)).value)
+        return _AtQuadrature(
+            uh.reshape(layout), self._exact[index](x), np.asarray(fine.dx)
         )
 
-    def _nodal_error(self, block: _Block, exact: SkfemPoints) -> float:
-        coords = np.asarray(block.basis.dof_coordinates())
-        dofs = np.arange(block.basis.ndofs())
-        components = (
-            np.asarray(block.basis.dof_components(dofs))
-            if isinstance(block.basis, ComponentDofsBasisProtocol)
-            else np.zeros_like(dofs)
+    def _gradients_at(self, index: int) -> _AtQuadrature:
+        block, fine = self._blocks[index], self._fine(self._blocks[index])
+        if index not in self._gradients:
+            symbols = coordinates(self._problem.coordinates())
+            self._gradients[index] = SkfemPoints(
+                [
+                    sp.diff(self._problem.solution(row), symbol)
+                    for row in block.rows
+                    for symbol in symbols
+                ],
+                self._problem,
+            )
+        x = np.asarray(fine.global_coordinates().value)
+        layout = (len(block.rows), x.shape[0]) + x.shape[1:]
+        grad = np.asarray(fine.interpolate(self._field_state(block)).grad)
+        exact = self._gradients[index](x)
+        return _AtQuadrature(
+            grad.reshape(layout), exact.reshape(layout), np.asarray(fine.dx)
         )
-        values = exact(coords)[components, dofs]
-        return float(np.abs(self._field_state(block) - values).max())
+
+    def l2(
+        self, fields: Optional[Sequence[str]] = None, zero_mean: bool = False
+    ) -> Measurement:
+        r""":math:`\|u^* - u_h\|_{L^2}` and :math:`\|u^*\|_{L^2}` over
+        ``fields`` (default all), by skfem quadrature of order
+        ``intorder``; for a vector field, of the Euclidean norm pointwise.
+
+        With ``zero_mean``, each component of the error and of :math:`u^*`
+        has its mean over the domain subtracted first: for a pressure
+        fixed only up to a constant, measured however the discrete
+        pressure was pinned.
+
+        Raises
+        ------
+        ValueError
+            As the measures, for ``fields``.
+        """
+        error, norm = 0.0, 0.0
+        for index in self._chosen(fields):
+            at = self._values(index)
+            e, u = at.uh - at.exact, at.exact
+            if zero_mean:
+                volume = _integral(np.ones_like(at.dx), at.dx)
+                e = e - (e * at.dx).sum(axis=(1, 2), keepdims=True) / volume
+                u = u - (u * at.dx).sum(axis=(1, 2), keepdims=True) / volume
+            error += _integral((e**2).sum(axis=0), at.dx)
+            norm += _integral((u**2).sum(axis=0), at.dx)
+        return Measurement(math.sqrt(error), math.sqrt(norm))
+
+    def l2_error(self, fields: Optional[Sequence[str]] = None) -> float:
+        r""":math:`\|u^* - u_h\|_{L^2}` over ``fields`` (default all);
+        see :meth:`l2`."""
+        return self.l2(fields).value
+
+    def h1_seminorm(self, fields: Optional[Sequence[str]] = None) -> Measurement:
+        r""":math:`|u^* - u_h|_{H^1} = \|\nabla(u^* - u_h)\|_{L^2}` and
+        :math:`|u^*|_{H^1}` over ``fields`` (default all), the exact
+        gradient differentiated symbolically.
+
+        Raises
+        ------
+        ValueError
+            As the measures, for ``fields``.
+        """
+        error, norm = 0.0, 0.0
+        for index in self._chosen(fields):
+            at = self._gradients_at(index)
+            error += _integral(((at.uh - at.exact) ** 2).sum(axis=(0, 1)), at.dx)
+            norm += _integral((at.exact**2).sum(axis=(0, 1)), at.dx)
+        return Measurement(math.sqrt(error), math.sqrt(norm))
+
+    def at_quadrature_max(self, fields: Optional[Sequence[str]] = None) -> Measurement:
+        r""":math:`\max_q |u^*(x_q) - u_h(x_q)|` and :math:`\max_q
+        |u^*(x_q)|` over the quadrature points of order ``intorder``, the
+        Euclidean norm pointwise for a vector field: an L-infinity error
+        that, unlike the nodal error, does not see nodal superconvergence.
+
+        Raises
+        ------
+        ValueError
+            As the measures, for ``fields``.
+        """
+        error, norm = 0.0, 0.0
+        for index in self._chosen(fields):
+            at = self._values(index)
+            error = max(
+                error, float(np.sqrt(((at.uh - at.exact) ** 2).sum(axis=0)).max())
+            )
+            norm = max(norm, float(np.sqrt((at.exact**2).sum(axis=0)).max()))
+        return Measurement(error, norm)
+
+    def nodal(self, fields: Optional[Sequence[str]] = None) -> Measurement:
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` and :math:`\max_i
+        |u^*(x_i)|` over the DOF locations of ``fields`` (default all),
+        each DOF against its own component.
+
+        Raises
+        ------
+        ValueError
+            As the measures, for ``fields``.
+        """
+        error, norm = 0.0, 0.0
+        for index in self._chosen(fields):
+            block = self._blocks[index]
+            coords = np.asarray(block.basis.dof_coordinates())
+            dofs = np.arange(block.basis.ndofs())
+            components = (
+                np.asarray(block.basis.dof_components(dofs))
+                if isinstance(block.basis, ComponentDofsBasisProtocol)
+                else np.zeros_like(dofs)
+            )
+            values = self._exact[index](coords)[components, dofs]
+            error = max(error, float(np.abs(self._field_state(block) - values).max()))
+            norm = max(norm, float(np.abs(values).max()))
+        return Measurement(error, norm)
+
+    def nodal_error(self, fields: Optional[Sequence[str]] = None) -> float:
+        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over ``fields`` (default
+        all); see :meth:`nodal`."""
+        return self.nodal(fields).value
+
+
+_GalerkinMeasure = Measure[GalerkinApproximation]
+
+
+def _fields_of(fields: Optional[Sequence[str]]) -> Optional[Tuple[str, ...]]:
+    return None if fields is None else tuple(fields)
+
+
+def galerkin_l2_error(
+    fields: Optional[Sequence[str]] = None,
+    zero_mean: bool = False,
+    label: Optional[str] = None,
+) -> _GalerkinMeasure:
+    """The L2 error of ``fields`` (default all) beside the exact
+    solution's L2 norm; see :meth:`GalerkinApproximation.l2`.
+
+    Parameters
+    ----------
+    fields : Sequence[str], optional
+        Whole basis fields. Default: all.
+    zero_mean : bool
+        Subtract each component's mean first (a pressure). Default: no.
+    label : str, optional
+        The column. Default: ``"l2"``, or ``"l2(<fields>)"``.
+
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    chosen = _fields_of(fields)
+    return Measure(
+        label or field_label("l2", chosen),
+        lambda approximation: approximation.l2(chosen, zero_mean),
+    )
+
+
+def galerkin_h1_seminorm_error(
+    fields: Optional[Sequence[str]] = None, label: Optional[str] = None
+) -> _GalerkinMeasure:
+    """The H1 seminorm error of ``fields`` (default all); see
+    :meth:`GalerkinApproximation.h1_seminorm`. Label ``"h1"`` or
+    ``"h1(<fields>)"`` by default.
+
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    chosen = _fields_of(fields)
+    return Measure(
+        label or field_label("h1", chosen),
+        lambda approximation: approximation.h1_seminorm(chosen),
+    )
+
+
+def galerkin_max_error(
+    fields: Optional[Sequence[str]] = None, label: Optional[str] = None
+) -> _GalerkinMeasure:
+    """The largest error at the quadrature points; see
+    :meth:`GalerkinApproximation.at_quadrature_max`. Label ``"max"`` or
+    ``"max(<fields>)"`` by default.
+
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    chosen = _fields_of(fields)
+    return Measure(
+        label or field_label("max", chosen),
+        lambda approximation: approximation.at_quadrature_max(chosen),
+    )
+
+
+def galerkin_nodal_error(
+    fields: Optional[Sequence[str]] = None, label: Optional[str] = None
+) -> _GalerkinMeasure:
+    """The largest error at the DOF locations; see
+    :meth:`GalerkinApproximation.nodal`. Label ``"nodal"`` or
+    ``"nodal(<fields>)"`` by default.
+
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    chosen = _fields_of(fields)
+    return Measure(
+        label or field_label("nodal", chosen),
+        lambda approximation: approximation.nodal(chosen),
+    )
 
 
 class GalerkinDiscretizer(Generic[_B]):
@@ -1298,11 +1513,8 @@ class GalerkinDiscretizer(Generic[_B]):
         Default: Newton with line search, ``atol = rtol = 1e-12``, 30
         steps (a linear system is solved in one step).
     intorder : int, optional
-        The quadrature order of L2 errors. Default: three more than twice
-        the basis degree (a mixed basis's highest).
-    measured : Sequence[str], optional
-        The fields whose errors the approximations report, whole basis
-        fields only (see :class:`GalerkinApproximation`). Default: all.
+        The quadrature order of integral errors. Default: three more than
+        twice the basis degree (a mixed basis's highest).
     """
 
     def __init__(
@@ -1312,10 +1524,8 @@ class GalerkinDiscretizer(Generic[_B]):
         factory: SystemFactoryProtocol[_B],
         nonlinear: Optional[NonlinearSolverProtocol[_Np, _Np]] = None,
         intorder: Optional[int] = None,
-        measured: Optional[Sequence[str]] = None,
     ) -> None:
         self._meshes, self._basis, self._factory = meshes, basis, factory
-        self._measured = None if measured is None else tuple(measured)
         self._nonlinear: NonlinearSolverProtocol[_Np, _Np] = (
             Newton(atol=1e-12, rtol=1e-12, maxiters=30, line_search=True)
             if nonlinear is None
@@ -1432,12 +1642,7 @@ class GalerkinDiscretizer(Generic[_B]):
             self._intorder if self._intorder is not None else 2 * _degree(basis) + 3
         )
         return GalerkinApproximation(
-            problem,
-            problem.fields(),
-            basis,
-            point.state()[:, 0],
-            intorder,
-            measured=self._measured,
+            problem, problem.fields(), basis, point.state()[:, 0], intorder
         )
 
     def __repr__(self) -> str:

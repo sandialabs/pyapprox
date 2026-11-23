@@ -72,6 +72,7 @@ from pyapprox.pde.models.galerkin.verification import (
     TaylorHood,
     exact_dof_values,
     forcing,
+    galerkin_l2_error,
     pinned_value,
     vector_boundary_conditions,
     vector_forcing,
@@ -84,7 +85,7 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.study import L2Error, run_study
+from pyapprox.pde.verification.study import Converges, run_study
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
@@ -320,6 +321,36 @@ class TestRates:
             problem, _LEVELS_1D, TaylorHood(), _Stokes(), rate, _rows(field, 1)
         )
 
+    def test_velocity_and_pressure_from_one_solve(self) -> None:
+        """One study, one solve per level, three columns: Q2-Q1 velocity
+        at 3, pressure at 2, and the pressure with its mean removed at 2
+        (all-Dirichlet, so the pressure is pinned at one DOF)."""
+        velocity, pressure = _SMOOTH_2D
+        problem = _problem(
+            velocity, pressure, _UNIT_SQUARE, _sides(_UNIT_SQUARE, "DDDD"), 0.5
+        )
+        discretizer = GalerkinDiscretizer(
+            StructuredBox([4, 8, 16, 32]), TaylorHood(), _Stokes(viscosity=0.5)
+        )
+        study = run_study(
+            problem,
+            discretizer,
+            [
+                galerkin_l2_error(["u", "v"], label="velocity"),
+                galerkin_l2_error(["p"], label="pressure"),
+                galerkin_l2_error(["p"], zero_mean=True, label="pressure, mean 0"),
+            ],
+        )
+        for column, rate in [
+            ("velocity", 3.0),
+            ("pressure", 2.0),
+            ("pressure, mean 0", 2.0),
+        ]:
+            result = Converges(rate, last=3, column=column).verify(study)
+            assert result.passed, result.message
+        norms = study.norms("velocity")
+        assert norms is not None and min(norms) > 0.0
+
     @pytest.mark.parametrize("field,rate", _FIELDS_MEASURED)
     @pytest.mark.parametrize("simplex", [False, True])
     @pytest.mark.parametrize("sides", ["DDDD", "DNDR"])
@@ -499,11 +530,9 @@ class TestRefusals:
         problem = _problem(
             velocity, pressure, _UNIT_SQUARE, _sides(_UNIT_SQUARE, "DDDD")
         )
-        discretizer = GalerkinDiscretizer(
-            StructuredBox([2]), TaylorHood(), _Stokes(), measured=("u",)
-        )
+        discretizer = GalerkinDiscretizer(StructuredBox([2]), TaylorHood(), _Stokes())
         with pytest.raises(ValueError, match="measure whole basis fields"):
-            run_study(problem, discretizer, [L2Error()])
+            run_study(problem, discretizer, [galerkin_l2_error(["u"])])
 
     def test_too_few_fields(self) -> None:
         """A 1D problem (u, p) on a 2D Taylor-Hood basis has fewer fields
@@ -516,7 +545,7 @@ class TestRefusals:
 
         discretizer = GalerkinDiscretizer(_Square(), TaylorHood(), _Stokes())
         with pytest.raises(ValueError, match="one field per component"):
-            run_study(problem, discretizer, [L2Error()])
+            run_study(problem, discretizer, [galerkin_l2_error()])
 
     def test_mixed_field_helpers_check_the_field_kind(self) -> None:
         """Velocity conditions for the scalar pressure field, and a pinned

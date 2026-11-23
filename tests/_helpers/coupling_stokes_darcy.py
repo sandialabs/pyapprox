@@ -480,28 +480,15 @@ class StokesDarcyStrip:
         pressure for the skeleton values ``lam``."""
         stokes, _ = self._state(self._stokes_response, self._stokes_transfer, lam)
         darcy, _ = self._state(self._darcy_response, self._darcy.transfer, lam)
-        velocity = GalerkinApproximation(
-            self._stokes_problem,
-            ["u", "v", "p"],
-            self._stokes_basis,
-            stokes,
-            8,
-            measured=["u", "v"],
-        )
-        pressure = GalerkinApproximation(
-            self._stokes_problem,
-            ["u", "v", "p"],
-            self._stokes_basis,
-            stokes,
-            8,
-            measured=["p"],
+        flow = GalerkinApproximation(
+            self._stokes_problem, ["u", "v", "p"], self._stokes_basis, stokes, 8
         )
         darcy_error = GalerkinApproximation(
             self._darcy.problem, ["u"], self._darcy.basis, darcy, 8
         )
         return {
-            "velocity": velocity.l2_error(),
-            "pressure": pressure.l2_error(),
+            "velocity": flow.l2_error(["u", "v"]),
+            "pressure": flow.l2_error(["p"]),
             "darcy": darcy_error.l2_error(),
         }
 

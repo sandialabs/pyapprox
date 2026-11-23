@@ -23,6 +23,7 @@ from pyapprox.pde.models.galerkin.verification import (
     MeshFamilyProtocol,
     StructuredBox,
     SystemFactoryProtocol,
+    galerkin_l2_error,
 )
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
@@ -34,7 +35,6 @@ from pyapprox.pde.verification.domains import DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.study import (
     Converges,
-    L2Error,
     Recovers,
     Stalls,
     verify,
@@ -70,8 +70,10 @@ def converges_on(
 ) -> None:
     """The fitted L2 rate over the last three levels reaches ``rate``
     within 0.1, for the ``measured`` fields (default all)."""
-    discretizer = GalerkinDiscretizer(meshes, basis, factory, measured=measured)
-    result = verify(problem, discretizer, L2Error(), Converges(rate, last=3))
+    discretizer = GalerkinDiscretizer(meshes, basis, factory)
+    result = verify(
+        problem, discretizer, galerkin_l2_error(measured), Converges(rate, last=3)
+    )
     assert result.passed, result.message
 
 
@@ -85,7 +87,7 @@ def recovers_on(
     """One structured mesh of ``n`` cells per direction reproduces the
     solution: L2 error below 1e-10."""
     discretizer = GalerkinDiscretizer(StructuredBox([n], simplex), basis, factory)
-    result = verify(problem, discretizer, L2Error(), Recovers(1e-10))
+    result = verify(problem, discretizer, galerkin_l2_error(), Recovers(1e-10))
     assert result.passed, result.message
 
 
@@ -98,8 +100,10 @@ def stalls_on(
 ) -> None:
     """Wrong-model control: the fitted L2 rate of the ``measured`` fields
     (default all) stays below 0.5."""
-    discretizer = GalerkinDiscretizer(meshes, basis, factory, measured=measured)
-    result = verify(problem, discretizer, L2Error(), Stalls(below=0.5))
+    discretizer = GalerkinDiscretizer(meshes, basis, factory)
+    result = verify(
+        problem, discretizer, galerkin_l2_error(measured), Stalls(below=0.5)
+    )
     assert result.passed, result.message
 
 

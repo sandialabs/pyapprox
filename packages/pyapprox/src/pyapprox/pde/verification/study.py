@@ -2,10 +2,16 @@ r"""Convergence studies and the checks that judge them.
 
 A study is a table: one row per level, holding the level's
 :class:`~pyapprox.pde.verification.protocols.Sizes`, and one labeled
-column per error measure. :func:`run_study` solves each level once and
-records every measure; :meth:`Study.from_records` builds the same table
-from plain numbers, e.g. a result file of a code run elsewhere. A check
-judges one column against one
+column per measure. A column is of a :class:`Kind`: errors (distances to
+the truth, each optionally beside the truth's norm in the same norm) or
+values (a quantity of interest, an iteration count). Measures are written
+by the stack whose approximations they read (:class:`MeasureProtocol` is
+generic in that type), so a new norm or a per-field error is a new
+measure in one stack, and a measure paired with another stack is a type
+error. :func:`run_study` solves each level once and records every
+measure; :meth:`Study.from_records` builds the same table from plain
+numbers, e.g. a result file of a code run elsewhere. A check judges one
+error column against one
 :class:`~pyapprox.pde.verification.protocols.Axis` of the sizes (the
 mesh size, the degree, a time step, a subdomain's own size, or an axis a
 stack declares):
@@ -17,11 +23,11 @@ stack declares):
 - :class:`DecaysExponentially`: the slope of :math:`\log e` against the
   axis (the degree) reaches an exponential decay, for spectral methods
   and p-refinement;
-- :class:`Recovers`: every level is exact to a tolerance, for solutions
-  in the discrete space;
+- :class:`Recovers`: every level is exact to a tolerance, relative to the
+  truth's norm and absolute, for solutions in the discrete space;
 - :class:`Stalls`: the slope stays below a bound, the wrong-model control.
 
-Errors are plain floats: the stack integrated them. Check results hold
+Numbers are plain floats: the stack integrated them. Check results hold
 only booleans, numbers and strings, so they serialize to JSON.
 
 A quantity study records a quantity of interest's value at each level
@@ -36,7 +42,11 @@ order and the limit from the values alone (Richardson), and
 
 import math
 from dataclasses import dataclass
+from enum import Enum
 from typing import (
+    Callable,
+    Dict,
+    Generic,
     List,
     Mapping,
     Optional,
@@ -44,12 +54,12 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
+    Union,
     runtime_checkable,
 )
 
 from pyapprox.pde.verification.protocols import (
     DEGREE,
-    ApproximationProtocol,
     Axis,
     DiscretizerProtocol,
     H,
@@ -61,72 +71,141 @@ from pyapprox.pde.verification.quantities import QuantityProtocol
 
 P = TypeVar("P")
 R = TypeVar("R")
-A = TypeVar("A", bound=ApproximationProtocol)
+A = TypeVar("A")
+A_contra = TypeVar("A_contra", contravariant=True)
+
+
+class Kind(Enum):
+    """What a study column holds."""
+
+    ERROR = "error"
+    """Distances to the truth: finite and non-negative."""
+    VALUE = "value"
+    """Values computed from the solution (a quantity of interest, an
+    iteration count): finite, of either sign."""
+
+
+@dataclass(frozen=True)
+class Measurement:
+    """One level's number for one column, and for an error the norm of
+    the truth it is measured against (in the same norm), which a relative
+    tolerance is taken of."""
+
+    value: float
+    norm: Optional[float] = None
 
 
 @runtime_checkable
-class ErrorMeasureProtocol(Protocol):
-    """Which error of an approximation a study records, under which
-    column label."""
+class MeasureProtocol(Protocol[A_contra]):
+    """What a study records of a stack's approximation, under which
+    column label.
 
-    def measure(self, approximation: ApproximationProtocol) -> float:
-        """The error of ``approximation``."""
+    Generic in the approximation it reads, so a measure is written by the
+    stack that owns the approximation, and pairing it with another
+    stack's discretizer is a type error."""
+
+    def label(self) -> str:
+        """The study column the measurement is recorded in."""
         ...
 
-    def label(self) -> str:
-        """The study column the error is recorded in."""
+    def kind(self) -> Kind:
+        """Whether the column holds errors or values."""
+        ...
+
+    def measure(self, approximation: A_contra) -> Measurement:
+        """The measurement of ``approximation``."""
         ...
 
 
-class L2Error:
-    r""":math:`\|u^* - u_h\|_{L^2}`, in column ``"l2"``."""
+class Measure(Generic[A]):
+    """A measure from a label, a reader of the stack's approximation and
+    a column kind: what a stack's measure factories return, so a new norm
+    or a new value column is a function, not a class.
 
-    def measure(self, approximation: ApproximationProtocol) -> float:
-        r""":math:`\|u^* - u_h\|_{L^2}`, from the stack."""
-        return approximation.l2_error()
+    Parameters
+    ----------
+    label : str
+        The study column.
+    read : Callable
+        The measurement of one approximation.
+    kind : Kind
+        Default: :attr:`Kind.ERROR`.
+
+    Raises
+    ------
+    ValueError
+        If ``label`` is empty.
+    TypeError
+        If ``read`` is not callable.
+    """
+
+    def __init__(
+        self,
+        label: str,
+        read: Callable[[A], Measurement],
+        kind: Kind = Kind.ERROR,
+    ) -> None:
+        if not label:
+            raise ValueError("a measure needs a non-empty label")
+        if not callable(read):
+            raise TypeError(f"read must be callable, got {type(read).__name__}")
+        self._label, self._read, self._kind = label, read, kind
 
     def label(self) -> str:
-        """``"l2"``."""
-        return "l2"
+        """The study column."""
+        return self._label
+
+    def kind(self) -> Kind:
+        """Whether the column holds errors or values."""
+        return self._kind
+
+    def measure(self, approximation: A) -> Measurement:
+        """The measurement of ``approximation``."""
+        return self._read(approximation)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}()"
+        return f"{type(self).__name__}({self._label!r}, kind={self._kind})"
 
 
-class NodalError:
-    r""":math:`\max_i |u^*(x_i) - u_h(x_i)|`, in column ``"nodal"``."""
+def field_label(norm: str, fields: Optional[Sequence[str]]) -> str:
+    """``norm`` for all fields, ``"norm(f1,f2)"`` for some: the default
+    label of a stack's per-field error measures.
 
-    def measure(self, approximation: ApproximationProtocol) -> float:
-        """The largest nodal error, from the stack."""
-        return approximation.nodal_error()
-
-    def label(self) -> str:
-        """``"nodal"``."""
-        return "nodal"
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}()"
+    Raises
+    ------
+    ValueError
+        If ``fields`` is given empty.
+    """
+    if fields is None:
+        return norm
+    if not fields:
+        raise ValueError("name at least one field, or none for all")
+    return f"{norm}({','.join(fields)})"
 
 
 @dataclass(frozen=True)
 class Column:
-    """One measure's errors, one per level, coarsest first."""
+    """One measure's numbers, one per level, coarsest first, and for an
+    error column optionally the truth's norm at each level."""
 
     label: str
     values: Tuple[float, ...]
+    kind: Kind = Kind.ERROR
+    norms: Optional[Tuple[float, ...]] = None
 
 
 @dataclass(frozen=True)
 class Study:
     """A table of levels, coarsest first: each level's sizes, and one
-    column of errors per measure.
+    column per measure.
 
     Raises
     ------
     ValueError
-        If there are no levels or no columns, a column's length is not the
-        number of levels, two columns share a label, or an error is
-        negative or not finite.
+        If there are no levels or no columns, a column's values or norms
+        are not one per level, two columns share a label, a value is not
+        finite, an error or a norm is negative, or a value column has
+        norms.
     """
 
     sizes: Tuple[Sizes, ...]
@@ -142,52 +221,108 @@ class Study:
         if len(set(labels)) != len(labels):
             raise ValueError(f"column labels must be unique, got {labels}")
         for column in self.columns:
-            if len(column.values) != len(self.sizes):
+            for what, numbers in (("value", column.values), ("norm", column.norms)):
+                if numbers is not None and len(numbers) != len(self.sizes):
+                    raise ValueError(
+                        f"a study needs one {what} per level; column "
+                        f"{column.label!r} has {len(numbers)} for "
+                        f"{len(self.sizes)} levels"
+                    )
+            if any(not math.isfinite(v) for v in column.values):
                 raise ValueError(
-                    f"a study needs one error per level; column {column.label!r} "
-                    f"has {len(column.values)} for {len(self.sizes)} levels"
+                    f"values must be finite; column {column.label!r} has "
+                    f"{column.values}"
                 )
-            if any(not (math.isfinite(e) and e >= 0.0) for e in column.values):
+            if column.kind is Kind.ERROR and any(e < 0.0 for e in column.values):
                 raise ValueError(
-                    f"errors must be finite and non-negative; column "
-                    f"{column.label!r} has {column.values}"
+                    f"errors must be non-negative; column {column.label!r} has "
+                    f"{column.values}"
                 )
+            if column.norms is not None:
+                if column.kind is not Kind.ERROR:
+                    raise ValueError(
+                        f"only an error column has norms; {column.label!r} holds values"
+                    )
+                if any(not (math.isfinite(v) and v >= 0.0) for v in column.norms):
+                    raise ValueError(
+                        f"norms must be finite and non-negative; column "
+                        f"{column.label!r} has {column.norms}"
+                    )
 
     @classmethod
     def from_records(
-        cls, records: Sequence[Tuple[Sizes, Mapping[str, float]]]
+        cls,
+        records: Sequence[Tuple[Sizes, Mapping[str, Union[float, Measurement]]]],
+        kinds: Optional[Mapping[str, Kind]] = None,
     ) -> "Study":
         """The study of plain records, one per level, coarsest first: the
-        level's sizes and its errors by column label.
+        level's sizes and its numbers by column label, each a float or a
+        :class:`Measurement` carrying its truth's norm.
+
+        Parameters
+        ----------
+        records : Sequence
+            One ``(sizes, numbers)`` pair per level.
+        kinds : Mapping[str, Kind], optional
+            Each column's kind; a column not named holds errors.
 
         Raises
         ------
         ValueError
-            If the records do not all have the same labels (and as the
-            constructor).
+            If the records do not all have the same labels, a column gives
+            norms at some levels only, or ``kinds`` names an unknown
+            column (and as the constructor).
         """
         if not records:
             raise ValueError("a study needs at least one level; got no records")
         labels = list(records[0][1])
-        for _, errors in records:
-            if list(errors) != labels:
+        for _, numbers in records:
+            if list(numbers) != labels:
                 raise ValueError(
-                    f"every record needs the labels {labels}, got {list(errors)}"
+                    f"every record needs the labels {labels}, got {list(numbers)}"
                 )
-        return cls(
-            tuple(sizes for sizes, _ in records),
-            tuple(
-                Column(label, tuple(float(errors[label]) for _, errors in records))
-                for label in labels
-            ),
-        )
+        chosen = dict(kinds or {})
+        unknown = set(chosen) - set(labels)
+        if unknown:
+            raise ValueError(f"kinds names unknown columns {sorted(unknown)}")
+        columns = []
+        for label in labels:
+            measured = [
+                entry if isinstance(entry, Measurement) else Measurement(float(entry))
+                for entry in (numbers[label] for _, numbers in records)
+            ]
+            norms = [m.norm for m in measured]
+            given = [n for n in norms if n is not None]
+            if given and len(given) != len(norms):
+                raise ValueError(
+                    f"column {label!r} gives norms at some levels only: {norms}"
+                )
+            columns.append(
+                Column(
+                    label,
+                    tuple(float(m.value) for m in measured),
+                    chosen.get(label, Kind.ERROR),
+                    tuple(float(n) for n in given) if given else None,
+                )
+            )
+        return cls(tuple(sizes for sizes, _ in records), tuple(columns))
 
     def labels(self) -> Tuple[str, ...]:
         """The column labels, in order."""
         return tuple(column.label for column in self.columns)
 
+    def _find(self, label: Optional[str]) -> Column:
+        if label is None:
+            if len(self.columns) != 1:
+                raise ValueError(f"name one of the columns {list(self.labels())}")
+            return self.columns[0]
+        for column in self.columns:
+            if column.label == label:
+                return column
+        raise ValueError(f"no column {label!r}; the study has {list(self.labels())}")
+
     def column(self, label: Optional[str] = None) -> Tuple[float, ...]:
-        """The errors in column ``label``; by default the only column.
+        """The numbers in column ``label``; by default the only column.
 
         Raises
         ------
@@ -195,14 +330,35 @@ class Study:
             If no label is given and there are several columns, or no
             column has the label.
         """
-        if label is None:
-            if len(self.columns) != 1:
-                raise ValueError(f"name one of the columns {list(self.labels())}")
-            return self.columns[0].values
-        for column in self.columns:
-            if column.label == label:
-                return column.values
-        raise ValueError(f"no column {label!r}; the study has {list(self.labels())}")
+        return self._find(label).values
+
+    def errors(self, label: Optional[str] = None) -> Tuple[float, ...]:
+        """The errors in column ``label``; by default the only column.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`column`, or if the column holds values.
+        """
+        column = self._find(label)
+        if column.kind is not Kind.ERROR:
+            raise ValueError(
+                f"column {column.label!r} holds values, not errors; turn it into "
+                "errors against a truth first"
+            )
+        return column.values
+
+    def norms(self, label: Optional[str] = None) -> Optional[Tuple[float, ...]]:
+        """The truth's norm at each level of error column ``label``, or
+        ``None`` if the column has none.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`errors`.
+        """
+        self.errors(label)
+        return self._find(label).norms
 
     def axis(self, axis: Axis) -> Tuple[float, ...]:
         """Each level's size along ``axis``."""
@@ -346,7 +502,7 @@ def _series(
 ) -> Tuple[Tuple[float, ...], Tuple[float, ...]]:
     """The sizes along ``axis`` and the errors of ``column``, of the
     finest ``last`` levels (default all)."""
-    sizes, errors = study.axis(axis), study.column(column)
+    sizes, errors = study.axis(axis), study.errors(column)
     if last is not None:
         sizes, errors = sizes[-last:], errors[-last:]
     return sizes, errors
@@ -466,7 +622,7 @@ class Converges:
             low <= observed <= high,
             observed,
             f"fitted rate {observed:.3f} in {self._axis.name}, expected "
-            f"between {low:.3f} and {high:.3f}; errors {study.column(self._column)}",
+            f"between {low:.3f} and {high:.3f}; errors {study.errors(self._column)}",
         )
 
     def __repr__(self) -> str:
@@ -545,30 +701,73 @@ class DecaysExponentially:
 
 
 class Recovers:
-    """Every level's error is at most ``atol``.
+    r"""Every level's error :math:`e` is at most
+    :math:`\mathrm{rtol}\,\|u^*\| + \mathrm{atol}`, with :math:`\|u^*\|`
+    the norm the column records beside each error.
+
+    The relative part makes the tolerance independent of the solution's
+    scale; the absolute part lets a field that is zero (a pressure that
+    vanishes) pass. Run it on the coarse levels, where round-off has not
+    grown with the number of unknowns.
 
     Parameters
     ----------
     atol : float
-        The largest error allowed.
+        The absolute part. Default: 0.
+    rtol : float
+        The relative part, at least the solver's tolerance. Default: 0.
     column : str, optional
         The column judged; default the study's only column.
+
+    Raises
+    ------
+    ValueError
+        If a tolerance is negative or not finite, or both are zero.
     """
 
-    def __init__(self, atol: float, column: Optional[str] = None) -> None:
-        self._atol, self._column = atol, column
+    def __init__(
+        self, atol: float = 0.0, rtol: float = 0.0, column: Optional[str] = None
+    ) -> None:
+        for name, value in (("atol", atol), ("rtol", rtol)):
+            if not (math.isfinite(value) and value >= 0.0):
+                raise ValueError(f"{name} must be non-negative and finite, got {value}")
+        if atol == 0.0 and rtol == 0.0:
+            raise ValueError("Recovers needs a positive atol or rtol")
+        self._atol, self._rtol, self._column = atol, rtol, column
 
     def verify(self, study: Study) -> CheckResult:
-        """Pass if the largest error is at most ``atol``."""
-        observed = max(study.column(self._column))
+        """Pass if every level's error is within its tolerance; the
+        observed number is the largest ratio of error to tolerance.
+
+        Raises
+        ------
+        ValueError
+            If ``rtol`` is positive and the column records no norms.
+        """
+        errors, norms = study.errors(self._column), study.norms(self._column)
+        if self._rtol > 0.0 and norms is None:
+            raise ValueError(
+                "a relative tolerance needs the norms of the truth; the column "
+                "records none"
+            )
+        scales = norms if norms is not None else (0.0,) * len(errors)
+        allowed = [self._rtol * n + self._atol for n in scales]
+        ratios = [
+            e / a if a > 0.0 else (0.0 if e == 0.0 else math.inf)
+            for e, a in zip(errors, allowed)
+        ]
+        worst = max(ratios)
         return CheckResult(
-            observed <= self._atol,
-            observed,
-            f"largest error {observed:.3e}, allowed {self._atol:.3e}",
+            worst <= 1.0,
+            worst if math.isfinite(worst) else None,
+            f"errors {errors}, allowed {tuple(allowed)}",
         )
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(atol={self._atol}, column={self._column!r})"
+        return (
+            f"{type(self).__name__}(atol={self._atol}, rtol={self._rtol}, "
+            f"column={self._column!r})"
+        )
 
 
 class Stalls:
@@ -592,7 +791,7 @@ class Stalls:
 
     def verify(self, study: Study) -> CheckResult:
         """Pass if the fitted rate is below ``below``."""
-        errors = study.column(self._column)
+        errors = study.errors(self._column)
         if any(e == 0.0 for e in errors):
             return CheckResult(False, 0.0, f"an error is zero: {errors}")
         observed = fitted_rate(study, self._column, self._axis)
@@ -613,7 +812,7 @@ class Stalls:
 def run_study(
     problem: P,
     discretizer: DiscretizerProtocol[P, R, A],
-    measures: Sequence[ErrorMeasureProtocol],
+    measures: Sequence[MeasureProtocol[A]],
     requests: Optional[Sequence[R]] = None,
 ) -> Study:
     """Solve ``problem`` once per level and record every measure.
@@ -624,8 +823,9 @@ def run_study(
         The problem.
     discretizer : DiscretizerProtocol
         The stack.
-    measures : Sequence[ErrorMeasureProtocol]
-        One column each, under its label.
+    measures : Sequence[MeasureProtocol]
+        Measures of the stack's approximations, one column each, under
+        its label and of its kind.
     requests : Sequence, optional
         The levels, coarsest first. Default: every level of the
         discretizer's own family (``discretizer.requests(problem)``).
@@ -633,11 +833,11 @@ def run_study(
     Raises
     ------
     TypeError
-        If ``discretizer``, a measure, a level's sizes or an approximation
-        is of the wrong type.
+        If ``discretizer``, a measure, a level's sizes or a measurement is
+        of the wrong type.
     ValueError
-        If there are no measures or no levels, or two measures share a
-        label.
+        If there are no measures or no levels, two measures share a label,
+        or a value measure reports a norm (and as the :class:`Study`).
     """
     if not isinstance(discretizer, DiscretizerProtocol):
         raise TypeError(
@@ -645,39 +845,42 @@ def run_study(
             f"{type(discretizer).__name__}"
         )
     for measure in measures:
-        if not isinstance(measure, ErrorMeasureProtocol):
+        if not isinstance(measure, MeasureProtocol):
             raise TypeError(
-                "each measure must satisfy ErrorMeasureProtocol, got "
+                "each measure must satisfy MeasureProtocol, got "
                 f"{type(measure).__name__}"
             )
     if not measures:
         raise ValueError("a study needs at least one measure")
+    labels = [measure.label() for measure in measures]
+    if len(set(labels)) != len(labels):
+        raise ValueError(f"measure labels must be unique, got {labels}")
     levels = discretizer.requests(problem) if requests is None else requests
-    records: List[Tuple[Sizes, Mapping[str, float]]] = []
+    records: List[Tuple[Sizes, Mapping[str, Union[float, Measurement]]]] = []
     for request in levels:
         sizes = discretizer.sizes(problem, request)
         if not isinstance(sizes, Sizes):
             raise TypeError(f"sizes must be Sizes, got {type(sizes).__name__}")
         approximation = discretizer.solve(problem, request)
-        if not isinstance(approximation, ApproximationProtocol):
-            raise TypeError(
-                "each approximation must satisfy ApproximationProtocol, got "
-                f"{type(approximation).__name__}"
-            )
-        errors = {}
-        for measure in measures:
-            label = measure.label()
-            if label in errors:
-                raise ValueError(f"two measures share the label {label!r}")
-            errors[label] = measure.measure(approximation)
-        records.append((sizes, errors))
-    return Study.from_records(records)
+        numbers: Dict[str, Union[float, Measurement]] = {}
+        for label, measure in zip(labels, measures):
+            measurement = measure.measure(approximation)
+            if not isinstance(measurement, Measurement):
+                raise TypeError(
+                    f"measure {label!r} must return a Measurement, got "
+                    f"{type(measurement).__name__}"
+                )
+            numbers[label] = measurement
+        records.append((sizes, numbers))
+    return Study.from_records(
+        records, {label: measure.kind() for label, measure in zip(labels, measures)}
+    )
 
 
 def verify(
     problem: P,
     discretizer: DiscretizerProtocol[P, R, A],
-    measure: ErrorMeasureProtocol,
+    measure: MeasureProtocol[A],
     check: CheckProtocol,
     requests: Optional[Sequence[R]] = None,
 ) -> CheckResult:

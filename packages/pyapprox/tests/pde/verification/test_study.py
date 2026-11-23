@@ -35,7 +35,6 @@ import pytest
 from pyapprox.pde.verification.protocols import (
     DEGREE,
     DT,
-    ApproximationProtocol,
     Axis,
     DiscretizerProtocol,
     H,
@@ -48,13 +47,16 @@ from pyapprox.pde.verification.study import (
     Column,
     Converges,
     DecaysExponentially,
-    L2Error,
-    NodalError,
+    Kind,
+    Measure,
+    Measurement,
+    MeasureProtocol,
     ObservedOrder,
     QuantityStudy,
     Recovers,
     Stalls,
     Study,
+    field_label,
     fitted_rate,
     run_study,
     verify,
@@ -65,14 +67,69 @@ _HALVING = (0.5, 0.25, 0.125, 0.0625, 0.03125)
 
 
 class _Approximation:
-    def __init__(self, error: float) -> None:
-        self._error = error
+    def __init__(self, error: float, norm: float = 1.0) -> None:
+        self._error, self._norm = error, norm
 
-    def l2_error(self) -> float:
+    def error(self) -> float:
         return self._error
 
-    def nodal_error(self) -> float:
-        return 2.0 * self._error
+    def norm(self) -> float:
+        return self._norm
+
+
+class _L2:
+    """The fake's error, beside its norm, in column ``"l2"``."""
+
+    def label(self) -> str:
+        return "l2"
+
+    def kind(self) -> Kind:
+        return Kind.ERROR
+
+    def measure(self, approximation: _Approximation) -> Measurement:
+        return Measurement(approximation.error(), approximation.norm())
+
+
+class _Nodal(_L2):
+    """Twice the fake's error, without a norm, in column ``"nodal"``."""
+
+    def label(self) -> str:
+        return "nodal"
+
+    def measure(self, approximation: _Approximation) -> Measurement:
+        return Measurement(2.0 * approximation.error())
+
+
+class _Iterations:
+    """A value column: an iteration count that grows with the level."""
+
+    def label(self) -> str:
+        return "iterations"
+
+    def kind(self) -> Kind:
+        return Kind.VALUE
+
+    def measure(self, approximation: _Approximation) -> Measurement:
+        return Measurement(-math.log2(approximation.error()))
+
+
+class _OtherApproximation:
+    """Another stack's approximation: what ``_L2`` must not be paired
+    with."""
+
+    def residual(self) -> float:
+        return 0.0
+
+
+class _OtherStack:
+    def requests(self, problem: None) -> List[SpaceLevel]:
+        return [SpaceLevel(0)]
+
+    def sizes(self, problem: None, request: SpaceLevel) -> Sizes:
+        return Sizes({H: 0.5})
+
+    def solve(self, problem: None, request: SpaceLevel) -> _OtherApproximation:
+        return _OtherApproximation()
 
 
 class _Fake:
@@ -120,7 +177,7 @@ def _study(hs: Sequence[float], errors: Sequence[float]) -> Study:
 class TestFittedRate:
     @pytest.mark.parametrize("hs", [_HALVING, (0.3, 0.17, 0.11, 0.05)])
     def test_power_law(self, numpy_bkd: NumpyBkd, hs: Sequence[float]) -> None:
-        study = run_study(None, _Fake(hs, lambda h: 3.0 * h**2), [L2Error()])
+        study = run_study(None, _Fake(hs, lambda h: 3.0 * h**2), [_L2()])
         _close(numpy_bkd, fitted_rate(study), 2.0, 1e-12)
 
     def test_refusals(self) -> None:
@@ -165,9 +222,24 @@ class TestStudy:
         [
             ((), (Column("l2", ()),), "at least one level"),
             ((Sizes({H: 0.5}),), (), "one column"),
-            ((Sizes({H: 0.5}),), (Column("l2", (0.1, 0.2)),), "one error per level"),
+            ((Sizes({H: 0.5}),), (Column("l2", (0.1, 0.2)),), "one value per level"),
             ((Sizes({H: 0.5}),), (Column("l2", (-0.1,)),), "non-negative"),
             ((Sizes({H: 0.5}),), (Column("l2", (math.nan,)),), "finite"),
+            (
+                (Sizes({H: 0.5}),),
+                (Column("l2", (0.1,), Kind.ERROR, (1.0, 2.0)),),
+                "one norm per level",
+            ),
+            (
+                (Sizes({H: 0.5}),),
+                (Column("l2", (0.1,), Kind.ERROR, (-1.0,)),),
+                "norms must be finite and non-negative",
+            ),
+            (
+                (Sizes({H: 0.5}),),
+                (Column("q", (0.1,), Kind.VALUE, (1.0,)),),
+                "only an error column has norms",
+            ),
             (
                 (Sizes({H: 0.5}),),
                 (Column("l2", (0.1,)), Column("l2", (0.2,))),
@@ -205,7 +277,7 @@ class TestStudy:
         self, numpy_bkd: NumpyBkd
     ) -> None:
         fake = _Fake(_HALVING, lambda h: 3.0 * h**2)
-        study = run_study(None, fake, [L2Error(), NodalError()])
+        study = run_study(None, fake, [_L2(), _Nodal()])
         assert fake.nsolves() == len(_HALVING)
         numpy_bkd.assert_allclose(
             numpy_bkd.asarray(study.column("nodal")),
@@ -215,10 +287,64 @@ class TestStudy:
         assert Converges(2.0, column="nodal").verify(study).passed
         assert fake.nsolves() == len(_HALVING)
 
+    def test_column_kinds(self) -> None:
+        """An error column carries its norms when the measure gives them;
+        a value column (negative values allowed) records an iteration
+        count beside the errors, and the checks refuse to fit it."""
+        study = run_study(
+            None, _Fake(_HALVING[:3], lambda h: h**2), [_L2(), _Nodal(), _Iterations()]
+        )
+        assert study.norms("l2") == (1.0, 1.0, 1.0)
+        assert study.norms("nodal") is None
+        assert study.column("iterations") == (2.0, 4.0, 6.0)
+        with pytest.raises(ValueError, match="holds values, not errors"):
+            study.errors("iterations")
+        with pytest.raises(ValueError, match="holds values, not errors"):
+            Converges(2.0, column="iterations").verify(study)
+        values = Study.from_records(
+            [(Sizes({H: h}), {"q": -h}) for h in _HALVING[:2]], {"q": Kind.VALUE}
+        )
+        assert values.column("q") == (-0.5, -0.25)
+        with pytest.raises(ValueError, match="unknown columns"):
+            Study.from_records([(Sizes({H: 0.5}), {"q": 1.0})], {"r": Kind.VALUE})
+        with pytest.raises(ValueError, match="norms at some levels only"):
+            Study.from_records(
+                [
+                    (Sizes({H: 0.5}), {"l2": Measurement(0.1, 1.0)}),
+                    (Sizes({H: 0.25}), {"l2": 0.01}),
+                ]
+            )
+
+    def test_measures_from_functions(self) -> None:
+        """A ``Measure`` of a label and a reader is a measure: an error
+        and a value column of mixed measures record together, labels by
+        ``field_label``; an empty label or fields, or a reader that is
+        not callable, are refused."""
+        error: Measure[_Approximation] = Measure(
+            field_label("l2", ("u", "v")),
+            lambda a: Measurement(a.error(), a.norm()),
+        )
+        count: Measure[_Approximation] = Measure(
+            "iterations", lambda a: Measurement(-math.log2(a.error())), Kind.VALUE
+        )
+        assert isinstance(error, MeasureProtocol)
+        study = run_study(
+            None, _Fake(_HALVING[:3], lambda h: h**2), [error, count, _L2()]
+        )
+        assert study.labels() == ("l2(u,v)", "iterations", "l2")
+        assert study.column("iterations") == (2.0, 4.0, 6.0)
+        assert field_label("max", None) == "max"
+        with pytest.raises(ValueError, match="at least one field"):
+            field_label("l2", ())
+        with pytest.raises(ValueError, match="non-empty label"):
+            Measure("", lambda a: Measurement(0.0))
+        with pytest.raises(TypeError, match="must be callable"):
+            Measure("l2", 3.0)  # type: ignore[arg-type]
+
     def test_given_levels(self) -> None:
         """A study solves the levels it is given, not the family's."""
         fake = _Fake(_HALVING, lambda h: h)
-        study = run_study(None, fake, [L2Error()], [SpaceLevel(4), SpaceLevel(2)])
+        study = run_study(None, fake, [_L2()], [SpaceLevel(4), SpaceLevel(2)])
         assert study.axis(H) == (_HALVING[4], _HALVING[2])
         assert fake.nsolves() == 2
 
@@ -242,29 +368,27 @@ class TestChecks:
 
     def test_converges(self, numpy_bkd: NumpyBkd) -> None:
         result = verify(
-            None, _Fake(_HALVING, lambda h: 3.0 * h**2), L2Error(), Converges(2.0)
+            None, _Fake(_HALVING, lambda h: 3.0 * h**2), _L2(), Converges(2.0)
         )
         assert isinstance(result, CheckResult) and result.passed
         _close(numpy_bkd, result.observed, 2.0, 1e-12)
-        failed = verify(
-            None, _Fake(_HALVING, lambda h: 3.0 * h), L2Error(), Converges(2.0)
-        )
+        failed = verify(None, _Fake(_HALVING, lambda h: 3.0 * h), _L2(), Converges(2.0))
         assert not failed.passed and "fitted rate 1.000" in failed.message
 
     def test_converges_past_a_pre_asymptotic_start(self, numpy_bkd: NumpyBkd) -> None:
         fake = _Fake(_HALVING[:4], errors=self._PRE_ASYMPTOTIC)
-        assert not verify(None, fake, L2Error(), Converges(2.0)).passed
-        result = verify(None, fake, L2Error(), Converges(2.0, last=2))
+        assert not verify(None, fake, _L2(), Converges(2.0)).passed
+        result = verify(None, fake, _L2(), Converges(2.0, last=2))
         assert result.passed
         _close(numpy_bkd, result.observed, 2.0, 1e-12)
 
     def test_converges_too_fast_fails_unless_named(self) -> None:
         """A rate above the expected one is a finding, not a pass."""
         fake = _Fake(_HALVING, lambda h: h**3)
-        result = verify(None, fake, L2Error(), Converges(2.0))
+        result = verify(None, fake, _L2(), Converges(2.0))
         assert not result.passed and "between 1.900 and 2.100" in result.message
         allowed = Converges(2.0, superconvergence=3.0)
-        assert verify(None, fake, L2Error(), allowed).passed
+        assert verify(None, fake, _L2(), allowed).passed
         with pytest.raises(ValueError, match="below the rate"):
             Converges(2.0, superconvergence=1.0)
 
@@ -273,40 +397,61 @@ class TestChecks:
         degree; requiring 2 fails; a zero error fails; one level or a
         study without degrees is refused."""
         fake = _Fake((2, 4, 6, 8), lambda p: 5.0 * math.exp(-1.5 * p), axis=DEGREE)
-        result = verify(None, fake, L2Error(), DecaysExponentially(1.0))
+        result = verify(None, fake, _L2(), DecaysExponentially(1.0))
         assert result.passed
         _close(numpy_bkd, result.observed, 1.5, 1e-12)
-        assert not verify(None, fake, L2Error(), DecaysExponentially(2.0)).passed
+        assert not verify(None, fake, _L2(), DecaysExponentially(2.0)).passed
         zero = _Fake((2, 4, 6), errors=(1.0, 0.1, 0.0), axis=DEGREE)
-        assert not verify(None, zero, L2Error(), DecaysExponentially(1.0)).passed
+        assert not verify(None, zero, _L2(), DecaysExponentially(1.0)).passed
         with pytest.raises(ValueError, match="at least two levels"):
-            verify(None, fake, L2Error(), DecaysExponentially(1.0, last=1))
+            verify(None, fake, _L2(), DecaysExponentially(1.0, last=1))
         with pytest.raises(ValueError, match="no size 'p'"):
-            verify(
-                None, _Fake(_HALVING, lambda h: h), L2Error(), DecaysExponentially(1.0)
-            )
+            verify(None, _Fake(_HALVING, lambda h: h), _L2(), DecaysExponentially(1.0))
 
-    def test_recovers(self) -> None:
+    def test_recovers(self, numpy_bkd: NumpyBkd) -> None:
+        """Absolutely: errors at 1e-14 pass 1e-12 and one at 1e-9 fails,
+        observed as the error over its tolerance. Relatively: errors
+        1e-10 and 1e-4 of norms 1e2 and 1e8 pass rtol 1e-11 though no
+        absolute tolerance would; a zero field (norm 0, error 1e-15)
+        passes only through atol; a column without norms refuses rtol."""
         exact = _Fake(_HALVING[:2], errors=(1e-14, 3e-15))
-        assert verify(None, exact, L2Error(), Recovers(1e-12)).passed
+        assert verify(None, exact, _L2(), Recovers(1e-12)).passed
         inexact = _Fake(_HALVING[:2], errors=(1e-14, 1e-9))
-        result = verify(None, inexact, L2Error(), Recovers(1e-12))
-        assert not result.passed and result.observed == 1e-9
+        result = verify(None, inexact, _L2(), Recovers(1e-12))
+        assert not result.passed
+        _close(numpy_bkd, result.observed, 1e3, 1e-12)
+        scaled = Study.from_records(
+            [
+                (Sizes({H: 0.5}), {"l2": Measurement(1e-10, 1e2)}),
+                (Sizes({H: 0.25}), {"l2": Measurement(1e-4, 1e8)}),
+            ]
+        )
+        assert Recovers(rtol=1e-11).verify(scaled).passed
+        assert not Recovers(atol=1e-9).verify(scaled).passed
+        zero = Study.from_records([(Sizes({H: 0.5}), {"l2": Measurement(1e-15, 0.0)})])
+        assert not Recovers(rtol=1e-11).verify(zero).passed
+        assert Recovers(atol=1e-14, rtol=1e-11).verify(zero).passed
+        with pytest.raises(ValueError, match="needs the norms"):
+            Recovers(rtol=1e-11).verify(_study((0.5,), (0.0,)))
+        with pytest.raises(ValueError, match="positive atol or rtol"):
+            Recovers()
+        with pytest.raises(ValueError, match="rtol must be non-negative"):
+            Recovers(rtol=-1.0)
 
     def test_stalls(self) -> None:
         constant = _Fake(_HALVING, lambda h: 0.3)
-        assert verify(None, constant, L2Error(), Stalls(0.5)).passed
+        assert verify(None, constant, _L2(), Stalls(0.5)).passed
         converging = _Fake(_HALVING, lambda h: h**2)
-        assert not verify(None, converging, L2Error(), Stalls(0.5)).passed
+        assert not verify(None, converging, _L2(), Stalls(0.5)).passed
         zero = _Fake(_HALVING[:2], errors=(0.1, 0.0))
-        assert not verify(None, zero, L2Error(), Stalls(0.5)).passed
+        assert not verify(None, zero, _L2(), Stalls(0.5)).passed
 
     def test_reprs(self) -> None:
         assert repr(Converges(2.0, last=3)) == (
             "Converges(rate=2.0, atol=0.1, last=3, axis=Axis(name='h'), "
             "column=None, superconvergence=2.0)"
         )
-        assert repr(Recovers(1e-12)) == "Recovers(atol=1e-12, column=None)"
+        assert repr(Recovers(1e-12)) == "Recovers(atol=1e-12, rtol=0.0, column=None)"
         assert repr(Stalls(0.5)) == (
             "Stalls(below=0.5, axis=Axis(name='h'), column=None)"
         )
@@ -344,32 +489,40 @@ class TestRefusals:
         fake = _Fake(_HALVING[:2], lambda h: h)
         assert isinstance(fake, DiscretizerProtocol)
         with pytest.raises(TypeError, match="DiscretizerProtocol"):
-            run_study(None, 3.0, [L2Error()])  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="ErrorMeasureProtocol"):
+            run_study(None, 3.0, [_L2()])  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="MeasureProtocol"):
             run_study(None, fake, [3.0])  # type: ignore[list-item]
         with pytest.raises(TypeError, match="CheckProtocol"):
-            verify(None, fake, L2Error(), 3.0)  # type: ignore[arg-type]
+            verify(None, fake, _L2(), 3.0)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="at least one measure"):
             run_study(None, fake, [])
 
     def test_shared_labels(self) -> None:
-        with pytest.raises(ValueError, match="share the label 'l2'"):
-            run_study(None, _Fake(_HALVING[:2], lambda h: h), [L2Error(), L2Error()])
+        with pytest.raises(ValueError, match="labels must be unique"):
+            run_study(None, _Fake(_HALVING[:2], lambda h: h), [_L2(), _L2()])
 
-    def test_an_approximation_or_sizes_of_the_wrong_type(self) -> None:
-        class _BrokenSolve(_Fake):
-            def solve(self, problem: None, request: SpaceLevel) -> float:  # type: ignore[override]
+    def test_a_measurement_or_sizes_of_the_wrong_type(self) -> None:
+        class _BareFloat(_L2):
+            def measure(self, approximation: _Approximation) -> float:  # type: ignore[override]
                 return 0.5
 
         class _BrokenSizes(_Fake):
             def sizes(self, problem: None, request: SpaceLevel) -> float:  # type: ignore[override]
                 return 0.5
 
-        assert not isinstance(0.5, ApproximationProtocol)
-        with pytest.raises(TypeError, match="ApproximationProtocol"):
-            run_study(None, _BrokenSolve(_HALVING[:2], lambda h: h), [L2Error()])  # type: ignore[type-var]
+        with pytest.raises(TypeError, match="must return a Measurement"):
+            run_study(None, _Fake(_HALVING[:2], lambda h: h), [_BareFloat()])  # type: ignore[list-item]
         with pytest.raises(TypeError, match="sizes must be Sizes"):
-            run_study(None, _BrokenSizes(_HALVING[:2], lambda h: h), [L2Error()])  # type: ignore[arg-type]
+            run_study(None, _BrokenSizes(_HALVING[:2], lambda h: h), [_L2()])  # type: ignore[arg-type]
+
+    def test_a_measure_of_another_stack_is_a_type_error(self) -> None:
+        """``_L2`` reads ``_Approximation``; ``_OtherStack`` returns
+        ``_OtherApproximation``. mypy refuses the pairing (the ignore
+        below is flagged as unused under ``--strict`` if it does not), and
+        at run time the measure finds no ``error``."""
+        assert isinstance(_L2(), MeasureProtocol)
+        with pytest.raises(AttributeError, match="error"):
+            run_study(None, _OtherStack(), [_L2()])  # type: ignore[misc]
 
 
 def test_seam_and_checks_import_no_sympy_or_backend() -> None:

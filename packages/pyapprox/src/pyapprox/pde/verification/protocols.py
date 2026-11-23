@@ -6,12 +6,16 @@ spatial levels), reports a level's :class:`Sizes` without solving it, and
 solves a problem at one request. Sizes come before the solve so a study
 can choose its levels from them, e.g. a time step tied to the mesh size.
 
-Each approximation integrates its own errors against the problem's exact
-solution, with its own quadrature, elements and geometry (as deal.II's
+The approximation a solve returns is the stack's own type; the study only
+hands it to measures (:class:`~pyapprox.pde.verification.study.
+MeasureProtocol`), which the same stack writes. Each measure integrates
+its error against the problem's exact solution with the stack's own
+quadrature, elements and geometry (as deal.II's
 ``VectorTools::integrate_difference`` and MFEM's
 ``GridFunction::ComputeL2Error`` do), so the study never touches the
-stack's meshes or vectors. A distributed stack reduces across processes
-before returning.
+stack's meshes or vectors, and a new norm is a new measure, not a change
+to every stack. A distributed stack reduces across processes before
+returning.
 
 A stack that computes quantities of interest supplies a
 :class:`QuantityDiscretizerProtocol`, whose approximations report each
@@ -127,20 +131,6 @@ class SpaceLevel:
     def __post_init__(self) -> None:
         if self.index < 0:
             raise ValueError(f"a level index is non-negative, got {self.index}")
-
-
-@runtime_checkable
-class ApproximationProtocol(Protocol):
-    """One refinement level's solution of a problem."""
-
-    def l2_error(self) -> float:
-        r""":math:`\|u^* - u_h\|_{L^2}`, summed over components."""
-        ...
-
-    def nodal_error(self) -> float:
-        r""":math:`\max_i |u^*(x_i) - u_h(x_i)|` over the stack's nodes and
-        components."""
-        ...
 
 
 @runtime_checkable
