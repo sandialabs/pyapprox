@@ -157,6 +157,30 @@ jobs:
       - name: Run fast tests (no optional deps)
         run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300 ${{ inputs.tests }}
 
+  jax-conformance:
+    name: JAX backend conformance
+    # JaxBkd is experimental: only the conformance table runs on it, so
+    # this job installs the jax extra and runs nothing else.
+    if: >-
+      github.event_name != 'workflow_dispatch'
+      || contains(fromJSON('["all","fast"]'), inputs.tier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: Linux-pip-3.12-jax-${{ hashFiles('packages/*/pyproject.toml') }}
+          restore-keys: Linux-pip-3.12-jax-
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "packages/pyapprox[test,jax]" -e packages/pyapprox-benchmarks
+      - name: Run the conformance table on JaxBkd
+        run: pytest -v --tb=short --timeout=300 packages/pyapprox/tests/util/backends/test_backend_conformance.py packages/pyapprox/tests/util/backends/test_backend_conformance_jax.py
+
   slow:
     name: Slow tests (>5s)
     if: >-
