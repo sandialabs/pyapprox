@@ -136,10 +136,10 @@ class StateBlocksProtocol(Protocol[V, A_co, F, G]):
         """The identity on one block."""
         ...
 
-    def assemble(
-        self, blocks: Blocks[V, F], properties: OperatorProperties
-    ) -> ActionOperatorProtocol[V, G]:
-        """The operator with these blocks, declared ``properties``."""
+    def assemble(self, blocks: Blocks[V, F]) -> ActionOperatorProtocol[V, G]:
+        """The operator with these blocks, a None block zero, declaring
+        the properties its blocks imply
+        (:func:`~pyapprox.util.linalg.operators.block_properties`)."""
         ...
 
     def solver(self) -> LinearSolverProtocol[V, G]:
@@ -491,9 +491,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
             ]
             wrt_u = ScaledSum(terms, blocks.half_space())
             wrt_v = damping.wrt_velocity(state, time, point)
-        op = blocks.assemble(
-            ((None, blocks.identity()), (wrt_u, wrt_v)), OperatorProperties()
-        )
+        op = blocks.assemble(((None, blocks.identity()), (wrt_u, wrt_v)))
         return LinearizedOperator(op, point)
 
     # The parameter derivatives, lifted from f's (see the module docstring).
@@ -641,16 +639,8 @@ def second_order_system(
     restoring.space.descriptor().require_same(
         blocks.half_space().descriptor(), "space of one block"
     )
-    mass = restoring.mass.properties()
-    block_mass = blocks.assemble(
-        ((blocks.identity(), None), (None, restoring.mass)),
-        OperatorProperties(
-            symmetric=mass.symmetric,
-            spd=mass.spd,
-            diagonal=mass.diagonal,
-            identity=mass.identity,
-        ),
-    )
+    # Block-diagonal, so it keeps the mass's properties.
+    block_mass = blocks.assemble(((blocks.identity(), None), (None, restoring.mass)))
     rhs = SecondOrderRightHandSide(
         restoring.rhs, velocity_force, blocks, restoring.form, initial_velocity
     )

@@ -193,6 +193,70 @@ class BackendVectorSpace(Generic[Array]):
         return f"{self.__class__.__name__}({self._descriptor!r})"
 
 
+def _part_offsets(
+    whole: SpaceDescriptor, parts: Sequence[SpaceDescriptor]
+) -> list[int]:
+    """Each part's first row, then the whole size; raises unless the parts
+    cover the whole space."""
+    offsets = [0]
+    for part in parts:
+        offsets.append(offsets[-1] + part.size)
+    if not parts or offsets[-1] != whole.size:
+        raise ValueError(
+            f"parts of sizes {[part.size for part in parts]} do not cover a "
+            f"space of size {whole.size}"
+        )
+    return offsets
+
+
+class BackendRowPartition(Generic[Array]):
+    """Backend arrays split by rows into consecutive parts.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.algebra.RowPartitionProtocol`.
+
+    Parameters
+    ----------
+    space : BackendVectorSpace
+        The whole space.
+    parts : sequence of BackendVectorSpace
+        The parts, in row order; their sizes sum to the whole size.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If the parts do not cover the whole space.
+    """
+
+    def __init__(
+        self,
+        space: BackendVectorSpace[Array],
+        parts: Sequence[BackendVectorSpace[Array]],
+        bkd: Backend[Array],
+    ) -> None:
+        self._space, self._parts, self._bkd = space, tuple(parts), bkd
+        self._offsets = _part_offsets(
+            space.descriptor(), [part.descriptor() for part in parts]
+        )
+
+    def space(self) -> BackendVectorSpace[Array]:
+        return self._space
+
+    def parts(self) -> tuple[BackendVectorSpace[Array], ...]:
+        return self._parts
+
+    def split(self, x: Array) -> list[Array]:
+        return [x[lo:hi] for lo, hi in zip(self._offsets[:-1], self._offsets[1:])]
+
+    def join(self, parts: Sequence[Array]) -> Array:
+        return self._bkd.concatenate(list(parts), axis=0)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(nparts={len(self._parts)})"
+
+
 class BackendRowSet(Generic[Array]):
     """A set of rows of a space, applied to backend blocks by masking.
 

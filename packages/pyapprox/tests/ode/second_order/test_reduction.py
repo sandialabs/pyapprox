@@ -59,7 +59,7 @@ from pyapprox.ode.residual_derivatives import (
 )
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.ode.residual_form import BackendColumnForm
-from pyapprox.ode.second_order.backend_blocks import BackendDenseStateBlocks
+from pyapprox.ode.second_order.assembled_blocks import backend_dense_state_blocks
 from pyapprox.ode.second_order.rayleigh import RayleighDamping
 from pyapprox.ode.second_order.reduction import (
     InitialVelocityDerivatives,
@@ -299,7 +299,7 @@ def _system(
     }[damper]
     return second_order_system(
         _restoring(bkd, spring),
-        BackendDenseStateBlocks(bkd, _N),
+        backend_dense_state_blocks(bkd, _N),
         InitialVelocityDerivatives.independent() if initial is None else initial,
         force,
     )
@@ -340,7 +340,7 @@ class TestStructure:
         with pytest.raises(ValueError):
             second_order_system(
                 _restoring(bkd, _Spring(bkd)),
-                BackendDenseStateBlocks(bkd, _N + 1),
+                backend_dense_state_blocks(bkd, _N + 1),
                 InitialVelocityDerivatives.independent(),
             )
 
@@ -538,7 +538,7 @@ class TestRayleighDamping:
         restoring = _restoring(bkd, spring)
         return second_order_system(
             restoring,
-            BackendDenseStateBlocks(bkd, _N),
+            backend_dense_state_blocks(bkd, _N),
             InitialVelocityDerivatives.independent(),
             RayleighDamping(restoring, alpha, beta),
         )

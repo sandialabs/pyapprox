@@ -236,6 +236,59 @@ class NumpyVectorSpace(Generic[S]):
         return f"{self.__class__.__name__}({self._descriptor!r})"
 
 
+class NumpyRowPartition(Generic[S]):
+    """NumPy arrays split by rows into consecutive parts.
+
+    Satisfies
+    :class:`~pyapprox.util.linalg.operators.algebra.RowPartitionProtocol`.
+    The parts are copies, since this stack's operations write into an
+    ``out``: a part written in place must not change the whole.
+
+    Parameters
+    ----------
+    space : NumpyVectorSpace
+        The whole space.
+    parts : sequence of NumpyVectorSpace
+        The parts, in row order; their sizes sum to the whole size.
+
+    Raises
+    ------
+    ValueError
+        If the parts do not cover the whole space.
+    """
+
+    def __init__(
+        self, space: NumpyVectorSpace[S], parts: Sequence[NumpyVectorSpace[S]]
+    ) -> None:
+        self._space: NumpyVectorSpace[S] = space
+        self._parts: tuple[NumpyVectorSpace[S], ...] = tuple(parts)
+        self._offsets = [0]
+        for part in self._parts:
+            self._offsets.append(self._offsets[-1] + part.descriptor().size)
+        if not self._parts or self._offsets[-1] != space.descriptor().size:
+            raise ValueError(
+                f"parts of sizes {[p.descriptor().size for p in self._parts]} do "
+                f"not cover a space of size {space.descriptor().size}"
+            )
+
+    def space(self) -> NumpyVectorSpace[S]:
+        return self._space
+
+    def parts(self) -> tuple[NumpyVectorSpace[S], ...]:
+        return self._parts
+
+    def split(self, x: NDArray[S]) -> list[NDArray[S]]:
+        return [
+            x[lo:hi].copy() for lo, hi in zip(self._offsets[:-1], self._offsets[1:])
+        ]
+
+    def join(self, parts: Sequence[NDArray[S]]) -> NDArray[S]:
+        return np.concatenate(list(parts), axis=0)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(nparts={len(self._parts)})"
+
+
 class NumpyRowSet:
     """A set of rows of a space, stored as a sorted integer index array.
 
