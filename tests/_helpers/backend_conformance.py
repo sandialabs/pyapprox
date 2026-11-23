@@ -302,14 +302,46 @@ def _canonical_qr(bkd: Any, result: Any) -> Any:
     return q * signs, r * signs[:, None]
 
 
-def _reductions(method: str) -> List[Case]:
+def _reductions(
+    method: str, reference: Optional[Callable[..., Any]] = None
+) -> List[Case]:
+    """The axis rows every reduction shares: NumPy's ``None`` (every
+    axis, keepdims included), int, negative, tuple and ``()`` (none)."""
     return [
-        Case(method, "axis-none", (_A,), differentiable=True),
-        Case(method, "axis-0", (_A,), {"axis": 0}, differentiable=True),
-        Case(method, "axis-neg", (_T3,), {"axis": -1}, differentiable=True),
-        Case(method, "keepdims", (_A,), {"axis": 1, "keepdims": True}),
-        Case(method, "complex", (_C,), {"axis": 0}),
-    ]
+        Case(method, "axis-none", (_A,), reference=reference, differentiable=True),
+        Case(method, "axis-0", (_A,), {"axis": 0}, reference=reference,
+             differentiable=True),
+        Case(method, "axis-neg", (_T3,), {"axis": -1}, reference=reference,
+             differentiable=True),
+        Case(method, "axis-tuple", (_T3,), {"axis": (0, 2)}, reference=reference,
+             differentiable=True),
+        Case(method, "keepdims", (_A,), {"axis": 1, "keepdims": True},
+             reference=reference),
+        Case(method, "keepdims-axis-none", (_A,), {"keepdims": True},
+             reference=reference),
+        Case(method, "axis-empty", (_A,), {"axis": ()}, reference=reference),
+    ]  # fmt: skip
+
+
+def _logsumexp(*args: Any, **kwargs: Any) -> Any:
+    import scipy.special
+
+    return scipy.special.logsumexp(*args, **kwargs)
+
+
+def _quantile(array: Any, level: float, axis: int = 0) -> Any:
+    # The protocol's default axis is 0; NumPy's flattens.
+    return np.quantile(array, level, axis=axis)
+
+
+def _cov(array: Any, **kwargs: Any) -> Any:
+    # 2-D for one variable too.
+    return np.atleast_2d(np.cov(array, **kwargs))
+
+
+# Ties (the first occurrence wins) and an input with no rows.
+_TIES = np.asarray([[1.0, 3.0, 3.0], [2.0, 2.0, 1.0]])
+_EMPTY = np.zeros((0, 3))
 
 
 CASES: List[Case] = [
@@ -356,6 +388,8 @@ CASES: List[Case] = [
          expect=Expect.HOST, eager_only=True),
     Case("to_bool", "false-0d", (np.asarray(0.0),), reference=lambda x: False,
          expect=Expect.HOST, eager_only=True),
+    Case("to_bool", "bool", (np.asarray([True]),), reference=lambda x: True,
+         expect=Expect.HOST, eager_only=True),
     Case("to_bool", "several", (_A,), raises=ValueError, eager_only=True),
     Case("to_bool", "empty", (np.zeros((0,)),), raises=ValueError,
          eager_only=True),
@@ -398,19 +432,80 @@ CASES: List[Case] = [
     Case("where", "x-without-y", (_MASK, _A), raises=ValueError),
     # ---- reductions
     *_reductions("sum"),
-    Case("sum", "axis-tuple", (_T3,), {"axis": (0, 2)}, differentiable=True),
+    Case("sum", "complex", (_C,), {"axis": 0}),
     *_reductions("mean"),
-    Case("mean", "axis-tuple", (_T3,), {"axis": (0, 2)}, differentiable=True),
+    Case("mean", "complex", (_C,), {"axis": 0}),
     Case("prod", "axis-none", (_POS,), differentiable=True),
     Case("prod", "axis-1", (_POS,), {"axis": 1}, differentiable=True),
+    Case("prod", "axis-tuple", (_T3,), {"axis": (0, 2)}, differentiable=True),
     Case("prod", "keepdims", (_POS,), {"axis": 0, "keepdims": True}),
+    Case("prod", "keepdims-axis-none", (_POS,), {"keepdims": True}),
+    Case("prod", "axis-empty", (_POS,), {"axis": ()}),
+    *_reductions("max"),
+    Case("max", "nan", (_NAN,)),
+    Case("max", "empty-other-axis", (_EMPTY,), {"axis": 1}),
+    Case("max", "empty", (_EMPTY,), {"axis": 0}, raises=ValueError),
+    Case("max", "complex", (_C,), raises=TypeError),
+    *_reductions("min"),
+    Case("min", "nan", (_NAN,)),
+    Case("min", "empty", (_EMPTY,), raises=ValueError),
+    Case("min", "complex", (_C,), {"axis": 0}, raises=TypeError),
+    Case("argmax", "axis-none", (_A,), expect=Expect.INDEX),
+    Case("argmax", "axis-0", (_A,), {"axis": 0}, expect=Expect.INDEX),
+    Case("argmax", "axis-neg", (_T3,), {"axis": -1}, expect=Expect.INDEX),
+    Case("argmax", "ties", (_TIES,), {"axis": 1}, expect=Expect.INDEX),
+    Case("argmax", "nan", (_NAN,), expect=Expect.INDEX),
+    Case("argmax", "empty", (_EMPTY,), {"axis": 0}, raises=ValueError),
+    Case("argmax", "complex", (_C,), raises=TypeError),
+    Case("argmin", "axis-none", (_A,), expect=Expect.INDEX),
+    Case("argmin", "axis-1", (_A,), {"axis": 1}, expect=Expect.INDEX),
+    Case("argmin", "ties", (_TIES,), {"axis": 0}, expect=Expect.INDEX),
+    Case("argmin", "nan", (_NAN,), expect=Expect.INDEX),
+    Case("argmin", "empty", (_EMPTY,), raises=ValueError),
+    Case("argmin", "complex", (_C,), {"axis": 0}, raises=TypeError),
+    *_reductions("var"),
+    Case("var", "ddof", (_A,), {"axis": 1, "ddof": 1}, differentiable=True),
+    Case("var", "complex", (_C,), {"axis": 0}, expect=Expect.DEFAULT),
+    *_reductions("std"),
+    Case("std", "ddof", (_A,), {"axis": 1, "ddof": 1}, differentiable=True),
+    Case("std", "complex", (_C,), {"axis": 0}, expect=Expect.DEFAULT),
+    *_reductions("logsumexp", reference=_logsumexp),
+    Case("logsumexp", "large", (np.asarray([1000.0, 1000.0]),),
+         reference=_logsumexp),
+    Case("cumsum", "axis-none", (_A,), differentiable=True),
+    Case("cumsum", "axis-1", (_A,), {"axis": 1}, differentiable=True),
+    Case("cumsum", "complex", (_C,), {"axis": 0}),
+    Case("quantile", "axis-0", (_A, 0.3), reference=_quantile,
+         differentiable=True),
+    Case("quantile", "axis-1", (_A, 0.7), {"axis": 1}, reference=_quantile,
+         differentiable=True),
+    Case("quantile", "vector", (_RHS1, 0.5), reference=_quantile),
+    Case("quantile", "level-0", (_A, 0.0), reference=_quantile),
+    Case("quantile", "level-1", (_A, 1.0), {"axis": 1}, reference=_quantile),
+    Case("cov", "rows", (_A,), reference=_cov, differentiable=True),
+    Case("cov", "columns", (_B,), {"rowvar": False}, reference=_cov,
+         differentiable=True),
+    Case("cov", "ddof-0", (_A,), {"ddof": 0}, reference=_cov),
+    Case("cov", "one-variable", (_A[0],), reference=_cov),
+    Case("diff", "default", (_A,), differentiable=True),
+    Case("diff", "n-2", (_B,), {"n": 2}, differentiable=True),
+    Case("diff", "axis-0", (_B,), {"axis": 0}, differentiable=True),
     Case("any", "axis-none", (_A > 0.5,), expect=Expect.BOOL),
     Case("any", "axis-tuple", (_T3 > 0.5,), {"axis": (1, 2)},
          expect=Expect.BOOL),
     Case("any", "float-input", (_A,), {"axis": 0}, expect=Expect.BOOL),
+    Case("any", "integer-input", (_index(0, 3, 0),), expect=Expect.BOOL),
+    Case("any", "axis-empty", (_A > 0.5,), {"axis": ()}, expect=Expect.BOOL),
+    Case("any", "0d", (np.asarray(0.0),), expect=Expect.BOOL),
+    Case("any", "empty-axis-0", (_EMPTY,), {"axis": 0}, expect=Expect.BOOL),
     Case("all", "keepdims", (_MASK,), {"axis": 1, "keepdims": True},
          expect=Expect.BOOL),
-    Case("all", "empty", (np.zeros((0, 3)),), expect=Expect.BOOL),
+    Case("all", "keepdims-axis-none", (_MASK,), {"keepdims": True},
+         expect=Expect.BOOL),
+    Case("all", "axis-neg", (_MASK,), {"axis": -1}, expect=Expect.BOOL),
+    Case("all", "axis-tuple-neg", (_T3 > -0.5,), {"axis": (-1, 0)},
+         expect=Expect.BOOL),
+    Case("all", "empty", (_EMPTY,), expect=Expect.BOOL),
     # ---- functional updates
     Case("index_update", "int", (_A[0], 1, 9.0), reference=_index_update,
          differentiable=True),
@@ -516,21 +611,21 @@ NOT_YET_COVERED = frozenset(
     {
         "abs", "all_array", "all_bool", "allclose", "any_array", "any_bool",
         "arange", "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
-        "arctanh", "argmax", "argmin", "argsort", "array", "array_type",
+        "arctanh", "argsort", "array", "array_type",
         "atleast_1d", "atleast_2d", "block", "cdist", "ceil", "clip",
-        "conj", "copy", "cos", "cosh", "cov", "cumsum", "diag", "diff",
+        "conj", "copy", "cos", "cosh", "diag",
         "digamma", "empty", "equal", "erf", "erfinv",
         "expm1", "eye", "flatten", "flip", "floor", "floor_divide",
         "full_like", "gammaln", "get_diagonal", "hstack",
         "is_floating_dtype", "is_integer_dtype", "isfinite", "isinf", "isnan",
-        "linspace", "log", "log1p", "log_ndtr", "logspace", "logsumexp",
-        "max", "maximum", "meshgrid",
-        "min", "minimum", "ndtr", "nonzero", "ones_like",
-        "quantile", "ravel", "repeat", "round",
+        "linspace", "log", "log1p", "log_ndtr", "logspace",
+        "maximum", "meshgrid",
+        "minimum", "ndtr", "nonzero", "ones_like",
+        "ravel", "repeat", "round",
         "searchsorted", "sign", "sin", "sinh",
-        "sort", "split", "squeeze", "std", "tanh",
+        "sort", "split", "squeeze", "tanh",
         "tile", "to_float", "to_int", "tracks_gradient", "transpose",
-        "tril", "tril_indices", "triu", "unique", "var", "vstack", "zeros_like",
+        "tril", "tril_indices", "triu", "unique", "vstack", "zeros_like",
     }
 )  # fmt: skip
 

@@ -25,9 +25,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class AutodiffBackend(Backend[Array], Protocol):
     """A Backend that can differentiate array-valued callables."""
 
-    def jacobian(
-        self, fun: Callable[[Array], Array], params: Array
-    ) -> Array:
+    def jacobian(self, fun: Callable[[Array], Array], params: Array) -> Array:
         """Jacobian of ``fun`` at ``params``.
 
         For ``fun`` mapping shape ``(n,)`` to ``(m,)`` the result has

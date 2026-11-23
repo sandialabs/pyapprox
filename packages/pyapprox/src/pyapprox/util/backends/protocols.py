@@ -451,9 +451,11 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def prod(
         array: Array,
-        axis: Optional[int] = None,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
-    ) -> Array: ...
+    ) -> Array:
+        """Product over ``axis`` (all axes if ``None``, none if ``()``)."""
+        ...
 
     @staticmethod
     def any(
@@ -732,19 +734,48 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def min(
-        array: Array, axis: Optional[int] = None, keepdims: bool = False
-    ) -> Array: ...
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Array:
+        """Minimum over ``axis`` (all axes if ``None``, none if ``()``).
+
+        Raises
+        ------
+        TypeError
+            If ``array`` is complex: complex values have no order; reduce
+            ``abs`` or the real part instead.
+        ValueError
+            If an axis reduced over has length zero.
+        """
+        ...
 
     @staticmethod
     def max(
-        array: Array, axis: Optional[int] = None, keepdims: bool = False
-    ) -> Array: ...
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Array:
+        """Maximum over ``axis`` (all axes if ``None``, none if ``()``).
+
+        Raises
+        ------
+        TypeError
+            If ``array`` is complex: complex values have no order; reduce
+            ``abs`` or the real part instead.
+        ValueError
+            If an axis reduced over has length zero.
+        """
+        ...
 
     @staticmethod
     def logsumexp(
-        array: Array, axis: Optional[int] = None, keepdims: bool = False
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> Array:
-        """Log of sum of exponentials. Numerically stable."""
+        """Log of sum of exponentials over ``axis`` (all axes if
+        ``None``, none if ``()``). Numerically stable."""
         ...
 
     @staticmethod
@@ -942,12 +973,30 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def argmin(array: Array, axis: Optional[int] = None) -> Array:
-        """Return indices of minimum values along an axis."""
+        """Index of the first minimum along ``axis`` (of the flattened
+        array if ``None``), in the index dtype.
+
+        Raises
+        ------
+        TypeError
+            If ``array`` is complex.
+        ValueError
+            If the axis searched has length zero.
+        """
         ...
 
     @staticmethod
     def argmax(array: Array, axis: Optional[int] = None) -> Array:
-        """Return indices of maximum values along an axis."""
+        """Index of the first maximum along ``axis`` (of the flattened
+        array if ``None``), in the index dtype.
+
+        Raises
+        ------
+        TypeError
+            If ``array`` is complex.
+        ValueError
+            If the axis searched has length zero.
+        """
         ...
 
     @overload
@@ -1071,10 +1120,10 @@ class Backend(Protocol, Generic[Array]):
         Parameters
         ----------
         array : Array
-            Input array.
+            Floating or complex input array.
         axis : int or tuple of ints, optional
             Axis or axes along which to compute means.
-            If None, compute over flattened array.
+            If None, compute over flattened array; if ``()``, over none.
         keepdims : bool
             If True, reduced axes are kept with size 1.
 
@@ -1092,15 +1141,16 @@ class Backend(Protocol, Generic[Array]):
         keepdims: bool = False,
         ddof: int = 0,
     ) -> Array:
-        """Compute variance along the specified axis.
+        """Compute variance along the specified axis; real for complex
+        input.
 
         Parameters
         ----------
         array : Array
-            Input array.
+            Floating or complex input array.
         axis : int or tuple of ints, optional
             Axis or axes along which to compute variance.
-            If None, compute over flattened array.
+            If None, compute over flattened array; if ``()``, over none.
         keepdims : bool
             If True, reduced axes are kept with size 1.
         ddof : int
@@ -1121,15 +1171,16 @@ class Backend(Protocol, Generic[Array]):
         keepdims: bool = False,
         ddof: int = 0,
     ) -> Array:
-        """Compute standard deviation along the specified axis.
+        """Compute standard deviation along the specified axis; real for
+        complex input.
 
         Parameters
         ----------
         array : Array
-            Input array.
+            Floating or complex input array.
         axis : int or tuple of ints, optional
             Axis or axes along which to compute standard deviation.
-            If None, compute over flattened array.
+            If None, compute over flattened array; if ``()``, over none.
         keepdims : bool
             If True, reduced axes are kept with size 1.
         ddof : int

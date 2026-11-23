@@ -1,7 +1,60 @@
 import inspect
-from typing import Any, Callable, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 from pyapprox.util.backends.protocols import Backend
+
+
+def reduction_axes(
+    ndim: int, axis: Optional[Union[int, Tuple[int, ...]]]
+) -> Tuple[int, ...]:
+    """The axes a reduction over ``axis`` reduces, as NumPy reads it:
+    ``None`` is every axis, an int one axis, a tuple those axes (``()``
+    none). Negative axes are kept as given."""
+    if axis is None:
+        return tuple(range(ndim))
+    if isinstance(axis, int):
+        return (axis,)
+    return tuple(axis)
+
+
+def check_ordered_reduction(
+    method: str,
+    is_complex: bool,
+    shape: Tuple[int, ...],
+    axes: Tuple[int, ...],
+) -> None:
+    """Check that ``Backend.max``, ``min``, ``argmax`` or ``argmin`` can
+    order the values it is given.
+
+    Parameters
+    ----------
+    method : str
+        The method, for the message.
+    is_complex : bool
+        Whether the input is complex.
+    shape : Tuple[int, ...]
+        The input's shape.
+    axes : Tuple[int, ...]
+        The axes reduced over (:func:`reduction_axes`).
+
+    Raises
+    ------
+    TypeError
+        If the input is complex: complex values have no order.
+    ValueError
+        If an axis reduced over has length zero.
+    """
+    if is_complex:
+        raise TypeError(
+            f"{method} needs real values; complex values have no order, so "
+            "reduce abs() or the real part instead"
+        )
+    empty = [a for a in axes if shape[a] == 0]
+    if empty:
+        raise ValueError(
+            f"{method} over an axis of length zero (axes {empty} of shape "
+            f"{shape}) has no result"
+        )
 
 
 def check_to_bool_shape(shape: Tuple[int, ...]) -> None:

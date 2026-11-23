@@ -32,7 +32,9 @@ from pyapprox.util.backends.protocols import ArrayLike, KernelResult
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_jit_kernel,
+    check_ordered_reduction,
     check_to_bool_shape,
+    reduction_axes,
 )
 from pyapprox.util.optional_deps import missing_dependency_message
 
@@ -40,6 +42,7 @@ try:
     import jax
     import jax.numpy as jnp
     import jax.scipy.linalg
+    import jax.scipy.special
 except ImportError as err:
     raise ImportError(missing_dependency_message("jax", "JaxBkd", "jax")) from err
 
@@ -235,10 +238,86 @@ class JaxBkd:
         return jnp.mean(array, axis=axis, keepdims=keepdims)
 
     @staticmethod
-    def prod(
-        array: jax.Array, axis: Optional[int] = None, keepdims: bool = False
-    ) -> jax.Array:
+    def prod(array: jax.Array, axis: Axes = None, keepdims: bool = False) -> jax.Array:
         return jnp.prod(array, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def min(array: jax.Array, axis: Axes = None, keepdims: bool = False) -> jax.Array:
+        check_ordered_reduction(
+            "min",
+            jnp.iscomplexobj(array),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
+        return jnp.min(array, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def max(array: jax.Array, axis: Axes = None, keepdims: bool = False) -> jax.Array:
+        check_ordered_reduction(
+            "max",
+            jnp.iscomplexobj(array),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
+        return jnp.max(array, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def argmin(array: jax.Array, axis: Optional[int] = None) -> jax.Array:
+        check_ordered_reduction(
+            "argmin",
+            jnp.iscomplexobj(array),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
+        return jnp.argmin(array, axis=axis)
+
+    @staticmethod
+    def argmax(array: jax.Array, axis: Optional[int] = None) -> jax.Array:
+        check_ordered_reduction(
+            "argmax",
+            jnp.iscomplexobj(array),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
+        return jnp.argmax(array, axis=axis)
+
+    @staticmethod
+    def var(
+        array: jax.Array, axis: Axes = None, keepdims: bool = False, ddof: int = 0
+    ) -> jax.Array:
+        return jnp.var(array, axis=axis, keepdims=keepdims, ddof=ddof)
+
+    @staticmethod
+    def std(
+        array: jax.Array, axis: Axes = None, keepdims: bool = False, ddof: int = 0
+    ) -> jax.Array:
+        return jnp.std(array, axis=axis, keepdims=keepdims, ddof=ddof)
+
+    @staticmethod
+    def logsumexp(
+        array: jax.Array, axis: Axes = None, keepdims: bool = False
+    ) -> jax.Array:
+        result: jax.Array = jax.scipy.special.logsumexp(
+            array, axis=axis, keepdims=keepdims
+        )
+        return result
+
+    @staticmethod
+    def cumsum(array: jax.Array, axis: Optional[int] = None) -> jax.Array:
+        return jnp.cumsum(array, axis=axis)
+
+    @staticmethod
+    def quantile(array: jax.Array, level: float, axis: int = 0) -> jax.Array:
+        return jnp.quantile(array, level, axis=axis)
+
+    @staticmethod
+    def cov(array: jax.Array, rowvar: bool = True, ddof: int = 1) -> jax.Array:
+        # 2-D for one variable too, as the other backends.
+        return jnp.atleast_2d(jnp.cov(array, rowvar=rowvar, ddof=ddof))
+
+    @staticmethod
+    def diff(array: jax.Array, n: int = 1, axis: int = -1) -> jax.Array:
+        return jnp.diff(array, n=n, axis=axis)
 
     @staticmethod
     def any(array: jax.Array, axis: Axes = None, keepdims: bool = False) -> jax.Array:

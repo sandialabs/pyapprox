@@ -1,4 +1,5 @@
 import functools
+import math
 from typing import (
     Any,
     Callable,
@@ -27,7 +28,9 @@ from pyapprox.util.backends.protocols import (
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_jit_kernel,
+    check_ordered_reduction,
     check_to_bool_shape,
+    reduction_axes,
 )
 from pyapprox.util.openmp import use_torch_openmp
 from pyapprox.util.optional_deps import missing_dependency_message
@@ -70,6 +73,34 @@ def _bool_reduction(
         result = reduce(array)
         return result.reshape((1,) * array.ndim) if keepdims else result
     return reduce(array, dim=axis, keepdim=keepdims)
+
+
+_Reduce = Callable[[torch.Tensor, Tuple[int, ...], bool], torch.Tensor]
+
+
+def _numpy_reduction(
+    reduce: _Reduce,
+    array: torch.Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]],
+    keepdims: bool,
+) -> torch.Tensor:
+    """``reduce(array, dims, keepdim)`` with NumPy's axis semantics.
+
+    Every axis is passed explicitly for ``axis=None``, so ``keepdims``
+    holds there too; an empty tuple, which torch reads as every axis,
+    reduces each element as a group of one, as NumPy does.
+    """
+    dims = reduction_axes(array.ndim, axis)
+    if not dims:
+        return reduce(array.unsqueeze(-1), (-1,), False)
+    return reduce(array, dims, keepdims)
+
+
+def _prod(array: torch.Tensor, dims: Tuple[int, ...], keepdim: bool) -> torch.Tensor:
+    # torch.prod reduces one dim at a time.
+    for dim in sorted((d % array.ndim for d in dims), reverse=True):
+        array = torch.prod(array, dim=dim, keepdim=True)
+    return array if keepdim else array.squeeze(dims)
 
 
 # Implement the PyTorch backend
@@ -340,7 +371,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> torch.Tensor:
-        return torch.sum(array, dim=axis, keepdim=keepdims)
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.sum(x, dim=dims, keepdim=keep),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def cumsum(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
@@ -441,15 +477,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def prod(
         array: torch.Tensor,
-        axis: Optional[int] = None,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> torch.Tensor:
-        if axis is None:
-            if keepdims is False:
-                return torch.prod(array)
-            # torch.prod has no dim=None overload; emulate keepdims
-            return torch.prod(array).reshape((1,) * array.ndim)
-        return torch.prod(array, dim=axis, keepdim=keepdims)
+        return _numpy_reduction(_prod, array, axis, keepdims)
 
     @staticmethod
     def any(
@@ -656,9 +687,17 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def quantile(array: torch.Tensor, level: float, axis: int = 0) -> torch.Tensor:
-        return torch.quantile(
-            array, torch.as_tensor(level, dtype=array.dtype), dim=axis
-        )
+        # NumPy's linear interpolation between order statistics, written
+        # out: torch.quantile checks its level against the data, which does
+        # not compile under fullgraph=True. The level is a Python float,
+        # so the two order statistics are fixed when traced.
+        ordered = torch.sort(array, dim=axis).values
+        position = level * (array.shape[axis] - 1)
+        below = math.floor(position)
+        above = min(below + 1, array.shape[axis] - 1)
+        weight = position - below
+        low = ordered.select(axis, below)
+        return low + weight * (ordered.select(axis, above) - low)
 
     @staticmethod
     def argsort(array: torch.Tensor, axis: int = -1) -> torch.Tensor:
@@ -680,29 +719,54 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def min(
-        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> torch.Tensor:
-        if axis is None:
-            return torch.min(array)
-        values, _ = torch.min(array, dim=axis, keepdim=keepdims)
-        return values
+        check_ordered_reduction(
+            "min",
+            array.is_complex(),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.amin(x, dim=dims, keepdim=keep),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def max(
-        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> torch.Tensor:
-        if axis is None:
-            return torch.max(array)
-        values, _ = torch.max(array, dim=axis, keepdim=keepdims)
-        return values
+        check_ordered_reduction(
+            "max",
+            array.is_complex(),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.amax(x, dim=dims, keepdim=keep),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def logsumexp(
-        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> torch.Tensor:
-        if axis is None:
-            return torch.logsumexp(array.reshape(-1), dim=0)
-        return torch.logsumexp(array, dim=axis, keepdim=keepdims)
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.logsumexp(x, dim=dims, keepdim=keep),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def einsum(subscripts: str, *operands: torch.Tensor) -> torch.Tensor:
@@ -885,14 +949,22 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def argmin(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
-        if axis is None:
-            return torch.argmin(array)
+        check_ordered_reduction(
+            "argmin",
+            array.is_complex(),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
         return torch.argmin(array, dim=axis)
 
     @staticmethod
     def argmax(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
-        if axis is None:
-            return torch.argmax(array)
+        check_ordered_reduction(
+            "argmax",
+            array.is_complex(),
+            tuple(array.shape),
+            reduction_axes(array.ndim, axis),
+        )
         return torch.argmax(array, dim=axis)
 
     @staticmethod
@@ -967,9 +1039,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> torch.Tensor:
-        if axis is None:
-            return torch.mean(array)
-        return torch.mean(array, dim=axis, keepdim=keepdims)
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.mean(x, dim=dims, keepdim=keep),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def var(
@@ -980,9 +1055,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         # torch.var uses correction (Bessel's correction) instead of ddof
         # correction=0 gives population variance, correction=1 gives sample variance
-        if axis is None:
-            return torch.var(array, correction=ddof)
-        return torch.var(array, dim=axis, keepdim=keepdims, correction=ddof)
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.var(x, dim=dims, keepdim=keep, correction=ddof),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def std(
@@ -993,9 +1071,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         # torch.std uses correction (Bessel's correction) instead of ddof
         # correction=0 gives population std, correction=1 gives sample std
-        if axis is None:
-            return torch.std(array, correction=ddof)
-        return torch.std(array, dim=axis, keepdim=keepdims, correction=ddof)
+        return _numpy_reduction(
+            lambda x, dims, keep: torch.std(x, dim=dims, keepdim=keep, correction=ddof),
+            array,
+            axis,
+            keepdims,
+        )
 
     @staticmethod
     def cov(
@@ -1003,14 +1084,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         rowvar: bool = True,
         ddof: int = 1,
     ) -> torch.Tensor:
-        # torch.cov expects rows as variables (like np.cov with rowvar=True)
-        # and uses correction instead of ddof
-        if not rowvar:
+        # Written out: torch.cov checks its weights against the data, which
+        # does not compile under fullgraph=True. Always 2-D, as NumPy's
+        # result for one variable is not.
+        if array.ndim == 1:
+            array = array[None, :]
+        elif not rowvar:
             array = array.T
-        result = torch.cov(array, correction=ddof)
-        # Ensure result is always 2D (torch.cov returns scalar for 1 variable)
-        _atleast_2d = cast(Callable[[torch.Tensor], torch.Tensor], torch.atleast_2d)
-        return _atleast_2d(result)
+        centered = array - torch.mean(array, dim=1, keepdim=True)
+        return (centered @ centered.mH) / (array.shape[1] - ddof)
 
     @staticmethod
     def eigh(array: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:

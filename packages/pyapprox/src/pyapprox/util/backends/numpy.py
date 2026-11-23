@@ -27,7 +27,9 @@ from pyapprox.util.backends.protocols import (
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_jit_kernel,
+    check_ordered_reduction,
     check_to_bool_shape,
+    reduction_axes,
 )
 
 
@@ -386,7 +388,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def prod(
         array: NDArray[Any],
-        axis: Optional[int] = None,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
         # keepdims as a literal per branch: the stubs overload on it
@@ -591,9 +593,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def quantile(array: NDArray[Any], level: float, axis: int = 0) -> NDArray[Any]:
-        # numpy's stubs type a quantile along an axis as Any.
-        result: NDArray[Any] = np.quantile(array, level, axis=axis)
-        return result
+        # A 0-d array, not the NumPy scalar a 1-D input gives.
+        return np.asarray(np.quantile(array, level, axis=axis))
 
     @staticmethod
     def argsort(array: NDArray[Any], axis: int = -1) -> NDArray[Any]:
@@ -614,8 +615,16 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def min(
-        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> NDArray[Any]:
+        check_ordered_reduction(
+            "min",
+            np.iscomplexobj(array),
+            array.shape,
+            reduction_axes(array.ndim, axis),
+        )
         # keepdims as a literal per branch: the stubs overload on it
         if keepdims:
             return np.asarray(np.min(array, axis=axis, keepdims=True))
@@ -623,8 +632,16 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def max(
-        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> NDArray[Any]:
+        check_ordered_reduction(
+            "max",
+            np.iscomplexobj(array),
+            array.shape,
+            reduction_axes(array.ndim, axis),
+        )
         # keepdims as a literal per branch: the stubs overload on it
         if keepdims:
             return np.asarray(np.max(array, axis=axis, keepdims=True))
@@ -632,12 +649,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def logsumexp(
-        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> NDArray[Any]:
-        result: NDArray[Any] = scipy.special.logsumexp(
-            array, axis=axis, keepdims=keepdims
-        )
-        return result
+        # A 0-d array, not the NumPy scalar SciPy returns for a full
+        # reduction.
+        return np.asarray(scipy.special.logsumexp(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
     def einsum(subscripts: str, *operands: NDArray[Any]) -> NDArray[Any]:
@@ -803,10 +821,22 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def argmin(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
+        check_ordered_reduction(
+            "argmin",
+            np.iscomplexobj(array),
+            array.shape,
+            reduction_axes(array.ndim, axis),
+        )
         return np.asarray(np.argmin(array, axis=axis))
 
     @staticmethod
     def argmax(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
+        check_ordered_reduction(
+            "argmax",
+            np.iscomplexobj(array),
+            array.shape,
+            reduction_axes(array.ndim, axis),
+        )
         return np.asarray(np.argmax(array, axis=axis))
 
     @overload
