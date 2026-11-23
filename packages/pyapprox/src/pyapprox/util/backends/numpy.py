@@ -29,6 +29,7 @@ from pyapprox.util.backends.validation import (
     check_jit_kernel,
     check_orderable,
     check_ordered_reduction,
+    check_scalar_conversion,
     check_to_bool_shape,
     reduction_axes,
 )
@@ -251,20 +252,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def to_float(array: "float | NDArray[Any]") -> float:
         if isinstance(array, (float, int)):
             return float(array)
-        if array.size != 1:
-            raise ValueError(
-                f"to_float requires a single-element array, got shape {array.shape}"
-            )
+        check_scalar_conversion("to_float", array.shape, np.iscomplexobj(array))
         return float(array.flat[0])
 
     @staticmethod
     def to_int(array: "int | NDArray[Any]") -> int:
         if isinstance(array, (float, int)):
             return int(array)
-        if array.size != 1:
-            raise ValueError(
-                f"to_int requires a single-element array, got shape {array.shape}"
-            )
+        check_scalar_conversion("to_int", array.shape, np.iscomplexobj(array))
         return int(array.flat[0])
 
     @staticmethod
@@ -383,8 +378,17 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.empty(shape, dtype=dtype)
 
     @staticmethod
-    def arange(*args: Any, **kwargs: Any) -> NDArray[Any]:
-        return np.arange(*args, **kwargs)
+    def arange(
+        start: Union[int, float],
+        /,
+        stop: Optional[Union[int, float]] = None,
+        step: Union[int, float] = 1,
+        *,
+        dtype: Optional[Any] = None,
+    ) -> NDArray[Any]:
+        if stop is None:
+            start, stop = 0, start
+        return np.arange(start, stop, step, dtype=dtype)
 
     @staticmethod
     def prod(

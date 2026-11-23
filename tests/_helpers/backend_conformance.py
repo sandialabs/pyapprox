@@ -102,6 +102,9 @@ class Expect(Enum):
     DTYPE = "dtype"
     # A Python value or NumPy array, compared as it is.
     HOST = "host"
+    # A class every array the backend creates is an instance of
+    # (``array_type``).
+    ARRAY_TYPE = "array_type"
     # Nothing (``assert_allclose``).
     NONE = "none"
 
@@ -378,6 +381,27 @@ _PLACE = np.asarray([2.0, 0.5, 4.0, 3.0])
 _UNSORTED = np.asarray([3.0, np.nan, 1.0, 3.0, 2.0])
 
 
+def _unspecified_contents(bkd: "ConformanceBackend[Array]", result: Array) -> Array:
+    # empty's values are arbitrary: compare its shape and dtype only.
+    return bkd.zeros(tuple(result.shape), dtype=result.dtype)
+
+
+def _is_floating(array: NDArray[Any]) -> bool:
+    return bool(np.issubdtype(array.dtype, np.floating))
+
+
+def _is_integer(array: NDArray[Any]) -> bool:
+    return bool(np.issubdtype(array.dtype, np.integer))
+
+
+def _to_float(value: Union[float, NDArray[Any]]) -> float:
+    return float(np.asarray(value).reshape(()))
+
+
+def _to_int(value: Union[int, float, NDArray[Any]]) -> int:
+    return int(np.asarray(value).reshape(()))
+
+
 def _flatten(array: NDArray[Any]) -> NDArray[Any]:
     return array.flatten()
 
@@ -444,6 +468,76 @@ CASES: List[Case] = [
          expect=Expect.COMPLEX),
     Case("full", "default", ((2, 2), 3.5), expect=Expect.DEFAULT),
     Case("full", "index", ((3,), 7), {"dtype": Role.INDEX}, expect=Expect.INDEX),
+    Case("empty", "default", ((2, 3),), canonical=_unspecified_contents,
+         expect=Expect.DEFAULT),
+    Case("empty", "index", ((4,),), {"dtype": Role.INDEX},
+         canonical=_unspecified_contents, expect=Expect.INDEX),
+    Case("eye", "square", (3,), expect=Expect.DEFAULT),
+    Case("eye", "rectangular", (2, 3), expect=Expect.DEFAULT),
+    Case("eye", "index", (2,), {"dtype": Role.INDEX}, expect=Expect.INDEX),
+    Case("arange", "stop", (5,), expect=Expect.INDEX),
+    Case("arange", "start-stop", (2, 7), expect=Expect.INDEX),
+    Case("arange", "step", (0, 10, 3), expect=Expect.INDEX),
+    Case("arange", "float", (0.0, 1.0, 0.25), expect=Expect.DEFAULT),
+    Case("arange", "dtype", (4,), {"dtype": Role.DEFAULT},
+         expect=Expect.DEFAULT),
+    Case("linspace", "default", (0.0, 1.0, 5), expect=Expect.DEFAULT),
+    Case("logspace", "default", (0.0, 2.0, 3), expect=Expect.DEFAULT),
+    Case("zeros_like", "float", (_A,)),
+    Case("zeros_like", "dtype", (_A,), {"dtype": Role.INDEX},
+         expect=Expect.INDEX),
+    Case("ones_like", "complex", (_C,)),
+    Case("ones_like", "dtype", (_A,), {"dtype": Role.COMPLEX},
+         expect=Expect.COMPLEX),
+    Case("full_like", "float", (_A, 2.5)),
+    Case("full_like", "index", (_index(1, 2), 3)),
+    Case("array", "float-list", ([[1.0, 2.0], [3.0, 4.0]],),
+         reference=lambda x: np.array(x, dtype=np.float64),
+         expect=Expect.DEFAULT, eager_only=True),
+    Case("array", "int-list", ([1, 2, 3],), expect=Expect.INDEX,
+         eager_only=True),
+    Case("array", "index", (_index(3, 1),), {"dtype": Role.INDEX},
+         expect=Expect.INDEX),
+    Case("array", "complex", (_C,)),
+    Case("array_type", "class", reference=_none, expect=Expect.ARRAY_TYPE,
+         eager_only=True),
+    # ---- dtype predicates and host conversion
+    Case("is_floating_dtype", "float", (_A,), reference=_is_floating,
+         expect=Expect.HOST, eager_only=True),
+    Case("is_floating_dtype", "complex", (_C,), reference=_is_floating,
+         expect=Expect.HOST, eager_only=True),
+    Case("is_floating_dtype", "index", (_index(1),), reference=_is_floating,
+         expect=Expect.HOST, eager_only=True),
+    Case("is_integer_dtype", "index", (_index(1),), reference=_is_integer,
+         expect=Expect.HOST, eager_only=True),
+    Case("is_integer_dtype", "float", (_A,), reference=_is_integer,
+         expect=Expect.HOST, eager_only=True),
+    Case("is_integer_dtype", "bool", (_MASK,), reference=_is_integer,
+         expect=Expect.HOST, eager_only=True),
+    Case("tracks_gradient", "plain", (_A,), reference=lambda x: False,
+         expect=Expect.HOST, eager_only=True),
+    Case("to_float", "0d", (np.asarray(2.5),), reference=_to_float,
+         expect=Expect.HOST, eager_only=True),
+    Case("to_float", "one-element", (np.asarray([[-1.5]]),),
+         reference=_to_float, expect=Expect.HOST, eager_only=True),
+    Case("to_float", "index", (_index(4),), reference=_to_float,
+         expect=Expect.HOST, eager_only=True),
+    Case("to_float", "python", (2.5,), reference=_to_float,
+         expect=Expect.HOST, eager_only=True),
+    Case("to_float", "several", (_A,), raises=ValueError, eager_only=True),
+    Case("to_float", "complex", (_C[:1, :1],), raises=TypeError,
+         eager_only=True),
+    Case("to_int", "index", (_index(7),), reference=_to_int,
+         expect=Expect.HOST, eager_only=True),
+    # Truncation toward zero, as int().
+    Case("to_int", "truncates", (np.asarray(-2.7),), reference=_to_int,
+         expect=Expect.HOST, eager_only=True),
+    Case("to_int", "python", (3,), reference=_to_int, expect=Expect.HOST,
+         eager_only=True),
+    Case("to_int", "empty", (np.zeros((0,)),), raises=ValueError,
+         eager_only=True),
+    Case("to_int", "complex", (_C[:1, :1],), raises=TypeError,
+         eager_only=True),
     # ---- shape
     Case("reshape", "2d", (_A, (3, 2)), differentiable=True),
     Case("reshape", "inferred", (_T3, (-1, 4)), differentiable=True),
@@ -713,17 +807,11 @@ CASES: List[Case] = [
 NOT_YET_COVERED = frozenset(
     {
         "abs", "all_array", "all_bool", "allclose", "any_array", "any_bool",
-        "arange", "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
-        "arctanh", "array", "array_type", "cdist", "ceil", "clip",
-        "conj", "cos", "cosh",
-        "digamma", "empty", "equal", "erf", "erfinv",
-        "expm1", "eye", "floor", "floor_divide",
-        "full_like", "gammaln",
-        "is_floating_dtype", "is_integer_dtype", "isfinite", "isinf", "isnan",
-        "linspace", "log", "log1p", "log_ndtr", "logspace",
-        "maximum", "minimum", "ndtr", "ones_like", "round",
-        "sign", "sin", "sinh", "tanh",
-        "to_float", "to_int", "tracks_gradient", "zeros_like",
+        "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
+        "arctanh", "cdist", "ceil", "clip", "conj", "cos", "cosh",
+        "digamma", "equal", "erf", "erfinv", "expm1", "floor", "floor_divide",
+        "gammaln", "isfinite", "isinf", "isnan", "log", "log1p", "log_ndtr",
+        "maximum", "minimum", "ndtr", "round", "sign", "sin", "sinh", "tanh",
     }
 )  # fmt: skip
 
@@ -946,6 +1034,12 @@ def run_case(
         assert result is None
     elif case.expect is Expect.HOST:
         _assert_host_matches(result, expected)
+    elif case.expect is Expect.ARRAY_TYPE:
+        created = bkd.zeros((1,))
+        assert isinstance(result, type) and isinstance(created, result), (
+            result,
+            type(created),
+        )
     elif case.expect is Expect.DTYPE:
         _assert_dtype_object(bkd, result, expected)
     else:

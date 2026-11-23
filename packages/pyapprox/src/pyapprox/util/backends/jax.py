@@ -34,6 +34,7 @@ from pyapprox.util.backends.validation import (
     check_jit_kernel,
     check_orderable,
     check_ordered_reduction,
+    check_scalar_conversion,
     check_to_bool_shape,
     reduction_axes,
 )
@@ -152,6 +153,46 @@ class JaxBkd:
         )
 
     @staticmethod
+    def array(array: ArrayLike, dtype: Optional[Any] = None) -> jax.Array:
+        if dtype is None and not isinstance(array, jax.Array):
+            if np.issubdtype(np.asarray(array).dtype, np.floating):
+                dtype = jnp.float64
+        return jnp.array(array, dtype=dtype, copy=True)
+
+    @staticmethod
+    def array_type() -> type:
+        return jax.Array
+
+    @staticmethod
+    def is_integer_dtype(array: jax.Array) -> bool:
+        return bool(jnp.issubdtype(array.dtype, jnp.integer))
+
+    @staticmethod
+    def is_floating_dtype(array: jax.Array) -> bool:
+        return bool(jnp.issubdtype(array.dtype, jnp.floating))
+
+    @staticmethod
+    def tracks_gradient(array: jax.Array) -> bool:
+        """Whether ``array`` is being traced (by ``grad``, ``jit`` or any
+        other transformation): a traced value must not be memoized by
+        value, as the protocol warns."""
+        return isinstance(array, jax.core.Tracer)
+
+    @staticmethod
+    def to_float(array: "float | int | jax.Array") -> float:
+        if not isinstance(array, jax.Array):
+            return float(array)
+        check_scalar_conversion("to_float", tuple(array.shape), jnp.iscomplexobj(array))
+        return float(array.reshape(()))
+
+    @staticmethod
+    def to_int(array: "float | int | jax.Array") -> int:
+        if not isinstance(array, jax.Array):
+            return int(array)
+        check_scalar_conversion("to_int", tuple(array.shape), jnp.iscomplexobj(array))
+        return int(array.reshape(()))
+
+    @staticmethod
     def to_bool(array: jax.Array) -> bool:
         check_to_bool_shape(tuple(array.shape))
         return bool(array.reshape(()))
@@ -171,6 +212,49 @@ class JaxBkd:
         shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> jax.Array:
         return jnp.full(shape, fill_value, dtype=dtype)
+
+    @staticmethod
+    def empty(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
+        return jnp.empty(shape, dtype=dtype)
+
+    @staticmethod
+    def eye(
+        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+    ) -> jax.Array:
+        return jnp.eye(nrows, ncols, dtype=dtype)
+
+    @staticmethod
+    def arange(
+        start: Union[int, float],
+        /,
+        stop: Optional[Union[int, float]] = None,
+        step: Union[int, float] = 1,
+        *,
+        dtype: Optional[Any] = None,
+    ) -> jax.Array:
+        if stop is None:
+            start, stop = 0, start
+        return jnp.arange(start, stop, step, dtype=dtype)
+
+    @staticmethod
+    def linspace(start: float, stop: float, num: int) -> jax.Array:
+        return jnp.linspace(start, stop, num)
+
+    @staticmethod
+    def logspace(start: float, stop: float, num: int) -> jax.Array:
+        return jnp.logspace(start, stop, num)
+
+    @staticmethod
+    def zeros_like(array: jax.Array, dtype: Optional[Any] = None) -> jax.Array:
+        return jnp.zeros_like(array, dtype=dtype)
+
+    @staticmethod
+    def ones_like(array: jax.Array, dtype: Optional[Any] = None) -> jax.Array:
+        return jnp.ones_like(array, dtype=dtype)
+
+    @staticmethod
+    def full_like(a: jax.Array, fill_value: float) -> jax.Array:
+        return jnp.full_like(a, fill_value)
 
     # ---- shape
 

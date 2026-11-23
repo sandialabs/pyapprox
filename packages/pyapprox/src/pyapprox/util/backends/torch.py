@@ -30,6 +30,7 @@ from pyapprox.util.backends.validation import (
     check_jit_kernel,
     check_orderable,
     check_ordered_reduction,
+    check_scalar_conversion,
     check_to_bool_shape,
     reduction_axes,
 )
@@ -209,18 +210,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
         if isinstance(array, torch.Tensor):
-            return (
-                array.detach()
-                .clone()
-                .to(dtype=dtype or array.dtype, device=self._device)
-            )
-        arr_np = np.asarray(array)
-        result = torch.from_numpy(arr_np.copy())
-        if dtype is not None:
-            return result.to(dtype=dtype, device=self._device)
-        if result.is_floating_point():
-            return result.to(dtype=self._dtype, device=self._device)
-        return result.to(device=self._device)
+            source = array.detach()
+            if dtype is None:
+                dtype = source.dtype
+        else:
+            source = torch.as_tensor(array)
+            if dtype is None and source.is_floating_point():
+                dtype = self._dtype
+        # copy=True: as_tensor shares a NumPy array's memory.
+        return source.to(dtype=dtype or source.dtype, device=self._device, copy=True)
 
     def asarray(
         self,
@@ -263,7 +261,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def is_integer_dtype(array: torch.Tensor) -> bool:
-        return not array.is_floating_point() and not array.is_complex()
+        # Boolean is not integer, as in NumPy.
+        return (
+            not array.is_floating_point()
+            and not array.is_complex()
+            and array.dtype != torch.bool
+        )
 
     @staticmethod
     def is_floating_dtype(array: torch.Tensor) -> bool:
@@ -321,19 +324,18 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def to_float(array: "float | int | torch.Tensor") -> float:
-        if isinstance(array, (float, int)):
+        # A Python or NumPy scalar converts as Python converts it.
+        if not isinstance(array, torch.Tensor):
             return float(array)
-        if hasattr(array, "item"):
-            return float(array.item())
-        return float(array)
+        check_scalar_conversion("to_float", tuple(array.shape), array.is_complex())
+        return float(array.item())
 
     @staticmethod
     def to_int(array: "float | int | torch.Tensor") -> int:
-        if isinstance(array, (float, int)):
+        if not isinstance(array, torch.Tensor):
             return int(array)
-        if hasattr(array, "item"):
-            return int(array.item())
-        return int(array)
+        check_scalar_conversion("to_int", tuple(array.shape), array.is_complex())
+        return int(array.item())
 
     @staticmethod
     def flatten(array: torch.Tensor) -> torch.Tensor:
@@ -474,9 +476,21 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             device=self._device,
         )
 
-    def arange(self, *args: Any, **kwargs: Any) -> torch.Tensor:
-        kwargs.setdefault("device", self._device)
-        return torch.arange(*args, **kwargs)
+    def arange(
+        self,
+        start: Union[int, float],
+        /,
+        stop: Optional[Union[int, float]] = None,
+        step: Union[int, float] = 1,
+        *,
+        dtype: Optional[Any] = None,
+    ) -> torch.Tensor:
+        if stop is None:
+            start, stop = 0, start
+        if dtype is None and not all(isinstance(v, int) for v in (start, stop, step)):
+            # The configured dtype, not torch's global default.
+            dtype = self._dtype
+        return torch.arange(start, stop, step, dtype=dtype, device=self._device)
 
     @staticmethod
     def prod(

@@ -171,7 +171,12 @@ class Backend(Protocol, Generic[Array]):
         self,
         array: ArrayLike,
         dtype: Optional[Any] = None,
-    ) -> Array: ...
+    ) -> Array:
+        """A new array holding a copy of ``array``, never sharing memory
+        with it; on an autodiff backend the copy is detached. Without
+        ``dtype``, floating input takes the default dtype and other
+        input keeps its kind."""
+        ...
 
     @staticmethod
     def assert_allclose(
@@ -193,10 +198,16 @@ class Backend(Protocol, Generic[Array]):
     def int64_dtype() -> Any: ...
 
     @staticmethod
-    def is_integer_dtype(array: Array) -> bool: ...
+    def is_integer_dtype(array: Array) -> bool:
+        """Whether ``array`` has a signed or unsigned integer dtype;
+        boolean is not integer."""
+        ...
 
     @staticmethod
-    def is_floating_dtype(array: Array) -> bool: ...
+    def is_floating_dtype(array: Array) -> bool:
+        """Whether ``array`` has a real floating dtype; complex is not
+        floating."""
+        ...
 
     @staticmethod
     def tracks_gradient(array: Array) -> bool:
@@ -256,13 +267,16 @@ class Backend(Protocol, Generic[Array]):
         Raises
         ------
         ValueError
-            If the array has more than one element.
+            If the array does not have exactly one element.
+        TypeError
+            If the array is complex: drop the imaginary part explicitly.
         """
         ...
 
     @staticmethod
     def to_int(array: "int | Array") -> int:
-        """Convert a scalar array or Python scalar to a Python int.
+        """Convert a scalar array or Python scalar to a Python int,
+        truncating a floating value toward zero, as ``int()`` does.
 
         Parameters
         ----------
@@ -277,7 +291,9 @@ class Backend(Protocol, Generic[Array]):
         Raises
         ------
         ValueError
-            If the array has more than one element.
+            If the array does not have exactly one element.
+        TypeError
+            If the array is complex.
         """
         ...
 
@@ -392,64 +408,24 @@ class Backend(Protocol, Generic[Array]):
 
     def ones(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
-    def empty(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
-
-    # @staticmethod
-    # def arange(
-    #     start: Union[int, float],
-    #     stop: Union[int, float],
-    #     step: Union[int, float] = 1,
-    #     dtype: Optional[Any] = None,
-    # ) -> Array: ...
-
-    # Overload 1: arange(stop)
-    @overload
-    def arange(self, stop: Union[int, float], /) -> Array:
-        """
-        Overload for when only `stop` is provided.
-        """
+    def empty(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array:
+        """An array of ``shape`` whose values are unspecified."""
         ...
 
-    # Overload 2: arange(start, stop)
-    @overload
-    def arange(self, start: Union[int, float], stop: Union[int, float], /) -> Array:
-        """
-        Overload for when `start` and `stop` are provided.
-        """
-        ...
-
-    # Overload 3: arange(start, stop, step)
-    @overload
     def arange(
         self,
         start: Union[int, float],
-        stop: Union[int, float],
-        step: Union[int, float],
         /,
-    ) -> Array:
-        """
-        Overload for when `start`, `stop`, and `step` are provided.
-        """
-        ...
-
-    # Overload 4: Allow keyword arguments including dtype
-    @overload
-    def arange(
-        self,
-        *args: Union[int, float],
+        stop: Optional[Union[int, float]] = None,
+        step: Union[int, float] = 1,
+        *,
         dtype: Optional[Any] = None,
     ) -> Array:
-        """
-        Overload for when keyword arguments like `dtype` are provided.
-        """
-        ...
+        """Evenly spaced values in ``[start, stop)``; ``[0, start)`` when
+        ``stop`` is ``None`` (the Array API signature).
 
-    # Runtime implementation
-    def arange(self, *args: Any, **kwargs: Any) -> Array:
-        """
-        Runtime implementation of arange.
-
-        Handles all variations of arguments using *args and **kwargs.
+        Without ``dtype``: the index dtype if every bound is an int, the
+        default floating dtype otherwise.
         """
         ...
 

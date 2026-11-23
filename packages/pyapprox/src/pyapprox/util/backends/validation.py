@@ -92,6 +92,31 @@ def check_to_bool_shape(shape: Tuple[int, ...]) -> None:
         )
 
 
+def check_scalar_conversion(
+    method: str, shape: Tuple[int, ...], is_complex: bool
+) -> None:
+    """Check that ``Backend.to_float`` or ``to_int`` was given one real
+    element.
+
+    Raises
+    ------
+    ValueError
+        If the array holds no element or more than one.
+    TypeError
+        If the array is complex: a real scalar would silently drop the
+        imaginary part.
+    """
+    size = 1
+    for n in shape:
+        size *= n
+    if size != 1:
+        raise ValueError(f"{method} needs an array with one element, got shape {shape}")
+    if is_complex:
+        raise TypeError(
+            f"{method} needs a real array; take the real part or abs() first"
+        )
+
+
 def check_index_add_shapes(
     index_shape: Tuple[int, ...], values_shape: Tuple[int, ...]
 ) -> None:
