@@ -251,14 +251,15 @@ class TestCdistShapeConsistency:
 
 
 class TestConj:
-    def test_conjugates_complex_entries(self, bkd: Backend[Array]) -> None:
-        x = bkd.asarray([[1.0 + 2.0j], [-3.0j]], dtype=bkd.complex_dtype())
-        expected = bkd.asarray([[1.0 - 2.0j], [3.0j]], dtype=bkd.complex_dtype())
-        bkd.assert_allclose(bkd.conj(x), expected)
+    """``conj`` itself is in the conformance table; this is the one
+    composition a row cannot express."""
 
-    def test_leaves_real_entries_unchanged(self, bkd: Backend[Array]) -> None:
-        x = bkd.asarray([[1.5], [-2.0]])
-        bkd.assert_allclose(bkd.conj(x), x)
+    def test_converts_to_numpy(self, bkd: Backend[Array]) -> None:
+        # Torch conjugates lazily; a conjugated view must still convert.
+        x = bkd.asarray([[1.0 + 2.0j], [-3.0j]], dtype=bkd.complex_dtype())
+        np.testing.assert_array_equal(
+            bkd.to_numpy(bkd.conj(x)), np.asarray([[1.0 - 2.0j], [3.0j]])
+        )
 
 
 class TestLuSolveTranspose:

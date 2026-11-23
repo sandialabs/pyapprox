@@ -320,7 +320,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             return array
         if not isinstance(array, torch.Tensor):
             return np.asarray(array)
-        return np.asarray(array.detach().cpu().numpy())
+        # resolve_conj: a lazily conjugated tensor (conj) refuses numpy().
+        return np.asarray(array.detach().cpu().resolve_conj().numpy())
 
     @staticmethod
     def to_float(array: "float | int | torch.Tensor") -> float:
@@ -612,7 +613,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def sign(array: torch.Tensor) -> torch.Tensor:
-        return torch.sign(array)
+        # NaN stays NaN, as in NumPy; torch.sign gives 0.
+        return torch.where(torch.isnan(array), array, torch.sign(array))
 
     @staticmethod
     def abs(array: torch.Tensor) -> torch.Tensor:
@@ -991,8 +993,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def cdist(XA: torch.Tensor, XB: torch.Tensor, p: float = 2.0) -> torch.Tensor:
-        if p != 2.0:
+        if p == 1.0:
             return torch.cdist(XA, XB, p)
+        if p != 2.0:
+            raise ValueError("p must be either 1.0 or 2.0")
         # torch defaults to use_mm_for_euclid_dist_if_necessary, which
         # switches to the ||a||^2 + ||b||^2 - 2a.b identity once either
         # input has more than 25 rows. The torch documentation states

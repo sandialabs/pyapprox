@@ -293,6 +293,173 @@ class JaxBkd:
         return jnp.exp(array)
 
     @staticmethod
+    def sin(array: jax.Array) -> jax.Array:
+        return jnp.sin(array)
+
+    @staticmethod
+    def cos(array: jax.Array) -> jax.Array:
+        return jnp.cos(array)
+
+    @staticmethod
+    def tanh(array: jax.Array) -> jax.Array:
+        return jnp.tanh(array)
+
+    @staticmethod
+    def sinh(array: jax.Array) -> jax.Array:
+        return jnp.sinh(array)
+
+    @staticmethod
+    def cosh(array: jax.Array) -> jax.Array:
+        return jnp.cosh(array)
+
+    @staticmethod
+    def arcsin(array: jax.Array) -> jax.Array:
+        return jnp.arcsin(array)
+
+    @staticmethod
+    def arccos(array: jax.Array) -> jax.Array:
+        return jnp.arccos(array)
+
+    @staticmethod
+    def arctan(array: jax.Array) -> jax.Array:
+        return jnp.arctan(array)
+
+    @staticmethod
+    def arctan2(y: jax.Array, x: jax.Array) -> jax.Array:
+        return jnp.arctan2(y, x)
+
+    @staticmethod
+    def arcsinh(array: jax.Array) -> jax.Array:
+        return jnp.arcsinh(array)
+
+    @staticmethod
+    def arccosh(array: jax.Array) -> jax.Array:
+        return jnp.arccosh(array)
+
+    @staticmethod
+    def arctanh(array: jax.Array) -> jax.Array:
+        return jnp.arctanh(array)
+
+    @staticmethod
+    def log(array: jax.Array) -> jax.Array:
+        return jnp.log(array)
+
+    @staticmethod
+    def log1p(array: jax.Array) -> jax.Array:
+        return jnp.log1p(array)
+
+    @staticmethod
+    def expm1(array: jax.Array) -> jax.Array:
+        return jnp.expm1(array)
+
+    @staticmethod
+    def erf(array: jax.Array) -> jax.Array:
+        result: jax.Array = jax.scipy.special.erf(array)
+        return result
+
+    @staticmethod
+    def erfinv(array: jax.Array) -> jax.Array:
+        result: jax.Array = jax.scipy.special.erfinv(array)
+        return result
+
+    @staticmethod
+    def ndtr(array: jax.Array) -> jax.Array:
+        result: jax.Array = jax.scipy.special.ndtr(array)
+        return result
+
+    @staticmethod
+    def log_ndtr(array: jax.Array) -> jax.Array:
+        result: jax.Array = jax.scipy.special.log_ndtr(array)
+        return result
+
+    @staticmethod
+    def gammaln(array: jax.Array) -> jax.Array:
+        result: jax.Array = jax.scipy.special.gammaln(array)
+        return result
+
+    @staticmethod
+    def digamma(array: jax.Array) -> jax.Array:
+        result: jax.Array = jax.scipy.special.digamma(array)
+        return result
+
+    @staticmethod
+    def abs(array: jax.Array) -> jax.Array:
+        return jnp.abs(array)
+
+    @staticmethod
+    def sign(array: jax.Array) -> jax.Array:
+        return jnp.sign(array)
+
+    @staticmethod
+    def conj(array: jax.Array) -> jax.Array:
+        return jnp.conj(array)
+
+    @staticmethod
+    def round(array: jax.Array) -> jax.Array:
+        return jnp.round(array)
+
+    @staticmethod
+    def floor(array: jax.Array) -> jax.Array:
+        return jnp.floor(array)
+
+    @staticmethod
+    def ceil(array: jax.Array) -> jax.Array:
+        return jnp.ceil(array)
+
+    @staticmethod
+    def floor_divide(array: jax.Array, divisor: "int | jax.Array") -> jax.Array:
+        return jnp.floor_divide(array, divisor)
+
+    @staticmethod
+    def maximum(x1: jax.Array, x2: jax.Array) -> jax.Array:
+        return jnp.maximum(x1, x2)
+
+    @staticmethod
+    def minimum(x1: jax.Array, x2: jax.Array) -> jax.Array:
+        return jnp.minimum(x1, x2)
+
+    @staticmethod
+    def clip(array: jax.Array, a_min: Any, a_max: Any) -> jax.Array:
+        return jnp.clip(array, a_min, a_max)
+
+    @staticmethod
+    def isnan(array: jax.Array) -> jax.Array:
+        return jnp.isnan(array)
+
+    @staticmethod
+    def isinf(array: jax.Array) -> jax.Array:
+        return jnp.isinf(array)
+
+    @staticmethod
+    def isfinite(array: jax.Array) -> jax.Array:
+        return jnp.isfinite(array)
+
+    @staticmethod
+    def equal(a: jax.Array, b: "float | int | jax.Array") -> jax.Array:
+        return jnp.equal(a, b)
+
+    @staticmethod
+    def allclose(
+        array1: jax.Array,
+        array2: jax.Array,
+        rtol: float = 1e-05,
+        atol: float = 1e-08,
+        equal_nan: bool = False,
+    ) -> bool:
+        return bool(
+            jnp.allclose(array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan)
+        )
+
+    @staticmethod
+    def cdist(XA: jax.Array, XB: jax.Array, p: float = 2.0) -> jax.Array:
+        differences = XA[:, None, :] - XB[None, :, :]
+        if p == 1.0:
+            return jnp.sum(jnp.abs(differences), axis=-1)
+        if p == 2.0:
+            return jnp.sqrt(jnp.sum(differences**2, axis=-1))
+        raise ValueError("p must be either 1.0 or 2.0")
+
+    @staticmethod
     def dot(Amat: jax.Array, Bmat: jax.Array) -> jax.Array:
         return jnp.dot(Amat, Bmat)
 

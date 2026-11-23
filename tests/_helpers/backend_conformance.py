@@ -69,6 +69,7 @@ from typing import (
 import numpy as np
 import pytest
 import scipy.linalg
+import scipy.spatial.distance
 import scipy.special
 from numpy.typing import NDArray
 from scipy.sparse import csc_matrix
@@ -402,6 +403,56 @@ def _to_int(value: Union[int, float, NDArray[Any]]) -> int:
     return int(np.asarray(value).reshape(()))
 
 
+# Elementwise domains: (-0.9, 0.9), above 1, and the special values.
+_UNIT = 0.9 * np.tanh(_A)
+_ABOVE_ONE = _POS + 1.0
+_SPECIAL = np.asarray([1.0, np.nan, np.inf, -np.inf, 0.0])
+_HALVES = np.asarray([0.5, 1.5, 2.5, -0.5, -1.5])
+
+
+def _unary(
+    method: str,
+    domain: NDArray[np.float64],
+    reference: Optional[Callable[..., Any]] = None,
+    complex_input: bool = False,
+) -> List[Case]:
+    """A differentiable row over ``domain``, and a complex row if the
+    method takes complex input."""
+    rows = [Case(method, "float", (domain,), reference=reference, differentiable=True)]
+    if complex_input:
+        rows.append(Case(method, "complex", (_C,), reference=reference))
+    return rows  # fmt: skip
+
+
+def _erf(array: NDArray[Any]) -> NDArray[Any]:
+    return np.asarray(scipy.special.erf(array))
+
+
+def _erfinv(array: NDArray[Any]) -> NDArray[Any]:
+    return np.asarray(scipy.special.erfinv(array))
+
+
+def _ndtr(array: NDArray[Any]) -> NDArray[Any]:
+    return np.asarray(scipy.special.ndtr(array))
+
+
+def _log_ndtr(array: NDArray[Any]) -> NDArray[Any]:
+    return np.asarray(scipy.special.log_ndtr(array))
+
+
+def _gammaln(array: NDArray[Any]) -> NDArray[Any]:
+    return np.asarray(scipy.special.gammaln(array))
+
+
+def _digamma(array: NDArray[Any]) -> NDArray[Any]:
+    return np.asarray(scipy.special.digamma(array))
+
+
+def _cdist(XA: NDArray[Any], XB: NDArray[Any], p: float = 2.0) -> NDArray[Any]:
+    metric = {1.0: "cityblock", 2.0: "euclidean"}[p]
+    return np.asarray(scipy.spatial.distance.cdist(XA, XB, metric))
+
+
 def _flatten(array: NDArray[Any]) -> NDArray[Any]:
     return array.flatten()
 
@@ -614,6 +665,61 @@ CASES: List[Case] = [
     Case("sqrt", "complex", (_C,)),
     Case("exp", "float", (_A,), differentiable=True),
     Case("exp", "complex", (_C,)),
+    *_unary("sin", _A, complex_input=True),
+    *_unary("cos", _A, complex_input=True),
+    *_unary("tanh", _A, complex_input=True),
+    *_unary("sinh", _A),
+    *_unary("cosh", _A),
+    *_unary("arcsin", _UNIT),
+    *_unary("arccos", _UNIT),
+    *_unary("arctan", _A),
+    *_unary("arcsinh", _A),
+    *_unary("arccosh", _ABOVE_ONE),
+    *_unary("arctanh", _UNIT),
+    *_unary("log", _POS, complex_input=True),
+    Case("log", "negative-and-zero", (np.asarray([-1.0, 0.0]),)),
+    *_unary("log1p", _UNIT),
+    *_unary("expm1", _A),
+    *_unary("erf", _A, reference=_erf),
+    *_unary("erfinv", _UNIT, reference=_erfinv),
+    *_unary("ndtr", _A, reference=_ndtr),
+    *_unary("log_ndtr", _A, reference=_log_ndtr),
+    *_unary("gammaln", _POS, reference=_gammaln),
+    *_unary("digamma", _POS, reference=_digamma),
+    *_unary("abs", _A),
+    Case("abs", "complex", (_C,), expect=Expect.DEFAULT),
+    *_unary("sign", _A),
+    Case("sign", "special", (_SPECIAL,)),
+    Case("conj", "float", (_A,), differentiable=True),
+    Case("conj", "complex", (_C,)),
+    Case("round", "half-to-even", (_HALVES,)),
+    Case("floor", "float", (_A * 3.0,)),
+    Case("ceil", "float", (_A * 3.0,)),
+    Case("floor_divide", "index", (_index(7, -7, 5), 2), expect=Expect.INDEX),
+    Case("floor_divide", "float", (_A * 5.0, 2)),
+    Case("arctan2", "float", (_A, _B[:2, :3]), differentiable=True),
+    Case("maximum", "float", (_A, _POS), differentiable=True),
+    Case("maximum", "nan", (_NAN, np.zeros(3))),
+    Case("minimum", "float", (_A, _POS), differentiable=True),
+    Case("minimum", "nan", (_NAN, np.zeros(3))),
+    Case("clip", "both", (_A, -0.5, 0.5), differentiable=True),
+    Case("clip", "upper-only", (_A, None, 0.0)),
+    Case("isnan", "special", (_SPECIAL,), expect=Expect.BOOL),
+    Case("isinf", "special", (_SPECIAL,), expect=Expect.BOOL),
+    Case("isfinite", "special", (_SPECIAL,), expect=Expect.BOOL),
+    Case("equal", "scalar", (_TIES, 2.0), expect=Expect.BOOL),
+    Case("equal", "arrays", (_TIES, _TIES[::-1].copy()), expect=Expect.BOOL),
+    Case("allclose", "close", (_A, _A * (1.0 + 1e-9)), expect=Expect.HOST,
+         eager_only=True),
+    Case("allclose", "far", (_A, _A + 1.0), expect=Expect.HOST,
+         eager_only=True),
+    Case("allclose", "nan", (_NAN, _NAN.copy()), {"equal_nan": True},
+         expect=Expect.HOST, eager_only=True),
+    Case("cdist", "euclidean", (_TALL, _TALL[:2] + 0.5), reference=_cdist,
+         differentiable=True),
+    Case("cdist", "manhattan", (_TALL, _TALL[:2] + 0.5), {"p": 1.0},
+         reference=_cdist),
+    Case("cdist", "p-3", (_TALL, _TALL), {"p": 3.0}, raises=ValueError),
     Case("dot", "matrix-matrix", (_A, _B), differentiable=True),
     Case("dot", "matrix-vector", (_A, _B[:, 0]), differentiable=True),
     Case("einsum", "matmul", ("ij,jk->ik", _A, _B), differentiable=True),
@@ -806,12 +912,8 @@ CASES: List[Case] = [
 # Protocol methods without a row. Shrink-only: see the module docstring.
 NOT_YET_COVERED = frozenset(
     {
-        "abs", "all_array", "all_bool", "allclose", "any_array", "any_bool",
-        "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
-        "arctanh", "cdist", "ceil", "clip", "conj", "cos", "cosh",
-        "digamma", "equal", "erf", "erfinv", "expm1", "floor", "floor_divide",
-        "gammaln", "isfinite", "isinf", "isnan", "log", "log1p", "log_ndtr",
-        "maximum", "minimum", "ndtr", "round", "sign", "sin", "sinh", "tanh",
+        # Superseded by any, all and to_bool; removed by their codemod.
+        "all_array", "all_bool", "any_array", "any_bool",
     }
 )  # fmt: skip
 

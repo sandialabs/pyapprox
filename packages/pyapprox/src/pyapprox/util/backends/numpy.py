@@ -778,7 +778,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def cdist(XA: NDArray[Any], XB: NDArray[Any], p: float = 2.0) -> NDArray[Any]:
         if p == 1.0:
-            metric = "manhattan"
+            metric = "cityblock"
         elif p == 2.0:
             metric = "euclidean"
         else:
