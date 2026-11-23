@@ -330,6 +330,28 @@ class MockFormat:
             self._rows[keep], self._cols[keep], self._vals[keep], self._shape
         )
 
+    def block_matrix(
+        self,
+        blocks: Sequence[Sequence[Optional["MockFormat"]]],
+        sizes: Sequence[int],
+    ) -> "MockFormat":
+        offsets = np.concatenate([[0], np.cumsum(sizes)]).astype(np.intp)
+        rows, cols, vals = [], [], []
+        for i, row in enumerate(blocks):
+            for j, block in enumerate(row):
+                if block is not None:
+                    rows.append(block._rows + offsets[i])
+                    cols.append(block._cols + offsets[j])
+                    vals.append(block._vals)
+        total = int(offsets[-1])
+        empty = np.zeros(0, dtype=np.intp)
+        return MockFormat(
+            np.concatenate([empty, *rows]),
+            np.concatenate([empty, *cols]),
+            np.concatenate([np.zeros(0), *vals]),
+            (total, total),
+        )
+
 
 class MockOperator:
     """An operator stored as :class:`MockFormat`, acting on mock vectors.

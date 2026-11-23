@@ -1,14 +1,18 @@
 """Conformance tests for the operator combinators on every stack."""
 
+from typing import Optional
+
 import pytest
 
 from pyapprox.util.linalg.operators import (
     OperatorProperties,
+    block_properties,
     product_properties,
     scaled_sum_properties,
 )
 from tests._helpers.linalg.operator_suites.algebra import (
     AsMatrixFreeSuite,
+    BlockAssembledSuite,
     ProductSuite,
     ScaledSumSuite,
     TransposeCapabilitySuite,
@@ -25,6 +29,10 @@ _FWD = OperatorProperties(transposable=False)
 
 
 class TestScaledSum(ScaledSumSuite):
+    pass
+
+
+class TestBlockAssembled(BlockAssembledSuite):
     pass
 
 
@@ -84,3 +92,23 @@ class TestPropertyPropagation:
     ) -> None:
         """A product of symmetric matrices is not symmetric in general."""
         assert product_properties(factors) == expected
+
+    @pytest.mark.parametrize(
+        "blocks, expected",
+        [
+            ([[_IDENT, None], [None, _SPD]], _SPD),
+            ([[_IDENT, None], [None, _IDENT]], _IDENT),
+            ([[_DIAG, None], [None, _DIAG_SPD]], _DIAG),
+            ([[_SPD, _SPD], [_SPD, _SPD]], _NONE),
+            ([[_IDENT, None], [None, None]], _NONE),
+            ([[_IDENT, _FWD], [None, _IDENT]], _FWD),
+        ],
+    )
+    def test_block(
+        self,
+        blocks: list[list[Optional[OperatorProperties]]],
+        expected: OperatorProperties,
+    ) -> None:
+        """Symmetric blocks coupled are not symmetric in general, and a
+        missing diagonal block makes the operator singular."""
+        assert block_properties(blocks) == expected

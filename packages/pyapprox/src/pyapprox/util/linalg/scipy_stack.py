@@ -16,7 +16,7 @@ from typing import Any, Generic, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix, diags, issparse, spmatrix
+from scipy.sparse import bmat, csr_matrix, diags, issparse, spmatrix
 from scipy.sparse import identity as sparse_identity
 from scipy.sparse.linalg import LinearOperator, SuperLU, cg, gmres, splu
 
@@ -429,6 +429,24 @@ class CSRFormat:
     def rows_zeroed(self, rows: RowSetProtocol[W]) -> "CSRFormat":
         return CSRFormat(_csr_zero_rows(self._matrix, _numpy_row_indices(rows)))
 
+    def block_matrix(
+        self,
+        blocks: Sequence[Sequence[Optional["CSRFormat"]]],
+        sizes: Sequence[int],
+    ) -> "CSRFormat":
+        # Zero blocks are given their shapes, so a row or column of zero
+        # blocks keeps its size.
+        grid = [
+            [
+                csr_matrix((sizes[i], sizes[j]), dtype=self._matrix.dtype)
+                if block is None
+                else block._matrix
+                for j, block in enumerate(row)
+            ]
+            for i, row in enumerate(blocks)
+        ]
+        return CSRFormat(bmat(grid, format="csr"))
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={self._matrix.shape})"
 
@@ -747,9 +765,7 @@ class _ScipyKrylovHandle(SolverHandleBase[_Block], Generic[G]):
             )
             for k in range(ncols)
         ]
-        solution = (
-            np.hstack([x for x, _ in results]) if results else np.zeros_like(rhs)
-        )
+        solution = np.hstack([x for x, _ in results]) if results else np.zeros_like(rhs)
         return solution, merge_column_reports([info for _, info in results])
 
     def _solve_vector(

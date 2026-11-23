@@ -156,6 +156,30 @@ class TestFormat:
         with pytest.raises(ValueError, match="same blocks"):
             fmt.scaled_sum(1.0, [(1.0, other)])
 
+    def test_block_matrix_of_diagonal_blocks_stays_block_diagonal(
+        self, bkd: Backend[Array]
+    ) -> None:
+        a, b = _blocks(9), _blocks(10)
+        fa, fb = _operator(a, bkd).format(), _operator(b, bkd).format()
+        size = _K * _M
+        fmt = fa.block_matrix([[fa, None], [None, fb]], [size, size])
+        bkd.assert_allclose(
+            fmt.blocks(), bkd.asarray(np.concatenate([a, b], axis=0)), rtol=0.0
+        )
+
+    def test_block_matrix_refuses_coupling_and_mixed_block_sizes(
+        self, bkd: Backend[Array]
+    ) -> None:
+        fa = _operator(_blocks(11), bkd).format()
+        size = _K * _M
+        with pytest.raises(TypeError, match="no block-diagonal storage"):
+            fa.block_matrix([[fa, fa], [None, fa]], [size, size])
+        with pytest.raises(TypeError, match="no block-diagonal storage"):
+            fa.block_matrix([[fa, None], [None, None]], [size, size])
+        scalar = BlockDiagonalFormat(bkd.ones((size, 1, 1)), bkd)
+        with pytest.raises(TypeError, match="different block sizes"):
+            fa.block_matrix([[fa, None], [None, scalar]], [size, size])
+
 
 class TestBlockDiagonalLU:
     def test_solve_and_transpose(self, bkd: Backend[Array]) -> None:

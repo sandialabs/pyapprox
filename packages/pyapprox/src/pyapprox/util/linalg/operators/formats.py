@@ -9,7 +9,7 @@ owns their storage; only the storage-free format lives here.
 """
 
 from dataclasses import dataclass
-from typing import Protocol, Self, Sequence, TypeVar, runtime_checkable
+from typing import Optional, Protocol, Self, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.protocols import RowSetProtocol
 
@@ -53,6 +53,19 @@ class FormatProtocol(Protocol):
         r"""Return the format of :math:`P A`: the rows in ``rows`` zeroed."""
         ...
 
+    def block_matrix(
+        self, blocks: Sequence[Sequence[Optional[Self]]], sizes: Sequence[int]
+    ) -> Self:
+        r"""Return the format of the block operator :math:`[A_{ij}]`.
+
+        ``blocks`` is a square grid, row by row, of formats of this type
+        or None for a zero block; block :math:`(i, j)` has shape
+        ``(sizes[i], sizes[j])``. ``self`` only selects the
+        implementation. A format that cannot store the result raises
+        ``TypeError``.
+        """
+        ...
+
 
 @dataclass(frozen=True)
 class MatrixFree:
@@ -80,4 +93,11 @@ class MatrixFree:
         return self
 
     def rows_zeroed(self, rows: RowSetProtocol[W]) -> "MatrixFree":
+        return self
+
+    def block_matrix(
+        self,
+        blocks: Sequence[Sequence[Optional["MatrixFree"]]],
+        sizes: Sequence[int],
+    ) -> "MatrixFree":
         return self

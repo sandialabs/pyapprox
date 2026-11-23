@@ -330,6 +330,23 @@ class DenseFormat(Generic[Array]):
         keep = _backend_keep_mask(rows, self._bkd)
         return DenseFormat(self._matrix * keep, self._bkd)
 
+    def block_matrix(
+        self,
+        blocks: Sequence[Sequence[Optional["DenseFormat[Array]"]]],
+        sizes: Sequence[int],
+    ) -> "DenseFormat[Array]":
+        bkd = self._bkd
+        rows = [
+            bkd.hstack(
+                [
+                    bkd.zeros((sizes[i], sizes[j])) if block is None else block._matrix
+                    for j, block in enumerate(row)
+                ]
+            )
+            for i, row in enumerate(blocks)
+        ]
+        return DenseFormat(bkd.vstack(rows), bkd)
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={tuple(self._matrix.shape)})"
 

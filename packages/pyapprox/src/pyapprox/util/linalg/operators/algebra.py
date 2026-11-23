@@ -16,7 +16,7 @@ property only when it holds for every admissible operand, so a solver
 never relies on a property that does not hold.
 """
 
-from typing import Generic, Optional, Sequence, TypeVar
+from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.util.linalg.operators.descriptor import SpaceDescriptor
 from pyapprox.util.linalg.operators.formats import FormatProtocol, MatrixFree
@@ -182,6 +182,194 @@ class ScaledSum(Generic[V, F]):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nterms={len(self._terms)})"
+
+
+@runtime_checkable
+class RowPartitionProtocol(Protocol, Generic[V]):
+    """A space's vectors split by rows into consecutive parts.
+
+    What :class:`BlockAssembled` needs of a stack: its column
+    concatenation (``VectorSpaceProtocol.concatenate``) joins vectors,
+    not rows, so splitting and joining rows is the stack's to supply.
+    """
+
+    def space(self) -> VectorSpaceProtocol[V]:
+        """The whole space."""
+        ...
+
+    def parts(self) -> Sequence[VectorSpaceProtocol[V]]:
+        """The space of each part, in row order."""
+        ...
+
+    def split(self, x: V) -> Sequence[V]:
+        """The parts of ``x``, each a vector of its part's space."""
+        ...
+
+    def join(self, parts: Sequence[V]) -> V:
+        """The vector whose parts are ``parts``, as one new vector."""
+        ...
+
+
+def block_properties(
+    blocks: Sequence[Sequence[Optional[OperatorProperties]]],
+) -> OperatorProperties:
+    r"""Properties of the block operator :math:`[A_{ij}]`, a None block
+    zero.
+
+    Transposable if every present block is. Only a block-diagonal
+    operator (no off-diagonal block, every diagonal block present)
+    inherits more: symmetric, SPD, diagonal or the identity when every
+    diagonal block is.
+    """
+    present = [props for row in blocks for props in row if props is not None]
+    transposable = all(props.transposable for props in present)
+    block_diagonal = all(
+        (i == j) == (props is not None)
+        for i, row in enumerate(blocks)
+        for j, props in enumerate(row)
+    )
+    if not block_diagonal:
+        return OperatorProperties(transposable=transposable)
+    return OperatorProperties(
+        symmetric=all(props.symmetric for props in present),
+        spd=all(props.spd for props in present),
+        diagonal=all(props.diagonal for props in present),
+        identity=all(props.identity for props in present),
+        transposable=transposable,
+    )
+
+
+class BlockAssembled(Generic[V, F]):
+    r"""The square block operator :math:`A = [A_{ij}]`, a None block zero.
+
+    Applied block by block through the stack's row partition; its format,
+    on request, is the blocks' formats assembled by
+    :meth:`~.formats.FormatProtocol.block_matrix`, so the stack's own
+    direct solver factors it. Its vectors are the stack's whole vectors;
+    :class:`~.blocks.BlockOperator` is the counterpart over tuples of
+    vectors, with no stored format.
+
+    Parameters
+    ----------
+    blocks : sequence of sequences of operators or None
+        A square grid, row by row, with at least one present block. Block
+        :math:`(i, j)` maps part :math:`j` to part :math:`i`.
+    partition : RowPartitionProtocol
+        The parts of the operator's domain and range.
+
+    Raises
+    ------
+    ValueError
+        If the grid is not square, matches not the partition, has no
+        present block, or a block's spaces disagree with its parts.
+    """
+
+    def __init__(
+        self,
+        blocks: Sequence[Sequence[Optional[ActionOperatorProtocol[V, F]]]],
+        partition: RowPartitionProtocol[V],
+    ) -> None:
+        self._blocks = tuple(tuple(row) for row in blocks)
+        self._partition = partition
+        self._parts = tuple(partition.parts())
+        nparts = len(self._parts)
+        if len(self._blocks) != nparts or any(
+            len(row) != nparts for row in self._blocks
+        ):
+            raise ValueError(
+                f"a block operator over {nparts} parts needs a {nparts}x{nparts} "
+                "grid of blocks"
+            )
+        self._present = [
+            (i, j, op)
+            for i, row in enumerate(self._blocks)
+            for j, op in enumerate(row)
+            if op is not None
+        ]
+        if not self._present:
+            raise ValueError("a block operator needs at least one present block")
+        for i, j, op in self._present:
+            _require_spaces(
+                op,
+                self._parts[j].descriptor(),
+                self._parts[i].descriptor(),
+                f"block ({i}, {j})",
+            )
+        self._space = partition.space().descriptor()
+        self._properties = block_properties(
+            [
+                [None if op is None else op.properties() for op in row]
+                for row in self._blocks
+            ]
+        )
+        self._format: Optional[F] = None
+
+    def domain(self) -> SpaceDescriptor:
+        return self._space
+
+    def range(self) -> SpaceDescriptor:
+        return self._space
+
+    def properties(self) -> OperatorProperties:
+        return self._properties
+
+    def format(self) -> F:
+        """The blocks' formats assembled, computed on first request.
+
+        Raises
+        ------
+        TypeError
+            If the blocks' formats are of different types, or the format
+            cannot store the block operator.
+        """
+        if self._format is None:
+            formats = [
+                [None if op is None else op.format() for op in row]
+                for row in self._blocks
+            ]
+            present = [fmt for row in formats for fmt in row if fmt is not None]
+            kinds = sorted({type(fmt).__name__ for fmt in present})
+            if len(kinds) > 1:
+                raise TypeError(
+                    f"a block operator of blocks in different formats "
+                    f"({', '.join(kinds)}) has no assembled format; wrap it in "
+                    "as_matrix_free to use it without one"
+                )
+            sizes = [part.descriptor().size for part in self._parts]
+            self._format = present[0].block_matrix(formats, sizes)
+        return self._format
+
+    def _product(self, x: V, transpose: bool) -> V:
+        pieces = self._partition.split(x)
+        result: list[Optional[V]] = [None] * len(self._parts)
+        for i, j, op in self._present:
+            # A_ij maps part j to part i; its transpose part i to part j.
+            if transpose:
+                target, term = j, op.apply_transpose(pieces[i])
+            else:
+                target, term = i, op.apply(pieces[j])
+            previous = result[target]
+            result[target] = (
+                term
+                if previous is None
+                else self._parts[target].axpby(1.0, term, 1.0, previous, out=previous)
+            )
+        ncols = self._partition.space().ncols(x)
+        return self._partition.join(
+            [
+                self._parts[k].zeros(ncols) if piece is None else piece
+                for k, piece in enumerate(result)
+            ]
+        )
+
+    def apply(self, x: V, out: Optional[V] = None) -> V:
+        return self._product(x, transpose=False)
+
+    def apply_transpose(self, y: V, out: Optional[V] = None) -> V:
+        return self._product(y, transpose=True)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(nparts={len(self._parts)})"
 
 
 class Transposed(Generic[V, F]):

@@ -1,4 +1,5 @@
-"""Stack-generic operator suites: ``ScaledSumSuite``, ``TransposedSuite``,
+"""Stack-generic operator suites: ``ScaledSumSuite``,
+``BlockAssembledSuite``, ``TransposedSuite``,
 ``TransposeCapabilitySuite``, ``ProductSuite``, ``AsMatrixFreeSuite``.
 
 Each runs on the stack its ``case`` fixture supplies
@@ -6,12 +7,17 @@ Each runs on the stack its ``case`` fixture supplies
 defines the fixture.
 """
 
+from typing import Generic, Optional, Sequence
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from pyapprox.util.linalg.operators import (
     ActionOperatorProtocol,
+    BlockAssembled,
     FormatProtocol,
+    InnerProductSpaceProtocol,
     LinearMapProtocol,
     MatrixFree,
     OperatorProperties,
@@ -130,6 +136,119 @@ class ScaledSumSuite:
             case.times(case.dense(a + 2.0 * b), x),
             rtol=1e-12,
         )
+
+
+class _ArrayPartition(Generic[V, F, A]):
+    """Rows split and joined through a case's array boundary: a row
+    partition for any stack the case covers."""
+
+    def __init__(
+        self,
+        case: TypedStackCase[V, F, A],
+        whole: SpaceDescriptor,
+        parts: Sequence[SpaceDescriptor],
+    ) -> None:
+        self._case, self._whole, self._descriptors = case, whole, tuple(parts)
+        self._offsets = np.cumsum([0] + [d.size for d in parts])
+
+    def space(self) -> InnerProductSpaceProtocol[V, A]:
+        return self._case.space(self._whole)
+
+    def parts(self) -> list[InnerProductSpaceProtocol[V, A]]:
+        return [self._case.space(d) for d in self._descriptors]
+
+    def split(self, x: V) -> list[V]:
+        array = self._case.array(x)
+        return [
+            self._case.vector(array[int(lo) : int(hi)], d)
+            for lo, hi, d in zip(
+                self._offsets[:-1], self._offsets[1:], self._descriptors
+            )
+        ]
+
+    def join(self, parts: Sequence[V]) -> V:
+        arrays = [self._case.array(part) for part in parts]
+        return self._case.vector(self._case.bkd.vstack(arrays), self._whole)
+
+
+_W = SpaceDescriptor("w", 5)
+_W1, _W2 = SpaceDescriptor("w1", 3), SpaceDescriptor("w2", 2)
+
+
+class BlockAssembledSuite:
+    def _blocks(
+        self, case: TypedStackCase[V, F, A]
+    ) -> tuple[BlockAssembled[V, F], NDArray[np.float64]]:
+        upper_left, lower_left = spd_matrix(3, 20), random_matrix(2, 3, 21)
+        lower_right = random_matrix(2, 2, 22)
+        grid: list[list[Optional[ActionOperatorProtocol[V, F]]]] = [
+            [case.build(upper_left, _W1), None],
+            [case.build(lower_left, _W1, _W2), case.build(lower_right, _W2)],
+        ]
+        op = BlockAssembled(grid, _ArrayPartition(case, _W, [_W1, _W2]))
+        dense = np.block([[upper_left, np.zeros((3, 2))], [lower_left, lower_right]])
+        return op, dense
+
+    def test_action_and_format_equal_the_block_matrix(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        """A zero block keeps its shape in the assembled format, and the
+        stack's own direct solver factors it."""
+        op, dense = self._blocks(case)
+        expected = case.dense(dense)
+        x = case.vec(_W, 2, 23)
+        case.assert_vector(op.apply(x), case.times(expected, x), rtol=1e-12)
+        case.assert_vector(op.apply_transpose(x), case.times(expected.T, x), rtol=1e-12)
+        assert isinstance(op, ActionOperatorProtocol)
+        assert isinstance(op.format(), case.format_type)
+        assert op.format() is op.format()
+        case.bkd.assert_allclose(case.format_dense(op.format()), expected, rtol=1e-12)
+        case.assert_dot_identity(op, 24)
+        solution, info = case.direct_solver().setup(op).solve(op.apply(x))
+        assert info.converged
+        case.assert_vector(solution, case.array(x), rtol=1e-10)
+
+    def test_block_diagonal_keeps_properties(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        grid: list[list[Optional[ActionOperatorProtocol[V, F]]]] = [
+            [case.identity(_W1), None],
+            [None, case.build(spd_matrix(2, 25), _W2, properties=_SPD)],
+        ]
+        op = BlockAssembled(grid, _ArrayPartition(case, _W, [_W1, _W2]))
+        assert op.properties() == OperatorProperties(symmetric=True, spd=True)
+
+    def test_coupling_declares_only_the_transpose(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        op, _ = self._blocks(case)
+        assert op.properties() == OperatorProperties()
+
+    def test_rejects_a_misshapen_grid(self, case: TypedStackCase[V, F, A]) -> None:
+        partition = _ArrayPartition(case, _W, [_W1, _W2])
+        with pytest.raises(ValueError, match="2x2 grid"):
+            BlockAssembled([[case.identity(_W1)]], partition)
+        with pytest.raises(ValueError, match="at least one present block"):
+            BlockAssembled([[None, None], [None, None]], partition)
+        with pytest.raises(SpaceMismatchError):
+            BlockAssembled(
+                [[case.identity(_W2), None], [None, case.identity(_W2)]], partition
+            )
+
+    def test_mixed_formats_apply_but_have_no_format(
+        self, case: TypedStackCase[V, F, A]
+    ) -> None:
+        stored = case.identity(_W1)
+        free = as_matrix_free(case.identity(_W2))
+        blocks: list[list[Optional[ActionOperatorProtocol[V, FormatProtocol]]]] = [
+            [stored, None],
+            [None, free],
+        ]
+        op = BlockAssembled(blocks, _ArrayPartition(case, _W, [_W1, _W2]))
+        x = case.vec(_W, 1, 26)
+        case.assert_vector(op.apply(x), case.array(x), rtol=1e-12)
+        with pytest.raises(TypeError, match="different formats"):
+            op.format()
 
 
 class TransposedSuite:

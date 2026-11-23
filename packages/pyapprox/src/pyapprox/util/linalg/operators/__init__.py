@@ -6,10 +6,13 @@ beside it, in :mod:`pyapprox.util.linalg`.
 """
 
 from pyapprox.util.linalg.operators.algebra import (
+    BlockAssembled,
     Product,
+    RowPartitionProtocol,
     ScaledSum,
     Transposed,
     as_matrix_free,
+    block_properties,
     product_properties,
     scaled_sum_properties,
 )
@@ -61,6 +64,7 @@ from pyapprox.util.linalg.operators.zero import ZeroOperator
 
 __all__ = [
     "ActionOperatorProtocol",
+    "BlockAssembled",
     "BlockInnerProductSpace",
     "BlockLowerTriangularHandle",
     "BlockOperator",
@@ -82,6 +86,7 @@ __all__ = [
     "MatrixFree",
     "OperatorProperties",
     "Product",
+    "RowPartitionProtocol",
     "RowReplacedOperator",
     "RowSetProtocol",
     "RowsZeroedOperator",
@@ -96,6 +101,7 @@ __all__ = [
     "ZeroOperator",
     "InnerProductSpaceProtocol",
     "as_matrix_free",
+    "block_properties",
     "product_properties",
     "rows_replaced_properties",
     "rows_zeroed_properties",

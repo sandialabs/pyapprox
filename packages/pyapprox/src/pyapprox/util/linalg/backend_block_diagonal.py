@@ -112,6 +112,37 @@ class BlockDiagonalFormat(Generic[Array]):
         keep = _block_keep_mask(rows, nblocks, block_size, self._bkd)
         return BlockDiagonalFormat(self._blocks * keep, self._bkd)
 
+    def block_matrix(
+        self,
+        blocks: Sequence[Sequence[Optional["BlockDiagonalFormat[Array]"]]],
+        sizes: Sequence[int],
+    ) -> "BlockDiagonalFormat[Array]":
+        """Stays block-diagonal only when every diagonal block is present
+        with this format's block size and every other block is zero; the
+        diagonal blocks' blocks are then concatenated.
+
+        Raises
+        ------
+        TypeError
+            Otherwise: the result has no block-diagonal storage.
+        """
+        size = self._blocks.shape[1]
+        diagonal: list[Array] = []
+        for i, row in enumerate(blocks):
+            for j, block in enumerate(row):
+                if (i == j) != (block is not None):
+                    raise TypeError(
+                        "a block operator with coupling or missing diagonal "
+                        "blocks has no block-diagonal storage"
+                    )
+                if block is not None:
+                    if block._blocks.shape[1] != size:
+                        raise TypeError(
+                            "the diagonal blocks have different block sizes"
+                        )
+                    diagonal.append(block._blocks)
+        return BlockDiagonalFormat(self._bkd.concatenate(diagonal, axis=0), self._bkd)
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(shape={tuple(self._blocks.shape)})"
 
