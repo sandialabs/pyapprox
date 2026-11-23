@@ -17,6 +17,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
+from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.protocols import (
     ArrayLike,
     Backend,
@@ -57,7 +58,7 @@ def _batched_lu_factor(
     lu = np.array(stack, copy=True)
     nmats, size = lu.shape[0], lu.shape[1]
     batch = np.arange(nmats)
-    pivots = np.empty((nmats, size), dtype=np.int32)
+    pivots = np.empty((nmats, size), dtype=np.int64)
     for j in range(size):
         pivot_rows = j + np.argmax(np.abs(lu[:, j:, j]), axis=1)
         pivots[:, j] = pivot_rows
@@ -135,7 +136,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def inv(matrix: NDArray[Any]) -> NDArray[Any]:
-        return np.linalg.inv(matrix)
+        try:
+            return np.linalg.inv(matrix)
+        except np.linalg.LinAlgError as err:
+            raise LinAlgError(str(err)) from err
 
     @staticmethod
     def pinv(matrix: NDArray[Any]) -> NDArray[Any]:
@@ -547,7 +551,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
-        return np.linalg.solve(Amat, Bmat)
+        try:
+            return np.linalg.solve(Amat, Bmat)
+        except np.linalg.LinAlgError as err:
+            raise LinAlgError(str(err)) from err
 
     @staticmethod
     def solve_sparse(Amat: spmatrix, bvec: NDArray[Any]) -> NDArray[Any]:
@@ -667,13 +674,17 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def cholesky(array: NDArray[Any]) -> NDArray[Any]:
-        return np.linalg.cholesky(array)
+        try:
+            return np.linalg.cholesky(array)
+        except np.linalg.LinAlgError as err:
+            raise LinAlgError(str(err)) from err
 
     @staticmethod
     def solve_triangular(
         matrix: NDArray[Any],
         rhs: NDArray[Any],
-        lower: bool = False,
+        *,
+        lower: bool,
         unit_diagonal: bool = False,
     ) -> NDArray[Any]:
         result: NDArray[Any] = scipy.linalg.solve_triangular(
@@ -960,8 +971,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             # A stack: one pass over the columns for every matrix at once,
             # not a LAPACK call per matrix.
             return _batched_lu_factor(array)
-        factors: Tuple[NDArray[Any], NDArray[Any]] = scipy.linalg.lu_factor(array)
-        return factors
+        lu, pivots = scipy.linalg.lu_factor(array)
+        # Pivots in the index dtype; SciPy gives LAPACK's int32.
+        return lu, pivots.astype(np.int64)
 
     @staticmethod
     def lu_solve(

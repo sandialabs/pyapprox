@@ -140,7 +140,15 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
-    def inv(matrix: Array) -> Array: ...
+    def inv(matrix: Array) -> Array:
+        """Inverse of a square matrix.
+
+        Raises
+        ------
+        pyapprox.util.backends.errors.LinAlgError
+            If the matrix is singular.
+        """
+        ...
 
     @staticmethod
     def pinv(matrix: Array) -> Array: ...
@@ -623,7 +631,15 @@ class Backend(Protocol, Generic[Array]):
     def sqrt(array: Array) -> Array: ...
 
     @staticmethod
-    def solve(Amat: Array, Bmat: Array) -> Array: ...
+    def solve(Amat: Array, Bmat: Array) -> Array:
+        """Solve ``Amat @ x = Bmat``; ``Bmat`` is ``(n,)`` or ``(n, k)``.
+
+        Raises
+        ------
+        pyapprox.util.backends.errors.LinAlgError
+            If ``Amat`` is singular.
+        """
+        ...
 
     @staticmethod
     def solve_sparse(Amat: spmatrix, bvec: Array) -> Array:
@@ -742,22 +758,41 @@ class Backend(Protocol, Generic[Array]):
     ) -> bool: ...
 
     @staticmethod
-    def cholesky(array: Array) -> Array: ...
+    def cholesky(array: Array) -> Array:
+        """Lower Cholesky factor of a symmetric positive definite matrix.
+
+        Raises
+        ------
+        pyapprox.util.backends.errors.LinAlgError
+            If the matrix is not positive definite.
+        """
+        ...
 
     @staticmethod
     def solve_triangular(
         matrix: Array,
         rhs: Array,
-        lower: bool = True,
+        *,
+        lower: bool,
         unit_diagonal: bool = False,
-    ) -> Array: ...
+    ) -> Array:
+        """Solve ``matrix @ x = rhs`` for triangular ``matrix``.
+
+        ``lower`` has no default: the libraries disagree on it (SciPy
+        ``False``, torch ``True``), so every call says which triangle.
+        ``rhs`` is ``(n,)`` or ``(n, k)``; ``x`` has its shape.
+        """
+        ...
 
     @staticmethod
     def cholesky_solve(
         matrix: Array,
         rhs: Array,
         lower: bool = True,
-    ) -> Array: ...
+    ) -> Array:
+        """Solve ``A @ x = rhs`` given the Cholesky factor ``matrix`` of
+        ``A``. ``rhs`` is ``(n,)`` or ``(n, k)``; ``x`` has its shape."""
+        ...
 
     @staticmethod
     def eigvalsh(array: Array) -> Array:
@@ -1209,7 +1244,9 @@ class Backend(Protocol, Generic[Array]):
             Compact LU factor (L and U packed in one matrix), stacked like
             ``array``.
         pivots : Array
-            Pivot indices, one row per matrix of a stack.
+            Pivot indices, one row per matrix of a stack: 0-based, in the
+            index dtype, as SciPy's ``lu_factor`` (row ``j`` was swapped
+            with row ``pivots[j]``).
         """
         ...
 

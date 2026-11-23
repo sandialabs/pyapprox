@@ -17,6 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
+from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.protocols import (
     ArrayLike,
     Backend,
@@ -39,6 +40,10 @@ except ImportError as err:
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs
 _set_default_dtype: Callable[["torch.dtype"], None] = torch.set_default_dtype
+
+# torch.linalg.LinAlgError exists at runtime but the stubs do not export
+# it; a RuntimeError subclass.
+_TorchLinAlgError: type[RuntimeError] = getattr(torch.linalg, "LinAlgError")
 
 # TorchBkd.jit's cache key: kernel, static argument names, dynamic.
 _JitKey = Tuple[Callable[..., Any], Tuple[str, ...], bool]
@@ -153,10 +158,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def inv(matrix: torch.Tensor) -> torch.Tensor:
-        result = torch.linalg.inv(matrix)
-        assert isinstance(result, torch.Tensor), (
-            "Expected torch.linalg.inv to return a torch.Tensor"
-        )
+        try:
+            result: torch.Tensor = torch.linalg.inv(matrix)
+        except _TorchLinAlgError as err:
+            raise LinAlgError(str(err)) from err
         return result
 
     @staticmethod
@@ -594,7 +599,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def solve(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
-        return cast(torch.Tensor, torch.linalg.solve(Amat, Bmat))
+        try:
+            return cast(torch.Tensor, torch.linalg.solve(Amat, Bmat))
+        except _TorchLinAlgError as err:
+            raise LinAlgError(str(err)) from err
 
     @staticmethod
     def solve_sparse(Amat: spmatrix, bvec: torch.Tensor) -> torch.Tensor:
@@ -784,20 +792,26 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def cholesky(array: torch.Tensor) -> torch.Tensor:
-        result: torch.Tensor = torch.linalg.cholesky(array)
+        try:
+            result: torch.Tensor = torch.linalg.cholesky(array)
+        except _TorchLinAlgError as err:
+            raise LinAlgError(str(err)) from err
         return result
 
     @staticmethod
     def solve_triangular(
         matrix: torch.Tensor,
         rhs: torch.Tensor,
-        lower: bool = True,
+        *,
+        lower: bool,
         unit_diagonal: bool = False,
     ) -> torch.Tensor:
+        # torch needs a 2-D right-hand side; NumPy's contract takes 1-D too.
+        rhs_2d = rhs[:, None] if rhs.ndim == 1 else rhs
         result: torch.Tensor = torch.linalg.solve_triangular(
-            matrix, rhs, upper=(not lower), unitriangular=unit_diagonal
+            matrix, rhs_2d, upper=(not lower), unitriangular=unit_diagonal
         )
-        return result
+        return result[:, 0] if rhs.ndim == 1 else result
 
     @staticmethod
     def cholesky_solve(
@@ -805,8 +819,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         rhs: torch.Tensor,
         lower: bool = True,
     ) -> torch.Tensor:
-        result: torch.Tensor = torch.cholesky_solve(rhs, matrix, upper=(not lower))
-        return result
+        rhs_2d = rhs[:, None] if rhs.ndim == 1 else rhs
+        result: torch.Tensor = torch.cholesky_solve(rhs_2d, matrix, upper=(not lower))
+        return result[:, 0] if rhs.ndim == 1 else result
 
     @staticmethod
     def eigvalsh(array: torch.Tensor) -> torch.Tensor:
@@ -1100,7 +1115,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # lu_factor_ex tolerates singular matrices (like DAE mass matrices)
         LU, pivots, _info = torch.linalg.lu_factor_ex(array)
-        return cast(torch.Tensor, LU), cast(torch.Tensor, pivots)
+        # The contract is NumPy's: 0-based pivots in the index dtype, not
+        # LAPACK's 1-based int32 that torch returns.
+        return cast(torch.Tensor, LU), (pivots - 1).to(torch.int64)
 
     @staticmethod
     def lu_solve(
@@ -1110,15 +1127,19 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         transpose: bool = False,
     ) -> torch.Tensor:
         rhs_2d = rhs[:, None] if rhs.ndim == 1 else rhs
+        # Back from the protocol's 0-based index pivots to LAPACK's.
+        lapack_pivots = (pivots + 1).to(torch.int32)
         if transpose:
             # torch's adjoint solve is with A^H; the protocol's is with A^T.
             # They agree for real A; in general A^T x = b iff
             # A^H conj(x) = conj(b). conj is a free view for real tensors.
             result = torch.conj(
-                torch.linalg.lu_solve(LU, pivots, torch.conj(rhs_2d), adjoint=True)
+                torch.linalg.lu_solve(
+                    LU, lapack_pivots, torch.conj(rhs_2d), adjoint=True
+                )
             )
         else:
-            result = torch.linalg.lu_solve(LU, pivots, rhs_2d)
+            result = torch.linalg.lu_solve(LU, lapack_pivots, rhs_2d)
         return result[:, 0] if rhs.ndim == 1 else result
 
     @staticmethod

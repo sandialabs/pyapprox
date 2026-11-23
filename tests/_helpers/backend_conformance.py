@@ -64,6 +64,7 @@ import pytest
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.autodiff import AutodiffBackend
+from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.protocols import Array, ArrayLike, KernelResult
 
 
@@ -107,7 +108,9 @@ class Case:
     NumPy dtypes; ``None`` means the ``numpy`` function named ``method``.
     ``eager_only`` marks rows that cannot be traced (data-dependent
     shape, host conversion); ``differentiable`` rows have floating inputs
-    a gradient can flow through.
+    a gradient can flow through. ``parts`` gives the dtype role of each
+    element of a tuple result whose elements differ (factors and
+    pivots); otherwise every element has the role ``expect``.
     """
 
     method: str
@@ -119,6 +122,7 @@ class Case:
     raises: Optional[type[Exception]] = None
     eager_only: bool = False
     differentiable: bool = False
+    parts: Tuple[Expect, ...] = ()
 
 
 def _rand(shape: Tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
@@ -170,6 +174,44 @@ _T3 = _rand((2, 3, 4), seed=3)
 _C = _crand((2, 3), seed=4)
 _MASK = np.asarray([[True, False, True], [False, False, True]])
 _NAN = np.asarray([1.0, np.nan, 3.0])
+# Linear algebra: well conditioned, symmetric positive definite, its
+# Cholesky factor, singular, and right-hand sides.
+_GEN = _rand((3, 3), seed=5) + 3.0 * np.eye(3)
+_SPD = _GEN @ _GEN.T + np.eye(3)
+_CHOL = np.linalg.cholesky(_SPD)
+_SINGULAR = np.asarray([[1.0, 2.0], [2.0, 4.0]])
+_RHS = _rand((3, 2), seed=6)
+_RHS1 = _rand((3,), seed=7)
+
+
+def _scipy_linalg() -> Any:
+    import scipy.linalg
+
+    return scipy.linalg
+
+
+def _solve_triangular(matrix: Any, rhs: Any, **kwargs: Any) -> Any:
+    return _scipy_linalg().solve_triangular(matrix, rhs, **kwargs)
+
+
+def _cholesky_solve(factor: Any, rhs: Any) -> Any:
+    return _scipy_linalg().cho_solve((factor, True), rhs)
+
+
+def _lu(array: Any) -> Any:
+    return tuple(_scipy_linalg().lu(array))
+
+
+def _lu_factor(array: Any) -> Any:
+    lu, pivots = _scipy_linalg().lu_factor(array)
+    return lu, pivots.astype(np.int64)
+
+
+def _lu_solve(lu: Any, pivots: Any, rhs: Any, transpose: bool = False) -> Any:
+    return _scipy_linalg().lu_solve((lu, pivots), rhs, trans=1 if transpose else 0)
+
+
+_LU, _PIVOTS = _lu_factor(_GEN)
 
 
 def _reductions(method: str) -> List[Case]:
@@ -298,6 +340,34 @@ CASES: List[Case] = [
          raises=ValueError),
     Case("index_add", "row-mismatch", (_A[0], _index(0, 1), _POS[0]),
          raises=ValueError),
+    # ---- linear algebra: solves and factorizations
+    Case("solve", "matrix-rhs", (_GEN, _RHS), differentiable=True),
+    Case("solve", "vector-rhs", (_GEN, _RHS1), differentiable=True),
+    Case("solve", "singular", (_SINGULAR, _RHS[:2]), raises=LinAlgError),
+    Case("solve_triangular", "lower", (_CHOL, _RHS), {"lower": True},
+         reference=_solve_triangular, differentiable=True),
+    Case("solve_triangular", "upper", (_CHOL.T.copy(), _RHS), {"lower": False},
+         reference=_solve_triangular, differentiable=True),
+    Case("solve_triangular", "unit-diagonal", (_CHOL, _RHS),
+         {"lower": True, "unit_diagonal": True}, reference=_solve_triangular),
+    Case("solve_triangular", "vector-rhs", (_CHOL, _RHS1), {"lower": True},
+         reference=_solve_triangular, differentiable=True),
+    Case("cholesky", "spd", (_SPD,)),
+    Case("cholesky", "not-positive-definite", (-_SPD,), raises=LinAlgError),
+    Case("cholesky_solve", "matrix-rhs", (_CHOL, _RHS), reference=_cholesky_solve),
+    Case("cholesky_solve", "vector-rhs", (_CHOL, _RHS1),
+         reference=_cholesky_solve),
+    Case("lu", "general", (_GEN,), reference=_lu),
+    Case("lu_factor", "general", (_GEN,), reference=_lu_factor,
+         parts=(Expect.INPUT, Expect.INDEX)),
+    Case("lu_solve", "matrix-rhs", (_LU, _PIVOTS, _RHS), reference=_lu_solve),
+    Case("lu_solve", "vector-rhs", (_LU, _PIVOTS, _RHS1), reference=_lu_solve),
+    Case("lu_solve", "transpose", (_LU, _PIVOTS, _RHS), {"transpose": True},
+         reference=_lu_solve),
+    Case("inv", "general", (_GEN,), differentiable=True),
+    Case("inv", "singular", (_SINGULAR,), raises=LinAlgError),
+    Case("det", "general", (_GEN,), differentiable=True),
+    Case("slogdet", "general", (_GEN,)),
 ]  # fmt: skip
 
 # Protocol methods without a row. Shrink-only: see the module docstring.
@@ -306,19 +376,18 @@ NOT_YET_COVERED = frozenset(
         "abs", "all_array", "all_bool", "allclose", "any_array", "any_bool",
         "arange", "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
         "arctanh", "argmax", "argmin", "argsort", "array", "array_type",
-        "atleast_1d", "atleast_2d", "block", "cdist", "ceil", "cholesky",
-        "cholesky_solve", "clip", "cond", "conj", "copy", "cos", "cosh", "cov",
-        "cumsum", "det", "diag", "diff", "digamma", "eigh", "eigvalsh", "empty",
-        "equal", "erf",
-        "erfinv", "expm1", "eye", "flatten", "flip", "floor", "floor_divide",
-        "full_like", "gammaln", "get_diagonal", "hstack", "inv",
+        "atleast_1d", "atleast_2d", "block", "cdist", "ceil", "clip", "cond",
+        "conj", "copy", "cos", "cosh", "cov", "cumsum", "diag", "diff",
+        "digamma", "eigh", "eigvalsh", "empty", "equal", "erf", "erfinv",
+        "expm1", "eye", "flatten", "flip", "floor", "floor_divide",
+        "full_like", "gammaln", "get_diagonal", "hstack",
         "is_floating_dtype", "is_integer_dtype", "isfinite", "isinf", "isnan",
         "kron", "linspace", "log", "log1p", "log_ndtr", "logspace", "logsumexp",
-        "lstsq", "lu", "lu_factor", "lu_solve", "max", "maximum", "meshgrid",
+        "lstsq", "max", "maximum", "meshgrid",
         "min", "minimum", "multidot", "ndtr", "nonzero", "norm", "ones_like",
         "outer", "pinv", "qr", "quantile", "rank", "ravel", "repeat", "round",
-        "searchsorted", "sign", "sin", "sinh", "slogdet", "solve", "solve_sparse",
-        "solve_triangular", "sort", "split", "squeeze", "std", "svd", "tanh",
+        "searchsorted", "sign", "sin", "sinh", "solve_sparse",
+        "sort", "split", "squeeze", "std", "svd", "tanh",
         "tile", "to_float", "to_int", "trace", "tracks_gradient", "transpose",
         "tril", "tril_indices", "triu", "unique", "var", "vstack", "zeros_like",
     }
@@ -329,7 +398,12 @@ NOT_YET_COVERED = frozenset(
 # lacks; its length is the conformance_not_on_jax baseline, so a row can
 # land before its JAX implementation but a new protocol method cannot
 # arrive without one.
-ROWS_NOT_YET_ON_JAX: frozenset[str] = frozenset()
+ROWS_NOT_YET_ON_JAX = frozenset(
+    {
+        "cholesky", "cholesky_solve", "det", "inv", "lu", "lu_factor",
+        "lu_solve", "slogdet", "solve", "solve_triangular",
+    }
+)  # fmt: skip
 NOT_YET_ON_JAX = NOT_YET_COVERED | ROWS_NOT_YET_ON_JAX
 
 # Protocol methods tested by a column over every row rather than by rows
@@ -412,7 +486,12 @@ def _to_reference(value: Any) -> Any:
 
 
 def _reference(case: Case) -> Any:
-    function = case.reference or getattr(np, case.method)
+    # The NumPy function of the same name, in numpy or numpy.linalg.
+    function = (
+        case.reference
+        or getattr(np, case.method, None)
+        or getattr(np.linalg, case.method)
+    )
     args = [_to_reference(a) for a in case.args]
     kwargs = {k: _to_reference(v) for k, v in case.kwargs.items()}
     return function(*args, **kwargs)
@@ -429,24 +508,37 @@ def _arrays(values: Tuple[Any, ...]) -> List[Any]:
     return found
 
 
+def _role_dtype(
+    bkd: ConformanceBackend[Array], expect: Expect, args: Tuple[Any, ...]
+) -> Any:
+    if expect is Expect.INPUT:
+        bool_dtype = _bool_dtype(bkd)
+        return next(a.dtype for a in _arrays(args) if a.dtype != bool_dtype)
+    return _backend_dtype(bkd, Role(expect.value))
+
+
 def _expected_dtype(
     bkd: ConformanceBackend[Array], case: Case, args: Tuple[Any, ...]
 ) -> Any:
-    if case.expect is Expect.INPUT:
-        bool_dtype = _bool_dtype(bkd)
-        return next(a.dtype for a in _arrays(args) if a.dtype != bool_dtype)
-    return _backend_dtype(bkd, Role(case.expect.value))
+    """The expected dtype of the result, or a tuple of them, one per
+    element, for a row with ``parts``."""
+    if case.parts:
+        return tuple(_role_dtype(bkd, part, args) for part in case.parts)
+    return _role_dtype(bkd, case.expect, args)
 
 
 def _assert_matches(
     bkd: ConformanceBackend[Array], actual: Any, expected: Any, dtype: Any
 ) -> None:
     """``actual`` equals ``expected`` (NumPy, converted to ``dtype`` on
-    ``bkd``) in shape, dtype and values; tuples elementwise."""
+    ``bkd``) in shape, dtype and values; tuples elementwise, with one
+    dtype per element when ``dtype`` is a tuple."""
     if isinstance(expected, tuple):
         assert isinstance(actual, tuple) and len(actual) == len(expected)
-        for a, e in zip(actual, expected):
-            _assert_matches(bkd, a, e, dtype)
+        dtypes = dtype if isinstance(dtype, tuple) else (dtype,) * len(expected)
+        assert len(dtypes) == len(expected), (len(dtypes), len(expected))
+        for a, e, d in zip(actual, expected, dtypes):
+            _assert_matches(bkd, a, e, d)
         return
     expected = np.asarray(expected)
     tol = 0.0
