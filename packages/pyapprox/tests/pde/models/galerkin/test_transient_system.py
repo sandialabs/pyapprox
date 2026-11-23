@@ -48,6 +48,7 @@ from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
 )
 from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
+from pyapprox.ode.pinned_rows import AtEveryBlock, StepBlock
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.step_residual_terms import StepResidualTerm
 from pyapprox.ode.stepping_methods import RungeKutta
@@ -353,6 +354,41 @@ class TestDriver:
                 FixedStep(_DELTAT, (0.0, _FINAL_TIME)),
                 heat.init_state,
                 store,
+            )
+
+    def test_placement_selects_the_pinned_blocks(self, numpy_bkd: NumpyBkd) -> None:
+        """By default only a step's last block is pinned; ``AtEveryBlock``
+        pins its stages too, and Crank-Nicolson stepped that way still
+        holds the moving end at its data at every stored time."""
+        heat = MovingEndHeat(numpy_bkd)
+        discretization = skfem_discretization(heat.system)
+        default = galerkin_transient_system(discretization, ScipySparseLU())
+        every = galerkin_transient_system(
+            discretization, ScipySparseLU(), placement=AtEveryBlock()
+        )
+        stage, last = StepBlock(0, 2), StepBlock(1, 2)
+        assert default.row_pinning.at(stage) is None
+        assert default.row_pinning.at(last) is not None
+        assert every.row_pinning.at(stage) is not None
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            every,
+            RungeKutta(crank_nicolson(), Newton(atol=1e-13, rtol=0.0)),
+            RecomputeAlways(every.solved.solver),
+            FixedStep(_DELTAT, (0.0, 4 * _DELTAT)),
+            np.reshape(heat.init_state, (-1, 1)),
+            store,
+        )
+        for n, time in enumerate(store.times()):
+            state = store.state(n)[:, 0]
+            numpy_bkd.assert_allclose(
+                state, every.constraints.inject(state, time), rtol=0.0, atol=1e-14
+            )
+        with pytest.raises(TypeError, match="PinPlacementProtocol"):
+            galerkin_transient_system(
+                discretization,
+                ScipySparseLU(),
+                placement="every",  # type: ignore[arg-type]
             )
 
     def test_refuses_a_method_that_is_not_one(self, numpy_bkd: NumpyBkd) -> None:

@@ -20,7 +20,7 @@ from typing import Generic, Optional, TypeVar
 from pyapprox.ode.differentiated_rows import CoupledRows, differentiated_rows
 from pyapprox.ode.integration import Integrator
 from pyapprox.ode.mass_form_system import MassFormSystem
-from pyapprox.ode.pinned_rows import RowPinning
+from pyapprox.ode.pinned_rows import PinPlacementProtocol, RowPinning
 from pyapprox.ode.protocols.differentiable_stepper import StepperProtocol
 from pyapprox.ode.setups import MassShiftStrategy
 from pyapprox.ode.step_plan import StepPlanProtocol
@@ -66,7 +66,8 @@ class GalerkinTransientSystem(Generic[Array, F]):
         The essential rows and their data, as the pin and quantities read
         on those rows (the boundary flux) declare them.
     row_pinning : RowPinning
-        Pins the essential rows to their data at each step's end.
+        Pins the essential rows to their data at the blocks ``placement``
+        selects (each step's end by default).
     constraints : ConstraintSetProtocol
         The essential constraints, which set the initial state's
         essential entries.
@@ -119,14 +120,19 @@ def galerkin_transient_system(
     discretization: GalerkinStackDiscretization[Array, Array, F],
     solver: LinearSolverProtocol[Array, F],
     parameters: Optional[ParameterState[Array]] = None,
+    placement: Optional[PinPlacementProtocol] = None,
 ) -> GalerkinTransientSystem[Array, F]:
     r"""The transient system of ``discretization``.
 
-    The essential rows are pinned at each step's end, with the coupling
-    columns kept in the mass, so a one-step method whose step result is
-    solved conserves :math:`1^\top M u` exactly. A stored-state constraint
-    in place of the pin (a projection, the symmetric mass) is composed by
-    hand from the same parts.
+    The essential rows are pinned at the blocks ``placement`` selects, by
+    default each step's end, with the coupling columns kept in the mass,
+    so a one-step method whose step result is solved conserves
+    :math:`1^\top M u` exactly. Pinning every block instead holds each
+    stage at its own data; for stage-order-2 methods it can raise the
+    observed velocity order of a constrained flow, at a larger error
+    constant. A stored-state constraint in place of the pin (a
+    projection, the symmetric mass) is composed by hand from the same
+    parts.
 
     Parameters
     ----------
@@ -137,11 +143,15 @@ def galerkin_transient_system(
         stack's format.
     parameters : ParameterState, optional
         The parameters; none for a system without them.
+    placement : PinPlacementProtocol, optional
+        Which blocks of a step pin the essential rows. Default:
+        :class:`~pyapprox.ode.pinned_rows.AtStepEnd`.
 
     Raises
     ------
     TypeError
-        If ``parameters`` is not a ``ParameterState``.
+        If ``parameters`` is not a ``ParameterState``, or ``placement``
+        does not satisfy ``PinPlacementProtocol``.
     ValueError
         If the parameterization writes objects the system does not hold,
         or the essential data supplies no rate.
@@ -152,7 +162,7 @@ def galerkin_transient_system(
         solved=differentiated_rows(unconstrained, rows, CoupledRows()),
         unconstrained=unconstrained,
         essential_rows=rows,
-        row_pinning=RowPinning(rows),
+        row_pinning=RowPinning(rows, placement),
         constraints=discretization.system().constraint_set(),
         parameters=parameters,
     )
