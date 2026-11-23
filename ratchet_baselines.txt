@@ -29,4 +29,4 @@ optional-test-import-in-function:numba=0
 # (NOT_YET_COVERED in tests/util/backends/test_backend_conformance.py).
 conformance_uncovered=92
 # Backend protocol methods the experimental JaxBkd lacks (NOT_YET_ON_JAX).
-conformance_not_on_jax=102
+conformance_not_on_jax=92

@@ -27,6 +27,7 @@ from typing import (
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.protocols import ArrayLike, KernelResult
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
@@ -38,10 +39,28 @@ from pyapprox.util.optional_deps import missing_dependency_message
 try:
     import jax
     import jax.numpy as jnp
+    import jax.scipy.linalg
 except ImportError as err:
     raise ImportError(missing_dependency_message("jax", "JaxBkd", "jax")) from err
 
 Axes = Optional[Union[int, Tuple[int, ...]]]
+
+
+def _finite_or_raise(result: jax.Array, reason: str) -> jax.Array:
+    """``result``, or ``LinAlgError`` if it is not finite.
+
+    JAX returns NaN or inf where NumPy and torch raise. The check runs
+    eagerly only: under ``jax.jit`` the values are unknown while tracing,
+    so a compiled solve returns the non-finite result. Eagerly it costs a
+    host sync, and a non-finite input raises too.
+    """
+    if isinstance(result, jax.core.Tracer):
+        return result
+    if not bool(jnp.all(jnp.isfinite(result))):
+        raise LinAlgError(reason)
+    return result
+
+
 # JaxBkd.jit's cache key: kernel, static argument names, dynamic.
 _JitKey = Tuple[Callable[..., Any], Tuple[str, ...], bool]
 
@@ -244,7 +263,73 @@ class JaxBkd:
         check_index_add_shapes(tuple(index.shape), tuple(values.shape))
         return array.at[index].add(values)
 
-    # ---- linear algebra
+    # ---- linear algebra: solves and factorizations
+
+    @staticmethod
+    def solve(Amat: jax.Array, Bmat: jax.Array) -> jax.Array:
+        return _finite_or_raise(jnp.linalg.solve(Amat, Bmat), "singular matrix")
+
+    @staticmethod
+    def solve_triangular(
+        matrix: jax.Array,
+        rhs: jax.Array,
+        *,
+        lower: bool,
+        unit_diagonal: bool = False,
+    ) -> jax.Array:
+        result: jax.Array = jax.scipy.linalg.solve_triangular(
+            matrix, rhs, lower=lower, unit_diagonal=unit_diagonal
+        )
+        return result
+
+    @staticmethod
+    def cholesky(array: jax.Array) -> jax.Array:
+        return _finite_or_raise(
+            jnp.linalg.cholesky(array), "matrix is not positive definite"
+        )
+
+    @staticmethod
+    def cholesky_solve(
+        matrix: jax.Array, rhs: jax.Array, lower: bool = True
+    ) -> jax.Array:
+        result: jax.Array = jax.scipy.linalg.cho_solve((matrix, lower), rhs)
+        return result
+
+    @staticmethod
+    def lu(array: jax.Array) -> Tuple[jax.Array, jax.Array, jax.Array]:
+        p, lower, upper = jax.scipy.linalg.lu(array)
+        return p, lower, upper
+
+    @staticmethod
+    def lu_factor(array: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        lu, pivots = jax.scipy.linalg.lu_factor(array)
+        # Pivots in the index dtype; JAX gives LAPACK's int32.
+        return lu, pivots.astype(jnp.int64)
+
+    @staticmethod
+    def lu_solve(
+        LU: jax.Array, pivots: jax.Array, rhs: jax.Array, transpose: bool = False
+    ) -> jax.Array:
+        result: jax.Array = jax.scipy.linalg.lu_solve(
+            (LU, pivots.astype(jnp.int32)), rhs, trans=1 if transpose else 0
+        )
+        return result
+
+    @staticmethod
+    def inv(matrix: jax.Array) -> jax.Array:
+        return _finite_or_raise(jnp.linalg.inv(matrix), "singular matrix")
+
+    @staticmethod
+    def det(array: jax.Array) -> jax.Array:
+        result: jax.Array = jnp.linalg.det(array)
+        return result
+
+    @staticmethod
+    def slogdet(array: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        sign, logabsdet = jnp.linalg.slogdet(array)
+        return sign, logabsdet
+
+    # ---- linear algebra: decompositions, least squares, norms, products
 
     @staticmethod
     def qr(

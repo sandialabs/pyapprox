@@ -539,12 +539,7 @@ NOT_YET_COVERED = frozenset(
 # lacks; its length is the conformance_not_on_jax baseline, so a row can
 # land before its JAX implementation but a new protocol method cannot
 # arrive without one.
-ROWS_NOT_YET_ON_JAX = frozenset(
-    {
-        "cholesky", "cholesky_solve", "det", "inv", "lu", "lu_factor",
-        "lu_solve", "slogdet", "solve", "solve_triangular",
-    }
-)  # fmt: skip
+ROWS_NOT_YET_ON_JAX: frozenset[str] = frozenset()
 NOT_YET_ON_JAX = NOT_YET_COVERED | ROWS_NOT_YET_ON_JAX
 
 # Protocol methods tested by a column over every row rather than by rows
