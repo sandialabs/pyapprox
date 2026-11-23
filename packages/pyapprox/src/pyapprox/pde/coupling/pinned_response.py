@@ -34,14 +34,30 @@ read back through :math:`-R_\theta^\top z` on the port data's rows.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
+from pyapprox.implicitfunction.functional_terms import (
+    StateFirst,
+    accumulate,
+    has_first_derivatives,
+    parameter_first_derivatives,
+    state_first_derivatives,
+)
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.residual_derivatives import (
     ResidualJacobian,
     ResidualParamFn,
 )
 from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyRequest
+from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.pde.coupling.pinned_ports import (
     PortPinnedData,
@@ -60,6 +76,7 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     InnerProductSpaceProtocol,
     LinearizationPoint,
+    VectorSpaceProtocol,
 )
 from pyapprox.util.rootfinding.nonlinear import NonlinearSolverProtocol
 
@@ -269,9 +286,82 @@ class PortTangent(Generic[V, A]):
         ports: PortPinnedData[V, A],
         flux: PortFluxProtocol[V, A],
         physical: Optional[PortPlacement[V, A]] = None,
+        qoi: Optional["PortQoI[V, A]"] = None,
     ) -> None:
         self.param, self.ports, self.flux = param, ports, flux
-        self.physical = physical
+        self.physical, self.qoi = physical, qoi
+
+
+class PortQoI(Generic[V, A]):
+    r"""A subdomain's quantities of interest :math:`q(u;\, p)`, a
+    :class:`~pyapprox.implicitfunction.state_functional.StateFunctional`
+    of its state whose parameter derivatives are in the response's own
+    parameters, with its first derivatives read once.
+
+    ``first`` is None when a term has no first derivatives: the value is
+    then available, its derivatives not.
+    """
+
+    def __init__(self, functional: StateFunctional[V, A], bkd: Backend[A]) -> None:
+        if not isinstance(functional, StateFunctional):
+            raise TypeError(
+                f"functional must be a StateFunctional, got {type(functional).__name__}"
+            )
+        self.functional, self._bkd = functional, bkd
+        self.first = has_first_derivatives(
+            functional.parameter_terms, functional.state_terms
+        )
+        self._parameter_terms = (
+            parameter_first_derivatives(functional.parameter_terms)
+            if self.first
+            else []
+        )
+        self._state_terms: List[StateFirst[V, A]] = (
+            state_first_derivatives(functional.state_terms) if self.first else []
+        )
+
+    def nqoi(self) -> int:
+        return self.functional.nqoi()
+
+    def state_tangent(self, state: V, delta: V) -> A:
+        r""":math:`q_u\, \delta u` for one column."""
+        total = self.functional.zero
+        for term in self._state_terms:
+            total = total + term.wrt_state(state).apply(delta)
+        return total
+
+    def state_cotangent(self, state: V, weights: A, space: VectorSpaceProtocol[V]) -> V:
+        r""":math:`q_u^\top \omega` for one column of weights."""
+        total: Optional[V] = None
+        for term in self._state_terms:
+            total = accumulate(
+                total, term.wrt_state(state).apply_transpose(weights), space
+            )
+        return space.zeros(1) if total is None else total
+
+    def param_tangent(self, state: V, direction: V) -> A:
+        r""":math:`q_p\, v` at fixed state, for one column ``direction`` of
+        the response's own parameters."""
+        total = self.functional.zero
+        for wrt_param in self._parameter_terms:
+            total = total + wrt_param().apply(direction)
+        for term in self._state_terms:
+            by_param = None if term.wrt_param is None else term.wrt_param(state)
+            if by_param is not None:
+                total = total + by_param.apply(direction)
+        return total
+
+    def param_cotangents(self, state: V, weights: A) -> List[V]:
+        r"""The pieces of :math:`q_p^\top \omega` at fixed state, each a
+        column of the response's own parameters."""
+        pieces = [
+            wrt_param().apply_transpose(weights) for wrt_param in self._parameter_terms
+        ]
+        for term in self._state_terms:
+            by_param = None if term.wrt_param is None else term.wrt_param(state)
+            if by_param is not None:
+                pieces.append(by_param.apply_transpose(weights))
+        return pieces
 
 
 class SteadyPinnedPoint(Generic[V, A]):
@@ -282,7 +372,11 @@ class SteadyPinnedPoint(Generic[V, A]):
     later solve changes the port data, and a tangent requested after it
     is refused. With parameters of its own its bundle also carries
     ``jvp_param`` and ``vjp_param``: the same tangent and adjoint solves,
-    placed on and read from the parameters' rows of :math:`\\theta`.
+    placed on and read from the parameters' rows of :math:`\\theta`. With
+    quantities of interest whose terms have first derivatives it carries
+    their four derivatives too: the same solves, with the functional's
+    state derivative in place of the output's (one transposed solve per
+    weight column), plus its fixed-state parameter derivative.
     """
 
     def __init__(
@@ -295,13 +389,26 @@ class SteadyPinnedPoint(Generic[V, A]):
         self._point, self._output, self._bkd = point, output, bkd
         self._tangent = tangent
         self._explicit = tangent.flux.param_derivatives()
-        self._derivs: ResponseDerivatives[A] = (
+        derivs: ResponseDerivatives[A] = (
             ResponseDerivatives.parametric(
                 self.jvp_trace, self.vjp_trace, self._jvp_param, self._vjp_param
             )
             if tangent.physical is not None and self._explicit.available()
             else ResponseDerivatives.adjoint(self.jvp_trace, self.vjp_trace)
         )
+        qoi = tangent.qoi
+        self._qoi: A = (
+            bkd.zeros((0, 1)) if qoi is None else qoi.functional.value(point.state())
+        )
+        if qoi is not None and qoi.first:
+            with_params = tangent.physical is not None
+            derivs = derivs.with_qoi(
+                self._qoi_jvp_trace,
+                self._qoi_vjp_trace,
+                self._qoi_jvp_param if with_params else None,
+                self._qoi_vjp_param if with_params else None,
+            )
+        self._derivs = derivs
 
     def output(self) -> A:
         """The response's output on the ports: the outward flux for a
@@ -309,7 +416,9 @@ class SteadyPinnedPoint(Generic[V, A]):
         return self._output
 
     def qoi(self) -> A:
-        return self._bkd.zeros((0, 1))
+        """The subdomain's quantities of interest at its solved state.
+        Shape: (nqoi, 1); (0, 1) without them."""
+        return self._qoi
 
     def derivatives(self) -> ResponseDerivatives[A]:
         return self._derivs
@@ -389,6 +498,25 @@ class SteadyPinnedPoint(Generic[V, A]):
     def _tangent_on(self, rows: PortRowsProtocol[V, A], directions: A) -> A:
         """The output's change for ``directions`` placed on ``rows`` of
         :math:`\\theta`, one tangent solve for all columns."""
+        delta = self._delta(rows, directions)
+        state = self._point.solution()
+        return self._tangent.flux.flux_tangent(state, delta, self._point)
+
+    def _adjoint_on(self, rows: PortRowsProtocol[V, A], weights: A) -> A:
+        """``rows`` of :math:`-R_\\theta^\\top z`, :math:`R_u^\\top z =
+        C^\\top W`, one transposed solve for all columns."""
+        nport = self._tangent.ports.nport()
+        if weights.ndim != 2 or weights.shape[0] != nport:
+            raise ValueError(
+                f"weights must have shape ({nport}, ncols), got {tuple(weights.shape)}"
+            )
+        state = self._point.solution()
+        cotangent = self._tangent.flux.flux_adjoint(state, weights, self._point)
+        return rows.take(self._theta_cotangent(cotangent))
+
+    def _delta(self, rows: PortRowsProtocol[V, A], directions: A) -> V:
+        """The state's change :math:`R_u\\, \\delta u = -R_\\theta \\theta`
+        for ``directions`` on ``rows`` of :math:`\\theta`, all columns."""
         t = self._tangent
         if directions.ndim != 2 or directions.shape[0] != rows.nrows():
             raise ValueError(
@@ -403,28 +531,99 @@ class SteadyPinnedPoint(Generic[V, A]):
         delta, info = self._point.jacobian_handle().solve(rhs)
         if not info.converged:
             raise ValueError("the tangent solve did not converge")
-        return t.flux.flux_tangent(state, delta, self._point)
+        return delta
 
-    def _adjoint_on(self, rows: PortRowsProtocol[V, A], weights: A) -> A:
-        """``rows`` of :math:`-R_\\theta^\\top z`, :math:`R_u^\\top z =
-        C^\\top W`, one transposed solve for all columns."""
+    def _theta_cotangent(self, cotangent: V) -> V:
+        """:math:`-R_\\theta^\\top z` with :math:`R_u^\\top z` the state
+        cotangent ``cotangent``: one transposed solve."""
         t = self._tangent
-        nport = t.ports.nport()
-        if weights.ndim != 2 or weights.shape[0] != nport:
-            raise ValueError(
-                f"weights must have shape ({nport}, ncols), got {tuple(weights.shape)}"
-            )
         state = self._point.solution()
         transposed = self._point.jacobian_handle().transpose()
         if transposed is None:
             raise TypeError("the Jacobian's solver has no transposed solve")
-        adjoint, info = transposed.solve(
-            t.flux.flux_adjoint(state, weights, self._point)
-        )
+        adjoint, info = transposed.solve(cotangent)
         if not info.converged:
             raise ValueError("the adjoint solve did not converge")
-        theta = t.param(state).apply_transpose(adjoint)
-        return -rows.take(theta)
+        params = t.ports.param_space()
+        return params.scale(-1.0, t.param(state).apply_transpose(adjoint))
+
+    def _port_qoi(self) -> PortQoI[V, A]:
+        qoi = self._tangent.qoi
+        if qoi is None:
+            raise RuntimeError(
+                "the response has no quantities of interest; check derivatives() "
+                "before calling"
+            )
+        return qoi
+
+    def _columns(self, block: A) -> List[A]:
+        return [block[:, k : k + 1] for k in range(int(block.shape[1]))]
+
+    def _qoi_tangent_on(
+        self, rows: PortRowsProtocol[V, A], directions: A, explicit: bool
+    ) -> A:
+        """:math:`dq` for ``directions`` on ``rows`` of :math:`\\theta`, one
+        tangent solve for all columns, then column by column; with
+        ``explicit`` the parameters' fixed-state term as well."""
+        qoi = self._port_qoi()
+        delta = self._delta(rows, directions)
+        state = self._point.solution()
+        space = self._tangent.ports.state_space()
+        params = self._tangent.ports.param_space()
+        columns = []
+        for k, direction in enumerate(self._columns(directions)):
+            value = qoi.state_tangent(state, space.column(delta, k))
+            if explicit:
+                theta = rows.add_to(params.zeros(1), direction)
+                own = self._physical().apply_transpose(theta)
+                value = value + qoi.param_tangent(state, own)
+            columns.append(value)
+        return self._bkd.hstack(columns)
+
+    def _qoi_adjoint_on(
+        self, rows: PortRowsProtocol[V, A], weights: A, explicit: bool
+    ) -> A:
+        """``rows`` of :math:`-R_\\theta^\\top z`, :math:`R_u^\\top z =
+        q_u^\\top \\omega`, one transposed solve per column; with
+        ``explicit`` the parameters' fixed-state term as well."""
+        qoi = self._port_qoi()
+        if weights.ndim != 2 or weights.shape[0] != qoi.nqoi():
+            raise ValueError(
+                f"weights must have shape ({qoi.nqoi()}, ncols), got "
+                f"{tuple(weights.shape)}"
+            )
+        state = self._point.solution()
+        space = self._tangent.ports.state_space()
+        params = self._tangent.ports.param_space()
+        columns = []
+        for omega in self._columns(weights):
+            theta = self._theta_cotangent(qoi.state_cotangent(state, omega, space))
+            if explicit:
+                physical = self._physical()
+                for own in qoi.param_cotangents(state, omega):
+                    theta = params.axpby(1.0, theta, 1.0, physical.apply(own))
+            columns.append(rows.take(theta))
+        return self._bkd.hstack(columns)
+
+    def _qoi_jvp_trace(self, directions: A) -> A:
+        """:math:`(\\partial q/\\partial \\lambda)` ``directions``, (nport,
+        ncols) to (nqoi, ncols)."""
+        return self._qoi_tangent_on(
+            self._tangent.ports.param_ports(), directions, False
+        )
+
+    def _qoi_vjp_trace(self, weights: A) -> A:
+        """Its transpose: (nqoi, ncols) to (nport, ncols)."""
+        return self._qoi_adjoint_on(self._tangent.ports.param_ports(), weights, False)
+
+    def _qoi_jvp_param(self, directions: A) -> A:
+        """:math:`(dq/dp)` ``directions``, (nparams, ncols) to (nqoi,
+        ncols): through the state and at fixed state."""
+        return self._qoi_tangent_on(self._physical().range_rows(), directions, True)
+
+    def _qoi_vjp_param(self, weights: A) -> A:
+        """Its transpose: (nqoi, ncols) to (nparams, ncols)."""
+        return self._qoi_adjoint_on(self._physical().range_rows(), weights, True)
 
     def state(self) -> V:
         """The subdomain's solved state."""
@@ -438,7 +637,8 @@ class SteadyPinnedPoint(Generic[V, A]):
 class SteadyPinnedResponse(Generic[V, A, F]):
     r"""A subdomain as a Dirichlet-to-Neumann response: receives the
     trace on its ports and returns the outward flux there (see the module
-    docstring). Steady, without quantities of interest.
+    docstring). Steady; its quantities of interest are ``functional`` of
+    its solved state, when given.
 
     Satisfies :class:`~pyapprox.pde.coupling.responses.
     LocalResponseProtocol`. Each solve starts from the last state solved.
@@ -468,11 +668,16 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         Places those parameters in the residual's parameter vector beside
         the port data (:func:`~pyapprox.pde.coupling.pinned_ports.
         pin_ports`).
+    functional : StateFunctional, optional
+        The quantities of interest :math:`q(u;\, p)` of the subdomain's
+        state, its parameter derivatives in the response's own
+        parameters. Default: none.
 
     Raises
     ------
     TypeError
-        If ``flux`` or ``parameters`` does not satisfy its protocol.
+        If ``flux`` or ``parameters`` does not satisfy its protocol, or
+        ``functional`` is not a ``StateFunctional``.
     ValueError
         If ``parameters`` and ``physical`` are not given together, the
         port-pinned residual has no parameter Jacobian, or as
@@ -490,6 +695,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         bkd: Backend[A],
         parameters: Optional[ResponseParametersProtocol[A]] = None,
         physical: Optional[PortPlacement[V, A]] = None,
+        functional: Optional[StateFunctional[V, A]] = None,
     ) -> None:
         if not isinstance(flux, PortFluxProtocol):
             raise TypeError(
@@ -512,7 +718,8 @@ class SteadyPinnedResponse(Generic[V, A, F]):
                 "a trace tangent needs the port-pinned residual's parameter Jacobian"
             )
         self._system = SteadySystem(self._residual, space, setups)
-        self._tangent = PortTangent(param, ports, flux, physical)
+        self._qoi = None if functional is None else PortQoI(functional, bkd)
+        self._tangent = PortTangent(param, ports, flux, physical, self._qoi)
         self._nonlinear, self._bkd = nonlinear, bkd
         self._parameters = parameters
         self._guess = space.zeros(1)
@@ -533,7 +740,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
         return 0 if self._parameters is None else self._parameters.nparams()
 
     def nqoi(self) -> int:
-        return 0
+        return 0 if self._qoi is None else self._qoi.nqoi()
 
     def residual(self) -> PinnedResidual[V, F]:
         """The port-pinned residual the response solves."""

@@ -49,6 +49,16 @@ Torch.
   response whose points carry no ``vjp_param`` still gives the tangent
   Jacobian, and its adjoint gradient is refused: the parameter Jacobian
   is not transposable.
+- Quantities of interest from the responses: q = u(node 2), plus
+  :math:`0.15 |p|^2` on the parametric left piece. At
+  :math:`\lambda = 1.3` its trace and parameter tangents pass central
+  differences (below 1e-6) and their transposes dot tests (1e-12).
+  Coupled, :math:`Q(p) = q_{left} + q_{right}` through
+  :class:`SubdomainQoIs` equals both pieces' quantities at the solved
+  interface value (1e-10), and its adjoint gradient passes central
+  differences and equals the tangent-column Jacobian (1e-10), matrix-free
+  and dense. Refused: a residual with no quantities of interest, or of
+  another count.
 - Refusals: wrong shapes, an unsteady window, parameters without their
   placement; on the skeleton, a response with parameters but no
   coupled parameters, rows of the wrong count, the wrong entry count,
@@ -72,6 +82,7 @@ from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.implicitfunction.steady_function import SteadyImplicitFunction
 from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.implicitfunction.tikhonov_term import TikhonovTerm
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -86,6 +97,7 @@ from pyapprox.pde.coupling.pinned_ports import PortPinnedData, PortPlacement
 from pyapprox.pde.coupling.pinned_response import (
     FluxParamDerivatives,
     PinnedReactionFlux,
+    ResponseParametersProtocol,
     SteadyPinnedResponse,
 )
 from pyapprox.pde.coupling.ports import (
@@ -107,6 +119,7 @@ from pyapprox.pde.coupling.skeleton import (
     DenseSchur,
     MatrixFreeSchur,
     SkeletonResidual,
+    SubdomainQoIs,
 )
 from pyapprox.pde.coupling.spaces import ContinuousSkeletonSpace, UniformBases
 from pyapprox.pde.coupling.topology import TensorBoxPartition
@@ -174,7 +187,10 @@ class _Piece(Generic[Array]):
         )
 
     def response(
-        self, parameters: Optional[ParameterState[Array]] = None
+        self,
+        parameters: Optional[ParameterState[Array]] = None,
+        functional: Optional[StateFunctional[Array, Array]] = None,
+        setter: Optional[ResponseParametersProtocol[Array]] = None,
     ) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
         bkd, disc = self.bkd, self.discretization
         pinned = galerkin_steady_residual(disc, parameters)
@@ -200,8 +216,9 @@ class _Piece(Generic[Array]):
             RecomputeAlways(BackendDenseLU(bkd)),
             newton,
             bkd,
-            parameters,
+            parameters if setter is None else setter,
             physical,
+            functional,
         )
 
 
@@ -434,24 +451,69 @@ def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
     bkd.assert_allclose(point.solution(), reference[_NCELLS : _NCELLS + 1], atol=1e-10)
 
 
+class _WithTikhonov(Generic[Array]):
+    """Sets the coefficients and a Tikhonov term reading them."""
+
+    def __init__(
+        self,
+        state: ParameterState[Array],
+        term: TikhonovTerm[Array],
+        bkd: Backend[Array],
+    ) -> None:
+        self._state, self._term, self._bkd = state, term, bkd
+
+    def nparams(self) -> int:
+        return self._state.nparams()
+
+    def set_param(self, param: Array) -> None:
+        self._state.set_param(param)
+        self._term.set_param(self._bkd.reshape(param, (-1, 1)))
+
+
+def _qoi_response(
+    bkd: Backend[Array], piece: "_Piece[Array]", parametric: bool
+) -> SteadyPinnedResponse[Array, Array, DenseFormat[Array]]:
+    """``piece``'s response with the quantity of interest u at node 2,
+    plus 0.3/2 |p|^2 when ``parametric`` (its coefficients the
+    parameters), so it reads the parameters at fixed state too."""
+    observed = ObservedValue(StateEntries(bkd, piece.n, [2]))
+    if not parametric:
+        return piece.response(
+            functional=StateFunctional.from_terms(bkd, 1, state_terms=(observed,))
+        )
+    state = ParameterState(ModalCoefficientParameterization(piece.operator, bkd))
+    tikhonov: TikhonovTerm[Array] = TikhonovTerm(bkd, 0.3)
+    functional: StateFunctional[Array, Array] = StateFunctional.from_terms(
+        bkd, 1, parameter_terms=(tikhonov,), state_terms=(observed,)
+    )
+    return piece.response(state, functional, _WithTikhonov(state, tikhonov, bkd))
+
+
 def _parametric_chain(
-    bkd: Backend[Array],
+    bkd: Backend[Array], with_qoi: bool = False
 ) -> tuple[
     SkeletonResidual[Array, Array, Array, MatrixFree], BackendVectorSpace[Array]
 ]:
     """The two pieces of the Newton test on one skeleton DOF, the left
-    piece's six modal coefficients the coupled parameters."""
+    piece's six modal coefficients the coupled parameters; with
+    ``with_qoi`` each piece has the quantity of interest of
+    :func:`_qoi_response` (the left one parametric)."""
     topo = TensorBoxPartition((2,))
     bases = UniformBases(lobatto_lagrange_basis(0, 1, bkd))
     skeleton = ContinuousSkeletonSpace(topo, bases, VertexWeightNumbering(topo, bases))
     space = BackendVectorSpace(skeleton.descriptor(), bkd)
     left = _Piece(bkd, True, (0, 1.0), (_NCELLS,))
-    pieces = [
-        left.response(
-            ParameterState(ModalCoefficientParameterization(left.operator, bkd))
-        ),
-        _Piece(bkd, True, (_NCELLS, 2.0), (0,)).response(),
-    ]
+    right = _Piece(bkd, True, (_NCELLS, 2.0), (0,))
+    pieces = (
+        [_qoi_response(bkd, left, True), _qoi_response(bkd, right, False)]
+        if with_qoi
+        else [
+            left.response(
+                ParameterState(ModalCoefficientParameterization(left.operator, bkd))
+            ),
+            right.response(),
+        ]
+    )
     subdomains = [
         CoupledSubdomain(
             response,
@@ -702,6 +764,162 @@ def test_the_coupled_function_is_the_skeleton_solve(bkd: Backend[Array]) -> None
     bkd.assert_allclose(
         function(bkd.asarray(_PARAM)[:, None]), point.solution(), rtol=1e-10
     )
+
+
+def test_response_qoi_derivatives_pass_finite_differences(
+    bkd: Backend[Array],
+) -> None:
+    """q = u(node 2) + 0.3/2 |p|^2 on the parametric left piece at
+    lambda = 1.3: its trace and parameter tangents pass central
+    differences, and their transposes dot tests (1e-12)."""
+    response = _qoi_response(bkd, _Piece(bkd, True, (0, 1.0), (_NCELLS,)), True)
+    assert response.nqoi() == 1
+    lam, param = bkd.asarray([[1.3]]), bkd.asarray(_PARAM)[:, None]
+
+    def check(fun: Any, jvp: Any, nvars: int, sample: Array) -> None:
+        errors = DerivativeChecker(
+            FunctionWithJVPFromCallable(nqoi=1, nvars=nvars, fun=fun, jvp=jvp, bkd=bkd)
+        ).check_derivatives(sample, relative=True, central=True)
+        assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+
+    def bundle(lam_: Array, param_: Array) -> ResponseDerivatives[Array]:
+        return response.linearize(lam_, param_, _STEADY).derivatives()
+
+    def by_trace(sample: Array, direction: Array) -> Array:
+        field = bundle(sample, param).qoi_jvp_trace
+        assert field is not None
+        return field(direction)
+
+    def by_param(sample: Array, direction: Array) -> Array:
+        field = bundle(lam, sample).qoi_jvp_param
+        assert field is not None
+        return field(direction)
+
+    check(lambda s: response.linearize(s, param, _STEADY).qoi(), by_trace, 1, lam)
+    check(
+        lambda s: response.linearize(lam, s, _STEADY).qoi(),
+        by_param,
+        len(_PARAM),
+        param,
+    )
+    fields = bundle(lam, param)
+    assert fields.qoi_jvp_trace is not None and fields.qoi_vjp_trace is not None
+    assert fields.qoi_jvp_param is not None and fields.qoi_vjp_param is not None
+    rng = np.random.default_rng(8)
+    w = bkd.asarray(rng.normal(size=(1, 2)))
+    for jvp, vjp, nvars in (
+        (fields.qoi_jvp_trace, fields.qoi_vjp_trace, 1),
+        (fields.qoi_jvp_param, fields.qoi_vjp_param, len(_PARAM)),
+    ):
+        v = bkd.asarray(rng.normal(size=(nvars, 2)))
+        lhs, rhs = bkd.sum(jvp(v) * w), bkd.sum(v * vjp(w))
+        bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
+
+
+def _qoi_function(
+    bkd: Backend[Array], dense: bool, jacobian: ImplicitJacobianProtocol
+) -> SteadyImplicitFunction[Array, Any]:
+    """The sum of both pieces' quantities of interest as a function of the
+    left piece's coefficients."""
+    chain, space = _parametric_chain(bkd, with_qoi=True)
+    newton: Newton[Array, Array] = Newton(atol=1e-12, rtol=1e-12, maxiters=20)
+    start = bkd.asarray([[1.5]])
+    params = SpaceDescriptor("params", len(_PARAM))
+    parameters = CoupledParameters(
+        BackendVectorSpace(params, bkd),
+        [BackendPortRows(params, range(len(_PARAM)), bkd), None],
+    )
+    if dense:
+        dense_residual = SkeletonResidual(
+            space, list(chain.subdomains()), DenseSchur(bkd), parameters=parameters
+        )
+        lu: RecomputeAlways[Array, DenseFormat[Array]] = RecomputeAlways(
+            BackendDenseLU(bkd)
+        )
+        qois = SubdomainQoIs(dense_residual, 1, bkd)
+        return SteadyImplicitFunction(
+            dense_residual,
+            space,
+            CoupledParameterSetter(dense_residual, bkd),
+            lu,
+            newton,
+            StateFunctional.from_terms(bkd, 1, state_terms=(qois,)),
+            start,
+            bkd,
+            jacobian,
+        )
+    gmres: RecomputeAlways[Array, MatrixFree] = RecomputeAlways(
+        GMRES(space, bkd, tol=1e-14)
+    )
+    free_qois = SubdomainQoIs(chain, 1, bkd)
+    return SteadyImplicitFunction(
+        chain,
+        space,
+        CoupledParameterSetter(chain, bkd),
+        gmres,
+        newton,
+        StateFunctional.from_terms(bkd, 1, state_terms=(free_qois,)),
+        start,
+        bkd,
+        jacobian,
+    )
+
+
+@pytest.mark.parametrize("dense", [False, True])
+def test_the_coupled_qoi_gradient_passes_finite_differences(
+    bkd: Backend[Array], dense: bool
+) -> None:
+    """Q(p) = q_left + q_right, interior values of both pieces plus the
+    left one's Tikhonov term: its adjoint gradient passes central
+    differences and equals the tangent-column Jacobian (1e-10)."""
+    sample = bkd.asarray(_PARAM)[:, None]
+    function = _qoi_function(bkd, dense, AdjointRows())
+    errors = DerivativeChecker(function).check_derivatives(
+        sample, relative=True, central=True
+    )
+    assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+    adjoint = function.derivatives().jacobian
+    tangent = _qoi_function(bkd, dense, TangentColumns()).derivatives().jacobian
+    assert adjoint is not None and tangent is not None
+    bkd.assert_allclose(adjoint(sample), tangent(sample), rtol=1e-10)
+
+
+def test_the_coupled_qoi_is_the_sum_at_the_solution(bkd: Backend[Array]) -> None:
+    """Q(p) equals both pieces' quantities at the solved interface value,
+    each read from a fresh linearization there."""
+    sample = bkd.asarray(_PARAM)[:, None]
+    value = _qoi_function(bkd, True, AdjointRows())(sample)
+    chain, space = _parametric_chain(bkd, with_qoi=True)
+    chain.set_param(sample)
+    gmres: RecomputeAlways[Array, MatrixFree] = RecomputeAlways(
+        GMRES(space, bkd, tol=1e-14)
+    )
+    point = SteadySystem(chain, space, gmres).solve(
+        Newton(atol=1e-12, rtol=1e-12, maxiters=20), bkd.asarray([[1.5]])
+    )
+    assert point.converged()
+    lam = point.solution()
+    left, right = chain.subdomains()
+    total = (
+        left.response.linearize(lam, sample, _STEADY).qoi()
+        + right.response.linearize(lam, _no_params(bkd), _STEADY).qoi()
+    )
+    bkd.assert_allclose(value, total, rtol=1e-10)
+    assert (
+        bkd.to_float(
+            bkd.abs(right.response.linearize(lam, _no_params(bkd), _STEADY).qoi()[0, 0])
+        )
+        > 0.1
+    )
+
+
+def test_subdomain_qoi_refusals(bkd: Backend[Array]) -> None:
+    chain, _ = _parametric_chain(bkd, with_qoi=False)
+    with pytest.raises(ValueError, match="quantities of interest"):
+        SubdomainQoIs(chain, 1, bkd)
+    with_qoi, _ = _parametric_chain(bkd, with_qoi=True)
+    with pytest.raises(ValueError, match="quantities of interest"):
+        SubdomainQoIs(with_qoi, 2, bkd)
 
 
 def test_coupled_parameter_refusals(bkd: Backend[Array]) -> None:

@@ -53,6 +53,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.implicitfunction.functional_terms import StateTermDerivatives
 from pyapprox.implicitfunction.residual_derivatives import (
     ResidualDerivatives,
     ResidualJacobian,
@@ -655,6 +656,19 @@ class SkeletonResidual(Generic[V, A, Array, F]):
         """The fixed coupling, or ``None``."""
         return self._coupling
 
+    def space(self) -> InnerProductSpaceProtocol[V, A]:
+        """The skeleton's space."""
+        return self._space
+
+    def coupled_parameters(self) -> Optional[CoupledParameters[V, Array]]:
+        """The coupled parameters' space and readings, or ``None``."""
+        return self._parameters
+
+    def points(self, state: V) -> Sequence[ResponsePointProtocol[Array]]:
+        """Every subdomain's response point at ``state``, through the
+        point store: kept points when the store holds them."""
+        return self._store.points(state, self)
+
     def nparams(self) -> int:
         """The number of coupled parameters; 0 without them."""
         if self._parameters is None:
@@ -750,6 +764,164 @@ class SkeletonResidual(Generic[V, A, Array, F]):
     def parameters_version(self) -> int:
         """The number of :meth:`set_param` calls so far."""
         return self._version
+
+
+class SubdomainQoIs(Generic[V, A, Array, F]):
+    r"""The coupled quantities of interest :math:`Q(\lambda;\, p) =
+    \sum_i q_i(u_i(\lambda_i, p_i);\, p_i)`: the sum of the responses'
+    quantities, those of every subdomain having ``nqoi`` entries (a
+    subdomain with none contributes nothing), read from the residual's
+    response points at :math:`\lambda`.
+
+    Satisfies :class:`~pyapprox.implicitfunction.functional_terms.
+    StateTermProtocol` on the skeleton state, so a
+    :class:`~pyapprox.implicitfunction.state_functional.StateFunctional`
+    of it makes the coupled problem's quantities a function of the
+    parameters (:class:`CoupledParameterSetter`). Its first derivatives:
+    in :math:`\lambda`, :math:`\sum_i (\partial q_i/\partial \lambda_i)
+    E_i`; in :math:`p`, :math:`\sum_i (dq_i/dp_i) P_i` when the residual
+    has parameters. A point without the fields a derivative needs is
+    refused with ``TypeError`` when it is applied.
+
+    Raises
+    ------
+    ValueError
+        If a subdomain's response has quantities of interest of another
+        count than ``nqoi``, or none has any.
+    """
+
+    def __init__(
+        self,
+        residual: SkeletonResidual[V, A, Array, F],
+        nqoi: int,
+        bkd: Backend[Array],
+    ) -> None:
+        counts = [sd.response.nqoi() for sd in residual.subdomains()]
+        if any(c not in (0, nqoi) for c in counts) or not any(counts):
+            raise ValueError(
+                f"each subdomain needs 0 or {nqoi} quantities of interest, got {counts}"
+            )
+        self._residual, self._nqoi, self._bkd = residual, nqoi, bkd
+        self._with_qoi = [i for i, c in enumerate(counts) if c == nqoi]
+        self._derivs: StateTermDerivatives[V, Array] = StateTermDerivatives.first_order(
+            self._wrt_state,
+            None if residual.nparams() == 0 else self._wrt_param,
+        )
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def value(self, state: V) -> Array:
+        points = self._residual.points(state)
+        total = self._bkd.zeros((self._nqoi, 1))
+        for i in self._with_qoi:
+            total = total + points[i].qoi()
+        return total
+
+    def derivatives(self) -> StateTermDerivatives[V, Array]:
+        return self._derivs
+
+    def _wrt_state(self, state: V) -> "_QoITraceLinearization[V, Array]":
+        return _QoITraceLinearization(
+            self._residual.space(),
+            [sd.transfer for sd in self._residual.subdomains()],
+            self._residual.points(state),
+            self._with_qoi,
+            self._bkd.zeros((self._nqoi, 1)),
+        )
+
+    def _wrt_param(self, state: V) -> Optional["_QoIParamLinearization[V, Array]"]:
+        parameters = self._residual.coupled_parameters()
+        if parameters is None:
+            raise RuntimeError(
+                "the residual has no parameters; check derivatives() before calling"
+            )
+        with_params = [i for i in self._with_qoi if parameters.rows[i] is not None]
+        if not with_params:
+            return None
+        return _QoIParamLinearization(
+            parameters,
+            self._residual.points(state),
+            with_params,
+            self._bkd.zeros((self._nqoi, 1)),
+        )
+
+
+def _required(
+    field: Optional[Callable[[Array], Array]], name: str, i: int
+) -> Callable[[Array], Array]:
+    """A bundle field, refused naming subdomain ``i`` and the field when
+    absent."""
+    if field is None:
+        raise TypeError(f"subdomain {i}'s response point has no {name}")
+    return field
+
+
+class _QoITraceLinearization(Generic[V, Array]):
+    r""":math:`\sum_i (\partial q_i/\partial \lambda_i) E_i` at one set of
+    points, and its transpose."""
+
+    def __init__(
+        self,
+        space: VectorSpaceProtocol[V],
+        transfers: Sequence[PortTransferProtocol[V, Array]],
+        points: Sequence[ResponsePointProtocol[Array]],
+        with_qoi: Sequence[int],
+        zero: Array,
+    ) -> None:
+        self._space, self._transfers = space, transfers
+        self._bundles = [point.derivatives() for point in points]
+        self._with_qoi, self._zero = with_qoi, zero
+
+    def apply(self, x: V) -> Array:
+        total = self._zero
+        for i in self._with_qoi:
+            jvp = _required(self._bundles[i].qoi_jvp_trace, "qoi_jvp_trace", i)
+            total = total + jvp(self._transfers[i].scatter(x))
+        return total
+
+    def apply_transpose(self, weights: Array) -> V:
+        total = self._space.zeros(1)
+        for i in self._with_qoi:
+            vjp = _required(self._bundles[i].qoi_vjp_trace, "qoi_vjp_trace", i)
+            total = self._transfers[i].gather_add(vjp(weights), total)
+        return total
+
+
+class _QoIParamLinearization(Generic[V, Array]):
+    r""":math:`\sum_i (dq_i/dp_i) P_i` at one set of points, and its
+    transpose; only subdomains with parameters appear."""
+
+    def __init__(
+        self,
+        parameters: CoupledParameters[V, Array],
+        points: Sequence[ResponsePointProtocol[Array]],
+        with_params: Sequence[int],
+        zero: Array,
+    ) -> None:
+        self._parameters = parameters
+        self._bundles = [point.derivatives() for point in points]
+        self._with_params, self._zero = with_params, zero
+
+    def _rows(self, i: int) -> PortRowsProtocol[V, Array]:
+        rows = self._parameters.rows[i]
+        if rows is None:
+            raise RuntimeError(f"subdomain {i} has no parameters")
+        return rows
+
+    def apply(self, x: V) -> Array:
+        total = self._zero
+        for i in self._with_params:
+            jvp = _required(self._bundles[i].qoi_jvp_param, "qoi_jvp_param", i)
+            total = total + jvp(self._rows(i).take(x))
+        return total
+
+    def apply_transpose(self, weights: Array) -> V:
+        total = self._parameters.space.zeros(1)
+        for i in self._with_params:
+            vjp = _required(self._bundles[i].qoi_vjp_param, "qoi_vjp_param", i)
+            total = self._rows(i).add_to(total, vjp(weights))
+        return total
 
 
 class CoupledParameterSetter(Generic[Array, F]):

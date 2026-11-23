@@ -22,7 +22,7 @@ Derivatives are optional and travel in a frozen
 :class:`ResponseDerivatives` bundle; an absent capability is ``None``.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
@@ -122,30 +122,53 @@ class ResponseDerivatives(Generic[Array]):
     A response without parameters carries no parameter fields: its output
     does not depend on any.
 
-    Build with the named constructors.
+    The same four derivatives of the response's quantities of interest,
+    for a response with them: ``qoi_jvp_trace`` (nport, ncols) to (nqoi,
+    ncols), ``qoi_vjp_trace`` (nqoi, ncols) to (nport, ncols),
+    ``qoi_jvp_param`` (nparams, ncols) to (nqoi, ncols), ``qoi_vjp_param``
+    (nqoi, ncols) to (nparams, ncols), with the same pairing rules.
+
+    Build with the named constructors, adding the QoI fields by
+    :meth:`with_qoi`.
     """
 
     jvp_trace: Optional[TraceJVP[Array]] = None
     vjp_trace: Optional[TraceVJP[Array]] = None
     jvp_param: Optional[ParamJVP[Array]] = None
     vjp_param: Optional[ParamVJP[Array]] = None
+    qoi_jvp_trace: Optional[Callable[[Array], Array]] = None
+    qoi_vjp_trace: Optional[Callable[[Array], Array]] = None
+    qoi_jvp_param: Optional[Callable[[Array], Array]] = None
+    qoi_vjp_param: Optional[Callable[[Array], Array]] = None
 
     def __post_init__(self) -> None:
-        for name in ("jvp_trace", "vjp_trace", "jvp_param", "vjp_param"):
-            value = getattr(self, name)
-            if value is not None and not callable(value):
-                raise TypeError(
-                    f"ResponseDerivatives field '{name}' must be callable or "
-                    f"None; got {type(value).__name__}"
-                )
-        if self.vjp_trace is not None and self.jvp_trace is None:
-            raise ValueError("vjp_trace comes only with jvp_trace")
-        if self.jvp_param is not None and self.jvp_trace is None:
-            raise ValueError("jvp_param comes only with jvp_trace")
-        if self.vjp_param is not None and (
-            self.jvp_param is None or self.vjp_trace is None
-        ):
-            raise ValueError("vjp_param comes only with jvp_param and vjp_trace")
+        _check_quartet(
+            self.jvp_trace, self.vjp_trace, self.jvp_param, self.vjp_param, ""
+        )
+        _check_quartet(
+            self.qoi_jvp_trace,
+            self.qoi_vjp_trace,
+            self.qoi_jvp_param,
+            self.qoi_vjp_param,
+            "qoi_",
+        )
+
+    def with_qoi(
+        self,
+        jvp_trace: Callable[[Array], Array],
+        vjp_trace: Callable[[Array], Array],
+        jvp_param: Optional[Callable[[Array], Array]] = None,
+        vjp_param: Optional[Callable[[Array], Array]] = None,
+    ) -> "ResponseDerivatives[Array]":
+        """This bundle with the derivatives of the quantities of interest:
+        in the port data, and in the parameters when given."""
+        return replace(
+            self,
+            qoi_jvp_trace=jvp_trace,
+            qoi_vjp_trace=vjp_trace,
+            qoi_jvp_param=jvp_param,
+            qoi_vjp_param=vjp_param,
+        )
 
     @staticmethod
     def none() -> "ResponseDerivatives[Array]":
@@ -179,6 +202,37 @@ class ResponseDerivatives(Generic[Array]):
             vjp_trace=vjp_trace,
             jvp_param=jvp_param,
             vjp_param=vjp_param,
+        )
+
+
+def _check_quartet(
+    jvp_trace: object,
+    vjp_trace: object,
+    jvp_param: object,
+    vjp_param: object,
+    prefix: str,
+) -> None:
+    """One quartet's fields are callables or None and come in the order
+    the derivatives need: a transpose with its forward product, a
+    parameter derivative with the trace one."""
+    for name, value in (
+        ("jvp_trace", jvp_trace),
+        ("vjp_trace", vjp_trace),
+        ("jvp_param", jvp_param),
+        ("vjp_param", vjp_param),
+    ):
+        if value is not None and not callable(value):
+            raise TypeError(
+                f"ResponseDerivatives field '{prefix}{name}' must be callable or "
+                f"None; got {type(value).__name__}"
+            )
+    if vjp_trace is not None and jvp_trace is None:
+        raise ValueError(f"{prefix}vjp_trace comes only with {prefix}jvp_trace")
+    if jvp_param is not None and jvp_trace is None:
+        raise ValueError(f"{prefix}jvp_param comes only with {prefix}jvp_trace")
+    if vjp_param is not None and (jvp_param is None or vjp_trace is None):
+        raise ValueError(
+            f"{prefix}vjp_param comes only with {prefix}jvp_param and {prefix}vjp_trace"
         )
 
 
