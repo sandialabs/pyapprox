@@ -17,6 +17,22 @@ def reduction_axes(
     return tuple(axis)
 
 
+def check_orderable(method: str, is_complex: bool) -> None:
+    """Check that ``method`` (an ordering: sort, max, argmax, ...) was
+    given real values.
+
+    Raises
+    ------
+    TypeError
+        If the input is complex: complex values have no order.
+    """
+    if is_complex:
+        raise TypeError(
+            f"{method} needs real values; complex values have no order, so "
+            "use abs() or the real part instead"
+        )
+
+
 def check_ordered_reduction(
     method: str,
     is_complex: bool,
@@ -44,11 +60,7 @@ def check_ordered_reduction(
     ValueError
         If an axis reduced over has length zero.
     """
-    if is_complex:
-        raise TypeError(
-            f"{method} needs real values; complex values have no order, so "
-            "reduce abs() or the real part instead"
-        )
+    check_orderable(method, is_complex)
     empty = [a for a in axes if shape[a] == 0]
     if empty:
         raise ValueError(

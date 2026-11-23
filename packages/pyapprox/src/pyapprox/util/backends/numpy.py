@@ -27,6 +27,7 @@ from pyapprox.util.backends.protocols import (
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_jit_kernel,
+    check_orderable,
     check_ordered_reduction,
     check_to_bool_shape,
     reduction_axes,
@@ -584,12 +585,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return result
 
     @staticmethod
-    def flip(array: NDArray[Any], axis: Optional[Tuple[int]] = None) -> NDArray[Any]:
+    def flip(
+        array: NDArray[Any], axis: Optional[Union[int, Tuple[int, ...]]] = None
+    ) -> NDArray[Any]:
         return np.flip(array, axis=axis)
 
     @staticmethod
     def sort(array: NDArray[Any], axis: int = -1) -> NDArray[Any]:
-        return np.sort(array, axis=axis)
+        check_orderable("sort", np.iscomplexobj(array))
+        return np.sort(array, axis=axis, kind="stable")
 
     @staticmethod
     def quantile(array: NDArray[Any], level: float, axis: int = 0) -> NDArray[Any]:
@@ -598,7 +602,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def argsort(array: NDArray[Any], axis: int = -1) -> NDArray[Any]:
-        return np.argsort(array, axis=axis)
+        check_orderable("argsort", np.iscomplexobj(array))
+        return np.argsort(array, axis=axis, kind="stable")
 
     @staticmethod
     def searchsorted(

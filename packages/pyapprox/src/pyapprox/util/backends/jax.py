@@ -32,6 +32,7 @@ from pyapprox.util.backends.protocols import ArrayLike, KernelResult
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_jit_kernel,
+    check_orderable,
     check_ordered_reduction,
     check_to_bool_shape,
     reduction_axes,
@@ -497,3 +498,125 @@ class JaxBkd:
             "solver is experimental and GPU-only. Use NumpyBkd for sparse "
             "solves or convert to dense first."
         )
+
+    # ---- shape and indexing. JAX arrays are immutable, so whether a
+    # result shares memory with its input cannot be observed.
+
+    @staticmethod
+    def flatten(array: jax.Array) -> jax.Array:
+        return jnp.ravel(array)
+
+    @staticmethod
+    def ravel(array: jax.Array) -> jax.Array:
+        return jnp.ravel(array)
+
+    @staticmethod
+    def squeeze(array: jax.Array) -> jax.Array:
+        return jnp.squeeze(array)
+
+    @staticmethod
+    def transpose(array: jax.Array, axes: Optional[Sequence[int]] = None) -> jax.Array:
+        return jnp.transpose(array, None if axes is None else tuple(axes))
+
+    @staticmethod
+    def flip(array: jax.Array, axis: Axes = None) -> jax.Array:
+        return jnp.flip(array, axis=axis)
+
+    @staticmethod
+    def tile(array: jax.Array, reps: Tuple[int, ...]) -> jax.Array:
+        return jnp.tile(array, reps)
+
+    @staticmethod
+    def repeat(array: jax.Array, repeats: int, axis: Optional[int] = None) -> jax.Array:
+        return jnp.repeat(array, repeats, axis=axis)
+
+    @staticmethod
+    def split(
+        array: jax.Array, indices_or_sections: jax.Array, axis: int = 0
+    ) -> List[jax.Array]:
+        # The indices fix the output shapes, so they must be concrete.
+        return jnp.split(array, np.asarray(indices_or_sections), axis=axis)
+
+    @staticmethod
+    def hstack(arrays: Union[List[jax.Array], Tuple[jax.Array, ...]]) -> jax.Array:
+        return jnp.hstack(arrays)
+
+    @staticmethod
+    def vstack(arrays: Union[List[jax.Array], Tuple[jax.Array, ...]]) -> jax.Array:
+        return jnp.vstack(arrays)
+
+    @staticmethod
+    def block(blocks: List[List[jax.Array]]) -> jax.Array:
+        return jnp.block(blocks)
+
+    @staticmethod
+    def tril(array: jax.Array, k: int = 0) -> jax.Array:
+        return jnp.tril(array, k)
+
+    @staticmethod
+    def triu(array: jax.Array, k: int = 0) -> jax.Array:
+        return jnp.triu(array, k)
+
+    @staticmethod
+    def tril_indices(n: int, k: int = 0) -> Tuple[jax.Array, jax.Array]:
+        rows, cols = jnp.tril_indices(n, k)
+        return rows.astype(jnp.int64), cols.astype(jnp.int64)
+
+    @staticmethod
+    def get_diagonal(
+        array: jax.Array, offset: int = 0, axis1: int = 0, axis2: int = 1
+    ) -> jax.Array:
+        result: jax.Array = jnp.diagonal(array, offset, axis1=axis1, axis2=axis2)
+        return result
+
+    @staticmethod
+    def diag(array: jax.Array, k: int = 0) -> jax.Array:
+        return jnp.diag(array, k)
+
+    @staticmethod
+    def nonzero(condition: jax.Array) -> Tuple[jax.Array, ...]:
+        return tuple(jnp.nonzero(condition))
+
+    @staticmethod
+    def unique(array: jax.Array) -> jax.Array:
+        result: jax.Array = jnp.unique(array)
+        return result
+
+    @staticmethod
+    def sort(array: jax.Array, axis: int = -1) -> jax.Array:
+        check_orderable("sort", jnp.iscomplexobj(array))
+        return jnp.sort(array, axis=axis, stable=True)
+
+    @staticmethod
+    def argsort(array: jax.Array, axis: int = -1) -> jax.Array:
+        check_orderable("argsort", jnp.iscomplexobj(array))
+        return jnp.argsort(array, axis=axis, stable=True)
+
+    @staticmethod
+    def searchsorted(
+        sorted_array: jax.Array,
+        values: jax.Array,
+        side: Literal["left", "right"] = "left",
+    ) -> jax.Array:
+        # In the index dtype; JAX gives int32 even with 64-bit types on.
+        return jnp.searchsorted(sorted_array, values, side=side).astype(jnp.int64)
+
+    @staticmethod
+    def atleast_1d(array: jax.Array) -> jax.Array:
+        result: jax.Array = jnp.atleast_1d(array)
+        return result
+
+    @staticmethod
+    def atleast_2d(array: jax.Array) -> jax.Array:
+        result: jax.Array = jnp.atleast_2d(array)
+        return result
+
+    @staticmethod
+    def meshgrid(
+        *arrays: jax.Array, indexing: Literal["xy", "ij"] = "xy"
+    ) -> Tuple[jax.Array, ...]:
+        return tuple(jnp.meshgrid(*arrays, indexing=indexing))
+
+    @staticmethod
+    def copy(array: jax.Array) -> jax.Array:
+        return jnp.array(array, copy=True)

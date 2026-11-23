@@ -282,7 +282,10 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def flatten(array: Array) -> Array: ...
+    def flatten(array: Array) -> Array:
+        """A 1-D copy of ``array`` in row-major order; never shares memory
+        with it (``ravel`` may)."""
+        ...
 
     @staticmethod
     def squeeze(array: Array) -> Array:
@@ -329,7 +332,9 @@ class Backend(Protocol, Generic[Array]):
     def reshape(array: Array, newshape: Sequence[int]) -> Array: ...
 
     @staticmethod
-    def transpose(array: Array, axes: Optional[Sequence[int]] = None) -> Array: ...
+    def transpose(array: Array, axes: Optional[Sequence[int]] = None) -> Array:
+        """Permute the axes; reverse them all if ``axes`` is ``None``."""
+        ...
 
     @staticmethod
     def sum(
@@ -680,10 +685,21 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def flip(array: Array, axis: Optional[Tuple[int]] = None) -> Array: ...
+    def flip(array: Array, axis: Optional[Union[int, Tuple[int, ...]]] = None) -> Array:
+        """Reverse the order of elements along ``axis``; every axis if
+        ``None``."""
+        ...
 
     @staticmethod
-    def sort(array: Array, axis: int = -1) -> Array: ...
+    def sort(array: Array, axis: int = -1) -> Array:
+        """Sorted copy along ``axis``, stable on every backend.
+
+        Raises
+        ------
+        TypeError
+            If ``array`` is complex: complex values have no order.
+        """
+        ...
 
     @staticmethod
     def quantile(array: Array, level: float, axis: int = 0) -> Array:
@@ -708,7 +724,8 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def argsort(array: Array, axis: int = -1) -> Array:
-        """Return indices that would sort the array.
+        """Return indices that would sort the array, stably: equal values
+        keep their order, on every backend.
 
         Parameters
         ----------
@@ -721,6 +738,11 @@ class Backend(Protocol, Generic[Array]):
         -------
         Array
             Array of indices that sort the input array.
+
+        Raises
+        ------
+        TypeError
+            If ``array`` is complex: complex values have no order.
         """
         ...
 

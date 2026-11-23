@@ -28,6 +28,7 @@ from pyapprox.util.backends.protocols import (
 from pyapprox.util.backends.validation import (
     check_index_add_shapes,
     check_jit_kernel,
+    check_orderable,
     check_ordered_reduction,
     check_to_bool_shape,
     reduction_axes,
@@ -336,7 +337,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def flatten(array: torch.Tensor) -> torch.Tensor:
-        return array.flatten()
+        # One contiguous copy, as NumPy's flatten: torch.flatten returns a
+        # view, or the input itself when it is 1-D.
+        return array.clone(memory_format=torch.contiguous_format).reshape(-1)
 
     @staticmethod
     def squeeze(array: torch.Tensor) -> torch.Tensor:
@@ -362,7 +365,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         axes: Optional[Sequence[int]] = None,
     ) -> torch.Tensor:
         if axes is None:
-            return array.T
+            # Tensor.T is deprecated beyond two dimensions.
+            return array.permute(*reversed(range(array.ndim)))
         return array.permute(*axes)
 
     @staticmethod
@@ -672,18 +676,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return cast(torch.Tensor, result.solution)
 
     @staticmethod
-    def flip(array: torch.Tensor, axis: Optional[Tuple[int]] = None) -> torch.Tensor:
-        if axis is None:
-            dims = (0,)
-        elif isinstance(axis, int):
-            dims = (axis,)
-        else:
-            dims = axis
-        return torch.flip(array, dims=dims)
+    def flip(
+        array: torch.Tensor, axis: Optional[Union[int, Tuple[int, ...]]] = None
+    ) -> torch.Tensor:
+        return torch.flip(array, dims=reduction_axes(array.ndim, axis))
 
     @staticmethod
     def sort(array: torch.Tensor, axis: int = -1) -> torch.Tensor:
-        return torch.sort(array, dim=axis).values
+        check_orderable("sort", array.is_complex())
+        return torch.sort(array, dim=axis, stable=True).values
 
     @staticmethod
     def quantile(array: torch.Tensor, level: float, axis: int = 0) -> torch.Tensor:
@@ -701,7 +702,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def argsort(array: torch.Tensor, axis: int = -1) -> torch.Tensor:
-        return torch.argsort(array, dim=axis)
+        check_orderable("argsort", array.is_complex())
+        return torch.argsort(array, dim=axis, stable=True)
 
     @staticmethod
     def searchsorted(

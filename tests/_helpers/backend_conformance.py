@@ -45,8 +45,9 @@ differentiable row's ``bkd.jacobian`` against central differences
 ``test_backend_conformance_jax.py`` runs the rows on ``JaxBkd`` until
 it joins the ``bkd`` fixture.
 
-This module depends only on the backend package, NumPy and pytest, so
-the backend package could ship it as a public suite for other backends.
+This module depends only on the backend package, NumPy, SciPy (which
+the backend package requires) and pytest, so the backend package could
+ship it as a public suite for other backends.
 """
 
 from dataclasses import dataclass, field
@@ -67,7 +68,10 @@ from typing import (
 
 import numpy as np
 import pytest
+import scipy.linalg
+import scipy.special
 from numpy.typing import NDArray
+from scipy.sparse import csc_matrix
 
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.errors import LinAlgError
@@ -109,10 +113,8 @@ class Sparse:
 
     dense: NDArray[np.float64]
 
-    def to_scipy(self) -> Any:
-        import scipy.sparse
-
-        return scipy.sparse.csc_matrix(self.dense)
+    def to_scipy(self) -> csc_matrix:
+        return csc_matrix(self.dense)
 
 
 Arg = Union[
@@ -219,31 +221,44 @@ _RHS = _rand((3, 2), seed=6)
 _RHS1 = _rand((3,), seed=7)
 
 
-def _scipy_linalg() -> Any:
-    import scipy.linalg
-
-    return scipy.linalg
-
-
-def _solve_triangular(matrix: Any, rhs: Any, **kwargs: Any) -> Any:
-    return _scipy_linalg().solve_triangular(matrix, rhs, **kwargs)
-
-
-def _cholesky_solve(factor: Any, rhs: Any) -> Any:
-    return _scipy_linalg().cho_solve((factor, True), rhs)
-
-
-def _lu(array: Any) -> Any:
-    return tuple(_scipy_linalg().lu(array))
+def _solve_triangular(
+    matrix: NDArray[Any],
+    rhs: NDArray[Any],
+    *,
+    lower: bool,
+    unit_diagonal: bool = False,
+) -> NDArray[Any]:
+    result: NDArray[Any] = scipy.linalg.solve_triangular(
+        matrix, rhs, lower=lower, unit_diagonal=unit_diagonal
+    )
+    return result
 
 
-def _lu_factor(array: Any) -> Any:
-    lu, pivots = _scipy_linalg().lu_factor(array)
+def _cholesky_solve(factor: NDArray[Any], rhs: NDArray[Any]) -> NDArray[Any]:
+    result: NDArray[Any] = scipy.linalg.cho_solve((factor, True), rhs)
+    return result
+
+
+def _lu(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
+    p, lower, upper = scipy.linalg.lu(array)
+    return p, lower, upper
+
+
+def _lu_factor(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[np.int64]]:
+    lu, pivots = scipy.linalg.lu_factor(array)
     return lu, pivots.astype(np.int64)
 
 
-def _lu_solve(lu: Any, pivots: Any, rhs: Any, transpose: bool = False) -> Any:
-    return _scipy_linalg().lu_solve((lu, pivots), rhs, trans=1 if transpose else 0)
+def _lu_solve(
+    lu: NDArray[Any],
+    pivots: NDArray[np.int64],
+    rhs: NDArray[Any],
+    transpose: bool = False,
+) -> NDArray[Any]:
+    result: NDArray[Any] = scipy.linalg.lu_solve(
+        (lu, pivots), rhs, trans=1 if transpose else 0
+    )
+    return result
 
 
 _LU, _PIVOTS = _lu_factor(_GEN)
@@ -257,19 +272,23 @@ _CSQ = _crand((3, 3), seed=10)
 _HERM = _CSQ @ _CSQ.conj().T + np.eye(3)
 
 
-def _lstsq(a: Any, b: Any, rcond: Optional[float] = None) -> Any:
-    return np.linalg.lstsq(a, b, rcond=rcond)[0]
+def _lstsq(
+    a: NDArray[Any], b: NDArray[Any], rcond: Optional[float] = None
+) -> NDArray[Any]:
+    solution: NDArray[Any] = np.linalg.lstsq(a, b, rcond=rcond)[0]
+    return solution
 
 
-def _pinv(matrix: Any, rtol: Optional[float] = None) -> Any:
+def _pinv(matrix: NDArray[Any], rtol: Optional[float] = None) -> NDArray[Any]:
     # The Array API default cutoff, not NumPy's legacy rcond=1e-15.
     if rtol is None:
         rtol = max(matrix.shape[-2:]) * float(np.finfo(matrix.dtype).eps)
     return np.linalg.pinv(matrix, rtol=rtol)
 
 
-def _solve_sparse(Amat: Any, bvec: Any) -> Any:
-    return np.linalg.solve(Amat.toarray(), bvec)
+def _solve_sparse(Amat: csc_matrix, bvec: NDArray[Any]) -> NDArray[Any]:
+    dense: NDArray[Any] = Amat.toarray()
+    return np.linalg.solve(dense, bvec)
 
 
 # Fixed weights giving each vector of a factorization a sign: that of its
@@ -277,25 +296,32 @@ def _solve_sparse(Amat: Any, bvec: Any) -> Any:
 _SIGN_WEIGHTS = _rand((8,), seed=11)
 
 
-def _column_signs(bkd: Any, vectors: Any) -> Any:
-    # where, not sign: a backend still growing (JaxBkd) has where first.
+def _column_signs(bkd: "ConformanceBackend[Array]", vectors: Array) -> Array:
+    # Arithmetic on the comparison, not sign or where: it needs nothing
+    # from a backend beyond the operators.
     weights = bkd.asarray(_SIGN_WEIGHTS[: vectors.shape[0]])
-    return bkd.where(weights @ vectors >= 0, 1.0, -1.0)
+    return (weights @ vectors >= 0) * 2.0 - 1.0
 
 
-def _canonical_eigh(bkd: Any, result: Any) -> Any:
+def _canonical_eigh(
+    bkd: "ConformanceBackend[Array]", result: Tuple[Array, Array]
+) -> Tuple[Array, Array]:
     values, vectors = result
     return values, vectors * _column_signs(bkd, vectors)
 
 
-def _canonical_svd(bkd: Any, result: Any) -> Any:
+def _canonical_svd(
+    bkd: "ConformanceBackend[Array]", result: Tuple[Array, Array, Array]
+) -> Tuple[Array, Array, Array]:
     # Flipping a left singular vector flips its right one.
     left, values, right = result
     signs = _column_signs(bkd, left)
     return left * signs, values, right * signs[:, None]
 
 
-def _canonical_qr(bkd: Any, result: Any) -> Any:
+def _canonical_qr(
+    bkd: "ConformanceBackend[Array]", result: Tuple[Array, Array]
+) -> Tuple[Array, Array]:
     # Flipping a column of Q flips the matching row of R.
     q, r = result
     signs = _column_signs(bkd, q)
@@ -323,25 +349,42 @@ def _reductions(
     ]  # fmt: skip
 
 
-def _logsumexp(*args: Any, **kwargs: Any) -> Any:
-    import scipy.special
+def _logsumexp(
+    array: NDArray[Any],
+    axis: Optional[Union[int, Tuple[int, ...]]] = None,
+    keepdims: bool = False,
+) -> NDArray[Any]:
+    return np.asarray(scipy.special.logsumexp(array, axis=axis, keepdims=keepdims))
 
-    return scipy.special.logsumexp(*args, **kwargs)
 
-
-def _quantile(array: Any, level: float, axis: int = 0) -> Any:
+def _quantile(array: NDArray[Any], level: float, axis: int = 0) -> NDArray[Any]:
     # The protocol's default axis is 0; NumPy's flattens.
-    return np.quantile(array, level, axis=axis)
+    return np.asarray(np.quantile(array, level, axis=axis))
 
 
-def _cov(array: Any, **kwargs: Any) -> Any:
+def _cov(array: NDArray[Any], rowvar: bool = True, ddof: int = 1) -> NDArray[Any]:
     # 2-D for one variable too.
-    return np.atleast_2d(np.cov(array, **kwargs))
+    return np.atleast_2d(np.cov(array, rowvar=rowvar, ddof=ddof))
 
 
 # Ties (the first occurrence wins) and an input with no rows.
 _TIES = np.asarray([[1.0, 3.0, 3.0], [2.0, 2.0, 1.0]])
 _EMPTY = np.zeros((0, 3))
+# Shape and indexing: singleton axes, a sorted vector with a repeat,
+# and values to place in it.
+_SINGLETONS = _A[None, :, :, None]
+_SORTED = np.asarray([1.0, 2.0, 2.0, 3.0])
+_PLACE = np.asarray([2.0, 0.5, 4.0, 3.0])
+_UNSORTED = np.asarray([3.0, np.nan, 1.0, 3.0, 2.0])
+
+
+def _flatten(array: NDArray[Any]) -> NDArray[Any]:
+    return array.flatten()
+
+
+def _argsort(array: NDArray[Any], axis: int = -1) -> NDArray[np.intp]:
+    # NumPy's default quicksort is not stable.
+    return np.argsort(array, axis=axis, kind="stable")
 
 
 CASES: List[Case] = [
@@ -412,6 +455,66 @@ CASES: List[Case] = [
          differentiable=True),
     Case("moveaxis", "int", (_T3, 0, 2), differentiable=True),
     Case("moveaxis", "tuple", (_T3, (0, 1), (2, 0)), differentiable=True),
+    Case("flatten", "matrix", (_A,), reference=_flatten, differentiable=True),
+    Case("flatten", "vector", (_RHS1,), reference=_flatten),
+    Case("ravel", "3d", (_T3,), differentiable=True),
+    Case("squeeze", "singletons", (_SINGLETONS,), differentiable=True),
+    Case("transpose", "reverse-3d", (_T3,), differentiable=True),
+    Case("transpose", "axes", (_T3, (1, 0, 2)), differentiable=True),
+    Case("flip", "every-axis", (_A,), differentiable=True),
+    Case("flip", "axis-0", (_A,), {"axis": 0}),
+    Case("flip", "axis-tuple", (_T3,), {"axis": (0, 2)}),
+    Case("tile", "matrix", (_A, (2, 1)), differentiable=True),
+    Case("tile", "short-reps", (_A, (3,))),
+    Case("repeat", "axis-none", (_A, 2), differentiable=True),
+    Case("repeat", "axis-1", (_A, 3), {"axis": 1}),
+    # Eager only: the indices fix the output shapes.
+    Case("split", "indices", (np.arange(6.0), _index(2, 4)), eager_only=True),
+    Case("split", "axis-1", (_B, _index(1, 3)), {"axis": 1}, eager_only=True),
+    Case("hstack", "matrices", ((_A, _POS),), differentiable=True),
+    Case("hstack", "vectors", ((_RHS1, _A[0]),)),
+    Case("vstack", "matrices", ((_A, _POS),), differentiable=True),
+    Case("vstack", "vectors", ((_RHS1, _RHS1),)),
+    Case("block", "2x2", ([[_GEN, _RHS], [_RHS.T.copy(), _GEN[:2, :2]]],),
+         differentiable=True),
+    Case("tril", "default", (_GEN,), differentiable=True),
+    Case("tril", "k-1", (_GEN,), {"k": -1}),
+    Case("triu", "default", (_GEN,), differentiable=True),
+    Case("triu", "k-1", (_GEN,), {"k": 1}),
+    Case("tril_indices", "default", (3,), expect=Expect.INDEX),
+    Case("tril_indices", "k-1", (4,), {"k": -1}, expect=Expect.INDEX),
+    Case("get_diagonal", "default", (_GEN,), reference=np.diagonal,
+         differentiable=True),
+    Case("get_diagonal", "offset", (_A,), {"offset": 1}, reference=np.diagonal),
+    Case("get_diagonal", "axes", (_T3,), {"axis1": 1, "axis2": 2},
+         reference=np.diagonal),
+    Case("diag", "build", (_RHS1,), differentiable=True),
+    Case("diag", "extract", (_GEN,), differentiable=True),
+    Case("diag", "offset", (_RHS1,), {"k": 1}),
+    Case("nonzero", "matrix", (_MASK,), expect=Expect.INDEX, eager_only=True),
+    Case("unique", "repeats", (_TIES,), eager_only=True),
+    Case("unique", "nan", (_UNSORTED,), eager_only=True),
+    Case("sort", "last-axis", (_A,), differentiable=True),
+    Case("sort", "axis-0", (_A,), {"axis": 0}),
+    Case("sort", "nan", (_UNSORTED,)),
+    Case("sort", "complex", (_C,), raises=TypeError),
+    Case("argsort", "ties-stable", (_TIES,), reference=_argsort,
+         expect=Expect.INDEX),
+    Case("argsort", "axis-0", (_TIES,), {"axis": 0}, reference=_argsort,
+         expect=Expect.INDEX),
+    Case("argsort", "nan", (_UNSORTED,), reference=_argsort,
+         expect=Expect.INDEX),
+    Case("argsort", "complex", (_C,), raises=TypeError),
+    Case("searchsorted", "left", (_SORTED, _PLACE), expect=Expect.INDEX),
+    Case("searchsorted", "right", (_SORTED, _PLACE), {"side": "right"},
+         expect=Expect.INDEX),
+    Case("atleast_1d", "0d", (np.asarray(2.0),)),
+    Case("atleast_1d", "vector", (_RHS1,)),
+    Case("atleast_2d", "vector", (_RHS1,), differentiable=True),
+    Case("atleast_2d", "matrix", (_A,)),
+    Case("meshgrid", "xy", (_RHS1, _A[0, :2])),
+    Case("meshgrid", "ij", (_RHS1, _A[0, :2]), {"indexing": "ij"}),
+    Case("copy", "matrix", (_A,), differentiable=True),
     # ---- elementwise and contraction
     Case("sqrt", "float", (_POS,), differentiable=True),
     Case("sqrt", "complex", (_C,)),
@@ -611,21 +714,16 @@ NOT_YET_COVERED = frozenset(
     {
         "abs", "all_array", "all_bool", "allclose", "any_array", "any_bool",
         "arange", "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctan2",
-        "arctanh", "argsort", "array", "array_type",
-        "atleast_1d", "atleast_2d", "block", "cdist", "ceil", "clip",
-        "conj", "copy", "cos", "cosh", "diag",
+        "arctanh", "array", "array_type", "cdist", "ceil", "clip",
+        "conj", "cos", "cosh",
         "digamma", "empty", "equal", "erf", "erfinv",
-        "expm1", "eye", "flatten", "flip", "floor", "floor_divide",
-        "full_like", "gammaln", "get_diagonal", "hstack",
+        "expm1", "eye", "floor", "floor_divide",
+        "full_like", "gammaln",
         "is_floating_dtype", "is_integer_dtype", "isfinite", "isinf", "isnan",
         "linspace", "log", "log1p", "log_ndtr", "logspace",
-        "maximum", "meshgrid",
-        "minimum", "ndtr", "nonzero", "ones_like",
-        "ravel", "repeat", "round",
-        "searchsorted", "sign", "sin", "sinh",
-        "sort", "split", "squeeze", "tanh",
-        "tile", "to_float", "to_int", "tracks_gradient", "transpose",
-        "tril", "tril_indices", "triu", "unique", "vstack", "zeros_like",
+        "maximum", "minimum", "ndtr", "ones_like", "round",
+        "sign", "sin", "sinh", "tanh",
+        "to_float", "to_int", "tracks_gradient", "zeros_like",
     }
 )  # fmt: skip
 
@@ -700,8 +798,9 @@ _ROLE_OF_NUMPY = {np.dtype(v): k for k, v in _NUMPY_DTYPES.items()}
 
 
 def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
-    """``value`` with NumPy arrays (also inside tuples) on ``bkd`` in the
-    matching role's dtype, and roles resolved to ``bkd`` dtypes."""
+    """``value`` with NumPy arrays (also inside tuples and lists) on
+    ``bkd`` in the matching role's dtype, and roles resolved to ``bkd``
+    dtypes."""
     if isinstance(value, Role):
         return _backend_dtype(bkd, value)
     if isinstance(value, Sparse):
@@ -709,8 +808,8 @@ def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
     if isinstance(value, np.ndarray):
         role = _ROLE_OF_NUMPY[value.dtype]
         return bkd.asarray(value, dtype=_backend_dtype(bkd, role))
-    if isinstance(value, tuple) and any(isinstance(v, np.ndarray) for v in value):
-        return tuple(_to_backend(bkd, v) for v in value)
+    if isinstance(value, (tuple, list)):
+        return type(value)(_to_backend(bkd, v) for v in value)
     return value
 
 
@@ -732,11 +831,12 @@ def _reference(case: Case) -> Any:
     return function(*args, **kwargs)
 
 
-def _arrays(values: Tuple[Any, ...]) -> List[Any]:
-    """The backend arrays among ``values``, also inside tuples."""
+def _arrays(values: Union[Tuple[Any, ...], List[Any]]) -> List[Any]:
+    """The backend arrays among ``values``, also inside tuples and
+    lists."""
     found: List[Any] = []
     for value in values:
-        if isinstance(value, tuple):
+        if isinstance(value, (tuple, list)):
             found += _arrays(value)
         elif hasattr(value, "dtype") and hasattr(value, "shape"):
             found.append(value)
@@ -766,16 +866,21 @@ def _assert_matches(
     bkd: ConformanceBackend[Array], actual: Any, expected: Any, dtype: Any
 ) -> None:
     """``actual`` equals ``expected`` (NumPy, converted to ``dtype`` on
-    ``bkd``) in shape, dtype and values; tuples elementwise, with one
-    dtype per element when ``dtype`` is a tuple."""
-    if isinstance(expected, tuple):
-        assert isinstance(actual, tuple) and len(actual) == len(expected)
+    ``bkd``) in shape, dtype and values; tuples and lists elementwise,
+    with one dtype per element when ``dtype`` is a tuple."""
+    if isinstance(expected, (tuple, list)):
+        # A list where NumPy gives one, a tuple (any named tuple) otherwise.
+        kind = list if isinstance(expected, list) else tuple
+        assert isinstance(actual, kind), (type(actual), type(expected))
+        assert len(actual) == len(expected), (len(actual), len(expected))
         dtypes = dtype if isinstance(dtype, tuple) else (dtype,) * len(expected)
         assert len(dtypes) == len(expected), (len(dtypes), len(expected))
         for a, e, d in zip(actual, expected, dtypes):
             _assert_matches(bkd, a, e, d)
         return
-    expected = np.asarray(expected)
+    # A copy: a NumPy view with negative strides (flip) cannot become a
+    # torch tensor.
+    expected = np.array(expected)
     tol = 0.0
     if np.issubdtype(expected.dtype, np.inexact):
         tol = 10 * float(np.finfo(expected.dtype).eps)
@@ -855,14 +960,15 @@ def run_case(
 def _substitute(
     bkd: ConformanceBackend[Array], value: Any, arrays: Iterator[Array]
 ) -> Any:
-    """``value`` with its NumPy arrays (also inside tuples) replaced, in
-    order, by ``arrays`` and its roles resolved to ``bkd`` dtypes."""
+    """``value`` with its NumPy arrays (also inside tuples and lists)
+    replaced, in order, by ``arrays`` and its roles resolved to ``bkd``
+    dtypes."""
     if isinstance(value, Role):
         return _backend_dtype(bkd, value)
     if isinstance(value, np.ndarray):
         return next(arrays)
-    if isinstance(value, tuple) and any(isinstance(v, np.ndarray) for v in value):
-        return tuple(_substitute(bkd, v, arrays) for v in value)
+    if isinstance(value, (tuple, list)):
+        return type(value)(_substitute(bkd, v, arrays) for v in value)
     return value
 
 
@@ -901,8 +1007,8 @@ def _floating(bkd: AutodiffBackend[Array], args: Tuple[Any, ...]) -> List[Array]
 def _replace_floating(
     bkd: AutodiffBackend[Array], value: Any, leaves: Iterator[Array]
 ) -> Any:
-    if isinstance(value, tuple):
-        return tuple(_replace_floating(bkd, v, leaves) for v in value)
+    if isinstance(value, (tuple, list)):
+        return type(value)(_replace_floating(bkd, v, leaves) for v in value)
     if hasattr(value, "dtype") and hasattr(value, "shape"):
         return next(leaves) if bkd.is_floating_dtype(value) else value
     return value
