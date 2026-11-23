@@ -12,24 +12,40 @@ Steady (``collocation_steady_function`` defaults):
 - with a two-term lognormal KLE diffusivity, the Jacobian and HVP pass
   central finite differences (smallest relative error below 1e-6).
 
-Transient (still the old model): the initial-state function receives the
-physical nodes, which span :math:`[0, 2]`; the Jacobian passes finite
-differences (error ratio at most 1e-5) for backward Euler to 0.1 in steps
-of 0.02.
+Transient (``collocation_transient_system`` through
+``TransientImplicitMap``, backward Euler to 0.1 in steps of 0.02, the
+step-end pin): with zero Dirichlet and with gradient Robin ends and the
+KLE diffusivity, the middle node's final value has a Jacobian and HVP
+passing central finite differences (smallest relative error below 1e-6).
 """
 
 import math
-from typing import Generic, List, Sequence, Tuple
+from typing import Generic, Sequence, Tuple
 
 import pytest
 
+from pyapprox.implicitfunction.implicit_map import (
+    ArrayParameters,
+    ImplicitMapFunction,
+)
 from pyapprox.implicitfunction.observation_terms import ObservedValue, StateEntries
+from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.implicitfunction.state_functional import StateFunctional
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols import FunctionProtocol
-from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.observation_terms import EndpointTerm
+from pyapprox.ode.pinned_rows import AtStepEnd
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import RungeKutta
+from pyapprox.ode.tableau import backward_euler
+from pyapprox.ode.trajectory_terms import TrajectoryFunctional
+from pyapprox.ode.transient_implicit_map import (
+    FixedTrajectoryFunctional,
+    TransientImplicitMap,
+    TransientPoint,
+)
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     BoundarySide,
@@ -42,8 +58,12 @@ from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.models.collocation.steady_function import (
     collocation_steady_function,
 )
+from pyapprox.pde.models.collocation.transient_system import (
+    collocation_transient_system,
+)
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.nonlinear import Newton
 from pyapprox_benchmarks.functions.pde.collocation.boundaries import (
     BoundarySpecProtocol,
     Dirichlet,
@@ -140,56 +160,66 @@ class TestSteadyDiffusion:
             assert bkd.to_float(bkd.min(error)) < 1e-6
 
 
-class _RecordingSine(Generic[Array]):
-    r""":math:`\sin \pi x`, keeping the coordinates it was called with."""
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-        self.calls: List[Array] = []
-
-    def __call__(self, nodes: Array) -> Array:
-        self.calls.append(nodes)
-        return self._bkd.sin(math.pi * nodes)
+def _transient_function(
+    bkd: Backend[Array],
+    boundaries: Sequence[BoundarySpecProtocol],
+) -> ImplicitMapFunction[TransientPoint[Array, Array], Array, Array]:
+    """The middle node's value after five BE steps of 0.02 from
+    :math:`\\sin \\pi x` (15 nodes on [0, 2], KLE diffusivity), the
+    boundary rows pinned at the step end."""
+    mesh = _mesh(bkd, 15)
+    configured = build_transient_diffusion_1d(
+        mesh, _kle_map(bkd, mesh.points()), boundaries=boundaries
+    )
+    transient = collocation_transient_system(
+        configured.system,
+        AtStepEnd(),
+        None,
+        ParameterState(configured.parameterization),
+    )
+    newton: Newton[Array, Array] = Newton(atol=1e-12, rtol=0.0, maxiters=20)
+    functional = FixedTrajectoryFunctional(
+        TrajectoryFunctional.from_terms(
+            bkd, 1, state_terms=(EndpointTerm(StateEntries(bkd, 15, [7])),)
+        )
+    )
+    implicit = TransientImplicitMap(
+        transient,
+        transient,
+        RungeKutta(backward_euler(), newton),
+        RecomputeAlways(transient.solved.solver),
+        FixedStep(0.02, (0.0, 0.1)),
+        bkd.reshape(bkd.sin(math.pi * mesh.points()[0]), (-1, 1)),
+        functional,
+    )
+    return ImplicitMapFunction(implicit, ArrayParameters(bkd))
 
 
 class TestTransientDiffusion:
-    def _time_config(self) -> TimeIntegrationConfig[Array]:
-        return TimeIntegrationConfig(
-            method="backward_euler",
-            init_time=0.0,
-            final_time=0.1,
-            deltat=0.02,
-            newton_tol=1e-10,
-            newton_maxiter=20,
-            verbosity=0,
+    @pytest.mark.parametrize("ends", ["dirichlet", "robin"])
+    def test_derivatives_pass_central_differences(
+        self, bkd: Backend[Array], ends: str
+    ) -> None:
+        boundaries: Tuple[BoundarySpecProtocol, ...] = (
+            (Dirichlet(BoundarySide.LEFT, 0.0), Dirichlet(BoundarySide.RIGHT, 0.0))
+            if ends == "dirichlet"
+            else (
+                GradientRobin(BoundarySide.LEFT, 1.0, 0.5, 0.0),
+                GradientRobin(BoundarySide.RIGHT, 1.0, 0.5, 0.0),
+            )
         )
-
-    def test_initial_state_reads_physical_nodes(self, bkd: Backend[Array]) -> None:
-        mesh = _mesh(bkd, 15)
-        initial = _RecordingSine(bkd)
-        build_transient_diffusion_1d(
-            mesh, initial, self._time_config(), _kle_map(bkd, mesh.points())
+        function = _transient_function(bkd, boundaries)
+        assert isinstance(function, FunctionProtocol)
+        assert function.derivatives().hvp is not None
+        errors = DerivativeChecker(function).check_derivatives(
+            bkd.reshape(bkd.asarray([0.1, -0.1]), (2, 1)),
+            direction=bkd.reshape(bkd.asarray([0.6, -0.8]), (2, 1)),
+            relative=True,
+            central=True,
         )
-        assert len(initial.calls) == 1
-        nodes = initial.calls[0]
-        assert bkd.to_float(bkd.min(nodes)) == 0.0
-        assert abs(bkd.to_float(bkd.max(nodes)) - 2.0) < 1e-14
-
-    def test_jacobian_passes_finite_differences(self, bkd: Backend[Array]) -> None:
-        mesh = _mesh(bkd, 15)
-        model = build_transient_diffusion_1d(
-            mesh,
-            _RecordingSine(bkd),
-            self._time_config(),
-            _kle_map(bkd, mesh.points()),
-        )
-        assert isinstance(model, FunctionProtocol)
-        assert model.derivatives().jacobian is not None
-        checker = DerivativeChecker(model)
-        errors = checker.check_derivatives(
-            bkd.reshape(bkd.asarray([0.1, -0.1]), (2, 1)), relative=True
-        )[0]
-        assert bkd.to_float(checker.error_ratio(errors)) <= 1e-5
+        assert len(errors) == 2
+        for error in errors:
+            assert bkd.to_float(bkd.min(error)) < 1e-6
 
 
 class _CosineForcing(Generic[Array]):
