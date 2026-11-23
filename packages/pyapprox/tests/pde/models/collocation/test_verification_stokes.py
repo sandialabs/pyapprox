@@ -49,6 +49,7 @@ from pyapprox.pde.models.collocation.verification import (
 from pyapprox.pde.verification.conditions import ConditionProtocol
 from pyapprox.pde.verification.domains import Box, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.protocols import SpaceLevel
 from pyapprox.pde.verification.terms import Divergence, Source, TermProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.collocation_verification import coded, decays, recovers
@@ -206,7 +207,7 @@ def test_pressure_on_the_velocity_nodes_is_undetermined(
     problem = stokes.problem(*_SMOOTH, _UNIT_SQUARE, coded("DDDD", _UNIT_SQUARE))
     discretizer = CollocationDiscretizer(ChebyshevBox([n], numpy_bkd), stokes)
     with pytest.raises(RuntimeError, match="non-finite solution"):
-        discretizer.approximations(problem)
+        discretizer.solve(problem, SpaceLevel(0))
 
 
 @pytest.mark.parametrize(

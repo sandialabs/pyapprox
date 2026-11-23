@@ -25,8 +25,10 @@ repository's skfem Galerkin stack. Bound to skfem and NumPy.
   problem, so text coefficients of a production problem pass through
   them too. :func:`exact_dof_values` gives the exact solution at a
   basis's DOFs, for a case that compares one solve directly.
-- :class:`GalerkinDiscretizer` solves each level through
-  ``galerkin_steady_residual`` + ``SteadySystem`` and returns
+- :class:`GalerkinDiscretizer` reports each level's sizes (the largest
+  element diameter, the degree and the number of unknowns) without
+  solving, solves a level through
+  ``galerkin_steady_residual`` + ``SteadySystem``, and returns
   :class:`GalerkinApproximation` objects, whose errors are integrated by
   skfem quadrature against the exact solution itself.
 
@@ -108,6 +110,13 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.protocols import (
+    DEGREE,
+    NDOFS,
+    H,
+    Sizes,
+    SpaceLevel,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.expressions.names import Names
 from pyapprox.util.expressions.parsing import Value, parse
@@ -1262,12 +1271,18 @@ class GalerkinApproximation:
 
 
 class GalerkinDiscretizer(Generic[_B]):
-    """Solves a steady problem with this stack on every mesh of a family:
+    """Solves a steady problem with this stack on the meshes of a family:
     one field on a scalar basis, one field per component on a vector
     basis, or each basis field's components in turn on a mixed basis, in
     the problem's field order.
 
-    Each level: the factory's system on ``basis.build(mesh)``, the steady
+    A level is a :class:`~pyapprox.pde.verification.protocols.SpaceLevel`,
+    the index of a mesh in the family. Its sizes are the largest element
+    diameter (``H``), the basis degree (``DEGREE``, a mixed basis's
+    highest) and the number of unknowns (``NDOFS``), read from the basis
+    without solving.
+
+    Each solve: the factory's system on ``basis.build(mesh)``, the steady
     residual (``galerkin_steady_residual``), and ``SteadySystem`` with
     sparse LU, from a zero initial guess.
 
@@ -1307,22 +1322,23 @@ class GalerkinDiscretizer(Generic[_B]):
             else nonlinear
         )
         self._intorder = intorder
+        self._family: Optional[
+            Tuple[DomainProtocol, Sequence[GalerkinMeshProtocol[_Np]]]
+        ] = None
 
-    def approximations(
+    def _meshes_of(
         self, problem: ManufacturedProblem
-    ) -> List[GalerkinApproximation]:
-        """One approximation per mesh, coarsest first.
+    ) -> Sequence[GalerkinMeshProtocol[_Np]]:
+        """The family's meshes of the problem's domain, built once per
+        domain.
 
         Raises
         ------
         ValueError
-            If ``problem`` is transient, has no domain, or does not have
-            one field per component of the basis.
-        RuntimeError
-            If a solve does not converge.
+            If ``problem`` is transient or has no domain.
         """
-        # Only the solve below is steady; the helpers and approximations
-        # serve a transient discretizer unchanged.
+        # Only the solve is steady; the helpers and approximations serve a
+        # transient discretizer unchanged.
         if problem.is_transient():
             raise ValueError(
                 "GalerkinDiscretizer solves steady problems; this one depends on t"
@@ -1330,40 +1346,99 @@ class GalerkinDiscretizer(Generic[_B]):
         domain = problem.domain()
         if domain is None:
             raise ValueError("GalerkinDiscretizer needs a domain; this is an ODE")
-        rows = problem.fields()
-        approximations = []
-        for mesh in self._meshes.meshes(domain):
-            basis = self._basis.build(mesh)
-            try:
-                _blocks(basis, rows)
-            except ValueError as error:
-                raise ValueError(f"GalerkinDiscretizer needs {error}") from None
-            system = self._factory.system(problem, basis)
-            discretization = skfem_discretization(system)
-            steady = SteadySystem(
-                galerkin_steady_residual(discretization),
-                discretization.space(),
-                KeepAll(ScipySparseLU()),
+        if self._family is None or self._family[0] is not domain:
+            self._family = (domain, self._meshes.meshes(domain))
+        return self._family[1]
+
+    def _basis_at(self, problem: ManufacturedProblem, request: SpaceLevel) -> _B:
+        """The basis of level ``request``, checked to carry the problem's
+        fields.
+
+        Raises
+        ------
+        ValueError
+            If the family has no such level, or the problem does not have
+            one field per component of the basis.
+        """
+        meshes = self._meshes_of(problem)
+        if request.index >= len(meshes):
+            raise ValueError(
+                f"the family has {len(meshes)} levels, no level {request.index}"
             )
-            point = steady.solve(self._nonlinear, np.zeros((system.nstates(), 1)))
-            if not point.converged():
-                raise RuntimeError(
-                    f"the solve on {mesh!r} did not converge: {point.info().message}"
-                )
-            intorder = (
-                self._intorder if self._intorder is not None else 2 * _degree(basis) + 3
+        basis = self._basis.build(meshes[request.index])
+        try:
+            _blocks(basis, problem.fields())
+        except ValueError as error:
+            raise ValueError(f"GalerkinDiscretizer needs {error}") from None
+        return basis
+
+    def requests(self, problem: ManufacturedProblem) -> List[SpaceLevel]:
+        """One level per mesh of the family, coarsest first.
+
+        Raises
+        ------
+        ValueError
+            If ``problem`` is transient or has no domain.
+        """
+        return [SpaceLevel(index) for index in range(len(self._meshes_of(problem)))]
+
+    def sizes(self, problem: ManufacturedProblem, request: SpaceLevel) -> Sizes:
+        """The level's largest element diameter, basis degree and number
+        of unknowns, without solving.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`solve`, for the problem and the level.
+        """
+        basis = self._basis_at(problem, request)
+        blocks = _blocks(basis, problem.fields())
+        return Sizes(
+            {
+                H: _mesh_size(blocks[0].basis),
+                DEGREE: _degree(basis),
+                NDOFS: basis.ndofs(),
+            }
+        )
+
+    def solve(
+        self, problem: ManufacturedProblem, request: SpaceLevel
+    ) -> GalerkinApproximation:
+        """The solution on the level's mesh.
+
+        Raises
+        ------
+        ValueError
+            If ``problem`` is transient, has no domain, or does not have
+            one field per component of the basis, or the family has no
+            such level.
+        RuntimeError
+            If the solve does not converge.
+        """
+        basis = self._basis_at(problem, request)
+        system = self._factory.system(problem, basis)
+        discretization = skfem_discretization(system)
+        steady = SteadySystem(
+            galerkin_steady_residual(discretization),
+            discretization.space(),
+            KeepAll(ScipySparseLU()),
+        )
+        point = steady.solve(self._nonlinear, np.zeros((system.nstates(), 1)))
+        if not point.converged():
+            raise RuntimeError(
+                f"the solve at {request!r} did not converge: {point.info().message}"
             )
-            approximations.append(
-                GalerkinApproximation(
-                    problem,
-                    rows,
-                    basis,
-                    point.state()[:, 0],
-                    intorder,
-                    measured=self._measured,
-                )
-            )
-        return approximations
+        intorder = (
+            self._intorder if self._intorder is not None else 2 * _degree(basis) + 3
+        )
+        return GalerkinApproximation(
+            problem,
+            problem.fields(),
+            basis,
+            point.state()[:, 0],
+            intorder,
+            measured=self._measured,
+        )
 
     def __repr__(self) -> str:
         return (

@@ -73,6 +73,7 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.protocols import H, Sizes
 from pyapprox.pde.verification.study import (
     CheckResult,
     Converges,
@@ -240,7 +241,12 @@ def _study(
     for nx in sizes:
         basis, state = _solve(problem, ends, nx, ei, slopes)
         errors.append(_l2_error(problem, basis, state))
-    return Study(tuple((upper - lower) / nx for nx in sizes), tuple(errors))
+    return Study.from_records(
+        [
+            (Sizes({H: (upper - lower) / nx}), {"l2": error})
+            for nx, error in zip(sizes, errors)
+        ]
+    )
 
 
 def _check(result: CheckResult) -> None:

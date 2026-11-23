@@ -74,6 +74,7 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.protocols import SpaceLevel
 from pyapprox.pde.verification.solid_mechanics import (
     DISPLACEMENT_FIELDS,
     equilibrium_terms,
@@ -454,4 +455,4 @@ def test_basis_with_more_components_than_fields_is_refused() -> None:
     )
     discretizer = GalerkinDiscretizer(StructuredBox([2]), VectorLagrange(1), elasticity)
     with pytest.raises(ValueError, match="one field per component"):
-        discretizer.approximations(problem)
+        discretizer.solve(problem, SpaceLevel(0))

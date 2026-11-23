@@ -37,7 +37,6 @@ from pyapprox.pde.verification.study import (
     L2Error,
     Recovers,
     Stalls,
-    run_study,
     verify,
 )
 
@@ -100,7 +99,7 @@ def stalls_on(
     """Wrong-model control: the fitted L2 rate of the ``measured`` fields
     (default all) stays below 0.5."""
     discretizer = GalerkinDiscretizer(meshes, basis, factory, measured=measured)
-    result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
+    result = verify(problem, discretizer, L2Error(), Stalls(below=0.5))
     assert result.passed, result.message
 
 

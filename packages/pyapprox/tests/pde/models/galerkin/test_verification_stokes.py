@@ -503,7 +503,7 @@ class TestRefusals:
             StructuredBox([2]), TaylorHood(), _Stokes(), measured=("u",)
         )
         with pytest.raises(ValueError, match="measure whole basis fields"):
-            run_study(problem, discretizer, L2Error())
+            run_study(problem, discretizer, [L2Error()])
 
     def test_too_few_fields(self) -> None:
         """A 1D problem (u, p) on a 2D Taylor-Hood basis has fewer fields
@@ -516,7 +516,7 @@ class TestRefusals:
 
         discretizer = GalerkinDiscretizer(_Square(), TaylorHood(), _Stokes())
         with pytest.raises(ValueError, match="one field per component"):
-            run_study(problem, discretizer, L2Error())
+            run_study(problem, discretizer, [L2Error()])
 
     def test_mixed_field_helpers_check_the_field_kind(self) -> None:
         """Velocity conditions for the scalar pressure field, and a pinned

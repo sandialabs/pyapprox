@@ -12,11 +12,9 @@ from typing import Callable, Dict, Optional, Sequence
 from pyapprox.pde.models.collocation.verification import (
     ChebyshevBox,
     CollocationDiscretizer,
-    DecaysExponentially,
     InitialGuessProtocol,
     LevelFamilyProtocol,
     SystemFactoryProtocol,
-    run_node_study,
 )
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
@@ -27,10 +25,10 @@ from pyapprox.pde.verification.conditions import (
 from pyapprox.pde.verification.domains import DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.study import (
+    DecaysExponentially,
     L2Error,
     Recovers,
     Stalls,
-    run_study,
     verify,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -98,7 +96,7 @@ def decays(
     family: _Family[Array] = ChebyshevBox,
 ) -> None:
     """The L2 error falls exponentially over ``sizes`` nodes per
-    direction, at least ``rate`` per node, on the levels ``family``
+    direction, at least ``rate`` per node (per degree), on the levels ``family``
     builds from the sizes (default Chebyshev boxes). Solves start from
     ``initial_guess`` (default zero), with ``nonlinear`` (default the
     discretizer's Newton)."""
@@ -108,8 +106,7 @@ def decays(
         nonlinear=nonlinear,
         initial_guess=initial_guess,
     )
-    study = run_node_study(problem, discretizer, L2Error())
-    result = DecaysExponentially(rate, last).verify(study)
+    result = verify(problem, discretizer, L2Error(), DecaysExponentially(rate, last))
     assert result.passed, result.message
 
 
@@ -133,5 +130,5 @@ def stalls(
         nonlinear=nonlinear,
         initial_guess=initial_guess,
     )
-    result = Stalls(below=0.5).verify(run_study(problem, discretizer, L2Error()))
+    result = verify(problem, discretizer, L2Error(), Stalls(below=0.5))
     assert result.passed, result.message

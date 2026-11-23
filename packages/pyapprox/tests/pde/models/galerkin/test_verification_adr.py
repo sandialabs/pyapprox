@@ -102,6 +102,7 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.protocols import SpaceLevel
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
@@ -652,13 +653,13 @@ class TestRefusals:
         periodic = _periodic_problem("sin(2*pi*x)", adr)
         plain = GalerkinDiscretizer(StructuredBox([4]), Lagrange(1), adr)
         with pytest.raises(ValueError, match="'left' is periodic"):
-            plain.approximations(periodic)
+            plain.solve(periodic, SpaceLevel(0))
         dirichlet = _problem("sin(2*pi*x)", adr, Box([(0.0, 1.0)]), _MIXED_1D)
         wrapped = GalerkinDiscretizer(
             StructuredBox([4], periodic=("x",)), Lagrange(1), adr
         )
         with pytest.raises(ValueError, match="'left' is not periodic"):
-            wrapped.approximations(dirichlet)
+            wrapped.solve(dirichlet, SpaceLevel(0))
 
     def test_periodic_mesh_limits(self) -> None:
         """Only 1D periodic meshes exist in this stack, and only a
@@ -683,7 +684,7 @@ class TestRefusals:
             _MIXED_1D,
         )
         with pytest.raises(ValueError, match="steady"):
-            discretizer.approximations(transient)
+            discretizer.solve(transient, SpaceLevel(0))
 
     def test_multi_field(self) -> None:
         """A scalar basis carries one field, so a two-field problem on it
@@ -698,7 +699,7 @@ class TestRefusals:
             {"left": Dirichlet(), "right": Dirichlet()},
         )
         with pytest.raises(ValueError, match="one field per component"):
-            discretizer.approximations(two)
+            discretizer.solve(two, SpaceLevel(0))
 
     def test_named_box(self) -> None:
         """Structured meshes name their sides left, right, ...; a box with

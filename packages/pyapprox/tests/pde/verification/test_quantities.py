@@ -27,7 +27,6 @@ diverging and stopped sequences fail with their reason; a pre-asymptotic
 first level passes once dropped.
 """
 
-import math
 from typing import Callable, Dict, List, Sequence
 
 import pytest
@@ -315,6 +314,7 @@ class TestRichardson:
         fake = _Fake(_HALVING, 0.7)
         result = verify_quantity(None, fake, Integral("u"), ObservedOrder(2.0))
         assert result.passed and "limit 0.7" in result.message
+        assert result.observed is not None
         _close(numpy_bkd, result.observed, 2.0, 1e-8)
         assert not verify_quantity(None, fake, Integral("u"), ObservedOrder(3.0)).passed
 
@@ -334,7 +334,7 @@ class TestRichardson:
         study = QuantityStudy(_HALVING, values)
         result = ObservedOrder(2.0).verify(study)
         assert not result.passed and reason in result.message
-        assert math.isnan(result.observed)
+        assert result.observed is None
         with pytest.raises(ValueError, match=reason):
             extrapolate(study)
 

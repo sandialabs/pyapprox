@@ -76,8 +76,6 @@ from pyapprox.pde.models.collocation.verification import (
     CollocationApproximation,
     CollocationDiscretizer,
     ConstantGuess,
-    DecaysExponentially,
-    NodeStudy,
     PeriodicSeam,
     boundary_conditions,
     collocation_system,
@@ -103,6 +101,7 @@ from pyapprox.pde.verification.domains import (
     EllipticalAnnulus,
 )
 from pyapprox.pde.verification.problem import ManufacturedProblem
+from pyapprox.pde.verification.protocols import DEGREE, NDOFS, H, SpaceLevel
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
@@ -671,21 +670,25 @@ class TestAdapterPieces:
         assert abs(approximation.l2_error() - math.sqrt(5.0 / 3.0)) < 1e-13
         assert abs(approximation.nodal_error() - 2.0) < 1e-13
 
-    def test_decay_check(self) -> None:
-        """Errors exp(-2N) decay at 2 per node: required 1.5 passes, 2.5
-        fails; a zero error fails, and a single level or a node count
-        below two is refused."""
-        nodes = (4, 8, 12)
-        study = NodeStudy(nodes, tuple(math.exp(-2.0 * n) for n in nodes))
-        result = DecaysExponentially(1.5).verify(study)
-        assert result.passed and abs(result.observed - 2.0) < 1e-12
-        assert not DecaysExponentially(2.5).verify(study).passed
-        zero = NodeStudy(nodes, (1.0, 0.1, 0.0))
-        assert not DecaysExponentially(1.0).verify(zero).passed
-        with pytest.raises(ValueError, match="at least two levels"):
-            DecaysExponentially(1.0, last=1).verify(study)
-        with pytest.raises(ValueError, match="at least two"):
-            NodeStudy((1, 4), (1.0, 0.1))
+    def test_sizes_without_solving(self, numpy_bkd: Backend[Array]) -> None:
+        """A level's sizes come from its nodes, not a solve: on 5 and 9
+        Chebyshev nodes, degree 4 and 8, one unknown per node, and h the
+        largest gap between neighbors."""
+        discretizer = CollocationDiscretizer(ChebyshevBox([5, 9], numpy_bkd), _ADR("1"))
+        problem = _problem("x", _ADR("1"), _UNIT, coded("DD", _UNIT))
+        sizes = [
+            discretizer.sizes(problem, request)
+            for request in discretizer.requests(problem)
+        ]
+        assert [s.of(DEGREE) for s in sizes] == [4.0, 8.0]
+        assert [s.of(NDOFS) for s in sizes] == [5.0, 9.0]
+        # N Gauss-Lobatto nodes on [0, 1] sit at (1 - cos(j pi/(N-1)))/2.
+        for s, n in zip(sizes, (5, 9)):
+            nodes = [(1.0 - math.cos(j * math.pi / (n - 1))) / 2.0 for j in range(n)]
+            gap = max(b - a for a, b in zip(nodes, nodes[1:]))
+            assert abs(s.of(H) - gap) < 1e-12
+        with pytest.raises(ValueError, match="no level 2"):
+            discretizer.sizes(problem, SpaceLevel(2))
 
     @pytest.mark.parametrize(
         "box, expected",
@@ -831,7 +834,7 @@ class TestRefusals:
             coded("DN", _UNIT),
         )
         with pytest.raises(ValueError, match="steady"):
-            discretizer.approximations(transient)
+            discretizer.solve(transient, SpaceLevel(0))
 
     def test_scalar_system_for_two_fields(self, numpy_bkd: Backend[Array]) -> None:
         """A scalar physics given a two-field problem is refused rather
@@ -846,7 +849,7 @@ class TestRefusals:
             {"left": Dirichlet(), "right": Dirichlet()},
         )
         with pytest.raises(ValueError, match="size 8, not the physics' 4 states"):
-            discretizer.approximations(two)
+            discretizer.solve(two, SpaceLevel(0))
 
     def test_not_a_box(self, numpy_bkd: Backend[Array]) -> None:
         """Chebyshev boxes mesh boxes only; a disk waits on a polar
@@ -872,7 +875,7 @@ class TestRefusals:
         )
         problem = _problem("x", _ADR("1"), _UNIT, coded("DD", _UNIT))
         with pytest.raises(ValueError, match=r"shape \(4, 1\); got \(4,\)"):
-            discretizer.approximations(problem)
+            discretizer.solve(problem, SpaceLevel(0))
 
     def test_half_periodic(self, numpy_bkd: Backend[Array]) -> None:
         """A periodic side needs its partner across the same coordinate
@@ -1034,6 +1037,9 @@ def test_initial_guess_reaches_each_solve(bkd: Backend[Array]) -> None:
     discretizer = CollocationDiscretizer(
         ChebyshevBox([6, 8], bkd), adr, initial_guess=recording
     )
-    errors = [a.l2_error() for a in discretizer.approximations(problem)]
+    errors = [
+        discretizer.solve(problem, request).l2_error()
+        for request in discretizer.requests(problem)
+    ]
     assert recording.npts() == [6, 8]
     assert max(errors) < 1e-10

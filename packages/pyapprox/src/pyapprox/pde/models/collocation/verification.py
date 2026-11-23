@@ -42,18 +42,15 @@ leave it, as floats.
   rows, then the periodic rows, then the interior closures. A case that
   builds its rows by hand (a wrong-model control) takes a side's nodes
   and data from :func:`side_nodes` and :func:`side_values`.
-- :class:`CollocationDiscretizer` solves each level through
-  ``collocation_steady_residual`` + ``SteadySystem`` with a dense LU,
-  from the state an injected :class:`InitialGuessProtocol` gives
-  (:class:`ConstantGuess` zero by default), and returns
-  :class:`CollocationApproximation` objects, whose L2 errors are measured
-  by Gauss quadrature mapped onto the domain and nodal errors at the
-  collocation nodes.
-- :class:`DecaysExponentially` judges a spectral study, a
-  :class:`NodeStudy` of errors against node counts from
-  :func:`run_node_study`: the error falls exponentially in the number of
-  nodes, which no algebraic rate states. The core's study records mesh
-  sizes only, so this pair lives here until the core has its own.
+- :class:`CollocationDiscretizer` reports each level's sizes (the
+  largest node gap, the degree and the number of unknowns) without
+  solving, and solves a level through ``collocation_steady_residual`` +
+  ``SteadySystem`` with a dense LU, from the state an injected
+  :class:`InitialGuessProtocol` gives (:class:`ConstantGuess` zero by
+  default). It returns :class:`CollocationApproximation` objects, whose
+  L2 errors are measured by Gauss quadrature mapped onto the domain and
+  nodal errors at the collocation nodes. Spectral studies are judged by
+  the core's ``DecaysExponentially`` along the degree.
 
 Natural data: the core states them with the outward flux :math:`q\cdot
 n`, which is what this stack's flux normal operator computes, so Neumann
@@ -144,7 +141,13 @@ from pyapprox.pde.verification.domains import (
     EllipticalAnnulus,
 )
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.study import CheckResult, ErrorMeasureProtocol
+from pyapprox.pde.verification.protocols import (
+    DEGREE,
+    NDOFS,
+    H,
+    Sizes,
+    SpaceLevel,
+)
 from pyapprox.polynomials.univariate.globalpoly.jacobi import LegendrePolynomial1D
 from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule
 from pyapprox.polynomials.univariate.lagrange import univariate_lagrange_polynomial
@@ -1541,11 +1544,13 @@ class CollocationApproximation(Generic[Array]):
 
 
 class CollocationDiscretizer(Generic[Array]):
-    """Solves a steady problem with this stack at every level of a family.
+    """Solves a steady problem with this stack at the levels of a family.
     The factory's system stacks the problem's fields in the problem's
-    order.
+    order. A level is a
+    :class:`~pyapprox.pde.verification.protocols.SpaceLevel`, the index
+    of a level in the family.
 
-    Each level: the factory's system, the steady residual
+    Each solve: the factory's system, the steady residual
     (``collocation_steady_residual``), and ``SteadySystem`` with a dense
     LU recomputed every step, from the initial guess's state.
 
@@ -1591,20 +1596,20 @@ class CollocationDiscretizer(Generic[Array]):
         self._nonlinear: NonlinearSolverProtocol[Array, Array] = (
             default if nonlinear is None else nonlinear
         )
+        self._family: Optional[
+            Tuple[DomainProtocol, Sequence[ChebyshevLevel[Array]]]
+        ] = None
 
-    def approximations(
+    def _levels_of(
         self, problem: ManufacturedProblem
-    ) -> List[CollocationApproximation[Array]]:
-        """One approximation per level, coarsest first.
+    ) -> Sequence[ChebyshevLevel[Array]]:
+        """The family's levels of the problem's domain, built once per
+        domain.
 
         Raises
         ------
         ValueError
-            If ``problem`` is transient or has no domain, a system's
-            state is not one value per node per field, or an initial guess
-            does not have shape (nstates, 1).
-        RuntimeError
-            If a solve does not converge.
+            If ``problem`` is transient or has no domain.
         """
         if problem.is_transient():
             raise ValueError(
@@ -1613,151 +1618,99 @@ class CollocationDiscretizer(Generic[Array]):
         domain = problem.domain()
         if domain is None:
             raise ValueError("CollocationDiscretizer needs a domain; this is an ODE")
-        fields = problem.fields()
-        approximations = []
-        for level in self._levels.levels(domain):
-            system = self._factory.system(problem, level)
-            bkd, nstates = level.bkd(), system.nstates()
-            layout = level.layout(fields)
-            if nstates != layout.nstates():
-                raise ValueError(
-                    f"the system has {nstates} states, not one per node "
-                    f"({layout.nstates()} over {list(fields)})"
-                )
-            steady = SteadySystem(
-                collocation_steady_residual(system),
-                backend_state_space(bkd, nstates),
-                RecomputeAlways(BackendDenseLU(bkd)),
-            )
-            initial = self._initial_guess.guess(problem, level, system)
-            if tuple(initial.shape) != (nstates, 1):
-                raise ValueError(
-                    f"the initial guess on {level!r} must have shape "
-                    f"({nstates}, 1); got {tuple(initial.shape)}"
-                )
-            point = steady.solve(self._nonlinear, initial)
-            if not point.converged():
-                raise RuntimeError(
-                    f"the solve on {level!r} did not converge: {point.info().message}"
-                )
-            approximations.append(
-                CollocationApproximation(problem, level, point.state()[:, 0])
-            )
-        return approximations
+        if self._family is None or self._family[0] is not domain:
+            self._family = (domain, self._levels.levels(domain))
+        return self._family[1]
 
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._levels!r}, {self._factory!r})"
-
-
-@dataclass(frozen=True)
-class NodeStudy:
-    """Node counts and errors, coarsest first: a spectral study, which
-    the core's :class:`~pyapprox.pde.verification.study.Study` (mesh
-    sizes only) cannot hold.
-
-    Raises
-    ------
-    ValueError
-        If there are no levels, the lengths differ, a node count is below
-        two, or an error is negative or not finite.
-    """
-
-    nodes: Tuple[int, ...]
-    errors: Tuple[float, ...]
-
-    def __post_init__(self) -> None:
-        if not self.nodes or len(self.nodes) != len(self.errors):
-            raise ValueError(
-                f"a study needs one error per node count, at least one; got "
-                f"{len(self.nodes)} counts and {len(self.errors)} errors"
-            )
-        if any(n < 2 for n in self.nodes):
-            raise ValueError(f"node counts must be at least two, got {self.nodes}")
-        if any(not (math.isfinite(e) and e >= 0.0) for e in self.errors):
-            raise ValueError(f"errors must be finite and non-negative: {self.errors}")
-
-
-def run_node_study(
-    problem: ManufacturedProblem,
-    discretizer: CollocationDiscretizer[Array],
-    measure: ErrorMeasureProtocol,
-) -> NodeStudy:
-    """Solve ``problem`` at every level of ``discretizer`` and record
-    ``measure`` against each level's node count.
-
-    Raises
-    ------
-    TypeError
-        If ``measure`` does not satisfy ``ErrorMeasureProtocol``.
-    """
-    if not isinstance(measure, ErrorMeasureProtocol):
-        raise TypeError(
-            f"measure must satisfy ErrorMeasureProtocol, got {type(measure).__name__}"
-        )
-    approximations = discretizer.approximations(problem)
-    return NodeStudy(
-        tuple(a.nodes() for a in approximations),
-        tuple(measure.measure(a) for a in approximations),
-    )
-
-
-class DecaysExponentially:
-    r"""The error falls at least exponentially in the number of nodes: the
-    least-squares slope of :math:`\log e` against :math:`N` is at most
-    ``-rate``.
-
-    Spectral methods on smooth solutions converge as :math:`e \sim
-    C\exp(-\rho N)`, which no algebraic rate in :math:`h` states: the
-    slope of :math:`\log e` against :math:`\log h` grows without bound,
-    while against :math:`N` it is the constant :math:`-\rho`, with
-    :math:`\rho = \ln r` for a solution analytic inside the Bernstein
-    ellipse of parameter :math:`r`. For an entire solution the
-    convergence is faster than any exponential and the slope steepens
-    with :math:`N`; ``rate`` is a floor, which that only clears more
-    easily. Fit levels above round-off, where the curve flattens.
-
-    Parameters
-    ----------
-    rate : float
-        The decay :math:`\rho` a correct model reaches, per node.
-    last : int, optional
-        Fit only the finest ``last`` levels.
-    """
-
-    def __init__(self, rate: float, last: Optional[int] = None) -> None:
-        self._rate, self._last = rate, last
-
-    def verify(self, study: NodeStudy) -> CheckResult:
-        """Pass if the fitted decay reaches ``rate``; fail on a zero error,
-        whose logarithm the fit cannot take.
+    def _level(
+        self, problem: ManufacturedProblem, request: SpaceLevel
+    ) -> ChebyshevLevel[Array]:
+        """The level ``request`` names.
 
         Raises
         ------
         ValueError
-            If fewer than two levels are fitted or the fitted node counts
-            are all equal.
+            If the family has no such level (and as :meth:`_levels_of`).
         """
-        nodes, errors = study.nodes, study.errors
-        if self._last is not None:
-            nodes, errors = nodes[-self._last :], errors[-self._last :]
-        if len(nodes) < 2:
-            raise ValueError(f"a decay needs at least two levels, got {len(nodes)}")
-        if any(e == 0.0 for e in errors):
-            return CheckResult(False, 0.0, f"an error is zero: {errors}")
-        xs = [float(n) for n in nodes]
-        ys = [math.log(e) for e in errors]
-        xmean, ymean = sum(xs) / len(xs), sum(ys) / len(ys)
-        sxx = sum((x - xmean) ** 2 for x in xs)
-        if sxx == 0.0:
-            raise ValueError(f"a decay needs distinct node counts, got {nodes}")
-        slope = sum((x - xmean) * (y - ymean) for x, y in zip(xs, ys)) / sxx
-        observed = -slope
-        return CheckResult(
-            observed >= self._rate,
-            observed,
-            f"fitted decay {observed:.3f} per node, expected at least "
-            f"{self._rate:.3f}; nodes {nodes}, errors {errors}",
+        levels = self._levels_of(problem)
+        if request.index >= len(levels):
+            raise ValueError(
+                f"the family has {len(levels)} levels, no level {request.index}"
+            )
+        return levels[request.index]
+
+    def requests(self, problem: ManufacturedProblem) -> List[SpaceLevel]:
+        """One request per level of the family, coarsest first.
+
+        Raises
+        ------
+        ValueError
+            If ``problem`` is transient or has no domain.
+        """
+        return [SpaceLevel(index) for index in range(len(self._levels_of(problem)))]
+
+    def sizes(self, problem: ManufacturedProblem, request: SpaceLevel) -> Sizes:
+        """The level's largest gap between neighboring nodes (``H``), its
+        degree (``DEGREE``, one less than the most nodes along any
+        direction) and its number of unknowns (``NDOFS``), without
+        solving.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`requests`, or if the family has no such level.
+        """
+        level = self._level(problem, request)
+        return Sizes(
+            {
+                H: level.h(),
+                DEGREE: max(level.mesh().npts_per_dim()) - 1,
+                NDOFS: level.layout(problem.fields()).nstates(),
+            }
         )
 
+    def solve(
+        self, problem: ManufacturedProblem, request: SpaceLevel
+    ) -> CollocationApproximation[Array]:
+        """The solution at the level ``request`` names.
+
+        Raises
+        ------
+        ValueError
+            If ``problem`` is transient or has no domain, the family has
+            no such level, the system's state is not one value per node
+            per field, or the initial guess does not have shape
+            (nstates, 1).
+        RuntimeError
+            If the solve does not converge.
+        """
+        level = self._level(problem, request)
+        fields = problem.fields()
+        system = self._factory.system(problem, level)
+        bkd, nstates = level.bkd(), system.nstates()
+        layout = level.layout(fields)
+        if nstates != layout.nstates():
+            raise ValueError(
+                f"the system has {nstates} states, not one per node "
+                f"({layout.nstates()} over {list(fields)})"
+            )
+        steady = SteadySystem(
+            collocation_steady_residual(system),
+            backend_state_space(bkd, nstates),
+            RecomputeAlways(BackendDenseLU(bkd)),
+        )
+        initial = self._initial_guess.guess(problem, level, system)
+        if tuple(initial.shape) != (nstates, 1):
+            raise ValueError(
+                f"the initial guess on {level!r} must have shape "
+                f"({nstates}, 1); got {tuple(initial.shape)}"
+            )
+        point = steady.solve(self._nonlinear, initial)
+        if not point.converged():
+            raise RuntimeError(
+                f"the solve on {level!r} did not converge: {point.info().message}"
+            )
+        return CollocationApproximation(problem, level, point.state()[:, 0])
+
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(rate={self._rate}, last={self._last})"
+        return f"{type(self).__name__}({self._levels!r}, {self._factory!r})"
