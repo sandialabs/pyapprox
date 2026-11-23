@@ -46,6 +46,7 @@ from pyapprox.implicitfunction.setups import SetupStrategyProtocol, SteadyReques
 from pyapprox.implicitfunction.steady_system import SteadyPoint, SteadySystem
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData
 from pyapprox.pde.coupling.pinned_response import (
+    FluxParamDerivatives,
     PortFluxProtocol,
     PortTangent,
     SteadyPinnedPoint,
@@ -244,6 +245,10 @@ class PortRowsOutput(Generic[V, A]):
             block = self._output.apply_transpose(weights)
         zeros = self._ports.state_space().zeros(int(weights.shape[1]))
         return self._ports.state_ports().add_to(zeros, block)
+
+    def param_derivatives(self) -> FluxParamDerivatives[V, A]:
+        """Independent: the state's port rows read no parameters."""
+        return FluxParamDerivatives.independent()
 
 
 class SteadyLoadedResponse(Generic[V, A, F]):

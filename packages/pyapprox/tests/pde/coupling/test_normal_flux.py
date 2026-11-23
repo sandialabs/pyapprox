@@ -185,6 +185,8 @@ def test_flux_adjoint_is_the_transpose_of_flux_tangent(bkd: Backend[Array]) -> N
     lhs = bkd.sum(point.jvp_trace(v) * w)
     rhs = bkd.sum(v * point.vjp_trace(w))
     bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
+    # The operators may read coefficients and carry no derivative in them.
+    assert not flux.param_derivatives().available()
 
 
 def test_the_sign_is_the_normals(bkd: Backend[Array]) -> None:

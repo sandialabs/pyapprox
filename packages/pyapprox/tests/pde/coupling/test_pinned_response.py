@@ -22,6 +22,15 @@ Torch.
   ``vjp_trace`` passes a dot test against it there, with the modal
   coefficients as parameters beside the port data; a point's tangent
   and its transpose are refused after the response is linearized again.
+- With the six modal coefficients as parameters (ports 4 and 8 at
+  :math:`\lambda = (1.2, 0.9)`): ``jvp_param`` passes central finite
+  differences (smallest relative error below 1e-6) and ``vjp_param`` a
+  dot test against it (1e-12); a response without parameters carries
+  neither field. Both include the reaction's explicit dependence
+  :math:`-B^\top F_p`, which a dot test alone would not catch.
+- The reaction declares that it reads the parameters exactly when its
+  residual has them; ``FluxParamDerivatives`` refuses a tangent without
+  its adjoint and a derivative of an output reading no parameters.
 - The two pieces coupled through the skeleton and solved by Newton
   (atol 1e-11, matrix-free Schur, GMRES tol 1e-13) take more than one
   step and reach the halved single-domain interface value to 1e-10.
@@ -29,8 +38,9 @@ Torch.
   placement.
 """
 
-from typing import Generic, Optional, Sequence
+from typing import Any, Generic, Optional, Sequence
 
+import numpy as np
 import pytest
 
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
@@ -48,6 +58,7 @@ from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
 from pyapprox.pde.coupling.pinned_ports import PortPinnedData, PortPlacement
 from pyapprox.pde.coupling.pinned_response import (
+    FluxParamDerivatives,
     PinnedReactionFlux,
     SteadyPinnedResponse,
 )
@@ -263,6 +274,83 @@ def test_vjp_trace_is_the_transpose_of_jvp_trace(
     bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
     with pytest.raises(ValueError, match="weights"):
         vjp(bkd.zeros((n + 1, 1)))
+
+
+def _parametric(bkd: Backend[Array]) -> SteadyPinnedResponse[Array, Array, Any]:
+    piece = _Piece(bkd, True, (0, 1.0), (4, _NCELLS))
+    return piece.response(
+        ParameterState(ModalCoefficientParameterization(piece.operator, bkd))
+    )
+
+
+def test_parameter_tangent_passes_finite_differences(bkd: Backend[Array]) -> None:
+    response = _parametric(bkd)
+    lam = bkd.asarray([[1.2], [0.9]])
+
+    def fun(sample: Array) -> Array:
+        return response.linearize(lam, sample, _STEADY).output()
+
+    def jvp(sample: Array, direction: Array) -> Array:
+        point = response.linearize(lam, sample, _STEADY)
+        jvp_param = point.derivatives().jvp_param
+        assert jvp_param is not None
+        return jvp_param(direction)
+
+    errors = DerivativeChecker(
+        FunctionWithJVPFromCallable(
+            nqoi=2, nvars=len(_PARAM), fun=fun, jvp=jvp, bkd=bkd
+        )
+    ).check_derivatives(bkd.asarray(_PARAM)[:, None], relative=True, central=True)
+    assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+
+
+def test_vjp_param_is_the_transpose_of_jvp_param(bkd: Backend[Array]) -> None:
+    """<J_p V, W> = <V, J_p^T W> on three-column blocks; a response
+    without parameters carries no parameter fields."""
+    point = _parametric(bkd).linearize(
+        bkd.asarray([[1.2], [0.9]]), bkd.asarray(_PARAM)[:, None], _STEADY
+    )
+    bundle = point.derivatives()
+    jvp, vjp = bundle.jvp_param, bundle.vjp_param
+    assert jvp is not None and vjp is not None
+    rng = np.random.default_rng(6)
+    v = bkd.asarray(rng.normal(size=(len(_PARAM), 3)))
+    w = bkd.asarray(rng.normal(size=(2, 3)))
+    lhs = bkd.sum(jvp(v) * w)
+    rhs = bkd.sum(v * vjp(w))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
+    assert vjp(w).shape == (len(_PARAM), 3)
+    with pytest.raises(ValueError, match="directions"):
+        jvp(bkd.zeros((2, 1)))
+    plain = _Piece(bkd, True, (0, 1.0), (_NCELLS,)).response()
+    unparametric = plain.linearize(
+        bkd.asarray([[1.4]]), _no_params(bkd), _STEADY
+    ).derivatives()
+    assert unparametric.jvp_param is None and unparametric.vjp_param is None
+
+
+def test_flux_parameter_dependence_is_declared(bkd: Backend[Array]) -> None:
+    """The reaction reads the parameters when its residual has them and
+    not otherwise; the bundle's fields come together, and an output
+    reading no parameters has none."""
+    piece = _Piece(bkd, True, (0, 1.0), (_NCELLS,))
+    disc = piece.discretization
+    plain = galerkin_steady_residual(disc)
+    assert (
+        not PinnedReactionFlux(plain, piece.ports(0)).param_derivatives().reads_params
+    )
+    parametric = galerkin_steady_residual(
+        disc, ParameterState(ModalCoefficientParameterization(piece.operator, bkd))
+    )
+    declared = PinnedReactionFlux(parametric, piece.ports(len(_PARAM)))
+    bundle = declared.param_derivatives()
+    assert bundle.reads_params and bundle.available()
+    assert not FluxParamDerivatives.unavailable().available()
+    assert FluxParamDerivatives.independent().available()
+    with pytest.raises(ValueError, match="together"):
+        FluxParamDerivatives(True, tangent=lambda s, v: v)
+    with pytest.raises(ValueError, match="no derivative"):
+        FluxParamDerivatives(False, lambda s, v: v, lambda s, w: w)
 
 
 def test_a_stale_point_is_refused(bkd: Backend[Array]) -> None:

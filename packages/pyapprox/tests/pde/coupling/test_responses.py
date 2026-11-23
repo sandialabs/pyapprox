@@ -164,6 +164,14 @@ def test_ntd_vjp_trace_is_its_own_transpose(bkd: Backend[Array]) -> None:
 def test_invalid_input(bkd: Backend[Array]) -> None:
     with pytest.raises(ValueError, match="vjp_trace comes only with jvp_trace"):
         ResponseDerivatives(vjp_trace=lambda w: w)
+    with pytest.raises(ValueError, match="jvp_param comes only with jvp_trace"):
+        ResponseDerivatives(jvp_param=lambda v: v)
+    with pytest.raises(ValueError, match="vjp_param comes only"):
+        ResponseDerivatives(
+            jvp_trace=lambda v: v, jvp_param=lambda v: v, vjp_param=lambda w: w
+        )
+    with pytest.raises(TypeError, match="jvp_param"):
+        ResponseDerivatives(jvp_trace=lambda v: v, jvp_param=1.0)  # type: ignore[arg-type]
     with pytest.raises(ValueError):
         KirchhoffResponse1D(0.0, 1.0, _LINEAR, None, None, bkd)
     with pytest.raises(ValueError):

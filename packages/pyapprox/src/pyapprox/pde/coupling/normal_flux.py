@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Generic, Protocol, Sequence, runtime_checkable
 
 from pyapprox.implicitfunction.steady_system import SteadyPoint
+from pyapprox.pde.coupling.pinned_response import FluxParamDerivatives
 from pyapprox.pde.coupling.pointwise_flux import (
     flux_moments,
     flux_moments_transpose,
@@ -172,6 +173,11 @@ class NormalFluxMoments(Generic[Array]):
         ncols)."""
         sampled = flux_moments_transpose(self._trace, weights, self._k)
         return self._bkd.transpose(self._sampled_jacobian(state)) @ sampled
+
+    def param_derivatives(self) -> FluxParamDerivatives[Array, Array]:
+        """Unavailable: the operators may read the response's parameters
+        (their coefficients) and carry no derivative in them."""
+        return FluxParamDerivatives.unavailable()
 
     def _sampled_jacobian(self, state: Array) -> Array:
         """The flux's Jacobian at the trace's points, node-major per

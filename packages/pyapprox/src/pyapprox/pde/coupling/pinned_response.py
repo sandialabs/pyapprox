@@ -33,7 +33,8 @@ w` at the same solution, :math:`C` the output's derivative in the state,
 read back through :math:`-R_\theta^\top z` on the port data's rows.
 """
 
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from dataclasses import dataclass
+from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.implicitfunction.pinned_residual import PinnedResidual
 from pyapprox.implicitfunction.residual_derivatives import (
@@ -47,6 +48,7 @@ from pyapprox.pde.coupling.pinned_ports import (
     PortPlacement,
     pin_ports,
 )
+from pyapprox.pde.coupling.ports import PortRowsProtocol
 from pyapprox.pde.coupling.responses import (
     Flux,
     ResponseDerivatives,
@@ -80,6 +82,62 @@ class ResponseParametersProtocol(Protocol[A_contra]):
         ...
 
 
+FluxParamTangent = Callable[[V, V], A]
+r"""``(state, v) ->`` the output's explicit change :math:`(\partial
+r/\partial p)\, v` at fixed state, for a block ``v`` of the response's
+own parameter space (ncols columns). Shape: (nport, ncols)."""
+
+FluxParamAdjoint = Callable[[V, A], V]
+r"""``(state, w) ->`` its transpose applied to weights ``w`` of shape
+(nport, ncols): a block of the response's own parameter space."""
+
+
+@dataclass(frozen=True)
+class FluxParamDerivatives(Generic[V, A]):
+    r"""How a port output depends on the response's own parameters
+    :math:`p` at a fixed state.
+
+    - ``reads_params``: whether the output reads :math:`p` directly; when
+      it does not, the explicit derivative is zero and needs no fields.
+    - ``tangent``, ``adjoint``: the explicit derivative and its transpose,
+      together; absent when the output reads :math:`p` but cannot
+      differentiate in it.
+
+    Build with the named constructors.
+    """
+
+    reads_params: bool
+    tangent: Optional[FluxParamTangent[V, A]] = None
+    adjoint: Optional[FluxParamAdjoint[V, A]] = None
+
+    def __post_init__(self) -> None:
+        if (self.tangent is None) != (self.adjoint is None):
+            raise ValueError("tangent and adjoint come together")
+        if not self.reads_params and self.tangent is not None:
+            raise ValueError("an output reading no parameters has no derivative")
+
+    @staticmethod
+    def independent() -> "FluxParamDerivatives[V, A]":
+        """The output reads no parameters directly: a zero derivative."""
+        return FluxParamDerivatives(False)
+
+    @staticmethod
+    def first_order(
+        tangent: FluxParamTangent[V, A], adjoint: FluxParamAdjoint[V, A]
+    ) -> "FluxParamDerivatives[V, A]":
+        """The output reads the parameters, with its derivative."""
+        return FluxParamDerivatives(True, tangent, adjoint)
+
+    @staticmethod
+    def unavailable() -> "FluxParamDerivatives[V, A]":
+        """The output reads the parameters, without a derivative."""
+        return FluxParamDerivatives(True)
+
+    def available(self) -> bool:
+        """Whether the explicit derivative is known (zero or given)."""
+        return not self.reads_params or self.tangent is not None
+
+
 @runtime_checkable
 class PortFluxProtocol(Protocol[V, A]):
     """How a steady port response reads its output from a solved state,
@@ -101,6 +159,11 @@ class PortFluxProtocol(Protocol[V, A]):
         """The transpose of :meth:`flux_tangent`: the output's derivative
         in the state, transposed, applied to ``weights`` (nport, ncols).
         A state-space vector of ncols columns."""
+        ...
+
+    def param_derivatives(self) -> FluxParamDerivatives[V, A]:
+        """How the output depends on the response's own parameters at a
+        fixed state."""
         ...
 
 
@@ -131,11 +194,21 @@ class PinnedReactionFlux(Generic[V, A, F]):
     def __init__(
         self, pinned: PinnedResidual[V, F], ports: PortPinnedData[V, A]
     ) -> None:
-        jacobian = pinned.derivatives().jacobian
-        if jacobian is None:
+        bundle = pinned.derivatives()
+        if bundle.jacobian is None:
             raise ValueError("a reaction flux needs the residual's state Jacobian")
         self._pinned, self._ports = pinned, ports
-        self._jacobian: ResidualJacobian[V, F] = jacobian
+        self._jacobian: ResidualJacobian[V, F] = bundle.jacobian
+        self._param: Optional[ResidualParamFn[V]] = bundle.param
+        self._param_derivs: FluxParamDerivatives[V, A] = (
+            FluxParamDerivatives.independent()
+            if bundle.param_space is None
+            else FluxParamDerivatives.unavailable()
+            if bundle.param is None
+            else FluxParamDerivatives.first_order(
+                self._param_tangent, self._param_adjoint
+            )
+        )
 
     def flux(self, state: V) -> A:
         return -self._ports.state_ports().take(self._pinned(state))
@@ -155,6 +228,31 @@ class PinnedReactionFlux(Generic[V, A, F]):
         label = LinearizationPoint(self._pinned.parameters_version(), point)
         return space.scale(-1.0, self._jacobian(state, label).apply_transpose(placed))
 
+    def param_derivatives(self) -> FluxParamDerivatives[V, A]:
+        r""":math:`-B^\top F_p` when the residual has a parameter
+        Jacobian; independent when it has no parameters."""
+        return self._param_derivs
+
+    def _own_param(self) -> ResidualParamFn[V]:
+        if self._param is None:
+            raise RuntimeError(
+                "the residual has no parameter Jacobian; check "
+                "param_derivatives() before calling"
+            )
+        return self._param
+
+    def _param_tangent(self, state: V, direction: V) -> A:
+        return -self._ports.state_ports().take(
+            self._own_param()(state).apply(direction)
+        )
+
+    def _param_adjoint(self, state: V, weights: A) -> V:
+        space = self._ports.state_space()
+        placed = self._ports.state_ports().add_to(
+            space.zeros(int(weights.shape[1])), weights
+        )
+        return self._own_param()(state).apply_transpose(space.scale(-1.0, placed))
+
 
 class PortTangent(Generic[V, A]):
     r"""What a point's trace tangent reads: the port residual's parameter
@@ -162,15 +260,18 @@ class PortTangent(Generic[V, A]):
     residual is the port-pinned one of :class:`SteadyPinnedResponse` or
     the port-loaded one of :class:`~pyapprox.pde.coupling.
     loaded_response.SteadyLoadedResponse`; the tangent solve is the same
-    for both."""
+    for both. ``physical``, the placement of the response's own
+    parameters in :math:`\theta`, or ``None`` without them."""
 
     def __init__(
         self,
         param: ResidualParamFn[V],
         ports: PortPinnedData[V, A],
         flux: PortFluxProtocol[V, A],
+        physical: Optional[PortPlacement[V, A]] = None,
     ) -> None:
         self.param, self.ports, self.flux = param, ports, flux
+        self.physical = physical
 
 
 class SteadyPinnedPoint(Generic[V, A]):
@@ -179,7 +280,9 @@ class SteadyPinnedPoint(Generic[V, A]):
 
     Its derivatives hold while the response is not linearized again: a
     later solve changes the port data, and a tangent requested after it
-    is refused.
+    is refused. With parameters of its own its bundle also carries
+    ``jvp_param`` and ``vjp_param``: the same tangent and adjoint solves,
+    placed on and read from the parameters' rows of :math:`\\theta`.
     """
 
     def __init__(
@@ -191,7 +294,14 @@ class SteadyPinnedPoint(Generic[V, A]):
     ) -> None:
         self._point, self._output, self._bkd = point, output, bkd
         self._tangent = tangent
-        self._derivs = ResponseDerivatives.adjoint(self.jvp_trace, self.vjp_trace)
+        self._explicit = tangent.flux.param_derivatives()
+        self._derivs: ResponseDerivatives[A] = (
+            ResponseDerivatives.parametric(
+                self.jvp_trace, self.vjp_trace, self._jvp_param, self._vjp_param
+            )
+            if tangent.physical is not None and self._explicit.available()
+            else ResponseDerivatives.adjoint(self.jvp_trace, self.vjp_trace)
+        )
 
     def output(self) -> A:
         """The response's output on the ports: the outward flux for a
@@ -216,25 +326,7 @@ class SteadyPinnedPoint(Generic[V, A]):
             If ``directions`` has the wrong shape, or the response has been
             linearized again since this point.
         """
-        t = self._tangent
-        nport = t.ports.nport()
-        if directions.ndim != 2 or directions.shape[0] != nport:
-            raise ValueError(
-                f"directions must have shape ({nport}, ncols), got "
-                f"{tuple(directions.shape)}"
-            )
-        state = self._point.solution()
-        params = t.ports.param_space()
-        # theta = [d; 0]: the directions on the port data's rows.
-        theta = t.ports.param_ports().add_to(
-            params.zeros(int(directions.shape[1])), directions
-        )
-        space = t.ports.state_space()
-        rhs = space.scale(-1.0, t.param(state).apply(theta))
-        delta, info = self._point.jacobian_handle().solve(rhs)
-        if not info.converged:
-            raise ValueError("the tangent solve did not converge")
-        return t.flux.flux_tangent(state, delta, self._point)
+        return self._tangent_on(self._tangent.ports.param_ports(), directions)
 
     def vjp_trace(self, weights: A) -> A:
         r""":math:`(\partial r/\partial \lambda)^\top` ``weights``, for a
@@ -252,6 +344,70 @@ class SteadyPinnedPoint(Generic[V, A]):
         TypeError
             If the Jacobian's solver has no transposed solve.
         """
+        return self._adjoint_on(self._tangent.ports.param_ports(), weights)
+
+    def _jvp_param(self, directions: A) -> A:
+        r""":math:`(\partial r/\partial p)` ``directions``, for a block of
+        shape (nparams, ncols): :meth:`jvp_trace`'s solve with the
+        directions on the parameters' rows of :math:`\theta = [\lambda;
+        p]`, plus the output's explicit change in :math:`p`. Raises as
+        :meth:`jvp_trace`, and RuntimeError without parameters."""
+        physical = self._physical()
+        through_state = self._tangent_on(physical.range_rows(), directions)
+        if self._explicit.tangent is None:
+            return through_state
+        theta = physical.range_rows().add_to(
+            self._tangent.ports.param_space().zeros(int(directions.shape[1])),
+            directions,
+        )
+        own = physical.apply_transpose(theta)
+        explicit = self._explicit.tangent(self._point.solution(), own)
+        return through_state + explicit
+
+    def _vjp_param(self, weights: A) -> A:
+        r""":math:`(\partial r/\partial p)^\top` ``weights``, for a block of
+        shape (nport, ncols): :meth:`vjp_trace`'s solve, read on the
+        parameters' rows of :math:`-R_\theta^\top z`, plus the explicit
+        change's transpose. Shape: (nparams, ncols). Raises as
+        :meth:`vjp_trace`, and RuntimeError without parameters."""
+        physical = self._physical()
+        rows = physical.range_rows()
+        through_state = self._adjoint_on(rows, weights)
+        if self._explicit.adjoint is None:
+            return through_state
+        own = self._explicit.adjoint(self._point.solution(), weights)
+        return through_state + rows.take(physical.apply(own))
+
+    def _physical(self) -> PortPlacement[V, A]:
+        physical = self._tangent.physical
+        if physical is None:
+            raise RuntimeError(
+                "the response has no parameters; check derivatives() before calling"
+            )
+        return physical
+
+    def _tangent_on(self, rows: PortRowsProtocol[V, A], directions: A) -> A:
+        """The output's change for ``directions`` placed on ``rows`` of
+        :math:`\\theta`, one tangent solve for all columns."""
+        t = self._tangent
+        if directions.ndim != 2 or directions.shape[0] != rows.nrows():
+            raise ValueError(
+                f"directions must have shape ({rows.nrows()}, ncols), got "
+                f"{tuple(directions.shape)}"
+            )
+        state = self._point.solution()
+        params = t.ports.param_space()
+        theta = rows.add_to(params.zeros(int(directions.shape[1])), directions)
+        space = t.ports.state_space()
+        rhs = space.scale(-1.0, t.param(state).apply(theta))
+        delta, info = self._point.jacobian_handle().solve(rhs)
+        if not info.converged:
+            raise ValueError("the tangent solve did not converge")
+        return t.flux.flux_tangent(state, delta, self._point)
+
+    def _adjoint_on(self, rows: PortRowsProtocol[V, A], weights: A) -> A:
+        """``rows`` of :math:`-R_\\theta^\\top z`, :math:`R_u^\\top z =
+        C^\\top W`, one transposed solve for all columns."""
         t = self._tangent
         nport = t.ports.nport()
         if weights.ndim != 2 or weights.shape[0] != nport:
@@ -268,7 +424,7 @@ class SteadyPinnedPoint(Generic[V, A]):
         if not info.converged:
             raise ValueError("the adjoint solve did not converge")
         theta = t.param(state).apply_transpose(adjoint)
-        return -t.ports.param_ports().take(theta)
+        return -rows.take(theta)
 
     def state(self) -> V:
         """The subdomain's solved state."""
@@ -356,7 +512,7 @@ class SteadyPinnedResponse(Generic[V, A, F]):
                 "a trace tangent needs the port-pinned residual's parameter Jacobian"
             )
         self._system = SteadySystem(self._residual, space, setups)
-        self._tangent = PortTangent(param, ports, flux)
+        self._tangent = PortTangent(param, ports, flux, physical)
         self._nonlinear, self._bkd = nonlinear, bkd
         self._parameters = parameters
         self._guess = space.zeros(1)

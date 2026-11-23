@@ -37,6 +37,16 @@ r"""Transposed products of the output in the port data,
 :math:`(\partial r_i/\partial \lambda_i)^\top W` for a block :math:`W` of
 shape (nport, ncols)."""
 
+ParamJVP = Callable[[Array], Array]
+r"""Directional derivatives of the output in the response's parameters,
+:math:`(\partial r_i/\partial p_i) V` for a block :math:`V` of shape
+(nparams, ncols); shape (nport, ncols)."""
+
+ParamVJP = Callable[[Array], Array]
+r"""Transposed products of the output in the response's parameters,
+:math:`(\partial r_i/\partial p_i)^\top W` for a block :math:`W` of
+shape (nport, ncols); shape (nparams, ncols)."""
+
 
 @dataclass(frozen=True)
 class PortQuantity:
@@ -103,15 +113,25 @@ class ResponseDerivatives(Generic[Array]):
       a block :math:`W` of output weights, shape (nport, ncols) both ways:
       the skeleton Jacobian's transpose, what adjoints need. It comes only
       with ``jvp_trace``.
+    - ``jvp_param``: :math:`(\partial r_i/\partial p_i) V` for a block of
+      parameter directions, what a coupled tangent needs beside
+      ``jvp_trace``. It comes only with ``jvp_trace``.
+    - ``vjp_param``: its transpose, what a coupled gradient needs beside
+      ``vjp_trace``. It comes only with ``jvp_param`` and ``vjp_trace``.
+
+    A response without parameters carries no parameter fields: its output
+    does not depend on any.
 
     Build with the named constructors.
     """
 
     jvp_trace: Optional[TraceJVP[Array]] = None
     vjp_trace: Optional[TraceVJP[Array]] = None
+    jvp_param: Optional[ParamJVP[Array]] = None
+    vjp_param: Optional[ParamVJP[Array]] = None
 
     def __post_init__(self) -> None:
-        for name in ("jvp_trace", "vjp_trace"):
+        for name in ("jvp_trace", "vjp_trace", "jvp_param", "vjp_param"):
             value = getattr(self, name)
             if value is not None and not callable(value):
                 raise TypeError(
@@ -120,6 +140,12 @@ class ResponseDerivatives(Generic[Array]):
                 )
         if self.vjp_trace is not None and self.jvp_trace is None:
             raise ValueError("vjp_trace comes only with jvp_trace")
+        if self.jvp_param is not None and self.jvp_trace is None:
+            raise ValueError("jvp_param comes only with jvp_trace")
+        if self.vjp_param is not None and (
+            self.jvp_param is None or self.vjp_trace is None
+        ):
+            raise ValueError("vjp_param comes only with jvp_param and vjp_trace")
 
     @staticmethod
     def none() -> "ResponseDerivatives[Array]":
@@ -138,6 +164,22 @@ class ResponseDerivatives(Generic[Array]):
         """Trace directional derivatives and their transpose: forward
         solves and adjoints."""
         return ResponseDerivatives(jvp_trace=jvp_trace, vjp_trace=vjp_trace)
+
+    @staticmethod
+    def parametric(
+        jvp_trace: TraceJVP[Array],
+        vjp_trace: TraceVJP[Array],
+        jvp_param: ParamJVP[Array],
+        vjp_param: ParamVJP[Array],
+    ) -> "ResponseDerivatives[Array]":
+        """Trace and parameter directional derivatives and their
+        transposes: coupled tangents and gradients in the parameters."""
+        return ResponseDerivatives(
+            jvp_trace=jvp_trace,
+            vjp_trace=vjp_trace,
+            jvp_param=jvp_param,
+            vjp_param=vjp_param,
+        )
 
 
 @runtime_checkable

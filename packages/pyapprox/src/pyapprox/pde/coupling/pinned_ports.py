@@ -103,6 +103,11 @@ class PortPlacement(Generic[V, P]):
         zeros = self._params.zeros(self._states.ncols(y))
         return self._param_ports.add_to(zeros, self._state_ports.take(y))
 
+    def range_rows(self) -> PortRowsProtocol[V, P]:
+        """The rows of the range the placement writes, in port order: a
+        block on them is the placed vector's restriction."""
+        return self._state_ports
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.domain()!r} -> {self.range()!r})"
 
