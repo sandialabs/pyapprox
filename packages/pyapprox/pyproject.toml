@@ -41,6 +41,9 @@ dependencies = [
 # fitters and optimizers. Without it the NumPy backend works in full and
 # torch-only features raise an ImportError naming this extra.
 torch = ["torch>=2.0"]
+# JaxBkd, experimental and unexported: grown one protocol method at a
+# time behind the backend conformance table. Not in runtime-extras.
+jax = ["jax>=0.4.30"]
 fem = ["scikit-fem>=9.0"]
 umbridge = ["umbridge>=0.7"]
 numba = ["numba>=0.58"]

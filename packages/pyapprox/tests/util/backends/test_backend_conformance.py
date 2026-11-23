@@ -1,8 +1,10 @@
 """Backend conformance: every row of the table in
 ``tests/_helpers/backend_conformance.py`` on every backend, and the
-ratchet that keeps every protocol method either covered by a row or
-listed in its shrink-only ``NOT_YET_COVERED``."""
+ratchets that keep every protocol method either covered by a row or
+listed in the shrink-only ``NOT_YET_COVERED``, and every method
+``JaxBkd`` lacks listed in the shrink-only ``NOT_YET_ON_JAX``."""
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.backend_conformance import (
     CASES,
     NOT_YET_COVERED,
+    NOT_YET_ON_JAX,
+    ROWS_NOT_YET_ON_JAX,
     Case,
     case_id,
     run_case,
@@ -53,18 +57,56 @@ def test_every_protocol_method_has_a_row_or_is_listed() -> None:
     assert not unknown, f"listed in NOT_YET_COVERED but not protocol: {unknown}"
 
 
-def test_not_yet_covered_matches_its_baseline() -> None:
+def _jax_methods() -> frozenset[str]:
+    """The public methods of ``JaxBkd``, read from its source, so the
+    check runs without JAX installed."""
+    source = Path(pyapprox.__file__).parent / "util" / "backends" / "jax.py"
+    tree = ast.parse(source.read_text())
+    (jax_bkd,) = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "JaxBkd"
+    ]
+    return frozenset(
+        node.name
+        for node in jax_bkd.body
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
+    )
+
+
+def test_not_yet_on_jax_lists_exactly_what_jax_lacks() -> None:
+    jax_methods = _jax_methods()
+    methods = _protocol_methods()
+    covered = {case.method for case in CASES}
+    assert jax_methods <= methods, f"not protocol methods: {jax_methods - methods}"
+    untested = jax_methods - covered
+    assert not untested, f"JaxBkd methods without a row: {untested}"
+    assert covered - jax_methods == ROWS_NOT_YET_ON_JAX, (
+        "ROWS_NOT_YET_ON_JAX must list exactly the methods with a row that "
+        f"JaxBkd lacks: {sorted(covered - jax_methods)}"
+    )
+    assert methods - jax_methods == NOT_YET_ON_JAX
+
+
+@pytest.mark.parametrize(
+    "key, listed",
+    [
+        ("conformance_uncovered", NOT_YET_COVERED),
+        ("conformance_not_on_jax", NOT_YET_ON_JAX),
+    ],
+)
+def test_lists_match_their_baselines(key: str, listed: frozenset[str]) -> None:
     # src/pyapprox/__init__.py -> the repository root holding the baselines.
     root = Path(pyapprox.__file__).resolve().parents[4]
     if not (root / BASELINE_FILE).exists():
         pytest.skip("not a source checkout")
-    key = "conformance_uncovered="
+    prefix = f"{key}="
     lines = (root / BASELINE_FILE).read_text().splitlines()
-    baseline = int(next(line for line in lines if line.startswith(key))[len(key) :])
-    count = len(NOT_YET_COVERED)
+    entry = next(line for line in lines if line.startswith(prefix))
+    baseline = int(entry[len(prefix) :])
+    count = len(listed)
     assert count <= baseline, (
-        f"NOT_YET_COVERED grew to {count} (baseline {baseline}); add rows instead"
+        f"{key} grew to {count} (baseline {baseline}); add rows and "
+        "implementations instead"
     )
-    assert count >= baseline, (
-        f"NOT_YET_COVERED shrank to {count}; set {key}{count} in {BASELINE_FILE}"
-    )
+    assert count >= baseline, f"{key} shrank to {count}; set {prefix}{count}"

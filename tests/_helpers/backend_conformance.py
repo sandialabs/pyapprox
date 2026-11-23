@@ -39,13 +39,23 @@ under ``gradcheck``.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, List, Mapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, ArrayLike
 
 
 class Role(Enum):
@@ -186,11 +196,15 @@ CASES: List[Case] = [
     Case("assert_allclose", "nan-vs-value", (_NAN, np.asarray([1.0, 2.0, 3.0])),
          raises=AssertionError, eager_only=True),
     # ---- dtypes and conversion
-    Case("default_dtype", "f64", reference=lambda: np.float64, expect=Expect.DTYPE),
-    Case("double_dtype", "f64", reference=lambda: np.float64, expect=Expect.DTYPE),
+    # A dtype object is not an array, so there is nothing to trace.
+    Case("default_dtype", "f64", reference=lambda: np.float64,
+         expect=Expect.DTYPE, eager_only=True),
+    Case("double_dtype", "f64", reference=lambda: np.float64,
+         expect=Expect.DTYPE, eager_only=True),
     Case("complex_dtype", "c128", reference=lambda: np.complex128,
-         expect=Expect.DTYPE),
-    Case("int64_dtype", "i64", reference=lambda: np.int64, expect=Expect.DTYPE),
+         expect=Expect.DTYPE, eager_only=True),
+    Case("int64_dtype", "i64", reference=lambda: np.int64,
+         expect=Expect.DTYPE, eager_only=True),
     Case("asarray", "float-list", ([[1.0, 2.0], [3.0, 4.0]],),
          reference=lambda x: np.asarray(x, dtype=np.float64),
          expect=Expect.DEFAULT, eager_only=True),
@@ -301,16 +315,47 @@ NOT_YET_COVERED = frozenset(
     }
 )  # fmt: skip
 
+# Methods with a row that JaxBkd does not implement yet. With
+# NOT_YET_COVERED they make NOT_YET_ON_JAX, the protocol methods JaxBkd
+# lacks; its length is the conformance_not_on_jax baseline, so a row can
+# land before its JAX implementation but a new protocol method cannot
+# arrive without one.
+ROWS_NOT_YET_ON_JAX: frozenset[str] = frozenset()
+NOT_YET_ON_JAX = NOT_YET_COVERED | ROWS_NOT_YET_ON_JAX
+
 
 # ---- running a row
 
 
-def _bool_dtype(bkd: Backend[Array]) -> Any:
+@runtime_checkable
+class ConformanceBackend(Protocol[Array]):
+    """What the runner itself calls on a backend besides the method under
+    test, so a backend still growing toward ``Backend`` (``JaxBkd``) can
+    run the table. Dtypes are ``Any`` as in ``Backend``."""
+
+    def default_dtype(self) -> Any: ...
+
+    def complex_dtype(self) -> Any: ...
+
+    def int64_dtype(self) -> Any: ...
+
+    def asarray(self, array: ArrayLike, dtype: Optional[Any] = None) -> Array: ...
+
+    def zeros(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
+
+    def to_numpy(self, array: Array) -> NDArray[Any]: ...
+
+    def assert_allclose(
+        self, actual: Array, desired: Array, rtol: float = 1e-7, atol: float = 0
+    ) -> None: ...
+
+
+def _bool_dtype(bkd: ConformanceBackend[Array]) -> Any:
     # A comparison is the backend-neutral way to name the boolean dtype.
     return (bkd.zeros((1,)) > 0).dtype
 
 
-def _backend_dtype(bkd: Backend[Array], role: Role) -> Any:
+def _backend_dtype(bkd: ConformanceBackend[Array], role: Role) -> Any:
     if role is Role.DEFAULT:
         return bkd.default_dtype()
     if role is Role.COMPLEX:
@@ -329,7 +374,7 @@ _NUMPY_DTYPES = {
 _ROLE_OF_NUMPY = {np.dtype(v): k for k, v in _NUMPY_DTYPES.items()}
 
 
-def _to_backend(bkd: Backend[Array], value: Any) -> Any:
+def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
     """``value`` with NumPy arrays (also inside tuples) on ``bkd`` in the
     matching role's dtype, and roles resolved to ``bkd`` dtypes."""
     if isinstance(value, Role):
@@ -364,7 +409,9 @@ def _arrays(values: Tuple[Any, ...]) -> List[Any]:
     return found
 
 
-def _expected_dtype(bkd: Backend[Array], case: Case, args: Tuple[Any, ...]) -> Any:
+def _expected_dtype(
+    bkd: ConformanceBackend[Array], case: Case, args: Tuple[Any, ...]
+) -> Any:
     if case.expect is Expect.INPUT:
         bool_dtype = _bool_dtype(bkd)
         return next(a.dtype for a in _arrays(args) if a.dtype != bool_dtype)
@@ -372,7 +419,7 @@ def _expected_dtype(bkd: Backend[Array], case: Case, args: Tuple[Any, ...]) -> A
 
 
 def _assert_matches(
-    bkd: Backend[Array], actual: Any, expected: Any, dtype: Any
+    bkd: ConformanceBackend[Array], actual: Any, expected: Any, dtype: Any
 ) -> None:
     """``actual`` equals ``expected`` (NumPy, converted to ``dtype`` on
     ``bkd``) in shape, dtype and values; tuples elementwise."""
@@ -394,13 +441,15 @@ def _assert_host_matches(actual: Any, expected: Any) -> None:
     np.testing.assert_array_equal(actual, expected, strict=True)
 
 
-def _assert_dtype_object(bkd: Backend[Array], actual: Any, expected: Any) -> None:
+def _assert_dtype_object(
+    bkd: ConformanceBackend[Array], actual: Any, expected: Any
+) -> None:
     created = bkd.to_numpy(bkd.zeros((1,), dtype=actual)).dtype
     assert created == np.dtype(expected), (created, expected)
 
 
 def prepare(
-    bkd: Backend[Array], case: Case
+    bkd: ConformanceBackend[Array], case: Case
 ) -> Tuple[Callable[..., Any], Tuple[Any, ...]]:
     """``case``'s method on ``bkd`` with its keyword arguments bound, and
     its positional arguments converted to ``bkd``."""
@@ -415,7 +464,7 @@ def prepare(
 
 
 def run_case(
-    bkd: Backend[Array],
+    bkd: ConformanceBackend[Array],
     case: Case,
     call: Optional[Callable[[Callable[..., Any], Tuple[Any, ...]], Any]] = None,
 ) -> Any:

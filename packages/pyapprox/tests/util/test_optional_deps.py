@@ -18,7 +18,7 @@ from pyapprox.util.optional_deps import (
 
 _ROOT = Path(pyapprox.__file__).resolve().parents[4]
 # Optional libraries whose pip extra has the library's name.
-_GUARDED = ("torch", "numba")
+_GUARDED = ("torch", "numba", "jax")
 
 
 def _importers(lib: str) -> List[str]:
@@ -115,3 +115,4 @@ def test_importers_are_found() -> None:
     assert "pyapprox.util.backends.torch" in torch_importers
     assert "pyapprox.surrogates.tensorproduct.compute_torch" in torch_importers
     assert _importers("numba") == ["pyapprox.util.numba_compat"]
+    assert _importers("jax") == ["pyapprox.util.backends.jax"]
