@@ -171,24 +171,19 @@ class TestEagerTiming:
     """
 
     def test_submit_carries_the_cost_and_collect_is_cheap(self, bkd):
-        def slow(samples):
-            time.sleep(DELAY_PER_SAMPLE * samples.shape[1])
+        # Counted, not timed: a wall-clock bound on collect fails under
+        # load (53 ms against 40 ms with four test workers) although
+        # collect does no work.
+        evaluated = []
+
+        def counting(samples):
+            evaluated.append(samples.shape[1])
             return bkd.sum(samples, axis=0)[None, :]
 
-        ev = _build(bkd, fn=slow)
-        X = bkd.ones((2, 4))
-        expected = DELAY_PER_SAMPLE * 4
-
-        start = time.perf_counter()
-        batch = ev.submit(X)
-        submit_seconds = time.perf_counter() - start
-
-        start = time.perf_counter()
+        batch = _build(bkd, fn=counting).submit(bkd.ones((2, 4)))
+        assert sum(evaluated) == 4, "submit must evaluate every sample"
         batch.collect()
-        collect_seconds = time.perf_counter() - start
-
-        assert submit_seconds >= expected * 0.5
-        assert collect_seconds < expected * 0.5
+        assert sum(evaluated) == 4, "collect must not evaluate again"
 
     def test_progress_is_truthful_immediately_after_submit(self, bkd):
         """The work is done, so progress must not report it outstanding.
