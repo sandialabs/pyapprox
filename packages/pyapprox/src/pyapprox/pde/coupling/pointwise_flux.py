@@ -68,12 +68,66 @@ def flux_moments(
     q = bkd.reshape(values, (nelems, nquad, k, ncols))
     local = bkd.einsum("eq,eqa,eqcj->eacj", trace.weights(), trace.values(), q)
     flat = bkd.reshape(local, (nelems * nlocal, k * ncols))
+    return bkd.reshape(_placement(trace) @ flat, (trace.nnodes() * k, ncols))
+
+
+def flux_moments_transpose(
+    trace: PortTraceProtocol[Array], moments: Array, ncomponents: int = 1
+) -> Array:
+    r"""The transpose of :func:`flux_moments`: :math:`q_{(e,q),c} = w_{eq}
+    \sum_a \phi_{eqa}\, r_{k a + c}`, the moments' weights read back at
+    the trace's points.
+
+    Parameters
+    ----------
+    trace
+        The port's trace functions and quadrature.
+    moments
+        Weights on the moments, node-major. Shape: (k * trace.nnodes(),
+        ncols).
+    ncomponents
+        :math:`k`.
+
+    Returns
+    -------
+    Array
+        Shape (k * nelems * nquad, ncols), node-major per point.
+
+    Raises
+    ------
+    TypeError
+        If ``trace`` does not satisfy :class:`PortTraceProtocol`.
+    ValueError
+        If ``ncomponents`` is not positive or ``moments`` has the wrong
+        shape.
+    """
+    nelems, nquad, nlocal = trace_shape(trace)
+    if ncomponents < 1:
+        raise ValueError(f"ncomponents must be >= 1, got {ncomponents}")
+    k, bkd = ncomponents, trace.bkd()
+    if moments.ndim != 2 or moments.shape[0] != k * trace.nnodes():
+        raise ValueError(
+            f"moments must have shape ({k * trace.nnodes()}, ncols), "
+            f"got {tuple(moments.shape)}"
+        )
+    ncols = int(moments.shape[1])
+    nodal = bkd.reshape(moments, (trace.nnodes(), k * ncols))
+    local = bkd.reshape(
+        bkd.transpose(_placement(trace)) @ nodal, (nelems, nlocal, k, ncols)
+    )
+    q = bkd.einsum("eq,eqa,eacj->eqcj", trace.weights(), trace.values(), local)
+    return bkd.reshape(q, (nelems * nquad * k, ncols))
+
+
+def _placement(trace: PortTraceProtocol[Array]) -> Array:
+    """The 0/1 matrix summing element-local node rows into the trace's
+    nodes. Shape: (trace.nnodes(), nelems * nlocal)."""
+    nelems, _, nlocal = trace_shape(trace)
     nodes = trace.element_nodes()
     owner = [int(nodes[e, a]) for e in range(nelems) for a in range(nlocal)]
-    placement = bkd.asarray(
+    return trace.bkd().asarray(
         [[1.0 if o == n else 0.0 for o in owner] for n in range(trace.nnodes())]
     )
-    return bkd.reshape(placement @ flat, (trace.nnodes() * k, ncols))
 
 
 @runtime_checkable

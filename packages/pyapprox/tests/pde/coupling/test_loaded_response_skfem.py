@@ -14,6 +14,9 @@ bottom, s linear or cubic.
   coupling at every mixed DOF): the trace unknowns and both states equal
   the single-domain solve (1e-10), for both sinks.
 - The NtD trace tangent passes central differences (cubic sink).
+- ``vjp_trace`` passes a dot test against ``jvp_trace`` (rtol 1e-12,
+  cubic sink) for the right piece as DtN and as NtD, through the sparse
+  LU's transposed solve.
 - The port load's transpose: <B T x, y> = <x, T^T B^T y> for a dense T.
 - Refusals: a port DOF that is an essential row; an output outside its
   protocol; no port DOFs; a wrong shape or window at linearize.
@@ -230,6 +233,25 @@ def test_ntd_trace_tangent_matches_finite_differences() -> None:
         FunctionWithJVPFromCallable(nqoi=nport, nvars=nport, fun=fun, jvp=jvp, bkd=_BKD)
     ).check_derivatives(sample, relative=True, central=True)[0]
     assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
+
+
+@pytest.mark.parametrize("loaded", [False, True])
+def test_vjp_trace_is_the_transpose_of_jvp_trace(loaded: bool) -> None:
+    """<J V, W> = <V, J^T W> on three-column blocks for the cubic
+    subdomain, pinned (reaction flux) or loaded (port rows), through the
+    sparse LU's transposed solve."""
+    problem = _problem(True)
+    response = _ntd(problem, 1)[0] if loaded else problem.piece(1)[0]
+    nport = response.nport()
+    sample = np.linspace(-0.4, 0.3, nport)[:, None]
+    point = response.linearize(sample, _BKD.zeros((0, 1)), STEADY)
+    bundle = point.derivatives()
+    jvp, vjp = bundle.jvp_trace, bundle.vjp_trace
+    assert jvp is not None and vjp is not None
+    rng = np.random.default_rng(5)
+    v, w = rng.normal(size=(nport, 3)), rng.normal(size=(nport, 3))
+    lhs, rhs = float(np.sum(jvp(v) * w)), float(np.sum(v * vjp(w)))
+    assert abs(lhs - rhs) <= 1e-12 * abs(lhs)
 
 
 def _port_data(nstates: int, ports: list[int]) -> PortPinnedData[Np, Np]:

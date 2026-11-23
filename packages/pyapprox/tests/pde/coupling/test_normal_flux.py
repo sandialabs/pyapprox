@@ -12,6 +12,8 @@ degree, so the collocation solve reproduces it at the nodes.
   state is u at the nodes to 1e-12.
 - The trace tangent passes central finite differences (smallest relative
   error below 1e-6) at :math:`\lambda = 1.3`.
+- The flux's adjoint and the response's ``vjp_trace`` pass dot tests
+  against their tangents at :math:`\lambda = 1.3`.
 - Wrong-model control: the operator built with the inward normal returns
   -2, so the outward sign is the normal's, not the response's.
 - Refusals: no parts; parts selecting a different number of nodes than
@@ -165,6 +167,24 @@ def test_trace_tangent_passes_finite_differences(bkd: Backend[Array]) -> None:
         FunctionWithJVPFromCallable(nqoi=1, nvars=1, fun=fun, jvp=jvp, bkd=bkd)
     ).check_derivatives(bkd.asarray([[1.3]]), relative=True, central=True)
     assert bkd.to_float(bkd.min(errors[0])) < 1e-6
+
+
+def test_flux_adjoint_is_the_transpose_of_flux_tangent(bkd: Backend[Array]) -> None:
+    """<C D, W> = <D, C^T W> for state blocks D, and the response's
+    vjp_trace for its jvp_trace, on three-column blocks."""
+    piece = _Piece(bkd)
+    point = piece.response().linearize(bkd.asarray([[1.3]]), _no_params(bkd), _STEADY)
+    flux = piece.flux(piece.operator(1.0))
+    state = point.state()
+    delta = bkd.reshape(bkd.linspace(-1.0, 2.0, 3 * _N), (_N, 3))
+    w = bkd.asarray([[0.7, -1.2, 0.4]])
+    lhs = bkd.sum(flux.flux_tangent(state, delta, point.steady_point()) * w)
+    rhs = bkd.sum(delta * flux.flux_adjoint(state, w, point.steady_point()))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13)
+    v = bkd.asarray([[1.5, -0.3, 0.8]])
+    lhs = bkd.sum(point.jvp_trace(v) * w)
+    rhs = bkd.sum(v * point.vjp_trace(w))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
 
 
 def test_the_sign_is_the_normals(bkd: Backend[Array]) -> None:

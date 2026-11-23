@@ -20,7 +20,10 @@ from dataclasses import dataclass
 from typing import Generic, Protocol, Sequence, runtime_checkable
 
 from pyapprox.implicitfunction.steady_system import SteadyPoint
-from pyapprox.pde.coupling.pointwise_flux import flux_moments
+from pyapprox.pde.coupling.pointwise_flux import (
+    flux_moments,
+    flux_moments_transpose,
+)
 from pyapprox.pde.coupling.ports import PortTraceProtocol, trace_shape
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -159,6 +162,20 @@ class NormalFluxMoments(Generic[Array]):
         the operators' Jacobian at ``state`` applied to it. ``point`` is not
         read: the operators carry no linearization label. Shape: (k *
         nport, ncols)."""
+        return flux_moments(self._trace, self._sampled_jacobian(state) @ delta, self._k)
+
+    def flux_adjoint(
+        self, state: Array, weights: Array, point: SteadyPoint[Array, Array]
+    ) -> Array:
+        """The transpose of :meth:`flux_tangent` applied to ``weights``,
+        shape (k * nport, ncols). ``point`` is not read. Shape: (nstates,
+        ncols)."""
+        sampled = flux_moments_transpose(self._trace, weights, self._k)
+        return self._bkd.transpose(self._sampled_jacobian(state)) @ sampled
+
+    def _sampled_jacobian(self, state: Array) -> Array:
+        """The flux's Jacobian at the trace's points, node-major per
+        point. Shape: (k * npoints, nstates)."""
         bkd = self._bkd
         blocks = []
         for ops, sampling in self._parts:
@@ -168,8 +185,7 @@ class NormalFluxMoments(Generic[Array]):
                 axis=1,
             )
             blocks.append(bkd.reshape(stacked, (-1, int(stacked.shape[2]))))
-        jacobian = bkd.concatenate(blocks, axis=0)
-        return flux_moments(self._trace, jacobian @ delta, self._k)
+        return bkd.concatenate(blocks, axis=0)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(nparts={len(self._parts)}, k={self._k})"

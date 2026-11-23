@@ -27,7 +27,10 @@ solve at the subdomain's solution: the port data are the residual's
 parameters, so :math:`R_u\, \delta u = -R_\theta [d; 0]` gives the
 state's change, which the flux maps to its own change. With a setup
 strategy keeping the Jacobian's setup at the solution, each skeleton
-Krylov product costs one back-substitution per subdomain.
+Krylov product costs one back-substitution per subdomain. Its transpose,
+what adjoints need, is one transposed solve :math:`R_u^\top z = C^\top
+w` at the same solution, :math:`C` the output's derivative in the state,
+read back through :math:`-R_\theta^\top z` on the port data's rows.
 """
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
@@ -94,6 +97,12 @@ class PortFluxProtocol(Protocol[V, A]):
         at the solve ``point`` of ``state``. Shape: (nport, ncols)."""
         ...
 
+    def flux_adjoint(self, state: V, weights: A, point: SteadyPoint[V, A]) -> V:
+        """The transpose of :meth:`flux_tangent`: the output's derivative
+        in the state, transposed, applied to ``weights`` (nport, ncols).
+        A state-space vector of ncols columns."""
+        ...
+
 
 class PinnedReactionFlux(Generic[V, A, F]):
     r"""The reaction on the port rows as the tested outward flux:
@@ -136,6 +145,16 @@ class PinnedReactionFlux(Generic[V, A, F]):
         change = self._jacobian(state, label).apply(delta)
         return -self._ports.state_ports().take(change)
 
+    def flux_adjoint(self, state: V, weights: A, point: SteadyPoint[V, A]) -> V:
+        r""":math:`-F_u^\top B\, W`: the weights placed on the port rows,
+        then the Jacobian's transpose."""
+        space = self._ports.state_space()
+        placed = self._ports.state_ports().add_to(
+            space.zeros(int(weights.shape[1])), weights
+        )
+        label = LinearizationPoint(self._pinned.parameters_version(), point)
+        return space.scale(-1.0, self._jacobian(state, label).apply_transpose(placed))
+
 
 class PortTangent(Generic[V, A]):
     r"""What a point's trace tangent reads: the port residual's parameter
@@ -172,7 +191,7 @@ class SteadyPinnedPoint(Generic[V, A]):
     ) -> None:
         self._point, self._output, self._bkd = point, output, bkd
         self._tangent = tangent
-        self._derivs = ResponseDerivatives.tangent(self.jvp_trace)
+        self._derivs = ResponseDerivatives.adjoint(self.jvp_trace, self.vjp_trace)
 
     def output(self) -> A:
         """The response's output on the ports: the outward flux for a
@@ -216,6 +235,40 @@ class SteadyPinnedPoint(Generic[V, A]):
         if not info.converged:
             raise ValueError("the tangent solve did not converge")
         return t.flux.flux_tangent(state, delta, self._point)
+
+    def vjp_trace(self, weights: A) -> A:
+        r""":math:`(\partial r/\partial \lambda)^\top` ``weights``, for a
+        block of shape (nport, ncols): the transpose of :meth:`jvp_trace`,
+        one transposed solve :math:`R_u^\top z = C^\top W` for all columns,
+        :math:`C` the output's derivative in the state, then the port data's
+        rows of :math:`-R_\theta^\top z`.
+
+        Raises
+        ------
+        ValueError
+            If ``weights`` has the wrong shape, the response has been
+            linearized again since this point, or the solve does not
+            converge.
+        TypeError
+            If the Jacobian's solver has no transposed solve.
+        """
+        t = self._tangent
+        nport = t.ports.nport()
+        if weights.ndim != 2 or weights.shape[0] != nport:
+            raise ValueError(
+                f"weights must have shape ({nport}, ncols), got {tuple(weights.shape)}"
+            )
+        state = self._point.solution()
+        transposed = self._point.jacobian_handle().transpose()
+        if transposed is None:
+            raise TypeError("the Jacobian's solver has no transposed solve")
+        adjoint, info = transposed.solve(
+            t.flux.flux_adjoint(state, weights, self._point)
+        )
+        if not info.converged:
+            raise ValueError("the adjoint solve did not converge")
+        theta = t.param(state).apply_transpose(adjoint)
+        return -t.ports.param_ports().take(theta)
 
     def state(self) -> V:
         """The subdomain's solved state."""

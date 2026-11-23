@@ -2,7 +2,8 @@ r"""Flux moments of pointwise-flux models, on NumPy and Torch.
 
 Checks: a flux in the trace space has moments :math:`M_p q`, against the
 closed-form linear-hat mass; k = 2 takes each component's moments
-separately; a point trace's moments are the values themselves; a 1D
+separately; the moments' transpose passes a dot test for k = 1, 2; a
+point trace's moments are the values themselves; a 1D
 chain with one closed-form piece behind :class:`PointwiseFluxResponse`
 matches the exact interface values; the response's tangent is the
 model's, and absent when the model has none; an autodiff graph through
@@ -19,7 +20,11 @@ from pyapprox.implicitfunction.steady_system import SteadySystem
 from pyapprox.pde.coupling.analytic import KirchhoffResponse1D
 from pyapprox.pde.coupling.basis import lobatto_lagrange_basis
 from pyapprox.pde.coupling.closure_numbering import VertexWeightNumbering
-from pyapprox.pde.coupling.pointwise_flux import PointwiseFluxResponse, flux_moments
+from pyapprox.pde.coupling.pointwise_flux import (
+    PointwiseFluxResponse,
+    flux_moments,
+    flux_moments_transpose,
+)
 from pyapprox.pde.coupling.ports import (
     BackendPortRows,
     MatchingNodalTransfer,
@@ -97,6 +102,23 @@ def test_components_take_their_moments_separately(bkd: Backend[Array]) -> None:
         bkd.assert_allclose(
             both[c::2], flux_moments(trace, values[c::2]), rtol=1e-13, atol=1e-15
         )
+
+
+@pytest.mark.parametrize("k", [1, 2])
+def test_the_moments_transpose_is_their_adjoint(bkd: Backend[Array], k: int) -> None:
+    """<M q, W> = <q, M^T W> on three-column blocks, k components."""
+    trace = _trace(bkd)
+    npoints = int(trace.points().shape[1])
+    rng = np.random.default_rng(4)
+    values = bkd.asarray(rng.normal(size=(k * npoints, 3)))
+    weights = bkd.asarray(rng.normal(size=(k * len(_YS), 3)))
+    lhs = bkd.sum(flux_moments(trace, values, k) * weights)
+    rhs = bkd.sum(values * flux_moments_transpose(trace, weights, k))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13)
+    with pytest.raises(ValueError, match="moments"):
+        flux_moments_transpose(trace, weights[1:], k)
+    with pytest.raises(ValueError, match="ncomponents"):
+        flux_moments_transpose(trace, weights, 0)
 
 
 def test_a_point_trace_moments_are_the_values(bkd: Backend[Array]) -> None:

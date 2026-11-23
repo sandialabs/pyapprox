@@ -236,6 +236,15 @@ class PortRowsOutput(Generic[V, A]):
     def flux_tangent(self, state: V, delta: V, point: SteadyPoint[V, A]) -> A:
         return self._mapped(self._ports.state_ports().take(delta))
 
+    def flux_adjoint(self, state: V, weights: A, point: SteadyPoint[V, A]) -> V:
+        r""":math:`R^\top T^\top W`: the mapped weights placed on the port
+        rows of a zero state."""
+        block = weights
+        if self._output is not None:
+            block = self._output.apply_transpose(weights)
+        zeros = self._ports.state_space().zeros(int(weights.shape[1]))
+        return self._ports.state_ports().add_to(zeros, block)
+
 
 class SteadyLoadedResponse(Generic[V, A, F]):
     r"""A subdomain whose port data enter as a load on its port rows (see

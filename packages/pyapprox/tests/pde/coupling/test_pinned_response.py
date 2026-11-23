@@ -19,7 +19,9 @@ Torch.
 - The trace tangent passes central finite differences (smallest relative
   error below 1e-6) with one port (node 8, :math:`\lambda = 1.4`) and
   two (nodes 4 and 8, :math:`\lambda = (1.2, 0.9)`), with the reaction;
-  a point's tangent is refused after the response is linearized again.
+  ``vjp_trace`` passes a dot test against it there, with the modal
+  coefficients as parameters beside the port data; a point's tangent
+  and its transpose are refused after the response is linearized again.
 - The two pieces coupled through the skeleton and solved by Newton
   (atol 1e-11, matrix-free Schur, GMRES tol 1e-13) take more than one
   step and reach the halved single-domain interface value to 1e-10.
@@ -238,12 +240,39 @@ def test_trace_tangent_passes_finite_differences(
     assert bkd.to_float(bkd.min(errors[0])) < 1e-6
 
 
+@pytest.mark.parametrize("ports,lam", [((_NCELLS,), [1.4]), ((4, _NCELLS), [1.2, 0.9])])
+def test_vjp_trace_is_the_transpose_of_jvp_trace(
+    bkd: Backend[Array], ports: tuple[int, ...], lam: list[float]
+) -> None:
+    """<J V, W> = <V, J^T W> on three-column blocks, with the reaction and
+    parameters beside the port data."""
+    piece = _Piece(bkd, True, (0, 1.0), ports)
+    parameters = ParameterState(ModalCoefficientParameterization(piece.operator, bkd))
+    response = piece.response(parameters)
+    point = response.linearize(
+        bkd.asarray([[v] for v in lam]), bkd.asarray(_PARAM)[:, None], _STEADY
+    )
+    bundle = point.derivatives()
+    jvp, vjp = bundle.jvp_trace, bundle.vjp_trace
+    assert jvp is not None and vjp is not None
+    n = len(ports)
+    v = bkd.asarray([[1.0, 0.5, -2.0], [0.3, -1.0, 0.7]][:n])
+    w = bkd.asarray([[-0.6, 2.0, 0.1], [1.4, 0.2, -0.9]][:n])
+    lhs = bkd.sum(jvp(v) * w)
+    rhs = bkd.sum(v * vjp(w))
+    bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-12)
+    with pytest.raises(ValueError, match="weights"):
+        vjp(bkd.zeros((n + 1, 1)))
+
+
 def test_a_stale_point_is_refused(bkd: Backend[Array]) -> None:
     response = _Piece(bkd, True, (0, 1.0), (_NCELLS,)).response()
     first = response.linearize(bkd.asarray([[1.4]]), _no_params(bkd), _STEADY)
     response.linearize(bkd.asarray([[1.5]]), _no_params(bkd), _STEADY)
     with pytest.raises(ValueError, match="changed"):
         first.jvp_trace(bkd.ones((1, 1)))
+    with pytest.raises(ValueError, match="changed"):
+        first.vjp_trace(bkd.ones((1, 1)))
 
 
 def test_skeleton_newton_solves_the_two_pieces(bkd: Backend[Array]) -> None:
