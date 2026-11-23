@@ -429,7 +429,9 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
             self._param,
             self._initial_state,
             self._initial_curvature,
-            self._state_state,
+            # R is affine exactly when every term is: its curvature is then
+            # the stated zero the bundle requires, not f's wrapped.
+            STATED_ZERO if jacobian.affine() else self._state_state,
             self._state_param,
             self._param_param,
         )

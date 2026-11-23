@@ -55,10 +55,12 @@ from pyapprox.ode.residual_derivatives import (
     constant_jacobian,
     dense_jacobian,
     dense_operator,
+    state_free_jacobian,
 )
 from pyapprox.ode.residual_derivatives_check import ODEResidualBundleChecker
 from pyapprox.ode.residual_form import BackendColumnForm
 from pyapprox.ode.second_order.backend_blocks import BackendDenseStateBlocks
+from pyapprox.ode.second_order.rayleigh import RayleighDamping
 from pyapprox.ode.second_order.reduction import (
     InitialVelocityDerivatives,
     VelocityForceDerivatives,
@@ -135,16 +137,27 @@ class _Spring(Generic[Array]):
 
     def derivatives(self) -> ODEResidualDerivatives[Array, DenseFormat[Array]]:
         bkd, space, params = self._bkd, self._space, self._params
+        # Without the cubic term f is affine in the state, and declares so.
+        affine = self._cubic == 0.0
         return ODEResidualDerivatives.second_order(
             space,
             params,
-            dense_jacobian(self._jacobian, space, bkd),
+            state_free_jacobian(self._linear_jacobian)
+            if affine
+            else dense_jacobian(self._jacobian, space, bkd),
             dense_operator(self._param_matrix, params, space, bkd),
             dense_operator(self._initial, params, space, bkd),
             STATED_ZERO,
-            dense_operator(self._state_state, space, space, bkd, symmetric=True),
+            STATED_ZERO
+            if affine
+            else dense_operator(self._state_state, space, space, bkd, symmetric=True),
             dense_operator(self._state_param, params, space, bkd),
             STATED_ZERO,
+        )
+
+    def _linear_jacobian(self, time: float) -> BackendDenseOperator[Array]:
+        return BackendDenseOperator(
+            -self.stiffness(), self._space.descriptor(), self._bkd
         )
 
     def _jacobian(self, state: Array, time: float) -> Array:
@@ -516,3 +529,89 @@ def test_midpoint_conserves_the_energy_of_a_linear_undamped_system(
     drift = max(abs(energy(store.state(k)) - start) for k in range(store.ntimes()))
     assert store.ntimes() == 201
     assert drift <= 1e-12 * start
+
+
+class TestRayleighDamping:
+    def _system(
+        self, bkd: Backend[Array], spring: _Spring[Array], alpha: float, beta: float
+    ) -> _Dense[Array]:
+        restoring = _restoring(bkd, spring)
+        return second_order_system(
+            restoring,
+            BackendDenseStateBlocks(bkd, _N),
+            InitialVelocityDerivatives.independent(),
+            RayleighDamping(restoring, alpha, beta),
+        )
+
+    def test_value_reads_the_current_stiffness(self, bkd: Backend[Array]) -> None:
+        spring = _Spring(bkd, cubic=0.0)
+        system = self._system(bkd, spring, 0.3, 0.1)
+        spring.set_param(bkd.asarray([0.5, 0.0]))
+        state = _state(bkd)
+        u, v = state[:_N], state[_N:]
+        damping = -bkd.dot(
+            0.3 * bkd.diag(bkd.asarray([1.0, 2.0, 1.5])) + 0.1 * spring.stiffness(),
+            v,
+        )
+        bkd.assert_allclose(
+            system.rhs(state, 0.3)[_N:], spring(u, 0.3) + damping, rtol=1e-13
+        )
+
+    def test_refuses_stiffness_damping_of_a_nonlinear_force(
+        self, bkd: Backend[Array]
+    ) -> None:
+        with pytest.raises(ValueError, match="affine"):
+            RayleighDamping(_restoring(bkd, _Spring(bkd, cubic=0.4)), 0.3, 0.1)
+
+    @pytest.mark.parametrize("beta, second", [(0.0, True), (0.1, False)])
+    def test_tier(self, bkd: Backend[Array], beta: float, second: bool) -> None:
+        derivatives = self._system(
+            bkd, _Spring(bkd, cubic=0.0), 0.3, beta
+        ).rhs.derivatives()
+        assert derivatives.jacobian is not None
+        assert (derivatives.state_state is not None) == second
+        assert (derivatives.param is not None) == second
+
+    @pytest.mark.parametrize("beta", [0.0, 0.1])
+    def test_bundle_passes_the_checker(self, bkd: Backend[Array], beta: float) -> None:
+        spring = _Spring(bkd, cubic=0.0)
+        system = self._system(bkd, spring, 0.3, beta)
+        second = beta == 0.0
+        report = ODEResidualBundleChecker(
+            _Checked(system, spring),
+            initial_state=lambda param: bkd.concatenate(
+                [spring.initial_displacement(param), bkd.zeros((_N,))]
+            ),
+        ).check(
+            _state(bkd),
+            0.3,
+            adj=bkd.asarray([0.3, -0.1, 0.2, 0.5, 0.4, -0.7]) if second else None,
+            param=bkd.asarray([0.2, 0.7]) if second else None,
+        )
+        assert report.failures() == []
+
+    def test_midpoint_energy_never_increases(self, bkd: Backend[Array]) -> None:
+        spring = _Spring(bkd, cubic=0.0)
+        spring.set_param(bkd.asarray([0.2, 0.0]))
+        system = self._system(bkd, spring, 0.2, 0.05)
+        newton: Newton[Array, Array] = Newton(atol=1e-14, rtol=0.0, maxiters=20)
+        stepper = RungeKutta(implicit_midpoint(), newton).stepper(
+            system, RecomputeAlways(system.solver)
+        )
+        store: InMemoryTrajectoryStore[Array] = InMemoryTrajectoryStore()
+        w0 = bkd.reshape(bkd.asarray([0.5, -0.2, 0.1, 0.1, 0.0, -0.2]), (-1, 1))
+        Integrator(stepper).solve(w0, FixedStep(0.05, (0.0, 5.0)), store)
+        mass, stiffness = bkd.asarray([1.0, 2.0, 1.5]), spring.stiffness()
+        energies = [
+            bkd.to_float(
+                0.5 * bkd.sum(mass * store.state(k)[_N:, 0] ** 2)
+                + 0.5
+                * bkd.sum(
+                    store.state(k)[:_N, 0] * bkd.dot(stiffness, store.state(k)[:_N, 0])
+                )
+            )
+            for k in range(store.ntimes())
+        ]
+        increases = [b - a for a, b in zip(energies, energies[1:])]
+        assert max(increases) <= 1e-14 * energies[0]
+        assert energies[-1] < 0.5 * energies[0]
