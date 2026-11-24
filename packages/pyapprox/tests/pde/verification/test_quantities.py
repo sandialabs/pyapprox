@@ -15,19 +15,21 @@ Without a closed form: :math:`\int_0^1\int_0^2 \sin(\sin x)\, y \,dy\,dx
 = 2 \times 0.4306061031206906` (the published value of
 :math:`\int_0^1 \sin(\sin x)\,dx`), by quadrature.
 
-Truths and studies against a fake stack with :math:`Q_h = Q + 3h^2`:
-the exact truth gives a fitted rate of 2; a reference refuses levels its
+Quantity columns against a fake stack with :math:`Q_h = Q + 3h^2`,
+recorded beside a field error from the same solves: the exact truth
+appends errors with a fitted rate of 2; a reference refuses levels its
 uncertainty does not resolve.
 
 Richardson on known sequences: :math:`Q + 3h^2` gives order 2 and limit
-:math:`Q` to roundoff at ratios 2 and 3; with a :math:`5h^3` term added
+:math:`Q` to roundoff at ratios 2 and 3, and :math:`Q + 3\,dt^2` order
+2 along the time step at a fixed mesh size; with a :math:`5h^3` term added
 the extrapolated limit is closer to :math:`Q` than the finest value and
 the GCI band covers the finest value's true error. Oscillatory,
 diverging and stopped sequences fail with their reason; a pre-asymptotic
 first level passes once dropped.
 """
 
-from typing import Callable, Dict, List, Sequence
+from typing import Callable, Dict, List, Mapping, Sequence, Tuple
 
 import pytest
 
@@ -35,7 +37,7 @@ from pyapprox.pde.verification.conditions import ConditionProtocol, Dirichlet
 from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.exact import exact_value
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.protocols import QuantityDiscretizerProtocol
+from pyapprox.pde.verification.protocols import DT, H, Sizes, SpaceLevel
 from pyapprox.pde.verification.quantities import (
     BoundaryFlux,
     Integral,
@@ -45,13 +47,16 @@ from pyapprox.pde.verification.quantities import (
 from pyapprox.pde.verification.study import (
     Converges,
     ExactValue,
+    Kind,
+    Measure,
+    Measurement,
     ObservedOrder,
-    QuantityStudy,
     ReferenceValue,
+    Study,
     extrapolate,
     fitted_rate,
-    run_quantity_study,
-    verify_quantity,
+    quantity_value,
+    run_study,
 )
 from pyapprox.pde.verification.terms import Divergence, TimeDerivative
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -194,83 +199,90 @@ class _Approximation:
     def __init__(self, h: float, value: float) -> None:
         self._h, self._value = h, value
 
-    def h(self) -> float:
-        return self._h
+    def error(self) -> float:
+        return 0.1 * self._h**2
 
     def quantity(self, quantity: QuantityProtocol) -> float:
         return self._value
 
 
 class _Fake:
-    """Values :math:`Q + 3h^2`, whatever the quantity."""
+    """Values :math:`Q + 3h^2`, whatever the quantity; counts its
+    solves."""
 
     def __init__(self, hs: Sequence[float], exact: float) -> None:
-        self._hs, self._exact = hs, exact
+        self._hs, self._exact, self._nsolves = list(hs), exact, 0
 
-    def approximations(self, problem: None) -> List[_Approximation]:
-        return [_Approximation(h, self._exact + 3.0 * h**2) for h in self._hs]
+    def requests(self, problem: None) -> List[SpaceLevel]:
+        return [SpaceLevel(i) for i in range(len(self._hs))]
+
+    def sizes(self, problem: None, request: SpaceLevel) -> Sizes:
+        return Sizes({H: self._hs[request.index]})
+
+    def solve(self, problem: None, request: SpaceLevel) -> _Approximation:
+        self._nsolves += 1
+        h = self._hs[request.index]
+        return _Approximation(h, self._exact + 3.0 * h**2)
+
+    def nsolves(self) -> int:
+        return self._nsolves
 
 
-class TestQuantityStudies:
-    def test_exact_truth_gives_the_rate(self, numpy_bkd: NumpyBkd) -> None:
-        """Values Q + 3h^2 against the exact Q have a fitted rate of 2."""
+_L2: Measure[_Approximation] = Measure("l2", lambda a: Measurement(a.error()))
+
+
+def _values(hs: Sequence[float], law: Callable[[float], float]) -> Study:
+    return Study.from_records(
+        [(Sizes({H: h}), {"Q": law(h)}) for h in hs], {"Q": Kind.VALUE}
+    )
+
+
+class TestQuantityColumns:
+    def test_one_solve_feeds_a_quantity_and_an_error(self, numpy_bkd: NumpyBkd) -> None:
+        """A quantity is a value column beside the field errors, from the
+        same solves; the exact truth appends its errors, rate 2, with
+        the exact value's magnitude as the norm."""
         fake = _Fake(_HALVING, 0.7)
-        assert isinstance(fake, QuantityDiscretizerProtocol)
-        study = run_quantity_study(None, fake, Integral("u"))
-        errors = ExactValue(0.7).errors(study)
-        _close(numpy_bkd, fitted_rate(errors), 2.0, 1e-10)
-        assert Converges(2.0).verify(errors).passed
+        study = run_study(None, fake, [_L2, quantity_value(Integral("u"))])
+        assert fake.nsolves() == len(_HALVING)
+        assert study.labels() == ("l2", "Integral('u')")
+        errors = ExactValue(0.7).errors(study, "Integral('u')")
+        assert errors.labels()[-1] == "Integral('u') error"
+        assert errors.norms("Integral('u') error") == (0.7,) * len(_HALVING)
+        rate = fitted_rate(errors, "Integral('u') error")
+        _close(numpy_bkd, rate, 2.0, 1e-10)
+        assert Converges(2.0, column="Integral('u') error").verify(errors).passed
+        assert Converges(2.0, column="l2").verify(errors).passed
 
     def test_reference_truth(self, numpy_bkd: NumpyBkd) -> None:
         """A reference resolves errors above its uncertainty and refuses
         the levels it cannot resolve."""
-        study = run_quantity_study(None, _Fake(_HALVING, 0.7), Integral("u"))
-        resolved = ReferenceValue(0.7 + 1e-6, uncertainty=2e-6).errors(study)
-        _close(numpy_bkd, fitted_rate(resolved), 2.0, 1e-3)
+        study = run_study(
+            None, _Fake(_HALVING, 0.7), [quantity_value(Integral("u"), "Q")]
+        )
+        resolved = ReferenceValue(0.7 + 1e-6, uncertainty=2e-6).errors(
+            study, label="error"
+        )
+        _close(numpy_bkd, fitted_rate(resolved, "error"), 2.0, 1e-3)
         with pytest.raises(ValueError, match="within the reference's uncertainty"):
             ReferenceValue(0.7, uncertainty=0.02).errors(study)
 
-    @pytest.mark.parametrize(
-        "h, values, match",
-        [
-            ((), (), "at least one"),
-            ((0.5, 0.25), (0.1,), "one value per mesh size"),
-            ((0.0,), (0.1,), "positive"),
-            ((0.5,), (float("inf"),), "finite"),
-        ],
-    )
-    def test_study_refusals(
-        self, h: tuple[float, ...], values: tuple[float, ...], match: str
-    ) -> None:
-        """A quantity study needs matching, positive sizes and finite
-        values."""
-        with pytest.raises(ValueError, match=match):
-            QuantityStudy(h, values)
-
     def test_truth_refusals(self) -> None:
-        """Truths need finite values and a positive, finite uncertainty."""
+        """Truths need finite values and a positive, finite uncertainty,
+        and read value columns only; a quantity must be one."""
         with pytest.raises(ValueError, match="finite"):
             ExactValue(float("nan"))
         with pytest.raises(ValueError, match="finite"):
             ReferenceValue(float("inf"), 1e-3)
         with pytest.raises(ValueError, match="positive"):
             ReferenceValue(0.5, 0.0)
-
-    def test_wrong_types(self) -> None:
-        """A discretizer, quantity or approximation of the wrong type is
-        refused."""
-        fake = _Fake(_HALVING, 0.7)
-        with pytest.raises(TypeError, match="QuantityDiscretizerProtocol"):
-            run_quantity_study(None, 3.0, Integral("u"))  # type: ignore[arg-type]
+        errors = Study.from_records([(Sizes({H: 0.5}), {"l2": 0.1})])
+        with pytest.raises(ValueError, match="holds errors, not values"):
+            ExactValue(0.5).errors(errors)
         with pytest.raises(TypeError, match="QuantityProtocol"):
-            run_quantity_study(None, fake, 3.0)  # type: ignore[arg-type]
-
-        class _Broken:
-            def approximations(self, problem: None) -> List[float]:
-                return [0.5]
-
-        with pytest.raises(TypeError, match="QuantityApproximationProtocol"):
-            run_quantity_study(None, _Broken(), Integral("u"))  # type: ignore[arg-type]
+            quantity_value(3.0)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="holds values, not errors"):
+            Converges(2.0).verify(_values(_HALVING, lambda h: h))
 
     def test_reprs(self) -> None:
         """Quantities and truths print what they are."""
@@ -281,26 +293,34 @@ class TestQuantityStudies:
         assert repr(ReferenceValue(0.5, 0.1)) == "ReferenceValue(0.5, uncertainty=0.1)"
 
 
-def _sequence(hs: Sequence[float], law: Callable[[float], float]) -> QuantityStudy:
-    return QuantityStudy(tuple(hs), tuple(law(h) for h in hs))
-
-
 class TestRichardson:
     @pytest.mark.parametrize("ratio", [2.0, 3.0])
     def test_exact_order_and_limit(self, numpy_bkd: NumpyBkd, ratio: float) -> None:
         """Q + 3h^2 gives order 2 and limit Q to roundoff, at a refinement
         ratio of 2 and of 3."""
         hs = [0.5 / ratio**k for k in range(4)]
-        estimate = extrapolate(_sequence(hs, lambda h: 0.7 + 3.0 * h**2))
+        estimate = extrapolate(_values(hs, lambda h: 0.7 + 3.0 * h**2))
         _close(numpy_bkd, estimate.order, 2.0, 1e-8)
         _close(numpy_bkd, estimate.limit, 0.7, 1e-13)
+
+    def test_along_another_axis(self, numpy_bkd: NumpyBkd) -> None:
+        """Q + 3 dt^2 along the time step, with a mesh size that does not
+        change, gives order 2 in dt; along h it is refused."""
+        records: List[Tuple[Sizes, Mapping[str, float]]] = [
+            (Sizes({H: 0.1, DT: dt}), {"Q": 0.7 + 3.0 * dt**2}) for dt in _HALVING
+        ]
+        study = Study.from_records(records, {"Q": Kind.VALUE})
+        _close(numpy_bkd, extrapolate(study, axis=DT).order, 2.0, 1e-8)
+        assert ObservedOrder(2.0, axis=DT).verify(study).passed
+        with pytest.raises(ValueError, match="constant refinement ratio"):
+            extrapolate(study)
 
     def test_limit_improves_and_band_covers(self, numpy_bkd: NumpyBkd) -> None:
         """With a higher-order term the limit beats the finest value and
         the GCI band covers the finest value's true error."""
-        study = _sequence(_HALVING, lambda h: 0.7 + 3.0 * h**2 + 5.0 * h**3)
+        study = _values(_HALVING, lambda h: 0.7 + 3.0 * h**2 + 5.0 * h**3)
         estimate = extrapolate(study)
-        finest_error = abs(study.values[-1] - 0.7)
+        finest_error = abs(study.values()[-1] - 0.7)
         # 1.4e-3 against 1.3e-2 at h = 1/16, where 5h^3 is still a tenth
         # of 3h^2.
         assert abs(estimate.limit - 0.7) < 0.2 * finest_error
@@ -309,14 +329,17 @@ class TestRichardson:
         _close(numpy_bkd, estimate.order, 2.0, 0.3)
 
     def test_observed_order_check(self, numpy_bkd: NumpyBkd) -> None:
-        """ObservedOrder passes order 2 and fails an expected order of 3,
-        reporting the observed order and the limit."""
-        fake = _Fake(_HALVING, 0.7)
-        result = verify_quantity(None, fake, Integral("u"), ObservedOrder(2.0))
+        """ObservedOrder on a quantity's column, beside an error column,
+        passes order 2 and fails an expected order of 3, reporting the
+        observed order and the limit."""
+        study = run_study(
+            None, _Fake(_HALVING, 0.7), [_L2, quantity_value(Integral("u"), "Q")]
+        )
+        result = ObservedOrder(2.0, column="Q").verify(study)
         assert result.passed and "limit 0.7" in result.message
         assert result.observed is not None
         _close(numpy_bkd, result.observed, 2.0, 1e-8)
-        assert not verify_quantity(None, fake, Integral("u"), ObservedOrder(3.0)).passed
+        assert not ObservedOrder(3.0, column="Q").verify(study).passed
 
     @pytest.mark.parametrize(
         "values, reason",
@@ -331,7 +354,7 @@ class TestRichardson:
     ) -> None:
         """Oscillatory, diverging and stopped sequences fail with their
         reason, not an order; extrapolate refuses them."""
-        study = QuantityStudy(_HALVING, values)
+        study = _values(_HALVING, dict(zip(_HALVING, values)).__getitem__)
         result = ObservedOrder(2.0).verify(study)
         assert not result.passed and reason in result.message
         assert result.observed is None
@@ -342,21 +365,24 @@ class TestRichardson:
         """A first level off the asymptotic range fails over all levels
         and passes once dropped with last=3."""
         values = (0.6, 0.7 + 3 * 0.25**2, 0.7 + 3 * 0.125**2, 0.7 + 3 * 0.0625**2)
-        study = QuantityStudy(_HALVING, values)
+        study = _values(_HALVING, dict(zip(_HALVING, values)).__getitem__)
         assert not ObservedOrder(2.0).verify(study).passed
         assert ObservedOrder(2.0, last=3).verify(study).passed
 
     def test_refusals(self) -> None:
-        """Too few levels, a ratio that is not constant, last below 3, and
-        a check of the wrong type are refused."""
+        """Too few levels, a ratio that is not constant, an error column,
+        and last below 3 are refused."""
         with pytest.raises(ValueError, match="three levels"):
-            extrapolate(QuantityStudy((0.5, 0.25), (1.0, 0.9)))
+            extrapolate(_values((0.5, 0.25), lambda h: h))
         with pytest.raises(ValueError, match="constant refinement ratio"):
-            extrapolate(QuantityStudy((0.5, 0.25, 0.1), (1.0, 0.8, 0.75)))
+            extrapolate(_values((0.5, 0.25, 0.1), lambda h: 1.0 + h))
+        with pytest.raises(ValueError, match="holds errors, not values"):
+            extrapolate(
+                Study.from_records([(Sizes({H: h}), {"l2": h}) for h in _HALVING])
+            )
         with pytest.raises(ValueError, match="three levels"):
             ObservedOrder(2.0, last=2)
-        with pytest.raises(TypeError, match="QuantityCheckProtocol"):
-            verify_quantity(None, _Fake(_HALVING, 0.7), Integral("u"), 3.0)  # type: ignore[arg-type]
-        assert (
-            repr(ObservedOrder(2.0)) == "ObservedOrder(order=2.0, atol=0.1, last=None)"
+        assert repr(ObservedOrder(2.0)) == (
+            "ObservedOrder(order=2.0, atol=0.1, last=None, axis=Axis(name='h'), "
+            "column=None)"
         )

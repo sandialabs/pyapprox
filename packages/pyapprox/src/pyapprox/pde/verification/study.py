@@ -30,14 +30,16 @@ stack declares):
 Numbers are plain floats: the stack integrated them. Check results hold
 only booleans, numbers and strings, so they serialize to JSON.
 
-A quantity study records a quantity of interest's value at each level
-(:class:`QuantityStudy`). A truth turns those values into a study of
-errors: :class:`ExactValue` (from the exact solution, e.g. by
+A quantity of interest is a measure like any other: :func:`quantity_value`
+records its value at each level in a value column, from the same solves
+as the error columns. A truth appends that column's errors to the study:
+:class:`ExactValue` (from the exact solution, e.g. by
 :func:`pyapprox.pde.verification.exact.exact_value`) or
 :class:`ReferenceValue` (a much finer solve or published data, with its
-own uncertainty). Without either, :func:`extrapolate` estimates the
-order and the limit from the values alone (Richardson), and
-:class:`ObservedOrder` judges that order.
+own uncertainty), after which every check above applies. Without either,
+:func:`extrapolate` estimates the order and the limit from the values
+alone along a shrinking axis (Richardson), and :class:`ObservedOrder`
+judges that order.
 """
 
 import math
@@ -63,8 +65,6 @@ from pyapprox.pde.verification.protocols import (
     Axis,
     DiscretizerProtocol,
     H,
-    QuantityApproximationProtocol,
-    QuantityDiscretizerProtocol,
     Sizes,
 )
 from pyapprox.pde.verification.quantities import QuantityProtocol
@@ -311,7 +311,15 @@ class Study:
         """The column labels, in order."""
         return tuple(column.label for column in self.columns)
 
-    def _find(self, label: Optional[str]) -> Column:
+    def find(self, label: Optional[str] = None) -> Column:
+        """Column ``label``; by default the only column.
+
+        Raises
+        ------
+        ValueError
+            If no label is given and there are several columns, or no
+            column has the label.
+        """
         if label is None:
             if len(self.columns) != 1:
                 raise ValueError(f"name one of the columns {list(self.labels())}")
@@ -330,7 +338,7 @@ class Study:
             If no label is given and there are several columns, or no
             column has the label.
         """
-        return self._find(label).values
+        return self.find(label).values
 
     def errors(self, label: Optional[str] = None) -> Tuple[float, ...]:
         """The errors in column ``label``; by default the only column.
@@ -340,13 +348,64 @@ class Study:
         ValueError
             As :meth:`column`, or if the column holds values.
         """
-        column = self._find(label)
+        column = self.find(label)
         if column.kind is not Kind.ERROR:
             raise ValueError(
                 f"column {column.label!r} holds values, not errors; turn it into "
                 "errors against a truth first"
             )
         return column.values
+
+    def values(self, label: Optional[str] = None) -> Tuple[float, ...]:
+        """The values in column ``label``; by default the only column.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`column`, or if the column holds errors.
+        """
+        column = self.find(label)
+        if column.kind is not Kind.VALUE:
+            raise ValueError(
+                f"column {column.label!r} holds errors, not values; Richardson "
+                "and the truths read a quantity's signed values"
+            )
+        return column.values
+
+    def with_column(self, column: Column) -> "Study":
+        """This study with ``column`` appended.
+
+        Raises
+        ------
+        ValueError
+            As the constructor (a duplicate label, a length mismatch).
+        """
+        return Study(self.sizes, self.columns + (column,))
+
+    def last(self, nlevels: Optional[int]) -> "Study":
+        """The finest ``nlevels`` levels (default all), every column.
+
+        Raises
+        ------
+        ValueError
+            If ``nlevels`` is not positive.
+        """
+        if nlevels is None:
+            return self
+        if nlevels < 1:
+            raise ValueError(f"keep at least one level, got {nlevels}")
+        return Study(
+            self.sizes[-nlevels:],
+            tuple(
+                Column(
+                    c.label,
+                    c.values[-nlevels:],
+                    c.kind,
+                    None if c.norms is None else c.norms[-nlevels:],
+                )
+                for c in self.columns
+            ),
+        )
 
     def norms(self, label: Optional[str] = None) -> Optional[Tuple[float, ...]]:
         """The truth's norm at each level of error column ``label``, or
@@ -358,55 +417,87 @@ class Study:
             As :meth:`errors`.
         """
         self.errors(label)
-        return self._find(label).norms
+        return self.find(label).norms
 
     def axis(self, axis: Axis) -> Tuple[float, ...]:
         """Each level's size along ``axis``."""
         return tuple(sizes.of(axis) for sizes in self.sizes)
 
 
-@dataclass(frozen=True)
-class QuantityStudy:
-    """Mesh sizes and a quantity's values, coarsest first.
+@runtime_checkable
+class QuantityReaderProtocol(Protocol):
+    """An approximation that evaluates a quantity of interest from its own
+    solution, with its own quadrature and geometry."""
+
+    def quantity(self, quantity: QuantityProtocol) -> float:
+        """The value of ``quantity``."""
+        ...
+
+
+def quantity_value(
+    quantity: QuantityProtocol, label: Optional[str] = None
+) -> Measure[QuantityReaderProtocol]:
+    """A value column of ``quantity`` at each level, read from any stack
+    whose approximations evaluate quantities. A truth
+    (:class:`ExactValue`, :class:`ReferenceValue`) turns it into errors;
+    :class:`ObservedOrder` judges it without one.
+
+    Parameters
+    ----------
+    quantity : QuantityProtocol
+        What to evaluate.
+    label : str, optional
+        The column. Default: ``repr(quantity)``.
 
     Raises
     ------
-    ValueError
-        If there are no levels, the lengths differ, a mesh size is not
-        positive, or a value is not finite.
+    TypeError
+        If ``quantity`` does not satisfy ``QuantityProtocol``.
     """
-
-    h: Tuple[float, ...]
-    values: Tuple[float, ...]
-
-    def __post_init__(self) -> None:
-        if not self.h or len(self.h) != len(self.values):
-            raise ValueError(
-                f"a study needs one value per mesh size, at least one; got "
-                f"{len(self.h)} sizes and {len(self.values)} values"
-            )
-        if any(not h > 0.0 for h in self.h):
-            raise ValueError(f"mesh sizes must be positive, got {self.h}")
-        if any(not math.isfinite(v) for v in self.values):
-            raise ValueError(f"values must be finite: {self.values}")
-
-
-def _error_study(h: Tuple[float, ...], errors: Tuple[float, ...]) -> Study:
-    """A quantity's errors against mesh sizes, in column ``"error"``."""
-    return Study(tuple(Sizes({H: v}) for v in h), (Column("error", errors),))
+    if not isinstance(quantity, QuantityProtocol):
+        raise TypeError(
+            f"quantity must satisfy QuantityProtocol, got {type(quantity).__name__}"
+        )
+    return Measure(
+        label or repr(quantity),
+        lambda approximation: Measurement(approximation.quantity(quantity)),
+        Kind.VALUE,
+    )
 
 
 @runtime_checkable
 class TruthProtocol(Protocol):
-    """What a quantity's values are compared with."""
+    """What a value column is compared with."""
 
-    def errors(self, study: QuantityStudy) -> Study:
-        """The error of each level's value."""
+    def errors(
+        self, study: Study, column: Optional[str] = None, label: Optional[str] = None
+    ) -> Study:
+        """``study`` with an error column: the distance of each value in
+        ``column`` to the truth."""
         ...
 
 
+def _with_errors(
+    study: Study,
+    column: Optional[str],
+    label: Optional[str],
+    errors: Sequence[float],
+    norm: float,
+) -> Study:
+    source = study.find(column).label
+    return study.with_column(
+        Column(
+            label or f"{source} error",
+            tuple(errors),
+            Kind.ERROR,
+            (abs(norm),) * len(errors),
+        )
+    )
+
+
 class ExactValue:
-    """The quantity's exact value; errors are distances to it.
+    """The quantity's exact value; errors are distances to it, beside its
+    magnitude as the norm, so :class:`Recovers` can be relative.
 
     Parameters
     ----------
@@ -424,9 +515,22 @@ class ExactValue:
             raise ValueError(f"an exact value must be finite, got {value}")
         self._value = value
 
-    def errors(self, study: QuantityStudy) -> Study:
-        """:math:`|Q_h - Q|` at each level, in column ``"error"``."""
-        return _error_study(study.h, tuple(abs(v - self._value) for v in study.values))
+    def errors(
+        self, study: Study, column: Optional[str] = None, label: Optional[str] = None
+    ) -> Study:
+        """``study`` with :math:`|Q_h - Q|` of value column ``column``
+        (default the only column) appended, labeled ``label`` (default
+        ``"<column> error"``).
+
+        Raises
+        ------
+        ValueError
+            If the column holds errors (and as :meth:`Study.with_column`).
+        """
+        values = study.values(column)
+        return _with_errors(
+            study, column, label, [abs(v - self._value) for v in values], self._value
+        )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._value!r})"
@@ -460,16 +564,20 @@ class ReferenceValue:
             )
         self._value, self._uncertainty = value, uncertainty
 
-    def errors(self, study: QuantityStudy) -> Study:
-        r""":math:`|Q_h - Q_{\mathrm{ref}}|` at each level, in column
-        ``"error"``.
+    def errors(
+        self, study: Study, column: Optional[str] = None, label: Optional[str] = None
+    ) -> Study:
+        r"""``study`` with :math:`|Q_h - Q_{\mathrm{ref}}|` of value column
+        ``column`` (default the only column) appended, labeled ``label``
+        (default ``"<column> error"``).
 
         Raises
         ------
         ValueError
-            If an error is not above the reference's uncertainty.
+            If an error is not above the reference's uncertainty, or the
+            column holds errors (and as :meth:`Study.with_column`).
         """
-        errors = tuple(abs(v - self._value) for v in study.values)
+        errors = [abs(v - self._value) for v in study.values(column)]
         unresolved = [e for e in errors if e <= self._uncertainty]
         if unresolved:
             raise ValueError(
@@ -477,7 +585,7 @@ class ReferenceValue:
                 f"{self._uncertainty:.3e}; drop those levels or use a finer "
                 "reference"
             )
-        return _error_study(study.h, errors)
+        return _with_errors(study, column, label, errors, self._value)
 
     def __repr__(self) -> str:
         return (
@@ -896,41 +1004,6 @@ def verify(
     return check.verify(run_study(problem, discretizer, [measure], requests))
 
 
-def run_quantity_study(
-    problem: P,
-    discretizer: QuantityDiscretizerProtocol[P],
-    quantity: QuantityProtocol,
-) -> QuantityStudy:
-    """Solve ``problem`` at every level of ``discretizer`` and record
-    ``quantity``'s value.
-
-    Raises
-    ------
-    TypeError
-        If ``discretizer``, ``quantity`` or an approximation is of the
-        wrong type.
-    """
-    if not isinstance(discretizer, QuantityDiscretizerProtocol):
-        raise TypeError(
-            "discretizer must satisfy QuantityDiscretizerProtocol, got "
-            f"{type(discretizer).__name__}"
-        )
-    if not isinstance(quantity, QuantityProtocol):
-        raise TypeError(
-            f"quantity must satisfy QuantityProtocol, got {type(quantity).__name__}"
-        )
-    hs, values = [], []
-    for approximation in discretizer.approximations(problem):
-        if not isinstance(approximation, QuantityApproximationProtocol):
-            raise TypeError(
-                "each approximation must satisfy QuantityApproximationProtocol, "
-                f"got {type(approximation).__name__}"
-            )
-        hs.append(approximation.h())
-        values.append(approximation.quantity(quantity))
-    return QuantityStudy(tuple(hs), tuple(values))
-
-
 _RATIO_RTOL = 1e-6
 
 
@@ -967,38 +1040,52 @@ def _asymptotic_failure(values: Tuple[float, ...]) -> Optional[str]:
     return None
 
 
-def extrapolate(study: QuantityStudy, safety: float = 1.25) -> Extrapolation:
-    r"""Richardson extrapolation from the three finest levels.
+def extrapolate(
+    study: Study,
+    column: Optional[str] = None,
+    axis: Axis = H,
+    safety: float = 1.25,
+) -> Extrapolation:
+    r"""Richardson extrapolation of value column ``column`` from the three
+    finest levels.
 
-    With a constant refinement ratio :math:`r = h_1/h_2 = h_2/h_3` and
-    values :math:`Q_1, Q_2, Q_3` (finest last), :math:`p = \log((Q_2 -
-    Q_1)/(Q_3 - Q_2))/\log r` and :math:`Q^* = Q_3 + (Q_3 - Q_2)/(r^p -
-    1)`.
+    With a constant refinement ratio :math:`r = s_1/s_2 = s_2/s_3` of the
+    sizes along ``axis`` and values :math:`Q_1, Q_2, Q_3` (finest last),
+    :math:`p = \log((Q_2 - Q_1)/(Q_3 - Q_2))/\log r` and :math:`Q^* = Q_3 +
+    (Q_3 - Q_2)/(r^p - 1)`. The axis must shrink with refinement (a mesh
+    size or a time step), so the order is per unit of its logarithm.
 
     Parameters
     ----------
-    study : QuantityStudy
+    study : Study
         At least three levels.
+    column : str, optional
+        A value column; default the study's only column.
+    axis : Axis
+        The sizes. Default: the mesh size.
     safety : float
         Roache's factor of safety :math:`F_s`; 1.25 for three levels.
 
     Raises
     ------
     ValueError
-        If there are fewer than three levels, the ratio of the finest
-        three is not constant or not above one, or their differences are
-        not in the asymptotic range (zero, oscillatory or not shrinking).
+        If there are fewer than three levels, the column holds errors, the
+        ratio of the finest three sizes is not constant or not above one,
+        or their differences are not in the asymptotic range (zero,
+        oscillatory or not shrinking).
     """
-    if len(study.h) < 3:
-        raise ValueError(f"extrapolation needs three levels, got {len(study.h)}")
-    h1, h2, h3 = study.h[-3:]
-    r = h1 / h2
-    if not r > 1.0 or abs(h2 / h3 - r) > _RATIO_RTOL * r:
+    values, sizes = study.values(column), study.axis(axis)
+    if len(values) < 3:
+        raise ValueError(f"extrapolation needs three levels, got {len(values)}")
+    s1, s2, s3 = sizes[-3:]
+    r = s1 / s2
+    if not r > 1.0 or abs(s2 / s3 - r) > _RATIO_RTOL * r:
         raise ValueError(
             f"extrapolation needs a constant refinement ratio above one; the "
-            f"finest mesh sizes {(h1, h2, h3)} give {h1 / h2} and {h2 / h3}"
+            f"finest sizes along {axis.name} {(s1, s2, s3)} give {s1 / s2} and "
+            f"{s2 / s3}"
         )
-    finest = study.values[-3:]
+    finest = values[-3:]
     failure = _asymptotic_failure(finest)
     if failure is not None:
         raise ValueError(f"cannot extrapolate: {failure}")
@@ -1009,17 +1096,9 @@ def extrapolate(study: QuantityStudy, safety: float = 1.25) -> Extrapolation:
     return Extrapolation(order, limit, safety * abs(q3 - q2) / (growth - 1.0))
 
 
-@runtime_checkable
-class QuantityCheckProtocol(Protocol):
-    """Judges a quantity study."""
-
-    def verify(self, study: QuantityStudy) -> CheckResult:
-        """The verdict on ``study``."""
-        ...
-
-
 class ObservedOrder:
-    """Richardson's observed order is at least ``order - atol``.
+    """Richardson's observed order of a value column is at least ``order -
+    atol``: a check without a truth.
 
     First confirms the asymptotic range: over the levels used, successive
     differences keep one sign and shrink. An oscillatory or diverging
@@ -1034,63 +1113,57 @@ class ObservedOrder:
     last : int, optional
         Use only the finest ``last`` levels (at least three), past a
         pre-asymptotic start.
+    axis : Axis
+        The sizes, shrinking with refinement. Default: the mesh size.
+    column : str, optional
+        The value column judged; default the study's only column.
+
+    Raises
+    ------
+    ValueError
+        If ``last`` is below three.
     """
 
     def __init__(
-        self, order: float, atol: float = 0.1, last: Optional[int] = None
+        self,
+        order: float,
+        atol: float = 0.1,
+        last: Optional[int] = None,
+        axis: Axis = H,
+        column: Optional[str] = None,
     ) -> None:
         if last is not None and last < 3:
             raise ValueError(f"an observed order needs three levels, got last={last}")
         self._order, self._atol, self._last = order, atol, last
+        self._axis, self._column = axis, column
 
-    def verify(self, study: QuantityStudy) -> CheckResult:
+    def verify(self, study: Study) -> CheckResult:
         """Pass if the sequence is asymptotic and its order reaches
         ``order - atol``; the message gives the limit and the GCI band.
 
         Raises
         ------
         ValueError
-            As :func:`extrapolate`, for too few levels or a ratio that is
-            not constant.
+            As :func:`extrapolate`, for too few levels, an error column or
+            a ratio that is not constant.
         """
-        if self._last is not None:
-            study = QuantityStudy(study.h[-self._last :], study.values[-self._last :])
-        failure = _asymptotic_failure(study.values)
-        if failure is not None and len(study.values) >= 3:
+        study = study.last(self._last)
+        values = study.values(self._column)
+        failure = _asymptotic_failure(values)
+        if failure is not None and len(values) >= 3:
             return CheckResult(False, None, failure)
-        estimate = extrapolate(study)
+        estimate = extrapolate(study, self._column, self._axis)
         passed = estimate.order >= self._order - self._atol
         return CheckResult(
             passed,
             estimate.order,
-            f"observed order {estimate.order:.3f}, expected at least "
-            f"{self._order - self._atol:.3f}; limit {estimate.limit:.12g} "
-            f"(GCI band {estimate.gci:.3e}); values {study.values}",
+            f"observed order {estimate.order:.3f} in {self._axis.name}, expected "
+            f"at least {self._order - self._atol:.3f}; limit "
+            f"{estimate.limit:.12g} (GCI band {estimate.gci:.3e}); values {values}",
         )
 
     def __repr__(self) -> str:
         return (
             f"{type(self).__name__}(order={self._order}, atol={self._atol}, "
-            f"last={self._last})"
+            f"last={self._last}, axis={self._axis!r}, column={self._column!r})"
         )
-
-
-def verify_quantity(
-    problem: P,
-    discretizer: QuantityDiscretizerProtocol[P],
-    quantity: QuantityProtocol,
-    check: QuantityCheckProtocol,
-) -> CheckResult:
-    """Run the quantity study and judge it with ``check``.
-
-    Raises
-    ------
-    TypeError
-        If ``check`` is of the wrong type (and as
-        :func:`run_quantity_study`).
-    """
-    if not isinstance(check, QuantityCheckProtocol):
-        raise TypeError(
-            f"check must satisfy QuantityCheckProtocol, got {type(check).__name__}"
-        )
-    return check.verify(run_quantity_study(problem, discretizer, quantity))

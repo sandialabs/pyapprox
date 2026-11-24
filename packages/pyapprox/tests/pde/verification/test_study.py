@@ -52,7 +52,6 @@ from pyapprox.pde.verification.study import (
     Measurement,
     MeasureProtocol,
     ObservedOrder,
-    QuantityStudy,
     Recovers,
     Stalls,
     Study,
@@ -468,7 +467,13 @@ def test_check_results_are_strict_json() -> None:
         [(Sizes({DEGREE: p}), {"l2": math.exp(-p)}) for p in (2, 4, 6)]
     )
     zero = _study(_HALVING[:2], (0.1, 0.0))
-    oscillating = QuantityStudy(_HALVING[:4], (1.0, 0.5, 0.75, 0.6))
+    oscillating = Study.from_records(
+        [
+            (Sizes({H: h}), {"Q": q})
+            for h, q in zip(_HALVING[:4], (1.0, 0.5, 0.75, 0.6))
+        ],
+        {"Q": Kind.VALUE},
+    )
     results: List[CheckResult] = [
         Converges(2.0).verify(halving),
         Converges(3.0).verify(halving),
