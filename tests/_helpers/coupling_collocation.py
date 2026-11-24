@@ -129,6 +129,10 @@ from tests._helpers.physics_test_utils import solve_steady_dirichlet
 
 STEADY = TimeWindow.steady()
 ATOL = 1e-11
+# The subdomain solves' tolerance: re-solving a subdomain can move its
+# flux by about this much, so a balance recomputed at a solved skeleton
+# is bounded by it, not by the skeleton's ATOL.
+SUBDOMAIN_ATOL = 1e-10
 
 # Exact solutions, in the verification core's expression syntax.
 CUBIC = "1 + x - 2*x**2 + x**3 + x*y + y**3/2"
@@ -540,7 +544,7 @@ def box_response(
         # The pointwise residual's roundoff floor grows like D n^4 eps |u|
         # (5.6e-12 for two species at 12 nodes); a linear subproblem
         # reaches it in one step, so the tolerance only stays above it.
-        Newton(atol=1e-10, rtol=0.0, maxiters=30),
+        Newton(atol=SUBDOMAIN_ATOL, rtol=0.0, maxiters=30),
     )
 
 

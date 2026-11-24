@@ -18,7 +18,11 @@ nodal interpolant against the side's Lagrange polynomials, exactly.
   [n, n + 2, n + 1], skeleton n: errors 5.5e-5, 2.4e-7, 6.3e-10,
   1.2e-12 for n = 6, 8, 10, 12, asserted as each below a hundredth of the
   last and the finest below 1e-10.
-- The interface fluxes balance at the coupled solution.
+- The interface fluxes balance at the coupled solution, recomputed there
+  by a fresh residual, to the subdomain solves' tolerance (1e-10): each
+  re-solve stops at its own tolerance, looser than the skeleton's, so the
+  skeleton's 1e-11 is no bound on the recomputed balance (2.1e-11 on
+  Linux CI).
 """
 
 import pytest
@@ -28,9 +32,9 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
-    ATOL,
     CUBIC,
     SMOOTH,
+    SUBDOMAIN_ATOL,
     Adr,
     Coefficients,
     CoupledCollocation,
@@ -76,4 +80,4 @@ def test_the_interface_fluxes_balance(bkd: Backend[Array]) -> None:
     lam = problem.solve_skeleton()
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
-    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < ATOL
+    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < SUBDOMAIN_ATOL
