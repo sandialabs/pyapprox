@@ -1445,6 +1445,13 @@ class StageValuesProtocol(Protocol[V]):
         then the unknown's stage blocks."""
         ...
 
+    def stage_values_transpose(
+        self, window: StepWindow[V], cotangents: Sequence[V]
+    ) -> tuple[BlockVector[V], V]:
+        """The transpose of :meth:`stage_values`: for one cotangent per
+        stage, the unknown's cotangent and the stored state's."""
+        ...
+
 
 class StageQuadratureTrace(Generic[V, A]):
     r"""The state on the port rows tested in time, :math:`\int \psi_k(s)\,
@@ -1576,8 +1583,43 @@ class StageQuadratureTrace(Generic[V, A]):
     def trajectory_adjoint(
         self, trial: InMemoryTrajectoryStore[V]
     ) -> Optional[TrajectoryAdjoint[A, V]]:
-        """Not supplied: :class:`StageValuesProtocol` gives no transpose."""
-        return None
+        """Supplied for any trial with steps: each stage's cotangent is the
+        cotangent's test-function entries weighted as :meth:`output`
+        weights them, put on the port rows, and the stepper's
+        ``stage_values_transpose`` carries them to the step's unknown and
+        to the state it starts from (the committed one, for the first
+        step, does not change)."""
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        if not windows:
+            return None
+        bkd, tableau, take_t = self._bkd, self._tableau, self._ports.add_to
+        stepper, space, test = self._stepper, self._space, self._test
+        origin = windows[0].time()
+        length = windows[-1].time() + windows[-1].deltat() - origin
+        ntests = test.count()
+
+        def adjoint(cotangent: A) -> tuple[list[BlockVector[V]], list[V]]:
+            per_test = bkd.reshape(cotangent, (-1, ntests))
+            unknowns: list[BlockVector[V]] = []
+            states = [space.zeros(1) for _ in windows]
+            for m, window in enumerate(windows):
+                deltat = window.deltat()
+                stages = []
+                for j in range(tableau.nstages()):
+                    time = window.time() + tableau.c[j] * deltat
+                    weight = deltat * tableau.b[j]
+                    values = test.values((time - origin) / length)
+                    total = bkd.zeros_like(per_test[:, 0:1])
+                    for k, psi in enumerate(values):
+                        total = total + (weight * psi) * per_test[:, k : k + 1]
+                    stages.append(take_t(space.zeros(1), total))
+                unknown, start = stepper.stage_values_transpose(window, stages)
+                unknowns.append(unknown)
+                if m >= 1:
+                    states[m - 1] = space.axpby(1.0, start, 1.0, states[m - 1])
+            return unknowns, states
+
+        return adjoint
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(test={self._test!r})"

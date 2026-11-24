@@ -27,8 +27,10 @@ stepper checker at its converged step (forward-difference errors below
 1e-6, dot tests and handle errors below 1e-12).
 """
 
+from dataclasses import replace
 from typing import Callable
 
+import numpy as np
 import pytest
 
 from pyapprox.ode.mass_form_system import dense_mass_form_system
@@ -136,6 +138,44 @@ class TestStepMap:
             transposed.apply(readout.apply_transpose(BlockVector((eye,))))
         )
         bkd.assert_allclose(-adjoint.blocks[0], phi.T, rtol=1e-11, atol=1e-13)
+
+
+class TestStageValues:
+    @pytest.mark.parametrize("make", _TABLEAU_MAKERS, ids=TABLEAU_IDS)
+    def test_transpose_is_the_adjoint(
+        self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
+    ) -> None:
+        """sum_j <c_j, Y_j(u, y)> = <u_bar, u> + <y_bar, y> on random
+        two-column blocks: stage_values is linear in the unknown and the
+        stored state, and stage_values_transpose is its transpose; it
+        refuses a wrong number of cotangents."""
+        tableau = make()
+        stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
+        state = bkd.asarray([[1.0], [-0.5], [2.0]])
+        span = StepSpan.first(0.3, 0.1)
+        window = StepWindow(span, (state,), stepper.step((state,), span))
+        nblocks = stepper.unknown_space().nblocks()
+        generator = np.random.default_rng(3)
+
+        def block() -> Array:
+            return bkd.asarray(generator.normal(size=(3, 2)))
+
+        unknown = BlockVector(tuple(block() for _ in range(nblocks)))
+        start = block()
+        stages = stepper.stage_values(
+            replace(window, past_states=(start,), unknown=unknown)
+        )
+        cotangents = [block() for _ in range(tableau.nstages())]
+        forward = sum(bkd.to_float(bkd.sum(c * y)) for c, y in zip(cotangents, stages))
+        unknown_bar, start_bar = stepper.stage_values_transpose(window, cotangents)
+        backward = bkd.to_float(bkd.sum(start_bar * start)) + sum(
+            bkd.to_float(bkd.sum(b * u))
+            for b, u in zip(unknown_bar.blocks, unknown.blocks)
+        )
+        assert abs(forward) > 1e-3
+        assert abs(backward - forward) <= 1e-12 * abs(forward)
+        with pytest.raises(ValueError):
+            stepper.stage_values_transpose(window, cotangents[:-1])
 
 
 class TestCheckerPasses:

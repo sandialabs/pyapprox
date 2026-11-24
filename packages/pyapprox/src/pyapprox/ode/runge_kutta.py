@@ -801,6 +801,35 @@ class RungeKuttaStepper(Generic[V, A, F]):
         stages += list(window.unknown.blocks[: len(self._unknown_stages)])
         return stages
 
+    def stage_values_transpose(
+        self, window: StepWindow[V], cotangents: Sequence[V]
+    ) -> tuple[BlockVector[V], V]:
+        """The transpose of :meth:`stage_values` at ``window``, which is
+        linear in the unknown and :math:`y_n`: for one cotangent per stage
+        (blocks of columns alike), the unknown's cotangent and
+        :math:`y_n`'s. The final block, which no stage value reads, gets
+        zero.
+
+        Raises
+        ------
+        ValueError
+            If there is not one cotangent per stage.
+        """
+        nstages = self._tableau.nstages()
+        if len(cotangents) != nstages:
+            raise ValueError(
+                f"stage_values_transpose needs {nstages} cotangents, got "
+                f"{len(cotangents)}"
+            )
+        space = self._system.space
+        zero = space.scale(0.0, cotangents[0])
+        first = nstages - len(self._unknown_stages)
+        blocks = [space.copy(cotangent) for cotangent in cotangents[first:]]
+        if self._final_block:
+            blocks.append(zero)
+        start = space.copy(cotangents[0]) if first == 1 else space.copy(zero)
+        return BlockVector(tuple(blocks)), start
+
     def step_residual(self, window: StepWindow[V]) -> BlockVector[V]:
         r""":math:`R_n` at the window's unknown and past state, at the
         current parameters (see the module docstring)."""

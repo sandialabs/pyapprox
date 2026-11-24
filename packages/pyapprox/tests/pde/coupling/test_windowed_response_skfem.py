@@ -586,16 +586,21 @@ def test_spacetime_jvp_trace_matches_finite_differences(
 
 
 def _loaded(
-    strip: _Strip, init: Np, initial: Np, test: Any = None, nsubsteps: int = 2
+    strip: _Strip,
+    init: Np,
+    initial: Np,
+    test: Any = None,
+    nsubsteps: int = 2,
+    tableau: Callable[[], ButcherTableau] = alexander_sdirk3,
 ) -> tuple[WindowedResponse[Np, Np], list[int], list[int]]:
-    """Subdomain 0 as a port-loaded response through cG(2), SDIRK3, its
-    reference rows and port DOFs."""
+    """Subdomain 0 as a port-loaded response through cG(2), stepped by
+    ``tableau``, its reference rows and port DOFs."""
     system, nodes, ports, _ = strip.problem.port_system(0)
     rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
     response = skfem_spacetime_loaded_response(
         system,
         ports,
-        _method(alexander_sdirk3),
+        _method(tableau),
         RecomputeAlways(ScipySparseLU()),
         init[rows],
         InMemoryTrajectoryStore(),
@@ -629,16 +634,21 @@ def test_a_held_steady_load_keeps_the_steady_state() -> None:
     _BKD.assert_allclose(point.output(), want, rtol=1e-9, atol=1e-13)
 
 
-def test_loaded_jvp_trace_matches_finite_differences() -> None:
-    """cG(2), SDIRK3 in two substeps, a load near the steady one: the
-    tangent of the tested trace in the load passes the derivative
-    checker."""
+@pytest.mark.parametrize("tableau", [alexander_sdirk3, esdirk3_5l2sa])
+def test_loaded_jvp_trace_matches_finite_differences(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """cG(2) in two substeps, a load near the steady one: the tangent of
+    the tested trace in the load passes the derivative checker, for SDIRK3
+    and ESDIRK."""
     strip = _Strip()
     steady, _ = strip.problem.single_domain()
     piece, _, _ = strip.problem.piece(0)
     half = strip.half(0, init=steady)
     reaction = piece.linearize(steady[half.rows][half.ports], _NONE, STEADY).output()
-    response, _, ports = _loaded(strip, strip.reference.state(0), reaction)
+    response, _, ports = _loaded(
+        strip, strip.reference.state(0), reaction, tableau=tableau
+    )
     n = response.nport()
     assert n == 2 * len(ports)
     window = TimeWindow(0.0, _DT)
@@ -662,6 +672,27 @@ def test_loaded_jvp_trace_matches_finite_differences() -> None:
         np.repeat(1.2 * reaction, 2, axis=0), relative=True, central=True
     )[0]
     assert _BKD.to_float(_BKD.min(errors)) <= 1e-6
+
+
+@pytest.mark.parametrize("tableau", [alexander_sdirk3, esdirk3_5l2sa])
+def test_loaded_vjp_trace_transposes_jvp_trace(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """The tested trace of a port-loaded response, cG(2) in two substeps:
+    the stage values transposed by the stepper, for a method without and
+    with a trivial first stage (whose second step's first stage is the
+    changing start state)."""
+    strip = _Strip()
+    steady, _ = strip.problem.single_domain()
+    piece, _, _ = strip.problem.piece(0)
+    half = strip.half(0, init=steady)
+    reaction = piece.linearize(steady[half.rows][half.ports], _NONE, STEADY).output()
+    response, _, _ = _loaded(strip, strip.reference.state(0), reaction, tableau=tableau)
+    n = response.nport()
+    point = response.linearize(
+        np.repeat(1.2 * reaction, 2, axis=0), _NONE, TimeWindow(0.0, _DT)
+    )
+    _assert_transposes(point.derivatives(), n, n)
 
 
 def test_spacetime_refusals() -> None:
