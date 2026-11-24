@@ -1,24 +1,27 @@
 """Tests for BoundarySignal: declared time dependence, derivatives by order."""
 
 import pickle
-from typing import Any
+from typing import Any, Generic
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from pyapprox.pde.boundary import BoundarySignal
+from pyapprox.pde.boundary import BoundarySignal, DofSignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.precision import Precision
+from pyapprox.util.backends.protocols import Array, Backend
 
 _COORDS = np.array([[0.0, 0.5, 1.0], [1.0, 2.0, 3.0]])
 
 
 def _steady(x: NDArray[Any]) -> NDArray[Any]:
-    return x[0] + x[1]
+    value: NDArray[Any] = x[0] + x[1]
+    return value
 
 
 def _steady_vector(x: NDArray[Any]) -> NDArray[Any]:
@@ -26,26 +29,43 @@ def _steady_vector(x: NDArray[Any]) -> NDArray[Any]:
 
 
 def _cubic(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return x[0] * t**3
+    value: NDArray[Any] = x[0] * t**3
+    return value
 
 
 def _cubic_dot(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return 3.0 * x[0] * t**2
+    value: NDArray[Any] = 3.0 * x[0] * t**2
+    return value
 
 
 def _cubic_ddot(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return 6.0 * x[0] * t
+    value: NDArray[Any] = 6.0 * x[0] * t
+    return value
+
+
+def _sum(x: Array) -> Array:
+    """:func:`_steady` on any backend's arrays."""
+    return x[0] + x[1]
+
+
+class _Steady(Generic[Array]):
+    """A time-independent DOF signal's values, one per DOF."""
+
+    def __init__(self, values: Array) -> None:
+        self._values = values
+
+    def __call__(self, time: float) -> Array:
+        return self._values
+
+    def is_time_dependent(self) -> bool:
+        return False
 
 
 class TestBoundarySignal:
-    def test_constant_has_exact_zero_derivatives(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_constant_has_exact_zero_derivatives(self, numpy_bkd: NumpyBkd) -> None:
         signal = BoundarySignal(2.5)
         assert not signal.is_time_dependent()
-        numpy_bkd.assert_allclose(
-            signal.values()(_COORDS, 0.3), np.full(3, 2.5)
-        )
+        numpy_bkd.assert_allclose(signal.values()(_COORDS, 0.3), np.full(3, 2.5))
         for order in (1, 2, 5):
             derivative = signal.time_derivative(order)
             assert derivative is not None
@@ -60,12 +80,8 @@ class TestBoundarySignal:
         assert derivative is not None
         numpy_bkd.assert_allclose(derivative(_COORDS, 1.0), np.zeros(3))
 
-    def test_vector_zero_derivative_matches_shape(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
-        derivative = BoundarySignal(
-            TimeIndependent(_steady_vector)
-        ).time_derivative(2)
+    def test_vector_zero_derivative_matches_shape(self, numpy_bkd: NumpyBkd) -> None:
+        derivative = BoundarySignal(TimeIndependent(_steady_vector)).time_derivative(2)
         assert derivative is not None
         numpy_bkd.assert_allclose(derivative(_COORDS, 1.0), np.zeros((2, 3)))
 
@@ -79,9 +95,7 @@ class TestBoundarySignal:
 
     def test_derivatives_of_time_independent_values_raise(self) -> None:
         with pytest.raises(ValueError, match="time-independent"):
-            BoundarySignal(
-                TimeIndependent(_steady), [TimeDependent(_cubic_dot)]
-            )
+            BoundarySignal(TimeIndependent(_steady), [TimeDependent(_cubic_dot)])
 
     def test_orders_by_index_and_missing_order_is_none(
         self, numpy_bkd: NumpyBkd
@@ -128,3 +142,46 @@ class TestBoundarySignal:
         numpy_bkd.assert_allclose(
             restored_derivative(_COORDS, 0.4), derivative(_COORDS, 0.4)
         )
+
+
+class TestArrayType:
+    """What a signal makes itself (a constant's values, a time-independent
+    signal's zero derivatives) has the array type and dtype of the arrays
+    it is given, on either backend and in single precision."""
+
+    def _same_kind(self, actual: Array, given: Array) -> None:
+        assert type(actual) is type(given)
+        assert actual.dtype == given.dtype
+
+    def test_constant_and_zero_derivatives(self, bkd: Backend[Array]) -> None:
+        coords = bkd.asarray(_COORDS)
+        constant = BoundarySignal[Array](2.5)
+        values = constant.values()(coords, 0.3)
+        self._same_kind(values, coords)
+        bkd.assert_allclose(values, bkd.full((3,), 2.5))
+        steady = BoundarySignal[Array](TimeIndependent[Array](_sum))
+        for signal in (constant, steady):
+            derivative = signal.time_derivative(2)
+            assert derivative is not None
+            zero = derivative(coords, 0.3)
+            self._same_kind(zero, coords)
+            bkd.assert_allclose(zero, bkd.zeros((3,)))
+
+    def test_dof_zero_derivative(self, bkd: Backend[Array]) -> None:
+        values = bkd.asarray([1.0, -2.0, 3.0])
+        derivative = DofSignal(_Steady(values)).time_derivative(1)
+        assert derivative is not None
+        zero = derivative(0.5)
+        self._same_kind(zero, values)
+        bkd.assert_allclose(zero, bkd.zeros((3,)))
+
+    def test_single_precision(self) -> None:
+        single = NumpyBkd(precision=Precision.SINGLE)
+        # Python data takes the working dtype; a float64 array keeps its own.
+        coords = single.asarray(_COORDS.tolist())
+        assert coords.dtype == np.float32
+        signal: BoundarySignal[NDArray[Any]] = BoundarySignal(TimeIndependent(_steady))
+        derivative = signal.time_derivative(1)
+        assert derivative is not None
+        self._same_kind(derivative(coords, 0.0), coords)
+        self._same_kind(BoundarySignal(1.0).values()(coords, 0.0), coords)

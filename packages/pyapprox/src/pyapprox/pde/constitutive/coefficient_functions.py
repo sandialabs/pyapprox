@@ -192,7 +192,7 @@ class TimeDependent(Generic[_T]):
         return f"TimeDependent({self._func!r})"
 
 
-def _accepts_a_time_argument(func: Callable[..., _Quad]) -> bool:
+def _accepts_a_time_argument(func: Callable[..., object]) -> bool:
     """Whether ``func`` could be called with a second positional value.
 
     Used ONCE per construction to reject an ambiguous supplier --- never
@@ -216,8 +216,9 @@ def _accepts_a_time_argument(func: Callable[..., _Quad]) -> bool:
     return npositional >= 2
 
 
-def as_time_aware(func: Callable[..., _Quad]) -> TimeAwareCallableProtocol:
-    """Normalize a supplier to the ``f(coords, time)`` call convention.
+def as_time_aware(func: Callable[..., _T]) -> TimeAwareCallableProtocol[_T]:
+    """Normalize a supplier to the ``f(coords, time)`` call convention, in
+    the array type it maps.
 
     A supplier is exactly one of two things, and the rule that keeps
     that total is: ANY callable that takes a time must say which it is.
@@ -407,9 +408,7 @@ class BasisEvaluableFieldProtocol(Protocol):
     the argument and ignore it.
     """
 
-    def values_on_basis(
-        self, skfem_basis: "Basis", time: float = 0.0
-    ) -> _Quad:
+    def values_on_basis(self, skfem_basis: "Basis", time: float = 0.0) -> _Quad:
         """Evaluate at ``skfem_basis``'s quadrature points.
 
         Parameters
@@ -490,8 +489,7 @@ class NodalFieldDiffusion:
         dofs_np = np.asarray(dofs, dtype=np.float64)
         if dofs_np.shape != (self._basis.ndofs(),):
             raise ValueError(
-                f"dofs must have shape ({self._basis.ndofs()},), got "
-                f"{dofs_np.shape}"
+                f"dofs must have shape ({self._basis.ndofs()},), got {dofs_np.shape}"
             )
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
@@ -518,9 +516,7 @@ class NodalFieldDiffusion:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(
-        self, skfem_basis: "Basis", time: float = 0.0
-    ) -> _Quad:
+    def values_on_basis(self, skfem_basis: "Basis", time: float = 0.0) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
             skfem_basis, self._dofs, self.ndofs(), "NodalFieldDiffusion"
@@ -568,8 +564,7 @@ class NodalFieldForcing:
         dofs_np = np.asarray(dofs, dtype=np.float64)
         if dofs_np.shape != (self._basis.ndofs(),):
             raise ValueError(
-                f"dofs must have shape ({self._basis.ndofs()},), got "
-                f"{dofs_np.shape}"
+                f"dofs must have shape ({self._basis.ndofs()},), got {dofs_np.shape}"
             )
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
@@ -603,9 +598,7 @@ class NodalFieldForcing:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(
-        self, skfem_basis: "Basis", time: float = 0.0
-    ) -> _Quad:
+    def values_on_basis(self, skfem_basis: "Basis", time: float = 0.0) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
             skfem_basis, self._dofs, self.ndofs(), "NodalFieldForcing"
@@ -673,9 +666,7 @@ class ConstantVelocity:
     def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         shape = (len(self._vec),) + (1,) * (coords_np.ndim - 1)
-        return np.broadcast_to(
-            self._vec.reshape(shape), coords_np.shape
-        ).copy()
+        return np.broadcast_to(self._vec.reshape(shape), coords_np.shape).copy()
 
     def is_constant(self) -> bool:
         return True
@@ -754,9 +745,7 @@ class NodalFieldVelocity:
         Interleaved velocity DOFs. Shape: (ndofs,).
     """
 
-    def __init__(
-        self, basis: _VectorBasisEvaluatorProtocol, dofs: _Quad
-    ) -> None:
+    def __init__(self, basis: _VectorBasisEvaluatorProtocol, dofs: _Quad) -> None:
         self._basis = basis
         self.set_dofs(dofs)
 
@@ -765,8 +754,7 @@ class NodalFieldVelocity:
         dofs_np = np.asarray(dofs, dtype=np.float64)
         if dofs_np.shape != (self._basis.ndofs(),):
             raise ValueError(
-                f"dofs must have shape ({self._basis.ndofs()},), got "
-                f"{dofs_np.shape}"
+                f"dofs must have shape ({self._basis.ndofs()},), got {dofs_np.shape}"
             )
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
@@ -797,9 +785,7 @@ class NodalFieldVelocity:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape)
 
-    def values_on_basis(
-        self, skfem_basis: "Basis", time: float = 0.0
-    ) -> _Quad:
+    def values_on_basis(self, skfem_basis: "Basis", time: float = 0.0) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path).
 
         A vector basis interpolates to ``(ncomponents, nelems, nquad)``,
@@ -938,8 +924,7 @@ class NodalFieldLinearReaction:
         dofs_np = np.asarray(dofs, dtype=np.float64)
         if dofs_np.shape != (self._basis.ndofs(),):
             raise ValueError(
-                f"dofs must have shape ({self._basis.ndofs()},), got "
-                f"{dofs_np.shape}"
+                f"dofs must have shape ({self._basis.ndofs()},), got {dofs_np.shape}"
             )
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
@@ -967,12 +952,12 @@ class NodalFieldLinearReaction:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(
-        self, skfem_basis: "Basis", time: float = 0.0
-    ) -> _Quad:
+    def values_on_basis(self, skfem_basis: "Basis", time: float = 0.0) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
-            skfem_basis, self._dofs, self.ndofs(),
+            skfem_basis,
+            self._dofs,
+            self.ndofs(),
             "NodalFieldLinearReaction",
         )
 
@@ -980,9 +965,7 @@ class NodalFieldLinearReaction:
         return self.values(coords) * np.asarray(state)
 
     def derivative(self, coords: _Quad, state: _Quad) -> _Quad:
-        return np.broadcast_to(
-            self.values(coords), np.asarray(state).shape
-        ).copy()
+        return np.broadcast_to(self.values(coords), np.asarray(state).shape).copy()
 
     def second_derivative(self, coords: _Quad, state: _Quad) -> _Quad:
         return np.zeros_like(np.asarray(state))
@@ -1152,14 +1135,10 @@ class TimeModulatedNodalFieldLinearReaction:
         """Evaluate the coefficient interpolant at coordinates."""
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
-        values = np.asarray(
-            self._basis.evaluate(self.dofs_at(time), flat)
-        )
+        values = np.asarray(self._basis.evaluate(self.dofs_at(time), flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(
-        self, skfem_basis: "Basis", time: float = 0.0
-    ) -> _Quad:
+    def values_on_basis(self, skfem_basis: "Basis", time: float = 0.0) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
             skfem_basis,
@@ -1179,9 +1158,7 @@ class TimeModulatedNodalFieldLinearReaction:
     def value(self, coords: _Quad, state: _Quad, time: float = 0.0) -> _Quad:
         return self.values(coords, time) * np.asarray(state)
 
-    def derivative(
-        self, coords: _Quad, state: _Quad, time: float = 0.0
-    ) -> _Quad:
+    def derivative(self, coords: _Quad, state: _Quad, time: float = 0.0) -> _Quad:
         return np.broadcast_to(
             self.values(coords, time), np.asarray(state).shape
         ).copy()
@@ -1232,9 +1209,7 @@ class CallableReaction:
         self,
         value_func: Callable[[_Quad, _Quad], _Quad],
         derivative_func: Callable[[_Quad, _Quad], _Quad],
-        second_derivative_func: Optional[
-            Callable[[_Quad, _Quad], _Quad]
-        ] = None,
+        second_derivative_func: Optional[Callable[[_Quad, _Quad], _Quad]] = None,
     ) -> None:
         self._value_func = value_func
         self._derivative_func = derivative_func
