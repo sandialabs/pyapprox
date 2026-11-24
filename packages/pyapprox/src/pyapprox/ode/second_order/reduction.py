@@ -371,7 +371,15 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         self._version = parameters_version_reader(restoring)
         zero = form.to_residual(blocks.half_space().zeros())
         self._zero_state = blocks.join(zero, zero)
-        self._param_space = restoring.derivatives().param_space
+        # Both bundles are read once: their fields are bound to their
+        # owners, so they follow the parameters set on them later.
+        self._f: ODEResidualDerivatives[V, F] = restoring.derivatives()
+        self._g: VelocityForceDerivatives[V, F] = (
+            VelocityForceDerivatives()
+            if velocity_force is None
+            else velocity_force.derivatives()
+        )
+        self._param_space = self._f.param_space
         self._derivatives = self._bundle()
 
     def parameters_version(self) -> int:
@@ -392,18 +400,13 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         return blocks.join(velocity, force)
 
     def derivatives(self) -> ODEResidualDerivatives[V, G]:
-        """The lifted bundle; its fields read the restoring force's bundle
-        when called, so they follow its parameters."""
+        """The lifted bundle, built once from the force's and the velocity
+        force's."""
         return self._derivatives
 
     def _bundle(self) -> ODEResidualDerivatives[V, G]:
-        restoring = self._restoring.derivatives()
+        restoring, damping = self._f, self._g
         undamped = self._velocity_force is None
-        damping: VelocityForceDerivatives[V, F] = (
-            VelocityForceDerivatives()
-            if self._velocity_force is None
-            else self._velocity_force.derivatives()
-        )
         if restoring.jacobian is None or not (
             undamped or damping.wrt_displacement is not None
         ):
@@ -435,9 +438,6 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
             self._state_param,
             self._param_param,
         )
-
-    def _restoring_bundle(self) -> ODEResidualDerivatives[V, F]:
-        return self._restoring.derivatives()
 
     def _require_params(self) -> VectorSpaceProtocol[V]:
         # Read only by fields the bundle has only with a parameter space.
@@ -474,7 +474,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         self, state: V, time: float, point: LinearizationPoint
     ) -> JacobianSnapshotProtocol[V, G]:
         blocks = self._blocks
-        jacobian = self._restoring_bundle().jacobian
+        jacobian = self._f.jacobian
         if jacobian is None:
             raise RuntimeError("the restoring force's bundle has no jacobian")
         wrt_u: ActionOperatorProtocol[V, F] = jacobian(
@@ -482,7 +482,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         )
         wrt_v: Block[V, F] = None
         if self._velocity_force is not None:
-            damping = self._velocity_force.derivatives()
+            damping = self._g
             if damping.wrt_displacement is None or damping.wrt_velocity is None:
                 raise RuntimeError("the velocity force's bundle has no Jacobians")
             terms: List[Tuple[float, ActionOperatorProtocol[V, F]]] = [
@@ -497,7 +497,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
     # The parameter derivatives, lifted from f's (see the module docstring).
 
     def _param(self, state: V, time: float) -> DerivativeOperator[V]:
-        param = self._restoring_bundle().param
+        param = self._f.param
         if param is None:
             raise RuntimeError("the restoring force's bundle has no param")
         return _Stacked(
@@ -508,7 +508,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         )
 
     def _initial_state(self) -> DerivativeOperator[V]:
-        initial = self._restoring_bundle().initial_state
+        initial = self._f.initial_state
         if initial is None:
             raise RuntimeError("the restoring force's bundle has no initial_state")
         velocity = self._initial_velocity.param_derivative
@@ -520,7 +520,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         )
 
     def _initial_curvature(self, weight: V) -> DerivativeOperator[V]:
-        curvature = self._restoring_bundle().initial_state_curvature
+        curvature = self._f.initial_state_curvature
         if curvature is None:
             raise RuntimeError(
                 "the restoring force's bundle has no initial_state_curvature"
@@ -537,7 +537,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         return _MatrixFreeSum(terms, self._require_params())
 
     def _state_state(self, state: V, time: float, adj: V) -> DerivativeOperator[V]:
-        field = self._restoring_bundle().state_state
+        field = self._f.state_state
         if field is None:
             raise RuntimeError("the restoring force's bundle has no state_state")
         blocks = self._blocks
@@ -546,7 +546,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         )
 
     def _state_param(self, state: V, time: float, adj: V) -> DerivativeOperator[V]:
-        field = self._restoring_bundle().state_param
+        field = self._f.state_param
         if field is None:
             raise RuntimeError("the restoring force's bundle has no state_param")
         blocks = self._blocks
@@ -558,7 +558,7 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         )
 
     def _param_param(self, state: V, time: float, adj: V) -> DerivativeOperator[V]:
-        field = self._restoring_bundle().param_param
+        field = self._f.param_param
         if field is None:
             raise RuntimeError("the restoring force's bundle has no param_param")
         blocks = self._blocks

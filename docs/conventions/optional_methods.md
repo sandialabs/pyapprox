@@ -31,6 +31,9 @@ invariants.
 | `ContinuousExtensionDerivatives` | `ode.continuous_extension` | `derivatives()` | a stepping method's continuous extension, y(t) inside a step (second order weighted by a state weight) |
 | `SteadyStateEquationDerivatives` | `implicitfunction.state_equations.derivatives` | `derivatives()` | steady state equations |
 | `ImplicitOperatorDerivatives` | `implicitfunction.operator.derivatives` | `derivatives()` | `AdjointOperator`, `ForwardSensitivityOperator` |
+| `ODEResidualDerivatives` | `ode.residual_derivatives` | `derivatives()` | right-hand sides of mass-form systems, f(y, t; p): Jacobian, parameter, initial-state and adjoint-weighted second derivatives |
+| `VelocityForceDerivatives` | `ode.second_order.reduction` | `derivatives()` | velocity forces g(u, v, t) of a second-order system (dampers): Jacobians in both blocks, called with the whole state |
+| `InitialVelocityDerivatives` | `ode.second_order.reduction` | constructor argument | the parameter dependence of a second-order system's initial velocity |
 
 Reuse `Derivatives` when its field arities fit, binding any fixed context
 in the accessor or the producer. A family whose derivatives take

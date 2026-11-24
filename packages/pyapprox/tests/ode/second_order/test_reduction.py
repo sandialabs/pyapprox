@@ -251,14 +251,19 @@ def test_midpoint_conserves_the_energy_of_a_linear_undamped_system(
 
 class TestRayleighDamping:
     def _system(
-        self, bkd: Backend[Array], spring: Spring[Array], alpha: float, beta: float
+        self,
+        bkd: Backend[Array],
+        spring: Spring[Array],
+        alpha: float,
+        beta: float,
+        reference: Optional[Array] = None,
     ) -> Dense[Array]:
         restoring = restoring_system(bkd, spring)
         return second_order_system(
             restoring,
             backend_dense_state_blocks(bkd, N),
             InitialVelocityDerivatives.independent(),
-            RayleighDamping(restoring, alpha, beta),
+            RayleighDamping(restoring, alpha, beta, reference),
         )
 
     def test_value_reads_the_current_stiffness(self, bkd: Backend[Array]) -> None:
@@ -278,8 +283,44 @@ class TestRayleighDamping:
     def test_refuses_stiffness_damping_of_a_nonlinear_force(
         self, bkd: Backend[Array]
     ) -> None:
-        with pytest.raises(ValueError, match="affine"):
+        with pytest.raises(ValueError, match="reference_state"):
             RayleighDamping(restoring_system(bkd, Spring(bkd, cubic=0.4)), 0.3, 0.1)
+
+    def test_nonlinear_force_damps_with_the_stiffness_at_the_reference(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """K = -f_u(u_r) for the cubic spring, frozen while u moves, and
+        following the parameters set after construction."""
+        spring = Spring(bkd, cubic=0.4)
+        reference = bkd.asarray([0.3, -0.5, 0.2])
+        system = self._system(bkd, spring, 0.3, 0.1, reference)
+        spring.set_param(bkd.asarray([0.5, 0.0]))
+        state = sample_state(bkd)
+        u, v = state[:N], state[N:]
+        stiffness = spring.stiffness() + 1.2 * bkd.diag(reference**2)
+        damping = -bkd.dot(
+            0.3 * bkd.diag(bkd.asarray([1.0, 2.0, 1.5])) + 0.1 * stiffness, v
+        )
+        bkd.assert_allclose(
+            system.rhs(state, 0.3)[N:], spring(u, 0.3) + damping, rtol=1e-13
+        )
+
+    def test_reference_damping_keeps_the_force_tier_without_parameters(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Linear in v and independent of u, the damping is affine; its
+        parameter dependence through K(u_r; p) is not supplied."""
+        spring = Spring(bkd, cubic=0.4)
+        reference = bkd.asarray([0.3, -0.5, 0.2])
+        derivatives = self._system(
+            bkd, spring, 0.3, 0.1, reference
+        ).rhs.derivatives()
+        assert derivatives.jacobian is not None
+        assert derivatives.param is None
+        report = ODEResidualBundleChecker(
+            Checked(self._system(bkd, spring, 0.3, 0.1, reference), spring)
+        ).check(sample_state(bkd), 0.3)
+        assert report.failures() == []
 
     @pytest.mark.parametrize("beta, second", [(0.0, True), (0.1, False)])
     def test_tier(self, bkd: Backend[Array], beta: float, second: bool) -> None:

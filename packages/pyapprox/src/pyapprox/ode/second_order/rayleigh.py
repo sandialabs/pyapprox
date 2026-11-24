@@ -10,15 +10,20 @@ read from the restoring system's mass and its force's Jacobian whenever it
 is evaluated, so :math:`K` follows the parameters the force is set to; a
 matrix copied at construction would stop tracking them.
 
-With :math:`\beta \ne 0` the force must be affine in the state: for a
-nonlinear :math:`f`, :math:`K(u)` is a tangent and :math:`g_u = \beta
-f_{uu}[v]` needs a directional second derivative the force's bundle does
-not supply. Its parameter dependence, :math:`g_p = -\beta K_p v`, is not
-supplied either, so with :math:`\beta \ne 0` and a parameterized force
-the reduced system has state derivatives only.
+:math:`K` is the force's Jacobian at a reference state :math:`u_r`, the
+zero state unless one is given. For a force affine in the state that is
+:math:`K` itself. For a nonlinear force a reference state must be given:
+:math:`K = -f_u(u_r)` is then the stiffness linearized there (commonly
+the initial or a static equilibrium state), and :math:`g` stays linear in
+:math:`v` and independent of :math:`u`. Following the tangent
+:math:`K(u)` instead would make :math:`g_u = \beta f_{uu}[v]`, a
+directional second derivative the force's bundle does not supply, so it
+is refused. The parameter dependence :math:`g_p = -\beta K_p v` is not
+supplied, so with :math:`\beta \ne 0` and a parameterized force the
+reduced system has state derivatives only.
 """
 
-from typing import Generic, List, Tuple, TypeVar
+from typing import Generic, List, Optional, Tuple, TypeVar
 
 from pyapprox.ode.mass_form_system import MassFormSystem, parameters_version_reader
 from pyapprox.ode.residual_derivatives import Jacobian, constant_jacobian
@@ -51,25 +56,47 @@ class RayleighDamping(Generic[V, A, F]):
         :math:`f_u = -K`.
     alpha, beta : float
         The mass and stiffness coefficients.
+    reference_state : V, optional
+        :math:`u_r`, in the restoring system's residual form (as its
+        states are); the zero state by default. Required when ``beta`` is
+        nonzero and the force is not affine in the state.
 
     Raises
     ------
     ValueError
-        If ``beta`` is nonzero and the force has no Jacobian or is not
-        affine in the state.
+        If ``beta`` is nonzero and the force has no Jacobian, or is not
+        affine in the state and no reference state is given.
     """
 
     def __init__(
-        self, restoring: MassFormSystem[V, A, F], alpha: float, beta: float
+        self,
+        restoring: MassFormSystem[V, A, F],
+        alpha: float,
+        beta: float,
+        reference_state: Optional[V] = None,
     ) -> None:
         jacobian = restoring.rhs.derivatives().jacobian
-        if beta != 0.0 and (jacobian is None or not jacobian.affine()):
-            raise ValueError(
-                "stiffness-proportional damping needs a restoring force affine "
-                "in the state: for a nonlinear force, g_u needs a directional "
-                "second derivative its bundle does not supply"
-            )
+        if beta != 0.0:
+            if jacobian is None:
+                raise ValueError(
+                    "stiffness-proportional damping needs the restoring force's "
+                    "Jacobian, and the force declares none"
+                )
+            if reference_state is None and not jacobian.affine():
+                raise ValueError(
+                    "stiffness-proportional damping of a restoring force not "
+                    "affine in the state needs a reference_state to linearize it "
+                    "at: following the tangent stiffness would need a directional "
+                    "second derivative its bundle does not supply"
+                )
         self._restoring, self._alpha, self._beta = restoring, alpha, beta
+        # The force's Jacobian, read once; None when beta is zero.
+        self._stiffness: Optional[Jacobian[V, F]] = None if beta == 0.0 else jacobian
+        self._reference = (
+            restoring.form.to_residual(restoring.space.zeros())
+            if reference_state is None
+            else reference_state
+        )
         self._version = parameters_version_reader(restoring.rhs)
         zero = ScaledSum([(0.0, restoring.mass)], restoring.space)
         wrt_displacement: Jacobian[V, F] = constant_jacobian(zero)
@@ -101,14 +128,13 @@ class RayleighDamping(Generic[V, A, F]):
     def _operator(
         self, time: float, point: LinearizationPoint
     ) -> ActionOperatorProtocol[V, F]:
-        r""":math:`g_v = -\alpha M + \beta f_u`."""
+        r""":math:`g_v = -\alpha M + \beta f_u(u_r)`."""
         system = self._restoring
         terms: List[Tuple[float, ActionOperatorProtocol[V, F]]] = [
             (-self._alpha, system.mass)
         ]
-        if self._beta != 0.0:
-            zero = system.form.to_residual(system.space.zeros())
-            terms.append((self._beta, system.jacobian(zero, time, point)))
+        if self._stiffness is not None:
+            terms.append((self._beta, self._stiffness(self._reference, time, point)))
         return ScaledSum(terms, system.space)
 
     def _stiffness_jacobian(
