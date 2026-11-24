@@ -37,8 +37,8 @@ Requirements beyond the assembled storage, each refused when violated:
 - the format is neither summed after a row edit nor edited or summed
   once transposed.
 
-A stack supplies its spaces, a row partition that also splits row sets,
-the identity on one block, and a solver at size :math:`n`.
+A stack supplies its spaces, a row partition that also splits and joins
+row sets, the identity on one block, and a solver at size :math:`n`.
 """
 
 from typing import Generic, List, Optional, Protocol, Sequence, Tuple, TypeVar
@@ -80,7 +80,8 @@ W = TypeVar("W")
 
 class StatePartitionProtocol(Protocol[V]):
     """What the condensed storage needs of a stack's row partition: the
-    partition's split and join, and row sets split the same way."""
+    partition's split and join, and row sets split and joined the same
+    way."""
 
     def space(self) -> VectorSpaceProtocol[V]: ...
 
@@ -92,6 +93,10 @@ class StatePartitionProtocol(Protocol[V]):
 
     def split_rows(self, rows: RowSetProtocol[W]) -> Sequence[RowSetProtocol[V]]:
         """The rows of ``rows`` in each part, indexed within the part."""
+        ...
+
+    def join_rows(self, parts: Sequence[RowSetProtocol[W]]) -> RowSetProtocol[V]:
+        """The row set of the whole space holding each part's rows."""
         ...
 
 
@@ -504,6 +509,13 @@ class CondensedStateBlocks(Generic[V, A, F]):
 
     def identity(self) -> ActionOperatorProtocol[V, F]:
         return self._context.identity
+
+    def lift_rows(
+        self, displacement: RowSetProtocol[W], velocity: RowSetProtocol[W]
+    ) -> RowSetProtocol[V]:
+        """The rows of :math:`w` that are ``displacement``'s rows of the
+        first block and ``velocity``'s of the second."""
+        return self._partition.join_rows([displacement, velocity])
 
     def assemble(self, blocks: Blocks[V, F]) -> CondensedOperator[V, F]:
         """The condensed operator of ``blocks``, a None block zero.

@@ -103,14 +103,14 @@ class TestDense:
         identity = storage.identity()
         quarter = backend_state_space(bkd, _N // 2)
         with pytest.raises(ValueError, match="two parts"):
-            AssembledStateBlocks(
+            AssembledStateBlocks[Array, Array, DenseFormat[Array]](
                 half,
                 space,
                 BackendRowPartition(space, [quarter] * 4, bkd),
                 identity,
                 storage.solver(),
             )
-        with pytest.raises(TypeError, match="RowPartitionProtocol"):
+        with pytest.raises(TypeError, match="AssembledPartitionProtocol"):
             AssembledStateBlocks(
                 half,
                 space,

@@ -7,13 +7,14 @@ stack: :math:`w = [u; v]` is one of the stack's vectors, the displacement
 first, and a block operator is a
 :class:`~pyapprox.util.linalg.operators.BlockAssembled` whose format is
 assembled by the stack's format and factored by the stack's solver at
-size :math:`2n`. A stack supplies its spaces, its row partition, the
+size :math:`2n`. A stack supplies its spaces, its row partition (which
+also joins row sets of the blocks into row sets of :math:`w`), the
 identity on one block and a solver; :func:`backend_dense_state_blocks`
 supplies them for the dense backend stack, and
 :mod:`~pyapprox.ode.second_order.scipy_blocks` for the SciPy CSR stack.
 """
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, Protocol, Sequence, TypeVar, runtime_checkable
 
 from pyapprox.ode.residual_derivatives import backend_state_space
 from pyapprox.ode.second_order.reduction import Blocks
@@ -30,12 +31,33 @@ from pyapprox.util.linalg.operators import (
     FormatProtocol,
     InnerProductSpaceProtocol,
     LinearSolverProtocol,
-    RowPartitionProtocol,
+    RowSetProtocol,
+    VectorSpaceProtocol,
 )
 
 V = TypeVar("V")
 A = TypeVar("A")
 F = TypeVar("F", bound=FormatProtocol)
+W = TypeVar("W")
+
+
+@runtime_checkable
+class AssembledPartitionProtocol(Protocol[V]):
+    """What the assembled storage needs of a stack's row partition: the
+    partition (as :class:`BlockAssembled` reads it) and row sets joined
+    the same way."""
+
+    def space(self) -> VectorSpaceProtocol[V]: ...
+
+    def parts(self) -> Sequence[VectorSpaceProtocol[V]]: ...
+
+    def split(self, x: V) -> Sequence[V]: ...
+
+    def join(self, parts: Sequence[V]) -> V: ...
+
+    def join_rows(self, parts: Sequence[RowSetProtocol[W]]) -> RowSetProtocol[V]:
+        """The row set of the whole space holding each part's rows."""
+        ...
 
 
 class AssembledStateBlocks(Generic[V, A, F]):
@@ -47,8 +69,9 @@ class AssembledStateBlocks(Generic[V, A, F]):
     half_space, space : InnerProductSpaceProtocol
         The space of one block (size :math:`n`) and of :math:`w`
         (:math:`2n`).
-    partition : RowPartitionProtocol
-        Splits :math:`w` into its two blocks.
+    partition : AssembledPartitionProtocol
+        Splits :math:`w` into its two blocks, and joins row sets of the
+        blocks into row sets of :math:`w`.
     identity : ActionOperatorProtocol
         The identity on one block, in format ``F``.
     solver : LinearSolverProtocol
@@ -67,13 +90,13 @@ class AssembledStateBlocks(Generic[V, A, F]):
         self,
         half_space: InnerProductSpaceProtocol[V, A],
         space: InnerProductSpaceProtocol[V, A],
-        partition: RowPartitionProtocol[V],
+        partition: AssembledPartitionProtocol[V],
         identity: ActionOperatorProtocol[V, F],
         solver: LinearSolverProtocol[V, F],
     ) -> None:
-        if not isinstance(partition, RowPartitionProtocol):
+        if not isinstance(partition, AssembledPartitionProtocol):
             raise TypeError(
-                "partition must satisfy RowPartitionProtocol, got "
+                "partition must satisfy AssembledPartitionProtocol, got "
                 f"{type(partition).__name__}"
             )
         if not isinstance(identity, ActionOperatorProtocol):
@@ -116,6 +139,13 @@ class AssembledStateBlocks(Generic[V, A, F]):
 
     def identity(self) -> ActionOperatorProtocol[V, F]:
         return self._identity
+
+    def lift_rows(
+        self, displacement: RowSetProtocol[W], velocity: RowSetProtocol[W]
+    ) -> RowSetProtocol[V]:
+        """The rows of :math:`w` that are ``displacement``'s rows of the
+        first block and ``velocity``'s of the second."""
+        return self._partition.join_rows([displacement, velocity])
 
     def assemble(self, blocks: Blocks[V, F]) -> BlockAssembled[V, F]:
         """The :math:`2n` block operator of ``blocks``, a None block zero."""

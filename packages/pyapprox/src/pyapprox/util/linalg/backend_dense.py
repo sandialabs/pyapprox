@@ -275,6 +275,32 @@ class BackendRowPartition(Generic[Array]):
             for part, lo, hi in zip(self._parts, self._offsets[:-1], self._offsets[1:])
         ]
 
+    def join_rows(self, parts: Sequence[RowSetProtocol[W]]) -> "BackendRowSet[Array]":
+        """The row set of the whole space holding each part's rows, offset
+        to the part's place: the inverse of :meth:`split_rows`.
+
+        Raises
+        ------
+        TypeError
+            If a part is not a :class:`BackendRowSet`.
+        ValueError
+            If there is not one row set per part, or one is not of its
+            part's space.
+        """
+        if len(parts) != len(self._parts):
+            raise ValueError(
+                f"join_rows needs {len(self._parts)} row sets, got {len(parts)}"
+            )
+        joined: list[int] = []
+        for rows, part, lo in zip(parts, self._parts, self._offsets[:-1]):
+            if not isinstance(rows, BackendRowSet):
+                raise TypeError(
+                    f"join_rows needs BackendRowSets, got {type(rows).__name__}"
+                )
+            part.descriptor().require_same(rows.descriptor(), "rows of a part")
+            joined.extend(lo + row for row in rows.indices())
+        return BackendRowSet(self._space.descriptor(), joined, self._bkd)
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nparts={len(self._parts)})"
 
