@@ -73,7 +73,10 @@ class TestTorchJit:
         compiling_bkd.assert_allclose(first(x), _scaled(x, bkd=compiling_bkd))
 
     def test_graph_break_raises(self, compiling_bkd: TorchBkd) -> None:
-        with pytest.raises(torch._dynamo.exc.Unsupported):
+        # torch 2.7 reports the host sync as Unsupported (UserError is a
+        # subclass); later releases raise UserError outside that hierarchy.
+        errors = (torch._dynamo.exc.Unsupported, torch._dynamo.exc.UserError)
+        with pytest.raises(errors):
             compiling_bkd.jit(_host_branch)(compiling_bkd.asarray([1.0, -2.0]))
 
     def test_pickles_without_its_cache(self, compiling_bkd: TorchBkd) -> None:
