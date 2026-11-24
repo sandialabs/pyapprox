@@ -54,6 +54,36 @@ def test_dtype_accessors(precision: Precision) -> None:
     assert bkd.int64_dtype() == torch.int64
 
 
+@pytest.mark.parametrize("precision", list(Precision))
+def test_role_accessors(precision: Precision) -> None:
+    bkd = TorchBkd(precision=precision)
+    real, complex_ = _REAL[precision], _COMPLEX[precision]
+    assert bkd.precision() is precision
+    assert bkd.device() == "cpu"
+    assert bkd.real_dtype() == real
+    assert bkd.index_dtype() == torch.int64
+    assert bkd.eps() == float(torch.finfo(real).eps)
+    assert bkd.real_dtype_of(complex_) == real
+    assert bkd.complex_dtype_of(real) == complex_
+    # Aliases agree with the role accessors.
+    assert bkd.double_dtype() == bkd.default_dtype() == bkd.real_dtype()
+    assert bkd.int64_dtype() == bkd.index_dtype()
+
+
+def test_single_precision_result_type_follows_numpy() -> None:
+    bkd = TorchBkd(precision=Precision.SINGLE)
+    floats = bkd.zeros((2,))
+    assert bkd.result_type(floats, bkd.array([1 + 2j])) == torch.complex64
+    # NumPy's rule, not torch's: int64 with float32 is float64.
+    assert bkd.result_type(bkd.arange(2), floats) == torch.float64
+
+
+def test_result_type_refuses_a_dtype_numpy_lacks() -> None:
+    bkd = TorchBkd()
+    with pytest.raises(ValueError, match="no NumPy equivalent"):
+        bkd.result_type(torch.zeros(2, dtype=torch.bfloat16))
+
+
 def test_default_is_double() -> None:
     assert TorchBkd().default_dtype() == torch.float64
 

@@ -17,6 +17,22 @@ def reduction_axes(
     return tuple(axis)
 
 
+# The Array API dtype kinds ``Backend.isdtype`` accepts.
+DTYPE_KINDS = ("real floating", "complex floating", "integral", "bool")
+
+
+def check_dtype_kind(kind: str) -> None:
+    """Check that ``kind`` is one of :data:`DTYPE_KINDS`.
+
+    Raises
+    ------
+    ValueError
+        If it is not.
+    """
+    if kind not in DTYPE_KINDS:
+        raise ValueError(f"kind must be one of {DTYPE_KINDS}, got {kind!r}")
+
+
 def check_orderable(method: str, is_complex: bool) -> None:
     """Check that ``method`` (an ordering: sort, max, argmax, ...) was
     given real values.

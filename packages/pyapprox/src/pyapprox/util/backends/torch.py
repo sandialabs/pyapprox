@@ -27,6 +27,7 @@ from pyapprox.util.backends.protocols import (
     KernelResult,
 )
 from pyapprox.util.backends.validation import (
+    check_dtype_kind,
     check_index_add_shapes,
     check_jit_kernel,
     check_orderable,
@@ -50,6 +51,48 @@ _set_default_dtype: Callable[["torch.dtype"], None] = torch.set_default_dtype
 # torch.linalg.LinAlgError exists at runtime but the stubs do not export
 # it; a RuntimeError subclass.
 _TorchLinAlgError: type[RuntimeError] = getattr(torch.linalg, "LinAlgError")
+
+# The torch dtype of each NumPy dtype NumPy's promotion can produce from
+# torch dtypes (torch has no unsigned widths beyond uint8).
+_TORCH_DTYPES: Dict[np.dtype[Any], torch.dtype] = {
+    np.dtype(np.bool_): torch.bool,
+    np.dtype(np.uint8): torch.uint8,
+    np.dtype(np.int8): torch.int8,
+    np.dtype(np.int16): torch.int16,
+    np.dtype(np.int32): torch.int32,
+    np.dtype(np.int64): torch.int64,
+    np.dtype(np.float16): torch.float16,
+    np.dtype(np.float32): torch.float32,
+    np.dtype(np.float64): torch.float64,
+    np.dtype(np.complex64): torch.complex64,
+    np.dtype(np.complex128): torch.complex128,
+}
+_NUMPY_DTYPES: Dict[torch.dtype, np.dtype[Any]] = {
+    t: n for n, t in _TORCH_DTYPES.items()
+}
+
+# Each floating or complex dtype's (real, complex) pair of its width.
+_WIDTHS: Dict[torch.dtype, Tuple[torch.dtype, torch.dtype]] = {
+    torch.float32: (torch.float32, torch.complex64),
+    torch.complex64: (torch.float32, torch.complex64),
+    torch.float64: (torch.float64, torch.complex128),
+    torch.complex128: (torch.float64, torch.complex128),
+}
+
+
+def _numpy_dtype(dtype: torch.dtype) -> np.dtype[Any]:
+    result = _NUMPY_DTYPES.get(dtype)
+    if result is None:
+        raise ValueError(f"{dtype} has no NumPy equivalent")
+    return result
+
+
+def _width_pair(dtype: Any) -> Tuple[torch.dtype, torch.dtype]:
+    pair = _WIDTHS.get(dtype)
+    if pair is None:
+        raise ValueError(f"needs a floating or complex dtype, got {dtype}")
+    return pair
+
 
 # TorchBkd.jit's cache key: kernel, static argument names, dynamic.
 _JitKey = Tuple[Callable[..., Any], Tuple[str, ...], bool]
@@ -268,14 +311,64 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             msg=err_msg,
         )
 
-    def double_dtype(self) -> Any:
+    def precision(self) -> Precision:
+        return self._precision
+
+    def device(self) -> str:
+        return str(self._device)
+
+    def real_dtype(self) -> Any:
         return self._dtype
 
     def complex_dtype(self) -> Any:
         return self._complex_dtype
 
+    def index_dtype(self) -> Any:
+        return torch.int64
+
+    def eps(self) -> float:
+        return float(torch.finfo(self._dtype).eps)
+
+    def result_type(self, *arrays: torch.Tensor) -> Any:
+        # NumPy's rules, which torch's differ from (int with float32 is
+        # float64 in NumPy, float32 in torch); dtypes only, no data.
+        numpy_dtype = np.result_type(*(_numpy_dtype(a.dtype) for a in arrays))
+        return _TORCH_DTYPES[np.dtype(numpy_dtype)]
+
+    def isdtype(self, array: torch.Tensor, kind: str) -> bool:
+        check_dtype_kind(kind)
+        dtype = array.dtype
+        if kind == "bool":
+            return dtype == torch.bool
+        if kind == "real floating":
+            return dtype.is_floating_point
+        if kind == "complex floating":
+            return dtype.is_complex
+        return not (dtype.is_floating_point or dtype.is_complex) and (
+            dtype != torch.bool
+        )
+
+    def real_dtype_of(self, dtype: Any) -> Any:
+        return _width_pair(dtype)[0]
+
+    def complex_dtype_of(self, dtype: Any) -> Any:
+        return _width_pair(dtype)[1]
+
     @staticmethod
-    def int64_dtype() -> Any:
+    def real(array: torch.Tensor) -> torch.Tensor:
+        return torch.real(array)
+
+    @staticmethod
+    def imag(array: torch.Tensor) -> torch.Tensor:
+        # torch.imag refuses real input; NumPy gives zeros.
+        if not array.is_complex():
+            return torch.zeros_like(array)
+        return torch.imag(array)
+
+    def double_dtype(self) -> Any:
+        return self._dtype
+
+    def int64_dtype(self) -> Any:
         return torch.int64
 
     @staticmethod

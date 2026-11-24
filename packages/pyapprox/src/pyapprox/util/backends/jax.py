@@ -28,8 +28,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.errors import LinAlgError
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import ArrayLike, KernelResult
 from pyapprox.util.backends.validation import (
+    check_dtype_kind,
     check_index_add_shapes,
     check_jit_kernel,
     check_orderable,
@@ -64,6 +66,22 @@ def _finite_or_raise(result: jax.Array, reason: str) -> jax.Array:
     if not bool(jnp.all(jnp.isfinite(result))):
         raise LinAlgError(reason)
     return result
+
+
+# Each floating or complex dtype's (real, complex) pair of its width.
+_WIDTHS: Dict[np.dtype[Any], Tuple[Any, Any]] = {
+    np.dtype(np.float32): (jnp.float32, jnp.complex64),
+    np.dtype(np.complex64): (jnp.float32, jnp.complex64),
+    np.dtype(np.float64): (jnp.float64, jnp.complex128),
+    np.dtype(np.complex128): (jnp.float64, jnp.complex128),
+}
+
+
+def _width_pair(dtype: Any) -> Tuple[Any, Any]:
+    pair = _WIDTHS.get(np.dtype(dtype))
+    if pair is None:
+        raise ValueError(f"needs a floating or complex dtype, got {dtype}")
+    return pair
 
 
 # JaxBkd.jit's cache key: kernel, static argument names, dynamic.
@@ -107,6 +125,59 @@ class JaxBkd:
 
     # ---- dtypes and conversion
 
+    # Always double precision: x64 is enabled on construction.
+
+    @staticmethod
+    def precision() -> Precision:
+        return Precision.DOUBLE
+
+    @staticmethod
+    def device() -> str:
+        # The platform JAX places arrays on: "cpu", "gpu" or "tpu".
+        return str(jax.devices()[0].platform)
+
+    @staticmethod
+    def real_dtype() -> Any:
+        return jnp.float64
+
+    @staticmethod
+    def complex_dtype() -> Any:
+        return jnp.complex128
+
+    @staticmethod
+    def index_dtype() -> Any:
+        return jnp.int64
+
+    @staticmethod
+    def eps() -> float:
+        return float(np.finfo(np.float64).eps)
+
+    @staticmethod
+    def result_type(*arrays: jax.Array) -> Any:
+        # NumPy's rules on the dtypes, not JAX's weak-type lattice.
+        return np.result_type(*(np.dtype(a.dtype) for a in arrays))
+
+    @staticmethod
+    def isdtype(array: jax.Array, kind: str) -> bool:
+        check_dtype_kind(kind)
+        return bool(np.isdtype(np.dtype(array.dtype), kind))
+
+    @staticmethod
+    def real_dtype_of(dtype: Any) -> Any:
+        return _width_pair(dtype)[0]
+
+    @staticmethod
+    def complex_dtype_of(dtype: Any) -> Any:
+        return _width_pair(dtype)[1]
+
+    @staticmethod
+    def real(array: jax.Array) -> jax.Array:
+        return jnp.real(array)
+
+    @staticmethod
+    def imag(array: jax.Array) -> jax.Array:
+        return jnp.imag(array)
+
     @staticmethod
     def default_dtype() -> Any:
         return jnp.float64
@@ -114,10 +185,6 @@ class JaxBkd:
     @staticmethod
     def double_dtype() -> Any:
         return jnp.float64
-
-    @staticmethod
-    def complex_dtype() -> Any:
-        return jnp.complex128
 
     @staticmethod
     def int64_dtype() -> Any:

@@ -12,7 +12,10 @@ from numpy.typing import NDArray
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.precision import Precision
 
-_REAL = {Precision.SINGLE: np.float32, Precision.DOUBLE: np.float64}
+_REAL: dict[Precision, type[np.floating[Any]]] = {
+    Precision.SINGLE: np.float32,
+    Precision.DOUBLE: np.float64,
+}
 _COMPLEX = {Precision.SINGLE: np.complex64, Precision.DOUBLE: np.complex128}
 
 _CREATION: dict[str, Callable[[NumpyBkd], NDArray[Any]]] = {
@@ -45,6 +48,30 @@ def test_dtype_accessors(precision: Precision) -> None:
     assert bkd.double_dtype() == _REAL[precision]
     assert bkd.complex_dtype() == _COMPLEX[precision]
     assert bkd.int64_dtype() == np.int64
+
+
+@pytest.mark.parametrize("precision", list(Precision))
+def test_role_accessors(precision: Precision) -> None:
+    bkd = NumpyBkd(precision=precision)
+    real, complex_ = _REAL[precision], _COMPLEX[precision]
+    assert bkd.precision() is precision
+    assert bkd.device() == "cpu"
+    assert bkd.real_dtype() == real
+    assert bkd.index_dtype() == np.int64
+    assert bkd.eps() == float(np.finfo(real).eps)
+    assert bkd.real_dtype_of(complex_) == real
+    assert bkd.complex_dtype_of(real) == complex_
+    # Aliases agree with the role accessors.
+    assert bkd.double_dtype() == bkd.default_dtype() == bkd.real_dtype()
+    assert bkd.int64_dtype() == bkd.index_dtype()
+
+
+def test_single_precision_result_type_follows_numpy() -> None:
+    bkd = NumpyBkd(precision=Precision.SINGLE)
+    floats = bkd.zeros((2,))
+    assert bkd.result_type(floats, bkd.asarray([1 + 2j])) == np.complex64
+    # NumPy promotes int64 with float32 to float64, whatever the precision.
+    assert bkd.result_type(bkd.arange(2), floats) == np.float64
 
 
 def test_default_is_double() -> None:

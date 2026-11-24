@@ -20,6 +20,8 @@ from typing import (
 # from typing_extensions import SupportsIndex
 from numpy.typing import NDArray
 
+from pyapprox.util.backends.precision import Precision
+
 if TYPE_CHECKING:
     import torch
     from scipy.sparse import spmatrix
@@ -196,16 +198,93 @@ class Backend(Protocol, Generic[Array]):
         err_msg: Optional[str] = None,
     ) -> None: ...
 
-    def double_dtype(self) -> Any:
-        """The real working dtype the backend is configured with."""
+    def precision(self) -> Precision:
+        """The precision the backend is configured with."""
+        ...
+
+    def device(self) -> str:
+        """The device arrays are created on, e.g. ``"cpu"`` or
+        ``"cuda:0"``."""
+        ...
+
+    def real_dtype(self) -> Any:
+        """The real working dtype: float32 or float64, from
+        :meth:`precision`."""
         ...
 
     def complex_dtype(self) -> Any:
-        """The complex working dtype, paired with the real one."""
+        """The complex working dtype, paired with :meth:`real_dtype`
+        (complex64 or complex128); never configured on its own."""
+        ...
+
+    def index_dtype(self) -> Any:
+        """The dtype of indices and counts: int64 on every backend. Code
+        may assume an integral kind, never a width."""
+        ...
+
+    def eps(self) -> float:
+        """Machine epsilon of :meth:`real_dtype`."""
+        ...
+
+    def result_type(self, *arrays: Array) -> Any:
+        """The dtype NumPy's promotion rules give ``arrays`` combined."""
+        ...
+
+    def isdtype(self, array: Array, kind: str) -> bool:
+        """Whether ``array``'s dtype is of ``kind``, one of the Array API
+        kinds ``"real floating"``, ``"complex floating"``, ``"integral"``
+        (signed or unsigned, not bool) and ``"bool"``. Reads the dtype
+        only, so it never syncs with the device.
+
+        Raises
+        ------
+        ValueError
+            If ``kind`` is not one of those four.
+        """
+        ...
+
+    def real_dtype_of(self, dtype: Any) -> Any:
+        """The real floating dtype of ``dtype``'s width: float32 for
+        float32 and complex64, float64 for float64 and complex128, so
+        code holding data of one width finds its partner without
+        consulting the configuration.
+
+        Raises
+        ------
+        ValueError
+            If ``dtype`` is not floating or complex.
+        """
+        ...
+
+    def complex_dtype_of(self, dtype: Any) -> Any:
+        """The complex dtype of ``dtype``'s width: complex64 for float32
+        and complex64, complex128 for float64 and complex128.
+
+        Raises
+        ------
+        ValueError
+            If ``dtype`` is not floating or complex.
+        """
         ...
 
     @staticmethod
-    def int64_dtype() -> Any: ...
+    def real(array: Array) -> Array:
+        """The real part; ``array`` itself for real input."""
+        ...
+
+    @staticmethod
+    def imag(array: Array) -> Array:
+        """The imaginary part; zeros of ``array``'s dtype for real
+        input."""
+        ...
+
+    def double_dtype(self) -> Any:
+        """The same as :meth:`real_dtype`."""
+        ...
+
+    def int64_dtype(self) -> Any:
+        """The same as :meth:`index_dtype`."""
+        ...
 
     @staticmethod
     def is_integer_dtype(array: Array) -> bool:
@@ -1041,7 +1120,7 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     def default_dtype(self) -> Any:
-        """Return the default floating point dtype for this backend."""
+        """The same as :meth:`real_dtype`."""
         ...
 
     @staticmethod

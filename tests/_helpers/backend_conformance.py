@@ -81,6 +81,7 @@ from scipy.sparse import csc_matrix
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import Array, ArrayLike, KernelResult
 
 
@@ -232,6 +233,10 @@ def _where(
 
 def _none(*args: Any, **kwargs: Any) -> None:
     return None
+
+
+def _isdtype(array: NDArray[Any], kind: str) -> bool:
+    return bool(np.isdtype(array.dtype, kind))
 
 
 _A = _rand((2, 3))
@@ -537,6 +542,57 @@ CASES: List[Case] = [
          expect=Expect.DTYPE, eager_only=True),
     Case("int64_dtype", "i64", reference=lambda: np.int64,
          expect=Expect.DTYPE, eager_only=True),
+    Case("precision", "double", reference=lambda: Precision.DOUBLE,
+         expect=Expect.HOST, eager_only=True),
+    Case("device", "cpu", reference=lambda: "cpu", expect=Expect.HOST,
+         eager_only=True),
+    Case("real_dtype", "f64", reference=lambda: np.float64,
+         expect=Expect.DTYPE, eager_only=True),
+    Case("index_dtype", "i64", reference=lambda: np.int64,
+         expect=Expect.DTYPE, eager_only=True),
+    Case("eps", "f64", reference=lambda: float(np.finfo(np.float64).eps),
+         expect=Expect.HOST, eager_only=True),
+    Case("result_type", "real-complex", (_A, _C), expect=Expect.DTYPE,
+         eager_only=True),
+    Case("result_type", "index-real", (_index(1), _A), expect=Expect.DTYPE,
+         eager_only=True),
+    Case("result_type", "bool-index", (_MASK, _index(1)), expect=Expect.DTYPE,
+         eager_only=True),
+    Case("result_type", "one", (_C,), expect=Expect.DTYPE, eager_only=True),
+    Case("isdtype", "real-floating", (_A, "real floating"), reference=_isdtype,
+         expect=Expect.HOST, eager_only=True),
+    Case("isdtype", "complex-is-not-real", (_C, "real floating"),
+         reference=_isdtype, expect=Expect.HOST, eager_only=True),
+    Case("isdtype", "complex-floating", (_C, "complex floating"),
+         reference=_isdtype, expect=Expect.HOST, eager_only=True),
+    Case("isdtype", "integral", (_index(1), "integral"), reference=_isdtype,
+         expect=Expect.HOST, eager_only=True),
+    Case("isdtype", "bool-is-not-integral", (_MASK, "integral"),
+         reference=_isdtype, expect=Expect.HOST, eager_only=True),
+    Case("isdtype", "bool", (_MASK, "bool"), reference=_isdtype,
+         expect=Expect.HOST, eager_only=True),
+    Case("isdtype", "unknown-kind", (_A, "floating"), raises=ValueError,
+         eager_only=True),
+    Case("real_dtype_of", "complex", (Role.COMPLEX,),
+         reference=lambda dtype: np.float64, expect=Expect.DTYPE,
+         eager_only=True),
+    Case("real_dtype_of", "real", (Role.DEFAULT,),
+         reference=lambda dtype: np.float64, expect=Expect.DTYPE,
+         eager_only=True),
+    Case("real_dtype_of", "index", (Role.INDEX,), raises=ValueError,
+         eager_only=True),
+    Case("complex_dtype_of", "real", (Role.DEFAULT,),
+         reference=lambda dtype: np.complex128, expect=Expect.DTYPE,
+         eager_only=True),
+    Case("complex_dtype_of", "complex", (Role.COMPLEX,),
+         reference=lambda dtype: np.complex128, expect=Expect.DTYPE,
+         eager_only=True),
+    Case("complex_dtype_of", "bool", (Role.BOOL,), raises=ValueError,
+         eager_only=True),
+    Case("real", "complex", (_C,), expect=Expect.DEFAULT),
+    Case("real", "float", (_A,), differentiable=True),
+    Case("imag", "complex", (_C,), expect=Expect.DEFAULT),
+    Case("imag", "float", (_A,)),
     Case("asarray", "float-list", ([[1.0, 2.0], [3.0, 4.0]],),
          reference=lambda x: np.asarray(x, dtype=np.float64),
          expect=Expect.DEFAULT, eager_only=True),
@@ -1155,7 +1211,13 @@ def _arrays(values: Union[Tuple[Any, ...], List[Any]]) -> List[Any]:
     for value in values:
         if isinstance(value, (tuple, list)):
             found += _arrays(value)
-        elif hasattr(value, "dtype") and hasattr(value, "shape"):
+        elif (
+            # A NumPy scalar type passed as a dtype (np.float64) has dtype
+            # and shape attributes too, but is a class, not an array.
+            not isinstance(value, type)
+            and hasattr(value, "dtype")
+            and hasattr(value, "shape")
+        ):
             found.append(value)
     return found
 

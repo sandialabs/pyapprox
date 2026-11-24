@@ -2,6 +2,7 @@ import functools
 from typing import (
     Any,
     Callable,
+    Dict,
     List,
     Literal,
     Optional,
@@ -26,6 +27,7 @@ from pyapprox.util.backends.protocols import (
     KernelResult,
 )
 from pyapprox.util.backends.validation import (
+    check_dtype_kind,
     check_index_add_shapes,
     check_jit_kernel,
     check_orderable,
@@ -34,6 +36,21 @@ from pyapprox.util.backends.validation import (
     check_to_bool_shape,
     reduction_axes,
 )
+
+# Each floating or complex dtype's (real, complex) pair of its width.
+_WIDTHS: Dict[np.dtype[Any], Tuple[Any, Any]] = {
+    np.dtype(np.float32): (np.float32, np.complex64),
+    np.dtype(np.complex64): (np.float32, np.complex64),
+    np.dtype(np.float64): (np.float64, np.complex128),
+    np.dtype(np.complex128): (np.float64, np.complex128),
+}
+
+
+def _width_pair(dtype: Any) -> Tuple[Any, Any]:
+    pair = _WIDTHS.get(np.dtype(dtype))
+    if pair is None:
+        raise ValueError(f"needs a floating or complex dtype, got {dtype}")
+    return pair
 
 
 def _swap_rows(
@@ -219,14 +236,49 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             strict=True,
         )
 
-    def double_dtype(self) -> Any:
+    def precision(self) -> Precision:
+        return self._precision
+
+    def device(self) -> str:
+        return "cpu"
+
+    def real_dtype(self) -> Any:
         return self._real_dtype
 
     def complex_dtype(self) -> Any:
         return self._complex_dtype
 
+    def index_dtype(self) -> Any:
+        return np.int64
+
+    def eps(self) -> float:
+        return float(np.finfo(self._real_dtype).eps)
+
+    def result_type(self, *arrays: NDArray[Any]) -> Any:
+        return np.result_type(*arrays)
+
+    def isdtype(self, array: NDArray[Any], kind: str) -> bool:
+        check_dtype_kind(kind)
+        return bool(np.isdtype(array.dtype, kind))
+
+    def real_dtype_of(self, dtype: Any) -> Any:
+        return _width_pair(dtype)[0]
+
+    def complex_dtype_of(self, dtype: Any) -> Any:
+        return _width_pair(dtype)[1]
+
     @staticmethod
-    def int64_dtype() -> Any:
+    def real(array: NDArray[Any]) -> NDArray[Any]:
+        return np.real(array)
+
+    @staticmethod
+    def imag(array: NDArray[Any]) -> NDArray[Any]:
+        return np.imag(array)
+
+    def double_dtype(self) -> Any:
+        return self._real_dtype
+
+    def int64_dtype(self) -> Any:
         return np.int64
 
     @staticmethod
