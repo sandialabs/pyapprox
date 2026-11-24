@@ -161,7 +161,9 @@ class JaxBkd:
 
     @staticmethod
     def array_type() -> type:
-        return jax.Array
+        # Annotated: where jax is not installed (CI's lint job) it is Any.
+        array_class: type = jax.Array
+        return array_class
 
     @staticmethod
     def is_integer_dtype(array: jax.Array) -> bool:
@@ -786,7 +788,10 @@ class JaxBkd:
         array: jax.Array, indices_or_sections: jax.Array, axis: int = 0
     ) -> List[jax.Array]:
         # The indices fix the output shapes, so they must be concrete.
-        return jnp.split(array, np.asarray(indices_or_sections), axis=axis)
+        pieces: List[jax.Array] = jnp.split(
+            array, np.asarray(indices_or_sections), axis=axis
+        )
+        return pieces
 
     @staticmethod
     def hstack(arrays: Union[List[jax.Array], Tuple[jax.Array, ...]]) -> jax.Array:
