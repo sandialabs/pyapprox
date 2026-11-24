@@ -27,6 +27,13 @@ Cases:
 - transient: the old suite's time-linear cases, 1D and 2D, Stokes and
   Navier-Stokes, stepped exactly (below 1e-10) by backward Euler and
   Crank-Nicolson;
+- transient studies through the harness (Q2-Q1, velocity and zero-mean
+  pressure apart, largest error over the steps): exact in time up to the
+  stage order (backward Euler degree 1, Crank-Nicolson degree 2, Stokes
+  and Navier-Stokes); temporal order 1 and 2 for velocity and pressure
+  under both pin placements; spatial order 3 and 2. Implicit midpoint is
+  left out: the stepper forms its step result with a solve by the mass,
+  singular on the pressure rows;
 - wrong-model controls, which stall (fitted rate below 0.5): the
   continuity forcing given with the wrong sign, and the Navier-Stokes
   problem solved without convection;
@@ -48,6 +55,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.implicitfunction.setups import RecomputeAlways
+from pyapprox.ode.pinned_rows import AtEveryBlock, AtStepEnd, PinPlacementProtocol
 from pyapprox.ode.step_plan import FixedStep
 from pyapprox.ode.stepping_methods import RungeKutta
 from pyapprox.ode.tableau import ButcherTableau, backward_euler, crank_nicolson
@@ -68,6 +76,7 @@ from pyapprox.pde.models.galerkin.transient_system import (
 )
 from pyapprox.pde.models.galerkin.verification import (
     GalerkinDiscretizer,
+    GalerkinTransientDiscretizer,
     StructuredBox,
     TaylorHood,
     exact_dof_values,
@@ -85,12 +94,24 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.study import Converges, run_study
+from pyapprox.pde.verification.protocols import DT, SpaceLevel
+from pyapprox.pde.verification.study import (
+    Converges,
+    MeasureProtocol,
+    Recovers,
+    run_study,
+)
 from pyapprox.pde.verification.terms import (
     Divergence,
     Source,
     TermProtocol,
     TimeDerivative,
+)
+from pyapprox.pde.verification.transient import (
+    SeriesProtocol,
+    TimeGrid,
+    max_over_steps,
+    refine_time,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
@@ -516,6 +537,127 @@ class TestTransient:
         last = store.ntimes() - 1
         error = np.max(np.abs(store.state(last)[:, 0] - exact(store.times()[last])))
         assert error < 1e-10
+
+
+def _transient_problem(
+    velocity: Sequence[str], pressure: str, navier_stokes: bool = False
+) -> ManufacturedProblem:
+    """``∂t u`` added to each momentum row, all sides Dirichlet, on the
+    unit square."""
+    rows = _VELOCITY[:2]
+    solution = dict(zip(rows, velocity))
+    solution["p"] = pressure
+    terms: List[TermProtocol] = [TimeDerivative(row) for row in rows]
+    terms += _terms(2, 1.0, navier_stokes)
+    return ManufacturedProblem(
+        solution, terms, _UNIT_SQUARE, _sides(_UNIT_SQUARE, "DDDD")
+    )
+
+
+def _velocity_and_pressure() -> List[MeasureProtocol[SeriesProtocol[Any]]]:
+    """The largest velocity error and the largest zero-mean pressure error
+    over the steps, apart."""
+    return [
+        max_over_steps(galerkin_l2_error(_VELOCITY[:2]), "velocity"),
+        max_over_steps(galerkin_l2_error(["p"], zero_mean=True), "pressure"),
+    ]
+
+
+# Backward Euler and Crank-Nicolson only: both are stiffly accurate (the
+# last stage is the step result), so a step needs no solve with the mass,
+# which is singular on the pressure rows. The stepper forms other methods'
+# step result with that solve, so implicit midpoint is refused here.
+_STIFFLY_ACCURATE = [(backward_euler, 1.0), (crank_nicolson, 2.0)]
+
+
+class TestTransientStudies:
+    """Transient Taylor-Hood (Q2-Q1 on the unit square) through the
+    verification harness, the pressure pinned at one DOF, velocity and
+    pressure measured apart by their largest error over the steps."""
+
+    @pytest.mark.parametrize("navier_stokes", [False, True], ids=["stokes", "ns"])
+    @pytest.mark.parametrize(
+        "tableau, time_factor",
+        [(backward_euler, "(1 + t)"), (crank_nicolson, "(1 + t + t**2)")],
+        ids=["BE", "CN"],
+    )
+    def test_exact_in_time_up_to_the_stage_order(
+        self,
+        tableau: Callable[[], ButcherTableau],
+        time_factor: str,
+        navier_stokes: bool,
+    ) -> None:
+        """Velocity and pressure in the Taylor-Hood space, times a
+        polynomial of the stage order in t: recovered to 1e-11 relative
+        (measured at most 1.4e-15 velocity, 1.3e-13 pressure)."""
+        problem = _transient_problem(
+            (f"y**2*{time_factor}", f"x**2*{time_factor}"),
+            f"x*{time_factor}",
+            navier_stokes,
+        )
+        discretizer = GalerkinTransientDiscretizer(
+            StructuredBox([4]),
+            TaylorHood(),
+            _Stokes(navier_stokes=navier_stokes),
+            RungeKutta(tableau(), Newton(atol=1e-12, rtol=0.0, maxiters=50)),
+            TimeGrid(0.0, 0.5, 0.1),
+        )
+        study = run_study(problem, discretizer, _velocity_and_pressure())
+        for column in ("velocity", "pressure"):
+            result = Recovers(rtol=1e-11, column=column).verify(study)
+            assert result.passed, (column, result.message)
+
+    @pytest.mark.parametrize("placement", [AtStepEnd(), AtEveryBlock()], ids=repr)
+    @pytest.mark.parametrize("tableau, order", _STIFFLY_ACCURATE, ids=["BE", "CN"])
+    def test_temporal_order(
+        self,
+        tableau: Callable[[], ButcherTableau],
+        order: float,
+        placement: PinPlacementProtocol,
+    ) -> None:
+        """In the Taylor-Hood space and smooth in t, steps 0.2 to 0.00625 on
+        [0, 1]: velocity and pressure both at the method's order, fitted on
+        the finest two levels within 0.1 under both placements. Measured:
+        backward Euler 1.00 and 0.99; Crank-Nicolson velocity 2.00 (2.1 to
+        2.36 on the coarser halvings, pre-asymptotic) and pressure 1.99."""
+        factor = "(1 + sin(2*t))"
+        grid = TimeGrid(0.0, 1.0, 0.2)
+        discretizer = GalerkinTransientDiscretizer(
+            StructuredBox([4]),
+            TaylorHood(),
+            _Stokes(),
+            RungeKutta(tableau(), Newton(atol=1e-12, rtol=0.0, maxiters=50)),
+            grid,
+            placement,
+        )
+        study = run_study(
+            _transient_problem((f"y**2*{factor}", f"x**2*{factor}"), f"x*{factor}"),
+            discretizer,
+            _velocity_and_pressure(),
+            refine_time(SpaceLevel(0), grid, 6),
+        )
+        for column in ("velocity", "pressure"):
+            result = Converges(order, axis=DT, last=2, column=column).verify(study)
+            assert result.passed, (column, result.message)
+
+    def test_spatial_order(self) -> None:
+        """Smooth in x and linear in t, backward Euler exact in time:
+        velocity 3 and pressure 2 on 4-32 cells (measured 3.00, 2.00)."""
+        velocity, pressure = _SMOOTH_2D
+        problem = _transient_problem(
+            tuple(f"({v})*(1 + t)" for v in velocity), f"({pressure})*(1 + t)"
+        )
+        discretizer = GalerkinTransientDiscretizer(
+            _LEVELS_2D,
+            TaylorHood(),
+            _Stokes(),
+            RungeKutta(backward_euler(), Newton(atol=1e-12, rtol=0.0, maxiters=50)),
+            TimeGrid(0.0, 0.5, 0.1),
+        )
+        study = run_study(problem, discretizer, _velocity_and_pressure())
+        for column, rate in (("velocity", 3.0), ("pressure", 2.0)):
+            result = Converges(rate, last=3, column=column).verify(study)
+            assert result.passed, (column, result.message)
 
 
 class TestRefusals:
