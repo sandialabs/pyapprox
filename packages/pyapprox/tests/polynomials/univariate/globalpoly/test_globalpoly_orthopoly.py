@@ -1,9 +1,14 @@
 """Tests for orthonormal polynomial univariate bases."""
 
 from abc import ABC, abstractmethod
+from typing import Any, Callable, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
+from pyapprox.polynomials.univariate.globalpoly.orthopoly_base import (
+    OrthonormalPolynomial1D,
+)
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     Chebyshev1stKindPolynomial1D,
     Chebyshev2ndKindPolynomial1D,
@@ -20,21 +25,21 @@ class _OrthonormalPolynomialTestBase(ABC):
     """Base class for orthonormal polynomial tests."""
 
     @abstractmethod
-    def _create_polynomial(self):
+    def _create_polynomial(self) -> OrthonormalPolynomial1D[NDArray[Any]]:
         """Create the polynomial instance for testing."""
         raise NotImplementedError
 
     @abstractmethod
-    def _get_integration_bounds(self):
+    def _get_integration_bounds(self) -> Tuple[float, float]:
         """Return the integration bounds for orthonormality testing."""
         raise NotImplementedError
 
     @abstractmethod
-    def _get_weight_function(self):
+    def _get_weight_function(self) -> Callable[[NDArray[Any]], NDArray[Any]]:
         """Return the weight function for orthonormality testing."""
         raise NotImplementedError
 
-    def test_set_nterms(self):
+    def test_set_nterms(self) -> None:
         """Test that nterms can be set and retrieved."""
         poly = self._create_polynomial()
         assert poly.nterms() == 0
@@ -49,9 +54,9 @@ class _OrthonormalPolynomialTestBase(ABC):
         poly.set_nterms(3)
         assert poly.nterms() == 3
 
-    def test_evaluation_shape(self):
+    def test_evaluation_shape(self) -> None:
         """Test that evaluation returns correct shape."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
@@ -60,9 +65,9 @@ class _OrthonormalPolynomialTestBase(ABC):
 
         assert vals.shape == (10, 5)
 
-    def test_jacobian_batch_shape(self):
+    def test_jacobian_batch_shape(self) -> None:
         """Test that Jacobians have correct shape."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
@@ -71,9 +76,9 @@ class _OrthonormalPolynomialTestBase(ABC):
 
         assert jacs.shape == (10, 5)
 
-    def test_hessian_batch_shape(self):
+    def test_hessian_batch_shape(self) -> None:
         """Test that Hessians have correct shape."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
@@ -82,9 +87,9 @@ class _OrthonormalPolynomialTestBase(ABC):
 
         assert hess.shape == (10, 5)
 
-    def test_jacobian_batch_finite_difference(self):
+    def test_jacobian_batch_finite_difference(self) -> None:
         """Test Jacobians against finite differences."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
@@ -100,7 +105,7 @@ class _OrthonormalPolynomialTestBase(ABC):
             fd_jac = (poly(xp) - poly(xm)) / (2 * eps)
             bkd.assert_allclose(jacs[ii, :], fd_jac[0, :], rtol=1e-5, atol=1e-5)
 
-    def test_quadrature_rule_shape(self):
+    def test_quadrature_rule_shape(self) -> None:
         """Test that quadrature rule returns correct shapes."""
         poly = self._create_polynomial()
         poly.set_nterms(10)
@@ -110,9 +115,9 @@ class _OrthonormalPolynomialTestBase(ABC):
         assert points.shape == (1, 5)
         assert weights.shape == (5, 1)
 
-    def test_orthonormality(self):
+    def test_orthonormality(self) -> None:
         """Test that polynomials are orthonormal under quadrature."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         nterms = 8
         nquad = nterms + 2
@@ -134,18 +139,18 @@ class _OrthonormalPolynomialTestBase(ABC):
 class TestLegendrePolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Legendre polynomials."""
 
-    def _create_polynomial(self):
-        return LegendrePolynomial1D(NumpyBkd)
+    def _create_polynomial(self) -> OrthonormalPolynomial1D[NDArray[Any]]:
+        return LegendrePolynomial1D(NumpyBkd())
 
-    def _get_integration_bounds(self):
+    def _get_integration_bounds(self) -> Tuple[float, float]:
         return (-1, 1)
 
-    def _get_weight_function(self):
+    def _get_weight_function(self) -> Callable[[NDArray[Any]], NDArray[Any]]:
         return lambda x: np.ones_like(x)
 
-    def test_legendre_specific_values(self):
+    def test_legendre_specific_values(self) -> None:
         """Test specific Legendre polynomial values."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(4)
 
@@ -155,39 +160,39 @@ class TestLegendrePolynomial(_OrthonormalPolynomialTestBase):
         vals = poly(x)
 
         # P_0(0) = 1 (normalized)
-        bkd.assert_allclose(vals[0, 0], 1.0, rtol=1e-10)
+        bkd.assert_allclose(vals[0, 0], bkd.asarray(1.0), rtol=1e-10)
 
         # P_1(x) = sqrt(3)*x for probability measure
         # P_1(0) = 0
-        bkd.assert_allclose(vals[0, 1], 0.0, atol=1e-10)
+        bkd.assert_allclose(vals[0, 1], bkd.asarray(0.0), atol=1e-10)
 
 
 class TestJacobiPolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Jacobi polynomials."""
 
-    def _create_polynomial(self):
-        return JacobiPolynomial1D(1.0, 2.0, NumpyBkd)
+    def _create_polynomial(self) -> OrthonormalPolynomial1D[NDArray[Any]]:
+        return JacobiPolynomial1D(1.0, 2.0, NumpyBkd())
 
-    def _get_integration_bounds(self):
+    def _get_integration_bounds(self) -> Tuple[float, float]:
         return (-1, 1)
 
-    def _get_weight_function(self):
+    def _get_weight_function(self) -> Callable[[NDArray[Any]], NDArray[Any]]:
         return lambda x: (1 - x) ** 1.0 * (1 + x) ** 2.0
 
 
 class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Chebyshev polynomials of the first kind."""
 
-    def _create_polynomial(self):
-        return Chebyshev1stKindPolynomial1D(NumpyBkd)
+    def _create_polynomial(self) -> OrthonormalPolynomial1D[NDArray[Any]]:
+        return Chebyshev1stKindPolynomial1D(NumpyBkd())
 
-    def _get_integration_bounds(self):
+    def _get_integration_bounds(self) -> Tuple[float, float]:
         return (-1, 1)
 
-    def _get_weight_function(self):
+    def _get_weight_function(self) -> Callable[[NDArray[Any]], NDArray[Any]]:
         return lambda x: 1 / np.sqrt(1 - x**2)
 
-    def test_orthonormality(self):
+    def test_orthonormality(self) -> None:
         """Test Chebyshev 1st kind orthonormality.
 
         For Chebyshev 1st kind with our normalization:
@@ -195,7 +200,7 @@ class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase):
         - T_n for n>=1 are scaled by 1/sqrt(2) (integral = pi/2 * 1/2 = pi/4)
         Actually after scaling, they all integrate to pi/2 except T_0.
         """
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         nterms = 8
         nquad = nterms + 2
@@ -219,21 +224,21 @@ class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase):
 class TestChebyshev2ndKindPolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Chebyshev polynomials of the second kind."""
 
-    def _create_polynomial(self):
-        return Chebyshev2ndKindPolynomial1D(NumpyBkd)
+    def _create_polynomial(self) -> OrthonormalPolynomial1D[NDArray[Any]]:
+        return Chebyshev2ndKindPolynomial1D(NumpyBkd())
 
-    def _get_integration_bounds(self):
+    def _get_integration_bounds(self) -> Tuple[float, float]:
         return (-1, 1)
 
-    def _get_weight_function(self):
+    def _get_weight_function(self) -> Callable[[NDArray[Any]], NDArray[Any]]:
         return lambda x: np.sqrt(1 - x**2)
 
-    def test_orthonormality(self):
+    def test_orthonormality(self) -> None:
         """Test Chebyshev 2nd kind orthonormality.
 
         Note: Quadrature weights are scaled by pi/2, so mass matrix diagonal = pi/2.
         """
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = self._create_polynomial()
         nterms = 8
         nquad = nterms + 2
@@ -251,18 +256,18 @@ class TestChebyshev2ndKindPolynomial(_OrthonormalPolynomialTestBase):
 class TestHermitePolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Hermite polynomials."""
 
-    def _create_polynomial(self):
-        return HermitePolynomial1D(NumpyBkd)
+    def _create_polynomial(self) -> OrthonormalPolynomial1D[NDArray[Any]]:
+        return HermitePolynomial1D(NumpyBkd())
 
-    def _get_integration_bounds(self):
+    def _get_integration_bounds(self) -> Tuple[float, float]:
         return (-np.inf, np.inf)
 
-    def _get_weight_function(self):
+    def _get_weight_function(self) -> Callable[[NDArray[Any]], NDArray[Any]]:
         return lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
 
-    def test_hermite_orthonormality(self):
+    def test_hermite_orthonormality(self) -> None:
         """Test Hermite orthonormality with standard normal weight."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = HermitePolynomial1D(bkd)
         nterms = 8
         nquad = nterms + 2
@@ -280,9 +285,9 @@ class TestHermitePolynomial(_OrthonormalPolynomialTestBase):
 class TestGaussQuadratureRule:
     """Tests for Gaussian quadrature rule wrapper."""
 
-    def test_quadrature_rule_accuracy(self):
+    def test_quadrature_rule_accuracy(self) -> None:
         """Test that quadrature exactly integrates polynomials."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(10)
         quad = GaussQuadratureRule(poly)
@@ -291,15 +296,15 @@ class TestGaussQuadratureRule:
         # For uniform measure on [-1,1], integral of 1 is 1 (prob measure)
         points, weights = quad(5)
         integral = bkd.sum(weights)
-        bkd.assert_allclose(integral, 1.0, rtol=1e-14)
+        bkd.assert_allclose(integral, bkd.asarray(1.0), rtol=1e-14)
 
         # Integral of x^2 on [-1,1] with uniform prob measure = 1/3
         integral_x2 = bkd.sum(points[0, :] ** 2 * weights[:, 0])
-        bkd.assert_allclose(integral_x2, 1.0 / 3.0, rtol=1e-14)
+        bkd.assert_allclose(integral_x2, bkd.asarray(1.0 / 3.0), rtol=1e-14)
 
-    def test_caching(self):
+    def test_caching(self) -> None:
         """Test that caching works correctly."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(10)
         quad = GaussQuadratureRule(poly, store=True)
@@ -315,9 +320,9 @@ class TestGaussQuadratureRule:
 class TestGaussLobattoQuadratureRule:
     """Tests for Gauss-Lobatto quadrature rule."""
 
-    def test_endpoints_included(self):
+    def test_endpoints_included(self) -> None:
         """Test that Lobatto rule includes endpoints."""
-        bkd = NumpyBkd
+        bkd = NumpyBkd()
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(10)
         quad = GaussLobattoQuadratureRule(poly)
@@ -325,5 +330,5 @@ class TestGaussLobattoQuadratureRule:
         points, weights = quad(5)
 
         # First and last points should be -1 and 1
-        bkd.assert_allclose(points[0, 0], -1.0, rtol=1e-14)
-        bkd.assert_allclose(points[0, -1], 1.0, rtol=1e-14)
+        bkd.assert_allclose(points[0, 0], bkd.asarray(-1.0), rtol=1e-14)
+        bkd.assert_allclose(points[0, -1], bkd.asarray(1.0), rtol=1e-14)
