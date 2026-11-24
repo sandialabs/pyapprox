@@ -46,6 +46,25 @@ left and Robin (:math:`\alpha = 1`) on the right:
   resolves both constants of :math:`e = A h^p + B \Delta t^r`
   (measured A 0.60, B 0.069, misfit 2%; A 0.11, B 0.028, misfit 9%).
 
+Periodic viscous Burgers, :math:`u_t - 0.1 u_{xx} + u u_x = f` with the
+mesh wrapping :math:`x` and no essential rows, through the nonlinear
+solve: L2 rate 2 for P1 and 3 for P2 (Crank-Nicolson on a solution
+quadratic in :math:`t`; measured 2.00, 2.99), and temporal orders
+backward Euler 1, Crank-Nicolson 2, implicit midpoint 2 on P2 with 64
+cells (measured 0.99, 2.00, 2.01).
+
+Steady solutions through the transient path:
+
+- a steady solution in the P2 space, time-independent Dirichlet and
+  Robin data: every method under both placements holds the discrete
+  steady state to 1e-11 relative (measured at most 1.1e-15);
+- from the interpolant of a steady solution smooth in :math:`x`,
+  backward Euler with step 1, and Crank-Nicolson and implicit midpoint
+  with step 0.1, reach the steady solver's error by :math:`t = 40` to
+  1e-10 relative (measured 6e-13, 3e-13, 5e-13). At step 1 the latter
+  two stay 1.5e-3 away: not L-stable, they keep a stiff mode's amplitude
+  and flip its sign each step.
+
 Also the sizes (``H``, ``DEGREE``, ``NDOFS`` and ``DT``), the series'
 times, and the refusals: a problem without a time derivative, a level
 beyond the family, a method or grid of the wrong type.
@@ -75,8 +94,10 @@ from pyapprox.ode.tableau import (
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.verification import (
+    GalerkinDiscretizer,
     GalerkinTransientDiscretizer,
     Lagrange,
     StructuredBox,
@@ -85,16 +106,27 @@ from pyapprox.pde.models.galerkin.verification import (
     forcing,
     galerkin_l2_error,
 )
-from pyapprox.pde.verification.conditions import ConditionProtocol, Dirichlet, Robin
+from pyapprox.pde.verification.conditions import (
+    ConditionProtocol,
+    Dirichlet,
+    Periodic,
+    Robin,
+)
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.protocols import DEGREE, DT, NDOFS, H, SpaceLevel
 from pyapprox.pde.verification.study import Converges, Recovers, run_study
-from pyapprox.pde.verification.terms import Divergence, TermProtocol, TimeDerivative
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
+)
 from pyapprox.pde.verification.transient import (
     SpaceSizesProtocol,
     TimeGrid,
     TransientLevel,
+    final_time,
     fit_joint,
     max_over_steps,
     refine_jointly,
@@ -326,6 +358,133 @@ def test_joint_refinement(method: _Method, degree: int) -> None:
     fit = fit_joint(both, p, r)
     assert fit.space > 0.0 and fit.time > 0.0, fit
     assert fit.misfit < 0.15, fit
+
+
+class _Burgers:
+    """Viscous Burgers, viscosity from the same string as the strong
+    form."""
+
+    def system(
+        self, problem: ManufacturedProblem, basis: LagrangeBasis[_Np]
+    ) -> GalerkinSystem[_Np]:
+        physics = BurgersPhysics(
+            basis=basis,
+            viscosity=field(problem, _DIFFUSIVITY),
+            bkd=NumpyBkd(),
+            forcing=forcing(problem, "u"),
+        )
+        return compose_galerkin_system(
+            physics, boundary_conditions(problem, basis, "u")
+        )
+
+    def __repr__(self) -> str:
+        return "_Burgers()"
+
+
+_PERIODIC: Dict[str, ConditionProtocol] = {"left": Periodic(), "right": Periodic()}
+_WAVE = "(0.5 + 0.2*sin(2*pi*x))"
+
+
+def _burgers(solution: str) -> ManufacturedProblem:
+    terms: List[TermProtocol] = [
+        TimeDerivative("u"),
+        Divergence("u", [f"-({_DIFFUSIVITY})*u_x"]),
+        Source("u", "u*u_x"),
+    ]
+    return ManufacturedProblem({"u": solution}, terms, Box([(0.0, 1.0)]), _PERIODIC)
+
+
+def _burgers_discretizer(
+    method: _Method, grid: TimeGrid, cells: Sequence[int], degree: int
+) -> GalerkinTransientDiscretizer[LagrangeBasis[_Np]]:
+    return GalerkinTransientDiscretizer(
+        StructuredBox(cells, periodic=("x",)),
+        Lagrange(degree),
+        _Burgers(),
+        method.stepping(),
+        grid,
+    )
+
+
+@pytest.mark.parametrize("degree", [1, 2])
+def test_periodic_burgers_spatial_order(degree: int) -> None:
+    """Periodic ends (the mesh wraps x), no essential rows; Crank-Nicolson
+    on a solution quadratic in t: L2 rate degree + 1 in h."""
+    cells = (8, 16, 32, 64) if degree == 1 else (4, 8, 16, 32)
+    study = run_study(
+        _burgers(f"{_WAVE}*(1 + t + t**2)"),
+        _burgers_discretizer(_METHODS[2], TimeGrid(0.0, 0.5, 0.05), cells, degree),
+        [max_over_steps(galerkin_l2_error())],
+    )
+    result = Converges(float(degree + 1), last=3).verify(study)
+    assert result.passed, result.message
+
+
+@pytest.mark.parametrize("method", _IMPLICIT, ids=repr)
+def test_periodic_burgers_temporal_order(method: _Method) -> None:
+    """P2 on 64 periodic cells, steps 0.1 to 0.0125 on [0, 1]: each
+    method's order through the nonlinear solve."""
+    grid = TimeGrid(0.0, 1.0, 0.1)
+    study = run_study(
+        _burgers(f"{_WAVE}*exp(-t)*(1 + sin(3*t))"),
+        _burgers_discretizer(method, grid, (64,), 2),
+        [max_over_steps(galerkin_l2_error())],
+        refine_time(SpaceLevel(0), grid, 4),
+    )
+    result = Converges(float(method.order), axis=DT, atol=0.1).verify(study)
+    assert result.passed, result.message
+
+
+@pytest.mark.parametrize("placement", list(_PLACEMENTS), ids=str)
+@pytest.mark.parametrize("method", _METHODS, ids=repr)
+def test_steady_state_through_the_transient_path(
+    method: _Method, placement: str
+) -> None:
+    """A steady solution in the P2 space with time-independent Dirichlet
+    and Robin data: the interpolant is the discrete steady state, so every
+    method under every placement holds it to 10 times the Newton
+    tolerance, relative. A pinned-row treatment that let a stage's
+    essential rows follow their unconstrained equation would drift here."""
+    grid = TimeGrid(0.0, 1.0, 0.01 if method.explicit() else 0.25)
+    study = run_study(
+        _problem(_SHAPE, conditions=_DIRICHLET_ROBIN),
+        _discretizer(method, grid, _PLACEMENTS[placement]),
+        [max_over_steps(galerkin_l2_error())],
+    )
+    result = Recovers(rtol=1e-11).verify(study)
+    assert result.passed, result.message
+
+
+@pytest.mark.parametrize(
+    "method, dt",
+    [(_METHODS[0], 1.0), (_METHODS[2], 0.1), (_METHODS[3], 0.1)],
+    ids=["backward_euler", "crank_nicolson", "implicit_midpoint"],
+)
+def test_settles_onto_the_discrete_steady_state(method: _Method, dt: float) -> None:
+    """From the interpolant of a steady solution smooth in x to t = 40,
+    each method reaches the steady solver's solution: the same L2 error
+    to 1e-10 relative (measured 6e-13, 3e-13, 5e-13).
+
+    Backward Euler damps every mode (R(z) -> 0 as z -> -inf), so a step of
+    1 suffices. Crank-Nicolson and implicit midpoint are A- but not
+    L-stable (R(z) -> -1): at a step of 1 the stiffest mode, |lambda| dt
+    near 350, keeps 0.9885 of its amplitude per step and flips sign, and
+    after 40 steps the error is still 1.5e-3 away (+1.49e-3 at t = 40,
+    -1.43e-3 at 41, +0.94e-3 at 80). At a step of 0.1 it falls to 0.89
+    per step and they settle too."""
+    conditions = _DIRICHLET_ROBIN
+    steady = run_study(
+        _problem(_SMOOTH, transient=False, conditions=conditions),
+        GalerkinDiscretizer(StructuredBox([8]), Lagrange(2), _Heat()),
+        [galerkin_l2_error()],
+    )
+    settled = run_study(
+        _problem(_SMOOTH, conditions=conditions),
+        _discretizer(method, TimeGrid(0.0, 40.0, dt), cells=(8,)),
+        [final_time(galerkin_l2_error())],
+    )
+    (expected,), (actual,) = steady.errors(), settled.errors()
+    assert abs(actual - expected) <= 1e-10 * expected, (actual, expected)
 
 
 def test_sizes_and_times() -> None:
