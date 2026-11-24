@@ -242,7 +242,7 @@ def _ceiling_panel(ax, bkd, benchmark):
         for f in factors:
             npartition_samples = bkd.asarray(
                 nhf * np.hstack((1, base_ratio[: nparts - 1] * 2**f)),
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             )
             ec = est_template._covariance_from_npartition_samples(npartition_samples)
             actual_cost = bkd.to_float(est_template._estimator_cost(npartition_samples))
@@ -1249,7 +1249,7 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
             optimizer=_slsqp(),
             problem_config=_LOG_INEQ_CONFIG,
         ).optimize(float(target_cost), round_nsamples=False)
-        return bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+        return bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
 
     def _allocate_guided(stat_alloc):
         fitter = MeanGuidedSubsetFitter(
@@ -1264,7 +1264,7 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
         return (
             bkd.asarray(
                 result.best_allocation.relaxed_npartition_samples,
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             ),
             [all_subsets[i] for i in result.active_subset_indices],
         )

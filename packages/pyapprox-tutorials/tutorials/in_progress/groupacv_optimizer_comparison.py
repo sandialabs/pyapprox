@@ -261,7 +261,7 @@ def _compute_estimator_variance(stat, costs, bkd, npartition_samples):
     """Compute tr(estimator covariance) at a given allocation."""
     subsets = get_model_subsets(len(costs), bkd)
     est = GroupACVEstimatorIS(stat, costs, model_subsets=subsets)
-    nps_float = bkd.asarray(npartition_samples, dtype=bkd.double_dtype())
+    nps_float = bkd.asarray(npartition_samples, dtype=bkd.real_dtype())
     est_cov = est._covariance_from_npartition_samples(nps_float)
     return float(bkd.to_numpy(bkd.trace(est_cov)))
 

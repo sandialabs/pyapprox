@@ -123,7 +123,7 @@ class NumpyDerivativesAdapter(Generic[Array]):
         if bundle_hvp is None:
             raise RuntimeError("hvp capability is absent")
         # Ensure vec is double - scipy's LinearOperator may probe with int8
-        bkd_vec = self._bkd.asarray(vec, dtype=self._bkd.double_dtype())
+        bkd_vec = self._bkd.asarray(vec, dtype=self._bkd.real_dtype())
         return self._bkd.to_numpy(
             bundle_hvp(self._convert_samples_from_numpy(sample), bkd_vec)
         )
@@ -135,9 +135,9 @@ class NumpyDerivativesAdapter(Generic[Array]):
         if bundle_whvp is None:
             raise RuntimeError("whvp capability is absent")
         # Ensure vec and weights are double - scipy may probe with int8
-        bkd_vec = self._bkd.asarray(vec, dtype=self._bkd.double_dtype())
+        bkd_vec = self._bkd.asarray(vec, dtype=self._bkd.real_dtype())
         bkd_weights = self._bkd.asarray(
-            weights, dtype=self._bkd.double_dtype()
+            weights, dtype=self._bkd.real_dtype()
         )
         return self._bkd.to_numpy(
             bundle_whvp(

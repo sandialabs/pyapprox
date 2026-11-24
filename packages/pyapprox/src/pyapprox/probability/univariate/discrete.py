@@ -458,7 +458,7 @@ class DiscreteChebyshevMarginal(CustomDiscreteMarginal[Array]):
         self._nmasses_init = nmasses
 
         # Create uniform distribution over {0, 1, ..., nmasses-1}
-        xk = bkd.arange(nmasses, dtype=bkd.double_dtype())
+        xk = bkd.arange(nmasses, dtype=bkd.real_dtype())
         pk = bkd.ones((nmasses,)) / nmasses
 
         super().__init__(xk, pk, bkd)

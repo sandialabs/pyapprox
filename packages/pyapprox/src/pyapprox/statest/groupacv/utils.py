@@ -111,7 +111,7 @@ def _get_allocation_matrix_is(subsets: List[Array], bkd: Backend[Array]) -> Arra
     """
     nsubsets = len(subsets)
     npartitions = nsubsets
-    allocation_mat = bkd.full((nsubsets, npartitions), 0.0, dtype=bkd.double_dtype())
+    allocation_mat = bkd.full((nsubsets, npartitions), 0.0, dtype=bkd.real_dtype())
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, ii] = 1.0
     return allocation_mat
@@ -138,7 +138,7 @@ def _get_allocation_matrix_nested(subsets: List[Array], bkd: Backend[Array]) -> 
     """
     nsubsets = len(subsets)
     npartitions = nsubsets
-    allocation_mat = bkd.full((nsubsets, npartitions), 0.0, dtype=bkd.double_dtype())
+    allocation_mat = bkd.full((nsubsets, npartitions), 0.0, dtype=bkd.real_dtype())
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, : ii + 1] = 1.0
     return allocation_mat
@@ -220,7 +220,7 @@ def _get_allocation_matrix_tree(
     _validate_parents(parents)
     nsubsets = len(parents)
     allocation_mat = bkd.full(
-        (nsubsets, nsubsets), 0.0, dtype=bkd.double_dtype()
+        (nsubsets, nsubsets), 0.0, dtype=bkd.real_dtype()
     )
     for kk in range(nsubsets):
         node = kk

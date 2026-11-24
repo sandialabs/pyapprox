@@ -70,7 +70,7 @@ class QuadraticWithJacobianAndHVP(QuadraticWithJacobian[Array]):
 
     def hvp(self, sample: Array, vec: Array) -> Array:
         self.nhvp_calls += 1
-        if vec.dtype != self._bkd.double_dtype():
+        if vec.dtype != self._bkd.real_dtype():
             self.foreign_vec_dtypes.append(vec.dtype)
         return vec * 2.0
 
@@ -143,6 +143,6 @@ class SumConstraintWithJacobianAndWHVP(SumConstraintWithJacobian[Array]):
     def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
         self.nwhvp_calls += 1
         for array in (vec, weights):
-            if array.dtype != self._bkd.double_dtype():
+            if array.dtype != self._bkd.real_dtype():
                 self.foreign_dtypes.append(array.dtype)
         return vec * 0.0

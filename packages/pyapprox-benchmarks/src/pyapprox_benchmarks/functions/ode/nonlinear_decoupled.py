@@ -131,7 +131,7 @@ class NonLinearDecoupledODE(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
     def _rate(self, nstates: int, time: float) -> Array:
         r""":math:`b / c^2 = i \tau(t)` for each state index."""
-        rate = self._bkd.arange(1, nstates + 1, dtype=self._bkd.double_dtype())
+        rate = self._bkd.arange(1, nstates + 1, dtype=self._bkd.real_dtype())
         if self._transient_coef:
             rate = rate * (2 + time)
         return rate

@@ -603,7 +603,7 @@ def bootstrap_covariance_from_pilot(
         Per-replicate flattened covariance. No allocations are recorded,
         the allocation being fixed by construction.
     """
-    nps_float = bkd.asarray(npartition_samples, dtype=bkd.double_dtype())
+    nps_float = bkd.asarray(npartition_samples, dtype=bkd.real_dtype())
 
     def _evaluate(replicate: List[Array]) -> Tuple[Array, Optional[Array]]:
         statistic = statistic_factory()

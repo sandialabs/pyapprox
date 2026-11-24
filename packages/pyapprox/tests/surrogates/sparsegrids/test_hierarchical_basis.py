@@ -121,7 +121,7 @@ class TestHierarchicalBasis1DInclude:
                 continue
             nodes = bkd.asarray(
                 [basis.node(lv, j) for j in indices],
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             )
             for i, ja in enumerate(indices):
                 vals = bkd.to_numpy(basis.evaluate(nodes, lv, ja))
@@ -144,7 +144,7 @@ class TestHierarchicalBasis1DInclude:
                     continue
                 coarse_nodes = bkd.asarray(
                     [basis.node(lv, j) for lv, j in coarse_pts],
-                    dtype=bkd.double_dtype(),
+                    dtype=bkd.real_dtype(),
                 )
                 for lf, jf in fine_pts:
                     vals = bkd.to_numpy(basis.evaluate(coarse_nodes, lf, jf))
@@ -165,7 +165,7 @@ class TestHierarchicalBasis1DInclude:
         f_sorted = [f(n) for n in nodes_sorted]
 
         x_test = np.linspace(0, 1, 201)
-        x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
+        x_arr = bkd.asarray(x_test, dtype=bkd.real_dtype())
 
         hier_vals = np.zeros_like(x_test)
         for (lv, j), v in surpluses.items():
@@ -263,14 +263,14 @@ class TestHierarchicalBasis1DQuadratic:
         )
 
     def test_level_0_constant(self, bkd, basis):
-        x = bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0], dtype=bkd.double_dtype())
+        x = bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0], dtype=bkd.real_dtype())
         vals = basis.evaluate(x, 0, 1)
         bkd.assert_allclose(vals, bkd.ones_like(x), atol=1e-15)
 
     def test_boundary_nodes_linear(self, bkd, basis):
         """Boundary nodes at level 1 use linear hat (degree 1)."""
         x = bkd.asarray(
-            np.linspace(0, 1, 101), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 101), dtype=bkd.real_dtype()
         )
         # Left boundary: hat from 1 at x=0 to 0 at x=0.5
         vals_left = bkd.to_numpy(basis.evaluate(x, 1, 0))
@@ -286,7 +286,7 @@ class TestHierarchicalBasis1DQuadratic:
     def test_quadratic_shape(self, bkd, basis):
         """Interior quadratic is a parabola: 1 at node, 0 at support ends."""
         # (2, 1) at x=0.25 with support [0, 0.5]
-        x = bkd.asarray([0.0, 0.25, 0.5], dtype=bkd.double_dtype())
+        x = bkd.asarray([0.0, 0.25, 0.5], dtype=bkd.real_dtype())
         vals = bkd.to_numpy(basis.evaluate(x, 2, 1))
         assert vals[0] == pytest.approx(0.0)
         assert vals[1] == pytest.approx(1.0)
@@ -295,7 +295,7 @@ class TestHierarchicalBasis1DQuadratic:
     def test_zero_outside_support(self, bkd, basis):
         """Quadratic basis is zero outside its support."""
         # (2, 1) has support [0, 0.5]
-        x = bkd.asarray([0.6, 0.75, 1.0], dtype=bkd.double_dtype())
+        x = bkd.asarray([0.6, 0.75, 1.0], dtype=bkd.real_dtype())
         vals = bkd.to_numpy(basis.evaluate(x, 2, 1))
         bkd.assert_allclose(
             bkd.asarray(vals), bkd.zeros((3,)), atol=1e-15
@@ -309,7 +309,7 @@ class TestHierarchicalBasis1DQuadratic:
                 continue
             nodes = bkd.asarray(
                 [basis.node(lv, j) for j in indices],
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             )
             for i, ja in enumerate(indices):
                 vals = bkd.to_numpy(basis.evaluate(nodes, lv, ja))
@@ -332,7 +332,7 @@ class TestHierarchicalBasis1DQuadratic:
                     continue
                 coarse_nodes = bkd.asarray(
                     [basis.node(lv, j) for lv, j in coarse_pts],
-                    dtype=bkd.double_dtype(),
+                    dtype=bkd.real_dtype(),
                 )
                 for lf, jf in fine_pts:
                     vals = bkd.to_numpy(
@@ -361,7 +361,7 @@ class TestHierarchicalBasis1DQuadratic:
                 left, right = basis.support(lv, j)
                 node_x = basis.node(lv, j)
                 nodes = bkd.asarray(
-                    [left, node_x, right], dtype=bkd.double_dtype()
+                    [left, node_x, right], dtype=bkd.real_dtype()
                 )
                 pw = PiecewiseQuadratic(nodes, bkd)
                 _, pw_weights = pw.quadrature_rule()
@@ -416,7 +416,7 @@ class TestHierarchicalBasis1DQuadratic:
 
         # Interpolation is exact
         x_test = np.linspace(0, 1, 201)
-        x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
+        x_arr = bkd.asarray(x_test, dtype=bkd.real_dtype())
         hier_vals = np.zeros_like(x_test)
         for (lv, j), v in surpluses.items():
             basis_vals = bkd.to_numpy(basis.evaluate(x_arr, lv, j))
@@ -478,7 +478,7 @@ class TestHierarchicalBasis1DExclude:
                 continue
             nodes = bkd.asarray(
                 [basis.node(lv, j) for j in indices],
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             )
             for i, ja in enumerate(indices):
                 vals = bkd.to_numpy(basis.evaluate(nodes, lv, ja))
@@ -497,7 +497,7 @@ class TestHierarchicalBasis1DExclude:
                     continue
                 coarse_nodes = bkd.asarray(
                     [basis.node(lv, j) for lv, j in coarse_pts],
-                    dtype=bkd.double_dtype(),
+                    dtype=bkd.real_dtype(),
                 )
                 for lf, jf in fine_pts:
                     vals = bkd.to_numpy(basis.evaluate(coarse_nodes, lf, jf))
@@ -518,7 +518,7 @@ class TestHierarchicalBasis1DExclude:
         # node range while the hierarchical interpolant goes to zero).
         x_min, x_max = nodes_sorted[0], nodes_sorted[-1]
         x_test = np.linspace(x_min, x_max, 199)
-        x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
+        x_arr = bkd.asarray(x_test, dtype=bkd.real_dtype())
 
         hier_vals = np.zeros_like(x_test)
         for (lv, j), v in surpluses.items():
@@ -685,7 +685,7 @@ class TestHierarchicalBasisND:
         # Evaluate on random test points
         np.random.seed(42)
         x_test = np.random.rand(2, 50)
-        x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
+        x_arr = bkd.asarray(x_test, dtype=bkd.real_dtype())
 
         hier_vals = np.zeros(50)
         for (sub, p), v in surpluses.items():

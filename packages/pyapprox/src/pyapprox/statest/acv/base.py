@@ -93,7 +93,7 @@ class ACVEstimator(Generic[Array]):
             )
 
     def _costs_on(self, bkd: Backend[TargetArray]) -> TargetArray:
-        return bkd.asarray(self._costs, dtype=bkd.double_dtype())
+        return bkd.asarray(self._costs, dtype=bkd.real_dtype())
 
     def _recursion_index_on(
         self, bkd: Backend[TargetArray]
@@ -449,7 +449,7 @@ class FittedACVEstimator(Generic[Array]):
         self._stat = template._stat
 
         self._nps_float = bkd.asarray(
-            allocation.npartition_samples, dtype=bkd.double_dtype()
+            allocation.npartition_samples, dtype=bkd.real_dtype()
         )
         CF, cf = template._get_discrepancy_covariances(self._nps_float)
         self._weights_val = template._optimal_weights(CF, cf)

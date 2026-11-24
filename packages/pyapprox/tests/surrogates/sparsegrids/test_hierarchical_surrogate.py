@@ -50,10 +50,10 @@ def _build_1d_surrogate(bkd, f, max_level):
         weight_list.append(basis_nd.quadrature_weight(sub, pt))
 
     nqoi = 1
-    surpluses_arr = bkd.asarray(surplus_list, dtype=bkd.double_dtype()).reshape(
+    surpluses_arr = bkd.asarray(surplus_list, dtype=bkd.real_dtype()).reshape(
         nqoi, len(keys)
     )
-    weights_arr = bkd.asarray(weight_list, dtype=bkd.double_dtype())
+    weights_arr = bkd.asarray(weight_list, dtype=bkd.real_dtype())
 
     surrogate = HierarchicalSurrogate(
         bkd, basis_nd, keys, surpluses_arr, weights_arr
@@ -86,7 +86,7 @@ class TestHierarchicalSurrogate:
         surr, _ = _build_1d_surrogate(bkd, lambda x: 3 * x + 1, max_level=2)
 
         x_test = bkd.asarray(
-            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.real_dtype()
         )
         vals = surr(x_test)
         expected = 3 * x_test + 1
@@ -145,7 +145,7 @@ class TestHierarchicalSurrogate:
         )
 
         np.random.seed(42)
-        x_test = bkd.asarray(np.random.rand(2, 30), dtype=bkd.double_dtype())
+        x_test = bkd.asarray(np.random.rand(2, 30), dtype=bkd.real_dtype())
         vals = surr(x_test)
         expected = x_test[0:1, :] + x_test[1:2, :]
         bkd.assert_allclose(vals, expected, atol=1e-13)
@@ -226,7 +226,7 @@ class TestComputeSurplusesAtGridPoints:
             if surr is None:
                 surpluses_arr = surpluses_ancestor
                 weights_arr = bkd.asarray(
-                    new_weights, dtype=bkd.double_dtype()
+                    new_weights, dtype=bkd.real_dtype()
                 )
                 surr = HierarchicalSurrogate(
                     bkd, basis_nd, new_keys, surpluses_arr, weights_arr
@@ -414,7 +414,7 @@ class TestComputeSurplusesAtGridPoints:
             if surr is None:
                 surr = HierarchicalSurrogate(
                     bkd, basis_nd, new_keys, surplus,
-                    bkd.asarray(new_weights, dtype=bkd.double_dtype()),
+                    bkd.asarray(new_weights, dtype=bkd.real_dtype()),
                 )
             else:
                 surr.add_points(new_keys, new_surplus_list, new_weights)

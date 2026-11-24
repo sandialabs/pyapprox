@@ -94,7 +94,7 @@ class TestBruteForceSubsetFitterAutodiff:
         """D2: Uncorrelated models → optimal pattern uses only model-0 subsets."""
         bkd = autodiff_bkd
         nmodels = 3
-        cov = bkd.eye(nmodels, dtype=bkd.double_dtype())
+        cov = bkd.eye(nmodels, dtype=bkd.real_dtype())
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
         costs = bkd.array([3.0, 2.0, 1.0])

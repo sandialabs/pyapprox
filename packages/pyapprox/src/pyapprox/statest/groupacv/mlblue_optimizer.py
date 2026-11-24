@@ -330,7 +330,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         # Compute derived quantities
         nps_float = self._bkd.asarray(
-            npartition_samples, dtype=self._bkd.double_dtype()
+            npartition_samples, dtype=self._bkd.real_dtype()
         )
         nsamples_per_model = self._est._compute_nsamples_per_model(nps_float)
         actual_cost = self._bkd.to_float(self._est._estimator_cost(nps_float))

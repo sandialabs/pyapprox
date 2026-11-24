@@ -224,7 +224,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
 
         # Compute nsamples_per_model and actual_cost
         nps_float = bkd.asarray(
-            npartition_samples, dtype=bkd.double_dtype()
+            npartition_samples, dtype=bkd.real_dtype()
         )
         nsamples_per_model = self._est._compute_nsamples_per_model(nps_float)
         actual_cost = bkd.to_float(self._est._estimator_cost(nps_float))

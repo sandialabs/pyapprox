@@ -294,8 +294,8 @@ class HierarchicalBasis1D(Generic[Array]):
             return bkd.ones_like(x)
 
         if self._is_left_boundary(level, index):
-            right = bkd.asarray([node_x + h], dtype=bkd.double_dtype())
-            h_val = bkd.asarray([h], dtype=bkd.double_dtype())
+            right = bkd.asarray([node_x + h], dtype=bkd.real_dtype())
+            h_val = bkd.asarray([h], dtype=bkd.real_dtype())
             ramp = (right - x) / h_val
             return bkd.where(
                 x <= right,
@@ -304,8 +304,8 @@ class HierarchicalBasis1D(Generic[Array]):
             )
 
         if self._is_right_boundary(level, index):
-            left = bkd.asarray([node_x - h], dtype=bkd.double_dtype())
-            h_val = bkd.asarray([h], dtype=bkd.double_dtype())
+            left = bkd.asarray([node_x - h], dtype=bkd.real_dtype())
+            h_val = bkd.asarray([h], dtype=bkd.real_dtype())
             ramp = (x - left) / h_val
             return bkd.where(
                 x >= left,
@@ -313,8 +313,8 @@ class HierarchicalBasis1D(Generic[Array]):
                 zero,
             )
 
-        node_val = bkd.asarray([node_x], dtype=bkd.double_dtype())
-        h_val = bkd.asarray([h], dtype=bkd.double_dtype())
+        node_val = bkd.asarray([node_x], dtype=bkd.real_dtype())
+        h_val = bkd.asarray([h], dtype=bkd.real_dtype())
         left_branch = (x - (node_val - h_val)) / h_val
         right_branch = ((node_val + h_val) - x) / h_val
         hat = bkd.minimum(left_branch, right_branch)
@@ -346,9 +346,9 @@ class HierarchicalBasis1D(Generic[Array]):
         if self._is_right_boundary(level, index):
             return self._eval_hat(x, level, index)
 
-        left_arr = bkd.asarray([left], dtype=bkd.double_dtype())
-        right_arr = bkd.asarray([right], dtype=bkd.double_dtype())
-        denom_arr = bkd.asarray([denom], dtype=bkd.double_dtype())
+        left_arr = bkd.asarray([left], dtype=bkd.real_dtype())
+        right_arr = bkd.asarray([right], dtype=bkd.real_dtype())
+        denom_arr = bkd.asarray([denom], dtype=bkd.real_dtype())
 
         poly = (x - left_arr) * (x - right_arr) / denom_arr
         mask = (x >= left_arr) & (x <= right_arr)
@@ -434,27 +434,27 @@ class HierarchicalBasis1D(Generic[Array]):
             if bdy_include and lv == 1 and ix == 2:
                 is_right_bdy[i] = 1.0
 
-        nodes = bkd.asarray(nodes_list, dtype=bkd.double_dtype())
-        lefts = bkd.asarray(lefts_list, dtype=bkd.double_dtype())
-        rights = bkd.asarray(rights_list, dtype=bkd.double_dtype())
+        nodes = bkd.asarray(nodes_list, dtype=bkd.real_dtype())
+        lefts = bkd.asarray(lefts_list, dtype=bkd.real_dtype())
+        rights = bkd.asarray(rights_list, dtype=bkd.real_dtype())
 
         x_row = bkd.reshape(x, (1, npts))
         nodes_col = bkd.reshape(nodes, (n_basis, 1))
         lefts_col = bkd.reshape(lefts, (n_basis, 1))
         rights_col = bkd.reshape(rights, (n_basis, 1))
-        zero = bkd.zeros((n_basis, npts), dtype=bkd.double_dtype())
+        zero = bkd.zeros((n_basis, npts), dtype=bkd.real_dtype())
         support_width = rights_col - lefts_col
         safe_width = bkd.maximum(
             support_width,
-            bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
+            bkd.asarray([[1e-30]], dtype=bkd.real_dtype()),
         )
 
         is_left_col = bkd.reshape(
-            bkd.asarray(is_left_bdy, dtype=bkd.double_dtype()),
+            bkd.asarray(is_left_bdy, dtype=bkd.real_dtype()),
             (n_basis, 1),
         )
         is_right_col = bkd.reshape(
-            bkd.asarray(is_right_bdy, dtype=bkd.double_dtype()),
+            bkd.asarray(is_right_bdy, dtype=bkd.real_dtype()),
             (n_basis, 1),
         )
         is_bdy_col = is_left_col + is_right_col
@@ -475,11 +475,11 @@ class HierarchicalBasis1D(Generic[Array]):
         h_right = rights_col - nodes_col
         safe_h_left = bkd.maximum(
             h_left,
-            bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
+            bkd.asarray([[1e-30]], dtype=bkd.real_dtype()),
         )
         safe_h_right = bkd.maximum(
             h_right,
-            bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
+            bkd.asarray([[1e-30]], dtype=bkd.real_dtype()),
         )
 
         if self._p_max <= 1:
@@ -502,11 +502,11 @@ class HierarchicalBasis1D(Generic[Array]):
 
         if bdy_include and any(v > 0.5 for v in is_lev0):
             is_lev0_col = bkd.reshape(
-                bkd.asarray(is_lev0, dtype=bkd.double_dtype()),
+                bkd.asarray(is_lev0, dtype=bkd.real_dtype()),
                 (n_basis, 1),
             )
             ones = bkd.ones(
-                (n_basis, npts), dtype=bkd.double_dtype()
+                (n_basis, npts), dtype=bkd.real_dtype()
             )
             result = bkd.where(is_lev0_col > 0.5, ones, result)
 

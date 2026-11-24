@@ -180,7 +180,7 @@ class AETCBLUE(AETC[Array]):
         nps_int = bkd.asarray(
             rounded_nsamples_per_subset, dtype=bkd.index_dtype()
         )
-        nps_float = bkd.asarray(nps_int, dtype=bkd.double_dtype())
+        nps_float = bkd.asarray(nps_int, dtype=bkd.real_dtype())
         nsamples_per_model = bkd.asarray(
             est._compute_nsamples_per_model(nps_float),
             dtype=bkd.index_dtype(),

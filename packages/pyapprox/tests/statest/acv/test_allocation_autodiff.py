@@ -252,7 +252,7 @@ class TestFittedACVEstimator:
         # allocation must be cast to float at the boundary, exactly as
         # FittedACVEstimator does internally.
         fresh_cov = est.covariance_at_npartition_samples(
-            bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+            bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
         )
         bkd.assert_allclose(fitted.covariance(), fresh_cov)
 

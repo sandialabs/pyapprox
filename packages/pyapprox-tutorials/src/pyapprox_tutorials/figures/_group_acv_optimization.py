@@ -157,7 +157,7 @@ def _run_groupacv_slsqp(
     if not result.success:
         return None
     bkd = stat.bkd()
-    nps = bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+    nps = bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
     cov = template._covariance_from_npartition_samples(nps)
     return float(bkd.to_numpy(cov[0, 0]))
 
@@ -183,7 +183,7 @@ def _run_mlblue_spd(
     if not result.success:
         return None
     bkd = stat.bkd()
-    nps = bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+    nps = bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
     cov = est._covariance_from_npartition_samples(nps)
     return float(bkd.to_numpy(cov[0, 0]))
 
@@ -605,7 +605,7 @@ def plot_trace_vs_logdet(axes, target_cost: float = 100.0):
         if not result.success:
             return None
         nps = bkd.asarray(
-            result.npartition_samples, dtype=bkd.double_dtype()
+            result.npartition_samples, dtype=bkd.real_dtype()
         )
         est_cov = template._covariance_from_npartition_samples(nps)
         return np.asarray(bkd.to_numpy(est_cov))

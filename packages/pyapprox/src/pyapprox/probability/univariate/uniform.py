@@ -157,10 +157,10 @@ class UniformMarginal(Generic[Array]):
         boolean arrays have no ``or`` its protocol declares.
         """
         below = self._bkd.asarray(
-            samples_1d < self._get_lower(), dtype=self._bkd.double_dtype()
+            samples_1d < self._get_lower(), dtype=self._bkd.real_dtype()
         )
         above = self._bkd.asarray(
-            samples_1d > self._get_upper(), dtype=self._bkd.double_dtype()
+            samples_1d > self._get_upper(), dtype=self._bkd.real_dtype()
         )
         return below + above > 0.5
 

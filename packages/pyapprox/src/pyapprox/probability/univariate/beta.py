@@ -92,8 +92,8 @@ def _boundary_split(
     at0 = bkd.equal(probs, 0.0)
     at1 = bkd.equal(probs, 1.0)
     # The two masks are disjoint, so this is 1 exactly where neither holds.
-    neither = 1.0 - bkd.asarray(at0, dtype=bkd.double_dtype()) - bkd.asarray(
-        at1, dtype=bkd.double_dtype()
+    neither = 1.0 - bkd.asarray(at0, dtype=bkd.real_dtype()) - bkd.asarray(
+        at1, dtype=bkd.real_dtype()
     )
     return (
         bkd.where(at0)[0],

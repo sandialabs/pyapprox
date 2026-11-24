@@ -14,7 +14,7 @@ def _make_estimator(bkd, nmodels=3, nqoi=1):
     cov_size = nmodels * nqoi
     cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
     cov = cov.T @ cov
-    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
     stat = MultiOutputMean(nqoi, bkd)
     stat.set_pilot_quantities(cov)
     return GroupACVEstimatorIS(stat, costs)

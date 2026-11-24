@@ -76,11 +76,11 @@ def _make_groupacv_allocation(est, npartition_samples):
     bkd = est.bkd()
     rounded = bkd.asarray(bkd.floor(npartition_samples + 1e-4), dtype=bkd.index_dtype())
     nsamples_per_model = bkd.asarray(
-        est._compute_nsamples_per_model(bkd.asarray(rounded, dtype=bkd.double_dtype())),
+        est._compute_nsamples_per_model(bkd.asarray(rounded, dtype=bkd.real_dtype())),
         dtype=bkd.index_dtype(),
     )
     actual_cost = float(
-        est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))
+        est._estimator_cost(bkd.asarray(rounded, dtype=bkd.real_dtype()))
     )
     return GroupACVAllocationResult(
         npartition_samples=rounded,
@@ -160,7 +160,7 @@ class TestGroupACVEstimator:
         np.random.seed(1)
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -173,7 +173,7 @@ class TestGroupACVEstimator:
         est = self._create_estimator(bkd, nmodels, estimator_cls=GroupACVEstimatorIS)
 
         npartition_samples = bkd.arange(
-            2.0, 2 + est.nsubsets(), dtype=bkd.double_dtype()
+            2.0, 2 + est.nsubsets(), dtype=bkd.real_dtype()
         )
 
         # Expected values derived mathematically from subset structure
@@ -205,7 +205,7 @@ class TestGroupACVEstimator:
         )
 
         npartition_samples = bkd.arange(
-            2.0, 2.0 + est.nsubsets(), dtype=bkd.double_dtype()
+            2.0, 2.0 + est.nsubsets(), dtype=bkd.real_dtype()
         )
 
         # Expected values from nested structure
@@ -261,13 +261,13 @@ class TestGroupACVEstimator:
         """Test sample separation logic."""
         NN = 2
         npartition_samples = bkd.full(
-            (est.nsubsets(),), float(NN), dtype=bkd.double_dtype()
+            (est.nsubsets(),), float(NN), dtype=bkd.real_dtype()
         )
         allocation = _make_groupacv_allocation(est, npartition_samples)
         fitted = FittedGroupACVEstimator(est, allocation)
 
         samples_per_model = fitted.generate_samples_per_model(
-            lambda n: bkd.arange(int(n), dtype=bkd.double_dtype())[None, :]
+            lambda n: bkd.arange(int(n), dtype=bkd.real_dtype())[None, :]
         )
         for ii in range(est.nmodels()):
             bkd.assert_allclose(
@@ -281,7 +281,7 @@ class TestGroupACVEstimator:
 
         test_samples = bkd.arange(
             int(fitted.npartition_samples().sum()),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )[None, :]
         # test_values shape is (nqoi, nsamples)
         [(ii + 1) * test_samples for ii in range(est.nmodels())]
@@ -327,7 +327,7 @@ class TestGroupACVObjectiveDerivativesAutodiff:
         cov_size = nmodels * nqoi
         cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
@@ -389,7 +389,7 @@ class TestGroupACVConstraintDerivatives:
         np.random.seed(1)
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -434,7 +434,7 @@ class TestGroupACVConstraintDerivatives:
         constraint.set_budget(target_cost=100.0, min_nhf_samples=1)
 
         npartition_samples = bkd.full(
-            (est.npartitions(), 1), 1.0, dtype=bkd.double_dtype()
+            (est.npartitions(), 1), 1.0, dtype=bkd.real_dtype()
         )
         hess = constraint.hessian(npartition_samples)
 
@@ -457,7 +457,7 @@ class TestMLBLUEEstimator:
         nmodels = 3
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -475,7 +475,7 @@ class TestMLBLUEEstimator:
         nmodels = 2
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -492,7 +492,7 @@ class TestMLBLUEEstimator:
         nmodels = 2
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -511,7 +511,7 @@ class TestMLBLUEObjectiveDerivatives:
         cov_size = nmodels * nqoi
         cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
@@ -554,34 +554,34 @@ class TestRestrictionMatrices:
     def test_restriction_matrices_nqoi_1(self, bkd):
         """Test restriction matrices with nqoi=1."""
         qoi_idx = [0]
-        costs = bkd.array([1, 0.5, 0.25], dtype=bkd.double_dtype())
+        costs = bkd.array([1, 0.5, 0.25], dtype=bkd.real_dtype())
         stat = MultiOutputMean(len(qoi_idx), bkd)
         subsets = [[0, 1, 2], [1], [2]]
         subsets = [bkd.array(s, dtype=bkd.index_dtype()) for s in subsets]
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing model ids
-        Lvec = bkd.arange(3, dtype=bkd.double_dtype())[:, None]
+        Lvec = bkd.arange(3, dtype=bkd.real_dtype())[:, None]
 
         # Make sure each restriction matrix recovers correct subset model ids
         cnt = 0
         for ii in range(len(subsets)):
             recovered = (est._R[:, cnt : cnt + len(subsets[ii])].T @ Lvec)[:, 0]
-            expected = bkd.asarray(subsets[ii], dtype=bkd.double_dtype())
+            expected = bkd.asarray(subsets[ii], dtype=bkd.real_dtype())
             bkd.assert_allclose(recovered, expected)
             cnt += len(subsets[ii])
 
     def test_restriction_matrices_nqoi_2(self, bkd):
         """Test restriction matrices with nqoi=2."""
         qoi_idx = [0, 1]
-        costs = bkd.array([1, 0.5, 0.25], dtype=bkd.double_dtype())
+        costs = bkd.array([1, 0.5, 0.25], dtype=bkd.real_dtype())
         stat = MultiOutputMean(len(qoi_idx), bkd)
         subsets = [[0, 1, 2], [1], [2]]
         subsets = [bkd.array(s, dtype=bkd.index_dtype()) for s in subsets]
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing flattened model qoi ids
-        Lvec = bkd.arange(3 * len(qoi_idx), dtype=bkd.double_dtype())[:, None]
+        Lvec = bkd.arange(3 * len(qoi_idx), dtype=bkd.real_dtype())[:, None]
 
         # Check restriction matrix recovers all correct qoi of all subset model ids
         bkd.assert_allclose(
@@ -615,7 +615,7 @@ class TestMLBLUESPDAllocationOptimizer:
         cov = cov / bkd.outer(d, d)
         costs = bkd.array(
             [1.0 / (10**i) for i in range(nmodels)],
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
 
         stat = MultiOutputMean(nqoi, bkd)
@@ -696,7 +696,7 @@ class TestMLBLUESPDAllocationOptimizer:
         result = allocator.optimize(target_cost, min_nhf_samples)
 
         # Compute actual cost
-        nps_float = bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+        nps_float = bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
         actual_cost = est._estimator_cost(nps_float)
 
         # Cost should be <= target (with small tolerance)
@@ -783,7 +783,7 @@ class TestPilotSampleInsertionAutodiff:
             # Get covariance and create value generator
             cov = est._stat._cov
             chol_factor = bkd.cholesky(cov)
-            exact_means = bkd.arange(nmodels, dtype=bkd.double_dtype())
+            exact_means = bkd.arange(nmodels, dtype=bkd.real_dtype())
 
             # Sample generator with nmodels variables (required for correlation)
             def rvs(n: int):
@@ -1232,7 +1232,7 @@ class TestSigmaMatrixMonteCarlo:
         """
         # Get analytical values
         t = fitted._template
-        nps_float = bkd.asarray(fitted.npartition_samples(), dtype=bkd.double_dtype())
+        nps_float = bkd.asarray(fitted.npartition_samples(), dtype=bkd.real_dtype())
         est_var = t._covariance_from_npartition_samples(nps_float)
         Sigma = t._sigma(nps_float)
 
@@ -1336,7 +1336,7 @@ class TestSigmaMatrixMonteCarlo:
 
         # Set sample allocation
         npartition_samples = bkd.arange(
-            2.0, 2 + est.nsubsets(), dtype=bkd.double_dtype()
+            2.0, 2 + est.nsubsets(), dtype=bkd.real_dtype()
         )
         allocation = _make_groupacv_allocation(est, npartition_samples)
         fitted = FittedGroupACVEstimator(est, allocation)
@@ -1458,7 +1458,7 @@ class TestGradientOptimizationAutodiff:
         # when using the same partition samples (GroupACV allocation)
         # This is the key test from legacy: given same samples, both should agree
         nps_float = bkd.asarray(
-            gest_fitted.npartition_samples(), dtype=bkd.double_dtype()
+            gest_fitted.npartition_samples(), dtype=bkd.real_dtype()
         )
         groupacv_cov = gest._covariance_from_npartition_samples(nps_float)
         mlblue_cov_at_groupacv = mlest._covariance_from_npartition_samples(nps_float)
@@ -1474,11 +1474,11 @@ class TestGradientOptimizationAutodiff:
         # Check cost constraint is satisfied
         gest_nps = gest_fitted.npartition_samples()
         gest_cost = gest._estimator_cost(
-            bkd.asarray(gest_nps, dtype=bkd.double_dtype())
+            bkd.asarray(gest_nps, dtype=bkd.real_dtype())
         )
         mlest_nps = mlest_fitted.npartition_samples()
         mlest_cost = mlest._estimator_cost(
-            bkd.asarray(mlest_nps, dtype=bkd.double_dtype())
+            bkd.asarray(mlest_nps, dtype=bkd.real_dtype())
         )
         assert float(gest_cost) <= target_cost * 1.01  # Allow 1% tolerance
         assert float(mlest_cost) <= target_cost * 1.01
@@ -1489,16 +1489,16 @@ class TestGradientOptimizationAutodiff:
         # what licenses using GroupACVEstimatorIS as a stand-in for
         # MLBLUEEstimator in optimization studies.
         bkd.assert_allclose(
-            bkd.asarray(gest_nps, dtype=bkd.double_dtype()),
-            bkd.asarray(mlest_nps, dtype=bkd.double_dtype()),
+            bkd.asarray(gest_nps, dtype=bkd.real_dtype()),
+            bkd.asarray(mlest_nps, dtype=bkd.real_dtype()),
             rtol=1e-4,
             atol=1e-6,
         )
 
         # ... and therefore to the same estimator variance.
-        gest_var = gest.covariance_at(bkd.asarray(gest_nps, dtype=bkd.double_dtype()))
+        gest_var = gest.covariance_at(bkd.asarray(gest_nps, dtype=bkd.real_dtype()))
         mlest_var = mlest.covariance_at(
-            bkd.asarray(mlest_nps, dtype=bkd.double_dtype())
+            bkd.asarray(mlest_nps, dtype=bkd.real_dtype())
         )
         bkd.assert_allclose(gest_var, mlest_var, rtol=1e-4)
 
@@ -1541,7 +1541,7 @@ class TestGroupACVAllocationOptimizerAutodiff:
         cov_size = nmodels * nqoi
         cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
@@ -1585,7 +1585,7 @@ class TestGroupACVAllocationOptimizerAutodiff:
         allocator = GroupACVAllocationOptimizer(est)
         result = allocator.optimize(target_cost=target_cost, min_nhf_samples=1)
 
-        nps_float = bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+        nps_float = bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
         actual_cost = est._estimator_cost(nps_float)
         assert float(bkd.to_numpy(actual_cost)) <= target_cost + 1e-6
 
@@ -1599,7 +1599,7 @@ class TestGroupACVAllocationOptimizerAutodiff:
         np.random.seed(1)
         cov = bkd.array(np.random.normal(0, 1, (3, 3)))
         cov = cov.T @ cov
-        costs = bkd.arange(3, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(3, 0, -1, dtype=bkd.real_dtype())
 
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
@@ -1763,7 +1763,7 @@ class TestGroupACVRecoversMLBLUEAutodiff:
         # Covariances at same allocation should match
         nps_float = bkd.asarray(
             groupacv_result.npartition_samples,
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         groupacv_cov = groupacv_est._covariance_from_npartition_samples(nps_float)
         mlblue_cov = mlblue_est._covariance_from_npartition_samples(nps_float)
@@ -1923,7 +1923,7 @@ class TestAnalyticalGroupACVDerivatives:
         pilot_values = [
             np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         if stat_type == "mean":
             stat = MultiOutputMean(nqoi, bkd)
             cov = stat.compute_pilot_quantities(pilot_values)[0]
@@ -2071,16 +2071,16 @@ class TestGroupACVPsiConsistency:
             target_cost=100.0,
             round_nsamples=False,
             init_guess=bkd.asarray(
-                np.array(spd_nps)[:, None], dtype=bkd.double_dtype()
+                np.array(spd_nps)[:, None], dtype=bkd.real_dtype()
             ),
         )
         slsqp_nps = slsqp_result.npartition_samples
 
         # Evaluate both formulations at the SLSQP solution
-        nps_bkd = bkd.asarray(slsqp_nps, dtype=bkd.double_dtype())
+        nps_bkd = bkd.asarray(slsqp_nps, dtype=bkd.real_dtype())
         mlblue_trace = bkd.trace(mlblue._covariance_from_npartition_samples(nps_bkd))
         gacv_trace = trace_obj(
-            bkd.asarray(np.array(slsqp_nps)[:, None], dtype=bkd.double_dtype())
+            bkd.asarray(np.array(slsqp_nps)[:, None], dtype=bkd.real_dtype())
         ).flatten()
 
         bkd.assert_allclose(
@@ -2106,7 +2106,7 @@ class TestGroupACVPsiConsistency:
         spd_result = spd.optimize(target_cost=100.0, round_nsamples=False)
         spd_nps = spd_result.npartition_samples
 
-        sdp_init = bkd.asarray(np.array(spd_nps)[:, None], dtype=bkd.double_dtype())
+        sdp_init = bkd.asarray(np.array(spd_nps)[:, None], dtype=bkd.real_dtype())
 
         # Collect (optimizer_name, result_nps) pairs
         optimizer_results = []
@@ -2178,7 +2178,7 @@ class TestGroupACVPsiConsistency:
         # Every optimizer's solution must have MLBLUE trace within 5%
         # of SDP optimum, and GroupACV trace must agree with MLBLUE trace
         for name, nps in optimizer_results:
-            nps_bkd = bkd.asarray(nps, dtype=bkd.double_dtype())
+            nps_bkd = bkd.asarray(nps, dtype=bkd.real_dtype())
 
             # MLBLUE trace (ground truth at this point)
             mlblue_trace = float(
@@ -2190,7 +2190,7 @@ class TestGroupACVPsiConsistency:
             trace_obj_eval.set_estimator(gacv)
             gacv_trace = float(
                 trace_obj_eval(
-                    bkd.asarray(np.array(nps)[:, None], dtype=bkd.double_dtype())
+                    bkd.asarray(np.array(nps)[:, None], dtype=bkd.real_dtype())
                 ).flatten()[0]
             )
 
@@ -2282,7 +2282,7 @@ class TestFullSigmaPathMatchesMLBLUE:
 
         spd = MLBLUESPDAllocationOptimizer(mlblue)
         spd_result = spd.optimize(target_cost=100.0, round_nsamples=False)
-        nps = bkd.asarray(spd_result.npartition_samples, dtype=bkd.double_dtype())
+        nps = bkd.asarray(spd_result.npartition_samples, dtype=bkd.real_dtype())
 
         # Manually call the base-class full-Sigma path (not the IS override)
         from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
@@ -2328,7 +2328,7 @@ class TestPsiWellConditionedSparseAllocations:
         if cost > 100.0:
             nps_sparse *= 100.0 / cost
 
-        nps_bkd = bkd.asarray(nps_sparse, dtype=bkd.double_dtype())
+        nps_bkd = bkd.asarray(nps_sparse, dtype=bkd.real_dtype())
         mlblue_tr = float(
             bkd.trace(mlblue._covariance_from_npartition_samples(nps_bkd))
         )
@@ -2351,7 +2351,7 @@ class TestISBetaEquivalence:
         pilot_values = [
             np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         subsets = get_model_subsets(nmodels, bkd)
         if stat_type == "mean":
             stat = MultiOutputMean(nqoi, bkd)
@@ -2387,7 +2387,7 @@ class TestISBetaEquivalence:
     ):
         bkd = numpy_bkd
         est = self._create_estimator(bkd, nmodels, nqoi, stat_type)
-        nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.double_dtype())
+        nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.real_dtype())
 
         # IS override: block-by-block beta
         beta_is = est._grouped_acv_beta(nps)
@@ -2415,7 +2415,7 @@ class TestISBetaEquivalence:
         pilot_values = [
             np.random.randn(1, nsamples) * (0.5 + 0.5 * i) for i in range(nmodels)
         ]
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         subsets = get_model_subsets(nmodels, bkd)
 
         stat = MultiOutputMean(1, bkd)
@@ -2426,7 +2426,7 @@ class TestISBetaEquivalence:
             costs,
             model_subsets=subsets,
         )
-        nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.double_dtype())
+        nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.real_dtype())
 
         # Nested uses base-class path (full-Sigma)
         beta = est._grouped_acv_beta(nps)
@@ -2464,7 +2464,7 @@ class TestISBetaEquivalence:
         )
         FittedGroupACVEstimator(est, alloc)
 
-        nps_float = bkd.asarray(alloc.npartition_samples, dtype=bkd.double_dtype())
+        nps_float = bkd.asarray(alloc.npartition_samples, dtype=bkd.real_dtype())
         beta = est._grouped_acv_beta(nps_float)
 
         # Beta shape: (nstats_output, ntotal_stats)
@@ -2620,7 +2620,7 @@ class TestTreeObjectiveDerivatives:
         np.random.seed(1)
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
         return stat, costs
@@ -3279,7 +3279,7 @@ class TestRescaledObjectiveDerivativesAutodiff:
         cov_size = nmodels * nqoi
         cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
         return GroupACVEstimatorIS(stat, costs)
@@ -3328,7 +3328,7 @@ class TestRescaledConstraintDerivatives:
         np.random.seed(1)
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
         return GroupACVEstimatorIS(stat, costs)
@@ -3357,7 +3357,7 @@ class TestNormalizedConstraintDerivatives:
         np.random.seed(1)
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         stat = MultiOutputMean(1, bkd)
         stat.set_pilot_quantities(cov)
         return GroupACVEstimatorIS(stat, costs)
@@ -3419,9 +3419,9 @@ class TestVariableRescalingIntegrationAutodiff:
         cov = cov.T @ cov
         if cost_ratio is not None:
             log_costs = np.linspace(0, np.log10(cost_ratio), nmodels)
-            costs = bkd.array(10.0 ** log_costs[::-1], dtype=bkd.double_dtype())
+            costs = bkd.array(10.0 ** log_costs[::-1], dtype=bkd.real_dtype())
         else:
-            costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+            costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
         stat = MultiOutputMean(nqoi, bkd)
         stat.set_pilot_quantities(cov)
         return GroupACVEstimatorIS(stat, costs)

@@ -52,7 +52,7 @@ class HierarchicalBasisND(Generic[Array]):
             for d in range(self.nvars())
         ]
         return self._bkd.reshape(
-            self._bkd.asarray(coords, dtype=self._bkd.double_dtype()),
+            self._bkd.asarray(coords, dtype=self._bkd.real_dtype()),
             (self.nvars(), 1),
         )
 
@@ -122,7 +122,7 @@ class HierarchicalBasisND(Generic[Array]):
         bkd = self._bkd
 
         result = bkd.ones(
-            (n_basis, npts), dtype=bkd.double_dtype()
+            (n_basis, npts), dtype=bkd.real_dtype()
         )
         for d in range(nvars):
             levels_d = [key[0][d] for key in point_keys]

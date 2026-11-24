@@ -47,7 +47,7 @@ def _make_estimator(bkd, nmodels=3, nqoi=1):
     cov_size = nmodels * nqoi
     cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
     cov = cov.T @ cov
-    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
     stat = MultiOutputMean(nqoi, bkd)
     stat.set_pilot_quantities(cov)
     return GroupACVEstimatorIS(stat, costs)
@@ -413,7 +413,7 @@ class TestFullCostSpace:
         uppers = m_bounds[:, 1]
         bkd.assert_allclose(
             uppers,
-            bkd.full((3,), target_cost, dtype=bkd.double_dtype()),
+            bkd.full((3,), target_cost, dtype=bkd.real_dtype()),
             rtol=1e-12,
         )
 
@@ -453,7 +453,7 @@ class TestBudgetConstraintForm:
         InequalityBudget().adjust_bounds(con)
         bkd.assert_allclose(con.lb(), bkd.zeros((2,)))
         bkd.assert_allclose(
-            con.ub(), bkd.full((2,), float("inf"), dtype=bkd.double_dtype())
+            con.ub(), bkd.full((2,), float("inf"), dtype=bkd.real_dtype())
         )
 
     def test_equality_sets_cost_row(self, bkd):

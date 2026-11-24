@@ -41,12 +41,12 @@ def _make_allocation(est, npartition_samples):
     )
     nsamples_per_model = bkd.asarray(
         est._compute_nsamples_per_model(
-            bkd.asarray(rounded, dtype=bkd.double_dtype())
+            bkd.asarray(rounded, dtype=bkd.real_dtype())
         ),
         dtype=bkd.index_dtype(),
     )
     actual_cost = float(
-        est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))
+        est._estimator_cost(bkd.asarray(rounded, dtype=bkd.real_dtype()))
     )
     return GroupACVAllocationResult(
         npartition_samples=rounded,

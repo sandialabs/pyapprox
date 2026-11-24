@@ -529,7 +529,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return self._bkd.full(
             (self.npartitions(),),
             self._bkd.to_float(target_cost / cost),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )[:, None]
 
     def _validate_asketch(self, asketch: Optional[Array]) -> Array:
@@ -663,7 +663,7 @@ class FittedGroupACVEstimator(Generic[Array]):
         self._stat = template._stat
 
         self._nps_float = bkd.asarray(
-            allocation.npartition_samples, dtype=bkd.double_dtype()
+            allocation.npartition_samples, dtype=bkd.real_dtype()
         )
         self._covariance_val = template._covariance_from_npartition_samples(
             self._nps_float

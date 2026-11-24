@@ -581,9 +581,9 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         if not point_keys:
             nqoi = max(self._nqoi, 1)
             empty_surpluses = bkd.zeros(
-                (nqoi, 0), dtype=bkd.double_dtype()
+                (nqoi, 0), dtype=bkd.real_dtype()
             )
-            empty_weights = bkd.zeros((0,), dtype=bkd.double_dtype())
+            empty_weights = bkd.zeros((0,), dtype=bkd.real_dtype())
             return HierarchicalSurrogate(
                 bkd, self._basis_nd, [], empty_surpluses, empty_weights
             )
@@ -591,7 +591,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             surpluses = bkd.stack(surplus_list, axis=1)
         else:
             surpluses = bkd.reshape(surplus_list[0], (-1, 1))
-        weights = bkd.asarray(weight_list, dtype=bkd.double_dtype())
+        weights = bkd.asarray(weight_list, dtype=bkd.real_dtype())
         return HierarchicalSurrogate(
             bkd, self._basis_nd, point_keys, surpluses, weights
         )

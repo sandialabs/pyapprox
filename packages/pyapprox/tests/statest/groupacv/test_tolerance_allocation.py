@@ -50,7 +50,7 @@ def _make_estimator(bkd, nmodels=3, nqoi=1):
     cov_size = nmodels * nqoi
     cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
     cov = cov.T @ cov
-    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
     stat = MultiOutputMean(nqoi, bkd)
     stat.set_pilot_quantities(cov)
     return GroupACVEstimatorIS(stat, costs)
@@ -66,7 +66,7 @@ def _make_nested_estimator(bkd, nmodels=3, nqoi=1):
     cov_size = nmodels * nqoi
     cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
     cov = cov.T @ cov
-    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+    costs = bkd.arange(nmodels, 0, -1, dtype=bkd.real_dtype())
     stat = MultiOutputMean(nqoi, bkd)
     stat.set_pilot_quantities(cov)
     return GroupACVEstimatorNested(stat, costs)
@@ -285,7 +285,7 @@ class TestGroupACVToleranceAllocator:
                         est._estimator_cost(
                             bkd.asarray(
                                 result.npartition_samples,
-                                dtype=bkd.double_dtype(),
+                                dtype=bkd.real_dtype(),
                             )
                         )
                     )
@@ -642,7 +642,7 @@ class TestDuality:
         result = alloc.allocate_for_tolerance(requirement)
         assert result.success
         samples = bkd.asarray(
-            result.npartition_samples, dtype=bkd.double_dtype()
+            result.npartition_samples, dtype=bkd.real_dtype()
         )
         smaller = est._covariance_from_npartition_samples(0.9 * samples)
         assert bkd.to_float(requirement.value(smaller)) > tolerance
@@ -903,7 +903,7 @@ class TestAllocateForRequirement:
         result = GroupACVToleranceAllocator(est).allocate_for_tolerance(req)
         assert result.success
         covariance = est._covariance_from_npartition_samples(
-            bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+            bkd.asarray(result.npartition_samples, dtype=bkd.real_dtype())
         )
         assert bkd.to_bool(bkd.all(req.rows(covariance) <= 0.0))
         bkd.assert_allclose(result.constraint_value, req.value(covariance))
@@ -1001,7 +1001,7 @@ class TestAllocateForRequirement:
         def worst(result):
             covariance = est._covariance_from_npartition_samples(
                 bkd.asarray(
-                    result.npartition_samples, dtype=bkd.double_dtype()
+                    result.npartition_samples, dtype=bkd.real_dtype()
                 )
             )
             return bkd.to_float(bkd.max(bkd.sqrt(bkd.diag(covariance))))

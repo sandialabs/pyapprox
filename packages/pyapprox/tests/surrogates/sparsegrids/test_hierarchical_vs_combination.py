@@ -108,7 +108,7 @@ class TestHierarchicalVsCombination:
         def fun(X):
             weights = bkd.asarray(
                 [10.0**i for i in range(nvars)],
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             )
             weights = bkd.reshape(weights, (-1, 1))
             return bkd.sum(weights * X**2, axis=0, keepdims=True)

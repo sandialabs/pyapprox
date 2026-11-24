@@ -59,7 +59,7 @@ class TestImplicitTimeIntegration:
         states, times = time_integrator.solve(init_state)
 
         # Compute exact states
-        scale = bkd.arange(1, nstates + 1, dtype=bkd.double_dtype())
+        scale = bkd.arange(1, nstates + 1, dtype=bkd.real_dtype())
         t1, t2 = times[1], times[2]
         deltat1, deltat2 = t1 - times[0], t2 - t1
         exact_states_list = [param[1] * bkd.ones((nstates,))]

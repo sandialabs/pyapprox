@@ -37,7 +37,7 @@ class TestSingleFidelityHierarchicalFitter:
         fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
 
         def f_zero(x):
-            return bkd.zeros((1, x.shape[1]), dtype=bkd.double_dtype())
+            return bkd.zeros((1, x.shape[1]), dtype=bkd.real_dtype())
 
         result = fitter.refine_to_tolerance(
             FunctionFromCallable(1, 1, f_zero, bkd),
@@ -45,11 +45,11 @@ class TestSingleFidelityHierarchicalFitter:
         )
         surrogate = result.surrogate
         x_test = bkd.asarray(
-            np.linspace(0, 1, 11).reshape(1, -1), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 11).reshape(1, -1), dtype=bkd.real_dtype()
         )
         vals = surrogate(x_test)
         bkd.assert_allclose(
-            vals, bkd.zeros((1, 11), dtype=bkd.double_dtype()), atol=1e-14
+            vals, bkd.zeros((1, 11), dtype=bkd.real_dtype()), atol=1e-14
         )
 
     @pytest.mark.parametrize("p_max", [1, 2])
@@ -69,7 +69,7 @@ class TestSingleFidelityHierarchicalFitter:
             tol=1e-15, max_steps=50,
         )
         x_test = bkd.asarray(
-            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.real_dtype()
         )
         vals = result.surrogate(x_test)
         expected = 3 * x_test + 1
@@ -119,10 +119,10 @@ class TestSingleFidelityHierarchicalFitter:
                 2.0 * x_np,
                 1.5 + 3.0 * (x_np - 0.75) ** 3,
             )
-            return bkd.asarray(vals, dtype=bkd.double_dtype())
+            return bkd.asarray(vals, dtype=bkd.real_dtype())
 
         x_test = bkd.asarray(
-            np.linspace(0, 1, 1001).reshape(1, -1), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 1001).reshape(1, -1), dtype=bkd.real_dtype()
         )
         exact = bkd.to_numpy(f(x_test))
         dx = 1.0 / 1000
@@ -175,7 +175,7 @@ class TestSingleFidelityHierarchicalFitter:
             tol=1e-15, max_steps=50,
         )
         x_test = bkd.asarray(
-            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.real_dtype()
         )
         vals = result.surrogate(x_test)
         bkd.assert_allclose(vals, x_test ** 2, atol=1e-13)
@@ -234,7 +234,7 @@ class TestSingleFidelityHierarchicalFitter:
 
         # Both should interpolate correctly
         x_test = bkd.asarray(
-            np.linspace(0, 1, 21).reshape(1, -1), dtype=bkd.double_dtype()
+            np.linspace(0, 1, 21).reshape(1, -1), dtype=bkd.real_dtype()
         )
         v1 = r1.surrogate(x_test)
         v3 = r3.surrogate(x_test)
@@ -269,7 +269,7 @@ def _run_2d_adaptive(
             * np.maximum(x_np[0] - 0.3, 0) ** 2
             * np.maximum(x_np[1] - 0.3, 0) ** 2
         )
-        return bkd.asarray(v.reshape(1, -1), dtype=bkd.double_dtype())
+        return bkd.asarray(v.reshape(1, -1), dtype=bkd.real_dtype())
 
     total_pts = 0
     for _ in range(500):
@@ -297,7 +297,7 @@ def _check_interpolation_property(bkd, fitter, basis_nd):
             * np.maximum(x_np[0] - 0.3, 0) ** 2
             * np.maximum(x_np[1] - 0.3, 0) ** 2
         )
-        return bkd.asarray(v.reshape(1, -1), dtype=bkd.double_dtype())
+        return bkd.asarray(v.reshape(1, -1), dtype=bkd.real_dtype())
 
     for pid in range(mf._point_mgr.n_points()):
         if not mf._point_mgr.is_evaluated(pid):
@@ -353,7 +353,7 @@ class TestHierarchicalFitterConvergence:
         )
         test_pts = bkd.asarray(
             np.vstack([xx.ravel(), yy.ravel()]),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         x_np = bkd.to_numpy(test_pts)
         exact = bkd.asarray(
@@ -363,7 +363,7 @@ class TestHierarchicalFitterConvergence:
                 * np.maximum(x_np[0] - 0.3, 0) ** 2
                 * np.maximum(x_np[1] - 0.3, 0) ** 2
             ).reshape(1, -1),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         err = bkd.to_numpy(surr(test_pts) - exact)
         l2 = float(np.sqrt(np.mean(err**2)))
@@ -392,7 +392,7 @@ class TestHierarchicalFitterConvergence:
         )
         test_pts = bkd.asarray(
             np.vstack([xx.ravel(), yy.ravel()]),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         x_np = bkd.to_numpy(test_pts)
         exact = bkd.asarray(
@@ -402,7 +402,7 @@ class TestHierarchicalFitterConvergence:
                 * np.maximum(x_np[0] - 0.3, 0) ** 2
                 * np.maximum(x_np[1] - 0.3, 0) ** 2
             ).reshape(1, -1),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         err = bkd.to_numpy(surr(test_pts) - exact)
         l2 = float(np.sqrt(np.mean(err**2)))
@@ -431,7 +431,7 @@ class TestHierarchicalFitterConvergence:
                 * np.maximum(x_np[1] - 0.3, 0) ** 2
                 + 5.0 * x_np[2]
             )
-            return bkd.asarray(v.reshape(1, -1), dtype=bkd.double_dtype())
+            return bkd.asarray(v.reshape(1, -1), dtype=bkd.real_dtype())
 
         bases_1d = [
             HierarchicalBasis1D(bkd, boundary_mode="include"),
@@ -486,7 +486,7 @@ class TestHierarchicalFitterConvergence:
                 * np.maximum(x_np[0] - 0.3, 0) ** 2
                 * np.maximum(x_np[1] - 0.3, 0) ** 2
             )
-            return bkd.asarray(v.reshape(1, -1), dtype=bkd.double_dtype())
+            return bkd.asarray(v.reshape(1, -1), dtype=bkd.real_dtype())
 
         bases_1d = [
             HierarchicalBasis1D(bkd, boundary_mode="include")
@@ -500,7 +500,7 @@ class TestHierarchicalFitterConvergence:
 
         np.random.seed(42)
         test_pts = bkd.asarray(
-            np.random.rand(4, 10000), dtype=bkd.double_dtype()
+            np.random.rand(4, 10000), dtype=bkd.real_dtype()
         )
         exact = f_const_4d(test_pts)
 
@@ -554,7 +554,7 @@ class TestHierarchicalFitterConvergence:
                 + 0.5 * x_np[2] ** 2
                 + 0.3 * x_np[3] ** 2
             )
-            return bkd.asarray(v.reshape(1, -1), dtype=bkd.double_dtype())
+            return bkd.asarray(v.reshape(1, -1), dtype=bkd.real_dtype())
 
         bases_1d = [
             HierarchicalBasis1D(bkd, boundary_mode="include")
@@ -568,7 +568,7 @@ class TestHierarchicalFitterConvergence:
 
         np.random.seed(42)
         test_pts = bkd.asarray(
-            np.random.rand(4, 10000), dtype=bkd.double_dtype()
+            np.random.rand(4, 10000), dtype=bkd.real_dtype()
         )
         exact = f_quad_4d(test_pts)
 
@@ -627,7 +627,7 @@ class TestExcludeMode:
         # Test on interior points only
         x_test = bkd.asarray(
             np.linspace(0.05, 0.95, 51).reshape(1, -1),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         vals = result.surrogate(x_test)
         expected = bkd.sin(x_test * np.pi)
@@ -649,10 +649,10 @@ class TestExcludeMode:
             FunctionFromCallable(1, 1, f, bkd),
             tol=1e-15, max_steps=100,
         )
-        x_bnd = bkd.asarray([[0.0, 1.0]], dtype=bkd.double_dtype())
+        x_bnd = bkd.asarray([[0.0, 1.0]], dtype=bkd.real_dtype())
         vals = result.surrogate(x_bnd)
         bkd.assert_allclose(
-            vals, bkd.zeros((1, 2), dtype=bkd.double_dtype()), atol=1e-14
+            vals, bkd.zeros((1, 2), dtype=bkd.real_dtype()), atol=1e-14
         )
 
     @pytest.mark.parametrize("p_max", [1, 2])
@@ -744,7 +744,7 @@ class TestExcludeMode:
         )
         test_pts = bkd.asarray(
             np.vstack([xx.ravel(), yy.ravel()]),
-            dtype=bkd.double_dtype(),
+            dtype=bkd.real_dtype(),
         )
         exact = f(test_pts)
         err = bkd.to_numpy(surr(test_pts) - exact)

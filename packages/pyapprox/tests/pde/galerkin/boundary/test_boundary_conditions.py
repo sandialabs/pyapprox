@@ -491,8 +491,8 @@ class TestRoleProtocols:
         basis = LagrangeBasis(mesh, degree=1)
         bc = DirichletBC(basis, "left", value_func=3.0, bkd=bkd)
         bkd.assert_allclose(
-            bkd.asarray(bc.constrained_dofs(), dtype=bkd.double_dtype()),
-            bkd.asarray(bc.boundary_dofs(), dtype=bkd.double_dtype()),
+            bkd.asarray(bc.constrained_dofs(), dtype=bkd.real_dtype()),
+            bkd.asarray(bc.boundary_dofs(), dtype=bkd.real_dtype()),
         )
         bkd.assert_allclose(bc.constrained_values(0.0), bc.boundary_values(0.0))
 

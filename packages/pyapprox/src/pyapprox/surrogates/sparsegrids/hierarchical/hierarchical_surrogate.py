@@ -84,7 +84,7 @@ class HierarchicalSurrogate(Generic[Array]):
         if not self._point_keys:
             return bkd.zeros(
                 (self.nqoi(), samples.shape[1]),
-                dtype=bkd.double_dtype(),
+                dtype=bkd.real_dtype(),
             )
         n_basis = len(self._point_keys)
         npts = int(samples.shape[1])
@@ -156,7 +156,7 @@ class HierarchicalSurrogate(Generic[Array]):
             self._surpluses = new_cols
         else:
             self._surpluses = bkd.hstack([self._surpluses, new_cols])
-        new_w = bkd.asarray(quad_weights, dtype=bkd.double_dtype())
+        new_w = bkd.asarray(quad_weights, dtype=bkd.real_dtype())
         self._quad_weights = bkd.concatenate([self._quad_weights, new_w])
 
     def compute_surpluses_at_grid_points(
@@ -198,7 +198,7 @@ class HierarchicalSurrogate(Generic[Array]):
                 for d in range(nvars)
             ]
 
-            f_hat = bkd.zeros((nqoi,), dtype=bkd.double_dtype())
+            f_hat = bkd.zeros((nqoi,), dtype=bkd.real_dtype())
             for ancestor in cartesian_product(
                 *[range(level_k[d] + 1) for d in range(nvars)]
             ):
@@ -233,7 +233,7 @@ class HierarchicalSurrogate(Generic[Array]):
             predictions.append(f_hat)
 
         if n_new == 0:
-            return bkd.zeros((nqoi, 0), dtype=bkd.double_dtype())
+            return bkd.zeros((nqoi, 0), dtype=bkd.real_dtype())
         pred_matrix = bkd.stack(predictions, axis=1)
         return f_values - pred_matrix
 

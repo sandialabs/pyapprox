@@ -54,7 +54,7 @@ def _get_nsamples_intersect(
     nmodels = allocation_mat.shape[0]
     nsubset_samples = npartition_samples[:, None] * allocation_mat
     nsamples_intersect = bkd.zeros(
-        (2 * nmodels, 2 * nmodels), dtype=bkd.double_dtype())
+        (2 * nmodels, 2 * nmodels), dtype=bkd.real_dtype())
     for ii in range(2 * nmodels):
         mask = bkd.equal(allocation_mat[:, ii], 1)
         nsamples_intersect[ii] = bkd.sum(nsubset_samples[mask], axis=0)
@@ -74,7 +74,7 @@ def _get_nsamples_subset(
         color blocks in the ACV papers figures of sample allocation
     """
     nmodels = allocation_mat.shape[0]
-    nsamples_subset = bkd.zeros((2 * nmodels, ), dtype=bkd.double_dtype())
+    nsamples_subset = bkd.zeros((2 * nmodels, ), dtype=bkd.real_dtype())
     for ii in range(2 * nmodels):
         mask = bkd.equal(allocation_mat[:, ii], 1)
         nsamples_subset[ii] = bkd.sum(npartition_samples[mask])
@@ -95,8 +95,8 @@ def _get_acv_mean_discrepancy_covariances_multipliers(
     )
     nsamples_subset = _get_nsamples_subset(
         allocation_mat, npartition_samples, bkd)
-    Gmat = bkd.zeros((nmodels - 1, nmodels - 1), dtype=bkd.double_dtype())
-    gvec = bkd.zeros((nmodels - 1,), dtype=bkd.double_dtype())
+    Gmat = bkd.zeros((nmodels - 1, nmodels - 1), dtype=bkd.real_dtype())
+    gvec = bkd.zeros((nmodels - 1,), dtype=bkd.real_dtype())
     for ii in range(1, nmodels):
         gvec[ii - 1] = nsamples_intersect[2 * ii, 0 + 1] / (
             nsamples_subset[2 * ii] * nsamples_subset[0 + 1]
@@ -131,8 +131,8 @@ def _get_acv_variance_discrepancy_covariances_multipliers(
     )
     nsamples_subset = _get_nsamples_subset(
         allocation_mat, npartition_samples, bkd)
-    Hmat = bkd.zeros((nmodels - 1, nmodels - 1), dtype=bkd.double_dtype())
-    hvec = bkd.zeros((nmodels - 1,), dtype=bkd.double_dtype())
+    Hmat = bkd.zeros((nmodels - 1, nmodels - 1), dtype=bkd.real_dtype())
+    hvec = bkd.zeros((nmodels - 1,), dtype=bkd.real_dtype())
 
     N0 = nsamples_subset[0 + 1]
     for ii in range(1, nmodels):
@@ -192,10 +192,10 @@ def _get_multioutput_acv_mean_discrepancy_covariances(
     nmodels = len(gvec) + 1
     nqoi = cov.shape[0] // nmodels
     discp_cov = bkd.empty(
-        (nqoi * (nmodels - 1), nqoi * (nmodels - 1)), dtype=bkd.double_dtype()
+        (nqoi * (nmodels - 1), nqoi * (nmodels - 1)), dtype=bkd.real_dtype()
     )
     discp_vec = bkd.empty((nqoi, nqoi * (nmodels - 1)),
-                          dtype=bkd.double_dtype())
+                          dtype=bkd.real_dtype())
     for ii in range(nmodels - 1):
         discp_cov[ii * nqoi: (ii + 1) * nqoi, ii * nqoi: (ii + 1) * nqoi] = (
             Gmat[ii, ii]
@@ -273,10 +273,10 @@ def _get_multioutput_acv_variance_discrepancy_covariances(
     nmodels = len(gvec) + 1
     nqsq = V.shape[0] // nmodels
     discp_cov = bkd.empty(
-        (nqsq * (nmodels - 1), nqsq * (nmodels - 1)), dtype=bkd.double_dtype()
+        (nqsq * (nmodels - 1), nqsq * (nmodels - 1)), dtype=bkd.real_dtype()
     )
     discp_vec = bkd.empty((nqsq, nqsq * (nmodels - 1)),
-                          dtype=bkd.double_dtype())
+                          dtype=bkd.real_dtype())
     for ii in range(nmodels - 1):
         V_ii = V[
             (ii + 1) * nqsq: (ii + 2) * nqsq,
@@ -338,9 +338,9 @@ def _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
             nqoi * (nmodels - 1) + nqsq * (nmodels - 1),
             nqoi * (nmodels - 1) + nqsq * (nmodels - 1),
         ),
-        dtype=bkd.double_dtype(),
+        dtype=bkd.real_dtype(),
     )
-    cf = bkd.empty((stride, stride * (nmodels - 1)), dtype=bkd.double_dtype())
+    cf = bkd.empty((stride, stride * (nmodels - 1)), dtype=bkd.real_dtype())
     for ii in range(nmodels - 1):
         B_0i = B[0:nqoi, (ii + 1) * nqsq: (ii + 2) * nqsq]
         B_0i_T = B.T[0:nqsq, (ii + 1) * nqoi: (ii + 2) * nqoi]
@@ -383,7 +383,7 @@ def _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
 
 def _V_entry(cov: Array, bkd: Backend[Array]) -> Array:
     V = bkd.kron(cov, cov)
-    ones = bkd.ones((cov.shape[0], 1), dtype=bkd.double_dtype())
+    ones = bkd.ones((cov.shape[0], 1), dtype=bkd.real_dtype())
     V += bkd.kron(bkd.kron(ones.T, cov), ones) * \
         bkd.kron(bkd.kron(ones, cov), ones.T)
     return V
@@ -946,7 +946,7 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         stat = MultiOutputMean(self._nqoi, bkd)
         if self._cov is not None:
             stat.set_pilot_quantities(
-                bkd.asarray(self._cov, dtype=bkd.double_dtype())
+                bkd.asarray(self._cov, dtype=bkd.real_dtype())
             )
         return stat
 
@@ -1005,7 +1005,7 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
 
     def set_pilot_quantities(self, *args: Any) -> None:
         cov = args[0]
-        self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_dtype())
+        self._cov = self._bkd.asarray(cov, dtype=self._bkd.real_dtype())
         self._nmodels = self._cov.shape[0] // self._nqoi
 
     def _get_discrepancy_covariances(
@@ -1023,12 +1023,12 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         Gmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             self._bkd.to_float(1.0 / npartition_samples[0]),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         gvec = self._bkd.full(
             (self._nmodels - 1,),
             self._bkd.to_float(1.0 / npartition_samples[0]),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         return self._get_discrepancy_covariances(Gmat, gvec)
 
@@ -1153,8 +1153,8 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         stat = MultiOutputVariance(self._nqoi, bkd)
         if self._cov is not None and self._W is not None:
             stat.set_pilot_quantities(
-                bkd.asarray(self._cov, dtype=bkd.double_dtype()),
-                bkd.asarray(self._W, dtype=bkd.double_dtype()),
+                bkd.asarray(self._cov, dtype=bkd.real_dtype()),
+                bkd.asarray(self._W, dtype=bkd.real_dtype()),
             )
         return stat
 
@@ -1287,18 +1287,18 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
 
     def set_pilot_quantities(self, *args: Any) -> None:
         cov, W = args[0], args[1]
-        self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_dtype())
+        self._cov = self._bkd.asarray(cov, dtype=self._bkd.real_dtype())
         self._nmodels = self._cov.shape[0] // self._nqoi
         self._V = self._bkd.asarray(
             _get_V_from_covariance(self._cov, self._nmodels, self._bkd),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         if W.shape != self._V.shape:
             msg = "W has the wrong shape {0}. Should be {1}".format(
                 W.shape, self._V.shape
             )
             raise ValueError(msg)
-        self._W = self._bkd.asarray(W, dtype=self._bkd.double_dtype())
+        self._W = self._bkd.asarray(W, dtype=self._bkd.real_dtype())
         self._set_compressed_data()
 
     def _get_discrepancy_covariances(
@@ -1321,24 +1321,24 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         Gmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             self._bkd.to_float(1.0 / npartition_samples[0]),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         gvec = self._bkd.full(
             (self._nmodels - 1,),
             self._bkd.to_float(1.0 / npartition_samples[0]),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         Hmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             self._bkd.to_float(
                 1.0 / (npartition_samples[0] * (npartition_samples[0] - 1))),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         hvec = self._bkd.full(
             (self._nmodels - 1,),
             self._bkd.to_float(
                 1.0 / (npartition_samples[0] * (npartition_samples[0] - 1))),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
@@ -1494,9 +1494,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             and self._B is not None
         ):
             stat.set_pilot_quantities(
-                bkd.asarray(self._cov, dtype=bkd.double_dtype()),
-                bkd.asarray(self._W, dtype=bkd.double_dtype()),
-                bkd.asarray(self._B, dtype=bkd.double_dtype()),
+                bkd.asarray(self._cov, dtype=bkd.real_dtype()),
+                bkd.asarray(self._W, dtype=bkd.real_dtype()),
+                bkd.asarray(self._B, dtype=bkd.real_dtype()),
             )
         return stat
 
@@ -1684,23 +1684,23 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
 
     def set_pilot_quantities(self, *args: Any) -> None:
         cov, W, B = args[0], args[1], args[2]
-        self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_dtype())
+        self._cov = self._bkd.asarray(cov, dtype=self._bkd.real_dtype())
         self._nmodels = self._cov.shape[0] // self._nqoi
         self._V = self._bkd.asarray(
             _get_V_from_covariance(self._cov, self._nmodels, self._bkd),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         if W.shape != self._V.shape:
             msg = "W has the wrong shape {0}. Should be {1}".format(
                 W.shape, self._V.shape
             )
             raise ValueError(msg)
-        self._W = self._bkd.asarray(W, dtype=self._bkd.double_dtype())
+        self._W = self._bkd.asarray(W, dtype=self._bkd.real_dtype())
         B_shape = cov.shape[0], self._V.shape[1]
         if B.shape != B_shape:
             msg = "B has the wrong shape {0}. Should be {1}".format(B.shape, B_shape)
             raise ValueError(msg)
-        self._B = self._bkd.asarray(B, dtype=self._bkd.double_dtype())
+        self._B = self._bkd.asarray(B, dtype=self._bkd.real_dtype())
         self._set_compressed_data()
 
     def _get_discrepancy_covariances(
@@ -1737,24 +1737,24 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         Gmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             self._bkd.to_float(1.0 / npartition_samples[0]),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         gvec = self._bkd.full(
             (self._nmodels - 1,),
             self._bkd.to_float(1.0 / npartition_samples[0]),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         Hmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             self._bkd.to_float(
                 1.0 / (npartition_samples[0] * (npartition_samples[0] - 1))),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         hvec = self._bkd.full(
             (self._nmodels - 1,),
             self._bkd.to_float(
                 1.0 / (npartition_samples[0] * (npartition_samples[0] - 1))),
-            dtype=self._bkd.double_dtype(),
+            dtype=self._bkd.real_dtype(),
         )
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
