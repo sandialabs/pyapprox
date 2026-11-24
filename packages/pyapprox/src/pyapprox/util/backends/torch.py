@@ -19,6 +19,7 @@ from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
 from pyapprox.util.backends.errors import LinAlgError
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import (
     ArrayLike,
     Backend,
@@ -109,22 +110,36 @@ def _prod(array: torch.Tensor, dims: Tuple[int, ...], keepdim: bool) -> torch.Te
 class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def __init__(
         self,
+        *,
+        precision: Precision = Precision.DOUBLE,
         device: Optional[Union[str, "torch.device"]] = None,
-        dtype: Optional[Any] = None,
         compile: bool = False,
     ) -> None:
-        """``compile=True`` makes :meth:`jit` compile kernels with
+        """``precision`` sets the real working dtype (float32 or float64)
+        and with it the complex one; ``device`` defaults to the CPU. MPS
+        has no float64, so ``device="mps"`` needs ``Precision.SINGLE``.
+
+        ``compile=True`` makes :meth:`jit` compile kernels with
         ``torch.compile``. Off by default: a torch-compiled kernel supports
         first derivatives only, so compiling by default would take
         ``hvp`` away from every generic kernel."""
+        if not isinstance(precision, Precision):
+            raise TypeError(
+                f"precision must be a Precision, got {type(precision).__name__}"
+            )
         self._device = (
             torch.device(device) if device is not None else torch.device("cpu")
         )
+        if self._device.type == "mps" and precision is Precision.DOUBLE:
+            raise ValueError("MPS has no float64: use Precision.SINGLE on mps")
         _set_default_dtype(torch.float64)
         # Every torch.compile path in the library runs with a TorchBkd, so
         # this runs before inductor builds its first kernel.
         use_torch_openmp()
-        self._dtype = dtype if dtype is not None else torch.get_default_dtype()
+        self._precision = precision
+        single = precision is Precision.SINGLE
+        self._dtype = torch.float32 if single else torch.float64
+        self._complex_dtype = torch.complex64 if single else torch.complex128
         self._compile = compile
         self._jit_cache: Dict[_JitKey, Callable[..., Any]] = {}
 
@@ -209,16 +224,22 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
-        if isinstance(array, torch.Tensor):
-            source = array.detach()
-            if dtype is None:
-                dtype = source.dtype
-        else:
-            source = torch.as_tensor(array)
-            if dtype is None and source.is_floating_point():
+        source = (
+            array.detach()
+            if isinstance(array, torch.Tensor)
+            else torch.as_tensor(array)
+        )
+        if dtype is None:
+            # Precision is normalized and kind kept: real floating becomes
+            # the real working dtype, complex the complex one.
+            if source.is_floating_point():
                 dtype = self._dtype
+            elif source.is_complex():
+                dtype = self._complex_dtype
+            else:
+                dtype = source.dtype
         # copy=True: as_tensor shares a NumPy array's memory.
-        return source.to(dtype=dtype or source.dtype, device=self._device, copy=True)
+        return source.to(dtype=dtype, device=self._device, copy=True)
 
     def asarray(
         self,
@@ -247,13 +268,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             msg=err_msg,
         )
 
-    @staticmethod
-    def double_dtype() -> Any:
-        return torch.double
+    def double_dtype(self) -> Any:
+        return self._dtype
 
-    @staticmethod
-    def complex_dtype() -> Any:
-        return torch.cdouble
+    def complex_dtype(self) -> Any:
+        return self._complex_dtype
 
     @staticmethod
     def int64_dtype() -> Any:

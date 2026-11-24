@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.precision import Precision
 from tests._helpers.markers import matching_target
 
 if TYPE_CHECKING:
@@ -113,11 +114,11 @@ def torch_bkd() -> "TorchBkd":
 
 @pytest.fixture
 def torch_float32_bkd() -> "TorchBkd":
-    """TorchBkd with float32 dtype for targeted precision tests."""
-    torch = pytest.importorskip("torch")
+    """TorchBkd at single precision for targeted precision tests."""
+    pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
 
-    return TorchBkd(dtype=torch.float32)
+    return TorchBkd(precision=Precision.SINGLE)
 
 
 @pytest.fixture
@@ -128,7 +129,7 @@ def torch_mps_bkd() -> "TorchBkd":
         pytest.skip("MPS device not available")
     from pyapprox.util.backends.torch import TorchBkd
 
-    return TorchBkd(device="mps", dtype=torch.float32)
+    return TorchBkd(device="mps", precision=Precision.SINGLE)
 
 
 @pytest.fixture(autouse=True)

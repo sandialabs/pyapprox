@@ -106,16 +106,17 @@ methods (`zeros`, `ones`, `array`, `eye`, `linspace`, etc.) respect these
 settings automatically.
 
 ```{python}
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.torch import TorchBkd
 
 # CPU float64 — the default (maximum precision)
-bkd_cpu64 = TorchBkd(device="cpu", dtype=torch.float64)
+bkd_cpu64 = TorchBkd(device="cpu", precision=Precision.DOUBLE)
 
 # CPU float32 — faster, lower precision
-bkd_cpu32 = TorchBkd(device="cpu", dtype=torch.float32)
+bkd_cpu32 = TorchBkd(device="cpu", precision=Precision.SINGLE)
 
 # GPU float32 — fastest for large problems
-bkd_gpu32 = TorchBkd(device=GPU_DEVICE, dtype=torch.float32)
+bkd_gpu32 = TorchBkd(device=GPU_DEVICE, precision=Precision.SINGLE)
 
 # Verify that tensor creation respects settings
 x = bkd_gpu32.zeros((3, 3))
@@ -404,7 +405,7 @@ difference between fitting in memory and an out-of-memory error.
 ```{python}
 if GPU_DEVICE == "cuda":
     torch.cuda.reset_peak_memory_stats()
-    bkd_gpu32_mem = TorchBkd(device="cuda", dtype=torch.float32)
+    bkd_gpu32_mem = TorchBkd(device="cuda", precision=Precision.SINGLE)
     X, y = make_training_data(nvars, 2000, bkd_gpu32_mem)
     k = Matern52Kernel([1.0] * nvars, (0.01, 10.0), nvars, bkd_gpu32_mem)
     gp = ExactGaussianProcess(k, nvars=nvars, bkd=bkd_gpu32_mem, nugget=1e-4)
@@ -412,7 +413,7 @@ if GPU_DEVICE == "cuda":
     peak_f32_mb = torch.cuda.max_memory_allocated() / 1024**2
 
     torch.cuda.reset_peak_memory_stats()
-    bkd_gpu64_mem = TorchBkd(device="cuda", dtype=torch.float64)
+    bkd_gpu64_mem = TorchBkd(device="cuda", precision=Precision.DOUBLE)
     X, y = make_training_data(nvars, 2000, bkd_gpu64_mem)
     k = Matern52Kernel([1.0] * nvars, (0.01, 10.0), nvars, bkd_gpu64_mem)
     gp = ExactGaussianProcess(k, nvars=nvars, bkd=bkd_gpu64_mem, nugget=1e-4)
@@ -440,8 +441,8 @@ else:
 
 ```{python}
 # Example configurations
-bkd_prod = TorchBkd(device="cpu",      dtype=torch.float64)  # precision
-bkd_fast = TorchBkd(device=GPU_DEVICE, dtype=torch.float32)  # throughput
+bkd_prod = TorchBkd(device="cpu",      precision=Precision.DOUBLE)  # precision
+bkd_fast = TorchBkd(device=GPU_DEVICE, precision=Precision.SINGLE)  # throughput
 ```
 
 ::: {.callout-note}
@@ -456,7 +457,7 @@ CUDA GPUs provide the most complete acceleration.
 
 ## Key Takeaways
 
-- `TorchBkd(device=..., dtype=...)` configures device and precision without
+- `TorchBkd(device=..., precision=...)` configures device and precision without
   changing any downstream code
 - **Float32 on CPU** gives 1.3–2.6× speedup with minimal accuracy loss for
   prediction

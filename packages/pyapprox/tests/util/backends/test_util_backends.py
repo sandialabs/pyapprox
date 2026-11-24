@@ -3,6 +3,7 @@ from typing import Union
 import numpy as np
 import pytest
 
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -62,15 +63,15 @@ class TestTorchBkdDtype:
     """Test that TorchBkd respects device and dtype configuration."""
 
     @pytest.mark.parametrize(
-        "dtype_name",
-        ["float32", "float64"],
+        "precision, dtype_name",
+        [(Precision.SINGLE, "float32"), (Precision.DOUBLE, "float64")],
     )
-    def test_tensor_creation_dtype(self, dtype_name: str) -> None:
+    def test_tensor_creation_dtype(self, precision: Precision, dtype_name: str) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
         dtype = getattr(torch, dtype_name)
-        bkd = TorchBkd(dtype=dtype)
+        bkd = TorchBkd(precision=precision)
 
         assert bkd.array([[1.0, 2.0]]).dtype == dtype
         assert bkd.zeros((2, 3)).dtype == dtype
@@ -85,10 +86,10 @@ class TestTorchBkdDtype:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
-        bkd32 = TorchBkd(dtype=torch.float32)
+        bkd32 = TorchBkd(precision=Precision.SINGLE)
         assert bkd32.default_dtype() == torch.float32
 
-        bkd64 = TorchBkd(dtype=torch.float64)
+        bkd64 = TorchBkd(precision=Precision.DOUBLE)
         assert bkd64.default_dtype() == torch.float64
 
     def test_default_constructor_uses_torch_default(self) -> None:
@@ -104,7 +105,7 @@ class TestTorchBkdDtype:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
-        bkd = TorchBkd(dtype=torch.float32)
+        bkd = TorchBkd(precision=Precision.SINGLE)
         # Explicit dtype arg to method should override backend default
         result = bkd.zeros((2,), dtype=torch.float64)
         assert result.dtype == torch.float64

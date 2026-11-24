@@ -292,12 +292,13 @@ eliminates this boilerplate by storing device and dtype as backend-level
 configuration.
 
 ```{python}
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.torch import TorchBkd
 
 # Three configurations — identical API, different hardware targets
-bkd_cpu64 = TorchBkd(device="cpu",      dtype=torch.float64)  # default
-bkd_cpu32 = TorchBkd(device="cpu",      dtype=torch.float32)  # faster CPU
-bkd_gpu32 = TorchBkd(device=GPU_DEVICE, dtype=torch.float32)  # GPU
+bkd_cpu64 = TorchBkd(device="cpu",      precision=Precision.DOUBLE)  # default
+bkd_cpu32 = TorchBkd(device="cpu",      precision=Precision.SINGLE)  # faster CPU
+bkd_gpu32 = TorchBkd(device=GPU_DEVICE, precision=Precision.SINGLE)  # GPU
 
 # Every tensor-creation method respects the backend settings
 for label, bkd in [("CPU f64", bkd_cpu64),
@@ -353,7 +354,7 @@ small training set sizes.
   detect hardware
 - Tensors must share a device for operations between them to work
 - GPU operations are asynchronous — always call `synchronize()` before timing
-- `TorchBkd(device=..., dtype=...)` configures the backend once; all
+- `TorchBkd(device=..., precision=...)` configures the backend once; all
   downstream tensor ops inherit the settings automatically
 - `bkd.synchronize()` encapsulates device-specific sync logic so callers
   don't need to know which device is active
