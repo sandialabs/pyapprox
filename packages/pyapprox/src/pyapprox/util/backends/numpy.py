@@ -18,6 +18,7 @@ from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
 from pyapprox.util.backends.errors import LinAlgError
+from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import (
     ArrayLike,
     Backend,
@@ -106,10 +107,32 @@ def _batched_lu_solve(
 class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def __init__(
         self,
-        device: Optional[Any] = None,
-        dtype: Optional[Any] = None,
+        *,
+        precision: Precision = Precision.DOUBLE,
+        device: Optional[str] = None,
     ) -> None:
-        pass
+        """``precision`` sets the real working dtype (float32 or float64)
+        and with it the complex one; ``device`` must be ``None`` or
+        ``"cpu"``, the only device NumPy runs on."""
+        if not isinstance(precision, Precision):
+            raise TypeError(
+                f"precision must be a Precision, got {type(precision).__name__}"
+            )
+        if device not in (None, "cpu"):
+            raise ValueError(f"NumpyBkd runs on the CPU only, got device={device!r}")
+        self._precision = precision
+        single = precision is Precision.SINGLE
+        self._real_dtype: Any = np.float32 if single else np.float64
+        self._complex_dtype: Any = np.complex64 if single else np.complex128
+
+    def _working(self, array: NDArray[Any]) -> NDArray[Any]:
+        """``array`` built from Python data: what Python floats and complex
+        numbers become (float64, complex128) in the working dtypes."""
+        if array.dtype == np.float64:
+            return array.astype(self._real_dtype, copy=False)
+        if array.dtype == np.complex128:
+            return array.astype(self._complex_dtype, copy=False)
+        return array
 
     def jit(
         self,
@@ -132,11 +155,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         result: NDArray[Any] = np.linalg.multi_dot(arrays)
         return result
 
-    @staticmethod
     def eye(
-        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+        self, nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
     ) -> NDArray[Any]:
-        return np.eye(nrows, ncols, dtype=dtype)
+        return np.eye(nrows, ncols, dtype=self._real_dtype if dtype is None else dtype)
 
     @staticmethod
     def inv(matrix: NDArray[Any]) -> NDArray[Any]:
@@ -151,19 +173,31 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             rtol = max(matrix.shape[-2:]) * float(np.finfo(matrix.dtype).eps)
         return np.linalg.pinv(matrix, rtol=rtol)
 
-    @staticmethod
     def asarray(
+        self,
         array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> NDArray[Any]:
-        return np.asarray(array, dtype=dtype)
+        if dtype is not None or hasattr(array, "dtype"):
+            # An explicit dtype wins; an existing array keeps its own.
+            return np.asarray(array, dtype=dtype)
+        return self._working(np.asarray(array))
 
-    @staticmethod
     def array(
+        self,
         array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> NDArray[Any]:
-        return np.array(array, dtype=dtype)
+        if dtype is not None:
+            return np.array(array, dtype=dtype)
+        result = np.array(array)
+        # Precision is normalized and kind kept: real floating becomes the
+        # real working dtype, complex the complex one.
+        if np.issubdtype(result.dtype, np.floating):
+            return result.astype(self._real_dtype, copy=False)
+        if np.issubdtype(result.dtype, np.complexfloating):
+            return result.astype(self._complex_dtype, copy=False)
+        return result
 
     @staticmethod
     def assert_allclose(
@@ -185,13 +219,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             strict=True,
         )
 
-    @staticmethod
-    def double_dtype() -> Any:
-        return np.float64
+    def double_dtype(self) -> Any:
+        return self._real_dtype
 
-    @staticmethod
-    def complex_dtype() -> Any:
-        return np.complex128
+    def complex_dtype(self) -> Any:
+        return self._complex_dtype
 
     @staticmethod
     def int64_dtype() -> Any:
@@ -236,13 +268,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> NDArray[Any]:
         return np.vstack(arrays)
 
-    @staticmethod
-    def linspace(start: float, stop: float, num: int) -> NDArray[Any]:
-        return np.linspace(start, stop, num)
+    def linspace(self, start: float, stop: float, num: int) -> NDArray[Any]:
+        return np.linspace(start, stop, num, dtype=self._real_dtype)
 
-    @staticmethod
-    def logspace(start: float, stop: float, num: int) -> NDArray[Any]:
-        return np.logspace(start, stop, num)
+    def logspace(self, start: float, stop: float, num: int) -> NDArray[Any]:
+        return np.logspace(start, stop, num, dtype=self._real_dtype)
 
     @staticmethod
     def to_numpy(mat: NDArray[Any]) -> NDArray[Any]:
@@ -355,30 +385,33 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def arctanh(array: NDArray[Any]) -> NDArray[Any]:
         return np.asarray(np.arctanh(array))
 
-    @staticmethod
     def full(
-        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> NDArray[Any]:
-        return np.full(shape, fill_value, dtype=dtype)
+        if dtype is not None:
+            return np.full(shape, fill_value, dtype=dtype)
+        # The fill value's kind, as Python data: an int fill stays integer.
+        return self._working(np.full(shape, fill_value))
 
     @staticmethod
     def full_like(a: NDArray[Any], fill_value: float) -> NDArray[Any]:
         return np.full_like(a, fill_value)
 
-    @staticmethod
-    def zeros(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
-        return np.zeros(shape, dtype=dtype)
+    def zeros(
+        self, shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.zeros(shape, dtype=self._real_dtype if dtype is None else dtype)
 
-    @staticmethod
-    def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
-        return np.ones(shape, dtype=dtype)
+    def ones(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
+        return np.ones(shape, dtype=self._real_dtype if dtype is None else dtype)
 
-    @staticmethod
-    def empty(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> NDArray[Any]:
-        return np.empty(shape, dtype=dtype)
+    def empty(
+        self, shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.empty(shape, dtype=self._real_dtype if dtype is None else dtype)
 
-    @staticmethod
     def arange(
+        self,
         start: Union[int, float],
         /,
         stop: Optional[Union[int, float]] = None,
@@ -388,7 +421,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> NDArray[Any]:
         if stop is None:
             start, stop = 0, start
-        return np.arange(start, stop, step, dtype=dtype)
+        if dtype is not None:
+            return np.arange(start, stop, step, dtype=dtype)
+        # Integer arguments give integers; any float argument the real
+        # working dtype.
+        return self._working(np.arange(start, stop, step))
 
     @staticmethod
     def prod(
@@ -860,9 +897,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def zeros_like(array: NDArray[Any], dtype: Optional[Any] = None) -> NDArray[Any]:
         return np.zeros_like(array, dtype=dtype)
 
-    @staticmethod
-    def default_dtype() -> Any:
-        return np.float64
+    def default_dtype(self) -> Any:
+        return self._real_dtype
 
     @staticmethod
     def slogdet(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
