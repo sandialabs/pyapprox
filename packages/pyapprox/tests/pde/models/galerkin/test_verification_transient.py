@@ -25,12 +25,33 @@ exactly with a consistent mass, and every error is the time stepper's:
   0.0025), with the essential rows pinned at each step's end and at
   every block.
 
+The remaining cases are smooth in :math:`x` (:math:`\sin(\pi x + 0.5)`
+times a function of :math:`t`), Dirichlet data varying in time on the
+left and Robin (:math:`\alpha = 1`) on the right:
+
+- no order reduction under either placement: backward Euler 1,
+  Crank-Nicolson 2, implicit midpoint 2 within 0.1, on P2 with 64 cells
+  (spatial error far below the temporal one) for steps 0.1 to 0.0125
+  (measured 0.99, 2.00, 2.00 for both; implicit midpoint's error 1.4
+  times larger at every block). Explicit methods are left out: their
+  step bound on this mesh puts their time error below the spatial one;
+- spatial order with a solution polynomial in :math:`t` within the stage
+  order (backward Euler degree 1, Crank-Nicolson degree 2): L2 rate 2
+  for P1 (8 to 64 cells) and 3 for P2 (4 to 32), within 0.1 over the
+  last three levels;
+- joint refinement, :math:`\Delta t = 0.1 (h/h_0)^{p/r}`: backward Euler
+  with P1 (:math:`q = 2`) and Crank-Nicolson with P2 (:math:`q = 1.5`)
+  keep the rate :math:`p` in :math:`h`; with a time-only refinement
+  appended, :func:`~pyapprox.pde.verification.transient.fit_joint`
+  resolves both constants of :math:`e = A h^p + B \Delta t^r`
+  (measured A 0.60, B 0.069, misfit 2%; A 0.11, B 0.028, misfit 9%).
+
 Also the sizes (``H``, ``DEGREE``, ``NDOFS`` and ``DT``), the series'
 times, and the refusals: a problem without a time derivative, a level
 beyond the family, a method or grid of the wrong type.
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import pytest
 
@@ -64,7 +85,7 @@ from pyapprox.pde.models.galerkin.verification import (
     forcing,
     galerkin_l2_error,
 )
-from pyapprox.pde.verification.conditions import ConditionProtocol, Dirichlet
+from pyapprox.pde.verification.conditions import ConditionProtocol, Dirichlet, Robin
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.protocols import DEGREE, DT, NDOFS, H, SpaceLevel
@@ -74,7 +95,9 @@ from pyapprox.pde.verification.transient import (
     SpaceSizesProtocol,
     TimeGrid,
     TransientLevel,
+    fit_joint,
     max_over_steps,
+    refine_jointly,
     refine_time,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -149,24 +172,48 @@ class _Heat:
         return "_Heat()"
 
 
-def _problem(solution: str, transient: bool = True) -> ManufacturedProblem:
+_DIRICHLET: Dict[str, ConditionProtocol] = {"left": Dirichlet(), "right": Dirichlet()}
+# Time-varying Dirichlet data on the left, Robin on the right: the
+# collocation stack's diverging pairing (raw Robin rows under the step-end
+# pin), which this stack keeps in the weak form.
+_DIRICHLET_ROBIN: Dict[str, ConditionProtocol] = {
+    "left": Dirichlet(),
+    "right": Robin(1.0),
+}
+# Smooth in x, so no Lagrange space holds it.
+_SMOOTH = "sin(pi*x + 0.5)"
+
+
+def _problem(
+    solution: str,
+    transient: bool = True,
+    conditions: Optional[Dict[str, ConditionProtocol]] = None,
+) -> ManufacturedProblem:
     terms: List[TermProtocol] = [Divergence("u", [f"-({_DIFFUSIVITY})*u_x"])]
     if transient:
         terms.insert(0, TimeDerivative("u"))
-    conditions: Dict[str, ConditionProtocol] = {
-        "left": Dirichlet(),
-        "right": Dirichlet(),
-    }
-    return ManufacturedProblem({"u": solution}, terms, Box([(0.0, 1.0)]), conditions)
+    return ManufacturedProblem(
+        {"u": solution},
+        terms,
+        Box([(0.0, 1.0)]),
+        _DIRICHLET if conditions is None else conditions,
+    )
 
 
 def _discretizer(
     method: _Method,
     grid: TimeGrid,
     placement: Optional[PinPlacementProtocol] = None,
+    cells: Sequence[int] = (4,),
+    degree: int = 2,
 ) -> GalerkinTransientDiscretizer[LagrangeBasis[_Np]]:
     return GalerkinTransientDiscretizer(
-        StructuredBox([4]), Lagrange(2), _Heat(), method.stepping(), grid, placement
+        StructuredBox(cells),
+        Lagrange(degree),
+        _Heat(),
+        method.stepping(),
+        grid,
+        placement,
     )
 
 
@@ -210,6 +257,75 @@ def test_temporal_order(method: _Method, placement: str) -> None:
     )
     result = Converges(float(method.order), axis=DT, atol=0.15).verify(study)
     assert result.passed, result.message
+
+
+_IMPLICIT = [method for method in _METHODS if not method.explicit()]
+
+
+@pytest.mark.parametrize("placement", list(_PLACEMENTS), ids=str)
+@pytest.mark.parametrize("method", _IMPLICIT, ids=repr)
+def test_no_order_reduction_with_robin_ends(method: _Method, placement: str) -> None:
+    """Order reduction shows only where the spatial error is not zero, so
+    the solution is smooth in x, the mesh fine (P2, 64 cells) and the
+    steps coarse (0.1 to 0.0125 on [0, 1]) so the time error dominates.
+    Robin is weak here, so no placement may lose order."""
+    grid = TimeGrid(0.0, 1.0, 0.1)
+    study = run_study(
+        _problem(f"{_SMOOTH}*(1 + sin(2*t))", conditions=_DIRICHLET_ROBIN),
+        _discretizer(method, grid, _PLACEMENTS[placement], cells=(64,)),
+        [max_over_steps(galerkin_l2_error())],
+        refine_time(SpaceLevel(0), grid, 4),
+    )
+    result = Converges(float(method.order), axis=DT, atol=0.1).verify(study)
+    assert result.passed, result.message
+
+
+@pytest.mark.parametrize("degree", [1, 2])
+@pytest.mark.parametrize(
+    "method, time_factor",
+    [(_METHODS[0], "(1 + t)"), (_METHODS[2], "(1 + t + t**2)")],
+    ids=["backward_euler", "crank_nicolson"],
+)
+def test_spatial_order(method: _Method, time_factor: str, degree: int) -> None:
+    """Polynomial in t within the stage order, so the stepper is exact in
+    time and the L2 rate in h is the element's, degree + 1."""
+    cells = (8, 16, 32, 64) if degree == 1 else (4, 8, 16, 32)
+    study = run_study(
+        _problem(f"{_SMOOTH}*{time_factor}", conditions=_DIRICHLET_ROBIN),
+        _discretizer(method, TimeGrid(0.0, 0.5, 0.1), cells=cells, degree=degree),
+        [max_over_steps(galerkin_l2_error())],
+    )
+    result = Converges(float(degree + 1), last=3).verify(study)
+    assert result.passed, result.message
+
+
+@pytest.mark.parametrize(
+    "method, degree",
+    [(_METHODS[0], 1), (_METHODS[2], 2)],
+    ids=["backward_euler-P1", "crank_nicolson-P2"],
+)
+def test_joint_refinement(method: _Method, degree: int) -> None:
+    """Smooth in x and t, dt = 0.1 (h / h0)^q with q = p / r, so the rate
+    in h is the element's p = degree + 1. Concatenated with a time-only
+    refinement on the finest mesh, the levels separate the constants of
+    e = A h^p + B dt^r: both resolved (positive) and the model fitting
+    every level to 15%."""
+    p, r = degree + 1, method.order
+    problem = _problem(f"{_SMOOTH}*exp(-t)*(1 + t)", conditions=_DIRICHLET_ROBIN)
+    grid = TimeGrid(0.0, 1.0, 0.1)
+    discretizer = _discretizer(method, grid, cells=(4, 8, 16, 32), degree=degree)
+    spaces = [SpaceLevel(index) for index in range(4)]
+    joint = refine_jointly(problem, discretizer, spaces, p / r, 0.1, 0.0, 1.0)
+    measures = [max_over_steps(galerkin_l2_error())]
+    study = run_study(problem, discretizer, measures, joint)
+    result = Converges(float(p), last=3).verify(study)
+    assert result.passed, result.message
+    both = run_study(
+        problem, discretizer, measures, joint + refine_time(spaces[-1], grid, 3)
+    )
+    fit = fit_joint(both, p, r)
+    assert fit.space > 0.0 and fit.time > 0.0, fit
+    assert fit.misfit < 0.15, fit
 
 
 def test_sizes_and_times() -> None:
