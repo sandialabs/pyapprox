@@ -77,7 +77,7 @@ def _gmf_estimator(
     return GMFEstimator(
         stat,
         costs,
-        recursion_index=bkd.asarray(recursion_index, dtype=bkd.int64_dtype()),
+        recursion_index=bkd.asarray(recursion_index, dtype=bkd.index_dtype()),
     )
 
 
@@ -86,8 +86,8 @@ def _allocation_result(bkd: Backend[Array]) -> ACVAllocationResult[Array]:
         partition_ratios=bkd.array([1.0, 2.0]),
         continuous_npartition_samples=bkd.array([10.0, 10.0, 20.0]),
         objective_value=bkd.array([-5.0]),
-        npartition_samples=bkd.array([10, 10, 20], dtype=bkd.int64_dtype()),
-        nsamples_per_model=bkd.array([10, 20, 30], dtype=bkd.int64_dtype()),
+        npartition_samples=bkd.array([10, 10, 20], dtype=bkd.index_dtype()),
+        nsamples_per_model=bkd.array([10, 20, 30], dtype=bkd.index_dtype()),
         target_cost=100.0,
         actual_cost=95.0,
         success=True,

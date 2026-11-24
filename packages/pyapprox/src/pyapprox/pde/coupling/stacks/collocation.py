@@ -287,7 +287,7 @@ def collocation_pinned_response(
         weights.append(quadrature.weights)
         # The side's port nodes' Lagrange polynomials at the rule's points.
         selected = bkd.asarray(
-            [position[node] for node in side.nodes], dtype=bkd.int64_dtype()
+            [position[node] for node in side.nodes], dtype=bkd.index_dtype()
         )
         blocks.append(quadrature.interpolation[:, selected])
     trace = TabulatedTrace(

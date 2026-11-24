@@ -140,7 +140,7 @@ class UnstructuredMesh2D(Generic[Array]):
             Element-to-node connectivity. Shape: (4, nelements)
         """
         return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def skfem_mesh(self) -> Union[MeshTri, MeshQuad]:
@@ -175,7 +175,7 @@ class UnstructuredMesh2D(Generic[Array]):
         facet_indices = self._skfem_mesh.boundaries[boundary_id]
         node_indices = np.unique(self._skfem_mesh.facets[:, facet_indices])
         return self._bkd.asarray(
-            node_indices.astype(np.int64), dtype=self._bkd.int64_dtype()
+            node_indices.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def subdomain_elements(self, name: str) -> np.ndarray:

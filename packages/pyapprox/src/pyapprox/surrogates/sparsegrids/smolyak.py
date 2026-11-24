@@ -491,7 +491,7 @@ def get_subspace_neighbors(
         Neighbor indices of shape (nvars, nvars)
     """
     nvars = index.shape[0]
-    neighbors = bkd.zeros((nvars, nvars), dtype=bkd.int64_dtype())
+    neighbors = bkd.zeros((nvars, nvars), dtype=bkd.index_dtype())
 
     for dim in range(nvars):
         neighbors[:, dim] = index

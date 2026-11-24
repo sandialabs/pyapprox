@@ -71,7 +71,7 @@ class PivotedQRFactorizer(Generic[Array]):
 
         Q = self._bkd.asarray(Q_np)
         R = self._bkd.asarray(R_np)
-        pivots = self._bkd.asarray(pivots_np, dtype=self._bkd.int64_dtype())
+        pivots = self._bkd.asarray(pivots_np, dtype=self._bkd.index_dtype())
 
         if k is not None:
             pivots = pivots[:k]

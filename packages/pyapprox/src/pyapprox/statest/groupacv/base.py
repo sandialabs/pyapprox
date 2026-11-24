@@ -564,11 +564,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         cumsum_vals = self._bkd.cumsum(npartition_samples)
         # Convert to int64 using backend methods
         cumsum_int = self._bkd.asarray(
-            self._bkd.round(cumsum_vals), dtype=self._bkd.int64_dtype()
+            self._bkd.round(cumsum_vals), dtype=self._bkd.index_dtype()
         )
         splits = self._bkd.hstack(
             (
-                self._bkd.zeros((1,), dtype=self._bkd.int64_dtype()),
+                self._bkd.zeros((1,), dtype=self._bkd.index_dtype()),
                 cumsum_int,
             )
         )
@@ -711,8 +711,8 @@ class FittedGroupACVEstimator(Generic[Array]):
             splits = self._bkd.full(
                 (t.npartitions(), 2), -1, dtype=int
             )
-            lb = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
-            ub = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
+            lb = self._bkd.zeros((), dtype=self._bkd.index_dtype())
+            ub = self._bkd.zeros((), dtype=self._bkd.index_dtype())
             for idx in active_partitions:
                 ub += partition_splits[idx + 1] - partition_splits[idx]
                 splits[idx] = self._bkd.array([lb, ub])

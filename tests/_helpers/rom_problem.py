@@ -90,7 +90,7 @@ class FixedValue(Generic[Array]):
     """An essential condition fixing one DOF to a constant."""
 
     def __init__(self, dof: int, value: float, bkd: Backend[Array]) -> None:
-        self._dofs = bkd.asarray([dof], dtype=bkd.int64_dtype())
+        self._dofs = bkd.asarray([dof], dtype=bkd.index_dtype())
         self._values = bkd.asarray([value])
         self._bkd = bkd
 

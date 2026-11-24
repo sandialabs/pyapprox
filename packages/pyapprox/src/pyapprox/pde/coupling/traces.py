@@ -51,7 +51,7 @@ class LumpedNodalTrace(Generic[Array]):
             )
         self._points, self._nnodes, self._bkd = points, n, bkd
         self._weights = bkd.reshape(weights, (n, 1))
-        self._nodes = bkd.asarray([[i] for i in range(n)], dtype=bkd.int64_dtype())
+        self._nodes = bkd.asarray([[i] for i in range(n)], dtype=bkd.index_dtype())
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -123,7 +123,7 @@ class TabulatedTrace(Generic[Array]):
         self._points, self._nnodes, self._bkd = points, nnodes, bkd
         self._weights = bkd.reshape(weights, (1, npoints))
         self._values = bkd.reshape(values, (1, npoints, nnodes))
-        self._nodes = bkd.asarray([list(range(nnodes))], dtype=bkd.int64_dtype())
+        self._nodes = bkd.asarray([list(range(nnodes))], dtype=bkd.index_dtype())
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -212,7 +212,7 @@ class LinearSegmentTrace(Generic[Array]):
         hats = bkd.stack([1.0 - s, s], axis=1)
         self._values = bkd.tile(hats[None, :, :], (len(start), 1, 1))
         self._nodes = bkd.asarray(
-            [[i, j] for i, j in zip(start, end)], dtype=bkd.int64_dtype()
+            [[i, j] for i, j in zip(start, end)], dtype=bkd.index_dtype()
         )
         self._nnodes = nnodes
         self._bkd = bkd
@@ -307,7 +307,7 @@ class LagrangeSegmentTrace(Generic[Array]):
         # Gauss weights of the probability measure on [-1, 1] sum to 1.
         w = w / bkd.sum(w)
         s = (t + 1.0) / 2.0
-        table = bkd.asarray([list(e) for e in elements], dtype=bkd.int64_dtype())
+        table = bkd.asarray([list(e) for e in elements], dtype=bkd.index_dtype())
         a, b = points[:, table[:, 0]], points[:, table[:, -1]]
         lengths = bkd.sqrt(bkd.sum((b - a) ** 2, axis=0))
         if bkd.to_float(bkd.min(lengths)) <= 0.0:
@@ -573,7 +573,7 @@ def mortar_segment_traces(
     values, weights_q, quad = full.values(), full.weights(), full.points()
     keep_array = bkd.asarray(keep)[:, None, :]
     test_values = bkd.einsum("eqa,eab->eqb", values, bkd.asarray(mixing))
-    int64 = bkd.int64_dtype()
+    int64 = bkd.index_dtype()
     nint, nends = len(interior), len(ends)
 
     def trace(vals: Array, nodes: list[list[int]], n: int) -> ElementTrace[Array]:

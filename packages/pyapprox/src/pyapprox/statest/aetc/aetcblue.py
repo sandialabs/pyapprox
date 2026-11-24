@@ -178,12 +178,12 @@ class AETCBLUE(AETC[Array]):
         )
         # Create allocation result and wrap in fitted estimator
         nps_int = bkd.asarray(
-            rounded_nsamples_per_subset, dtype=bkd.int64_dtype()
+            rounded_nsamples_per_subset, dtype=bkd.index_dtype()
         )
         nps_float = bkd.asarray(nps_int, dtype=bkd.double_dtype())
         nsamples_per_model = bkd.asarray(
             est._compute_nsamples_per_model(nps_float),
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         actual_cost = bkd.to_float(est._estimator_cost(nps_float))
         allocation = GroupACVAllocationResult(

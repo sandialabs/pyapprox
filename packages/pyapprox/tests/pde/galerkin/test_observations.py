@@ -127,7 +127,7 @@ class TestProbesAndOutflux:
         )
 
     def test_outflux_values(self, bkd: Backend[Array]) -> None:
-        dofs = bkd.asarray(np.array([7, 2, 5]), dtype=bkd.int64_dtype())
+        dofs = bkd.asarray(np.array([7, 2, 5]), dtype=bkd.index_dtype())
         normal_velocity = bkd.asarray(np.array([1.0, 0.5, -2.0]))
         sol = bkd.asarray(np.arange(30.0).reshape(10, 3))
         func = nodal_outflux_functional(dofs, normal_velocity, [1, 2], 10, 2, bkd)
@@ -146,7 +146,7 @@ class TestProbesAndOutflux:
         bkd = numpy_bkd
         with pytest.raises(ValueError, match="nbdofs"):
             nodal_outflux_functional(
-                bkd.asarray(np.array([1, 2]), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.array([1, 2]), dtype=bkd.index_dtype()),
                 bkd.ones((3,)),
                 [1],
                 10,
@@ -198,7 +198,7 @@ def _observations(bkd: NumpyBkd, which: str) -> TrajectoryFunctional[_Np, _Np]:
     return nodal_outflux_observations(
         bkd,
         basis.ndofs(),
-        bkd.asarray(right, dtype=bkd.int64_dtype()),
+        bkd.asarray(right, dtype=bkd.index_dtype()),
         bkd.ones((right.shape[0],)),
         _STORED,
     )
@@ -311,7 +311,7 @@ class TestFunctionalKinds:
         total = WeightedEntries(
             bkd,
             n,
-            bkd.asarray(np.arange(n)[None, :], dtype=bkd.int64_dtype()),
+            bkd.asarray(np.arange(n)[None, :], dtype=bkd.index_dtype()),
             bkd.ones((1, n)),
         )
         functional = TrajectoryFunctional.from_terms(

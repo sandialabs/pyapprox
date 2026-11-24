@@ -39,7 +39,7 @@ class DirichletBC(Generic[Array]):
     ):
         self._bkd = bkd
         self._boundary_indices = bkd.asarray(
-            boundary_indices, dtype=bkd.int64_dtype()
+            boundary_indices, dtype=bkd.index_dtype()
         )
         self._nboundary_pts = boundary_indices.shape[0]
 

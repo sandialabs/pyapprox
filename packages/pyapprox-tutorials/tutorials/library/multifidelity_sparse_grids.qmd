@@ -260,7 +260,7 @@ tp_factory = TensorProductSubspaceFactory(bkd, phys_factories, growth)
 # Admissibility: limit total level and cap config dimension at 1
 # (we only have two models: config 0 and config 1)
 max_level = 10
-max_1d = bkd.asarray([max_level, 1], dtype=bkd.int64_dtype())
+max_1d = bkd.asarray([max_level, 1], dtype=bkd.index_dtype())
 admis = CompositeCriteria(
     MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd),
     Max1DLevelsCriteria(max_1d, bkd),
@@ -322,7 +322,7 @@ from pyapprox_tutorials.figures._sparse_grids import plot_mf_animation
 
 # Build a fresh fitter for animation
 tp_factory_anim = TensorProductSubspaceFactory(bkd, phys_factories, growth)
-max_1d_anim = bkd.asarray([10, 1], dtype=bkd.int64_dtype())
+max_1d_anim = bkd.asarray([10, 1], dtype=bkd.index_dtype())
 admis_anim = CompositeCriteria(
     MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd),
     Max1DLevelsCriteria(max_1d_anim, bkd),
@@ -366,7 +366,7 @@ For more control, use the manual step pattern.  `step_samples()` returns a dicti
 
 ```{python}
 tp_factory2 = TensorProductSubspaceFactory(bkd, phys_factories, growth)
-max_1d2 = bkd.asarray([10, 1], dtype=bkd.int64_dtype())
+max_1d2 = bkd.asarray([10, 1], dtype=bkd.index_dtype())
 admis2 = CompositeCriteria(
     MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd),
     Max1DLevelsCriteria(max_1d2, bkd),
@@ -466,7 +466,7 @@ def _run_steps(fitter_obj, factory_obj, cost_model_obj, max_steps=15):
 def _make_fitter(cost_model_obj=None, error_indicator_obj=None):
     """Create a fresh MultiFidelityAdaptiveSparseGridFitter."""
     tp = TensorProductSubspaceFactory(bkd, phys_factories, growth)
-    mx = bkd.asarray([10, 1], dtype=bkd.int64_dtype())
+    mx = bkd.asarray([10, 1], dtype=bkd.index_dtype())
     ad = CompositeCriteria(
         MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd),
         Max1DLevelsCriteria(mx, bkd),
@@ -543,7 +543,7 @@ In a real application where different fidelity levels have genuinely different c
 ```{python}
 # Use measured costs with the adaptive fitter
 tp_factory_mc = TensorProductSubspaceFactory(bkd, phys_factories, growth)
-max_1d_mc = bkd.asarray([10, 1], dtype=bkd.int64_dtype())
+max_1d_mc = bkd.asarray([10, 1], dtype=bkd.index_dtype())
 admis_mc = CompositeCriteria(
     MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd),
     Max1DLevelsCriteria(max_1d_mc, bkd),
@@ -596,7 +596,7 @@ growth_2d = LinearGrowthRule(scale=1, shift=1)
 tp_factory_2d = TensorProductSubspaceFactory(bkd, phys_facs_2d, growth_2d)
 
 # Admissibility: 3 index dims = [phys1, phys2, config]
-max_1d_2d = bkd.asarray([8, 8, 1], dtype=bkd.int64_dtype())
+max_1d_2d = bkd.asarray([8, 8, 1], dtype=bkd.index_dtype())
 admis_2d = CompositeCriteria(
     MaxLevelCriteria(max_level=8, pnorm=1.0, bkd=bkd),
     Max1DLevelsCriteria(max_1d_2d, bkd),

@@ -195,10 +195,10 @@ class BasisIndexGenerator(Generic[Array]):
         nbasis = self.nsubspace_basis(subspace_index)
 
         if nbasis == 0:
-            return self._bkd.zeros((self._nvars, 0), dtype=self._bkd.int64_dtype())
+            return self._bkd.zeros((self._nvars, 0), dtype=self._bkd.index_dtype())
 
         # Generate tensor product of indices
-        indices = self._bkd.zeros((self._nvars, nbasis), dtype=self._bkd.int64_dtype())
+        indices = self._bkd.zeros((self._nvars, nbasis), dtype=self._bkd.index_dtype())
 
         # Compute stride for each dimension
         stride = 1
@@ -320,7 +320,7 @@ class BasisIndexGenerator(Generic[Array]):
 
         self._unique_subspace_basis_idx.append(unique_subspace_sample_idx)
         self._subspace_basis_idx.append(
-            self._bkd.asarray(global_basis_idx, dtype=self._bkd.int64_dtype())
+            self._bkd.asarray(global_basis_idx, dtype=self._bkd.index_dtype())
         )
 
     def n_unique_samples(self) -> int:

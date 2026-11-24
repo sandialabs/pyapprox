@@ -228,7 +228,7 @@ def _compute_multivariate_orthonormal_basis_product(
             coefs_1d.append(product_coefs_1d[int(dd)][kk][:, 0])
 
         indices_1d = [
-            bkd.arange(int(poly_index[dd]) + 1, dtype=bkd.int64_dtype())
+            bkd.arange(int(poly_index[dd]) + 1, dtype=bkd.index_dtype())
             for dd in active_vars
         ]
 
@@ -262,13 +262,13 @@ def _compute_multivariate_orthonormal_basis_product(
                 index_rows.append(
                     bkd.zeros(
                         (1, active_product_indices.shape[1]),
-                        dtype=bkd.int64_dtype(),
+                        dtype=bkd.index_dtype(),
                     )
                 )
         product_indices = bkd.vstack(index_rows)
     else:
         product_coefs = bkd.ones((1, 1))
-        product_indices = bkd.zeros((nvars, 1), dtype=bkd.int64_dtype())
+        product_indices = bkd.zeros((nvars, 1), dtype=bkd.index_dtype())
 
     return product_indices, product_coefs
 

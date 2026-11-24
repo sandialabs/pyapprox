@@ -56,7 +56,7 @@ class TestPivotedLUFactorizer:
         from pyapprox.util.linalg import PivotedLUFactorizer
 
         A = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]])
-        init_pivots = bkd.asarray([1], dtype=bkd.int64_dtype())
+        init_pivots = bkd.asarray([1], dtype=bkd.index_dtype())
         factorizer = PivotedLUFactorizer(bkd, A, init_pivots=init_pivots)
         L, U = factorizer.factorize(2)
 

@@ -219,7 +219,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         if round_nsamples:
             npartition_samples = bkd.asarray(
                 bkd.floor(npartition_samples + 1e-4),
-                dtype=bkd.int64_dtype(),
+                dtype=bkd.index_dtype(),
             )
 
         # Compute nsamples_per_model and actual_cost
@@ -234,7 +234,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
 
         if round_nsamples:
             nsamples_per_model = bkd.asarray(
-                nsamples_per_model, dtype=bkd.int64_dtype()
+                nsamples_per_model, dtype=bkd.index_dtype()
             )
 
         # The optimizer is injectable, so the budget is only respected to

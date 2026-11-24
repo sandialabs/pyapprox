@@ -135,7 +135,7 @@ def _flux(
     functional = essential_boundary_flux(
         bkd,
         residual,
-        bkd.asarray(np.asarray(dofs), dtype=bkd.int64_dtype()),
+        bkd.asarray(np.asarray(dofs), dtype=bkd.index_dtype()),
         bkd.asarray(np.asarray(weights)),
     )
     return functional.value(state)[:, 0]

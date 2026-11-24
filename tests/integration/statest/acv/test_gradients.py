@@ -58,11 +58,11 @@ def _create_estimator(
     stat.set_pilot_quantities(bm.ensemble_covariance())
 
     if est_type == "gmf":
-        rec_idx = bkd.zeros((nmodels - 1,), dtype=bkd.int64_dtype())
+        rec_idx = bkd.zeros((nmodels - 1,), dtype=bkd.index_dtype())
         return GMFEstimator(stat, costs, recursion_index=rec_idx)
     if est_type in ("gis", "grd"):
         # each element points to its parent
-        rec_idx = bkd.arange(nmodels - 1, dtype=bkd.int64_dtype())
+        rec_idx = bkd.arange(nmodels - 1, dtype=bkd.index_dtype())
         if est_type == "gis":
             return GISEstimator(stat, costs, recursion_index=rec_idx)
         return GRDEstimator(stat, costs, recursion_index=rec_idx)

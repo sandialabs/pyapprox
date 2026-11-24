@@ -362,7 +362,7 @@ class TestRefusals:
                 problem.transient,
                 method,
                 setups,
-                bkd.asarray([3], dtype=bkd.int64_dtype()),
+                bkd.asarray([3], dtype=bkd.index_dtype()),
                 bkd.ones((1, 1)),
             )
         with pytest.raises(ValueError, match="weights must have shape"):

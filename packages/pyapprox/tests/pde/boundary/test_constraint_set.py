@@ -30,7 +30,7 @@ class _EssentialBC:
     ) -> None:
         self._bkd = bkd
         self._dofs = bkd.asarray(
-            np.asarray(dofs, dtype=np.int64), dtype=bkd.int64_dtype()
+            np.asarray(dofs, dtype=np.int64), dtype=bkd.index_dtype()
         )
         self._vals = bkd.asarray(np.asarray(vals, dtype=np.float64))
         self._time_scale = time_scale

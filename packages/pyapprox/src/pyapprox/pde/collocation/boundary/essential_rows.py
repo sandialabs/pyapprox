@@ -364,7 +364,7 @@ class DirichletRows(Generic[Array]):
             for part in parts
         ]
         self._rows_per_part = [
-            bkd.asarray(rows, dtype=bkd.int64_dtype()) for rows in rows_per_part
+            bkd.asarray(rows, dtype=bkd.index_dtype()) for rows in rows_per_part
         ]
         self._data: List[NodalCoefficientProtocol[Array]] = []
         # (part position, data) of each part depending on the parameters
@@ -413,11 +413,11 @@ class DirichletRows(Generic[Array]):
                             second,
                             self._bkd.asarray(
                                 [first_rows.index(row) for row in common],
-                                dtype=self._bkd.int64_dtype(),
+                                dtype=self._bkd.index_dtype(),
                             ),
                             self._bkd.asarray(
                                 [second_rows.index(row) for row in common],
-                                dtype=self._bkd.int64_dtype(),
+                                dtype=self._bkd.index_dtype(),
                             ),
                             common,
                         )

@@ -145,7 +145,7 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
                 for jj in range(nactive_vars - 1):
                     for subset in combinations(active_vars, jj + 1):
                         subset_key = hash_index(
-                            self._bkd.asarray(subset, dtype=self._bkd.int64_dtype()),
+                            self._bkd.asarray(subset, dtype=self._bkd.index_dtype()),
                             self._bkd,
                         )
                         sobol_indices[idx[ii]] -= sobol_indices[

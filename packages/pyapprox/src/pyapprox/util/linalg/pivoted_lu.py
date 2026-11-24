@@ -12,8 +12,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 def swap_rows(matrix: Array, ii: int, jj: int, bkd: Backend[Array]) -> None:
     """Swap rows ii and jj in matrix (in-place)."""
-    indices = bkd.asarray([ii, jj], dtype=bkd.int64_dtype())
-    swap_indices = bkd.asarray([jj, ii], dtype=bkd.int64_dtype())
+    indices = bkd.asarray([ii, jj], dtype=bkd.index_dtype())
+    swap_indices = bkd.asarray([jj, ii], dtype=bkd.index_dtype())
     matrix[indices] = bkd.copy(matrix[swap_indices])
 
 
@@ -39,7 +39,7 @@ def get_final_pivots_from_sequential_pivots(
         The vector that changes the original array to the final permuted
         array in one shot.
     """
-    pivots = bkd.arange(npivots, dtype=bkd.int64_dtype())
+    pivots = bkd.arange(npivots, dtype=bkd.index_dtype())
     for ii in range(sequential_pivots.shape[0]):
         pivot = bkd.to_int(sequential_pivots[ii])
         # swap
@@ -91,9 +91,9 @@ class PivotedLUFactorizer(Generic[Array]):
         self._nrows = self._Amat.shape[0]
         self._ncols = self._Amat.shape[1] if self._Amat.ndim > 1 else 1
         self._pivots: Array = self._bkd.arange(
-            self._nrows, dtype=bkd.int64_dtype())
+            self._nrows, dtype=bkd.index_dtype())
         self._seq_pivots: Array = self._bkd.arange(
-            self._nrows, dtype=bkd.int64_dtype())
+            self._nrows, dtype=bkd.index_dtype())
         self._ncompleted_pivots = 0
         self._LU_factor: Optional[Array] = None
         self._termination_flag = -1
@@ -197,8 +197,8 @@ class PivotedLUFactorizer(Generic[Array]):
             self._init_pivots = init_pivots
         self._ncompleted_pivots = 0
         self._LU_factor = self._bkd.copy(self._Amat)
-        self._seq_pivots = self._bkd.arange(self._nrows, dtype=self._bkd.int64_dtype())
-        self._pivots = self._bkd.arange(self._nrows, dtype=self._bkd.int64_dtype())
+        self._seq_pivots = self._bkd.arange(self._nrows, dtype=self._bkd.index_dtype())
+        self._pivots = self._bkd.arange(self._nrows, dtype=self._bkd.index_dtype())
         return self.update(npivots)
 
     def update(self, npivots: int) -> Tuple[Array, Array]:
@@ -266,7 +266,7 @@ class PivotedLUFactorizer(Generic[Array]):
             [
                 self._seq_pivots,
                 self._bkd.arange(
-                    self._nrows, self._nrows + nnew, dtype=self._bkd.int64_dtype()
+                    self._nrows, self._nrows + nnew, dtype=self._bkd.index_dtype()
                 ),
             ]
         )
@@ -274,7 +274,7 @@ class PivotedLUFactorizer(Generic[Array]):
             [
                 self._pivots,
                 self._bkd.arange(
-                    self._nrows, self._nrows + nnew, dtype=self._bkd.int64_dtype()
+                    self._nrows, self._nrows + nnew, dtype=self._bkd.index_dtype()
                 ),
             ]
         )

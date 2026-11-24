@@ -56,7 +56,7 @@ _NCELLS = 8
 
 
 def _elements(indices: list[int], bkd: Backend[Array]) -> ElementSet[Array]:
-    return ElementSet(bkd.asarray(indices, dtype=bkd.int64_dtype()), bkd)
+    return ElementSet(bkd.asarray(indices, dtype=bkd.index_dtype()), bkd)
 
 
 def _state(bkd: Backend[Array]) -> Array:

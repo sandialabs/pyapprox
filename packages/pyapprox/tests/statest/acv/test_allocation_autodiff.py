@@ -58,7 +58,7 @@ def _stat_and_costs(
 def _gmf_estimator(bkd: Backend[Array]) -> GMFEstimator[Array]:
     stat, costs = _stat_and_costs(bkd)
     return GMFEstimator(
-        stat, costs, recursion_index=bkd.asarray([0, 1], dtype=bkd.int64_dtype())
+        stat, costs, recursion_index=bkd.asarray([0, 1], dtype=bkd.index_dtype())
     )
 
 

@@ -550,7 +550,7 @@ class Box(Generic[Array]):
         nodes = sorted({i for side in sides for i in self.side(side)} - free)
         if not nodes:
             return []
-        index = bkd.asarray(nodes, dtype=bkd.int64_dtype())
+        index = bkd.asarray(nodes, dtype=bkd.index_dtype())
         values = solution_at(self._problem, self.points()[:, index], bkd)
         return [
             DirichletPart(index, NodalField(values[c]), c)
@@ -876,7 +876,7 @@ class CoupledCollocation(Generic[Array]):
         bkd, descriptor = self._bkd, self._fields.descriptor()
         space = BackendVectorSpace(descriptor, bkd)
         pinned = self.pinned()
-        index = bkd.asarray(pinned, dtype=bkd.int64_dtype())
+        index = bkd.asarray(pinned, dtype=bkd.index_dtype())
         mask = bkd.index_update(
             bkd.zeros((descriptor.size,)), index, bkd.ones((len(pinned),))
         )

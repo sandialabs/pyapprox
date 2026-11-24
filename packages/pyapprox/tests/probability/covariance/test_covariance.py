@@ -407,7 +407,7 @@ class TestCovarianceDiagonal:
             bkd.assert_allclose(op.covariance_diagonal(), bkd.diag(cov))
 
     def test_selected_entries(self, bkd: Backend[Array]) -> None:
-        active = bkd.asarray([0, 2], dtype=bkd.int64_dtype())
+        active = bkd.asarray([0, 2], dtype=bkd.index_dtype())
         for _, op, cov in self._operators(bkd):
             bkd.assert_allclose(
                 op.covariance_diagonal(batch_size=1, active_indices=active),

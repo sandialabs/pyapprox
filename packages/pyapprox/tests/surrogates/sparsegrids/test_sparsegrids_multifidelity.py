@@ -101,7 +101,7 @@ def _make_mf_fitter(
     growth = LinearGrowthRule(scale=1, shift=1)
     tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
     # max_1d_levels: [max_physical_level, max_config_level]
-    max_1d = bkd.asarray([max_level, max_config_level], dtype=bkd.int64_dtype())
+    max_1d = bkd.asarray([max_level, max_config_level], dtype=bkd.index_dtype())
     admis = CompositeCriteria(
         MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd),
         Max1DLevelsCriteria(max_1d, bkd),

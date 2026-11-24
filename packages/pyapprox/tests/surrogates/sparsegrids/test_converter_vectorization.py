@@ -43,7 +43,7 @@ def _build(bkd, npts_1d, basis_type, nqoi, lower=0.0, upper=1.0):
     tp_factory = TensorProductSubspaceFactory(
         bkd, factories, LinearGrowthRule(scale=1, shift=1)
     )
-    idx = bkd.asarray([n - 1 for n in npts_1d], dtype=bkd.int64_dtype())
+    idx = bkd.asarray([n - 1 for n in npts_1d], dtype=bkd.index_dtype())
     subspace = tp_factory(idx)
     samples = subspace.get_samples()
     rows = [
@@ -186,7 +186,7 @@ class TestConvertedCoefficients:
         tp_factory = TensorProductSubspaceFactory(
             bkd, factories, LinearGrowthRule(scale=1, shift=1)
         )
-        idx = bkd.asarray([2, 3], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([2, 3], dtype=bkd.index_dtype())
         subspace = tp_factory(idx)
         subspace.set_values(
             bkd.full((1, subspace.nsamples()), 3.5)
@@ -231,7 +231,7 @@ class TestBasisValidation:
             bkd, factories, ClenshawCurtisGrowthRule()
         )
         subspace = tp_factory(
-            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+            bkd.asarray([2, 2], dtype=bkd.index_dtype())
         )
         samples = subspace.get_samples()
         subspace.set_values(
@@ -260,7 +260,7 @@ class TestBasisValidation:
         factories = create_basis_factories(marginals, bkd, basis_type)
         tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
         subspace = tp_factory(
-            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+            bkd.asarray([2, 2], dtype=bkd.index_dtype())
         )
         samples = subspace.get_samples()
         subspace.set_values(

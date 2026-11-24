@@ -74,10 +74,10 @@ def _make_groupacv_allocation(est, npartition_samples):
     Rounds the samples and computes derived quantities.
     """
     bkd = est.bkd()
-    rounded = bkd.asarray(bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype())
+    rounded = bkd.asarray(bkd.floor(npartition_samples + 1e-4), dtype=bkd.index_dtype())
     nsamples_per_model = bkd.asarray(
         est._compute_nsamples_per_model(bkd.asarray(rounded, dtype=bkd.double_dtype())),
-        dtype=bkd.int64_dtype(),
+        dtype=bkd.index_dtype(),
     )
     actual_cost = float(
         est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))
@@ -289,7 +289,7 @@ class TestGroupACVEstimator:
         for ii in range(est.nsubsets()):
             active_partitions = bkd.where(est._allocation_mat[ii] == 1)[0]
             (
-                bkd.arange(test_samples.shape[1], dtype=bkd.int64_dtype())
+                bkd.arange(test_samples.shape[1], dtype=bkd.index_dtype())
                 .reshape(est.npartitions(), NN)[active_partitions]
                 .flatten()
             )
@@ -557,7 +557,7 @@ class TestRestrictionMatrices:
         costs = bkd.array([1, 0.5, 0.25], dtype=bkd.double_dtype())
         stat = MultiOutputMean(len(qoi_idx), bkd)
         subsets = [[0, 1, 2], [1], [2]]
-        subsets = [bkd.array(s, dtype=bkd.int64_dtype()) for s in subsets]
+        subsets = [bkd.array(s, dtype=bkd.index_dtype()) for s in subsets]
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing model ids
@@ -577,7 +577,7 @@ class TestRestrictionMatrices:
         costs = bkd.array([1, 0.5, 0.25], dtype=bkd.double_dtype())
         stat = MultiOutputMean(len(qoi_idx), bkd)
         subsets = [[0, 1, 2], [1], [2]]
-        subsets = [bkd.array(s, dtype=bkd.int64_dtype()) for s in subsets]
+        subsets = [bkd.array(s, dtype=bkd.index_dtype()) for s in subsets]
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing flattened model qoi ids
@@ -1875,7 +1875,7 @@ class TestSigmaBlockDerivatives:
         cov = cov @ cov.T / 10
         stat = MultiOutputMean(nqoi, numpy_bkd)
         stat.set_pilot_quantities(cov)
-        subset = numpy_bkd.arange(nqoi, dtype=numpy_bkd.int64_dtype())
+        subset = numpy_bkd.arange(nqoi, dtype=numpy_bkd.index_dtype())
         self._check_derivs(stat, subset, 50.0, numpy_bkd)
 
     @pytest.mark.parametrize("nqoi", [1, 2])
@@ -1890,7 +1890,7 @@ class TestSigmaBlockDerivatives:
         cov, W = stat.compute_pilot_quantities(pilot_values)
         stat.set_pilot_quantities(cov, W)
         ncov_stats = stat._tril_idx_flat.shape[0]
-        subset = numpy_bkd.arange(ncov_stats, dtype=numpy_bkd.int64_dtype())
+        subset = numpy_bkd.arange(ncov_stats, dtype=numpy_bkd.index_dtype())
         self._check_derivs(stat, subset, 10.0, numpy_bkd)
 
     @pytest.mark.parametrize("nqoi", [1, 2])
@@ -1905,7 +1905,7 @@ class TestSigmaBlockDerivatives:
         cov, W, B = stat.compute_pilot_quantities(pilot_values)
         stat.set_pilot_quantities(cov, W, B)
         nstats = stat.nstats()
-        subset = numpy_bkd.arange(nstats, dtype=numpy_bkd.int64_dtype())
+        subset = numpy_bkd.arange(nstats, dtype=numpy_bkd.index_dtype())
         self._check_derivs(stat, subset, 10.0, numpy_bkd)
 
 
@@ -3254,7 +3254,7 @@ class TestCovarianceAt:
     def test_rejects_integer_allocation(self, bkd):
         """Discrete counts belong to FittedGroupACVEstimator, not here."""
         est = self._estimator(bkd)
-        nps = bkd.asarray(bkd.full((est.nsubsets(),), 10.0), dtype=bkd.int64_dtype())
+        nps = bkd.asarray(bkd.full((est.nsubsets(),), 10.0), dtype=bkd.index_dtype())
         with pytest.raises(TypeError, match="requires float-typed"):
             est.covariance_at(nps)
 

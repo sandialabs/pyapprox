@@ -184,7 +184,7 @@ def _flux(
     return essential_boundary_flux(
         bkd,
         residual,
-        bkd.asarray(np.array(dofs), dtype=bkd.int64_dtype()),
+        bkd.asarray(np.array(dofs), dtype=bkd.index_dtype()),
         bkd.asarray(weights),
     )
 
@@ -427,7 +427,7 @@ class TestEssentialBoundaryFlux:
             essential_boundary_flux(
                 bkd,
                 residual.unpinned(),  # type: ignore[arg-type]
-                bkd.asarray(np.array([left]), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.array([left]), dtype=bkd.index_dtype()),
                 bkd.ones((1, 1)),
             )
 

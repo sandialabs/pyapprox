@@ -225,10 +225,10 @@ class MockP1Restricted(Generic[Array]):
         self._elements = elements
         self._bkd = bkd
         self._cells = elements.indices()
-        self._nodes = bkd.asarray(nodes, dtype=bkd.int64_dtype())
-        self._global_dofs = bkd.asarray(global_dofs, dtype=bkd.int64_dtype())
+        self._nodes = bkd.asarray(nodes, dtype=bkd.index_dtype())
+        self._global_dofs = bkd.asarray(global_dofs, dtype=bkd.index_dtype())
         self._local = bkd.asarray(
-            np.searchsorted(global_dofs, nodes), dtype=bkd.int64_dtype()
+            np.searchsorted(global_dofs, nodes), dtype=bkd.index_dtype()
         )
 
     def bkd(self) -> Backend[Array]:

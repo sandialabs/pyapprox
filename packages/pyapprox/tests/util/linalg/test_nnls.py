@@ -149,7 +149,7 @@ class TestEarlyStopping:
         target_norm = bkd.to_float(bkd.norm(target))
         for jj in range(40):
             others = bkd.asarray(
-                [kk for kk in range(40) if kk != jj], dtype=bkd.int64_dtype()
+                [kk for kk in range(40) if kk != jj], dtype=bkd.index_dtype()
             )
             best = bkd.lstsq(matrix[:, others], target)
             bound = (

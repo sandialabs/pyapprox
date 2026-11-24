@@ -136,7 +136,7 @@ def _raise_if_new_points_carry_no_weight(
     if total <= 0.0:
         return
     new_weight = bkd.to_float(
-        bkd.sum(weights[bkd.asarray(local_indices, dtype=bkd.int64_dtype())])
+        bkd.sum(weights[bkd.asarray(local_indices, dtype=bkd.index_dtype())])
     )
     fraction = new_weight / total
     if fraction >= _NEGLIGIBLE_WEIGHT_FRACTION:
@@ -227,7 +227,7 @@ class L2SurplusIndicator(Generic[Array]):
         samples = candidate.subspace.get_samples()
         local = self._bkd.asarray(
             list(candidate.new_sample_local_indices),
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
         new_samples = samples[:, local]
         return _rms(evaluate_box(candidate.box, new_samples), self._bkd)

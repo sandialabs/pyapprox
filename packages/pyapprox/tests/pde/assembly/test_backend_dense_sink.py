@@ -31,7 +31,7 @@ def _space(bkd: Backend[Array], size: int) -> SpaceDescriptor:
 
 
 def _dofs(bkd: Backend[Array], dofs: list[list[int]]) -> Array:
-    return bkd.asarray(dofs, dtype=bkd.int64_dtype())
+    return bkd.asarray(dofs, dtype=bkd.index_dtype())
 
 
 def _dense_sum(

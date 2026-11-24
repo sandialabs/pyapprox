@@ -192,7 +192,7 @@ class TestLejaSampler:
         basis = MultiIndexBasis([poly_mv], bkd, idx_gen.get_indices())
 
         # Use the first optimal point as initial point for multivariate sampler
-        initial_idx = bkd.asarray([0], dtype=bkd.int64_dtype())
+        initial_idx = bkd.asarray([0], dtype=bkd.index_dtype())
         sampler = LejaSampler(bkd, basis, candidates)
         sampler.set_initial_pivots(initial_idx)
         multivariate_samples = sampler.sample(npts)

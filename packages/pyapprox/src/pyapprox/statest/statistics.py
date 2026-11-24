@@ -1080,13 +1080,13 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         if 0 not in model_indices:
             raise ValueError("model_indices must include 0 (high-fidelity)")
 
-        model_idx = self._bkd.array(model_indices, dtype=self._bkd.int64_dtype())
+        model_idx = self._bkd.array(model_indices, dtype=self._bkd.index_dtype())
 
         if qoi_indices is None:
             qoi_idx = None
             new_nqoi = self._nqoi
         else:
-            qoi_idx = self._bkd.array(qoi_indices, dtype=self._bkd.int64_dtype())
+            qoi_idx = self._bkd.array(qoi_indices, dtype=self._bkd.index_dtype())
             new_nqoi = len(qoi_indices)
 
         (cov_sub,) = self.get_pilot_quantities_subset(
@@ -1176,7 +1176,7 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         self._tril_idx = self._bkd.tril_indices(self._nqoi)
 
         self._tril_idx_flat = self._bkd.reshape(
-            self._bkd.arange(self._nqoi**2, dtype=self._bkd.int64_dtype()),
+            self._bkd.arange(self._nqoi**2, dtype=self._bkd.index_dtype()),
             (self._nqoi, self._nqoi)
         )[self._tril_idx[0], self._tril_idx[1]]
 
@@ -1396,13 +1396,13 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         if 0 not in model_indices:
             raise ValueError("model_indices must include 0 (high-fidelity)")
 
-        model_idx = self._bkd.array(model_indices, dtype=self._bkd.int64_dtype())
+        model_idx = self._bkd.array(model_indices, dtype=self._bkd.index_dtype())
 
         if qoi_indices is None:
             qoi_idx = None
             new_nqoi = self._nqoi
         else:
-            qoi_idx = self._bkd.array(qoi_indices, dtype=self._bkd.int64_dtype())
+            qoi_idx = self._bkd.array(qoi_indices, dtype=self._bkd.index_dtype())
             new_nqoi = len(qoi_indices)
 
         cov_sub, W_sub = self.get_pilot_quantities_subset(
@@ -1515,7 +1515,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         self._tril_idx = self._bkd.tril_indices(self._nqoi)
         assert self._tril_idx is not None
         self._tril_idx_flat = self._bkd.reshape(
-            self._bkd.arange(self._nqoi**2, dtype=self._bkd.int64_dtype()),
+            self._bkd.arange(self._nqoi**2, dtype=self._bkd.index_dtype()),
             (self._nqoi, self._nqoi)
         )[self._tril_idx[0], self._tril_idx[1]]
         self._comp_idx = self._bkd.hstack(
@@ -1971,11 +1971,11 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         nstats = self.nstats()
         model_ids0: Array = self._bkd.asarray(
             self._bkd.floor_divide(subset0[::nstats], nstats),
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
         model_ids1: Array = self._bkd.asarray(
             self._bkd.floor_divide(subset1[::nstats], nstats),
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
         return self._assemble_joint_block(
             block_11, block_22, block_12, block_21,

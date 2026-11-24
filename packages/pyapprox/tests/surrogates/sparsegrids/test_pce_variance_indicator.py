@@ -100,7 +100,7 @@ def _build(
     subspaces = {}
     positions = {}
     for key in selected_keys + [candidate_key]:
-        idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+        idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
         subspace = tp_factory(idx)
         subspaces[key] = subspace
         positions[key] = tracker.register(idx, subspace)
@@ -114,7 +114,7 @@ def _build(
         )
     )
     candidate = Candidate(
-        index=bkd.asarray(list(candidate_key), dtype=bkd.int64_dtype()),
+        index=bkd.asarray(list(candidate_key), dtype=bkd.index_dtype()),
         subspace=subspaces[candidate_key],
         box=[
             (sign, subspaces[key])
@@ -130,7 +130,7 @@ def _build(
     def surrogate(keys):
         indices = bkd.asarray(
             [[k[d] for k in keys] for d in range(nvars)],
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         return CombinationSurrogate(
             bkd,
@@ -381,7 +381,7 @@ class TestBasisRestriction:
             create_basis_factories(marginals, bkd, "piecewise_linear"),
             ClenshawCurtisGrowthRule(),
         )
-        subspace = tp_factory(bkd.asarray([2, 2], dtype=bkd.int64_dtype()))
+        subspace = tp_factory(bkd.asarray([2, 2], dtype=bkd.index_dtype()))
         samples = subspace.get_samples()
         subspace.set_values(
             bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))

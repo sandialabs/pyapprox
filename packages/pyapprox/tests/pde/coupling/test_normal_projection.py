@@ -66,7 +66,7 @@ def test_gather_reads_the_normal_component(bkd: Backend[Array], sign: float) -> 
     for a, dof in enumerate(_DOFS):
         expected = bkd.index_add(
             expected,
-            bkd.asarray([dof], dtype=bkd.int64_dtype()),
+            bkd.asarray([dof], dtype=bkd.index_dtype()),
             bkd.reshape(sign * normal[a], (1, 1)),
         )
     bkd.assert_allclose(gathered, expected, rtol=1e-14, atol=1e-15)

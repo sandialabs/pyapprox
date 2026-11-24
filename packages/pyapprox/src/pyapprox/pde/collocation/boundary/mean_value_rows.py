@@ -107,7 +107,7 @@ class MeanValueRows(Generic[Array]):
         mean = bkd.sum(self._weights * state[self._start : self._start + npts])
         return bkd.index_update(
             bkd.zeros((self._nstates,)),
-            bkd.asarray([self._row], dtype=bkd.int64_dtype()),
+            bkd.asarray([self._row], dtype=bkd.index_dtype()),
             bkd.reshape(mean - self._value, (1,)),
         )
 
@@ -121,7 +121,7 @@ class MeanValueRows(Generic[Array]):
         )
         return bkd.index_update(
             bkd.zeros((self._nstates, self._nstates)),
-            bkd.asarray([self._row], dtype=bkd.int64_dtype()),
+            bkd.asarray([self._row], dtype=bkd.index_dtype()),
             bkd.reshape(row, (1, self._nstates)),
         )
 

@@ -272,7 +272,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Get samples for the first step (zero index + candidates)."""
         # Initialize with zero index
         zero_index = self._bkd.zeros(
-            (self._nvars_index, 1), dtype=self._bkd.int64_dtype()
+            (self._nvars_index, 1), dtype=self._bkd.index_dtype()
         )
         self._index_gen.set_selected_indices(zero_index)
 
@@ -366,7 +366,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             if len(unique_local) > 0:
                 subspace = self._subspace_by_key[key]
                 subspace_samples = subspace.get_samples()
-                idx_arr = self._bkd.asarray(unique_local, dtype=self._bkd.int64_dtype())
+                idx_arr = self._bkd.asarray(unique_local, dtype=self._bkd.index_dtype())
                 if config_idx not in new_by_config:
                     new_by_config[config_idx] = []
                 new_by_config[config_idx].append(subspace_samples[:, idx_arr])
@@ -563,11 +563,11 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Stack subspace keys into an index array, shape (nvars, nkeys)."""
         if len(keys) == 0:
             return self._bkd.zeros(
-                (self._nvars_index, 0), dtype=self._bkd.int64_dtype()
+                (self._nvars_index, 0), dtype=self._bkd.index_dtype()
             )
         return self._bkd.asarray(
             [[key[d] for key in keys] for d in range(self._nvars_index)],
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
 
     def current_error(self) -> float:

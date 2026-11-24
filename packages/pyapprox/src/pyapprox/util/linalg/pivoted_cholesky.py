@@ -139,8 +139,8 @@ class KernelColumnOperator(Generic[Array]):
 
 def _swap_rows(matrix: Array, ii: int, jj: int, bkd: Backend[Array]) -> None:
     """Swap rows ii and jj of a 1D array in place."""
-    indices = bkd.asarray([ii, jj], dtype=bkd.int64_dtype())
-    swap_indices = bkd.asarray([jj, ii], dtype=bkd.int64_dtype())
+    indices = bkd.asarray([ii, jj], dtype=bkd.index_dtype())
+    swap_indices = bkd.asarray([jj, ii], dtype=bkd.index_dtype())
     matrix[indices] = bkd.copy(matrix[swap_indices])
 
 

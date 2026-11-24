@@ -651,7 +651,7 @@ class TestDiscrepancyCovariances:
         kwargs: Dict[str, Any] = {}
         if recursion_index is not None:
             kwargs["recursion_index"] = bkd.array(
-                recursion_index, dtype=bkd.int64_dtype()
+                recursion_index, dtype=bkd.index_dtype()
             )
 
         template = get_estimator(est_type, stat, costs, **kwargs)

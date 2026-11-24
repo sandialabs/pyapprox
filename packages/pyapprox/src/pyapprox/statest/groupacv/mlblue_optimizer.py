@@ -325,7 +325,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         if round_nsamples:
             npartition_samples = self._bkd.asarray(
                 self._bkd.floor(npartition_samples + 1e-4),
-                dtype=self._bkd.int64_dtype(),
+                dtype=self._bkd.index_dtype(),
             )
 
         # Compute derived quantities
@@ -338,7 +338,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         if round_nsamples:
             nsamples_per_model = self._bkd.asarray(
-                nsamples_per_model, dtype=self._bkd.int64_dtype()
+                nsamples_per_model, dtype=self._bkd.index_dtype()
             )
 
         return GroupACVAllocationResult(

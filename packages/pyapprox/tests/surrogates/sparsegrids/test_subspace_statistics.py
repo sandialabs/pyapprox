@@ -48,7 +48,7 @@ def _make_factory(bkd, nvars: int = 2, basis_type: str = "leja"):
 
 def _valued_subspace(bkd, factory, key, fun):
     """Build a subspace at ``key`` and set values from ``fun``."""
-    idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+    idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
     subspace = factory(idx)
     subspace.set_values(fun(subspace.get_samples()))
     return subspace
@@ -146,7 +146,7 @@ class TestSubspaceMoments:
 
     def test_raises_without_values(self, bkd) -> None:
         factory = _make_factory(bkd)
-        idx = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 1], dtype=bkd.index_dtype())
         subspace = factory(idx)
         with pytest.raises(ValueError, match="no values"):
             subspace_mean(subspace)
@@ -294,7 +294,7 @@ class TestSubspaceCache:
 
     def test_get_without_values_raises(self, bkd) -> None:
         factory = _make_factory(bkd)
-        idx = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 1], dtype=bkd.index_dtype())
         cache = SubspaceCache(subspace_mean)
         with pytest.raises(ValueError, match="no values"):
             cache.get(factory(idx))
@@ -354,7 +354,7 @@ class TestEvaluateBox:
         def surrogate(keys):
             indices = bkd.asarray(
                 [[k[d] for k in keys] for d in range(2)],
-                dtype=bkd.int64_dtype(),
+                dtype=bkd.index_dtype(),
             )
             coefs = compute_smolyak_coefficients(indices, bkd)
             return CombinationSurrogate(

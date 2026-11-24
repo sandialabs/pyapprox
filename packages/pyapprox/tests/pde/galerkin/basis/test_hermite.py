@@ -75,7 +75,7 @@ class TestCubicHermiteBasis:
         for name, components, expected in cases:
             bkd.assert_allclose(
                 basis.get_dofs(name, components=components),
-                bkd.asarray(np.array(expected), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.array(expected), dtype=bkd.index_dtype()),
             )
 
     def test_interpolated_cubic_is_exact(self, bkd: Backend[Array]) -> None:
@@ -110,7 +110,7 @@ class TestCubicHermiteBasis:
         pinned = DirichletBC(basis, "right", 0.0, bkd, components=(0,))
         bkd.assert_allclose(
             pinned.constrained_dofs(),
-            bkd.asarray(np.array([2 * _NX]), dtype=bkd.int64_dtype()),
+            bkd.asarray(np.array([2 * _NX]), dtype=bkd.index_dtype()),
         )
 
     def test_invalid_arguments_raise(self, numpy_bkd: NumpyBkd) -> None:

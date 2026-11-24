@@ -180,7 +180,7 @@ def compute_boundary_indices(
         position = (flat // stride) % count
         for end in (0, count - 1):
             indices.append(
-                bkd.asarray(flat[position == end].tolist(), dtype=bkd.int64_dtype())
+                bkd.asarray(flat[position == end].tolist(), dtype=bkd.index_dtype())
             )
         stride *= count
     return indices

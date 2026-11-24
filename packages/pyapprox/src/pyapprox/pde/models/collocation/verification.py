@@ -788,7 +788,7 @@ def side_nodes(level: ChebyshevLevel[Array], part: str) -> Tuple[Array, Array]:
             if node not in seen:
                 seen.add(node)
                 fresh.append(position)
-        keep = bkd.asarray(fresh, dtype=bkd.int64_dtype())
+        keep = bkd.asarray(fresh, dtype=bkd.index_dtype())
         kept_indices.append(indices[keep])
         kept_normals.append(mesh.boundary_normals(boundary)[keep])
     return bkd.concatenate(kept_indices), bkd.concatenate(kept_normals, axis=0)

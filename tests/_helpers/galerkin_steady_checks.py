@@ -100,7 +100,7 @@ class _EssentialFlux:
         self, bkd: NumpyBkd, dofs: Sequence[int], weights: NumpyArray
     ) -> None:
         self._bkd, self._weights = bkd, weights
-        self._dofs = bkd.asarray(list(dofs), dtype=bkd.int64_dtype())
+        self._dofs = bkd.asarray(list(dofs), dtype=bkd.index_dtype())
 
     def __call__(
         self, residual: PinnedResidual[NumpyArray, Any]

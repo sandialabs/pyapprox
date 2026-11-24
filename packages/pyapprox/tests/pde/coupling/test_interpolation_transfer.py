@@ -158,7 +158,7 @@ def test_gauss_facet_reproduces_polynomials(bkd: Backend[Array]) -> None:
     geometry = TensorBoxGeometry(topo, bkd)
     lam = bkd.zeros((space.descriptor().size, 1))
     for f in space.faces():
-        on_face = bkd.asarray(list(space.entity_dofs(f)), dtype=bkd.int64_dtype())
+        on_face = bkd.asarray(list(space.entity_dofs(f)), dtype=bkd.index_dtype())
         values = _poly(bkd, geometry.face_points(f, basis.nodes()))
         lam = bkd.index_update(lam, on_face, bkd.reshape(values, (-1, 1)))
     for s in range(topo.nsubdomains()):

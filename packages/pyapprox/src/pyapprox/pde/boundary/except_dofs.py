@@ -63,7 +63,7 @@ class ExceptDofs(Generic[Array]):
             raise ValueError(f"{bc!r} does not constrain DOFs {missing}")
         kept = [k for d, k in position.items() if d not in exempt]
         self._bc = bc
-        self._kept = bkd.asarray(sorted(kept), dtype=bkd.int64_dtype())
+        self._kept = bkd.asarray(sorted(kept), dtype=bkd.index_dtype())
         self._dofs = constrained[self._kept]
         self._nexempt = len(exempt)
 

@@ -182,7 +182,7 @@ class CubicHermiteBasis(Generic[Array]):
             ).flatten()
         )
         return self._bkd.asarray(
-            dofs.astype(np.int64), dtype=self._bkd.int64_dtype()
+            dofs.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def dof_coordinates(self) -> Array:

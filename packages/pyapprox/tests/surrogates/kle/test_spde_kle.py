@@ -66,7 +66,7 @@ class TestSPDEMaternKLEFromPrecisionEigenpairs:
     ) -> None:
         mu, phi = _eigenpairs(bkd)
         reference = _build(bkd, mu, phi)
-        perm = bkd.asarray(np.array([3, 0, 2, 1]), dtype=bkd.int64_dtype())
+        perm = bkd.asarray(np.array([3, 0, 2, 1]), dtype=bkd.index_dtype())
         signs = bkd.asarray(np.array([-1.0, 1.0, -1.0, -1.0]))
         other = _build(bkd, mu[perm], phi[:, perm] * signs)
         bkd.assert_allclose(

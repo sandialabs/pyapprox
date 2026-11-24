@@ -67,7 +67,7 @@ class DenseMassAssembler(Generic[Array]):
                 raise ValueError(
                     f"block DOFs {block.dofs} lie outside [0, {size})"
                 )
-            index = bkd.asarray(list(block.dofs), dtype=bkd.int64_dtype())
+            index = bkd.asarray(list(block.dofs), dtype=bkd.index_dtype())
             rows, cols = bkd.reshape(index, (n, 1)), bkd.reshape(index, (1, n))
             # A block's own DOFs are distinct, so the update adds once each.
             matrix = bkd.index_update(

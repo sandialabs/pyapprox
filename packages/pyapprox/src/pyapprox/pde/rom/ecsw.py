@@ -264,7 +264,7 @@ def build_ecsw(
     ]
     if not kept_list:
         raise ValueError("the weight solve kept no element")
-    kept_indices = bkd.asarray(kept_list, dtype=bkd.int64_dtype())
+    kept_indices = bkd.asarray(kept_list, dtype=bkd.index_dtype())
     kept = ElementSet(kept_indices, bkd)
     residual = ElementSampledResidual.with_weights(
         elementwise.restrict(kept),

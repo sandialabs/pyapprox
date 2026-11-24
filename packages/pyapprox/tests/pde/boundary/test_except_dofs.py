@@ -21,7 +21,7 @@ class _Ramp(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
-        self._dofs = bkd.asarray([7, 3, 9, 4], dtype=bkd.int64_dtype())
+        self._dofs = bkd.asarray([7, 3, 9, 4], dtype=bkd.index_dtype())
         self._rates = bkd.asarray([8.0, 4.0, 10.0, 5.0])
 
     def bkd(self) -> Backend[Array]:
@@ -52,7 +52,7 @@ def test_drops_the_exempt_dofs(bkd: Backend[Array]) -> None:
     bc = ExceptDofs(_Ramp(bkd), [9, 7])
     assert isinstance(bc, EssentialBCProtocol)
     assert not bc.is_time_invariant()
-    kept = bkd.asarray([3, 4], dtype=bkd.int64_dtype())
+    kept = bkd.asarray([3, 4], dtype=bkd.index_dtype())
     bkd.assert_allclose(bc.constrained_dofs(), kept)
     bkd.assert_allclose(bc.constrained_values(2.0), bkd.asarray([8.0, 10.0]))
     rate = bc.constrained_values_derivative(1)

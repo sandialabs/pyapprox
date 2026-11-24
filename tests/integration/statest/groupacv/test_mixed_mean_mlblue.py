@@ -98,13 +98,13 @@ def _make_mlblue_multi_qoi(bkd, nqoi=3, **kwargs):
 def _make_allocation(est, npartition_samples):
     bkd = est.bkd()
     rounded = bkd.asarray(
-        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
+        bkd.floor(npartition_samples + 1e-4), dtype=bkd.index_dtype()
     )
     nsamples_per_model = bkd.asarray(
         est._compute_nsamples_per_model(
             bkd.asarray(rounded, dtype=bkd.double_dtype())
         ),
-        dtype=bkd.int64_dtype(),
+        dtype=bkd.index_dtype(),
     )
     actual_cost = float(
         est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))

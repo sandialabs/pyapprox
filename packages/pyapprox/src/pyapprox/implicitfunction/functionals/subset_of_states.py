@@ -44,7 +44,7 @@ class SubsetOfStatesFunctional(Generic[Array]):
         self._nparams = nparams
         if subset.shape[0] > self.nstates():
             raise ValueError("subset index must be smaller than self.nstates()")
-        self._subset = backend.asarray(subset, dtype=backend.int64_dtype())
+        self._subset = backend.asarray(subset, dtype=backend.index_dtype())
         self._bkd = backend
 
     def bkd(self) -> Backend[Array]:

@@ -329,7 +329,7 @@ def _endpoint_average(
     average = WeightedEntries(
         bkd,
         nstates,
-        bkd.asarray(np.arange(nstates)[None, :], dtype=bkd.int64_dtype()),
+        bkd.asarray(np.arange(nstates)[None, :], dtype=bkd.index_dtype()),
         weights.T,
     )
     return FixedTrajectoryFunctional(

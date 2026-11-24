@@ -153,7 +153,7 @@ class ObstructedMesh2D(Generic[Array]):
         """Return element connectivity. Shape: (4, nelements)"""
         return self._bkd.asarray(
             self._skfem_mesh.t.astype(np.int64),
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
 
     def skfem_mesh(self) -> MeshQuad:
@@ -183,7 +183,7 @@ class ObstructedMesh2D(Generic[Array]):
             )
         mask = defs[boundary_id](nodes_np)
         return self._bkd.asarray(
-            np.where(mask)[0].astype(np.int64), dtype=self._bkd.int64_dtype()
+            np.where(mask)[0].astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def boundary_names(self) -> List[str]:

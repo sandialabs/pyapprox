@@ -200,7 +200,7 @@ class TestSparseGridDerivatives:
             bkd, create_basis_factories(marginals, bkd, basis_type), growth
         )
         subspace = tp_factory(
-            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+            bkd.asarray([2, 2], dtype=bkd.index_dtype())
         )
         samples = subspace.get_samples()
         subspace.set_values(
@@ -236,7 +236,7 @@ class TestSparseGridDerivatives:
             ClenshawCurtisGrowthRule(),
         )
         subspace = tp_factory(
-            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+            bkd.asarray([2, 2], dtype=bkd.index_dtype())
         )
         samples = subspace.get_samples()
         subspace.set_values(
@@ -458,7 +458,7 @@ class TestSparseGridBatchDerivatives:
             create_basis_factories(marginals, bkd, "piecewise_linear"),
             ClenshawCurtisGrowthRule(),
         )
-        subspace = tp_factory(bkd.asarray([2, 2], dtype=bkd.int64_dtype()))
+        subspace = tp_factory(bkd.asarray([2, 2], dtype=bkd.index_dtype()))
         samples = subspace.get_samples()
         subspace.set_values(
             bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))

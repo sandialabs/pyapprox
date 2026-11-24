@@ -90,7 +90,7 @@ class IsotropicSparseGridFitter(Generic[Array]):
         # Compute Smolyak coefficients
         physical_indices = self._bkd.zeros(
             (self._nvars_index, len(self._subspaces)),
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
         for j, subspace in enumerate(self._subspaces):
             physical_indices[: self._nvars_physical, j] = subspace.get_index()

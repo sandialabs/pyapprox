@@ -114,7 +114,7 @@ class PCEDimensionReducer(Generic[Array]):
 
         # Sub-indices for kept dims only: (n_keep, n_surviving)
         sub_indices_np = indices_np[np.array(keep_indices), :][:, surviving_idx]
-        sub_indices = bkd.asarray(sub_indices_np, dtype=bkd.int64_dtype())
+        sub_indices = bkd.asarray(sub_indices_np, dtype=bkd.index_dtype())
 
         # Sub-coefficients: (n_surviving, nqoi)
         sub_coef = bkd.zeros((len(surviving_idx), pce.nqoi()))

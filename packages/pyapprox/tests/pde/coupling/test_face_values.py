@@ -62,7 +62,7 @@ def _values_at_center(
     values = []
     for fp in located:
         fv = space.face_values(fp.face, fp.point)
-        dofs = bkd.asarray(list(fv.dofs), dtype=bkd.int64_dtype())
+        dofs = bkd.asarray(list(fv.dofs), dtype=bkd.index_dtype())
         values.append(bkd.to_float(bkd.sum(fv.values[0, :, 0] * coeffs[dofs])))
     return values
 

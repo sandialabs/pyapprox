@@ -122,7 +122,7 @@ class TestMultiIndexBasis:
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
         bases_1d = create_bases_1d(marginals, bkd)
         # Just the zero index
-        indices = bkd.zeros((2, 1), dtype=bkd.int64_dtype())
+        indices = bkd.zeros((2, 1), dtype=bkd.index_dtype())
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
         nsamples = 10

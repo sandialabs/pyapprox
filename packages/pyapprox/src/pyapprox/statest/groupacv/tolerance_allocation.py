@@ -270,10 +270,10 @@ class GroupACVToleranceAllocator(Generic[Array]):
         constraint_value = report(npartition_samples)
         if round_nsamples:
             npartition_samples = bkd.asarray(
-                npartition_samples, dtype=bkd.int64_dtype()
+                npartition_samples, dtype=bkd.index_dtype()
             )
             nsamples_per_model = bkd.asarray(
-                nsamples_per_model, dtype=bkd.int64_dtype()
+                nsamples_per_model, dtype=bkd.index_dtype()
             )
         return GroupACVToleranceResult(
             npartition_samples=npartition_samples,

@@ -161,7 +161,7 @@ class IndexGenerator(ABC, Generic[Array]):
         self._bkd = bkd
         self._nvars = nvars
         self._indices = self._bkd.zeros(
-            (nvars, 0), dtype=self._bkd.int64_dtype()
+            (nvars, 0), dtype=self._bkd.index_dtype()
         )
 
     def bkd(self) -> Backend[Array]:
@@ -316,7 +316,7 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
         if len(new_candidates) > 0:
             return self._bkd.stack(new_candidates, axis=1)
         return self._bkd.zeros(
-            (self.nvars(), 0), dtype=self._bkd.int64_dtype()
+            (self.nvars(), 0), dtype=self._bkd.index_dtype()
         )
 
     def _find_candidate_indices(self) -> Array:
@@ -338,7 +338,7 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
         if len(candidates) > 0:
             return self._bkd.stack(candidates, axis=1)
         return self._bkd.zeros(
-            (self.nvars(), 0), dtype=self._bkd.int64_dtype()
+            (self.nvars(), 0), dtype=self._bkd.index_dtype()
         )
 
     def set_selected_indices(self, selected_indices: Array) -> None:
@@ -377,7 +377,7 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
     def _get_selected_idx(self) -> Array:
         """Get array indices of selected indices."""
         return self._bkd.asarray(
-            list(self._sel_indices_dict.values()), dtype=self._bkd.int64_dtype()
+            list(self._sel_indices_dict.values()), dtype=self._bkd.index_dtype()
         )
 
     def get_selected_indices(self) -> Array:
@@ -394,7 +394,7 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
     def _get_candidate_idx(self) -> Array:
         """Get array indices of candidate indices."""
         return self._bkd.asarray(
-            list(self._cand_indices_dict.values()), dtype=self._bkd.int64_dtype()
+            list(self._cand_indices_dict.values()), dtype=self._bkd.index_dtype()
         )
 
     def get_candidate_indices(self) -> Optional[Array]:
@@ -574,7 +574,7 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator[Array], Generic[Array]):
 
         # Start with zero index
         zero_index = self._bkd.zeros(
-            (self.nvars(), 1), dtype=self._bkd.int64_dtype()
+            (self.nvars(), 1), dtype=self._bkd.index_dtype()
         )
         self.set_selected_indices(zero_index)
 
@@ -698,9 +698,9 @@ class IsotropicSparseGridBasisIndexGenerator(
         # Convert to sorted array (nvars, nterms)
         nclosure = len(index_set)
         if nclosure == 0:
-            return bkd.zeros((nvars, 0), dtype=bkd.int64_dtype())
+            return bkd.zeros((nvars, 0), dtype=bkd.index_dtype())
 
-        result = bkd.zeros((nvars, nclosure), dtype=bkd.int64_dtype())
+        result = bkd.zeros((nvars, nclosure), dtype=bkd.index_dtype())
         for j, idx in enumerate(index_set):
             for i in range(nvars):
                 result[i, j] = idx[i]

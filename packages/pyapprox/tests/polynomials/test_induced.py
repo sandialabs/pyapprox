@@ -266,7 +266,7 @@ class TestInducedSampler:
         )
         # Index set {1} alone, so every draw uses the degree-one density.
         basis.set_indices(
-            numpy_bkd.asarray([[1]], dtype=numpy_bkd.int64_dtype())
+            numpy_bkd.asarray([[1]], dtype=numpy_bkd.index_dtype())
         )
         rho = IndependentJoint(marginals, numpy_bkd)
         sampler = InducedSampler(basis, rho, numpy_bkd, nquad=400)

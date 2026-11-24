@@ -1126,7 +1126,7 @@ class ConformanceBackend(Protocol[Array]):
 
     def complex_dtype(self) -> Any: ...
 
-    def int64_dtype(self) -> Any: ...
+    def index_dtype(self) -> Any: ...
 
     def asarray(self, array: ArrayLike, dtype: Optional[Any] = None) -> Array: ...
 
@@ -1157,7 +1157,7 @@ def _backend_dtype(bkd: ConformanceBackend[Array], role: Role) -> Any:
     if role is Role.COMPLEX:
         return bkd.complex_dtype()
     if role is Role.INDEX:
-        return bkd.int64_dtype()
+        return bkd.index_dtype()
     return _bool_dtype(bkd)
 
 

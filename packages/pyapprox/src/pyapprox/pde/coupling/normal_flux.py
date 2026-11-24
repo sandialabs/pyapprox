@@ -65,7 +65,7 @@ def selecting(positions: Sequence[int], nboundary: int, bkd: Backend[Array]) -> 
     """The sampling matrix of a :class:`NormalFluxPart` whose quadrature
     points are the boundary nodes ``positions``, of ``nboundary``. Shape:
     (len(positions), nboundary)."""
-    return bkd.eye(nboundary)[bkd.asarray(list(positions), dtype=bkd.int64_dtype())]
+    return bkd.eye(nboundary)[bkd.asarray(list(positions), dtype=bkd.index_dtype())]
 
 
 class NormalFluxMoments(Generic[Array]):

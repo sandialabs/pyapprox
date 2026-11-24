@@ -172,7 +172,7 @@ def _closed(
     n = velocity.npts()
     rows = [k * n + node for k in range(2) for node in _boundary_nodes(bkd, velocity)]
     jacobian = physics.interior_jacobian(bkd.zeros((physics.nstates(),)), 0.0)
-    index = bkd.asarray(rows, dtype=bkd.int64_dtype())
+    index = bkd.asarray(rows, dtype=bkd.index_dtype())
     identity = bkd.eye(physics.nstates())[index]
     return bkd.index_update(jacobian, index, identity), rows
 
@@ -208,17 +208,17 @@ def test_mean_row_determines_the_pressure(bkd: Backend[Array]) -> None:
     mean = MeanValueRows(bkd, physics.layout(), 2, _pressure_weights(bkd, 3), 0.25)
     zero = bkd.zeros((physics.nstates(),))
     (row,) = mean.rows().indices()
-    index = bkd.asarray(rows, dtype=bkd.int64_dtype())
+    index = bkd.asarray(rows, dtype=bkd.index_dtype())
     residual = physics.interior_residual(zero, 0.0)
     residual = bkd.index_update(residual, index, -exact[index])
     residual = bkd.index_update(
         residual,
-        bkd.asarray([row], dtype=bkd.int64_dtype()),
+        bkd.asarray([row], dtype=bkd.index_dtype()),
         mean.residual(zero, 0.0)[row : row + 1],
     )
     jacobian = bkd.index_update(
         jacobian,
-        bkd.asarray([row], dtype=bkd.int64_dtype()),
+        bkd.asarray([row], dtype=bkd.index_dtype()),
         mean.jacobian(zero, 0.0)[row : row + 1],
     )
     solution = -bkd.solve(jacobian, residual[:, None])[:, 0]

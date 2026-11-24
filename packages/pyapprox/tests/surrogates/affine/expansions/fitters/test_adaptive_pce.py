@@ -285,7 +285,7 @@ class TestAdaptivePCEFitter:
     def test_expand_indices_adds_admissible(self, bkd) -> None:
         """_expand_indices adds all admissible forward neighbors."""
         # Start with {(0,0), (1,0), (0,1)} in 2D
-        indices = bkd.asarray([[0, 1, 0], [0, 0, 1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[0, 1, 0], [0, 0, 1]], dtype=bkd.index_dtype())
         expanded = _expand_indices(indices, max_level=5, pnorm=1.0, bkd=bkd)
 
         # (2,0) is admissible: backward (1,0) exists
@@ -295,7 +295,7 @@ class TestAdaptivePCEFitter:
 
     def test_expand_indices_respects_max_level(self, bkd) -> None:
         """_expand_indices respects max_level constraint."""
-        indices = bkd.asarray([[0, 1, 0], [0, 0, 1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[0, 1, 0], [0, 0, 1]], dtype=bkd.index_dtype())
         expanded = _expand_indices(indices, max_level=1, pnorm=1.0, bkd=bkd)
 
         # No expansion possible: all forward neighbors exceed level 1

@@ -109,7 +109,7 @@ class StructuredMesh1D(Generic[Array]):
             Element-to-node connectivity. Shape: (2, nelements)
         """
         return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def skfem_mesh(self) -> MeshLine:
@@ -131,11 +131,11 @@ class StructuredMesh1D(Generic[Array]):
         """
         if boundary_id == "left":
             return self._bkd.asarray(
-                np.array([0], dtype=np.int64), dtype=self._bkd.int64_dtype()
+                np.array([0], dtype=np.int64), dtype=self._bkd.index_dtype()
             )
         elif boundary_id == "right":
             return self._bkd.asarray(
-                np.array([self._nx], dtype=np.int64), dtype=self._bkd.int64_dtype()
+                np.array([self._nx], dtype=np.int64), dtype=self._bkd.index_dtype()
             )
         else:
             raise ValueError(
@@ -246,7 +246,7 @@ class PeriodicStructuredMesh1D(Generic[Array]):
         The last element wraps: its second node is node 0.
         """
         return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def skfem_mesh(self) -> MeshLine1DG:
@@ -390,7 +390,7 @@ class StructuredMesh2D(Generic[Array]):
             Shape: (4, nelements) for quad, (3, nelements) for tri.
         """
         return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def skfem_mesh(self) -> object:
@@ -431,7 +431,7 @@ class StructuredMesh2D(Generic[Array]):
             )
 
         return self._bkd.asarray(
-            np.where(mask)[0].astype(np.int64), dtype=self._bkd.int64_dtype()
+            np.where(mask)[0].astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def shape(self) -> Tuple[int, int]:
@@ -579,7 +579,7 @@ class StructuredMesh3D(Generic[Array]):
             Shape: (8, nelements) for hex, (4, nelements) for tet.
         """
         return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def skfem_mesh(self) -> object:
@@ -627,7 +627,7 @@ class StructuredMesh3D(Generic[Array]):
             )
 
         return self._bkd.asarray(
-            np.where(mask)[0].astype(np.int64), dtype=self._bkd.int64_dtype()
+            np.where(mask)[0].astype(np.int64), dtype=self._bkd.index_dtype()
         )
 
     def shape(self) -> Tuple[int, int, int]:

@@ -57,7 +57,7 @@ def _linear_expansion(
     marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
     basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
     basis.set_indices(
-        bkd.asarray(np.eye(nvars, dtype=int), dtype=bkd.int64_dtype())
+        bkd.asarray(np.eye(nvars, dtype=int), dtype=bkd.index_dtype())
     )
     return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
 
@@ -74,7 +74,7 @@ def _affine_expansion(
     indices = np.vstack(
         [np.zeros((1, nvars), dtype=int), np.eye(nvars, dtype=int)]
     ).T
-    basis.set_indices(bkd.asarray(indices, dtype=bkd.int64_dtype()))
+    basis.set_indices(bkd.asarray(indices, dtype=bkd.index_dtype()))
     return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
 
 

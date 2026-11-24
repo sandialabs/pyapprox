@@ -123,7 +123,7 @@ class TestADRFluxSupply:
         field at the operator's time."""
         diffusion, time = _random_diffusion(bkd), 0.5
         basis, physics, state = _setup(bkd, _GrowingField(diffusion))
-        indices = bkd.asarray([0, 3], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([0, 3], dtype=bkd.index_dtype())
         normals = bkd.asarray([[1.0, 0.0], [1.0, 0.0]])
         got = FluxNormalOperator(bkd, indices, normals, physics)(state, time)
         expected = _expected_flux(basis, (1.0 + time) * diffusion, state)[0]

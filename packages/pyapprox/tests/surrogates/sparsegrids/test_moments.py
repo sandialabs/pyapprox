@@ -79,13 +79,13 @@ def _surrogate_from_keys(bkd, keys, target_fn, nvars=2):
     tp_factory, marginals = _make_factory(bkd, nvars, "gauss")
     subspaces = []
     for key in keys:
-        idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+        idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
         subspace = tp_factory(idx)
         subspace.set_values(target_fn(subspace.get_samples()))
         subspaces.append(subspace)
     indices = bkd.asarray(
         [[k[d] for k in keys] for d in range(nvars)],
-        dtype=bkd.int64_dtype(),
+        dtype=bkd.index_dtype(),
     )
     coefs = compute_smolyak_coefficients(indices, bkd)
     surrogate = CombinationSurrogate(
@@ -287,14 +287,14 @@ class TestAutograd:
         import torch
 
         tp_factory, _ = _make_factory(torch_bkd, 2, "gauss")
-        idx = torch_bkd.asarray([1, 1], dtype=torch_bkd.int64_dtype())
+        idx = torch_bkd.asarray([1, 1], dtype=torch_bkd.index_dtype())
         subspace = tp_factory(idx)
         values = torch.ones(
             (1, subspace.nsamples()), dtype=torch.double, requires_grad=True
         )
         subspace.set_values(values)
         indices = torch_bkd.asarray(
-            [[1], [1]], dtype=torch_bkd.int64_dtype()
+            [[1], [1]], dtype=torch_bkd.index_dtype()
         )
         surrogate = CombinationSurrogate(
             torch_bkd,

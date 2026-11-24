@@ -203,11 +203,11 @@ def cartesian_product_indices(
         # Handle 1D case directly
         if len(dims) == 1:
             return bkd.reshape(
-                bkd.arange(dims[0], dtype=bkd.int64_dtype()), (1, dims[0])
+                bkd.arange(dims[0], dtype=bkd.index_dtype()), (1, dims[0])
             )
         raise ValueError("dims must have at least 1 element")
 
-    vectors = [bkd.arange(d, dtype=bkd.int64_dtype()) for d in dims]
+    vectors = [bkd.arange(d, dtype=bkd.index_dtype()) for d in dims]
     return cartesian_product(bkd, vectors, first_dim_fastest=first_dim_fastest)
 
 

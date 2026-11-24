@@ -233,7 +233,7 @@ class _RobinPartRows(Generic[Array]):
                 f"{type(part.normal_term).__name__}"
             )
         nboundary = len(rows)
-        self.rows = bkd.asarray(rows, dtype=bkd.int64_dtype())
+        self.rows = bkd.asarray(rows, dtype=bkd.index_dtype())
         self.normal_term = part.normal_term
         self.alpha = _PartCoefficient(part.alpha, nboundary, bkd)
         self.beta = _PartCoefficient(part.beta, nboundary, bkd)

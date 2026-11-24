@@ -500,7 +500,7 @@ class SparseGridToPCEConverter(Generic[Array]):
         # Build final PCE
         nterms = len(all_indices)
         pce_indices = self._bkd.zeros(
-            (self._nvars, nterms), dtype=self._bkd.int64_dtype()
+            (self._nvars, nterms), dtype=self._bkd.index_dtype()
         )
         pce_coefficients = self._bkd.zeros((nqoi, nterms))
 

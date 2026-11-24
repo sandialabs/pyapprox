@@ -63,8 +63,8 @@ class _PeriodicPartRows(Generic[Array]):
         npts: int,
         nstates: int,
     ) -> None:
-        self.primary = bkd.asarray(primary, dtype=bkd.int64_dtype())
-        self.partner = bkd.asarray(partner, dtype=bkd.int64_dtype())
+        self.primary = bkd.asarray(primary, dtype=bkd.index_dtype())
+        self.partner = bkd.asarray(partner, dtype=bkd.index_dtype())
         identity = bkd.eye(nstates)
         # Rows of A: u_A - u_B
         self.value_block = identity[self.primary] - identity[self.partner]

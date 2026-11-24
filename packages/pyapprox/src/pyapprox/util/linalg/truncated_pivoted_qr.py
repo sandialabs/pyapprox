@@ -125,7 +125,7 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
             bkd.asarray(R_out),
             bkd.asarray(V),
             bkd.asarray(betas),
-            bkd.asarray(perm, dtype=bkd.int64_dtype()),
+            bkd.asarray(perm, dtype=bkd.index_dtype()),
             int(nc),
             int(flag),
         )
@@ -141,7 +141,7 @@ class TruncatedPivotedQRFactorizer(Generic[Array]):
         R = bkd.copy(self._A)
         V = bkd.zeros((nrows, npivots))
         betas = bkd.zeros((npivots,))
-        perm = bkd.arange(ncols, dtype=bkd.int64_dtype())
+        perm = bkd.arange(ncols, dtype=bkd.index_dtype())
 
         # Businger-Golub column norms, with the geqp3 norm safeguard.
         col_norms = bkd.sqrt(bkd.einsum("ij,ij->j", R, R))

@@ -127,7 +127,7 @@ def _total_flux_and_solution(
                 int(bkd.to_numpy(basis.get_dofs("right"))[0]),
             ]
         ),
-        dtype=bkd.int64_dtype(),
+        dtype=bkd.index_dtype(),
     )
     flux = essential_boundary_flux(bkd, residual, ends, bkd.ones((1, 2)))
     return bkd.to_float(flux.value(state)[0, 0]), state

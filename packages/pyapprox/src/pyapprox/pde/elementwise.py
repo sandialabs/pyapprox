@@ -71,7 +71,7 @@ class ElementSet(Generic[Array]):
     @classmethod
     def all(cls, nelements: int, bkd: Backend[Array]) -> "ElementSet[Array]":
         """Every element, in order."""
-        return cls(bkd.arange(nelements, dtype=bkd.int64_dtype()), bkd)
+        return cls(bkd.arange(nelements, dtype=bkd.index_dtype()), bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

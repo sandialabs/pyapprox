@@ -114,30 +114,30 @@ class TestCostFunctions:
     def test_unit_cost(self, bkd):
         """Test UnitCostFunction always returns 1."""
         cost_fn = UnitCostFunction(bkd)
-        index = bkd.asarray([1, 2, 3], dtype=bkd.int64_dtype())
+        index = bkd.asarray([1, 2, 3], dtype=bkd.index_dtype())
         assert cost_fn(index) == 1.0
 
-        index2 = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        index2 = bkd.asarray([0, 0], dtype=bkd.index_dtype())
         assert cost_fn(index2) == 1.0
 
     def test_level_cost(self, bkd):
         """Test LevelCostFunction returns sum + 1."""
         cost_fn = LevelCostFunction(bkd)
 
-        index = bkd.asarray([1, 2, 3], dtype=bkd.int64_dtype())
+        index = bkd.asarray([1, 2, 3], dtype=bkd.index_dtype())
         assert cost_fn(index) == 7.0  # 1+2+3+1
 
-        index2 = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        index2 = bkd.asarray([0, 0], dtype=bkd.index_dtype())
         assert cost_fn(index2) == 1.0  # 0+0+1
 
     def test_exponential_cost(self, bkd):
         """Test ExponentialCostFunction."""
         cost_fn = ExponentialCostFunction(bkd, base=2.0)
 
-        index = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        index = bkd.asarray([1, 1], dtype=bkd.index_dtype())
         assert cost_fn(index) == 4.0  # 2^2
 
-        index2 = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        index2 = bkd.asarray([0, 0], dtype=bkd.index_dtype())
         assert cost_fn(index2) == 1.0  # 2^0
 
 
@@ -149,8 +149,8 @@ class TestRefinementCriteria:
         criteria = LevelRefinementCriteria(bkd, max_level=10)
 
         # Lower level should have higher priority
-        low_idx = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
-        high_idx = bkd.asarray([3, 2], dtype=bkd.int64_dtype())
+        low_idx = bkd.asarray([1, 0], dtype=bkd.index_dtype())
+        high_idx = bkd.asarray([3, 2], dtype=bkd.index_dtype())
 
         _, low_priority = criteria(low_idx)
         _, high_priority = criteria(high_idx)
@@ -161,7 +161,7 @@ class TestRefinementCriteria:
         """Test LevelRefinementCriteria cost defaults to unit cost."""
         criteria = LevelRefinementCriteria(bkd, max_level=10)
 
-        index = bkd.asarray([2, 3], dtype=bkd.int64_dtype())
+        index = bkd.asarray([2, 3], dtype=bkd.index_dtype())
         cost = criteria.cost(index)
         assert cost == 1.0
 
@@ -173,7 +173,7 @@ class TestRefinementCriteria:
         # Set error estimate for an index
         criteria.set_error_estimate(0, 10.0)
 
-        index = bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        index = bkd.asarray([2, 2], dtype=bkd.index_dtype())
         error, priority = criteria(index, index_id=0)
 
         assert error == 10.0
@@ -189,7 +189,7 @@ class TestBasisIndexGenerator:
         growth_rule = LinearGrowthRule(scale=1, shift=1)
         gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
-        index = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
+        index = bkd.asarray([2, 1], dtype=bkd.index_dtype())
         counts = gen.nunivariate_basis(index)
 
         # linear(2) = 1*2+1 = 3, linear(1) = 1*1+1 = 2
@@ -200,7 +200,7 @@ class TestBasisIndexGenerator:
         growth_rule = ClenshawCurtisGrowthRule()
         gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
-        index = bkd.asarray([3, 2], dtype=bkd.int64_dtype())
+        index = bkd.asarray([3, 2], dtype=bkd.index_dtype())
         counts = gen.nunivariate_basis(index)
 
         # 2^3+1 = 9, 2^2+1 = 5
@@ -211,7 +211,7 @@ class TestBasisIndexGenerator:
         growth_rule = LinearGrowthRule(scale=1, shift=1)
         gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
-        index = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
+        index = bkd.asarray([2, 1], dtype=bkd.index_dtype())
         total = gen.nsubspace_basis(index)
 
         # 3 * 2 = 6
@@ -221,7 +221,7 @@ class TestBasisIndexGenerator:
         """Test children index generation."""
         gen = BasisIndexGenerator(bkd, nvars=3)
 
-        index = bkd.asarray([1, 2, 0], dtype=bkd.int64_dtype())
+        index = bkd.asarray([1, 2, 0], dtype=bkd.index_dtype())
         children = gen.refine_subspace_index(index)
 
         # Should have 3 children (one per dimension)
@@ -240,7 +240,7 @@ class TestBasisIndexGenerator:
         gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
         # Level [1, 1] -> linear gives [2, 2] basis functions
-        index = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        index = bkd.asarray([1, 1], dtype=bkd.index_dtype())
         basis_indices = gen.get_basis_indices(index)
 
         # Should have 2*2 = 4 basis indices
@@ -257,6 +257,6 @@ class TestBasisIndexGenerator:
         assert gen.nrefinement_vars() == 2
 
         # Children should only have 2 (nrefinement_vars)
-        index = bkd.asarray([1, 1, 1], dtype=bkd.int64_dtype())
+        index = bkd.asarray([1, 1, 1], dtype=bkd.index_dtype())
         children = gen.refine_subspace_index(index)
         assert children.shape[1] == 2

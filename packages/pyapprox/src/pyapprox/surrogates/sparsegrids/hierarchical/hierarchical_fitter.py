@@ -249,7 +249,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         else:
             nvars_idx = self._nvars_physical + self._nconfig_vars
             sel_indices = self._bkd.zeros(
-                (nvars_idx, 0), dtype=self._bkd.int64_dtype()
+                (nvars_idx, 0), dtype=self._bkd.index_dtype()
             )
         return HierarchicalSparseGridFitResult(
             surrogate=surrogate,
@@ -418,7 +418,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             target_sub_t = children[0][0]
             if not self._admissibility(
                 self._bkd.asarray(
-                    target_sub_t, dtype=self._bkd.int64_dtype()
+                    target_sub_t, dtype=self._bkd.index_dtype()
                 )
             ):
                 continue
@@ -475,7 +475,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         self, target_sub: Tuple[int, ...]
     ) -> bool:
         index_arr = self._bkd.asarray(
-            target_sub, dtype=self._bkd.int64_dtype()
+            target_sub, dtype=self._bkd.index_dtype()
         )
         if not self._admissibility(index_arr):
             return False
@@ -561,7 +561,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             full = list(sub) + [0] * self._nconfig_vars
             cols.append(
                 self._bkd.reshape(
-                    self._bkd.asarray(full, dtype=self._bkd.int64_dtype()),
+                    self._bkd.asarray(full, dtype=self._bkd.index_dtype()),
                     (-1, 1),
                 )
             )

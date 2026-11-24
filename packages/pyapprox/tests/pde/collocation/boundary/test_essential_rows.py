@@ -163,7 +163,7 @@ class TestDirichletRows:
         left_nodes = {bkd.to_int(i) for i in left}
         trimmed = bkd.asarray(
             [bkd.to_int(i) for i in bottom if bkd.to_int(i) not in left_nodes],
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         rows = DirichletRows(
             bkd,
@@ -220,7 +220,7 @@ class TestDirichletRows:
                 StateLayout.uniform(_NPTS, 1),
                 [DirichletPart(side, 0.0, component=1)],
             )
-        outside = bkd.asarray([0, _NPTS], dtype=bkd.int64_dtype())
+        outside = bkd.asarray([0, _NPTS], dtype=bkd.index_dtype())
         with pytest.raises(ValueError, match="boundary indices"):
             DirichletRows(
                 bkd, StateLayout.uniform(_NPTS, 1), [DirichletPart(outside, 0.0)]
@@ -340,7 +340,7 @@ def _off_mapped_sides(bkd: Backend[Array], side: int) -> Array:
         for i in mesh.boundary_indices(side)
         if bkd.to_int(i) not in shared
     ]
-    return bkd.asarray(kept, dtype=bkd.int64_dtype())
+    return bkd.asarray(kept, dtype=bkd.index_dtype())
 
 
 def _corner(bkd: Backend[Array]) -> int:
@@ -486,7 +486,7 @@ class TestParameterizedDirichletRows:
         weights = bkd.zeros((_NPTS, 1))
         weights = bkd.index_update(
             weights,
-            bkd.asarray([corner], dtype=bkd.int64_dtype()),
+            bkd.asarray([corner], dtype=bkd.index_dtype()),
             bkd.ones((1, 1)),
         )
         side = _mesh(bkd).boundary_indices(_MAPPED_SIDES[0])
@@ -494,7 +494,7 @@ class TestParameterizedDirichletRows:
         side_weights = bkd.zeros((side.shape[0],))
         side_weights = bkd.index_update(
             side_weights,
-            bkd.asarray([position], dtype=bkd.int64_dtype()),
+            bkd.asarray([position], dtype=bkd.index_dtype()),
             bkd.ones((1,)),
         )
         single = data[0].param_derivatives().curvature

@@ -193,13 +193,13 @@ class TestUnifiedSearch:
 
         # MFMC subsets for GroupACV Nested
         mfmc_subsets = [
-            bkd.asarray([0, 1], dtype=bkd.int64_dtype()),
-            bkd.asarray([1, 2], dtype=bkd.int64_dtype()),
-            bkd.asarray([2], dtype=bkd.int64_dtype()),
+            bkd.asarray([0, 1], dtype=bkd.index_dtype()),
+            bkd.asarray([1, 2], dtype=bkd.index_dtype()),
+            bkd.asarray([2], dtype=bkd.index_dtype()),
         ]
 
         # MFMC recursion index for ACV GMF
-        mfmc_recursion = bkd.asarray([0, 1], dtype=bkd.int64_dtype())
+        mfmc_recursion = bkd.asarray([0, 1], dtype=bkd.index_dtype())
 
         # Create both estimators directly
         acv_est = GMFEstimator(stat_acv, costs, recursion_index=mfmc_recursion)

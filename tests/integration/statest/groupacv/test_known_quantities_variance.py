@@ -37,13 +37,13 @@ def _bench(bkd):
 def _make_allocation(est, npartition_samples):
     bkd = est.bkd()
     rounded = bkd.asarray(
-        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
+        bkd.floor(npartition_samples + 1e-4), dtype=bkd.index_dtype()
     )
     nsamples_per_model = bkd.asarray(
         est._compute_nsamples_per_model(
             bkd.asarray(rounded, dtype=bkd.double_dtype())
         ),
-        dtype=bkd.int64_dtype(),
+        dtype=bkd.index_dtype(),
     )
     actual_cost = float(
         est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))
@@ -101,7 +101,7 @@ def _compute_known_variance_values(
     block = cov[start:start + nqoi, start:start + nqoi]
     tril_idx = bkd.tril_indices(nqoi)
     flat_idx = bkd.reshape(
-        bkd.arange(nqoi**2, dtype=bkd.int64_dtype()), (nqoi, nqoi)
+        bkd.arange(nqoi**2, dtype=bkd.index_dtype()), (nqoi, nqoi)
     )[tril_idx[0], tril_idx[1]]
     return bkd.flatten(block)[flat_idx]
 

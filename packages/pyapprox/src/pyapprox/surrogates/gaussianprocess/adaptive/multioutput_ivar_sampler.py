@@ -211,7 +211,7 @@ class MultiOutputIVARSampler(Generic[Array]):
 
         # Bootstrap baseline from initial pivots if needed
         if self._ivar._selected_indices and not self._ivar._best_obj_vals:
-            idx = bkd.asarray(self._ivar._selected_indices, dtype=bkd.int64_dtype())
+            idx = bkd.asarray(self._ivar._selected_indices, dtype=bkd.index_dtype())
             Kmat = self._ivar._K[idx, :][:, idx]
             Pmat = self._ivar._P[idx, :][:, idx]
             obj = -bkd.trace(bkd.solve(Kmat, Pmat))
@@ -305,7 +305,7 @@ class MultiOutputIVARSampler(Generic[Array]):
             if len(per_output[output_id]) == 0:
                 result.append(bkd.zeros((nvars, 0)))
             else:
-                idx_arr = bkd.asarray(per_output[output_id], dtype=bkd.int64_dtype())
+                idx_arr = bkd.asarray(per_output[output_id], dtype=bkd.index_dtype())
                 result.append(candidates_concat[:, idx_arr])
         return result
 

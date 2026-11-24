@@ -58,7 +58,7 @@ def _make_mf(bkd):
     tp_factory = TensorProductSubspaceFactory(
         bkd, factories, LinearGrowthRule(scale=1, shift=1)
     )
-    max_1d = bkd.asarray([20] * nvars + [1], dtype=bkd.int64_dtype())
+    max_1d = bkd.asarray([20] * nvars + [1], dtype=bkd.index_dtype())
     admis = CompositeCriteria(
         MaxLevelCriteria(max_level=20, pnorm=1.0, bkd=bkd),
         Max1DLevelsCriteria(max_1d, bkd),

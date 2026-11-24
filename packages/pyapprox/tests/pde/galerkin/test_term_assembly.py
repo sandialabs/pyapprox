@@ -132,7 +132,7 @@ def _scatter(
 
 
 def _elements(indices: List[int], bkd: NumpyBkd) -> ElementSet[NumpyArray]:
-    return ElementSet(bkd.asarray(indices, dtype=bkd.int64_dtype()), bkd)
+    return ElementSet(bkd.asarray(indices, dtype=bkd.index_dtype()), bkd)
 
 
 @pytest.mark.parametrize("ndim", [1, 2])

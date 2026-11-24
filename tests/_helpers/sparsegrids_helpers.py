@@ -334,7 +334,7 @@ def create_test_tensor_product_subspace(
     # With LinearGrowthRule(1, 1): npts = level + 1, so level = npts - 1
     growth = LinearGrowthRule(scale=1, shift=1)
     levels = [n - 1 for n in npts_1d]
-    index = bkd.asarray(levels, dtype=bkd.int64_dtype())
+    index = bkd.asarray(levels, dtype=bkd.index_dtype())
 
     return TensorProductSubspace(bkd, index, factories, growth)
 
@@ -399,7 +399,7 @@ def create_test_tensor_product_subspace_mixed(
 
     growth = LinearGrowthRule(scale=1, shift=1)
     levels = [n - 1 for n in npts_1d]
-    index = bkd.asarray(levels, dtype=bkd.int64_dtype())
+    index = bkd.asarray(levels, dtype=bkd.index_dtype())
 
     return TensorProductSubspace(bkd, index, factories, growth)
 
@@ -452,7 +452,7 @@ def create_anisotropic_pce(
     8
     """
     nvars = joint.nvars()
-    max_1d_arr = bkd.asarray(max_levels_1d, dtype=bkd.int64_dtype())
+    max_1d_arr = bkd.asarray(max_levels_1d, dtype=bkd.index_dtype())
 
     # Use total_degree if specified, otherwise sum of max_levels_1d
     max_level = sum(max_levels_1d) if total_degree is None else total_degree
@@ -515,7 +515,7 @@ def create_additive_indices(
             idx = [0] * nvars
             idx[dim] = level
             indices.append(idx)
-    return bkd.asarray(indices, dtype=bkd.int64_dtype()).T  # Shape: (nvars, nterms)
+    return bkd.asarray(indices, dtype=bkd.index_dtype()).T  # Shape: (nvars, nterms)
 
 
 def create_additive_pce(
@@ -643,7 +643,7 @@ def compute_required_sg_subspaces(
     >>> bkd = NumpyBkd()
     >>> growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
     >>> # PCE with terms up to degree (3, 1) including cross-term (3, 1)
-    >>> pce_indices = bkd.asarray([[3, 0], [1, 1]], dtype=bkd.int64_dtype())
+    >>> pce_indices = bkd.asarray([[3, 0], [1, 1]], dtype=bkd.index_dtype())
     >>> sg_indices = compute_required_sg_subspaces(pce_indices, growth, bkd)
     >>> # The term (3, 1) requires SG level (3, 1), and downward closure gives
     >>> # all indices (i, j) with i <= 3 and j <= 1
@@ -658,10 +658,10 @@ def compute_required_sg_subspaces(
 
     if nterms == 0:
         # Empty PCE: return just the zero index
-        return bkd.zeros((nvars, 1), dtype=bkd.int64_dtype())
+        return bkd.zeros((nvars, 1), dtype=bkd.index_dtype())
 
     # Compute minimum SG level for each PCE term
-    sg_levels = bkd.zeros((nvars, nterms), dtype=bkd.int64_dtype())
+    sg_levels = bkd.zeros((nvars, nterms), dtype=bkd.index_dtype())
 
     for j in range(nterms):
         for i in range(nvars):

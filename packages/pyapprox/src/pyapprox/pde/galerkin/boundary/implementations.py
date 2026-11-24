@@ -926,7 +926,7 @@ class BoundaryConditionSet(Generic[Array]):
         """Return all Dirichlet DOF indices."""
         if not self._dirichlet_bcs:
             return self._bkd.asarray(
-                np.array([], dtype=np.int64), dtype=self._bkd.int64_dtype()
+                np.array([], dtype=np.int64), dtype=self._bkd.index_dtype()
             )
 
         all_dofs = []
@@ -935,7 +935,7 @@ class BoundaryConditionSet(Generic[Array]):
 
         return self._bkd.asarray(
             np.concatenate(all_dofs).astype(np.int64),
-            dtype=self._bkd.int64_dtype(),
+            dtype=self._bkd.index_dtype(),
         )
 
     def dirichlet_values(self, time: float = 0.0) -> Array:
@@ -985,7 +985,7 @@ class DirectDirichletBC(Generic[Array]):
     ) -> None:
         self._bkd = bkd
         self._dof_indices = bkd.asarray(
-            np.asarray(dof_indices, dtype=np.int64), dtype=bkd.int64_dtype()
+            np.asarray(dof_indices, dtype=np.int64), dtype=bkd.index_dtype()
         )
         self._values = bkd.asarray(np.asarray(values, dtype=np.float64))
 
@@ -1060,7 +1060,7 @@ class CallableDirichletBC(Generic[Array]):
     ) -> None:
         self._bkd = bkd
         self._dof_indices = bkd.asarray(
-            np.asarray(dof_indices, dtype=np.int64), dtype=bkd.int64_dtype()
+            np.asarray(dof_indices, dtype=np.int64), dtype=bkd.index_dtype()
         )
         self._signal = (
             value_func if isinstance(value_func, DofSignal) else DofSignal(value_func)

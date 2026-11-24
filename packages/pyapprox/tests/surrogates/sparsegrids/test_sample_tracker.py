@@ -67,7 +67,7 @@ def _make_factory(bkd, nvars: int, basis_type: str):
 def _register(tracker, factory, bkd, keys) -> List[int]:
     positions = []
     for key in keys:
-        idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+        idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
         positions.append(tracker.register(idx, factory(idx)))
     return positions
 
@@ -200,7 +200,7 @@ class TestWriteOnceSubspaceValues:
 
     def test_second_set_values_raises(self, bkd) -> None:
         factory = _make_factory(bkd, 2, "leja")
-        idx = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 0], dtype=bkd.index_dtype())
         subspace = factory(idx)
         values = bkd.zeros((1, subspace.nsamples()))
         subspace.set_values(values)
@@ -209,7 +209,7 @@ class TestWriteOnceSubspaceValues:
 
     def test_first_set_values_succeeds(self, bkd) -> None:
         factory = _make_factory(bkd, 2, "leja")
-        idx = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 0], dtype=bkd.index_dtype())
         subspace = factory(idx)
         values = bkd.zeros((1, subspace.nsamples()))
         subspace.set_values(values)
@@ -237,7 +237,7 @@ class TestQuadratureWeights:
             else LinearGrowthRule(scale=1, shift=1)
         )
         factory = TensorProductSubspaceFactory(bkd, factories, growth)
-        idx = bkd.asarray([2] * nvars, dtype=bkd.int64_dtype())
+        idx = bkd.asarray([2] * nvars, dtype=bkd.index_dtype())
         weights = factory(idx).get_quadrature_weights()
         bkd.assert_allclose(
             bkd.asarray([bkd.sum(weights)]), bkd.asarray([1.0]), rtol=1e-12

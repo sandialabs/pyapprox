@@ -502,7 +502,7 @@ def _nystrom_extension(
             "nterms, raise nlandmarks, or use a kernel whose spectrum "
             "decays more slowly."
         )
-    idx = bkd.asarray(keep.nonzero()[0], dtype=bkd.int64_dtype())
+    idx = bkd.asarray(keep.nonzero()[0], dtype=bkd.index_dtype())
     block_vals = block_vals[idx]
     block_vecs = block_vecs[:, idx]
 
@@ -522,7 +522,7 @@ def _nystrom_extension(
     # create_nystrom_kle selects at least one landmark, so npoints >= 1
     assert rmat is not None
     sig, vmat = bkd.eigh(rmat @ rmat.T)
-    order = bkd.arange(sig.shape[0] - 1, -1, -1, dtype=bkd.int64_dtype())[
+    order = bkd.arange(sig.shape[0] - 1, -1, -1, dtype=bkd.index_dtype())[
         :nterms
     ]
     sig = sig[order]

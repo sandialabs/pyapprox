@@ -122,7 +122,7 @@ _FACTORIES: Dict[str, Callable[[NumpyBkd], Any]] = {
         bkd,
     ),
     "time_indexed_observation": lambda bkd: TimeIndexedObservationFunctional(
-        bkd.asarray(np.array([[0], [1]]), dtype=bkd.int64_dtype()),
+        bkd.asarray(np.array([[0], [1]]), dtype=bkd.index_dtype()),
         bkd.ones((2, 1)),
         [1, 2],
         _NSTATES,
@@ -230,7 +230,7 @@ class TestTikhonovMirrorsInner:
         """The state-Jacobian action is the inner one; the rows are not
         offered, since they would omit the parameter cost."""
         inner = TimeIndexedObservationFunctional(
-            numpy_bkd.asarray(np.array([[0]]), dtype=numpy_bkd.int64_dtype()),
+            numpy_bkd.asarray(np.array([[0]]), dtype=numpy_bkd.index_dtype()),
             numpy_bkd.ones((1, 1)),
             [2],
             _NSTATES,

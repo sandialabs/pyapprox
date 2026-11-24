@@ -121,12 +121,12 @@ class DirichletConstraintSet(Generic[Array]):
                 position_of[dof] = position
                 position += 1
         unique_dofs = sorted(position_of)
-        self._dofs = bkd.asarray(unique_dofs, dtype=bkd.int64_dtype())
+        self._dofs = bkd.asarray(unique_dofs, dtype=bkd.index_dtype())
         # Gather indices into the per-BC value concatenation, one per
         # unique DOF (its winning occurrence).
         self._value_sel = bkd.asarray(
             [position_of[dof] for dof in unique_dofs],
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         # Static sets skip all time-derivative machinery and cache
         # their (time-independent) values on first evaluation.

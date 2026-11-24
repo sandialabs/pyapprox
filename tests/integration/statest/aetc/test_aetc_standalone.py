@@ -22,11 +22,11 @@ def _make_groupacv_allocation(est, npartition_samples):
     """Helper to create GroupACVAllocationResult from npartition_samples."""
     bkd = est.bkd()
     rounded = bkd.asarray(
-        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
+        bkd.floor(npartition_samples + 1e-4), dtype=bkd.index_dtype()
     )
     nps_float = bkd.asarray(rounded, dtype=bkd.double_dtype())
     nsamples_per_model = bkd.asarray(
-        est._compute_nsamples_per_model(nps_float), dtype=bkd.int64_dtype()
+        est._compute_nsamples_per_model(nps_float), dtype=bkd.index_dtype()
     )
     actual_cost = float(est._estimator_cost(nps_float))
     return GroupACVAllocationResult(

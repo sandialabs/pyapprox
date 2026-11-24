@@ -18,7 +18,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _observation(bkd: Backend[Array]) -> WeightedEntries[Array]:
-    indices = bkd.asarray(np.array([[1, 3, 3], [4, 4, 0]]), dtype=bkd.int64_dtype())
+    indices = bkd.asarray(np.array([[1, 3, 3], [4, 4, 0]]), dtype=bkd.index_dtype())
     weights = bkd.asarray([[0.5, 1.0, 1.0], [-1.0, 3.0, 0.0]])
     return WeightedEntries(bkd, 5, indices, weights)
 
@@ -56,7 +56,7 @@ class TestWeightedEntriesRefusals:
             WeightedEntries(
                 bkd,
                 5,
-                bkd.asarray(np.array([[1, 2]]), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.array([[1, 2]]), dtype=bkd.index_dtype()),
                 bkd.ones((1, 3)),
             )
 
@@ -66,7 +66,7 @@ class TestWeightedEntriesRefusals:
             WeightedEntries(
                 bkd,
                 5,
-                bkd.asarray(np.zeros((0, 2)), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.zeros((0, 2)), dtype=bkd.index_dtype()),
                 bkd.ones((0, 2)),
             )
 
@@ -76,6 +76,6 @@ class TestWeightedEntriesRefusals:
             WeightedEntries(
                 bkd,
                 5,
-                bkd.asarray(np.array([[1, 5]]), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.array([[1, 5]]), dtype=bkd.index_dtype()),
                 bkd.ones((1, 2)),
             )

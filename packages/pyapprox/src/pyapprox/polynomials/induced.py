@@ -306,7 +306,7 @@ class InducedSampler(Generic[Array]):
         # from the corresponding univariate conditional.
         chosen = np.random.choice(nterms, size=nsamples, replace=True)
         selected_indices = indices[
-            :, self._bkd.asarray(chosen, dtype=self._bkd.int64_dtype())
+            :, self._bkd.asarray(chosen, dtype=self._bkd.index_dtype())
         ]
         coords = [
             self._sample_dimension(dim, selected_indices[dim])

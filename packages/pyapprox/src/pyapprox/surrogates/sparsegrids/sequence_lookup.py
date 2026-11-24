@@ -173,7 +173,7 @@ class SequencePositionLookup(Generic[Array]):
 
     def _nodes(self, dim: int, level: int) -> Array:
         """Dimension ``dim``'s univariate nodes at ``level``, shape (n,)."""
-        index = self._bkd.zeros((self._nvars,), dtype=self._bkd.int64_dtype())
+        index = self._bkd.zeros((self._nvars,), dtype=self._bkd.index_dtype())
         index[dim] = level
         return self._factory(index).get_samples_1d(dim)[0]
 

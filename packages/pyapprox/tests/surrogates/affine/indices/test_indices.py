@@ -49,15 +49,15 @@ class TestHashIndex:
 
     def test_hash_consistency(self, bkd):
         """Test that same index produces same hash."""
-        idx1 = bkd.asarray([1, 2, 3], dtype=bkd.int64_dtype())
-        idx2 = bkd.asarray([1, 2, 3], dtype=bkd.int64_dtype())
+        idx1 = bkd.asarray([1, 2, 3], dtype=bkd.index_dtype())
+        idx2 = bkd.asarray([1, 2, 3], dtype=bkd.index_dtype())
         assert hash_index(idx1, bkd) == hash_index(idx2, bkd)
 
     def test_hash_uniqueness(self, bkd):
         """Test that different indices produce different hashes."""
-        idx1 = bkd.asarray([1, 2, 3], dtype=bkd.int64_dtype())
-        idx2 = bkd.asarray([1, 2, 4], dtype=bkd.int64_dtype())
-        idx3 = bkd.asarray([3, 2, 1], dtype=bkd.int64_dtype())
+        idx1 = bkd.asarray([1, 2, 3], dtype=bkd.index_dtype())
+        idx2 = bkd.asarray([1, 2, 4], dtype=bkd.index_dtype())
+        idx3 = bkd.asarray([3, 2, 1], dtype=bkd.index_dtype())
         assert hash_index(idx1, bkd) != hash_index(idx2, bkd)
         assert hash_index(idx1, bkd) != hash_index(idx3, bkd)
 
@@ -67,21 +67,21 @@ class TestIndexPnorm:
 
     def test_pnorm_1(self, bkd):
         """Test p=1 norm (total degree)."""
-        indices = bkd.asarray([[0, 1, 2, 1], [0, 0, 0, 1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[0, 1, 2, 1], [0, 0, 0, 1]], dtype=bkd.index_dtype())
         norms = indices_pnorm(indices, 1.0, bkd)
         expected = bkd.asarray([0.0, 1.0, 2.0, 2.0])
         bkd.assert_allclose(norms, expected)
 
     def test_pnorm_2(self, bkd):
         """Test p=2 norm."""
-        indices = bkd.asarray([[3, 0], [4, 0]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[3, 0], [4, 0]], dtype=bkd.index_dtype())
         norms = indices_pnorm(indices, 2.0, bkd)
         expected = bkd.asarray([5.0, 0.0])
         bkd.assert_allclose(norms, expected)
 
     def test_pnorm_half(self, bkd):
         """Test p=0.5 norm (hyperbolic)."""
-        indices = bkd.asarray([[1, 2], [1, 0]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[1, 2], [1, 0]], dtype=bkd.index_dtype())
         norms = indices_pnorm(indices, 0.5, bkd)
         # (1^0.5 + 1^0.5)^2 = 4, (2^0.5 + 0)^2 = 2
         expected = bkd.asarray([4.0, 2.0])
@@ -94,7 +94,7 @@ class TestHyperbolicLevelIndices:
     def test_level_0(self, bkd):
         """Test level 0 indices."""
         indices = compute_hyperbolic_level_indices(2, 0, 1.0, bkd)
-        expected = bkd.asarray([[0], [0]], dtype=bkd.int64_dtype())
+        expected = bkd.asarray([[0], [0]], dtype=bkd.index_dtype())
         bkd.assert_allclose(indices, expected)
 
     def test_level_1_2d(self, bkd):
@@ -132,7 +132,7 @@ class TestHyperbolicIndices:
     def test_contains_zero_index(self, bkd):
         """Test that result contains zero index."""
         indices = compute_hyperbolic_indices(2, 3, 1.0, bkd)
-        zero_index = bkd.zeros((2,), dtype=bkd.int64_dtype())
+        zero_index = bkd.zeros((2,), dtype=bkd.index_dtype())
         has_zero = False
         for idx in indices.T:
             if bkd.to_bool(bkd.all(idx == zero_index)):
@@ -275,7 +275,7 @@ class TestSortIndices:
         """
         # Unsorted indices: [1,0], [0,1], [2,0], [0,0], [1,1]
         indices = bkd.asarray(
-            [[1, 0, 2, 0, 1], [0, 1, 0, 0, 1]], dtype=bkd.int64_dtype()
+            [[1, 0, 2, 0, 1], [0, 1, 0, 0, 1]], dtype=bkd.index_dtype()
         )
         sorted_idx = sort_indices_lexiographically(indices, bkd)
         # Expected sort order:
@@ -287,7 +287,7 @@ class TestSortIndices:
         # Sorted by level first, then lexicographically:
         # [0,0], [1,0], [0,1], [2,0], [1,1]
         expected = bkd.asarray(
-            [[0, 1, 0, 2, 1], [0, 0, 1, 0, 1]], dtype=bkd.int64_dtype()
+            [[0, 1, 0, 2, 1], [0, 0, 1, 0, 1]], dtype=bkd.index_dtype()
         )
         bkd.assert_allclose(sorted_idx, expected)
 
@@ -298,29 +298,29 @@ class TestMaxLevelCriteria:
     def test_below_level(self, bkd):
         """Test index below max level is admissible."""
         criteria = MaxLevelCriteria(5, 1.0, bkd)
-        idx = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([2, 1], dtype=bkd.index_dtype())
         assert criteria(idx)
 
     def test_at_level(self, bkd):
         """Test index at max level is admissible."""
         criteria = MaxLevelCriteria(5, 1.0, bkd)
-        idx = bkd.asarray([3, 2], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([3, 2], dtype=bkd.index_dtype())
         assert criteria(idx)
 
     def test_above_level(self, bkd):
         """Test index above max level is not admissible."""
         criteria = MaxLevelCriteria(5, 1.0, bkd)
-        idx = bkd.asarray([3, 3], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([3, 3], dtype=bkd.index_dtype())
         assert not criteria(idx)
 
     def test_pnorm_half(self, bkd):
         """Test with p=0.5 (hyperbolic cross)."""
         criteria = MaxLevelCriteria(4, 0.5, bkd)
         # (1^0.5 + 1^0.5)^2 = 4
-        idx = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 1], dtype=bkd.index_dtype())
         assert criteria(idx)
         # (2^0.5 + 2^0.5)^2 = 8 > 4
-        idx = bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([2, 2], dtype=bkd.index_dtype())
         assert not criteria(idx)
 
 
@@ -329,23 +329,23 @@ class TestMax1DLevelsCriteria:
 
     def test_within_limits(self, bkd):
         """Test index within 1D limits is admissible."""
-        max_levels = bkd.asarray([3, 4], dtype=bkd.int64_dtype())
+        max_levels = bkd.asarray([3, 4], dtype=bkd.index_dtype())
         criteria = Max1DLevelsCriteria(max_levels, bkd)
-        idx = bkd.asarray([2, 3], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([2, 3], dtype=bkd.index_dtype())
         assert criteria(idx)
 
     def test_at_limits(self, bkd):
         """Test index at 1D limits is admissible."""
-        max_levels = bkd.asarray([3, 4], dtype=bkd.int64_dtype())
+        max_levels = bkd.asarray([3, 4], dtype=bkd.index_dtype())
         criteria = Max1DLevelsCriteria(max_levels, bkd)
-        idx = bkd.asarray([3, 4], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([3, 4], dtype=bkd.index_dtype())
         assert criteria(idx)
 
     def test_exceeds_one_limit(self, bkd):
         """Test index exceeding one 1D limit is not admissible."""
-        max_levels = bkd.asarray([3, 4], dtype=bkd.int64_dtype())
+        max_levels = bkd.asarray([3, 4], dtype=bkd.index_dtype())
         criteria = Max1DLevelsCriteria(max_levels, bkd)
-        idx = bkd.asarray([4, 3], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([4, 3], dtype=bkd.index_dtype())
         assert not criteria(idx)
 
 
@@ -355,7 +355,7 @@ class TestMaxIndicesCriteria:
     def test_requires_generator(self, bkd):
         """Test that criteria requires generator to be set."""
         criteria = MaxIndicesCriteria(10, bkd)
-        idx = bkd.asarray([1, 2], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 2], dtype=bkd.index_dtype())
         with pytest.raises(RuntimeError):
             criteria(idx)
 
@@ -369,7 +369,7 @@ class TestMaxIndicesCriteria:
         criteria = MaxIndicesCriteria(10, bkd)
         criteria.set_generator(gen)
 
-        idx = bkd.asarray([1, 2], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 2], dtype=bkd.index_dtype())
         # Should be True since we're below max
         assert criteria(idx)
 
@@ -381,9 +381,9 @@ class TestCompositeCriteria:
         """Test composite when all criteria pass."""
         criteria = CompositeCriteria(
             MaxLevelCriteria(5, 1.0, bkd),
-            Max1DLevelsCriteria(bkd.asarray([3, 3], dtype=bkd.int64_dtype()), bkd),
+            Max1DLevelsCriteria(bkd.asarray([3, 3], dtype=bkd.index_dtype()), bkd),
         )
-        idx = bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([2, 2], dtype=bkd.index_dtype())
         assert criteria(idx)
 
     def test_one_fails(self, bkd):
@@ -391,20 +391,20 @@ class TestCompositeCriteria:
         criteria = CompositeCriteria(
             MaxLevelCriteria(10, 1.0, bkd),  # passes
             Max1DLevelsCriteria(
-                bkd.asarray([2, 2], dtype=bkd.int64_dtype()), bkd
+                bkd.asarray([2, 2], dtype=bkd.index_dtype()), bkd
             ),  # fails
         )
-        idx = bkd.asarray([3, 1], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([3, 1], dtype=bkd.index_dtype())
         assert not criteria(idx)
 
     def test_add_criteria(self, bkd):
         """Test adding criteria dynamically."""
         criteria = CompositeCriteria(MaxLevelCriteria(10, 1.0, bkd))
-        idx = bkd.asarray([4, 0], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([4, 0], dtype=bkd.index_dtype())
         assert criteria(idx)
 
         criteria.add_criteria(
-            Max1DLevelsCriteria(bkd.asarray([3, 3], dtype=bkd.int64_dtype()), bkd)
+            Max1DLevelsCriteria(bkd.asarray([3, 3], dtype=bkd.index_dtype()), bkd)
         )
         assert not criteria(idx)
 
@@ -473,7 +473,7 @@ class TestHyperbolicIndexGenerator:
 
     def test_with_max_1d_levels(self, bkd):
         """Test with 1D level constraints."""
-        max_1d_levels = bkd.asarray([2, 3], dtype=bkd.int64_dtype())
+        max_1d_levels = bkd.asarray([2, 3], dtype=bkd.index_dtype())
         gen = HyperbolicIndexGenerator(
             nvars=2, max_level=10, pnorm=1.0, bkd=bkd, max_1d_levels=max_1d_levels
         )
@@ -562,26 +562,26 @@ class TestIterativeIndexGeneratorPublicQueries:
         gen = IterativeIndexGenerator(nvars, bkd)
         admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
         gen.set_admissibility_criteria(admis)
-        zero = bkd.zeros((nvars, 1), dtype=bkd.int64_dtype())
+        zero = bkd.zeros((nvars, 1), dtype=bkd.index_dtype())
         gen.set_selected_indices(zero)
         return gen
 
     def test_is_selected_on_zero_index(self, bkd):
         gen = self._make_generator(bkd)
-        zero = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        zero = bkd.asarray([0, 0], dtype=bkd.index_dtype())
         assert gen.is_selected(zero)
 
     def test_is_candidate_on_forward_neighbor(self, bkd):
         gen = self._make_generator(bkd)
-        cand = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        cand = bkd.asarray([1, 0], dtype=bkd.index_dtype())
         assert gen.is_candidate(cand)
         assert not gen.is_selected(cand)
 
     def test_is_registered_covers_both(self, bkd):
         gen = self._make_generator(bkd)
-        zero = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
-        cand = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
-        unknown = bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        zero = bkd.asarray([0, 0], dtype=bkd.index_dtype())
+        cand = bkd.asarray([1, 0], dtype=bkd.index_dtype())
+        unknown = bkd.asarray([2, 2], dtype=bkd.index_dtype())
         assert gen.is_registered(zero)
         assert gen.is_registered(cand)
         assert not gen.is_registered(unknown)
@@ -589,25 +589,25 @@ class TestIterativeIndexGeneratorPublicQueries:
     def test_is_admissible_for_new_index(self, bkd):
         gen = self._make_generator(bkd)
         # Refine (1,0) to selected so (2,0) becomes candidate
-        idx_10 = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        idx_10 = bkd.asarray([1, 0], dtype=bkd.index_dtype())
         gen.refine_index(idx_10)
         # (1,1) should now be admissible (both backward neighbors selected)
-        idx_11 = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        idx_11 = bkd.asarray([1, 1], dtype=bkd.index_dtype())
         assert not gen.is_admissible(idx_11)  # already candidate
         # (2,1) is not admissible yet (backward neighbor (1,1) not selected)
-        idx_21 = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
+        idx_21 = bkd.asarray([2, 1], dtype=bkd.index_dtype())
         assert not gen.is_admissible(idx_21)
 
     def test_is_admissible_rejects_already_registered(self, bkd):
         gen = self._make_generator(bkd)
-        zero = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        zero = bkd.asarray([0, 0], dtype=bkd.index_dtype())
         assert not gen.is_admissible(zero)  # already selected
-        cand = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        cand = bkd.asarray([1, 0], dtype=bkd.index_dtype())
         assert not gen.is_admissible(cand)  # already candidate
 
     def test_after_refine_candidate_becomes_selected(self, bkd):
         gen = self._make_generator(bkd)
-        idx = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        idx = bkd.asarray([1, 0], dtype=bkd.index_dtype())
         assert gen.is_candidate(idx)
         gen.refine_index(idx)
         assert gen.is_selected(idx)
@@ -752,7 +752,7 @@ class TestComputeDownwardClosure:
 
     def test_single_index_2d(self, bkd):
         """Test closure of {(2,1)} has 6 elements."""
-        indices = bkd.asarray([[2], [1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[2], [1]], dtype=bkd.index_dtype())
         closure = compute_downward_closure(indices, bkd)
         # {(0,0), (1,0), (2,0), (0,1), (1,1), (2,1)} = 6 elements
         assert closure.shape[1] == 6
@@ -760,42 +760,42 @@ class TestComputeDownwardClosure:
 
     def test_multiple_indices(self, bkd):
         """Test closure of {(1,0), (0,2)} has 4 elements."""
-        indices = bkd.asarray([[1, 0], [0, 2]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[1, 0], [0, 2]], dtype=bkd.index_dtype())
         closure = compute_downward_closure(indices, bkd)
         # {(0,0), (1,0), (0,1), (0,2)} = 4 elements
         assert closure.shape[1] == 4
 
     def test_zero_index(self, bkd):
         """Test closure of {(0,0)} is just {(0,0)}."""
-        indices = bkd.asarray([[0], [0]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[0], [0]], dtype=bkd.index_dtype())
         closure = compute_downward_closure(indices, bkd)
         assert closure.shape[1] == 1
-        expected = bkd.asarray([[0], [0]], dtype=bkd.int64_dtype())
+        expected = bkd.asarray([[0], [0]], dtype=bkd.index_dtype())
         bkd.assert_allclose(closure, expected)
 
     def test_3d_closure(self, bkd):
         """Test 3D closure."""
         # Closure of {(1,1,1)} has 2*2*2 = 8 elements
-        indices = bkd.asarray([[1], [1], [1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[1], [1], [1]], dtype=bkd.index_dtype())
         closure = compute_downward_closure(indices, bkd)
         assert closure.shape[1] == 8
         assert closure.shape[0] == 3
 
     def test_is_sorted(self, bkd):
         """Test that output is sorted lexicographically."""
-        indices = bkd.asarray([[2], [1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[2], [1]], dtype=bkd.index_dtype())
         closure = compute_downward_closure(indices, bkd)
 
         # Verify sorted: first by total level, then lexicographically
         # Expected order: (0,0), (1,0), (0,1), (2,0), (1,1), (2,1)
         expected = bkd.asarray(
-            [[0, 1, 0, 2, 1, 2], [0, 0, 1, 0, 1, 1]], dtype=bkd.int64_dtype()
+            [[0, 1, 0, 2, 1, 2], [0, 0, 1, 0, 1, 1]], dtype=bkd.index_dtype()
         )
         bkd.assert_allclose(closure, expected)
 
     def test_downward_closed_property(self, bkd):
         """Test that all predecessors are present in the closure."""
-        indices = bkd.asarray([[3], [2]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[3], [2]], dtype=bkd.index_dtype())
         closure = compute_downward_closure(indices, bkd)
 
         # Build set of all indices in closure
@@ -946,7 +946,7 @@ class TestIsotropicSparseGridBasisIndexGenerator:
         gen = IsotropicSparseGridBasisIndexGenerator(3, 0, bkd)
         indices = gen.get_indices()
         assert indices.shape[1] == 1
-        expected = bkd.zeros((3, 1), dtype=bkd.int64_dtype())
+        expected = bkd.zeros((3, 1), dtype=bkd.index_dtype())
         bkd.assert_allclose(indices, expected)
 
     def test_repr(self, bkd):
@@ -1046,27 +1046,27 @@ class TestRestrictIndicesToLeadingVars:
         # Columns (1,1,0) and (0,0,1); only the first is supported on
         # the leading two variables.
         indices = bkd.asarray(
-            [[1, 0], [1, 0], [0, 1]], dtype=bkd.int64_dtype()
+            [[1, 0], [1, 0], [0, 1]], dtype=bkd.index_dtype()
         )
         restricted = restrict_indices_to_leading_vars(indices, 2, bkd)
         assert restricted.shape == (2, 1)
-        expected = bkd.asarray([[1], [1]], dtype=bkd.int64_dtype())
+        expected = bkd.asarray([[1], [1]], dtype=bkd.index_dtype())
         bkd.assert_allclose(restricted, expected)
 
     def test_keeps_everything_when_nvars_unchanged(self, bkd):
-        indices = bkd.asarray([[2, 1], [0, 1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[2, 1], [0, 1]], dtype=bkd.index_dtype())
         restricted = restrict_indices_to_leading_vars(indices, 2, bkd)
         bkd.assert_allclose(restricted, indices)
 
     def test_restricting_to_zero_vars(self, bkd):
         """Only the constant index survives a restriction to no variables."""
-        indices = bkd.asarray([[0, 1], [0, 0]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[0, 1], [0, 0]], dtype=bkd.index_dtype())
         restricted = restrict_indices_to_leading_vars(indices, 0, bkd)
         assert restricted.shape == (0, 1)
 
     @pytest.mark.parametrize("nvars", [-1, 3])
     def test_rejects_out_of_range_nvars(self, bkd, nvars):
-        indices = bkd.asarray([[1], [1]], dtype=bkd.int64_dtype())
+        indices = bkd.asarray([[1], [1]], dtype=bkd.index_dtype())
         with pytest.raises(ValueError):
             restrict_indices_to_leading_vars(indices, nvars, bkd)
 
@@ -1098,7 +1098,7 @@ class TestRestrictIndicesToLeadingVars:
         indices distinct, so no term is counted twice.
         """
         closure = compute_downward_closure(
-            bkd.asarray([[2], [1], [3]], dtype=bkd.int64_dtype()), bkd
+            bkd.asarray([[2], [1], [3]], dtype=bkd.index_dtype()), bkd
         )
         restricted = restrict_indices_to_leading_vars(closure, 2, bkd)
         columns = [
@@ -1113,7 +1113,7 @@ class TestRestrictIndicesToLeadingVars:
     def test_restriction_stays_downward_closed(self, bkd):
         """A downward-closed set restricts to a downward-closed set."""
         closure = compute_downward_closure(
-            bkd.asarray([[2], [1], [2]], dtype=bkd.int64_dtype()), bkd
+            bkd.asarray([[2], [1], [2]], dtype=bkd.index_dtype()), bkd
         )
         restricted = restrict_indices_to_leading_vars(closure, 2, bkd)
         present = {
@@ -1164,7 +1164,7 @@ class TestRestrictIndicesToLeadingVars:
         # Columns (1,0) and (1,0) padded differently: both are supported
         # on variable 0 alone, so both survive and collide.
         indices = bkd.asarray(
-            [[1, 1], [0, 0]], dtype=bkd.int64_dtype()
+            [[1, 1], [0, 0]], dtype=bkd.index_dtype()
         )
         with pytest.raises(ValueError, match="duplicate indices"):
             restrict_indices_to_leading_vars(indices, 1, bkd)

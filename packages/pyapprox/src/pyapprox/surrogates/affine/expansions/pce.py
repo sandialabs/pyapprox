@@ -416,7 +416,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
 
         if order == 0:
             const_indices = self._bkd.zeros(
-                (self.nvars(), 1), dtype=self._bkd.int64_dtype()
+                (self.nvars(), 1), dtype=self._bkd.index_dtype()
             )
             ones_coef = self._bkd.ones((1, self.nqoi()))
             return self._copy_with_expansion(const_indices, ones_coef)

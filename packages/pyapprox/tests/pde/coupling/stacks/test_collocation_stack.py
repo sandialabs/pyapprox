@@ -171,7 +171,7 @@ class _Rectangle(Generic[Array]):
             }
             - (set(self._port) if free is None else free)
         )
-        index = bkd.asarray(fixed, dtype=bkd.int64_dtype())
+        index = bkd.asarray(fixed, dtype=bkd.index_dtype())
         part = DirichletPart(index, NodalField(_exact(self._mesh.points()[:, index])))
         return CollocationSystem(
             self._physics,
@@ -271,7 +271,7 @@ def _two_component_response(
         }
         - port
     )
-    index = bkd.asarray(fixed, dtype=bkd.int64_dtype())
+    index = bkd.asarray(fixed, dtype=bkd.index_dtype())
     parts = [DirichletPart(index, NodalField(exact[c, index]), c) for c in range(2)]
     return collocation_pinned_response(
         CollocationSystem(

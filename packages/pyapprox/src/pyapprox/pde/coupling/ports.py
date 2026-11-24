@@ -679,7 +679,7 @@ def _component_rows(trace: PortTraceProtocol[Array], ncomponents: int) -> Array:
     nlocal * ncomponents)."""
     bkd = trace.bkd()
     nodes = trace.element_nodes()
-    offsets = bkd.asarray(list(range(ncomponents)), dtype=bkd.int64_dtype())
+    offsets = bkd.asarray(list(range(ncomponents)), dtype=bkd.index_dtype())
     rows = nodes[:, :, None] * ncomponents + offsets[None, None, :]
     return bkd.reshape(rows, (int(nodes.shape[0]), -1))
 
@@ -809,9 +809,9 @@ def port_interpolation(
     blocks = bkd.reshape(matrix, (nnodes, k, ncols))
     rows = bkd.asarray(
         [[k * n + c for c in range(k)] for n in range(nnodes)],
-        dtype=bkd.int64_dtype(),
+        dtype=bkd.index_dtype(),
     )
-    columns = bkd.asarray([list(range(ncols))] * nnodes, dtype=bkd.int64_dtype())
+    columns = bkd.asarray([list(range(ncols))] * nnodes, dtype=bkd.index_dtype())
     dtype = backend_dtype_name(bkd)
     sink = assembly.matrix_sink(
         SpaceDescriptor("port", k * nnodes, dtype),
@@ -910,7 +910,7 @@ def _tested_coupling(
         (nelems, nlocal * k, ncols),
     )
     rows = _component_rows(trace, k)
-    columns = bkd.asarray([list(range(ncols))] * nelems, dtype=bkd.int64_dtype())
+    columns = bkd.asarray([list(range(ncols))] * nelems, dtype=bkd.index_dtype())
     dtype = backend_dtype_name(bkd)
     sink = assembly.matrix_sink(
         SpaceDescriptor(range_name, k * trace.nnodes(), dtype),
@@ -1184,7 +1184,7 @@ class BackendPortRows(Generic[Array]):
             )
         self._descriptor = descriptor
         self._bkd = bkd
-        self._rows = bkd.asarray(list(dofs), dtype=bkd.int64_dtype())
+        self._rows = bkd.asarray(list(dofs), dtype=bkd.index_dtype())
         self._nrows = len(dofs)
 
     def nrows(self) -> int:

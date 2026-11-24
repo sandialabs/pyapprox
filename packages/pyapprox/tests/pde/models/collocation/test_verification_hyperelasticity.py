@@ -265,7 +265,7 @@ def test_residual_vanishes(
         for node in range(level.npts())
         if node not in boundary
     ]
-    interior_residual = residual[bkd.asarray(interior, dtype=bkd.int64_dtype())]
+    interior_residual = residual[bkd.asarray(interior, dtype=bkd.index_dtype())]
     bkd.assert_allclose(
         interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
     )

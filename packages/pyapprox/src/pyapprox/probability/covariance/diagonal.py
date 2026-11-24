@@ -201,7 +201,7 @@ class DiagonalCovarianceOperator(Generic[Array]):
             return self._variances
         # Integer-typed, as the probing operator converts them too.
         return self._variances[
-            self._bkd.asarray(active_indices, dtype=self._bkd.int64_dtype())
+            self._bkd.asarray(active_indices, dtype=self._bkd.index_dtype())
         ]
 
     def covariance(self) -> Array:

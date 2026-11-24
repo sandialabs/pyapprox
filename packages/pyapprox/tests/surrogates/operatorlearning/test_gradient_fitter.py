@@ -146,7 +146,7 @@ def _least_squares_affine_fit(bkd: Backend, codes_in, codes_out):
     marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
     basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
     indices = np.vstack([np.zeros((1, nvars), dtype=int), np.eye(nvars, dtype=int)]).T
-    basis.set_indices(bkd.asarray(indices, dtype=bkd.int64_dtype()))
+    basis.set_indices(bkd.asarray(indices, dtype=bkd.index_dtype()))
     expansion = PolynomialChaosExpansion(basis, bkd, nqoi=int(codes_out.shape[0]))
     result = WeightedLeastSquaresOperatorFitter(
         IdentityFieldEncoder(nvars, bkd),

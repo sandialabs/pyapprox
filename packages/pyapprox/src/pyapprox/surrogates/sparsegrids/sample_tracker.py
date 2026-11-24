@@ -132,7 +132,7 @@ class SampleTracker(Generic[Array]):
         if len(unique_local) == 0:
             return None
         samples = subspace.get_samples()
-        idx_array = self._bkd.asarray(unique_local, dtype=self._bkd.int64_dtype())
+        idx_array = self._bkd.asarray(unique_local, dtype=self._bkd.index_dtype())
         return samples[:, idx_array]
 
     def append_new_values(self, values: Array) -> None:
@@ -284,7 +284,7 @@ class SampleTracker(Generic[Array]):
             if len(unique_local) > 0:
                 samples = subspace.get_samples()
                 idx_array = self._bkd.asarray(
-                    unique_local, dtype=self._bkd.int64_dtype()
+                    unique_local, dtype=self._bkd.index_dtype()
                 )
                 n_new = len(unique_local)
                 result[:, global_idx : global_idx + n_new] = samples[:, idx_array]
@@ -346,7 +346,7 @@ class SampleTracker(Generic[Array]):
             if len(unique_local) > 0:
                 samples = subspace.get_samples()
                 idx_array = self._bkd.asarray(
-                    unique_local, dtype=self._bkd.int64_dtype()
+                    unique_local, dtype=self._bkd.index_dtype()
                 )
                 n_new = len(unique_local)
                 result[:, out_idx : out_idx + n_new] = samples[:, idx_array]

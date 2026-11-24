@@ -31,7 +31,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _ints(bkd: Backend[Array], values: List[int]) -> Array:
-    return bkd.asarray(values, dtype=bkd.int64_dtype())
+    return bkd.asarray(values, dtype=bkd.index_dtype())
 
 
 def test_boundary_indices_3d(bkd: Backend[Array]) -> None:

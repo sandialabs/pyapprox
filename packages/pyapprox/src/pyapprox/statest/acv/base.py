@@ -100,7 +100,7 @@ class ACVEstimator(Generic[Array]):
     ) -> Optional[TargetArray]:
         if self._recursion_index is None:
             return None
-        return bkd.asarray(self._recursion_index, dtype=bkd.int64_dtype())
+        return bkd.asarray(self._recursion_index, dtype=bkd.index_dtype())
 
     def _optimization_criteria(self, est_covariance: Array) -> Array:
         """Scalarize an estimator covariance for comparison.

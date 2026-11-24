@@ -219,7 +219,7 @@ class LagrangeBasis(Generic[Array]):
             indices[row, : stop - start] = probes.indices[start:stop]
             weights[row, : stop - start] = probes.data[start:stop]
         return (
-            self._bkd.asarray(indices, dtype=self._bkd.int64_dtype()),
+            self._bkd.asarray(indices, dtype=self._bkd.index_dtype()),
             self._bkd.asarray(weights),
         )
 
@@ -273,7 +273,7 @@ class LagrangeBasis(Generic[Array]):
                 # get_dofs returns a Dofs object, extract the indices
                 return self._bkd.asarray(
                     dofs.flatten().astype(np.int64),
-                    dtype=self._bkd.int64_dtype(),
+                    dtype=self._bkd.index_dtype(),
                 )
             except Exception:
                 # Fallback to node-based for now

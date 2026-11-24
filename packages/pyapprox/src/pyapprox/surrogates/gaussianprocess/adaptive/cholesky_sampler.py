@@ -134,7 +134,7 @@ class CholeskySampler(Generic[Array]):
         self._factorizer = PivotedCholeskyFactorizer(op, bkd)
         if len(self._selected_indices) > 0:
             init_pivots = bkd.asarray(
-                self._selected_indices, dtype=bkd.int64_dtype(),
+                self._selected_indices, dtype=bkd.index_dtype(),
             )
             self._factorizer.factorize(
                 len(self._selected_indices),

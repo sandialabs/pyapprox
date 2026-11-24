@@ -148,7 +148,7 @@ def test_reproduces_polynomials_of_the_trace_degree(
 
     lam = bkd.reshape(g(setup.coords[1, setup.dofs]), (-1, 1))
     data = setup.dense_local().apply(lam)
-    interior = bkd.asarray(setup.traces.interior, dtype=bkd.int64_dtype())
+    interior = bkd.asarray(setup.traces.interior, dtype=bkd.index_dtype())
     expected = bkd.reshape(g(setup.points[1, interior]), (-1, 1))
     bkd.assert_allclose(data, expected, rtol=1e-12, atol=1e-13)
 
@@ -185,7 +185,7 @@ def test_a_constant_flux_is_tested_exactly(bkd: Backend[Array], degree: int) -> 
         RefuseCrossPoints(),
         BackendDenseMatrixAssembly(bkd),
     ).apply_transpose(bkd.ones((full.nnodes(), 1)))
-    free = bkd.asarray(setup.free(), dtype=bkd.int64_dtype())
+    free = bkd.asarray(setup.free(), dtype=bkd.index_dtype())
     bkd.assert_allclose(tested[free], integrals[free], rtol=1e-12, atol=1e-14)
     # Control: plain projection onto the interior functions alone.
     dense = BackendDenseMatrixAssembly(bkd)

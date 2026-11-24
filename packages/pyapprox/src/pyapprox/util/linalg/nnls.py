@@ -201,7 +201,7 @@ class EarlyStoppingLawsonHanson(Generic[Array]):
     ) -> Array:
         """Unconstrained least squares on the passive set, zero elsewhere."""
         bkd = self._bkd
-        indices = bkd.asarray(passive, dtype=bkd.int64_dtype())
+        indices = bkd.asarray(passive, dtype=bkd.index_dtype())
         local = bkd.lstsq(matrix[:, indices], target)
         return bkd.index_update(bkd.zeros((ncols,)), indices, local)
 

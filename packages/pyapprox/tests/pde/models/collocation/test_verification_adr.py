@@ -815,7 +815,7 @@ class TestAdapterPieces:
             {"circle": (0, 2)},
         )
         indices, normals = side_nodes(level, "circle")
-        expected = bkd.asarray([0, 4, 8, 12, 1, 2, 3], dtype=bkd.int64_dtype())
+        expected = bkd.asarray([0, 4, 8, 12, 1, 2, 3], dtype=bkd.index_dtype())
         bkd.assert_allclose(indices, expected)
         bkd.assert_allclose(normals[0], bkd.asarray([-1.0, 0.0]))
         bkd.assert_allclose(normals[-1], bkd.asarray([0.0, -1.0]))

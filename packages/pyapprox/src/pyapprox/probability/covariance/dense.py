@@ -201,7 +201,7 @@ class DenseCholeskyCovarianceOperator(Generic[Array]):
             return diagonal
         # Integer-typed, as the probing operator converts them too.
         return diagonal[
-            self._bkd.asarray(active_indices, dtype=self._bkd.int64_dtype())
+            self._bkd.asarray(active_indices, dtype=self._bkd.index_dtype())
         ]
 
     def covariance_inverse(self) -> Array:

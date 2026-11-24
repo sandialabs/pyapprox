@@ -137,9 +137,9 @@ def compute_hyperbolic_level_indices(
     """
     indices = _total_degree_shell(nvars, level)
     if indices is None:
-        return bkd.zeros((nvars, 1), dtype=bkd.int64_dtype())
+        return bkd.zeros((nvars, 1), dtype=bkd.index_dtype())
     keep = _within_norm_bound(indices, pnorm, level, None)
-    return bkd.asarray(indices[:, keep], dtype=bkd.int64_dtype())
+    return bkd.asarray(indices[:, keep], dtype=bkd.index_dtype())
 
 
 def _total_degree_shell(nvars: int, level: int) -> Optional[NDArray[np.intp]]:
@@ -226,15 +226,15 @@ def compute_hyperbolic_indices(
     for dd in range(max_level + 1):
         shell = _total_degree_shell(nvars, dd)
         if shell is None:
-            indices_list.append(bkd.zeros((nvars, 1), dtype=bkd.int64_dtype()))
+            indices_list.append(bkd.zeros((nvars, 1), dtype=bkd.index_dtype()))
             continue
         keep = _within_norm_bound(shell, pnorm, max_level, np_penalties)
         indices_list.append(
-            bkd.asarray(shell[:, keep], dtype=bkd.int64_dtype())
+            bkd.asarray(shell[:, keep], dtype=bkd.index_dtype())
         )
 
     if len(indices_list) == 0:
-        return bkd.zeros((nvars, 0), dtype=bkd.int64_dtype())
+        return bkd.zeros((nvars, 0), dtype=bkd.index_dtype())
 
     return bkd.hstack(indices_list)
 
@@ -265,7 +265,7 @@ def argsort_indices_lexiographically(indices: Array, bkd: Backend[Array]) -> Arr
     # Add total level as primary sort key
     keys.append(np_indices.sum(axis=0))
 
-    return bkd.asarray(np.lexsort(tuple(keys)), dtype=bkd.int64_dtype())
+    return bkd.asarray(np.lexsort(tuple(keys)), dtype=bkd.index_dtype())
 
 
 def sort_indices_lexiographically(indices: Array, bkd: Backend[Array]) -> Array:
@@ -365,9 +365,9 @@ def compute_downward_closure(indices: Array, bkd: Backend[Array]) -> Array:
     # Convert to array
     nclosure = len(closure_set)
     if nclosure == 0:
-        return bkd.zeros((nvars, 0), dtype=bkd.int64_dtype())
+        return bkd.zeros((nvars, 0), dtype=bkd.index_dtype())
 
-    result = bkd.zeros((nvars, nclosure), dtype=bkd.int64_dtype())
+    result = bkd.zeros((nvars, nclosure), dtype=bkd.index_dtype())
     for j, idx in enumerate(closure_set):
         for i in range(nvars):
             result[i, j] = idx[i]
@@ -461,4 +461,4 @@ def restrict_indices_to_leading_vars(
             "index set has two indices agreeing on the leading "
             f"{nvars} variables and both supported there."
         )
-    return bkd.asarray(restricted, dtype=bkd.int64_dtype())
+    return bkd.asarray(restricted, dtype=bkd.index_dtype())

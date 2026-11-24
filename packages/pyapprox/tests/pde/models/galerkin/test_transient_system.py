@@ -577,7 +577,7 @@ class TestNodalOutflux:
         paths = _Paths(bkd, backward_euler, "backward_euler")
         heat = paths.heat()
         dofs = bkd.asarray(
-            np.append(heat.ends, heat.near_right), dtype=bkd.int64_dtype()
+            np.append(heat.ends, heat.near_right), dtype=bkd.index_dtype()
         )
         velocity = bkd.asarray([1.0, -0.5, 2.0])
         nstates = len(heat.init_state)
@@ -817,7 +817,7 @@ class TestObservationRefusals:
             nodal_outflux_observations(
                 bkd,
                 11,
-                bkd.asarray(np.array([1, 2]), dtype=bkd.int64_dtype()),
+                bkd.asarray(np.array([1, 2]), dtype=bkd.index_dtype()),
                 bkd.ones((3,)),
                 [1],
             )

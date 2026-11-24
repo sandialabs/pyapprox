@@ -116,8 +116,8 @@ class _PeriodicallyConsistentRows(Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         self._essential, self._bkd = essential, bkd
-        self._first = bkd.asarray([a for a, _ in pairs], dtype=bkd.int64_dtype())
-        self._second = bkd.asarray([b for _, b in pairs], dtype=bkd.int64_dtype())
+        self._first = bkd.asarray([a for a, _ in pairs], dtype=bkd.index_dtype())
+        self._second = bkd.asarray([b for _, b in pairs], dtype=bkd.index_dtype())
         self._pairs = pairs
 
     def rows(self) -> RowSetProtocol[Array]:

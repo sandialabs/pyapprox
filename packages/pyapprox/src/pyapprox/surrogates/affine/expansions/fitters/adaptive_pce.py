@@ -415,7 +415,7 @@ class AdaptivePCEFitter(Generic[Array]):
                 break
 
             restricted = current_indices[
-                :, bkd.asarray(nonzero_idx, dtype=bkd.int64_dtype())
+                :, bkd.asarray(nonzero_idx, dtype=bkd.index_dtype())
             ]
             restricted = sort_indices_lexiographically(restricted, bkd)
 

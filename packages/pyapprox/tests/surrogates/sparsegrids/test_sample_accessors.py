@@ -54,12 +54,12 @@ class TestSampleTrackerFiltered:
         indices_list = []
         positions = []
         for i in range(level + 1):
-            idx = bkd.zeros((nvars,), dtype=bkd.int64_dtype())
+            idx = bkd.zeros((nvars,), dtype=bkd.index_dtype())
             idx = bkd.copy(idx)
             # set first dim to i
             idx_np = bkd.to_numpy(idx).copy()
             idx_np[0] = i
-            idx = bkd.asarray(idx_np, dtype=bkd.int64_dtype())
+            idx = bkd.asarray(idx_np, dtype=bkd.index_dtype())
             subspace = tp_factory(idx)
             pos = tracker.register(idx, subspace)
             indices_list.append(idx)
@@ -271,7 +271,7 @@ class TestMFAdaptiveFitterAccessors:
         growth = LinearGrowthRule(scale=1, shift=1)
         tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
 
-        max_1d = bkd.asarray([6, 1], dtype=bkd.int64_dtype())
+        max_1d = bkd.asarray([6, 1], dtype=bkd.index_dtype())
         admis = CompositeCriteria(
             MaxLevelCriteria(max_level=6, pnorm=1.0, bkd=bkd),
             Max1DLevelsCriteria(max_1d, bkd),

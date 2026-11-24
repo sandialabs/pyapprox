@@ -67,10 +67,10 @@ def _convert_result_to_backend(
         continuous_npartition_samples=bkd.asarray(result.continuous_npartition_samples),
         objective_value=bkd.asarray(result.objective_value),
         npartition_samples=bkd.asarray(
-            result.npartition_samples, dtype=bkd.int64_dtype()
+            result.npartition_samples, dtype=bkd.index_dtype()
         ),
         nsamples_per_model=bkd.asarray(
-            result.nsamples_per_model, dtype=bkd.int64_dtype()
+            result.nsamples_per_model, dtype=bkd.index_dtype()
         ),
         target_cost=result.target_cost,
         actual_cost=result.actual_cost,
@@ -102,8 +102,8 @@ def _build_allocation_result(
             partition_ratios=bkd.zeros((nmodels - 1,)),
             continuous_npartition_samples=bkd.zeros((npartitions,)),
             objective_value=bkd.array([float("inf")]),
-            npartition_samples=bkd.zeros((npartitions,), dtype=bkd.int64_dtype()),
-            nsamples_per_model=bkd.zeros((nmodels,), dtype=bkd.int64_dtype()),
+            npartition_samples=bkd.zeros((npartitions,), dtype=bkd.index_dtype()),
+            nsamples_per_model=bkd.zeros((nmodels,), dtype=bkd.index_dtype()),
             target_cost=target_cost,
             actual_cost=0.0,
             success=False,
@@ -113,12 +113,12 @@ def _build_allocation_result(
     # Floor all partitions to stay within budget, but clamp HF (index 0)
     # to at least 1 so near-integer values like 0.999 don't floor to 0.
     npartition_samples = bkd.asarray(
-        bkd.floor(continuous + 1e-8), dtype=bkd.int64_dtype()
+        bkd.floor(continuous + 1e-8), dtype=bkd.index_dtype()
     )
     if bkd.to_int(npartition_samples[0]) < 1:
         npartition_samples[0] = 1
     nsamples_per_model = bkd.asarray(
-        est._compute_nsamples_per_model(npartition_samples), dtype=bkd.int64_dtype()
+        est._compute_nsamples_per_model(npartition_samples), dtype=bkd.index_dtype()
     )
     actual_cost = bkd.to_float(bkd.sum(nsamples_per_model * est._costs))
 
@@ -354,10 +354,10 @@ class ACVAllocator(Allocator[Array]):
             continuous_npartition_samples=self._bkd.zeros((npartitions,)),
             objective_value=self._bkd.array([float("inf")]),
             npartition_samples=self._bkd.zeros(
-                (npartitions,), dtype=self._bkd.int64_dtype()
+                (npartitions,), dtype=self._bkd.index_dtype()
             ),
             nsamples_per_model=self._bkd.zeros(
-                (nmodels,), dtype=self._bkd.int64_dtype()
+                (nmodels,), dtype=self._bkd.index_dtype()
             ),
             target_cost=target_cost,
             actual_cost=0.0,
@@ -518,10 +518,10 @@ class AnalyticalAllocator(Allocator[Array]):
             continuous_npartition_samples=self._bkd.zeros((npartitions,)),
             objective_value=self._bkd.array([float("inf")]),
             npartition_samples=self._bkd.zeros(
-                (npartitions,), dtype=self._bkd.int64_dtype()
+                (npartitions,), dtype=self._bkd.index_dtype()
             ),
             nsamples_per_model=self._bkd.zeros(
-                (nmodels,), dtype=self._bkd.int64_dtype()
+                (nmodels,), dtype=self._bkd.index_dtype()
             ),
             target_cost=target_cost,
             actual_cost=0.0,

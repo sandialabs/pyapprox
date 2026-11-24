@@ -132,7 +132,7 @@ class _Setup:
         self, indices: List[int], weights: NumpyArray
     ) -> ElementSampledResidual[NumpyArray]:
         bkd = self.problem.bkd
-        elements = ElementSet(bkd.asarray(indices, dtype=bkd.int64_dtype()), bkd)
+        elements = ElementSet(bkd.asarray(indices, dtype=bkd.index_dtype()), bkd)
         return ElementSampledResidual.with_weights(
             self.elementwise.restrict(elements),
             self.parameterization,

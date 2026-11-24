@@ -93,7 +93,7 @@ def _build(bkd, nvars, selected_level, candidate_key, target_fn, cost=1.0):
     subspaces = {}
     positions = {}
     for key in selected_keys + [candidate_key]:
-        idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+        idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
         subspace = tp_factory(idx)
         subspaces[key] = subspace
         positions[key] = tracker.register(idx, subspace)
@@ -107,7 +107,7 @@ def _build(bkd, nvars, selected_level, candidate_key, target_fn, cost=1.0):
         )
     )
     candidate = Candidate(
-        index=bkd.asarray(list(candidate_key), dtype=bkd.int64_dtype()),
+        index=bkd.asarray(list(candidate_key), dtype=bkd.index_dtype()),
         subspace=subspaces[candidate_key],
         box=[
             (sign, subspaces[key])
@@ -123,7 +123,7 @@ def _build(bkd, nvars, selected_level, candidate_key, target_fn, cost=1.0):
     def surrogate(keys):
         indices = bkd.asarray(
             [[k[d] for k in keys] for d in range(nvars)],
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         return CombinationSurrogate(
             bkd,

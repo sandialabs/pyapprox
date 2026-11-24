@@ -133,7 +133,7 @@ def _build_candidate(
     subspaces = {}
     positions = {}
     for key in selected_keys + [candidate_key]:
-        idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+        idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
         subspace = tp_factory(idx)
         subspaces[key] = subspace
         positions[key] = tracker.register(idx, subspace)
@@ -147,7 +147,7 @@ def _build_candidate(
         for key, sign in smolyak.delta(candidate_key)
     ]
     candidate = Candidate(
-        index=bkd.asarray(list(candidate_key), dtype=bkd.int64_dtype()),
+        index=bkd.asarray(list(candidate_key), dtype=bkd.index_dtype()),
         subspace=subspaces[candidate_key],
         box=box,
         new_sample_local_indices=tracker.get_unique_local_indices(
@@ -160,7 +160,7 @@ def _build_candidate(
     def surrogate(keys):
         indices = bkd.asarray(
             [[k[d] for k in keys] for d in range(nvars)],
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         coefs = compute_smolyak_coefficients(indices, bkd)
         return CombinationSurrogate(
@@ -271,7 +271,7 @@ class TestL2Surplus:
         )
         local = bkd.asarray(
             list(candidate.new_sample_local_indices),
-            dtype=bkd.int64_dtype(),
+            dtype=bkd.index_dtype(),
         )
         new_samples = candidate.subspace.get_samples()[:, local]
         diff = sel_plus(new_samples) - selected(new_samples)
@@ -428,7 +428,7 @@ def _stall_candidate(
     subspaces: Dict[Tuple[int, ...], TensorProductSubspace[Array]] = {}
     positions: Dict[Tuple[int, ...], int] = {}
     for key in selected_keys + [candidate_key]:
-        idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+        idx = bkd.asarray(list(key), dtype=bkd.index_dtype())
         subspace = tp_factory(idx)
         subspaces[key] = subspace
         positions[key] = tracker.register(idx, subspace)
@@ -437,7 +437,7 @@ def _stall_candidate(
     tracker.append_new_values(target_fn(all_samples))
     tracker.distribute_values_to_subspaces()
     candidate = Candidate(
-        index=bkd.asarray(list(candidate_key), dtype=bkd.int64_dtype()),
+        index=bkd.asarray(list(candidate_key), dtype=bkd.index_dtype()),
         subspace=subspaces[candidate_key],
         box=[(sign, subspaces[key]) for key, sign in smolyak.delta(candidate_key)],
         new_sample_local_indices=tracker.get_unique_local_indices(

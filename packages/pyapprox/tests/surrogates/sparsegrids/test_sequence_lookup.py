@@ -286,7 +286,7 @@ def _extend_to_level_two(bkd: Backend[Array], store: ResultStore[Array]) -> int:
     """Key one level-2 point in dimension 0; return the stored length."""
     factory = _leja_factory(bkd)
     lookup = SequencePositionLookup(bkd, factory, store, _MAX_LEVEL)
-    index = bkd.zeros((_NVARS,), dtype=bkd.int64_dtype())
+    index = bkd.zeros((_NVARS,), dtype=bkd.index_dtype())
     index[0] = 2
     level_two = factory(index).get_samples_1d(0)[0]
     sample = bkd.stack([level_two[-1:], lookup.sequence(1)[:1]], axis=0)
@@ -312,7 +312,7 @@ class TestLowerLevelGrid:
         nstored = _extend_to_level_two(bkd, store)
         lower = SequencePositionLookup(bkd, _leja_factory(bkd), store, 1)
         # Extending dimension 1 to level 1 makes the lower grid save.
-        index = bkd.zeros((_NVARS,), dtype=bkd.int64_dtype())
+        index = bkd.zeros((_NVARS,), dtype=bkd.index_dtype())
         index[1] = 1
         level_one = _leja_factory(bkd)(index).get_samples_1d(1)[0]
         sample = bkd.stack([lower.sequence(0)[:1], level_one[-1:]], axis=0)

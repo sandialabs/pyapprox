@@ -183,7 +183,7 @@ def _build_mf_fitter(bkd, indicator_name: str):
     # loose, since the sample budget stops the loop, while the trailing
     # config cap keeps the hierarchy to two fidelities.
     max_1d = bkd.asarray(
-        [20] * nvars + [max_config_level], dtype=bkd.int64_dtype()
+        [20] * nvars + [max_config_level], dtype=bkd.index_dtype()
     )
     admis = CompositeCriteria(
         MaxLevelCriteria(max_level=20, pnorm=1.0, bkd=bkd),

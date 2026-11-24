@@ -26,7 +26,7 @@ _TIMES = [1, 3]
 
 def _functional(bkd: Backend[Array]) -> TimeIndexedObservationFunctional[Array]:
     return TimeIndexedObservationFunctional(
-        bkd.asarray(_INDICES, dtype=bkd.int64_dtype()),
+        bkd.asarray(_INDICES, dtype=bkd.index_dtype()),
         bkd.asarray(_WEIGHTS),
         _TIMES,
         _NSTATES,
@@ -123,7 +123,7 @@ class TestTimeIndexedObservationFunctional:
 
     def test_invalid_arguments_raise(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        indices = bkd.asarray(_INDICES, dtype=bkd.int64_dtype())
+        indices = bkd.asarray(_INDICES, dtype=bkd.index_dtype())
         with pytest.raises(ValueError, match="same shape"):
             TimeIndexedObservationFunctional(
                 indices, bkd.ones((2, 3)), _TIMES, _NSTATES, _NPARAMS, bkd
