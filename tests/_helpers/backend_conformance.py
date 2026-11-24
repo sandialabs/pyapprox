@@ -1031,10 +1031,8 @@ CASES: List[Case] = [
 NOT_YET_COVERED: frozenset[str] = frozenset()
 
 # ArrayProtocol members without a member row, shrink-only like
-# NOT_YET_COVERED (baseline conformance_array_uncovered). In-place
-# ``__setitem__`` gets none: generic code updates arrays through
-# ``index_update`` and ``index_add``, and the protocol is to drop it.
-NOT_YET_COVERED_ARRAY: frozenset[str] = frozenset({"__setitem__"})
+# NOT_YET_COVERED (baseline conformance_array_uncovered) and now empty.
+NOT_YET_COVERED_ARRAY: frozenset[str] = frozenset()
 
 # Public methods of each backend class that are on neither Backend nor
 # AutodiffBackend, so generic code cannot call them. Shrink-only

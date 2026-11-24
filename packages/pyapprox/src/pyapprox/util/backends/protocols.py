@@ -93,7 +93,9 @@ class ArrayProtocol(Protocol):
 
     def __ne__(self: Array, other: Union[float, Array]) -> Array: ...  # type: ignore[override]
 
-    def __setitem__(self: Array, index: Any, value: Any) -> None: ...
+    # No __setitem__: JAX arrays are immutable and an in-place write can
+    # break torch autograd, so generic code updates arrays through
+    # Backend.index_update and Backend.index_add.
 
     def __neg__(self: Array) -> Array: ...
 

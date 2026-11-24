@@ -6,6 +6,12 @@ mypy_src=279
 # signatures. Measured alone it reports a fraction of this, because the
 # unresolved pyapprox imports become Any and the errors never surface.
 mypy_benchmarks=210
+# In-place writes into backend arrays ("Unsupported target for indexed
+# assignment": ArrayProtocol has no __setitem__), counted apart from the
+# mypy totals above by scripts/mypy_diff.sh. Shrink-only: convert them
+# to index_update / index_add or collect-and-stack when touching a file.
+inplace_writes:pyapprox=497
+inplace_writes:pyapprox_benchmarks=23
 moved:pyapprox.surrogates.affine.univariate=206
 moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
@@ -28,6 +34,6 @@ conformance_uncovered=0
 # Backend protocol methods the experimental JaxBkd lacks (NOT_YET_ON_JAX).
 conformance_not_on_jax=0
 # ArrayProtocol members without a member row (NOT_YET_COVERED_ARRAY).
-conformance_array_uncovered=1
+conformance_array_uncovered=0
 # Public backend-class methods on no protocol (BACKEND_EXTRAS).
 backend_extras=3
