@@ -28,7 +28,6 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
-    ATOL,
     SMOOTH,
     Adr,
     Coefficients,
@@ -65,7 +64,7 @@ def test_matching_nodes_give_the_single_domain_error(
     assert abs(coupled - single) < 0.05 * single
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
-    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < ATOL
+    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < problem.balance_atol()
 
 
 def test_different_nodes_converge_spectrally(bkd: Backend[Array]) -> None:

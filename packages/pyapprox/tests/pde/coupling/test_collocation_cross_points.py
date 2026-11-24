@@ -28,7 +28,6 @@ from pyapprox.pde.collocation.quadrature.boundary_quadrature import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
-    ATOL,
     CUBIC,
     CUBIC_3D,
     SMOOTH,
@@ -130,4 +129,4 @@ def test_the_fluxes_balance_at_the_vertex(
     )
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
-    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < ATOL
+    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < problem.balance_atol()

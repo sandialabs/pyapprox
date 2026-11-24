@@ -32,7 +32,6 @@ import pytest
 
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.coupling_collocation import (
-    ATOL,
     CUBIC,
     SMOOTH,
     CoupledCollocation,
@@ -127,4 +126,4 @@ def test_the_interface_fluxes_balance(
     lam = problem.solve_skeleton()
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
-    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < ATOL
+    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < problem.balance_atol()

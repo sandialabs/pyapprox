@@ -129,10 +129,52 @@ from tests._helpers.physics_test_utils import solve_steady_dirichlet
 
 STEADY = TimeWindow.steady()
 ATOL = 1e-11
-# The subdomain solves' tolerance: re-solving a subdomain can move its
-# flux by about this much, so a balance recomputed at a solved skeleton
-# is bounded by it, not by the skeleton's ATOL.
-SUBDOMAIN_ATOL = 1e-10
+
+
+@dataclass(frozen=True)
+class Tolerances:
+    """A coupled problem's Newton tolerances.
+
+    A subdomain solve stops at ``floors`` times its box's roundoff floor
+    (:meth:`Box.roundoff_floor`, eps |J| |u|), so its tolerance scales with
+    the box's node count, diffusion and solution size; an absolute one
+    either sits below the floor of a stiff box (two species at 12 nodes
+    floor at 1.6e-11 to 8.5e-11) or is loose for a mild one. The skeleton
+    stops at ``skeleton``. A tolerance is met only to a small factor, so a
+    balance recomputed at a solved skeleton is bounded by :meth:`balance`,
+    ten times the skeleton's.
+
+    Raises
+    ------
+    ValueError
+        If either value is not positive.
+    """
+
+    skeleton: float = 1e-11
+    floors: float = 10.0
+
+    def __post_init__(self) -> None:
+        if not (self.skeleton > 0.0 and self.floors > 0.0):
+            raise ValueError(f"tolerances must be positive, got {self}")
+
+    def subdomain(self, box: "Box[Array]") -> float:
+        """The subdomain-solve tolerance of ``box``."""
+        return self.floors * box.roundoff_floor()
+
+    def balance(self) -> float:
+        """The bound on a recomputed flux balance."""
+        return 10.0 * self.skeleton
+
+
+def _machine_epsilon(bkd: Backend[Array]) -> float:
+    """The backend's configured epsilon: the gap above 1, found in its own
+    arithmetic."""
+    one = bkd.ones((1,))
+    eps = bkd.ones((1,))
+    while bkd.to_float((one + 0.5 * eps)[0]) != 1.0:
+        eps = 0.5 * eps
+    return bkd.to_float(eps[0])
+
 
 # Exact solutions, in the verification core's expression syntax.
 CUBIC = "1 + x - 2*x**2 + x**3 + x*y + y**3/2"
@@ -467,6 +509,19 @@ class Box(Generic[Array]):
     def ncomponents(self) -> int:
         return len(self._problem.fields())
 
+    def roundoff_floor(self) -> float:
+        r"""An estimate of the pointwise residual's roundoff floor,
+        :math:`\epsilon\, \|J\|_\infty \max(1, \|u\|_\infty)`: the
+        Jacobian at the zero state (about :math:`D n^4` for collocation)
+        applied to a state the size of the exact solution."""
+        bkd = self._bkd
+        nstates = self._physics.nstates()
+        jacobian = self._physics.interior_jacobian(bkd.zeros((nstates,)), 0.0)
+        norm = bkd.to_float(bkd.max(bkd.sum(bkd.abs(jacobian), axis=1)))
+        exact = solution_at(self._problem, self.points(), bkd)
+        scale = max(1.0, bkd.to_float(bkd.max(bkd.abs(exact))))
+        return _machine_epsilon(bkd) * norm * scale
+
     def points(self) -> Array:
         """Shape: (d, npts)"""
         return self._mesh.points()
@@ -529,10 +584,12 @@ def box_response(
     outer: Sequence[Side],
     ports: set[int],
     rule: SideRuleProtocol,
+    tolerances: Tolerances = Tolerances(),
 ) -> Response[Array]:
     """The box's response with ports ``port_sides``, each side's flux
     tested by ``rule``, and the exact data on its ``outer`` sides except
-    at the nodes ``ports``."""
+    at the nodes ``ports``; its solves stop at
+    ``tolerances.subdomain(box)``."""
     bkd = box.mesh().bkd()
     return collocation_pinned_response(
         CollocationSystem(box.physics(), box.essential(outer, ports)),
@@ -541,10 +598,10 @@ def box_response(
         port_sides,
         rule,
         RecomputeAlways(BackendDenseLU(bkd)),
-        # The pointwise residual's roundoff floor grows like D n^4 eps |u|
-        # (5.6e-12 for two species at 12 nodes); a linear subproblem
-        # reaches it in one step, so the tolerance only stays above it.
-        Newton(atol=SUBDOMAIN_ATOL, rtol=0.0, maxiters=30),
+        # The pointwise residual's roundoff floor grows like D n^4 eps |u|;
+        # a linear subproblem reaches it in one step, so the tolerance only
+        # stays above it, by a multiple of the box's own estimate.
+        Newton(atol=tolerances.subdomain(box), rtol=0.0, maxiters=30),
     )
 
 
@@ -599,7 +656,8 @@ class CoupledCollocation(Generic[Array]):
 
     ``rule`` tests each side's flux; omitted, lumped
     (``CollocationNodeRule``) when matching and exact
-    (``GaussLegendreSideRule``) when interpolating.
+    (``GaussLegendreSideRule``) when interpolating. ``tolerances`` are the
+    skeleton's and the subdomains' Newton tolerances.
 
     A ``model`` of k components has a skeleton of k components per node
     (:class:`~pyapprox.pde.coupling.spaces.ComponentSkeletonSpace`, DOF
@@ -616,7 +674,9 @@ class CoupledCollocation(Generic[Array]):
         interpolate: bool = False,
         rule: Optional[SideRuleProtocol] = None,
         domain: Optional[Domain[Array]] = None,
+        tolerances: Tolerances = Tolerances(),
     ) -> None:
+        self._tolerances = tolerances
         self._domain: Domain[Array] = UnitBox() if domain is None else domain
         self._topo = TensorBoxPartition(ncells)
         if len(ns) != self._topo.nsubdomains():
@@ -673,7 +733,14 @@ class CoupledCollocation(Generic[Array]):
     ) -> Response[Array]:
         """The box's response with ports ``port_sides`` and the exact data
         on its ``outer`` sides except at the nodes ``ports``."""
-        return box_response(box, port_sides, outer, ports, self._rule)
+        return box_response(
+            box,
+            port_sides,
+            outer,
+            ports,
+            self._rule,
+            self._tolerances,
+        )
 
     def _piece(self, subdomain: int) -> Piece[Array]:
         bkd, ncells = self._bkd, self._ncells
@@ -799,6 +866,10 @@ class CoupledCollocation(Generic[Array]):
             BackendVectorSpace(descriptor, bkd), subdomains, DenseSchur(bkd)
         )
 
+    def balance_atol(self) -> float:
+        """The bound on a flux balance recomputed at a solved skeleton."""
+        return self._tolerances.balance()
+
     def solve_skeleton(self) -> Array:
         """The skeleton values, the outer-boundary DOFs held at the exact
         data. Shape: (ndofs, 1)"""
@@ -818,7 +889,9 @@ class CoupledCollocation(Generic[Array]):
         lu: RecomputeAlways[Array, DenseFormat[Array]] = RecomputeAlways(
             BackendDenseLU(bkd)
         )
-        outer: Newton[Array, Array] = Newton(atol=ATOL, rtol=0.0, maxiters=20)
+        outer: Newton[Array, Array] = Newton(
+            atol=self._tolerances.skeleton, rtol=0.0, maxiters=20
+        )
         point = SteadySystem(residual, space, lu).solve(outer, space.zeros(1))
         if not point.converged():
             raise RuntimeError("the skeleton solve did not converge")

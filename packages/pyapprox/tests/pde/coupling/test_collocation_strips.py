@@ -34,7 +34,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.operators import LinearizationPoint
 from tests._helpers.coupling_collocation import (
-    ATOL,
     CUBIC,
     CUBIC_3D,
     SMOOTH,
@@ -104,7 +103,7 @@ def test_the_interface_fluxes_balance(
     lam = problem.solve_skeleton()
     balance = problem.residual()(lam)[:, 0]
     free = sorted(set(range(int(lam.shape[0]))) - set(problem.pinned()))
-    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < ATOL
+    assert bkd.to_float(bkd.max(bkd.abs(balance[free]))) < problem.balance_atol()
 
 
 # D = 2 (1 + x/2) + y: positive on the square, and linear, so a cubic's
