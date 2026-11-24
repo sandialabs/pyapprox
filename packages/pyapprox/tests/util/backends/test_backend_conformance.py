@@ -39,8 +39,9 @@ from tests._helpers.backend_conformance import (
 
 
 @pytest.mark.parametrize("case", CASES, ids=case_id)
-def test_conforms(bkd: Backend[Array], case: Case) -> None:
-    run_case(bkd, case)
+def test_conforms(config_bkd: Backend[Array], case: Case) -> None:
+    """Every row on every backend under every precision."""
+    run_case(config_bkd, case)
 
 
 def _compiling_torch_bkd() -> ConformanceBackend[Any]:

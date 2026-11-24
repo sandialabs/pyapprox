@@ -68,6 +68,32 @@ def bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
     return factory()  # type: ignore[no-any-return]
 
 
+def _configured_bkd(name: str, precision: Precision) -> Union[NumpyBkd, TorchBkd]:
+    if name == "NumpyBkd":
+        return NumpyBkd(precision=precision)
+    pytest.importorskip("torch")
+    from pyapprox.util.backends.torch import TorchBkd
+
+    return TorchBkd(precision=precision)
+
+
+# The configurations config_bkd runs over: backend x precision, on the CPU.
+_CONFIGURATIONS: List[Tuple[str, Precision]] = [
+    (name, precision)
+    for name in ("NumpyBkd", "TorchBkd")
+    for precision in (Precision.DOUBLE, Precision.SINGLE)
+]
+
+
+@pytest.fixture(params=_CONFIGURATIONS, ids=lambda pair: f"{pair[0]}-{pair[1].value}")
+def config_bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
+    """Opt-in backend fixture over every configuration (backend x
+    precision); a library that is not installed is skipped. The default
+    ``bkd`` fixture stays double precision."""
+    name, precision = cast(Tuple[str, Precision], request.param)
+    return _configured_bkd(name, precision)
+
+
 @pytest.fixture
 def numpy_bkd() -> NumpyBkd:
     """Single-backend fixture for backend-independent tests."""

@@ -843,7 +843,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         else:
             raise ValueError("p must be either 1.0 or 2.0")
         result: NDArray[Any] = scipy.spatial.distance.cdist(XA, XB, metric)
-        return result
+        # SciPy computes and returns float64 whatever the inputs; the
+        # result takes the inputs' dtype, as on the other backends.
+        return result.astype(np.result_type(XA, XB), copy=False)
 
     @staticmethod
     def tril(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
@@ -938,6 +940,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         b: NDArray[Any],
         rcond: Optional[float] = None,
     ) -> NDArray[Any]:
+        if rcond is None:
+            # The input dtype's eps, as torch uses: NumPy computes float32
+            # in double and would take float64's eps, keeping singular
+            # values that are float32 rounding. Equal to NumPy's default
+            # for float64.
+            rcond = max(a.shape[-2:]) * float(np.finfo(a.dtype).eps)
         result: NDArray[Any] = np.linalg.lstsq(a, b, rcond=rcond)[0]
         return result
 
@@ -1003,7 +1011,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         rowvar: bool = True,
         ddof: int = 1,
     ) -> NDArray[Any]:
-        result = np.cov(array, rowvar=rowvar, ddof=ddof)
+        # np.cov promotes to at least float64 unless told the dtype; floating
+        # and complex input keep theirs, integer input NumPy's promotion.
+        inexact = np.issubdtype(array.dtype, np.inexact)
+        dtype = array.dtype if inexact else None
+        result = np.cov(array, rowvar=rowvar, ddof=ddof, dtype=dtype)
         # Ensure result is always 2D (np.cov returns scalar for 1 variable)
         return np.atleast_2d(np.asarray(result))
 

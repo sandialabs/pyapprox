@@ -122,8 +122,8 @@ class Sparse:
 
     dense: NDArray[np.float64]
 
-    def to_scipy(self) -> csc_matrix:
-        return csc_matrix(self.dense)
+    def to_scipy(self, dtype: Any = np.float64) -> csc_matrix:
+        return csc_matrix(self.dense.astype(dtype))
 
 
 Arg = Union[
@@ -158,7 +158,12 @@ class Case:
     member instead of a backend method: ``method`` names it, and it is
     called on the first argument with the rest (read, for a property in
     :data:`ARRAY_PROPERTIES`), its reference the same member of the NumPy
-    array.
+    array. A ``configured`` row's reference also receives the backend's
+    ``precision`` as a keyword (its answer depends on the configuration).
+    Under single precision values are compared within ``single_tol``
+    times the eps of the result dtype (``10`` under double precision). A
+    ``double_only`` row tests something the protocol leaves to the
+    library under other precisions, and is skipped there.
     """
 
     method: str
@@ -174,6 +179,9 @@ class Case:
     canonical: Optional[Callable[[Any, Any], Any]] = None
     optional: bool = False
     member: bool = False
+    configured: bool = False
+    single_tol: float = 10.0
+    double_only: bool = False
 
 
 # The ArrayProtocol members that are properties: a member row reads them
@@ -237,6 +245,37 @@ def _none(*args: Any, **kwargs: Any) -> None:
 
 def _isdtype(array: NDArray[Any], kind: str) -> bool:
     return bool(np.isdtype(array.dtype, kind))
+
+
+def _configured_real(*, precision: Precision) -> type[np.floating[Any]]:
+    return np.float32 if precision is Precision.SINGLE else np.float64
+
+
+def _configured_complex(*, precision: Precision) -> type[np.complexfloating[Any, Any]]:
+    return np.complex64 if precision is Precision.SINGLE else np.complex128
+
+
+def _working(array: NDArray[Any], *, precision: Precision) -> NDArray[Any]:
+    """``array`` in the working dtype of its kind under ``precision``."""
+    if precision is Precision.SINGLE:
+        if array.dtype == np.float64:
+            return array.astype(np.float32)
+        if array.dtype == np.complex128:
+            return array.astype(np.complex64)
+    return array
+
+
+def _working_result_type(*arrays: NDArray[Any], precision: Precision) -> Any:
+    return np.result_type(*(_working(a, precision=precision) for a in arrays))
+
+
+def _real_of(dtype: Any) -> Any:
+    # The real dtype of a floating or complex dtype's width.
+    return np.finfo(dtype).dtype
+
+
+def _complex_of(dtype: Any) -> Any:
+    return np.result_type(dtype, np.complex64)
 
 
 _A = _rand((2, 3))
@@ -307,17 +346,32 @@ _CSQ = _crand((3, 3), seed=10)
 _HERM = _CSQ @ _CSQ.conj().T + np.eye(3)
 
 
+def _working_eps(precision: Precision) -> float:
+    single = precision is Precision.SINGLE
+    return float(np.finfo(np.float32 if single else np.float64).eps)
+
+
 def _lstsq(
-    a: NDArray[Any], b: NDArray[Any], rcond: Optional[float] = None
+    a: NDArray[Any],
+    b: NDArray[Any],
+    rcond: Optional[float] = None,
+    *,
+    precision: Precision,
 ) -> NDArray[Any]:
+    # The rank cutoff of the working dtype, as the backend computes in it.
+    if rcond is None:
+        rcond = max(a.shape[-2:]) * _working_eps(precision)
     solution: NDArray[Any] = np.linalg.lstsq(a, b, rcond=rcond)[0]
     return solution
 
 
-def _pinv(matrix: NDArray[Any], rtol: Optional[float] = None) -> NDArray[Any]:
-    # The Array API default cutoff, not NumPy's legacy rcond=1e-15.
+def _pinv(
+    matrix: NDArray[Any], rtol: Optional[float] = None, *, precision: Precision
+) -> NDArray[Any]:
+    # The Array API default cutoff, not NumPy's legacy rcond=1e-15, in
+    # the working dtype's eps.
     if rtol is None:
-        rtol = max(matrix.shape[-2:]) * float(np.finfo(matrix.dtype).eps)
+        rtol = max(matrix.shape[-2:]) * _working_eps(precision)
     return np.linalg.pinv(matrix, rtol=rtol)
 
 
@@ -333,9 +387,12 @@ _SIGN_WEIGHTS = _rand((8,), seed=11)
 
 def _column_signs(bkd: "ConformanceBackend[Array]", vectors: Array) -> Array:
     # Arithmetic on the comparison, not sign or where: it needs nothing
-    # from a backend beyond the operators.
-    weights = bkd.asarray(_SIGN_WEIGHTS[: vectors.shape[0]])
-    return (weights @ vectors >= 0) * 2.0 - 1.0
+    # from a backend beyond the operators. Every operand is in the
+    # vectors' own dtype, so the signs do not widen a float32 result.
+    dtype = bkd.real_dtype_of(vectors.dtype)
+    weights = bkd.asarray(_SIGN_WEIGHTS[: vectors.shape[0]], dtype=dtype)
+    two, one = bkd.asarray(2.0, dtype=dtype), bkd.asarray(1.0, dtype=dtype)
+    return (weights @ vectors >= 0) * two - one
 
 
 def _canonical_eigh(
@@ -534,31 +591,37 @@ CASES: List[Case] = [
          raises=AssertionError, eager_only=True),
     # ---- dtypes and conversion
     # A dtype object is not an array, so there is nothing to trace.
-    Case("default_dtype", "f64", reference=lambda: np.float64,
-         expect=Expect.DTYPE, eager_only=True),
-    Case("double_dtype", "f64", reference=lambda: np.float64,
-         expect=Expect.DTYPE, eager_only=True),
-    Case("complex_dtype", "c128", reference=lambda: np.complex128,
-         expect=Expect.DTYPE, eager_only=True),
+    Case("default_dtype", "real", reference=_configured_real,
+         expect=Expect.DTYPE, eager_only=True, configured=True),
+    Case("double_dtype", "real", reference=_configured_real,
+         expect=Expect.DTYPE, eager_only=True, configured=True),
+    Case("complex_dtype", "complex", reference=_configured_complex,
+         expect=Expect.DTYPE, eager_only=True, configured=True),
     Case("int64_dtype", "i64", reference=lambda: np.int64,
          expect=Expect.DTYPE, eager_only=True),
-    Case("precision", "double", reference=lambda: Precision.DOUBLE,
-         expect=Expect.HOST, eager_only=True),
+    Case("precision", "configured", reference=lambda *, precision: precision,
+         expect=Expect.HOST, eager_only=True, configured=True),
     Case("device", "cpu", reference=lambda: "cpu", expect=Expect.HOST,
          eager_only=True),
-    Case("real_dtype", "f64", reference=lambda: np.float64,
-         expect=Expect.DTYPE, eager_only=True),
+    Case("real_dtype", "real", reference=_configured_real,
+         expect=Expect.DTYPE, eager_only=True, configured=True),
     Case("index_dtype", "i64", reference=lambda: np.int64,
          expect=Expect.DTYPE, eager_only=True),
-    Case("eps", "f64", reference=lambda: float(np.finfo(np.float64).eps),
-         expect=Expect.HOST, eager_only=True),
-    Case("result_type", "real-complex", (_A, _C), expect=Expect.DTYPE,
+    Case("eps", "real",
+         reference=lambda *, precision: float(
+             np.finfo(_configured_real(precision=precision)).eps),
+         expect=Expect.HOST, eager_only=True, configured=True),
+    Case("result_type", "real-complex", (_A, _C),
+         reference=_working_result_type, configured=True, expect=Expect.DTYPE,
          eager_only=True),
-    Case("result_type", "index-real", (_index(1), _A), expect=Expect.DTYPE,
+    Case("result_type", "index-real", (_index(1), _A),
+         reference=_working_result_type, configured=True, expect=Expect.DTYPE,
          eager_only=True),
-    Case("result_type", "bool-index", (_MASK, _index(1)), expect=Expect.DTYPE,
+    Case("result_type", "bool-index", (_MASK, _index(1)),
+         reference=_working_result_type, configured=True, expect=Expect.DTYPE,
          eager_only=True),
-    Case("result_type", "one", (_C,), expect=Expect.DTYPE, eager_only=True),
+    Case("result_type", "one", (_C,), reference=_working_result_type,
+         configured=True, expect=Expect.DTYPE, eager_only=True),
     Case("isdtype", "real-floating", (_A, "real floating"), reference=_isdtype,
          expect=Expect.HOST, eager_only=True),
     Case("isdtype", "complex-is-not-real", (_C, "real floating"),
@@ -573,20 +636,16 @@ CASES: List[Case] = [
          expect=Expect.HOST, eager_only=True),
     Case("isdtype", "unknown-kind", (_A, "floating"), raises=ValueError,
          eager_only=True),
-    Case("real_dtype_of", "complex", (Role.COMPLEX,),
-         reference=lambda dtype: np.float64, expect=Expect.DTYPE,
-         eager_only=True),
-    Case("real_dtype_of", "real", (Role.DEFAULT,),
-         reference=lambda dtype: np.float64, expect=Expect.DTYPE,
-         eager_only=True),
+    Case("real_dtype_of", "complex", (Role.COMPLEX,), reference=_real_of,
+         expect=Expect.DTYPE, eager_only=True),
+    Case("real_dtype_of", "real", (Role.DEFAULT,), reference=_real_of,
+         expect=Expect.DTYPE, eager_only=True),
     Case("real_dtype_of", "index", (Role.INDEX,), raises=ValueError,
          eager_only=True),
-    Case("complex_dtype_of", "real", (Role.DEFAULT,),
-         reference=lambda dtype: np.complex128, expect=Expect.DTYPE,
-         eager_only=True),
-    Case("complex_dtype_of", "complex", (Role.COMPLEX,),
-         reference=lambda dtype: np.complex128, expect=Expect.DTYPE,
-         eager_only=True),
+    Case("complex_dtype_of", "real", (Role.DEFAULT,), reference=_complex_of,
+         expect=Expect.DTYPE, eager_only=True),
+    Case("complex_dtype_of", "complex", (Role.COMPLEX,), reference=_complex_of,
+         expect=Expect.DTYPE, eager_only=True),
     Case("complex_dtype_of", "bool", (Role.BOOL,), raises=ValueError,
          eager_only=True),
     Case("real", "complex", (_C,), expect=Expect.DEFAULT),
@@ -599,8 +658,8 @@ CASES: List[Case] = [
     Case("asarray", "index", (_index(3, 1, 2),), {"dtype": Role.INDEX},
          expect=Expect.INDEX),
     Case("asarray", "complex", (_C,), {"dtype": Role.COMPLEX}),
-    Case("to_numpy", "float", (_A,), reference=lambda x: x, expect=Expect.HOST,
-         eager_only=True),
+    Case("to_numpy", "float", (_A,), reference=_working, configured=True,
+         expect=Expect.HOST, eager_only=True),
     Case("to_bool", "true", (np.asarray([[2.0]]),), reference=lambda x: True,
          expect=Expect.HOST, eager_only=True),
     Case("to_bool", "false-0d", (np.asarray(0.0),), reference=lambda x: False,
@@ -971,19 +1030,22 @@ CASES: List[Case] = [
     # autodiff libraries give the gradient of a symmetric input.
     Case("eigvalsh", "spd", (_SPD,)),
     Case("eigvalsh", "hermitian", (_HERM,), expect=Expect.DEFAULT),
-    Case("pinv", "tall", (_TALL,), reference=_pinv, differentiable=True),
-    # 8e-16 is above the default cutoff 2 * eps, below NumPy's legacy 1e-15.
-    Case("pinv", "default-cutoff", (np.diag([1.0, 8e-16]),), reference=_pinv),
+    Case("pinv", "tall", (_TALL,), reference=_pinv, configured=True,
+         differentiable=True),
+    # Under double precision 8e-16 is above the default cutoff 2 * eps and
+    # below NumPy's legacy 1e-15; under single precision it is cut.
+    Case("pinv", "default-cutoff", (np.diag([1.0, 8e-16]),), reference=_pinv,
+         configured=True),
     Case("pinv", "rtol", (np.diag([1.0, 1e-3]),), {"rtol": 1e-2},
-         reference=_pinv),
+         reference=_pinv, configured=True),
     # Eager only: torch's solver has an output of data-dependent shape, so
     # it does not compile; a compiled kernel solves through pinv or qr.
     Case("lstsq", "vector-rhs", (_TALL, _TALL_RHS[:, 0]), reference=_lstsq,
-         eager_only=True, differentiable=True),
+         configured=True, eager_only=True, differentiable=True),
     Case("lstsq", "matrix-rhs", (_TALL, _TALL_RHS), reference=_lstsq,
-         eager_only=True, differentiable=True),
+         configured=True, eager_only=True, differentiable=True),
     Case("lstsq", "rank-deficient", (_DEFICIENT, _TALL_RHS), reference=_lstsq,
-         eager_only=True),
+         configured=True, eager_only=True),
     Case("cond", "2-norm", (_GEN,), differentiable=True),
     Case("cond", "fro", (_GEN, "fro"), differentiable=True),
     Case("norm", "vector", (_RHS1,), differentiable=True),
@@ -1011,7 +1073,9 @@ CASES: List[Case] = [
     _member("shape", "matrix", (_A,), expect=Expect.HOST, eager_only=True),
     _member("shape", "scalar", (_SCALAR,), expect=Expect.HOST, eager_only=True),
     _member("ndim", "tensor", (_T3,), expect=Expect.HOST, eager_only=True),
-    _member("dtype", "default", (_A,), expect=Expect.DTYPE, eager_only=True),
+    _member("dtype", "default", (_A,), expect=Expect.DTYPE, eager_only=True,
+            reference=lambda a, *, precision: _working(a, precision=precision).dtype,
+            configured=True),
     _member("dtype", "index", (_index(1, 2),), expect=Expect.DTYPE,
             eager_only=True),
     _member("T", "matrix", (_A,), differentiable=True),
@@ -1037,8 +1101,10 @@ CASES: List[Case] = [
     _member("__mul__", "scalar", (_A, 2.0), differentiable=True),
     _member("__rmul__", "scalar", (_A, 2.0), differentiable=True),
     _member("__truediv__", "array", (_A, _POS), differentiable=True),
+    # The operator gives the library's float (float64), not the configured
+    # one: code converts integers explicitly instead of relying on it.
     _member("__truediv__", "integers", (_index(3, 4), _index(2, 2)),
-            expect=Expect.DEFAULT),
+            expect=Expect.DEFAULT, double_only=True),
     _member("__rtruediv__", "scalar", (_POS, 2.0), differentiable=True),
     _member("__pow__", "array", (_POS, _A), differentiable=True),
     _member("__pow__", "scalar", (_A, 2.0), differentiable=True),
@@ -1122,7 +1188,11 @@ class ConformanceBackend(Protocol[Array]):
     test, so a backend still growing toward ``Backend`` (``JaxBkd``) can
     run the table. Dtypes are ``Any`` as in ``Backend``."""
 
+    def precision(self) -> Precision: ...
+
     def real_dtype(self) -> Any: ...
+
+    def real_dtype_of(self, dtype: Any) -> Any: ...
 
     def complex_dtype(self) -> Any: ...
 
@@ -1177,7 +1247,8 @@ def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
     if isinstance(value, Role):
         return _backend_dtype(bkd, value)
     if isinstance(value, Sparse):
-        return value.to_scipy()
+        # SciPy holds the matrix, in the NumPy dtype of the working real.
+        return value.to_scipy(bkd.to_numpy(bkd.zeros((1,))).dtype)
     if isinstance(value, np.ndarray):
         role = _ROLE_OF_NUMPY[value.dtype]
         return bkd.asarray(value, dtype=_backend_dtype(bkd, role))
@@ -1186,15 +1257,43 @@ def _to_backend(bkd: ConformanceBackend[Array], value: Any) -> Any:
     return value
 
 
-def _to_reference(value: Any) -> Any:
+# The NumPy dtype of each role under single precision; under double it is
+# _NUMPY_DTYPES.
+_SINGLE_NUMPY_DTYPES = {
+    Role.DEFAULT: np.float32,
+    Role.COMPLEX: np.complex64,
+    Role.INDEX: np.int64,
+    Role.BOOL: np.bool_,
+}
+
+
+def _to_reference(value: Any, precision: Precision) -> Any:
+    """``value`` for the NumPy reference: roles resolved to the NumPy
+    dtypes of ``precision``, and under single precision floating arrays
+    rounded to it first (kept in 64 bits), so the reference measures the
+    method's rounding and not the inputs'."""
+    single = precision is Precision.SINGLE
     if isinstance(value, Sparse):
-        return value.to_scipy()
-    return _NUMPY_DTYPES[value] if isinstance(value, Role) else value
+        rounded = Sparse(value.dense.astype(np.float32)) if single else value
+        return rounded.to_scipy()
+    if isinstance(value, Role):
+        return (_SINGLE_NUMPY_DTYPES if single else _NUMPY_DTYPES)[value]
+    if isinstance(value, np.ndarray) and single:
+        if value.dtype == np.float64:
+            return value.astype(np.float32).astype(np.float64)
+        if value.dtype == np.complex128:
+            return value.astype(np.complex64).astype(np.complex128)
+        return value
+    if isinstance(value, (tuple, list)):
+        return type(value)(_to_reference(v, precision) for v in value)
+    return value
 
 
-def _reference(case: Case) -> Any:
-    args = [_to_reference(a) for a in case.args]
-    kwargs = {k: _to_reference(v) for k, v in case.kwargs.items()}
+def _reference(case: Case, precision: Precision) -> Any:
+    args = [_to_reference(a, precision) for a in case.args]
+    kwargs = {k: _to_reference(v, precision) for k, v in case.kwargs.items()}
+    if case.configured:
+        kwargs["precision"] = precision
     if case.reference is not None:
         return case.reference(*args, **kwargs)
     if case.member:
@@ -1242,11 +1341,16 @@ def _expected_dtype(
 
 
 def _assert_matches(
-    bkd: ConformanceBackend[Array], actual: Any, expected: Any, dtype: Any
+    bkd: ConformanceBackend[Array],
+    actual: Any,
+    expected: Any,
+    dtype: Any,
+    tol_factor: float = 10.0,
 ) -> None:
     """``actual`` equals ``expected`` (NumPy, converted to ``dtype`` on
-    ``bkd``) in shape, dtype and values; tuples and lists elementwise,
-    with one dtype per element when ``dtype`` is a tuple."""
+    ``bkd``) in shape, dtype and values, within ``tol_factor`` times the
+    eps of ``dtype``; tuples and lists elementwise, with one dtype per
+    element when ``dtype`` is a tuple."""
     if isinstance(expected, (tuple, list)):
         # A list where NumPy gives one, a tuple (any named tuple) otherwise.
         kind = list if isinstance(expected, list) else tuple
@@ -1255,15 +1359,18 @@ def _assert_matches(
         dtypes = dtype if isinstance(dtype, tuple) else (dtype,) * len(expected)
         assert len(dtypes) == len(expected), (len(dtypes), len(expected))
         for a, e, d in zip(actual, expected, dtypes):
-            _assert_matches(bkd, a, e, d)
+            _assert_matches(bkd, a, e, d, tol_factor)
         return
     # A copy: a NumPy view with negative strides (flip) cannot become a
     # torch tensor.
     expected = np.array(expected)
-    tol = 0.0
-    if np.issubdtype(expected.dtype, np.inexact):
-        tol = 10 * float(np.finfo(expected.dtype).eps)
     desired = bkd.asarray(expected, dtype=dtype)
+    # Scaled by the eps of the expected result's dtype, so a float32
+    # result is held to float32 rounding.
+    result_dtype = bkd.to_numpy(desired).dtype
+    tol = 0.0
+    if np.issubdtype(result_dtype, np.inexact):
+        tol = tol_factor * float(np.finfo(result_dtype).eps)
     bkd.assert_allclose(actual, desired, rtol=tol, atol=tol)
 
 
@@ -1306,6 +1413,8 @@ def run_case(
     already bound) on the converted positional arguments, so a backend's
     own test can run it compiled.
     """
+    if case.double_only and bkd.precision() is not Precision.DOUBLE:
+        pytest.skip("the row's result dtype is the library's, not configured")
     method, args = prepare(bkd, case)
     invoke = call or (lambda fn, values: fn(*values))
     if case.raises is not None:
@@ -1318,7 +1427,8 @@ def run_case(
         if not case.optional:
             raise
         pytest.skip(f"{type(bkd).__name__} declines {case.method}")
-    expected = _reference(case)
+    precision = bkd.precision()
+    expected = _reference(case, precision)
     if case.canonical is not None:
         result = case.canonical(bkd, result)
         expected = case.canonical(NumpyBkd(), expected)
@@ -1335,7 +1445,10 @@ def run_case(
     elif case.expect is Expect.DTYPE:
         _assert_dtype_object(bkd, result, expected)
     else:
-        _assert_matches(bkd, result, expected, _expected_dtype(bkd, case, args))
+        tol_factor = case.single_tol if precision is Precision.SINGLE else 10.0
+        _assert_matches(
+            bkd, result, expected, _expected_dtype(bkd, case, args), tol_factor
+        )
     # The inputs are unchanged: compare each with a fresh conversion.
     fresh = _arrays(tuple(_to_backend(bkd, a) for a in case.args))
     for array, original in zip(_arrays(args), fresh):
