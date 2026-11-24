@@ -166,23 +166,39 @@ class VelocityForceDerivatives(Generic[V, F]):
     param : STATED_ZERO or None
         :math:`g_p`; requires the Jacobians.
     state_curvature : STATED_ZERO or None
-        The second state derivatives of :math:`g`; requires ``param`` and
-        Jacobians that cannot see the state.
+        The second state derivatives of :math:`g`; requires ``param`` or
+        ``stiffness_scale``, and Jacobians that cannot see the state.
+    stiffness_scale : float or None
+        :math:`\beta` when :math:`g` depends on the parameters only through
+        :math:`\beta f_u(p)\, v`, for a restoring force :math:`f` affine in
+        the state: the reduction then derives :math:`g`'s parameter
+        derivatives from :math:`f`'s, :math:`g_p = \beta (f_p(v) -
+        f_p(0))`, so :math:`g` never sees the parameters. Excludes
+        ``param``; requires Jacobians that cannot see the state.
     """
 
     wrt_displacement: Optional[Jacobian[V, F]] = None
     wrt_velocity: Optional[Jacobian[V, F]] = None
     param: Optional[StatedZero] = None
     state_curvature: Optional[StatedZero] = None
+    stiffness_scale: Optional[float] = None
 
     def __post_init__(self) -> None:
         if (self.wrt_displacement is None) != (self.wrt_velocity is None):
             raise ValueError("wrt_displacement and wrt_velocity come together")
         if self.param is not None and self.wrt_displacement is None:
             raise ValueError("param requires the state Jacobians")
+        if self.stiffness_scale is not None:
+            if self.param is not None:
+                raise ValueError("param and stiffness_scale exclude each other")
+            if not (_affine(self.wrt_displacement) and _affine(self.wrt_velocity)):
+                raise ValueError(
+                    "stiffness_scale needs g affine in the state: both "
+                    "Jacobians must be state-free or constant"
+                )
         if self.state_curvature is not None:
-            if self.param is None:
-                raise ValueError("state_curvature requires param")
+            if self.param is None and self.stiffness_scale is None:
+                raise ValueError("state_curvature requires param or stiffness_scale")
             if not (_affine(self.wrt_displacement) and _affine(self.wrt_velocity)):
                 raise ValueError(
                     "state_curvature is STATED_ZERO only for g affine in the "
@@ -215,6 +231,19 @@ class VelocityForceDerivatives(Generic[V, F]):
             wrt_velocity,
             STATED_ZERO,
             STATED_ZERO if affine else None,
+        )
+
+    @staticmethod
+    def through_stiffness(
+        wrt_displacement: Jacobian[V, F],
+        wrt_velocity: Jacobian[V, F],
+        beta: float,
+    ) -> "VelocityForceDerivatives[V, F]":
+        r"""The state Jacobians of a :math:`g` affine in the state whose
+        parameter dependence is :math:`\beta f_u(p)\, v` (see
+        ``stiffness_scale``)."""
+        return VelocityForceDerivatives(
+            wrt_displacement, wrt_velocity, None, STATED_ZERO, beta
         )
 
 
@@ -413,7 +442,9 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
             return ODEResidualDerivatives.none()
         jacobian = self._jacobian(restoring.jacobian, damping)
         params = self._param_space
-        if params is None or not (undamped or damping.param is not None):
+        if params is None or not (
+            undamped or damping.param is not None or damping.stiffness_scale is not None
+        ):
             return ODEResidualDerivatives.state_only(jacobian)
         space = self._blocks.space()
         if not (
@@ -496,16 +527,44 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
 
     # The parameter derivatives, lifted from f's (see the module docstring).
 
+    def _stiffness_terms(
+        self,
+        at_displacement: DerivativeOperator[V],
+        at_velocity: DerivativeOperator[V],
+        at_zero: DerivativeOperator[V],
+        space: VectorSpaceProtocol[V],
+    ) -> DerivativeOperator[V]:
+        r"""f's derivative at the displacement plus :math:`\beta` (at
+        :math:`v` - at 0): f's derivative carried into the velocity force
+        :math:`g = \beta (f(v) - f(0)) - \alpha M v`, exact for f affine
+        in the state. Called only with ``stiffness_scale`` set."""
+        beta = self._g.stiffness_scale
+        if beta is None:
+            raise RuntimeError("the velocity force has no stiffness_scale")
+        terms: List[Tuple[float, DerivativeOperator[V]]] = [
+            (1.0, at_displacement),
+            (beta, at_velocity),
+            (-beta, at_zero),
+        ]
+        return _MatrixFreeSum(terms, space, self._require_params())
+
+    def _zero_block(self) -> V:
+        return self._blocks.displacement(self._zero_state)
+
     def _param(self, state: V, time: float) -> DerivativeOperator[V]:
         param = self._f.param
         if param is None:
             raise RuntimeError("the restoring force's bundle has no param")
-        return _Stacked(
-            None,
-            param(self._blocks.displacement(state), time),
-            self._blocks,
-            self._require_params(),
-        )
+        blocks = self._blocks
+        force = param(blocks.displacement(state), time)
+        if self._g.stiffness_scale is not None:
+            force = self._stiffness_terms(
+                force,
+                param(blocks.velocity(state), time),
+                param(self._zero_block(), time),
+                blocks.half_space(),
+            )
+        return _Stacked(None, force, blocks, self._require_params())
 
     def _initial_state(self) -> DerivativeOperator[V]:
         initial = self._f.initial_state
@@ -549,12 +608,19 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         field = self._f.state_param
         if field is None:
             raise RuntimeError("the restoring force's bundle has no state_param")
-        blocks = self._blocks
+        blocks, params = self._blocks, self._require_params()
+        adj_v = blocks.velocity(adj)
+        velocity: Optional[DerivativeOperator[V]] = None
+        beta = self._g.stiffness_scale
+        if beta is not None:
+            # lambda^T g_vp = beta lambda^T f_up, the same at every state
+            # for f affine in the state.
+            terms: List[Tuple[float, DerivativeOperator[V]]] = [
+                (beta, field(blocks.velocity(state), time, adj_v))
+            ]
+            velocity = _MatrixFreeSum(terms, blocks.half_space(), params)
         return _Stacked(
-            field(blocks.displacement(state), time, blocks.velocity(adj)),
-            None,
-            blocks,
-            self._require_params(),
+            field(blocks.displacement(state), time, adj_v), velocity, blocks, params
         )
 
     def _param_param(self, state: V, time: float, adj: V) -> DerivativeOperator[V]:
@@ -562,18 +628,29 @@ class SecondOrderRightHandSide(Generic[V, A, F, G]):
         if field is None:
             raise RuntimeError("the restoring force's bundle has no param_param")
         blocks = self._blocks
-        return field(blocks.displacement(state), time, blocks.velocity(adj))
+        adj_v = blocks.velocity(adj)
+        curvature = field(blocks.displacement(state), time, adj_v)
+        if self._g.stiffness_scale is None:
+            return curvature
+        return self._stiffness_terms(
+            curvature,
+            field(blocks.velocity(state), time, adj_v),
+            field(self._zero_block(), time, adj_v),
+            self._require_params(),
+        )
 
 
 class _MatrixFreeSum(Generic[V]):
-    """The sum of derivative operators of any formats, by action."""
+    """The sum of derivative operators of any formats, by action;
+    ``domain_space`` for a rectangular sum, ``space`` its range."""
 
     def __init__(
         self,
         terms: List[Tuple[float, DerivativeOperator[V]]],
         space: VectorSpaceProtocol[V],
+        domain_space: Optional[VectorSpaceProtocol[V]] = None,
     ) -> None:
-        self._sum: ScaledSum[V, FormatProtocol] = ScaledSum(terms, space)
+        self._sum: ScaledSum[V, FormatProtocol] = ScaledSum(terms, space, domain_space)
 
     def domain(self) -> SpaceDescriptor:
         return self._sum.domain()

@@ -18,9 +18,16 @@ the initial or a static equilibrium state), and :math:`g` stays linear in
 :math:`v` and independent of :math:`u`. Following the tangent
 :math:`K(u)` instead would make :math:`g_u = \beta f_{uu}[v]`, a
 directional second derivative the force's bundle does not supply, so it
-is refused. The parameter dependence :math:`g_p = -\beta K_p v` is not
-supplied, so with :math:`\beta \ne 0` and a parameterized force the
-reduced system has state derivatives only.
+is refused.
+
+The damping owns no parameters: its dependence on them is through
+:math:`K(p)` alone. For an affine force :math:`K(p) v = f(0; p) - f(v;
+p)`, so the reduction derives :math:`g`'s parameter derivatives from
+the force's (``VelocityForceDerivatives.through_stiffness``) and the
+reduced system keeps the force's tier. For a nonlinear force damped at a
+reference state, :math:`K(u_r; p) v` is no such difference: its
+parameter dependence is not supplied, and the reduced system has state
+derivatives only.
 """
 
 from typing import Generic, List, Optional, Tuple, TypeVar
@@ -108,13 +115,21 @@ class RayleighDamping(Generic[V, A, F]):
             else Jacobian.constant(self._constant_stiffness_jacobian)
         )
         parameterized = restoring.rhs.derivatives().param_space is not None
-        self._derivatives: VelocityForceDerivatives[V, F] = (
-            VelocityForceDerivatives.state_only(wrt_displacement, wrt_velocity)
-            if beta != 0.0 and parameterized
-            else VelocityForceDerivatives.parameter_free(
+        self._derivatives: VelocityForceDerivatives[V, F]
+        if beta == 0.0 or not parameterized:
+            self._derivatives = VelocityForceDerivatives.parameter_free(
                 wrt_displacement, wrt_velocity, affine=True
             )
-        )
+        elif jacobian is not None and jacobian.affine():
+            # K(p) v = f(v; p) - f(0; p): the reduction derives g_p from f's.
+            self._derivatives = VelocityForceDerivatives.through_stiffness(
+                wrt_displacement, wrt_velocity, beta
+            )
+        else:
+            # K(u_r; p) v is no difference of f's values: g_p is unsupplied.
+            self._derivatives = VelocityForceDerivatives.state_only(
+                wrt_displacement, wrt_velocity
+            )
 
     def __call__(self, displacement: V, velocity: V, time: float) -> V:
         system = self._restoring

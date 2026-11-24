@@ -312,9 +312,7 @@ class TestRayleighDamping:
         parameter dependence through K(u_r; p) is not supplied."""
         spring = Spring(bkd, cubic=0.4)
         reference = bkd.asarray([0.3, -0.5, 0.2])
-        derivatives = self._system(
-            bkd, spring, 0.3, 0.1, reference
-        ).rhs.derivatives()
+        derivatives = self._system(bkd, spring, 0.3, 0.1, reference).rhs.derivatives()
         assert derivatives.jacobian is not None
         assert derivatives.param is None
         report = ODEResidualBundleChecker(
@@ -322,20 +320,25 @@ class TestRayleighDamping:
         ).check(sample_state(bkd), 0.3)
         assert report.failures() == []
 
-    @pytest.mark.parametrize("beta, second", [(0.0, True), (0.1, False)])
-    def test_tier(self, bkd: Backend[Array], beta: float, second: bool) -> None:
+    @pytest.mark.parametrize("beta", [0.0, 0.1])
+    def test_affine_force_keeps_the_second_order_tier(
+        self, bkd: Backend[Array], beta: float
+    ) -> None:
+        """With beta != 0 the damping's parameter dependence is derived
+        from the force's through its stiffness K(p)."""
         derivatives = self._system(
             bkd, Spring(bkd, cubic=0.0), 0.3, beta
         ).rhs.derivatives()
         assert derivatives.jacobian is not None
-        assert (derivatives.state_state is not None) == second
-        assert (derivatives.param is not None) == second
+        assert derivatives.state_state is not None
+        assert derivatives.param is not None
 
     @pytest.mark.parametrize("beta", [0.0, 0.1])
     def test_bundle_passes_the_checker(self, bkd: Backend[Array], beta: float) -> None:
+        """Every lifted field by finite differences, including g_p,
+        lambda^T g_vp and lambda^T g_pp for beta != 0 (K depends on p0)."""
         spring = Spring(bkd, cubic=0.0)
         system = self._system(bkd, spring, 0.3, beta)
-        second = beta == 0.0
         report = ODEResidualBundleChecker(
             Checked(system, spring),
             initial_state=lambda param: bkd.concatenate(
@@ -344,8 +347,8 @@ class TestRayleighDamping:
         ).check(
             sample_state(bkd),
             0.3,
-            adj=bkd.asarray([0.3, -0.1, 0.2, 0.5, 0.4, -0.7]) if second else None,
-            param=bkd.asarray([0.2, 0.7]) if second else None,
+            adj=bkd.asarray([0.3, -0.1, 0.2, 0.5, 0.4, -0.7]),
+            param=bkd.asarray([0.2, 0.7]),
         )
         assert report.failures() == []
 
