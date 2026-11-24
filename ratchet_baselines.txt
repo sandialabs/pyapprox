@@ -37,5 +37,7 @@ conformance_uncovered=0
 conformance_not_on_jax=0
 # ArrayProtocol members without a member row (NOT_YET_COVERED_ARRAY).
 conformance_array_uncovered=0
+# Conformance rows torch cannot run on MPS (MPS_DECLINES).
+conformance_mps_declines=27
 # Public backend-class methods on no protocol (BACKEND_EXTRAS).
 backend_extras=3

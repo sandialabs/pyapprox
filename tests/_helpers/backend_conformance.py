@@ -113,6 +113,9 @@ class Expect(Enum):
     ARRAY_TYPE = "array_type"
     # Nothing (``assert_allclose``).
     NONE = "none"
+    # A device name whose type is where the backend places arrays
+    # (``device``).
+    DEVICE = "device"
 
 
 @dataclass(frozen=True, eq=False)
@@ -601,7 +604,7 @@ CASES: List[Case] = [
          expect=Expect.DTYPE, eager_only=True),
     Case("precision", "configured", reference=lambda *, precision: precision,
          expect=Expect.HOST, eager_only=True, configured=True),
-    Case("device", "cpu", reference=lambda: "cpu", expect=Expect.HOST,
+    Case("device", "placement", reference=_none, expect=Expect.DEVICE,
          eager_only=True),
     Case("real_dtype", "real", reference=_configured_real,
          expect=Expect.DTYPE, eager_only=True, configured=True),
@@ -1156,6 +1159,31 @@ NOT_YET_COVERED: frozenset[str] = frozenset()
 # NOT_YET_COVERED (baseline conformance_array_uncovered) and now empty.
 NOT_YET_COVERED_ARRAY: frozenset[str] = frozenset()
 
+# Rows (case ids) that fail on torch's MPS device, each a limit of torch
+# on MPS rather than of TorchBkd. Shrink-only (baseline
+# conformance_mps_declines): on MPS each runs as a strict expected
+# failure, so a row MPS comes to support fails until it is removed here.
+MPS_DECLINES: frozenset[str] = frozenset({
+    # Operators torch does not implement for MPS (NotImplementedError).
+    "cholesky_solve-matrix-rhs", "cholesky_solve-vector-rhs",
+    "cond-2-norm", "norm-nuc",  # SVD
+    "eigh-spd", "eigvalsh-hermitian", "eigvalsh-spd",
+    "log_ndtr-float", "logspace-default",
+    "lstsq-matrix-rhs", "lstsq-rank-deficient", "lstsq-vector-rhs",
+    "lu-general", "lu_solve-matrix-rhs", "lu_solve-transpose",
+    "lu_solve-vector-rhs",
+    "qr-complete", "qr-reduced",
+    # Complex input torch refuses on MPS.
+    "cumsum-complex", "norm-complex",
+    # Results that differ on MPS: NaN ignored by argmax/argmin, halves
+    # rounded away from zero, complex index_add wrong, a singular matrix
+    # not refused (inv returns a value; solve fails an internal assert).
+    "argmax-nan", "argmin-nan", "round-half-to-even", "index_add-complex",
+    "inv-singular", "solve-singular",
+    # NumPy's promotion of int64 with float32 is float64, which MPS lacks.
+    "result_type-index-real",
+})  # fmt: skip
+
 # Public methods of each backend class that are on neither Backend nor
 # AutodiffBackend, so generic code cannot call them. Shrink-only
 # (baseline backend_extras, the total): a method added to one backend
@@ -1381,6 +1409,19 @@ def _assert_host_matches(actual: Any, expected: Any) -> None:
     np.testing.assert_array_equal(actual, expected, strict=True)
 
 
+def _device_type(array: Any) -> str:
+    """The type of the device ``array`` is on ("cpu", "mps", "cuda", ...),
+    from NumPy's ``device`` string, torch's ``torch.device`` or JAX's
+    ``Device``."""
+    device = array.device
+    if callable(device):
+        device = device()
+    for attribute in ("platform", "type"):
+        if hasattr(device, attribute):
+            return str(getattr(device, attribute))
+    return str(device).split(":")[0]
+
+
 def _assert_dtype_object(
     bkd: ConformanceBackend[Array], actual: Any, expected: Any
 ) -> None:
@@ -1444,6 +1485,9 @@ def run_case(
         )
     elif case.expect is Expect.DTYPE:
         _assert_dtype_object(bkd, result, expected)
+    elif case.expect is Expect.DEVICE:
+        placed = _device_type(bkd.zeros((1,)))
+        assert result.split(":")[0] == placed, (result, placed)
     else:
         tol_factor = case.single_tol if precision is Precision.SINGLE else 10.0
         _assert_matches(

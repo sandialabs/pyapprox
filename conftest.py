@@ -68,30 +68,49 @@ def bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
     return factory()  # type: ignore[no-any-return]
 
 
-def _configured_bkd(name: str, precision: Precision) -> Union[NumpyBkd, TorchBkd]:
+def _configured_bkd(
+    name: str, precision: Precision, device: str
+) -> Union[NumpyBkd, TorchBkd]:
     if name == "NumpyBkd":
         return NumpyBkd(precision=precision)
-    pytest.importorskip("torch")
+    torch = pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
 
-    return TorchBkd(precision=precision)
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("no CUDA device")
+    if device == "mps" and not torch.backends.mps.is_available():
+        pytest.skip("no MPS device")
+    return TorchBkd(precision=precision, device=device)
 
 
-# The configurations config_bkd runs over: backend x precision, on the CPU.
-_CONFIGURATIONS: List[Tuple[str, Precision]] = [
-    (name, precision)
+# The configurations config_bkd runs over: backend x precision x device.
+# MPS has no float64, so it runs single precision only.
+_CONFIGURATIONS: List[Tuple[str, Precision, str]] = [
+    (name, precision, "cpu")
     for name in ("NumpyBkd", "TorchBkd")
     for precision in (Precision.DOUBLE, Precision.SINGLE)
+] + [
+    ("TorchBkd", Precision.DOUBLE, "cuda"),
+    ("TorchBkd", Precision.SINGLE, "cuda"),
+    ("TorchBkd", Precision.SINGLE, "mps"),
 ]
 
 
-@pytest.fixture(params=_CONFIGURATIONS, ids=lambda pair: f"{pair[0]}-{pair[1].value}")
+def _configuration_id(config: Tuple[str, Precision, str]) -> str:
+    # The CPU is the default, so its configurations carry no device.
+    name, precision, device = config
+    suffix = "" if device == "cpu" else f"-{device}"
+    return f"{name}-{precision.value}{suffix}"
+
+
+@pytest.fixture(params=_CONFIGURATIONS, ids=_configuration_id)
 def config_bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
     """Opt-in backend fixture over every configuration (backend x
-    precision); a library that is not installed is skipped. The default
-    ``bkd`` fixture stays double precision."""
-    name, precision = cast(Tuple[str, Precision], request.param)
-    return _configured_bkd(name, precision)
+    precision x device); a library or device that is not available is
+    skipped. The default ``bkd`` fixture stays double precision on the
+    CPU."""
+    name, precision, device = cast(Tuple[str, Precision, str], request.param)
+    return _configured_bkd(name, precision, device)
 
 
 @pytest.fixture

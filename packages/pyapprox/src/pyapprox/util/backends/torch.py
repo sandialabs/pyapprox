@@ -80,6 +80,26 @@ _WIDTHS: Dict[torch.dtype, Tuple[torch.dtype, torch.dtype]] = {
 }
 
 
+def _variance(
+    array: torch.Tensor, dims: Tuple[int, ...], keepdim: bool, ddof: int
+) -> torch.Tensor:
+    """NumPy's variance over ``dims`` (nonempty): ``mean(|x - mean|**2)``
+    with ``ddof`` subtracted from the count, real for complex input.
+
+    Complex input is written out: torch on MPS returns a wrong, complex
+    variance of complex data. Real input uses ``torch.var``.
+    """
+    if not array.is_complex():
+        return torch.var(array, dim=dims, keepdim=keepdim, correction=ddof)
+    # A loop, not math.prod over a generator, which dynamo cannot trace.
+    count = 1
+    for dim in dims:
+        count *= array.shape[dim]
+    deviation = array - torch.mean(array, dim=dims, keepdim=True)
+    squares = torch.real(deviation) ** 2 + torch.imag(deviation) ** 2
+    return torch.sum(squares, dim=dims, keepdim=keepdim) / (count - ddof)
+
+
 def _numpy_dtype(dtype: torch.dtype) -> np.dtype[Any]:
     result = _NUMPY_DTYPES.get(dtype)
     if result is None:
@@ -1164,7 +1184,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         # torch.var uses correction (Bessel's correction) instead of ddof
         # correction=0 gives population variance, correction=1 gives sample variance
         return _numpy_reduction(
-            lambda x, dims, keep: torch.var(x, dim=dims, keepdim=keep, correction=ddof),
+            lambda x, dims, keep: _variance(x, dims, keep, ddof),
             array,
             axis,
             keepdims,
@@ -1180,7 +1200,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         # torch.std uses correction (Bessel's correction) instead of ddof
         # correction=0 gives population std, correction=1 gives sample std
         return _numpy_reduction(
-            lambda x, dims, keep: torch.std(x, dim=dims, keepdim=keep, correction=ddof),
+            lambda x, dims, keep: (
+                torch.std(x, dim=dims, keepdim=keep, correction=ddof)
+                if not x.is_complex()
+                else torch.sqrt(_variance(x, dims, keep, ddof))
+            ),
             array,
             axis,
             keepdims,
@@ -1227,8 +1251,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         indices_or_sections: torch.Tensor,
         axis: int = 0,
     ) -> List[torch.Tensor]:
-        # torch.tensor_split takes indices directly
-        return list(torch.tensor_split(array, indices_or_sections, dim=axis))
+        # torch.tensor_split takes indices directly, but only from a CPU
+        # tensor; on the CPU .cpu() returns the tensor itself.
+        indices = indices_or_sections
+        if isinstance(indices, torch.Tensor):
+            indices = indices.cpu()
+        return list(torch.tensor_split(array, indices, dim=axis))
 
     @overload
     @staticmethod

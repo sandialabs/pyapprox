@@ -25,6 +25,7 @@ from tests._helpers.backend_conformance import (
     BACKEND_EXTRAS,
     CASES,
     COVERED_BY_COLUMNS,
+    MPS_DECLINES,
     NOT_YET_COVERED,
     NOT_YET_COVERED_ARRAY,
     NOT_YET_ON_JAX,
@@ -39,9 +40,21 @@ from tests._helpers.backend_conformance import (
 
 
 @pytest.mark.parametrize("case", CASES, ids=case_id)
-def test_conforms(config_bkd: Backend[Array], case: Case) -> None:
-    """Every row on every backend under every precision."""
+def test_conforms(
+    config_bkd: Backend[Array], case: Case, request: pytest.FixtureRequest
+) -> None:
+    """Every row on every backend under every precision and device; a row
+    torch cannot run on MPS is a strict expected failure there."""
+    if config_bkd.device().startswith("mps") and case_id(case) in MPS_DECLINES:
+        request.applymarker(
+            pytest.mark.xfail(strict=True, reason="torch on MPS declines this row")
+        )
     run_case(config_bkd, case)
+
+
+def test_mps_declines_are_rows() -> None:
+    unknown = MPS_DECLINES - {case_id(case) for case in CASES}
+    assert not unknown, f"MPS_DECLINES names no row: {sorted(unknown)}"
 
 
 def _compiling_torch_bkd() -> ConformanceBackend[Any]:
@@ -271,6 +284,7 @@ def test_backend_methods_are_on_a_protocol_or_listed(module: str, name: str) -> 
         ("conformance_uncovered", NOT_YET_COVERED),
         ("conformance_not_on_jax", NOT_YET_ON_JAX),
         ("conformance_array_uncovered", NOT_YET_COVERED_ARRAY),
+        ("conformance_mps_declines", MPS_DECLINES),
         (
             "backend_extras",
             frozenset(
