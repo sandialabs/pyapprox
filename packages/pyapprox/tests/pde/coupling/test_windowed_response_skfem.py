@@ -403,12 +403,17 @@ def test_stagewise_vjp_trace_transposes_jvp_trace() -> None:
     _assert_transposes(point.derivatives(), n, n)
 
 
-@pytest.mark.parametrize("tableau", [alexander_sdirk3, heun])
+@pytest.mark.parametrize(
+    "tableau", [alexander_sdirk3, heun, crank_nicolson, esdirk3_5l2sa]
+)
 def test_spacetime_vjp_trace_transposes_jvp_trace(
     tableau: Callable[[], ButcherTableau],
 ) -> None:
     """cG(2), two test functions, two substeps: the stage quadrature's
-    weights transposed, for SDIRK3 and Heun."""
+    weights transposed, for SDIRK3 and Heun; for Crank-Nicolson and ESDIRK
+    the second step's start reaction too, through the transposed stepped
+    and unconstrained Jacobians and mass, and the port data's rate
+    through the direct term."""
     strip = _Strip()
     response, ports = _spacetime(
         strip,
@@ -423,31 +428,6 @@ def test_spacetime_vjp_trace_transposes_jvp_trace(
     end: Np = strip.reference.state(1)[rows][ports]
     point = response.linearize(np.repeat(end, 2, axis=0), _NONE, TimeWindow(0.0, _DT))
     _assert_transposes(point.derivatives(), n, n)
-
-
-@pytest.mark.parametrize("tableau", [crank_nicolson, esdirk3_5l2sa])
-def test_a_step_start_reaction_gives_no_vjp_trace(
-    tableau: Callable[[], ButcherTableau],
-) -> None:
-    """A stiffly accurate method with a trivial first stage tests the
-    step-start reaction, which has no transpose: the tangent is supplied,
-    its transpose is not."""
-    strip = _Strip()
-    response, ports = _spacetime(
-        strip,
-        tableau,
-        StartContinuousLagrange((0.5, 1.0)),
-        LagrangeTestFunctions((0.25, 0.75)),
-        2,
-    )
-    system, nodes, _, _ = strip.problem.port_system(1)
-    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
-    end: Np = strip.reference.state(1)[rows][ports]
-    derivs = response.linearize(
-        np.repeat(end, 2, axis=0), _NONE, TimeWindow(0.0, _DT)
-    ).derivatives()
-    assert derivs.jvp_trace is not None
-    assert derivs.vjp_trace is None
 
 
 def test_stagewise_jvp_trace_matches_finite_differences() -> None:
@@ -560,15 +540,17 @@ def test_a_constant_test_function_gives_the_time_discrete_reaction(
     _BKD.assert_allclose(got, want, rtol=1e-12, atol=1e-14)
 
 
-@pytest.mark.parametrize("tableau", [alexander_sdirk3, crank_nicolson, heun])
+@pytest.mark.parametrize(
+    "tableau", [alexander_sdirk3, crank_nicolson, esdirk3_5l2sa, heun]
+)
 def test_spacetime_jvp_trace_matches_finite_differences(
     tableau: Callable[[], ButcherTableau],
 ) -> None:
     """cG(2): a quadratic trace in time, two test functions, two substeps;
     the tangent passes the derivative checker for SDIRK3, for
-    Crank-Nicolson (its step-start reaction reading the second step's
-    changed start state and the port data's rate directly) and for
-    Heun (explicit, reactions from its stage and final blocks)."""
+    Crank-Nicolson and ESDIRK (the step-start reaction reading the second
+    step's changed start state and the port data's rate directly) and
+    for Heun (explicit, reactions from its stage and final blocks)."""
     strip = _Strip()
     response, ports = _spacetime(
         strip,

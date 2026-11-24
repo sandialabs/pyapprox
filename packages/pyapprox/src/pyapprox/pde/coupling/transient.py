@@ -1045,6 +1045,11 @@ class StepStartReactionProtocol(Protocol[V]):
         state, at fixed port data, parameters at ``version``."""
         ...
 
+    def adjoint(self, state: V, time: float, cotangent: V, version: int) -> V:
+        """The transpose of :meth:`tangent` at the same point: the state's
+        cotangent for a cotangent of the reaction (a block of columns)."""
+        ...
+
 
 class MassFormStartReaction(Generic[V, A, F]):
     r""":math:`\rho = M k - f(y)` with :math:`M_s k = f_s(y)`: the slope
@@ -1074,6 +1079,8 @@ class MassFormStartReaction(Generic[V, A, F]):
     ) -> None:
         self._solved, self._unconstrained = solved, unconstrained
         self._mass = solved.solver.setup(solved.mass)
+        # Made on the first adjoint: a forward-only run never needs it.
+        self._mass_transpose: Optional[SolverHandleProtocol[V]] = None
 
     @staticmethod
     def _rhs(system: MassFormSystem[V, A, F], state: V, time: float) -> V:
@@ -1102,6 +1109,38 @@ class MassFormStartReaction(Generic[V, A, F]):
         free = self._unconstrained
         slope = self._slope(jacobian(self._solved))
         return free.space.axpby(1.0, free.mass.apply(slope), -1.0, jacobian(free))
+
+    def adjoint(self, state: V, time: float, cotangent: V, version: int) -> V:
+        r""":math:`J_s^\top M_s^{-\top} M^\top \bar\rho - J^\top \bar\rho`.
+
+        Raises
+        ------
+        TypeError
+            If the stepped mass's solver cannot solve transposed.
+        """
+
+        def transposed(system: MassFormSystem[V, A, F], vec: V) -> V:
+            point = LinearizationPoint(version, object())
+            at = system.form.to_residual(state)
+            return system.jacobian(at, time, point).apply_transpose(vec)
+
+        if self._mass_transpose is None:
+            transpose = self._mass.transpose()
+            if transpose is None:
+                raise TypeError(
+                    "the stepped mass's solver cannot solve transposed, so the "
+                    "step-start reaction has no adjoint"
+                )
+            self._mass_transpose = transpose
+        free = self._unconstrained
+        weighted, info = self._mass_transpose.solve(
+            free.mass.apply_transpose(cotangent)
+        )
+        if not info.converged:
+            raise ValueError("the step-start adjoint's mass solve did not converge")
+        return free.space.axpby(
+            1.0, transposed(self._solved, weighted), -1.0, transposed(free, cotangent)
+        )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
@@ -1339,17 +1378,27 @@ class StageQuadratureFlux(Generic[V, A]):
     def trajectory_adjoint(
         self, trial: InMemoryTrajectoryStore[V]
     ) -> Optional[TrajectoryAdjoint[A, V]]:
-        """Supplied when :meth:`trajectory_tangent` is and the method reads
-        no step-start reaction: each step's used blocks read the
-        cotangent's test-function entries, weighted as :meth:`output`
-        weights them."""
-        if self._needs_start:
-            return None
+        """Supplied when :meth:`trajectory_tangent` is: each step's used
+        blocks read the cotangent's test-function entries, weighted as
+        :meth:`output` weights them; for a method that reads the step-start
+        reaction, its adjoint carries step ``m``'s weighted entries to the
+        state step ``m`` starts from (the committed one, for the first
+        step, does not change)."""
         linearized = _LinearizedResiduals.of(self._reaction, trial)
         if linearized is None:
             return None
-        weights = self._weights([trial.window(m) for m in range(trial.nsteps())])
-        ntests, bkd = self._test.count(), self._bkd
+        windows = [trial.window(m) for m in range(trial.nsteps())]
+        weights = self._weights(windows)
+        ntests, bkd, start = self._test.count(), self._bkd, self._start
+        state_space = self._reaction.state_space().component(0)
+
+        def weighted(per_test: A, row: Sequence[float]) -> Optional[A]:
+            total: Optional[A] = None
+            for k, weight in enumerate(row):
+                if weight != 0.0:
+                    term = weight * per_test[:, k : k + 1]
+                    total = term if total is None else total + term
+            return total
 
         def adjoint(cotangent: A) -> tuple[list[BlockVector[V]], list[V]]:
             per_test = bkd.reshape(cotangent, (-1, ntests))
@@ -1357,15 +1406,27 @@ class StageQuadratureFlux(Generic[V, A]):
             for blocks, _ in weights:
                 parts: dict[int, A] = {}
                 for r, block in enumerate(self._blocks):
-                    for k in range(ntests):
-                        weight = blocks[k][r]
-                        if weight == 0.0:
-                            continue
-                        term = weight * per_test[:, k : k + 1]
+                    part = weighted(per_test, [blocks[k][r] for k in range(ntests)])
+                    if part is not None:
                         held = parts.get(block)
-                        parts[block] = term if held is None else held + term
+                        parts[block] = part if held is None else held + part
                 residuals.append(_on_blocks(self._reaction, self._ports, parts))
-            return linearized.transpose(residuals)
+            unknowns, states = linearized.transpose(residuals)
+            if not self._needs_start or start is None:
+                return unknowns, states
+            for m in range(1, len(windows)):
+                part = weighted(per_test, weights[m][1])
+                if part is None:
+                    continue
+                window = windows[m]
+                pulled = start.adjoint(
+                    window.past_state(1),
+                    window.time(),
+                    self._ports.add_to(state_space.zeros(1), part),
+                    window.parameters_version,
+                )
+                states[m - 1] = state_space.axpby(1.0, pulled, 1.0, states[m - 1])
+            return unknowns, states
 
         return adjoint
 
