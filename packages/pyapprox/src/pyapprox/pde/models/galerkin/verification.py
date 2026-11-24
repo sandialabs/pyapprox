@@ -31,6 +31,12 @@ repository's skfem Galerkin stack. Bound to skfem and NumPy.
   ``galerkin_steady_residual`` + ``SteadySystem``, and returns
   :class:`GalerkinApproximation` objects, whose errors are integrated by
   skfem quadrature against the exact solution itself.
+- :class:`GalerkinTransientDiscretizer` steps a transient problem on the
+  same families with a method the caller chooses
+  (``galerkin_transient_system`` + ``solve_galerkin_transient``), on
+  levels of a space level and a time grid, and returns a
+  :class:`GalerkinSeries` of approximations, one per stored time, for
+  the core's series measures (``max_over_steps``, ``final_time``).
 - The measures a study records of them, per field and each beside the
   exact solution's norm: :func:`galerkin_l2_error` (optionally of a
   zero-mean field), :func:`galerkin_h1_seminorm_error`,
@@ -47,6 +53,7 @@ forms pass quadrature points ``(ndim, nelem, nquad)`` and states
 ``(nelem, nquad)``; :class:`SkfemPoints` is the one place that fits them.
 """
 
+import copy
 import math
 from dataclasses import dataclass
 from typing import (
@@ -67,8 +74,12 @@ import sympy as sp
 from numpy.typing import NDArray
 from skfem import Basis, MeshTri
 
-from pyapprox.implicitfunction.setups import KeepAll
+from pyapprox.implicitfunction.setups import KeepAll, KeepStateFree
 from pyapprox.implicitfunction.steady_system import SteadySystem
+from pyapprox.ode.pinned_rows import PinPlacementProtocol
+from pyapprox.ode.step_plan import FixedStep
+from pyapprox.ode.stepping_methods import SteppingMethodProtocol
+from pyapprox.ode.trajectory_store import InMemoryTrajectoryStore
 from pyapprox.pde.boundary.protocols import BoundaryConditionRole
 from pyapprox.pde.boundary.signal import BoundarySignal, DofSignal
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
@@ -105,6 +116,10 @@ from pyapprox.pde.galerkin.time_integration.skfem_discretization import (
     skfem_discretization,
 )
 from pyapprox.pde.models.galerkin.steady_residual import galerkin_steady_residual
+from pyapprox.pde.models.galerkin.transient_system import (
+    galerkin_transient_system,
+    solve_galerkin_transient,
+)
 from pyapprox.pde.verification.conditions import (
     ConditionProtocol,
     ConditionVisitorProtocol,
@@ -118,12 +133,14 @@ from pyapprox.pde.verification.domains import Box, Disk, DomainProtocol
 from pyapprox.pde.verification.problem import ManufacturedProblem
 from pyapprox.pde.verification.protocols import (
     DEGREE,
+    DT,
     NDOFS,
     H,
     Sizes,
     SpaceLevel,
 )
 from pyapprox.pde.verification.study import Measure, Measurement, field_label
+from pyapprox.pde.verification.transient import TimeGrid, TransientLevel, refine_space
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.expressions.names import Names
 from pyapprox.util.expressions.parsing import Value, parse
@@ -1193,6 +1210,9 @@ class GalerkinApproximation:
         The solution's DOFs. Shape: ``(ndofs,)``.
     intorder : int
         The quadrature order of the integral norms.
+    time : float
+        The time the solution is at, where the exact solution is
+        evaluated. Default: 0, for a steady problem.
 
     Raises
     ------
@@ -1207,9 +1227,10 @@ class GalerkinApproximation:
         basis: _AnyBasis,
         state: _Np,
         intorder: int,
+        time: float = 0.0,
     ) -> None:
         self._problem, self._rows = problem, tuple(rows)
-        self._state, self._intorder = state, intorder
+        self._state, self._intorder, self._time = state, intorder, time
         self._blocks = _blocks(basis, rows)
         self._exact = [
             SkfemPoints([problem.solution(row) for row in block.rows], problem)
@@ -1225,6 +1246,18 @@ class GalerkinApproximation:
     def state(self) -> _Np:
         """The solution's DOFs. Shape: ``(ndofs,)``."""
         return self._state
+
+    def time(self) -> float:
+        """The time the solution is at."""
+        return self._time
+
+    def at(self, state: _Np, time: float) -> "GalerkinApproximation":
+        """The solution ``state`` (shape ``(ndofs,)``) on the same basis at
+        ``time``, sharing this one's compiled exact solution, so the steps
+        of a transient solve compile it once."""
+        other = copy.copy(self)
+        other._state, other._time = state, time
+        return other
 
     def _chosen(self, fields: Optional[Sequence[str]]) -> List[int]:
         """The indices of the blocks holding ``fields`` (default all).
@@ -1267,7 +1300,7 @@ class GalerkinApproximation:
         layout = (len(block.rows),) + x.shape[1:]
         uh = np.asarray(fine.interpolate(self._field_state(block)).value)
         return _AtQuadrature(
-            uh.reshape(layout), self._exact[index](x), np.asarray(fine.dx)
+            uh.reshape(layout), self._exact[index](x, t=self._time), np.asarray(fine.dx)
         )
 
     def _gradients_at(self, index: int) -> _AtQuadrature:
@@ -1285,7 +1318,7 @@ class GalerkinApproximation:
         x = np.asarray(fine.global_coordinates().value)
         layout = (len(block.rows), x.shape[0]) + x.shape[1:]
         grad = np.asarray(fine.interpolate(self._field_state(block)).grad)
-        exact = self._gradients[index](x)
+        exact = self._gradients[index](x, t=self._time)
         return _AtQuadrature(
             grad.reshape(layout), exact.reshape(layout), np.asarray(fine.dx)
         )
@@ -1381,7 +1414,7 @@ class GalerkinApproximation:
                 if isinstance(block.basis, ComponentDofsBasisProtocol)
                 else np.zeros_like(dofs)
             )
-            values = self._exact[index](coords)[components, dofs]
+            values = self._exact[index](coords, t=self._time)[components, dofs]
             error = max(error, float(np.abs(self._field_state(block) - values).max()))
             norm = max(norm, float(np.abs(values).max()))
         return Measurement(error, norm)
@@ -1485,6 +1518,79 @@ def galerkin_nodal_error(
     )
 
 
+class _Family(Generic[_B]):
+    """The meshes of a family on a problem's domain, built once per
+    domain, and a level's basis and spatial sizes."""
+
+    def __init__(
+        self, meshes: MeshFamilyProtocol, basis: BasisFactoryProtocol[_B], owner: str
+    ) -> None:
+        self._meshes, self._basis, self._owner = meshes, basis, owner
+        self._family: Optional[
+            Tuple[DomainProtocol, Sequence[GalerkinMeshProtocol[_Np]]]
+        ] = None
+
+    def meshes_of(
+        self, problem: ManufacturedProblem
+    ) -> Sequence[GalerkinMeshProtocol[_Np]]:
+        """The meshes of the problem's domain.
+
+        Raises
+        ------
+        ValueError
+            If ``problem`` has no domain.
+        """
+        domain = problem.domain()
+        if domain is None:
+            raise ValueError(f"{self._owner} needs a domain; this is an ODE")
+        if self._family is None or self._family[0] is not domain:
+            self._family = (domain, self._meshes.meshes(domain))
+        return self._family[1]
+
+    def basis_at(self, problem: ManufacturedProblem, request: SpaceLevel) -> _B:
+        """The basis of level ``request``, checked to carry the problem's
+        fields.
+
+        Raises
+        ------
+        ValueError
+            If the family has no such level, or the problem does not have
+            one field per component of the basis.
+        """
+        meshes = self.meshes_of(problem)
+        if request.index >= len(meshes):
+            raise ValueError(
+                f"the family has {len(meshes)} levels, no level {request.index}"
+            )
+        basis = self._basis.build(meshes[request.index])
+        try:
+            _blocks(basis, problem.fields())
+        except ValueError as error:
+            raise ValueError(f"{self._owner} needs {error}") from None
+        return basis
+
+    def sizes(self, problem: ManufacturedProblem, request: SpaceLevel) -> Sizes:
+        """The level's largest element diameter, basis degree and number
+        of unknowns."""
+        basis = self.basis_at(problem, request)
+        blocks = _blocks(basis, problem.fields())
+        return Sizes(
+            {
+                H: _mesh_size(blocks[0].basis),
+                DEGREE: _degree(basis),
+                NDOFS: basis.ndofs(),
+            }
+        )
+
+    def __repr__(self) -> str:
+        return f"{self._meshes!r}, {self._basis!r}"
+
+
+def _intorder(intorder: Optional[int], basis: _AnyBasis) -> int:
+    """``intorder``, or three more than twice the basis degree."""
+    return intorder if intorder is not None else 2 * _degree(basis) + 3
+
+
 class GalerkinDiscretizer(Generic[_B]):
     """Solves a steady problem with this stack on the meshes of a family:
     one field on a scalar basis, one field per component on a vector
@@ -1525,62 +1631,22 @@ class GalerkinDiscretizer(Generic[_B]):
         nonlinear: Optional[NonlinearSolverProtocol[_Np, _Np]] = None,
         intorder: Optional[int] = None,
     ) -> None:
-        self._meshes, self._basis, self._factory = meshes, basis, factory
+        self._family = _Family(meshes, basis, type(self).__name__)
+        self._factory = factory
         self._nonlinear: NonlinearSolverProtocol[_Np, _Np] = (
             Newton(atol=1e-12, rtol=1e-12, maxiters=30, line_search=True)
             if nonlinear is None
             else nonlinear
         )
         self._intorder = intorder
-        self._family: Optional[
-            Tuple[DomainProtocol, Sequence[GalerkinMeshProtocol[_Np]]]
-        ] = None
 
-    def _meshes_of(
-        self, problem: ManufacturedProblem
-    ) -> Sequence[GalerkinMeshProtocol[_Np]]:
-        """The family's meshes of the problem's domain, built once per
-        domain.
-
-        Raises
-        ------
-        ValueError
-            If ``problem`` is transient or has no domain.
-        """
-        # Only the solve is steady; the helpers and approximations serve a
-        # transient discretizer unchanged.
+    def _steady(self, problem: ManufacturedProblem) -> None:
+        """Refuse a transient problem: :class:`GalerkinTransientDiscretizer`
+        steps those."""
         if problem.is_transient():
             raise ValueError(
                 "GalerkinDiscretizer solves steady problems; this one depends on t"
             )
-        domain = problem.domain()
-        if domain is None:
-            raise ValueError("GalerkinDiscretizer needs a domain; this is an ODE")
-        if self._family is None or self._family[0] is not domain:
-            self._family = (domain, self._meshes.meshes(domain))
-        return self._family[1]
-
-    def _basis_at(self, problem: ManufacturedProblem, request: SpaceLevel) -> _B:
-        """The basis of level ``request``, checked to carry the problem's
-        fields.
-
-        Raises
-        ------
-        ValueError
-            If the family has no such level, or the problem does not have
-            one field per component of the basis.
-        """
-        meshes = self._meshes_of(problem)
-        if request.index >= len(meshes):
-            raise ValueError(
-                f"the family has {len(meshes)} levels, no level {request.index}"
-            )
-        basis = self._basis.build(meshes[request.index])
-        try:
-            _blocks(basis, problem.fields())
-        except ValueError as error:
-            raise ValueError(f"GalerkinDiscretizer needs {error}") from None
-        return basis
 
     def requests(self, problem: ManufacturedProblem) -> List[SpaceLevel]:
         """One level per mesh of the family, coarsest first.
@@ -1590,7 +1656,10 @@ class GalerkinDiscretizer(Generic[_B]):
         ValueError
             If ``problem`` is transient or has no domain.
         """
-        return [SpaceLevel(index) for index in range(len(self._meshes_of(problem)))]
+        self._steady(problem)
+        return [
+            SpaceLevel(index) for index in range(len(self._family.meshes_of(problem)))
+        ]
 
     def sizes(self, problem: ManufacturedProblem, request: SpaceLevel) -> Sizes:
         """The level's largest element diameter, basis degree and number
@@ -1601,15 +1670,8 @@ class GalerkinDiscretizer(Generic[_B]):
         ValueError
             As :meth:`solve`, for the problem and the level.
         """
-        basis = self._basis_at(problem, request)
-        blocks = _blocks(basis, problem.fields())
-        return Sizes(
-            {
-                H: _mesh_size(blocks[0].basis),
-                DEGREE: _degree(basis),
-                NDOFS: basis.ndofs(),
-            }
-        )
+        self._steady(problem)
+        return self._family.sizes(problem, request)
 
     def solve(
         self, problem: ManufacturedProblem, request: SpaceLevel
@@ -1625,7 +1687,8 @@ class GalerkinDiscretizer(Generic[_B]):
         RuntimeError
             If the solve does not converge.
         """
-        basis = self._basis_at(problem, request)
+        self._steady(problem)
+        basis = self._family.basis_at(problem, request)
         system = self._factory.system(problem, basis)
         discretization = skfem_discretization(system)
         steady = SteadySystem(
@@ -1638,15 +1701,252 @@ class GalerkinDiscretizer(Generic[_B]):
             raise RuntimeError(
                 f"the solve at {request!r} did not converge: {point.info().message}"
             )
-        intorder = (
-            self._intorder if self._intorder is not None else 2 * _degree(basis) + 3
-        )
         return GalerkinApproximation(
-            problem, problem.fields(), basis, point.state()[:, 0], intorder
+            problem,
+            problem.fields(),
+            basis,
+            point.state()[:, 0],
+            _intorder(self._intorder, basis),
         )
 
     def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._family!r}, {self._factory!r})"
+
+
+def _interpolant(problem: ManufacturedProblem, basis: _AnyBasis, time: float) -> _Np:
+    """The exact solution of every field at ``time`` at the DOF locations
+    of ``basis``, each DOF its own component's value, in the basis's DOF
+    order. Shape: ``(ndofs,)``."""
+    pieces = []
+    for block in sorted(_blocks(basis, problem.fields()), key=lambda b: b.offset):
+        dofs = np.arange(block.basis.ndofs())
+        components = (
+            np.asarray(block.basis.dof_components(dofs))
+            if isinstance(block.basis, ComponentDofsBasisProtocol)
+            else np.zeros_like(dofs)
+        )
+        exact = SkfemPoints([problem.solution(row) for row in block.rows], problem)
+        coords = np.asarray(block.basis.dof_coordinates())
+        pieces.append(exact(coords, t=time)[components, dofs])
+    return np.concatenate(pieces)
+
+
+class GalerkinSeries:
+    """A transient Galerkin solution: one :class:`GalerkinApproximation`
+    per stored time, the initial one included, built when asked for and
+    sharing one compiled exact solution.
+
+    Parameters
+    ----------
+    first : GalerkinApproximation
+        The solution at the first time, which the others share.
+    store : InMemoryTrajectoryStore
+        The stored states, shape ``(ndofs, 1)`` each, and their times.
+    """
+
+    def __init__(
+        self,
+        first: GalerkinApproximation,
+        store: InMemoryTrajectoryStore[_Np],
+    ) -> None:
+        self._first, self._store = first, store
+
+    def ntimes(self) -> int:
+        """The number of stored times."""
+        return self._store.ntimes()
+
+    def times(self) -> Tuple[float, ...]:
+        """The stored times, first to last."""
+        return self._store.times()
+
+    def at(self, n: int) -> GalerkinApproximation:
+        """The solution at time ``n``, counted from the initial time.
+
+        Raises
+        ------
+        IndexError
+            If there is no time ``n``.
+        """
+        if not 0 <= n < self._store.ntimes():
+            raise IndexError(f"the series has {self._store.ntimes()} times, no {n}")
+        return self._first.at(self._store.state(n)[:, 0], self._store.times()[n])
+
+
+class GalerkinTransientDiscretizer(Generic[_B]):
+    """Steps a transient problem with this stack on the meshes of a
+    family, with a time-stepping method the caller chooses: the fields as
+    :class:`GalerkinDiscretizer` takes them.
+
+    A level is a :class:`~pyapprox.pde.verification.transient.
+    TransientLevel` of a :class:`~pyapprox.pde.verification.protocols.
+    SpaceLevel` (the index of a mesh) and a time grid. Its sizes are the
+    spatial ones of :class:`GalerkinDiscretizer` and the time step
+    (``DT``), read without solving; :meth:`space_sizes` gives the spatial
+    ones alone, for :func:`~pyapprox.pde.verification.transient.
+    refine_jointly`.
+
+    Each solve: the factory's system on ``basis.build(mesh)``,
+    ``galerkin_transient_system`` with sparse LU and the essential rows
+    pinned at the blocks ``placement`` selects, stepped by
+    ``solve_galerkin_transient`` in fixed steps of the grid's size from the
+    interpolant of the exact solution at the grid's first time, every
+    state stored. The stage solves keep only the state-free setups
+    (``KeepStateFree``), which changes their cost, not their result.
+
+    Parameters
+    ----------
+    meshes : MeshFamilyProtocol
+        The meshes.
+    basis : BasisFactoryProtocol
+        The basis on each mesh.
+    factory : SystemFactoryProtocol
+        The system of a problem on a basis.
+    method : SteppingMethodProtocol
+        The time-stepping method, with its nonlinear solver when implicit.
+    grid : TimeGrid
+        The time grid of the discretizer's own levels
+        (:meth:`requests`).
+    placement : PinPlacementProtocol, optional
+        Which blocks of a step pin the essential rows. Default: each
+        step's end (``AtStepEnd``).
+    intorder : int, optional
+        The quadrature order of integral errors. Default: three more than
+        twice the basis degree (a mixed basis's highest).
+
+    Raises
+    ------
+    TypeError
+        If ``method`` does not satisfy ``SteppingMethodProtocol`` or
+        ``grid`` is not a ``TimeGrid``.
+    """
+
+    def __init__(
+        self,
+        meshes: MeshFamilyProtocol,
+        basis: BasisFactoryProtocol[_B],
+        factory: SystemFactoryProtocol[_B],
+        method: SteppingMethodProtocol[_Np, _Np],
+        grid: TimeGrid,
+        placement: Optional[PinPlacementProtocol] = None,
+        intorder: Optional[int] = None,
+    ) -> None:
+        if not isinstance(method, SteppingMethodProtocol):
+            raise TypeError(
+                "method must satisfy SteppingMethodProtocol, got "
+                f"{type(method).__name__}"
+            )
+        if not isinstance(grid, TimeGrid):
+            raise TypeError(f"grid must be a TimeGrid, got {type(grid).__name__}")
+        self._family = _Family(meshes, basis, type(self).__name__)
+        self._factory, self._method, self._grid = factory, method, grid
+        self._placement, self._intorder = placement, intorder
+
+    def _transient(self, problem: ManufacturedProblem) -> None:
+        """Refuse a problem without a first time derivative.
+
+        Raises
+        ------
+        ValueError
+            If no field has a time derivative, or one has a second.
+        """
+        orders = [problem.time_order(row) for row in problem.fields()]
+        if max(orders) == 0:
+            raise ValueError(
+                "GalerkinTransientDiscretizer steps problems with a time "
+                "derivative; this one has none (GalerkinDiscretizer solves it)"
+            )
+        if max(orders) > 1:
+            raise ValueError(
+                "GalerkinTransientDiscretizer steps first-order problems; a "
+                f"field has time order {max(orders)}"
+            )
+
+    def requests(
+        self, problem: ManufacturedProblem
+    ) -> List[TransientLevel[SpaceLevel]]:
+        """One level per mesh of the family, coarsest first, each on the
+        discretizer's grid.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`solve`, for the problem.
+        """
+        self._transient(problem)
+        return refine_space(
+            [
+                SpaceLevel(index)
+                for index in range(len(self._family.meshes_of(problem)))
+            ],
+            self._grid,
+        )
+
+    def space_sizes(self, problem: ManufacturedProblem, space: SpaceLevel) -> Sizes:
+        """The largest element diameter, basis degree and number of
+        unknowns of space level ``space``, without solving.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`solve`, for the problem and the level.
+        """
+        self._transient(problem)
+        return self._family.sizes(problem, space)
+
+    def sizes(
+        self, problem: ManufacturedProblem, request: TransientLevel[SpaceLevel]
+    ) -> Sizes:
+        """The level's spatial sizes and its time step, without solving.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`solve`, for the problem and the level.
+        """
+        space = self.space_sizes(problem, request.space)
+        return Sizes({**space.values, DT: request.grid.dt})
+
+    def solve(
+        self, problem: ManufacturedProblem, request: TransientLevel[SpaceLevel]
+    ) -> GalerkinSeries:
+        """The solution at every time of the level's grid.
+
+        Raises
+        ------
+        ValueError
+            If ``problem`` has no first time derivative or no domain, or
+            does not have one field per component of the basis, or the
+            family has no such level.
+        """
+        self._transient(problem)
+        basis = self._family.basis_at(problem, request.space)
+        grid = request.grid
+        system = galerkin_transient_system(
+            skfem_discretization(self._factory.system(problem, basis)),
+            ScipySparseLU(),
+            placement=self._placement,
+        )
+        store: InMemoryTrajectoryStore[_Np] = InMemoryTrajectoryStore()
+        solve_galerkin_transient(
+            system,
+            self._method,
+            KeepStateFree(system.solved.solver),
+            FixedStep(grid.dt, (grid.t0, grid.tfinal)),
+            _interpolant(problem, basis, grid.t0)[:, None],
+            store,
+        )
+        first = GalerkinApproximation(
+            problem,
+            problem.fields(),
+            basis,
+            store.state(0)[:, 0],
+            _intorder(self._intorder, basis),
+            store.times()[0],
+        )
+        return GalerkinSeries(first, store)
+
+    def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}({self._meshes!r}, {self._basis!r}, "
-            f"{self._factory!r})"
+            f"{type(self).__name__}({self._family!r}, {self._factory!r}, "
+            f"{self._method!r}, {self._grid!r}, placement={self._placement!r})"
         )
