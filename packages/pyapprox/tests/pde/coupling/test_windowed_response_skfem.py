@@ -40,6 +40,7 @@ from pyapprox.ode.tableau import (
     backward_euler,
     classical_rk4,
     crank_nicolson,
+    esdirk3_5l2sa,
     heun,
     implicit_midpoint,
 )
@@ -345,6 +346,108 @@ def test_jvp_trace_matches_finite_differences(
     _BKD.assert_allclose(tangent(block), columns, rtol=1e-12)
     with pytest.raises(ValueError):
         tangent(np.zeros((n + 1, 1)))
+
+
+def _assert_transposes(derivs: Any, nin: int, nout: int) -> None:
+    """``vjp_trace`` is the transpose of ``jvp_trace``: ⟨w, J d⟩ = ⟨Jᵀ w,
+    d⟩ on random blocks of two columns, to 1e-11 relative."""
+    assert derivs.jvp_trace is not None and derivs.vjp_trace is not None
+    rng = np.random.default_rng(1)
+    directions, cotangents = rng.normal(size=(nin, 2)), rng.normal(size=(nout, 2))
+    forward = cotangents.T @ derivs.jvp_trace(directions)
+    backward = derivs.vjp_trace(cotangents).T @ directions
+    assert float(np.abs(forward).max()) > 1e-3
+    _BKD.assert_allclose(backward, forward, rtol=1e-11)
+
+
+@pytest.mark.parametrize("nsubsteps", [1, 3])
+@pytest.mark.parametrize(
+    "tableau",
+    [backward_euler, heun, implicit_midpoint, alexander_sdirk3, esdirk3_5l2sa],
+)
+def test_vjp_trace_transposes_jvp_trace(
+    tableau: Callable[[], ButcherTableau], nsubsteps: int
+) -> None:
+    """The backward sweep over one window's steps, for one block, explicit
+    stages, a final block apart from the last stage and two stiffly
+    accurate methods (ESDIRK's trivial first stage), one step or three;
+    it refuses a wrongly shaped cotangent."""
+    strip = _Strip()
+    half = strip.half(1, tableau=tableau, nsubsteps=nsubsteps)
+    response = half.response
+    n = response.nport()
+    point = response.linearize(strip.trace(1, half), _NONE, TimeWindow(0.0, _DT))
+    _assert_transposes(point.derivatives(), n, n)
+    transpose = point.derivatives().vjp_trace
+    assert transpose is not None
+    with pytest.raises(ValueError):
+        transpose(np.zeros((n + 1, 1)))
+
+
+def test_stagewise_vjp_trace_transposes_jvp_trace() -> None:
+    """SDIRK3 coupled stage by stage: three traces per port."""
+    strip = _Strip()
+    system, nodes, ports, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    response = skfem_stagewise_response(
+        system,
+        ports,
+        _method(alexander_sdirk3),
+        RecomputeAlways(ScipySparseLU()),
+        strip.reference.state(0)[rows],
+        InMemoryTrajectoryStore(),
+    )
+    n = response.nport()
+    end: Np = strip.reference.state(1)[rows][ports]
+    point = response.linearize(np.repeat(end, 3, axis=0), _NONE, TimeWindow(0.0, _DT))
+    _assert_transposes(point.derivatives(), n, n)
+
+
+@pytest.mark.parametrize("tableau", [alexander_sdirk3, heun])
+def test_spacetime_vjp_trace_transposes_jvp_trace(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """cG(2), two test functions, two substeps: the stage quadrature's
+    weights transposed, for SDIRK3 and Heun."""
+    strip = _Strip()
+    response, ports = _spacetime(
+        strip,
+        tableau,
+        StartContinuousLagrange((0.5, 1.0)),
+        LagrangeTestFunctions((0.25, 0.75)),
+        2,
+    )
+    n = response.nport()
+    system, nodes, _, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    end: Np = strip.reference.state(1)[rows][ports]
+    point = response.linearize(np.repeat(end, 2, axis=0), _NONE, TimeWindow(0.0, _DT))
+    _assert_transposes(point.derivatives(), n, n)
+
+
+@pytest.mark.parametrize("tableau", [crank_nicolson, esdirk3_5l2sa])
+def test_a_step_start_reaction_gives_no_vjp_trace(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """A stiffly accurate method with a trivial first stage tests the
+    step-start reaction, which has no transpose: the tangent is supplied,
+    its transpose is not."""
+    strip = _Strip()
+    response, ports = _spacetime(
+        strip,
+        tableau,
+        StartContinuousLagrange((0.5, 1.0)),
+        LagrangeTestFunctions((0.25, 0.75)),
+        2,
+    )
+    system, nodes, _, _ = strip.problem.port_system(1)
+    rows = [node_at(strip.nodes, nodes[:, j]) for j in range(nodes.shape[1])]
+    end: Np = strip.reference.state(1)[rows][ports]
+    derivs = response.linearize(
+        np.repeat(end, 2, axis=0), _NONE, TimeWindow(0.0, _DT)
+    ).derivatives()
+    assert derivs.jvp_trace is not None
+    assert derivs.vjp_trace is None
 
 
 def test_stagewise_jvp_trace_matches_finite_differences() -> None:

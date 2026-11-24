@@ -88,12 +88,14 @@ from pyapprox.pde.coupling.responses import (
     TimeWindow,
     Trace,
     TraceJVP,
+    TraceVJP,
 )
 from pyapprox.util.backends.protocols import ArrayProtocol, Backend
 from pyapprox.util.linalg.operators import (
     BlockVector,
     FormatProtocol,
     RowSetProtocol,
+    SolverHandleProtocol,
     VectorSpaceProtocol,
 )
 from pyapprox.util.linalg.operators.linearization import LinearizationPoint
@@ -102,7 +104,6 @@ V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
 V_contra = TypeVar("V_contra", contravariant=True)
 A_contra = TypeVar("A_contra", bound=ArrayProtocol, contravariant=True)
-A_co = TypeVar("A_co", bound=ArrayProtocol, covariant=True)
 V_co = TypeVar("V_co", covariant=True)
 F = TypeVar("F", bound=FormatProtocol)
 
@@ -111,6 +112,12 @@ TrajectoryTangent = Callable[[Sequence[BlockVector[V]], Sequence[V]], A]
 states, each a block of columns: ``unknowns[m]`` step ``m``'s and
 ``states[k]`` the state after step ``k``. The trial's first state, the
 committed one, does not change."""
+
+TrajectoryAdjoint = Callable[[A], tuple[list[BlockVector[V]], list[V]]]
+"""The transpose of a :data:`TrajectoryTangent`: for an output cotangent
+of one column, each step unknown's cotangent and each changing stored
+state's, laid out as the tangent's arguments (``states[k]`` the state
+after step ``k``)."""
 
 
 @runtime_checkable
@@ -161,14 +168,14 @@ class WindowPortInputProtocol(Protocol[V_contra, A_contra]):
 
 
 @runtime_checkable
-class WindowPortOutputProtocol(Protocol[V, A_co]):
+class WindowPortOutputProtocol(Protocol[V, A]):
     """What a :class:`WindowedResponse` returns, read from a trial."""
 
     def returns(self) -> PortQuantity:
         """What the output is."""
         ...
 
-    def output(self, trial: InMemoryTrajectoryStore[V]) -> A_co:
+    def output(self, trial: InMemoryTrajectoryStore[V]) -> A:
         """The output over the window ``trial`` stepped. Shape:
         (nport, 1)."""
         ...
@@ -181,10 +188,17 @@ class WindowPortOutputProtocol(Protocol[V, A_co]):
 
     def trajectory_tangent(
         self, trial: InMemoryTrajectoryStore[V]
-    ) -> Optional[TrajectoryTangent[V, A_co]]:
+    ) -> Optional[TrajectoryTangent[V, A]]:
         """The output's change for changes of ``trial``'s step unknowns
         and stored states, shape (nport, ncols); None when not supplied
         for this trial."""
+        ...
+
+    def trajectory_adjoint(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryAdjoint[A, V]]:
+        """The transpose of :meth:`trajectory_tangent` at ``trial``; None
+        when not supplied for this trial."""
         ...
 
 
@@ -247,6 +261,47 @@ class _LinearizedResiduals(Generic[V, A]):
                 block = space.axpby(1.0, coupled, 1.0, block, out=block)
             changes.append(block)
         return changes
+
+    def transpose(
+        self, cotangents: Sequence[BlockVector[V]]
+    ) -> tuple[list[BlockVector[V]], list[V]]:
+        """The transpose of :meth:`__call__`: for each step residual's
+        cotangent, each step unknown's cotangent and each changing stored
+        state's (``states[k - 1]`` state ``k``'s)."""
+        stepper = self._stepper
+        off_diag = stepper.derivatives().off_diag
+        space = stepper.state_space().component(0)
+        unknowns = []
+        states: list[Optional[V]] = [None] * len(self._windows)
+        for m, window in enumerate(self._windows):
+            unknowns.append(stepper.diag(window).apply_transpose(cotangents[m]))
+            for lag in range(1, len(window.past_states) + 1):
+                # The committed first state does not change.
+                index = m + 1 - lag
+                if index < 1:
+                    continue
+                if off_diag is None:
+                    raise ValueError("no past-state derivative")
+                pulled = off_diag(window, lag).apply_transpose(cotangents[m]).blocks[0]
+                held = states[index - 1]
+                states[index - 1] = (
+                    pulled if held is None else space.axpby(1.0, pulled, 1.0, held)
+                )
+        return unknowns, [space.zeros(1) if s is None else s for s in states]
+
+
+def _on_blocks(
+    stepper: DifferentiableStepperProtocol[V, A],
+    ports: PortRowsProtocol[V, A],
+    blocks: dict[int, A],
+) -> BlockVector[V]:
+    r"""A residual cotangent that is :math:`R^\top` ``blocks[i]`` on block
+    ``i``, zero elsewhere: the transpose of reading the port rows of
+    residual blocks."""
+    parts = list(stepper.residual_space().zeros(1).blocks)
+    for i, block in blocks.items():
+        parts[i] = ports.add_to(parts[i], block)
+    return BlockVector(tuple(parts))
 
 
 def _lagrange(nodes: Sequence[float], s: float) -> list[float]:
@@ -778,6 +833,23 @@ class StepResidualReaction(Generic[V, A]):
 
         return change
 
+    def trajectory_adjoint(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryAdjoint[A, V]]:
+        """Supplied when :meth:`trajectory_tangent` is: every step's last
+        residual block reads the cotangent on the port rows."""
+        linearized = _LinearizedResiduals.of(self._reaction, trial)
+        if linearized is None:
+            return None
+        last = self._reaction.residual_space().nblocks() - 1
+        nsteps = trial.nsteps()
+
+        def adjoint(cotangent: A) -> tuple[list[BlockVector[V]], list[V]]:
+            on_last = _on_blocks(self._reaction, self._ports, {last: cotangent})
+            return linearized.transpose([on_last] * nsteps)
+
+        return adjoint
+
 
 class StageReactions(Generic[V, A]):
     r"""Each block's time-discrete reaction on the port rows: block
@@ -845,6 +917,26 @@ class StageReactions(Generic[V, A]):
             return self._interleaved(jacobian.apply(unknowns[0]))
 
         return change
+
+    def trajectory_adjoint(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryAdjoint[A, V]]:
+        """Supplied for a one-step trial, as the tangent is: block ``j``
+        reads entries ``q * p + j`` of the cotangent."""
+        if trial.nsteps() != 1:
+            return None
+        jacobian = self._reaction.diag(trial.window(0))
+        nblocks = self._reaction.residual_space().nblocks()
+
+        def adjoint(cotangent: A) -> tuple[list[BlockVector[V]], list[V]]:
+            per_block = self._bkd.reshape(cotangent, (-1, nblocks))
+            blocks = {j: per_block[:, j : j + 1] for j in range(nblocks)}
+            residual = _on_blocks(self._reaction, self._ports, blocks)
+            # The step's end state enters only through its unknown.
+            end = self._reaction.state_space().component(0).zeros(1)
+            return [jacobian.apply_transpose(residual)], [end]
+
+        return adjoint
 
 
 @runtime_checkable
@@ -1244,6 +1336,39 @@ class StageQuadratureFlux(Generic[V, A]):
 
         return change
 
+    def trajectory_adjoint(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryAdjoint[A, V]]:
+        """Supplied when :meth:`trajectory_tangent` is and the method reads
+        no step-start reaction: each step's used blocks read the
+        cotangent's test-function entries, weighted as :meth:`output`
+        weights them."""
+        if self._needs_start:
+            return None
+        linearized = _LinearizedResiduals.of(self._reaction, trial)
+        if linearized is None:
+            return None
+        weights = self._weights([trial.window(m) for m in range(trial.nsteps())])
+        ntests, bkd = self._test.count(), self._bkd
+
+        def adjoint(cotangent: A) -> tuple[list[BlockVector[V]], list[V]]:
+            per_test = bkd.reshape(cotangent, (-1, ntests))
+            residuals = []
+            for blocks, _ in weights:
+                parts: dict[int, A] = {}
+                for r, block in enumerate(self._blocks):
+                    for k in range(ntests):
+                        weight = blocks[k][r]
+                        if weight == 0.0:
+                            continue
+                        term = weight * per_test[:, k : k + 1]
+                        held = parts.get(block)
+                        parts[block] = term if held is None else held + term
+                residuals.append(_on_blocks(self._reaction, self._ports, parts))
+            return linearized.transpose(residuals)
+
+        return adjoint
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}(test={self._test!r})"
 
@@ -1387,6 +1512,12 @@ class StageQuadratureTrace(Generic[V, A]):
 
         return change
 
+    def trajectory_adjoint(
+        self, trial: InMemoryTrajectoryStore[V]
+    ) -> Optional[TrajectoryAdjoint[A, V]]:
+        """Not supplied: :class:`StageValuesProtocol` gives no transpose."""
+        return None
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}(test={self._test!r})"
 
@@ -1484,6 +1615,123 @@ class _TraceTangent(Generic[V, A]):
         through = self._change(unknowns, states)
         return through if direct is None else through + direct
 
+    def data_columns(self) -> tuple[list[BlockVector[V]], Optional[A]]:
+        r"""Per step, :math:`-\partial R_m/\partial \lambda`, one column per
+        port datum; and the output's direct derivative in them, None when
+        it reads none. Exact by differences of unit data, since both are
+        affine in them; residual evaluations only."""
+        return self._data_changes(self._bkd.eye(self._input.nport()))
+
+    def steps(self) -> list[StepWindow[V]]:
+        """The trial's step windows."""
+        return self._steps
+
+    def stepper(self) -> StepperProtocol[V, A]:
+        return self._stepper
+
+    def nport(self) -> int:
+        """The number of port data."""
+        return self._input.nport()
+
+
+class _TraceAdjoint(Generic[V, A]):
+    r""":math:`(\partial r/\partial \lambda)^\top w`, the transpose of a
+    :class:`_TraceTangent`, by a backward sweep over the trial's steps.
+
+    The output's cotangents of the step unknowns and stored states come
+    from the output's :data:`TrajectoryAdjoint`. From the last step back,
+    step :math:`m`'s adjoint solves :math:`(\partial R_m/\partial
+    u_m)^\top \mu_m = \bar u_m + E^\top \bar y_{m+1}`, adds
+    :math:`(-\partial R_m/\partial \lambda)^\top \mu_m` to the result and
+    :math:`-(\partial R_m/\partial y_{m+1-l})^\top \mu_m` to the
+    cotangent of each changing state it read; the output's direct
+    derivative in the port data adds its transpose. The data columns are
+    formed on the first call, the transposed step handles once per step.
+    """
+
+    def __init__(
+        self,
+        tangent: _TraceTangent[V, A],
+        adjoint: TrajectoryAdjoint[A, V],
+        nreturn: int,
+        bkd: Backend[A],
+    ) -> None:
+        self._tangent, self._adjoint = tangent, adjoint
+        self._nreturn, self._bkd = nreturn, bkd
+        self._columns: Optional[tuple[list[BlockVector[V]], Optional[A]]] = None
+        self._handles: dict[int, SolverHandleProtocol[BlockVector[V]]] = {}
+
+    def _handle(self, m: int) -> SolverHandleProtocol[BlockVector[V]]:
+        handle = self._handles.get(m)
+        if handle is None:
+            stepper = self._tangent.stepper()
+            transposed = stepper.diag_handle(self._tangent.steps()[m]).transpose()
+            if transposed is None:
+                raise TypeError(
+                    f"{type(stepper).__name__}'s diag_handle cannot solve "
+                    "transposed, so the trace has no adjoint"
+                )
+            handle = self._handles[m] = transposed
+        return handle
+
+    def _column(self, cotangent: A) -> A:
+        if self._columns is None:
+            self._columns = self._tangent.data_columns()
+        columns, direct = self._columns
+        stepper = self._tangent.stepper()
+        unknown_space = stepper.unknown_space()
+        residual_space = stepper.residual_space()
+        state_space = stepper.state_space().component(0)
+        off_diag = stepper.derivatives().off_diag
+        unknowns, states = self._adjoint(cotangent)
+        states = list(states)
+        total = (
+            self._bkd.zeros((self._tangent.nport(), 1))
+            if direct is None
+            else direct.T @ cotangent
+        )
+        steps = self._tangent.steps()
+        for m in reversed(range(len(steps))):
+            step = steps[m]
+            rhs = unknown_space.axpby(
+                1.0,
+                stepper.readout().apply_transpose(BlockVector((states[m],))),
+                1.0,
+                unknowns[m],
+            )
+            mu, info = self._handle(m).solve(rhs)
+            if not info.converged:
+                raise ValueError(f"the adjoint solve of step {m} did not converge")
+            total = total + residual_space.dot(columns[m], mu)
+            for lag in range(1, len(step.past_states) + 1):
+                # The committed first state does not change.
+                index = m + 1 - lag
+                if index < 1:
+                    continue
+                if off_diag is None:
+                    raise ValueError(
+                        "a trial of several steps needs the stepper's past-state "
+                        "derivatives"
+                    )
+                pulled = off_diag(step, lag).apply_transpose(mu).blocks[0]
+                states[index - 1] = state_space.axpby(
+                    -1.0, pulled, 1.0, states[index - 1]
+                )
+        return total
+
+    def __call__(self, cotangents: A) -> A:
+        if cotangents.ndim != 2 or cotangents.shape[0] != self._nreturn:
+            raise ValueError(
+                f"cotangents must have shape ({self._nreturn}, ncols), got "
+                f"{tuple(cotangents.shape)}"
+            )
+        return self._bkd.hstack(
+            [
+                self._column(cotangents[:, j : j + 1])
+                for j in range(int(cotangents.shape[1]))
+            ]
+        )
+
 
 class _Owner:
     """Identifies the response a point came from."""
@@ -1504,14 +1752,17 @@ class WindowedPoint(Generic[V, A]):
         bkd: Backend[A],
         tangent: Optional[TraceJVP[A]],
         port_data: A,
+        transpose: Optional[TraceVJP[A]] = None,
     ) -> None:
         self._owner, self._window, self._trial = owner, window, trial
         self._output, self._bkd, self._port_data = output, bkd, port_data
-        self._derivs: ResponseDerivatives[A] = (
-            ResponseDerivatives.none()
-            if tangent is None
-            else ResponseDerivatives.tangent(tangent)
-        )
+        self._derivs: ResponseDerivatives[A]
+        if tangent is None:
+            self._derivs = ResponseDerivatives.none()
+        elif transpose is None:
+            self._derivs = ResponseDerivatives.tangent(tangent)
+        else:
+            self._derivs = ResponseDerivatives.adjoint(tangent, transpose)
 
     def output(self) -> A:
         """The output over the window. Shape: (nport, 1)."""
@@ -1557,7 +1808,11 @@ class WindowedResponse(Generic[V, A]):
     with the trial's unknowns and states: the step residuals' changes
     with the port data, carried through the window's steps by a forward
     tangent sweep, for any method (several steps need the stepper's
-    past-state derivatives).
+    past-state derivatives). Its transpose (``vjp_trace``) is supplied
+    beside it whenever ``port_output`` gives
+    :meth:`~WindowPortOutputProtocol.trajectory_adjoint`, by a backward
+    sweep over the same steps; calling it needs the stepper's step
+    handles to solve transposed.
 
     Parameters
     ----------
@@ -1702,7 +1957,7 @@ class WindowedResponse(Generic[V, A]):
         trial: InMemoryTrajectoryStore[V] = InMemoryTrajectoryStore()
         self._integrator.solve(self._state, self._substeps(window), trial)
         change = self._output.trajectory_tangent(trial)
-        tangent: Optional[TraceJVP[A]] = (
+        tangent: Optional[_TraceTangent[V, A]] = (
             None
             if change is None
             else _TraceTangent(
@@ -1717,14 +1972,22 @@ class WindowedResponse(Generic[V, A]):
                 self._bkd,
             )
         )
+        output = self._output.output(trial)
+        adjoint = None if tangent is None else self._output.trajectory_adjoint(trial)
+        transpose: Optional[TraceVJP[A]] = (
+            None
+            if tangent is None or adjoint is None
+            else _TraceAdjoint(tangent, adjoint, int(output.shape[0]), self._bkd)
+        )
         return WindowedPoint(
             self._owner,
             window,
             trial,
-            self._output.output(trial),
+            output,
             self._bkd,
             tangent,
             port_data,
+            transpose,
         )
 
     def accept(self, point: ResponsePointProtocol[A]) -> None:

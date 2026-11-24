@@ -64,7 +64,12 @@ from pyapprox.pde.coupling.responses import (
     ResponsePointProtocol,
     TimeWindow,
 )
-from pyapprox.pde.coupling.skeleton import CoupledSubdomain, DenseSchur
+from pyapprox.pde.coupling.skeleton import (
+    CoupledSubdomain,
+    DenseSchur,
+    MatrixFreeSchur,
+    SkeletonResidual,
+)
 from pyapprox.pde.coupling.spaces import ComponentSkeletonSpace
 from pyapprox.pde.coupling.stacks.galerkin import (
     skfem_spacetime_response,
@@ -93,6 +98,7 @@ from pyapprox.util.linalg.backend_dense import (
     BackendVectorSpace,
     DenseFormat,
 )
+from pyapprox.util.linalg.operators.linearization import LinearizationPoint
 from pyapprox.util.linalg.scipy_stack import ScipySparseLU
 from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.coupling_skfem import (
@@ -591,6 +597,31 @@ def test_spacetime_temporal_order(
         )
     observed = np.log2(errors[-2] / errors[-1])
     assert abs(observed - rate) < 0.2, f"rate {observed:.2f}, errors {errors}"
+
+
+@pytest.mark.parametrize("tableau", [backward_euler, implicit_midpoint])
+def test_the_windowed_schur_transpose_is_its_adjoint(
+    tableau: Callable[[], ButcherTableau],
+) -> None:
+    """Over one window of the 2 x 2 boxes (cross points), the matrix-free
+    Schur operator's transpose, through each response's ``vjp_trace``,
+    equals the transpose of the dense assembly, through ``jvp_trace``."""
+    run = _Run((2, 2), [], tableau, 0.01)
+    space = BackendVectorSpace(run.problem.space.descriptor(), _BKD)
+    window = TimeWindow(0.0, run.dt)
+    label = LinearizationPoint(0, "test", provisional=True)
+    matrix_free: MatrixFreeSchur[Np, Np] = MatrixFreeSchur()
+    residual = SkeletonResidual(space, run.subdomains, matrix_free, window=window)
+    dense = SkeletonResidual(space, run.subdomains, DenseSchur(_BKD), window=window)
+    lam = run.reference.state(1)[run.at_skeleton]
+    jacobian = residual.derivatives().jacobian
+    assembled = dense.derivatives().jacobian
+    assert jacobian is not None and assembled is not None
+    op = jacobian(lam, label)
+    assert op.properties().transposable
+    n = space.descriptor().size
+    matrix = assembled(lam, label).format().matrix()
+    _BKD.assert_allclose(op.apply_transpose(np.eye(n)), matrix.T, rtol=1e-11)
 
 
 @pytest.mark.parametrize("ncells, essentials, tableau, dt", _CASES)
