@@ -107,7 +107,12 @@ from pyapprox.pde.verification.conditions import (
 )
 from pyapprox.pde.verification.domains import Box
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.terms import Divergence, Source, TermProtocol
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
@@ -195,9 +200,12 @@ class _VelocityForcing:
         return bool(self._supplier.is_time_dependent())
 
 
-def _stokes_terms() -> List[TermProtocol]:
-    """Momentum rows div(-nu grad u_i + p e_i) and the continuity source."""
+def _stokes_terms(transient: bool = False) -> List[TermProtocol]:
+    """Momentum rows div(-nu grad u_i + p e_i), with du_i/dt when
+    ``transient``, and the continuity source."""
     terms: List[TermProtocol] = []
+    if transient:
+        terms += [TimeDerivative("u"), TimeDerivative("v")]
     for i, row in enumerate(("u", "v")):
         fluxes = [
             f"-({NU})*{row}_{c}" + (" + p" if i == j else "")
@@ -208,9 +216,12 @@ def _stokes_terms() -> List[TermProtocol]:
     return terms
 
 
-def stokes_problem(solution: Solution = SMOOTH) -> ManufacturedProblem:
-    """The Stokes side's strong form and exact solution; the interface's
-    entry only completes the parts (its conditions are built apart)."""
+def stokes_problem(
+    solution: Solution = SMOOTH, transient: bool = False
+) -> ManufacturedProblem:
+    """The Stokes side's strong form and exact solution, with the
+    velocity's time derivative when ``transient``; the interface's entry
+    only completes the parts (its conditions are built apart)."""
     conditions: dict[str, ConditionProtocol] = {
         "left": Dirichlet(),
         "right": Neumann(),
@@ -219,7 +230,7 @@ def stokes_problem(solution: Solution = SMOOTH) -> ManufacturedProblem:
     }
     return ManufacturedProblem(
         dict(zip(("u", "v", "p"), solution.stokes)),
-        _stokes_terms(),
+        _stokes_terms(transient),
         Box([(0.0, 0.5), (0.0, 1.0)]),
         conditions,
     )
@@ -230,6 +241,91 @@ def _bjs(coords: Np) -> Np:
     normal component carries the port load, the tangential one BJS."""
     npts = coords.shape[1]
     return np.vstack([np.zeros(npts), np.full(npts, BETA)])
+
+
+@dataclass(frozen=True)
+class StokesSide:
+    """The Stokes side's composed system before a response is built from
+    it: the system, its port DOFs (node-major velocity components) and
+    transfer, its problem and basis."""
+
+    system: Any
+    ports: list[int]
+    transfer: PortTransferProtocol[Np, Np]
+    problem: ManufacturedProblem
+    basis: MixedBasis[Np]
+
+
+def stokes_side(
+    ncells: int,
+    bjs: bool,
+    sign: float,
+    solution: Solution,
+    skeleton: Skeleton,
+    transient: bool = False,
+) -> StokesSide:
+    """Taylor-Hood Stokes on [0, 1/2] x [0, 1] (module docstring), its
+    port every interface velocity DOF reading ``skeleton`` by the normal
+    projection with sign ``sign``; with ``transient`` the velocity's time
+    derivative joins the momentum rows (``solution`` may then use ``t``).
+    BJS when ``bjs``."""
+    bkd = _BKD
+    problem = stokes_problem(solution, transient)
+    mesh = StructuredMesh2D(ncells, ncells, [(0.0, 0.5), (0.0, 1.0)], bkd)
+    basis: MixedBasis[Np] = TaylorHood().build(mesh)
+    physics = StokesPhysics(
+        basis,
+        bkd,
+        viscosity=NU,
+        vel_forcing=_VelocityForcing(vector_forcing(problem, ("u", "v"))),
+        pres_forcing=forcing(problem, "p"),
+    )
+    conditions: List[BoundaryConditionRole[Np]] = [
+        bc
+        for bc in vector_boundary_conditions(
+            problem, basis, ("u", "v"), field_name="velocity"
+        )
+        if not (isinstance(bc, NeumannBC) and bc.boundary_name() == "right")
+    ]
+    velocity = basis.field("velocity")
+    if not isinstance(velocity, ComponentDofsBasisProtocol):
+        raise TypeError("the velocity field is not a vector field")
+    if bjs:
+        conditions.append(RobinBC(velocity, "right", TimeIndependent(_bjs), 0.0, bkd))
+    system = compose_galerkin_system(physics, conditions)
+    points: Np = np.asarray(basis.dof_coordinates())
+    # Each component's interface DOFs along the interface; node-major.
+    along = [
+        sorted(
+            (int(d) for d in np.asarray(velocity.get_dofs("right", (c,)))),
+            key=lambda d: float(points[1, d]),
+        )
+        for c in range(2)
+    ]
+    if not np.allclose(points[:, along[0]], points[:, along[1]]):
+        raise ValueError("the velocity components' interface DOFs differ")
+    ports = [d for pair in zip(*along) for d in pair]
+    nnodes = len(along[0])
+    elements = [list(range(2 * e, 2 * e + 3)) for e in range(ncells)]
+    trace = LagrangeSegmentTrace(
+        points[:, along[0]], elements, (2 + skeleton.nskel + 1) // 2 + 1, bkd
+    )
+    stack: PortAssemblyProtocol[Np, CSRFormat, Np, Np] = ScipyAssemblyStack(np.float64)
+    coupling = port_trace_coupling(
+        skeleton.space,
+        trace,
+        skeleton.geometry,
+        skeleton.faces,
+        skeleton.dofs,
+        AverageIncidentFaces(),
+        stack,
+    )
+    inner = PortMatrixTransfer(
+        BackendPortRows(skeleton.space.descriptor(), skeleton.dofs, bkd), coupling
+    )
+    normals = np.tile([[1.0, 0.0]], (nnodes, 1))
+    transfer = NormalProjectionTransfer(inner, normals, bkd, sign)
+    return StokesSide(system, ports, transfer, problem, basis)
 
 
 class StokesDarcyStrip:
@@ -291,78 +387,24 @@ class StokesDarcyStrip:
         return faces, list(subdomain_port_dofs(self._topo, self._space, subdomain))
 
     def _stokes(self, ncells: int, bjs: bool, sign: float, solution: Solution) -> None:
-        bkd = _BKD
-        problem = stokes_problem(solution)
-        mesh = StructuredMesh2D(ncells, ncells, [(0.0, 0.5), (0.0, 1.0)], bkd)
-        basis: MixedBasis[Np] = TaylorHood().build(mesh)
-        physics = StokesPhysics(
-            basis,
-            bkd,
-            viscosity=NU,
-            vel_forcing=_VelocityForcing(vector_forcing(problem, ("u", "v"))),
-            pres_forcing=forcing(problem, "p"),
-        )
-        conditions: List[BoundaryConditionRole[Np]] = [
-            bc
-            for bc in vector_boundary_conditions(
-                problem, basis, ("u", "v"), field_name="velocity"
-            )
-            if not (isinstance(bc, NeumannBC) and bc.boundary_name() == "right")
-        ]
-        velocity = basis.field("velocity")
-        if not isinstance(velocity, ComponentDofsBasisProtocol):
-            raise TypeError("the velocity field is not a vector field")
-        if bjs:
-            conditions.append(
-                RobinBC(velocity, "right", TimeIndependent(_bjs), 0.0, bkd)
-            )
-        system = compose_galerkin_system(physics, conditions)
-        points: Np = np.asarray(basis.dof_coordinates())
-        # Each component's interface DOFs along the interface; node-major.
-        along = [
-            sorted(
-                (int(d) for d in np.asarray(velocity.get_dofs("right", (c,)))),
-                key=lambda d: float(points[1, d]),
-            )
-            for c in range(2)
-        ]
-        if not np.allclose(points[:, along[0]], points[:, along[1]]):
-            raise ValueError("the velocity components' interface DOFs differ")
-        ports = [d for pair in zip(*along) for d in pair]
-        nnodes = len(along[0])
-        elements = [list(range(2 * e, 2 * e + 3)) for e in range(ncells)]
-        trace = LagrangeSegmentTrace(
-            points[:, along[0]], elements, (2 + self._nskel + 1) // 2 + 1, bkd
-        )
-        stack: PortAssemblyProtocol[Np, CSRFormat, Np, Np] = ScipyAssemblyStack(
-            np.float64
-        )
         faces, dofs = self._faces_and_dofs(0)
-        coupling = port_trace_coupling(
-            self._space,
-            trace,
-            self._geometry,
-            faces,
-            dofs,
-            AverageIncidentFaces(),
-            stack,
+        side = stokes_side(
+            ncells,
+            bjs,
+            sign,
+            solution,
+            Skeleton(self._space, self._geometry, faces, dofs, self._nskel),
         )
-        inner = PortMatrixTransfer(
-            BackendPortRows(self._space.descriptor(), dofs, bkd), coupling
-        )
-        normals = np.tile([[1.0, 0.0]], (nnodes, 1))
-        self._stokes_transfer: PortTransferProtocol[Np, Np] = NormalProjectionTransfer(
-            inner, normals, bkd, sign
-        )
+        self._stokes_transfer: PortTransferProtocol[Np, Np] = side.transfer
         self._stokes_response = skfem_loaded_response(
-            system,
-            ports,
+            side.system,
+            side.ports,
             RecomputeAlways(ScipySparseLU()),
             newton(),
             receives=InterfacePressure(),
             returns=NormalVelocity(),
         )
-        self._stokes_problem, self._stokes_basis = problem, basis
+        self._stokes_problem, self._stokes_basis = side.problem, side.basis
 
     def _pieces(
         self,
@@ -371,6 +413,23 @@ class StokesDarcyStrip:
             (self._stokes_response, self._stokes_transfer),
             (self._darcy_response, self._darcy.transfer),
         ]
+
+    def skeleton(self, subdomain: int) -> Skeleton:
+        """The skeleton as side ``subdomain`` reads it: 0 Stokes, 1
+        Darcy."""
+        faces, dofs = self._faces_and_dofs(subdomain)
+        return Skeleton(self._space, self._geometry, faces, dofs, self._nskel)
+
+    def space(self) -> ContinuousSkeletonSpace[Np]:
+        """The skeleton space."""
+        return self._space
+
+    def states(self, lam: Np) -> tuple[Np, Np]:
+        """The Stokes and Darcy states for the skeleton values ``lam``.
+        Shapes: (nstates, 1)."""
+        stokes, _ = self._state(self._stokes_response, self._stokes_transfer, lam)
+        darcy, _ = self._state(self._darcy_response, self._darcy.transfer, lam)
+        return stokes[:, None], darcy[:, None]
 
     def darcy_pinned(self) -> LocalResponseProtocol[Np]:
         """The Darcy side's pinned response, before its kinds are

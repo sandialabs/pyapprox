@@ -103,7 +103,12 @@ from pyapprox.pde.models.galerkin.verification import (
 from pyapprox.pde.verification.conditions import ConditionProtocol, Dirichlet, Neumann
 from pyapprox.pde.verification.domains import Box as VerificationBox
 from pyapprox.pde.verification.problem import ManufacturedProblem
-from pyapprox.pde.verification.terms import Divergence, Source, TermProtocol
+from pyapprox.pde.verification.terms import (
+    Divergence,
+    Source,
+    TermProtocol,
+    TimeDerivative,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
@@ -145,13 +150,17 @@ def galerkin_adr_problem(
     solution: str,
     region: VerificationBox,
     conditions: dict[str, ConditionProtocol],
+    storage: Optional[float] = None,
 ) -> ManufacturedProblem:
     r""":math:`D \Delta u - \nabla\cdot(v u) + r u + f = 0` on ``region``
     with natural data the diffusive flux: only :math:`-D \nabla u` inside
     the divergence, the transport :math:`v \cdot \nabla u` a source (v is
-    constant, so it equals :math:`\nabla\cdot(v u)`)."""
+    constant, so it equals :math:`\nabla\cdot(v u)`). With ``storage``
+    :math:`S`, the transient :math:`S \partial_t u` joins the left side."""
     coords = region.coordinates()
     terms: list[TermProtocol] = []
+    if storage is not None:
+        terms.append(TimeDerivative("u", 1, storage))
     if coefs.velocity is not None:
         transport = [f"({v})*u_{c}" for v, c in zip(coefs.velocity, coords)]
         terms.append(Source("u", " + ".join(transport)))
@@ -254,6 +263,20 @@ def _skfem_map(
     return port_projection(mass, coupling, ScipySparseLU()), ports
 
 
+@dataclass(frozen=True)
+class SkfemAdrSystem:
+    """The skfem side's composed system before a response is built from
+    it: the system, its port DOFs and transfer, its problem, basis and DOF
+    points."""
+
+    system: Any
+    ports: list[int]
+    transfer: PortTransferProtocol[Np, Np]
+    problem: ManufacturedProblem
+    basis: LagrangeBasis[Np]
+    dof_points: Np
+
+
 def skfem_adr_piece(
     coefs: Coefficients,
     solution: str,
@@ -268,10 +291,34 @@ def skfem_adr_piece(
     solution ``solution``, its ports reading ``skeleton`` by L2 projection
     (mortar with ``dirichlet_ends``; plain projection onto the port nodes'
     functions with ``mortar`` False)."""
+    made = skfem_adr_system(
+        coefs, solution, skeleton, ncells, degree, dirichlet_ends, mortar
+    )
+    return SkfemAdrPiece(
+        pinned_piece(made.system, made.ports),
+        made.transfer,
+        made.problem,
+        made.basis,
+        made.dof_points,
+    )
+
+
+def skfem_adr_system(
+    coefs: Coefficients,
+    solution: str,
+    skeleton: Skeleton,
+    ncells: int,
+    degree: int = 2,
+    dirichlet_ends: bool = False,
+    mortar: bool = True,
+    storage: Optional[float] = None,
+) -> SkfemAdrSystem:
+    """The system :func:`skfem_adr_piece` builds its response from; with
+    ``storage`` the transient one (``solution`` may then use ``t``)."""
     bkd = _BKD
     region = VerificationBox([(0.5, 1.0), (0.0, 1.0)])
     problem = galerkin_adr_problem(
-        coefs, solution, region, galerkin_conditions(dirichlet_ends)
+        coefs, solution, region, galerkin_conditions(dirichlet_ends), storage
     )
     mesh = StructuredMesh2D(ncells, ncells, [(0.5, 1.0), (0.0, 1.0)], bkd)
     basis = LagrangeBasis(mesh, degree=degree)
@@ -320,9 +367,7 @@ def skfem_adr_piece(
     transfer: PortTransferProtocol[Np, Np] = PortMatrixTransfer(
         BackendPortRows(skeleton.space.descriptor(), skeleton.dofs, bkd), local
     )
-    return SkfemAdrPiece(
-        pinned_piece(system, ports), transfer, problem, basis, dof_points
-    )
+    return SkfemAdrSystem(system, ports, transfer, problem, basis, dof_points)
 
 
 class MixedStrip:
