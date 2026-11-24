@@ -35,7 +35,11 @@ other backends are fixed to match.
 :data:`NOT_YET_COVERED` lists the protocol methods without a row. It may
 only shrink: its length is the ``conformance_uncovered`` baseline in
 ``ratchet_baselines.txt``, and a new protocol method cannot enter it, so
-it arrives with a row.
+it arrives with a row. Member rows (``Case.member``) test the
+``ArrayProtocol`` members the same way, and :data:`NOT_YET_COVERED_ARRAY`
+is their shrink-only list. :data:`BACKEND_EXTRAS` lists, per backend
+class, its public methods on no protocol, shrink-only as well, so a
+method added to one backend alone is caught.
 
 The tests are in ``packages/pyapprox/tests/util/backends/``:
 ``test_backend_conformance.py`` runs every row on every backend, every
@@ -149,7 +153,11 @@ class Case:
     ``canonical(bkd, result)`` removes a sign ambiguity before the
     comparison; it is applied to the reference with ``NumpyBkd``.
     ``optional`` rows test a method a backend may decline by raising
-    ``NotImplementedError``.
+    ``NotImplementedError``. A ``member`` row tests an ``ArrayProtocol``
+    member instead of a backend method: ``method`` names it, and it is
+    called on the first argument with the rest (read, for a property in
+    :data:`ARRAY_PROPERTIES`), its reference the same member of the NumPy
+    array.
     """
 
     method: str
@@ -164,6 +172,24 @@ class Case:
     parts: Tuple[Expect, ...] = ()
     canonical: Optional[Callable[[Any, Any], Any]] = None
     optional: bool = False
+    member: bool = False
+
+
+# The ArrayProtocol members that are properties: a member row reads them
+# rather than calls them.
+ARRAY_PROPERTIES = frozenset({"shape", "ndim", "dtype", "T"})
+
+
+def _call_row(
+    namespace: Any, case: Case, args: Sequence[Any], kwargs: Mapping[str, Any]
+) -> Any:
+    """``case``'s method of ``namespace`` (a backend) applied to ``args``
+    and ``kwargs``, or for a member row its member of ``args[0]``."""
+    if not case.member:
+        return getattr(namespace, case.method)(*args, **kwargs)
+    if case.method in ARRAY_PROPERTIES:
+        return getattr(args[0], case.method)
+    return getattr(args[0], case.method)(*args[1:], **kwargs)
 
 
 def _rand(shape: Tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
@@ -460,6 +486,23 @@ def _flatten(array: NDArray[Any]) -> NDArray[Any]:
 def _argsort(array: NDArray[Any], axis: int = -1) -> NDArray[np.intp]:
     # NumPy's default quicksort is not stable.
     return np.argsort(array, axis=axis, kind="stable")
+
+
+def _member(method: str, id: str, args: Tuple[Arg, ...], **options: Any) -> Case:
+    """A row of the ``ArrayProtocol`` member ``method``."""
+    return Case(method, id, args, member=True, **options)
+
+
+def _as_list(bkd: Any, result: Any) -> List[Any]:
+    # An iterator compared through the list of what it yields.
+    return list(result)
+
+
+# Array members: a second mask, a size-one matrix and 0-d scalars.
+_MASK2 = np.asarray([[False, False, True], [True, False, True]])
+_ONE = np.asarray([[2.5]])
+_SCALAR = np.asarray(2.7)
+_INT_SCALAR = np.asarray(3, dtype=np.int64)
 
 
 CASES: List[Case] = [
@@ -907,11 +950,101 @@ CASES: List[Case] = [
     Case("kron", "matrices", (_GEN[:2, :2], _TALL), differentiable=True),
     Case("outer", "vectors", (_A[0], _B[0]), differentiable=True),
     Case("outer", "flattens", (_A, _GEN[0]), differentiable=True),
+    # ---- ArrayProtocol members. Host values (shape, len, item) and dtype
+    # objects are not kernel results, so those rows are eager only.
+    _member("shape", "matrix", (_A,), expect=Expect.HOST, eager_only=True),
+    _member("shape", "scalar", (_SCALAR,), expect=Expect.HOST, eager_only=True),
+    _member("ndim", "tensor", (_T3,), expect=Expect.HOST, eager_only=True),
+    _member("dtype", "default", (_A,), expect=Expect.DTYPE, eager_only=True),
+    _member("dtype", "index", (_index(1, 2),), expect=Expect.DTYPE,
+            eager_only=True),
+    _member("T", "matrix", (_A,), differentiable=True),
+    _member("__len__", "matrix", (_A,), expect=Expect.HOST, eager_only=True),
+    _member("__iter__", "rows", (_A,), canonical=_as_list, eager_only=True),
+    _member("item", "float", (_ONE,), expect=Expect.HOST, eager_only=True),
+    _member("item", "index", (_index(3),), expect=Expect.HOST, eager_only=True),
+    _member("__float__", "scalar", (_SCALAR,), expect=Expect.HOST,
+            eager_only=True),
+    _member("__int__", "index", (_INT_SCALAR,), expect=Expect.HOST,
+            eager_only=True),
+    _member("__int__", "truncates", (_SCALAR,), expect=Expect.HOST,
+            eager_only=True),
+    # Arithmetic: array and broadcast operands, Python scalars on either
+    # side, complex promotion, and true division of integers.
+    _member("__add__", "array", (_A, _POS), differentiable=True),
+    _member("__add__", "broadcast", (_A, _A[0]), differentiable=True),
+    _member("__add__", "complex", (_C, _A)),
+    _member("__radd__", "scalar", (_A, 2.0), differentiable=True),
+    _member("__sub__", "array", (_A, _POS), differentiable=True),
+    _member("__rsub__", "scalar", (_A, 2.0), differentiable=True),
+    _member("__mul__", "array", (_A, _POS), differentiable=True),
+    _member("__mul__", "scalar", (_A, 2.0), differentiable=True),
+    _member("__rmul__", "scalar", (_A, 2.0), differentiable=True),
+    _member("__truediv__", "array", (_A, _POS), differentiable=True),
+    _member("__truediv__", "integers", (_index(3, 4), _index(2, 2)),
+            expect=Expect.DEFAULT),
+    _member("__rtruediv__", "scalar", (_POS, 2.0), differentiable=True),
+    _member("__pow__", "array", (_POS, _A), differentiable=True),
+    _member("__pow__", "scalar", (_A, 2.0), differentiable=True),
+    _member("__rpow__", "scalar", (_A, 2.0), differentiable=True),
+    _member("__neg__", "matrix", (_A,), differentiable=True),
+    _member("__matmul__", "matrices", (_A, _B), differentiable=True),
+    _member("__matmul__", "matrix-vector", (_A, _B[:, 0]), differentiable=True),
+    _member("__matmul__", "batched", (_T3, _B.T), differentiable=True),
+    # Comparisons give boolean arrays.
+    _member("__gt__", "array", (_A, _POS), expect=Expect.BOOL),
+    _member("__lt__", "scalar", (_A, 0.0), expect=Expect.BOOL),
+    _member("__ge__", "ties", (_TIES[0], _TIES[1]), expect=Expect.BOOL),
+    _member("__le__", "ties", (_TIES[0], _TIES[1]), expect=Expect.BOOL),
+    _member("__eq__", "ties", (_TIES, 3.0), expect=Expect.BOOL),
+    _member("__ne__", "ties", (_TIES[0], _TIES[1]), expect=Expect.BOOL),
+    # Logical operators on boolean arrays.
+    _member("__invert__", "mask", (_MASK,), expect=Expect.BOOL),
+    _member("__and__", "masks", (_MASK, _MASK2), expect=Expect.BOOL),
+    _member("__rand__", "bool", (_MASK, True), expect=Expect.BOOL),
+    _member("__or__", "masks", (_MASK, _MASK2), expect=Expect.BOOL),
+    _member("__ror__", "bool", (_MASK, False), expect=Expect.BOOL),
+    _member("__xor__", "masks", (_MASK, _MASK2), expect=Expect.BOOL),
+    _member("__rxor__", "bool", (_MASK, True), expect=Expect.BOOL),
+    # Indexing: integers, negative integers, slices with steps, new axes,
+    # integer-array gathers and boolean masks (a data-dependent shape).
+    _member("__getitem__", "integer", (_A, 1), differentiable=True),
+    _member("__getitem__", "negative", (_A, -1), differentiable=True),
+    _member("__getitem__", "element", (_A, (1, -2)), differentiable=True),
+    _member("__getitem__", "slices", (_T3, (slice(None), slice(1, None), -1)),
+            differentiable=True),
+    _member("__getitem__", "step", (_T3, (slice(None), slice(None, None, 2))),
+            differentiable=True),
+    _member("__getitem__", "new-axis", (_A, (None, slice(None))),
+            differentiable=True),
+    _member("__getitem__", "gather", (_A, _index(1, 0, 1)), differentiable=True),
+    _member("__getitem__", "gather-columns", (_A, (slice(None), _index(2, 0))),
+            differentiable=True),
+    # No out-of-range or negative-step rows: the protocol leaves both
+    # undefined (see ArrayProtocol.__getitem__).
+    _member("__getitem__", "mask", (_A, _MASK), eager_only=True,
+            differentiable=True),
 ]  # fmt: skip
 
 # Protocol methods without a row. Shrink-only (see the module docstring)
 # and now empty: every protocol method has a row or a column.
 NOT_YET_COVERED: frozenset[str] = frozenset()
+
+# ArrayProtocol members without a member row, shrink-only like
+# NOT_YET_COVERED (baseline conformance_array_uncovered). In-place
+# ``__setitem__`` gets none: generic code updates arrays through
+# ``index_update`` and ``index_add``, and the protocol is to drop it.
+NOT_YET_COVERED_ARRAY: frozenset[str] = frozenset({"__setitem__"})
+
+# Public methods of each backend class that are on neither Backend nor
+# AutodiffBackend, so generic code cannot call them. Shrink-only
+# (baseline backend_extras, the total): a method added to one backend
+# belongs on a protocol, with rows.
+BACKEND_EXTRAS: Mapping[str, frozenset[str]] = {
+    "NumpyBkd": frozenset(),
+    "TorchBkd": frozenset({"hessian", "jvp", "synchronize"}),
+    "JaxBkd": frozenset(),
+}
 
 # Methods with a row that JaxBkd does not implement yet. With
 # NOT_YET_COVERED they make NOT_YET_ON_JAX, the protocol methods JaxBkd
@@ -1006,15 +1139,15 @@ def _to_reference(value: Any) -> Any:
 
 
 def _reference(case: Case) -> Any:
-    # The NumPy function of the same name, in numpy or numpy.linalg.
-    function = (
-        case.reference
-        or getattr(np, case.method, None)
-        or getattr(np.linalg, case.method)
-    )
     args = [_to_reference(a) for a in case.args]
     kwargs = {k: _to_reference(v) for k, v in case.kwargs.items()}
-    return function(*args, **kwargs)
+    if case.reference is not None:
+        return case.reference(*args, **kwargs)
+    if case.member:
+        return _call_row(None, case, args, kwargs)
+    # The NumPy function of the same name, in numpy or numpy.linalg.
+    namespace = np if hasattr(np, case.method) else np.linalg
+    return _call_row(namespace, case, args, kwargs)
 
 
 def _arrays(values: Union[Tuple[Any, ...], List[Any]]) -> List[Any]:
@@ -1075,7 +1208,9 @@ def _assert_matches(
 
 
 def _assert_host_matches(actual: Any, expected: Any) -> None:
-    assert type(actual) is type(expected), (type(actual), type(expected))
+    # A shape is a tuple; torch's ``torch.Size`` is a tuple subclass.
+    shape = type(expected) is tuple and isinstance(actual, tuple)
+    assert shape or type(actual) is type(expected), (type(actual), type(expected))
     np.testing.assert_array_equal(actual, expected, strict=True)
 
 
@@ -1093,10 +1228,9 @@ def prepare(
     its positional arguments converted to ``bkd``."""
     args = tuple(_to_backend(bkd, a) for a in case.args)
     kwargs = {k: _to_backend(bkd, v) for k, v in case.kwargs.items()}
-    bound: Callable[..., Any] = getattr(bkd, case.method)
 
     def method(*positional: Any) -> Any:
-        return bound(*positional, **kwargs)
+        return _call_row(bkd, case, positional, kwargs)
 
     return method, args
 
@@ -1172,8 +1306,8 @@ def row_kernel(*arrays: Array, bkd: ConformanceBackend[Array], case_index: int) 
     case = CASES[case_index]
     remaining = iter(arrays)
     args = tuple(_substitute(bkd, a, remaining) for a in case.args)
-    method: Callable[..., Any] = getattr(bkd, case.method)
-    return method(*args, **{k: _to_backend(bkd, v) for k, v in case.kwargs.items()})
+    kwargs = {k: _to_backend(bkd, v) for k, v in case.kwargs.items()}
+    return _call_row(bkd, case, args, kwargs)
 
 
 def jit_call(

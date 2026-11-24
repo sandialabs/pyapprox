@@ -27,3 +27,7 @@ optional-test-import-in-function:numba=0
 conformance_uncovered=0
 # Backend protocol methods the experimental JaxBkd lacks (NOT_YET_ON_JAX).
 conformance_not_on_jax=0
+# ArrayProtocol members without a member row (NOT_YET_COVERED_ARRAY).
+conformance_array_uncovered=1
+# Public backend-class methods on no protocol (BACKEND_EXTRAS).
+backend_extras=3

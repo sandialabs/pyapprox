@@ -97,7 +97,13 @@ class ArrayProtocol(Protocol):
 
     def __neg__(self: Array) -> Array: ...
 
-    def __getitem__(self: Array, index: Any) -> Array: ...
+    def __getitem__(self: Array, index: Any) -> Array:
+        """NumPy indexing: integers, slices, ``None``, integer-array
+        gathers and boolean masks. Two cases are not portable and
+        generic code must not use them: an out-of-range index (JAX
+        clamps it rather than raising ``IndexError``) and a negative
+        slice step (torch refuses it; use ``Backend.flip``)."""
+        ...
 
     def __iter__(self: Array) -> Any: ...
 

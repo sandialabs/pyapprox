@@ -2,8 +2,11 @@
 ``tests/_helpers/backend_conformance.py`` on every backend, eagerly and
 compiled through ``bkd.jit``, and the ratchets that keep every protocol
 method either covered (by a row or a column) or listed in the
-shrink-only ``NOT_YET_COVERED``, and every method ``JaxBkd`` lacks
-listed in the shrink-only ``NOT_YET_ON_JAX``."""
+shrink-only ``NOT_YET_COVERED``, every method ``JaxBkd`` lacks listed
+in the shrink-only ``NOT_YET_ON_JAX``, every ``ArrayProtocol`` member
+covered by a member row or listed in ``NOT_YET_COVERED_ARRAY``, and
+every public backend-class method on ``Backend`` or ``AutodiffBackend``
+or listed in ``BACKEND_EXTRAS``."""
 
 import ast
 import functools
@@ -18,9 +21,12 @@ from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.backend_conformance import (
+    ARRAY_PROPERTIES,
+    BACKEND_EXTRAS,
     CASES,
     COVERED_BY_COLUMNS,
     NOT_YET_COVERED,
+    NOT_YET_COVERED_ARRAY,
     NOT_YET_ON_JAX,
     ROWS_NOT_YET_ON_JAX,
     Case,
@@ -164,7 +170,8 @@ def test_assert_allclose_rows_come_first() -> None:
 
 
 def _covered() -> frozenset[str]:
-    return frozenset(case.method for case in CASES) | COVERED_BY_COLUMNS
+    rows = frozenset(case.method for case in CASES if not case.member)
+    return rows | COVERED_BY_COLUMNS
 
 
 def test_every_protocol_method_has_a_row_or_is_listed() -> None:
@@ -179,25 +186,30 @@ def test_every_protocol_method_has_a_row_or_is_listed() -> None:
     assert not unknown, f"listed in NOT_YET_COVERED but not protocol: {unknown}"
 
 
-def _jax_methods() -> frozenset[str]:
-    """The public methods of ``JaxBkd``, read from its source, so the
-    check runs without JAX installed."""
-    source = Path(pyapprox.__file__).parent / "util" / "backends" / "jax.py"
+def _class_functions(module: str, name: str) -> List[ast.FunctionDef]:
+    """The functions defined in the body of class ``name`` of the backend
+    module ``module``, read from its source, so the checks run without
+    the module's library installed."""
+    source = Path(pyapprox.__file__).parent / "util" / "backends" / module
     tree = ast.parse(source.read_text())
-    (jax_bkd,) = [
+    (cls,) = [
         node
         for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == "JaxBkd"
+        if isinstance(node, ast.ClassDef) and node.name == name
     ]
+    return [node for node in cls.body if isinstance(node, ast.FunctionDef)]
+
+
+def _public_methods(module: str, name: str) -> frozenset[str]:
     return frozenset(
         node.name
-        for node in jax_bkd.body
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
+        for node in _class_functions(module, name)
+        if not node.name.startswith("_")
     )
 
 
 def test_not_yet_on_jax_lists_exactly_what_jax_lacks() -> None:
-    jax_methods = _jax_methods()
+    jax_methods = _public_methods("jax.py", "JaxBkd")
     methods = _protocol_methods()
     covered = _covered()
     assert jax_methods <= methods, f"not protocol methods: {jax_methods - methods}"
@@ -210,11 +222,62 @@ def test_not_yet_on_jax_lists_exactly_what_jax_lacks() -> None:
     assert methods - jax_methods == NOT_YET_ON_JAX
 
 
+def _array_members() -> List[ast.FunctionDef]:
+    return _class_functions("protocols.py", "ArrayProtocol")
+
+
+def test_every_array_member_has_a_row_or_is_listed() -> None:
+    members = frozenset(node.name for node in _array_members())
+    rows = frozenset(case.method for case in CASES if case.member)
+    assert rows <= members, f"member rows for non-members: {rows - members}"
+    missing = members - rows - NOT_YET_COVERED_ARRAY
+    assert not missing, f"members with neither a row nor a listing: {missing}"
+    stale = NOT_YET_COVERED_ARRAY & rows
+    assert not stale, f"listed in NOT_YET_COVERED_ARRAY but have rows: {stale}"
+    unknown = NOT_YET_COVERED_ARRAY - members
+    assert not unknown, f"listed in NOT_YET_COVERED_ARRAY but not members: {unknown}"
+
+
+def test_array_properties_are_the_protocol_properties() -> None:
+    properties = frozenset(
+        node.name
+        for node in _array_members()
+        if any(
+            isinstance(d, ast.Name) and d.id == "property" for d in node.decorator_list
+        )
+    )
+    assert ARRAY_PROPERTIES == properties
+
+
+@pytest.mark.parametrize(
+    "module, name",
+    [("numpy.py", "NumpyBkd"), ("torch.py", "TorchBkd"), ("jax.py", "JaxBkd")],
+)
+def test_backend_methods_are_on_a_protocol_or_listed(module: str, name: str) -> None:
+    protocols = _protocol_methods() | frozenset(
+        n for n in vars(AutodiffBackend) if not n.startswith("_")
+    )
+    extras = _public_methods(module, name) - protocols
+    assert extras == BACKEND_EXTRAS[name], (
+        f"BACKEND_EXTRAS[{name!r}] must list exactly the public methods on "
+        f"no protocol: {sorted(extras)}"
+    )
+
+
 @pytest.mark.parametrize(
     "key, listed",
     [
         ("conformance_uncovered", NOT_YET_COVERED),
         ("conformance_not_on_jax", NOT_YET_ON_JAX),
+        ("conformance_array_uncovered", NOT_YET_COVERED_ARRAY),
+        (
+            "backend_extras",
+            frozenset(
+                f"{name}.{method}"
+                for name, methods in BACKEND_EXTRAS.items()
+                for method in methods
+            ),
+        ),
     ],
 )
 def test_lists_match_their_baselines(key: str, listed: frozenset[str]) -> None:
