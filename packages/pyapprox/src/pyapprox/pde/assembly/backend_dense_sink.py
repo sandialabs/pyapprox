@@ -76,7 +76,7 @@ class BackendDenseMatrixSink(Generic[Array]):
                 f"{nrows} and {ncols}"
             )
         self._range, self._domain, self._bkd = range, domain, bkd
-        dtype = bkd.default_dtype()
+        dtype = bkd.real_dtype()
         self._row_placement = bkd.eye(range.size, dtype=dtype)
         self._col_placement = bkd.eye(domain.size, dtype=dtype)
         self._matrix = bkd.zeros((range.size, domain.size), dtype=dtype)
@@ -113,7 +113,7 @@ class BackendDenseMatrixSink(Generic[Array]):
 
     def zero(self) -> None:
         self._matrix = self._bkd.zeros(
-            (self._range.size, self._domain.size), dtype=self._bkd.default_dtype()
+            (self._range.size, self._domain.size), dtype=self._bkd.real_dtype()
         )
 
     def assemble(

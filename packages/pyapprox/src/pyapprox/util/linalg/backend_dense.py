@@ -44,7 +44,7 @@ def backend_dtype_name(bkd: Backend[Array]) -> str:
     Read from a one-element array, so any backend that reports its
     default dtype works, whatever its dtype objects are.
     """
-    return bkd.to_numpy(bkd.zeros((1,), dtype=bkd.default_dtype())).dtype.name
+    return bkd.to_numpy(bkd.zeros((1,), dtype=bkd.real_dtype())).dtype.name
 
 
 def require_backend_dtype(
@@ -52,7 +52,7 @@ def require_backend_dtype(
 ) -> None:
     """Refuse a space whose dtype is not the backend's configured dtype.
 
-    Arrays are then allocated with ``bkd.default_dtype()`` itself.
+    Arrays are then allocated with ``bkd.real_dtype()`` itself.
     """
     name = backend_dtype_name(bkd)
     if descriptor.dtype != name:
@@ -68,7 +68,7 @@ def _keep_mask(indices: Sequence[int], size: int, bkd: Backend[Array]) -> Array:
     data, built once from plain integers."""
     in_set = set(indices)
     keep = [[0.0] if row in in_set else [1.0] for row in range(size)]
-    return bkd.asarray(keep, dtype=bkd.default_dtype())
+    return bkd.asarray(keep, dtype=bkd.real_dtype())
 
 
 class BackendVectorSpace(Generic[Array]):
@@ -85,7 +85,7 @@ class BackendVectorSpace(Generic[Array]):
     ----------
     descriptor : SpaceDescriptor
         The space of the vectors. Its dtype must be the backend's
-        configured dtype (``bkd.default_dtype()``).
+        configured dtype (``bkd.real_dtype()``).
     bkd : Backend[Array]
         Computational backend.
 
@@ -121,7 +121,7 @@ class BackendVectorSpace(Generic[Array]):
 
     def zeros(self, ncols: int = 1) -> Array:
         return self._bkd.zeros(
-            (self._descriptor.size, ncols), dtype=self._bkd.default_dtype()
+            (self._descriptor.size, ncols), dtype=self._bkd.real_dtype()
         )
 
     def zeros_like(self, x: Array) -> Array:
@@ -542,7 +542,7 @@ class BackendDenseOperator(Generic[Array]):
                 raise ValueError("matrix declared diagonal has off-diagonal nonzeros")
         if props.identity:
             n = matrix.shape[0]
-            deviation = matrix - bkd.eye(n, dtype=bkd.default_dtype())
+            deviation = matrix - bkd.eye(n, dtype=bkd.real_dtype())
             if bkd.to_float(bkd.max(bkd.abs(deviation))) > 0.0:
                 raise ValueError(
                     "matrix declared identity has a diagonal entry other than 1"
@@ -555,7 +555,7 @@ class BackendDenseOperator(Generic[Array]):
         """The identity on ``descriptor``, stored densely so it combines with
         other dense operators without leaving the format."""
         return cls(
-            bkd.eye(descriptor.size, dtype=bkd.default_dtype()),
+            bkd.eye(descriptor.size, dtype=bkd.real_dtype()),
             descriptor,
             bkd,
             properties=OperatorProperties(

@@ -439,7 +439,7 @@ def test_transfer_keeps_the_autodiff_graph(torch_bkd: AutodiffBackend[Array]) ->
     jacobian = bkd.jacobian(total, bkd.concatenate([lam, bkd.asarray([2.0])]))
     # d/dlam [lam + E^T (b E lam)] summed = 1 + b E^T E 1-vector column sums.
     e_full = transfer.gather_add(
-        bkd.eye(1, dtype=bkd.default_dtype()), bkd.zeros((n, 1))
+        bkd.eye(1, dtype=bkd.real_dtype()), bkd.zeros((n, 1))
     )[:, 0]
     bkd.assert_allclose(
         jacobian[0, :n], 1.0 + 2.0 * e_full * bkd.sum(e_full), rtol=1e-12

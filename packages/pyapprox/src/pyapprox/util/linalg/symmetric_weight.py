@@ -185,7 +185,7 @@ class TorchSparseWeight(Generic[Array]):
         self._matrix: Any = torch.sparse_csr_tensor(
             torch.as_tensor(csr.indptr, dtype=torch.int64),
             torch.as_tensor(csr.indices, dtype=torch.int64),
-            torch.as_tensor(csr.data, dtype=bkd.default_dtype()),
+            torch.as_tensor(csr.data, dtype=bkd.real_dtype()),
             size=csr.shape,
         )
         self._bkd = bkd

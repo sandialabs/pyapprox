@@ -106,7 +106,7 @@ class TorchSGDFitter:
         if self._seed is not None:
             np.random.seed(self._seed)
 
-        dtype = path_bkd.default_dtype()
+        dtype = path_bkd.real_dtype()
         fitted_vf = copy.deepcopy(vf)
 
         tw: TimeWeightProtocol[torch.Tensor] = (

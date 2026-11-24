@@ -221,7 +221,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
             depends_on_dd = indices[dd, :] > 0
             # Sum of squared coefficients for those terms
             coef_sq = coef**2
-            mask = self._bkd.asarray(depends_on_dd, dtype=self._bkd.default_dtype())
+            mask = self._bkd.asarray(depends_on_dd, dtype=self._bkd.real_dtype())
             contribution = self._bkd.sum(
                 coef_sq * self._bkd.reshape(mask, (-1, 1)), axis=0
             )
@@ -264,7 +264,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
             main_effect_terms = depends_on_dd & other_vars_zero
 
             coef_sq = coef**2
-            mask = self._bkd.asarray(main_effect_terms, dtype=self._bkd.default_dtype())
+            mask = self._bkd.asarray(main_effect_terms, dtype=self._bkd.real_dtype())
             contribution = self._bkd.sum(
                 coef_sq * self._bkd.reshape(mask, (-1, 1)), axis=0
             )

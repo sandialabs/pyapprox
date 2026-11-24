@@ -143,7 +143,7 @@ class TestFormat:
             assert isinstance(block_fmt, BlockDiagonalFormat)
             expected = edit(dense_op, rows).format().matrix()
             assembled = BackendBlockDiagonalOperator(block_fmt.blocks(), _U, bkd)
-            identity = bkd.eye(_K * _M, dtype=bkd.default_dtype())
+            identity = bkd.eye(_K * _M, dtype=bkd.real_dtype())
             bkd.assert_allclose(assembled.apply(identity), expected, rtol=1e-14)
 
     def test_refuses_another_stacks_row_set_and_mismatched_sums(

@@ -104,7 +104,7 @@ class BlockDiagonalFormat(Generic[Array]):
     def rows_replaced(self, rows: RowSetProtocol[W]) -> "BlockDiagonalFormat[Array]":
         nblocks, block_size = self._blocks.shape[0], self._blocks.shape[1]
         keep = _block_keep_mask(rows, nblocks, block_size, self._bkd)
-        eye = self._bkd.eye(block_size, dtype=self._bkd.default_dtype())
+        eye = self._bkd.eye(block_size, dtype=self._bkd.real_dtype())
         return BlockDiagonalFormat(self._blocks * keep + eye * (1.0 - keep), self._bkd)
 
     def rows_zeroed(self, rows: RowSetProtocol[W]) -> "BlockDiagonalFormat[Array]":
@@ -206,7 +206,7 @@ class BackendBlockDiagonalOperator(Generic[Array]):
         if blocks.shape[0] == 0:
             return
         bkd, props = self._bkd, self._properties
-        eye = bkd.eye(self._block_size, dtype=bkd.default_dtype())
+        eye = bkd.eye(self._block_size, dtype=bkd.real_dtype())
         # Checks only: converting the reductions to floats detaches
         # nothing that is returned.
         if props.symmetric:

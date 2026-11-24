@@ -728,7 +728,7 @@ def port_trace_mass(
     bkd, k = trace.bkd(), ncomponents
     phi, weights = trace.values(), trace.weights()
     scalar = bkd.einsum("eq,eqa,eqb->eab", weights, phi, phi)
-    eye = bkd.eye(k, dtype=bkd.default_dtype())
+    eye = bkd.eye(k, dtype=bkd.real_dtype())
     blocks = bkd.reshape(
         bkd.einsum("eab,cd->eacbd", scalar, eye), (nelems, nlocal * k, nlocal * k)
     )
@@ -988,7 +988,7 @@ def port_trace_pairing(
     scalar = bkd.einsum(
         "eq,eqa,eqb->eab", test.weights(), test.values(), trial.values()
     )
-    eye = bkd.eye(k, dtype=bkd.default_dtype())
+    eye = bkd.eye(k, dtype=bkd.real_dtype())
     blocks = bkd.reshape(
         bkd.einsum("eab,cd->eacbd", scalar, eye), (nelems, nlocal * k, mlocal * k)
     )

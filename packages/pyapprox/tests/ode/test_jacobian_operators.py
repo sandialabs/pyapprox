@@ -191,5 +191,5 @@ class TestImplicitStepSolve:
         b = bkd.asarray([[1.0], [-2.0]])
         x, info = GMRES(BackendVectorSpace(_Y, bkd), bkd).setup(newton).solve(b)
         assert info.converged
-        dense = bkd.eye(2, dtype=bkd.default_dtype()) - dt * model.jacobian(y, 0.0)
+        dense = bkd.eye(2, dtype=bkd.real_dtype()) - dt * model.jacobian(y, 0.0)
         bkd.assert_allclose(x, bkd.solve(dense, b), rtol=1e-9)

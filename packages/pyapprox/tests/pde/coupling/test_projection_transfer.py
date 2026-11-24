@@ -224,7 +224,7 @@ def test_dense_backend_stack_matches_scipy(bkd: Backend[Array]) -> None:
     local = port_projection(mass, coupling, BackendDenseLU(bkd))
     _, _, reference = _scipy_map(_space(5), _trace(_YS))
     bkd.assert_allclose(
-        local.apply(bkd.eye(len(dofs), dtype=bkd.default_dtype())),
+        local.apply(bkd.eye(len(dofs), dtype=bkd.real_dtype())),
         bkd.asarray(_dense(reference)),
         rtol=1e-12,
         atol=1e-13,

@@ -98,7 +98,7 @@ class TestMassMatrixSystemAutograd:
             d_rate = bkd.jacobian(lambda r: system.residual(y, r, 0.0), ydot)
             d_state = bkd.jacobian(lambda s: system.residual(s, ydot, 0.0), y)
             op = system.shifted_jacobian(y, ydot, 0.0, shift, _POINT)
-            identity = bkd.eye(2, dtype=bkd.default_dtype())
+            identity = bkd.eye(2, dtype=bkd.real_dtype())
             bkd.assert_allclose(op.apply(identity), shift * d_rate + d_state)
 
     def test_gradient_flows_through_the_shifted_action(

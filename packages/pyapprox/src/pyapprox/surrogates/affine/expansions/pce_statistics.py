@@ -149,7 +149,7 @@ def total_sobol_indices(pce: PCEStatisticsProtocol[Array]) -> Array:
     for dd in range(nvars):
         depends_on_dd = indices[dd, :] > 0
         coef_sq = coef**2
-        mask = bkd.asarray(depends_on_dd, dtype=bkd.default_dtype())
+        mask = bkd.asarray(depends_on_dd, dtype=bkd.real_dtype())
         contribution = bkd.sum(coef_sq * bkd.reshape(mask, (-1, 1)), axis=0)
         total_indices[dd, :] = contribution / var_safe
 
@@ -195,7 +195,7 @@ def main_effect_sobol_indices(pce: PCEStatisticsProtocol[Array]) -> Array:
         main_effect_terms = depends_on_dd & other_vars_zero
 
         coef_sq = coef**2
-        mask = bkd.asarray(main_effect_terms, dtype=bkd.default_dtype())
+        mask = bkd.asarray(main_effect_terms, dtype=bkd.real_dtype())
         contribution = bkd.sum(coef_sq * bkd.reshape(mask, (-1, 1)), axis=0)
         main_indices[dd, :] = contribution / var_safe
 
@@ -244,7 +244,7 @@ def interaction_sobol_indices(
 
         # Build mask for terms where exactly the specified variables are active
         # Start with all True
-        active_mask = bkd.ones((nterms,), dtype=bkd.default_dtype()) > 0.5
+        active_mask = bkd.ones((nterms,), dtype=bkd.real_dtype()) > 0.5
 
         for dd in range(nvars_pce):
             if dd in var_set_frozen:
@@ -255,7 +255,7 @@ def interaction_sobol_indices(
                 active_mask = active_mask & (indices[dd, :] == 0)
 
         coef_sq = coef**2
-        mask = bkd.asarray(active_mask, dtype=bkd.default_dtype())
+        mask = bkd.asarray(active_mask, dtype=bkd.real_dtype())
         contribution = bkd.sum(coef_sq * bkd.reshape(mask, (-1, 1)), axis=0)
         interaction_indices[ii, :] = contribution / var_safe
 

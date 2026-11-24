@@ -55,7 +55,7 @@ class MLPVelocityField(nn.Module, Generic[Array]):
         self._nqoi = nqoi
         self._bkd = bkd
         self._is_torch = isinstance(bkd, TorchBkd)
-        self._torch_dtype = bkd.default_dtype() if self._is_torch else torch.float64
+        self._torch_dtype = bkd.real_dtype() if self._is_torch else torch.float64
 
         act_map = {"silu": nn.SiLU, "relu": nn.ReLU, "tanh": nn.Tanh}
         if activation not in act_map:

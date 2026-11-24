@@ -144,7 +144,7 @@ class TestMassMatrixSystem:
         dense, _ = _systems(bkd, _MASS)
         jacobian = DenseJacobianOperator(model, _STATE, bkd)
         other = BackendDenseOperator(
-            bkd.eye(3, dtype=bkd.default_dtype()), SpaceDescriptor("w", 3), bkd
+            bkd.eye(3, dtype=bkd.real_dtype()), SpaceDescriptor("w", 3), bkd
         )
         with pytest.raises(SpaceMismatchError):
             MassMatrixSystem(

@@ -1122,7 +1122,7 @@ class ConformanceBackend(Protocol[Array]):
     test, so a backend still growing toward ``Backend`` (``JaxBkd``) can
     run the table. Dtypes are ``Any`` as in ``Backend``."""
 
-    def default_dtype(self) -> Any: ...
+    def real_dtype(self) -> Any: ...
 
     def complex_dtype(self) -> Any: ...
 
@@ -1153,7 +1153,7 @@ def _bool_dtype(bkd: ConformanceBackend[Array]) -> Any:
 
 def _backend_dtype(bkd: ConformanceBackend[Array], role: Role) -> Any:
     if role is Role.DEFAULT:
-        return bkd.default_dtype()
+        return bkd.real_dtype()
     if role is Role.COMPLEX:
         return bkd.complex_dtype()
     if role is Role.INDEX:

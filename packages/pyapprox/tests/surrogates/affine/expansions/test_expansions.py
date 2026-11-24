@@ -1156,7 +1156,7 @@ class TestMixedBasisExpansion:
         # Get all mass points for Poisson (use interval that captures 1-1e-8 of mass)
         interval = poisson_marginal.interval(1 - 1e-8)  # Shape: (1, 2)
         lo, hi = int(interval[0, 0]), int(interval[0, 1])
-        xk = bkd.arange(lo, hi + 1, dtype=bkd.default_dtype())
+        xk = bkd.arange(lo, hi + 1, dtype=bkd.real_dtype())
         pk = poisson_marginal(bkd.reshape(xk, (1, -1)))[0, :]  # 1D probabilities
 
         # Evaluate polynomials at all mass points
@@ -1192,7 +1192,7 @@ class TestMixedBasisExpansion:
         basis_1d.set_nterms(nterms)
 
         # For binomial(n=10), mass points are exactly {0, 1, ..., 10}
-        xk = bkd.arange(0, 11, dtype=bkd.default_dtype())
+        xk = bkd.arange(0, 11, dtype=bkd.real_dtype())
         pk = binom_marginal(bkd.reshape(xk, (1, -1)))[0, :]  # 1D probabilities
 
         # Evaluate polynomials at all mass points

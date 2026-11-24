@@ -30,8 +30,8 @@ def test_degree_one_is_the_linear_segment_trace(bkd: Backend[Array]) -> None:
     bkd.assert_allclose(lagrange.weights(), linear.weights(), rtol=1e-14)
     bkd.assert_allclose(lagrange.values(), linear.values(), rtol=1e-14, atol=1e-15)
     bkd.assert_allclose(
-        bkd.asarray(lagrange.element_nodes(), dtype=bkd.default_dtype()),
-        bkd.asarray(linear.element_nodes(), dtype=bkd.default_dtype()),
+        bkd.asarray(lagrange.element_nodes(), dtype=bkd.real_dtype()),
+        bkd.asarray(linear.element_nodes(), dtype=bkd.real_dtype()),
     )
 
 
@@ -40,7 +40,7 @@ def test_quadratic_element_mass_is_the_closed_form(bkd: Backend[Array]) -> None:
     points = bkd.asarray([[0.0, 0.5 * h, h], [0.0, 0.0, 0.0]])
     trace = LagrangeSegmentTrace(points, [[0, 1, 2]], 3, bkd)
     mass = port_trace_mass(trace, 1, BackendDenseMatrixAssembly(bkd))
-    dense = mass.apply(bkd.eye(3, dtype=bkd.default_dtype()))
+    dense = mass.apply(bkd.eye(3, dtype=bkd.real_dtype()))
     expected = (h / 30.0) * bkd.asarray(
         [[4.0, 2.0, -1.0], [2.0, 16.0, 2.0], [-1.0, 2.0, 4.0]]
     )

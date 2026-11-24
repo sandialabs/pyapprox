@@ -103,7 +103,7 @@ class MLPLatentMap(nn.Module, Generic[Array]):
             )
         self._ncodes_in = ncodes_in
         self._ncodes_out = ncodes_out
-        self._dtype = bkd.default_dtype()
+        self._dtype = bkd.real_dtype()
 
         layers: List[nn.Module] = []
         width = ncodes_in
