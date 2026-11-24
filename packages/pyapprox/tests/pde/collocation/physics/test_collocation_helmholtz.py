@@ -131,9 +131,9 @@ class TestHelmholtzSignConvention:
         poisson = _solve_unit_forcing(bkd, 0.0)
         unscreened = _solve_unit_forcing(bkd, -1.0)
         interior = slice(1, -1)
-        assert bkd.all_bool(screened[interior] > 0.0)
-        assert bkd.all_bool(screened[interior] < poisson[interior])
-        assert bkd.all_bool(unscreened[interior] > poisson[interior])
+        assert bkd.to_bool(bkd.all(screened[interior] > 0.0))
+        assert bkd.to_bool(bkd.all(screened[interior] < poisson[interior]))
+        assert bkd.to_bool(bkd.all(unscreened[interior] > poisson[interior]))
 
     def test_interior_operator(self, bkd: Backend[Array]) -> None:
         """Helmholtz inherits ADR's interior declarations: constant

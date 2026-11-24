@@ -312,19 +312,19 @@ class ACVAllocator(Allocator[Array]):
         """
         constraint_vals = constraint(init_iterate)
         lb = constraint.lb()
-        if self._bkd.all_bool(constraint_vals[:, 0] >= lb):
+        if self._bkd.to_bool(self._bkd.all(constraint_vals[:, 0] >= lb)):
             return init_iterate
 
         # Try midpoint of bounds
         mid = ((bounds[:, 0] + bounds[:, 1]) / 2.0)[:, None]
         constraint_vals_mid = constraint(mid)
-        if self._bkd.all_bool(constraint_vals_mid[:, 0] >= lb):
+        if self._bkd.to_bool(self._bkd.all(constraint_vals_mid[:, 0] >= lb)):
             return mid
 
         # Try lower bounds (smallest feasible ratios)
         lo = bounds[:, 0:1]
         constraint_vals_lo = constraint(lo)
-        if self._bkd.all_bool(constraint_vals_lo[:, 0] >= lb):
+        if self._bkd.to_bool(self._bkd.all(constraint_vals_lo[:, 0] >= lb)):
             return lo
 
         # Return original; optimizer will handle infeasibility

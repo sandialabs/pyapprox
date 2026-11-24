@@ -52,4 +52,4 @@ class BoxDomain(Generic[Array]):
         lb = self._bounds[:, 0:1]  # (nvars, 1)
         ub = self._bounds[:, 1:2]  # (nvars, 1)
         in_bounds = (X >= lb) & (X <= ub)
-        return self._bkd.all_array(in_bounds, axis=0)
+        return self._bkd.all(in_bounds, axis=0)

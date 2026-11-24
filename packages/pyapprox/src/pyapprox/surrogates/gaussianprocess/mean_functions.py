@@ -113,7 +113,7 @@ class ZeroMean(Generic[Array]):
     >>> m = mean(X)
     >>> m.shape
     (1, 5)
-    >>> bkd.all_bool(m == 0.0)
+    >>> bkd.to_bool(bkd.all(m == 0.0))
     True
     """
 
@@ -214,7 +214,7 @@ class ConstantMean(Generic[Array]):
     >>> m = mean(X)
     >>> m.shape
     (1, 5)
-    >>> bkd.all_bool(m == 1.5)
+    >>> bkd.to_bool(bkd.all(m == 1.5))
     True
     """
 

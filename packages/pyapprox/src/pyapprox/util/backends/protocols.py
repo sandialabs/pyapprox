@@ -498,49 +498,6 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def any_bool(array: Array) -> bool:
-        """Whether any element is nonzero, as a Python ``bool``.
-
-        Superseded by ``to_bool(any(array))``, which keeps the reduction
-        on the backend; do not use in new code.
-        """
-        ...
-
-    @staticmethod
-    def any_array(
-        array: Array,
-        axis: int,
-        keepdims: bool = False,
-    ) -> Array:
-        """``any`` along one axis.
-
-        Superseded by ``any(array, axis, keepdims)``; do not use in new
-        code.
-        """
-        ...
-
-    @staticmethod
-    def all_bool(array: Array) -> bool:
-        """Whether every element is nonzero, as a Python ``bool``.
-
-        Superseded by ``to_bool(all(array))``; do not use in new code.
-        """
-        ...
-
-    @staticmethod
-    def all_array(
-        array: Array,
-        axis: int,
-        keepdims: bool = False,
-    ) -> Array:
-        """``all`` along one axis.
-
-        Superseded by ``all(array, axis, keepdims)``; do not use in new
-        code.
-        """
-        ...
-
-    @staticmethod
     def log(array: Array) -> Array: ...
 
     @staticmethod

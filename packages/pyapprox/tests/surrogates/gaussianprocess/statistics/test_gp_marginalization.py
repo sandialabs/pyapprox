@@ -130,7 +130,7 @@ class TestMarginalizedGP1D:
         """Test tau_~p values are positive."""
         marg_gp, _ = self._setup(bkd)
         tau_not_p = marg_gp.tau_not_p()
-        assert bkd.all_bool(tau_not_p > 0)
+        assert bkd.to_bool(bkd.all(tau_not_p > 0))
 
     def test_predict_mean_shape(self, bkd) -> None:
         """Test predict_mean returns correct shape."""
@@ -156,7 +156,7 @@ class TestMarginalizedGP1D:
         u_not_p = float(bkd.to_numpy(marg_gp.u_not_p()))
 
         # Variance should be <= u_~p (with small numerical tolerance)
-        assert bkd.all_bool(var <= u_not_p + 1e-10), (
+        assert bkd.to_bool(bkd.all(var <= u_not_p + 1e-10)), (
             f"Variance exceeds prior bound u_~p = {u_not_p}"
         )
 
@@ -169,7 +169,7 @@ class TestMarginalizedGP1D:
         var = marg_gp.predict_variance(z_test)
 
         # Variance should be >= 0
-        assert bkd.all_bool(var >= -1e-10), "Variance has negative values"
+        assert bkd.to_bool(bkd.all(var >= -1e-10)), "Variance has negative values"
 
     def test_predict_returns_both(self, bkd) -> None:
         """Test predict returns both mean and variance."""
@@ -316,7 +316,7 @@ class TestMarginalizedGP2D:
         var = marg_gp.predict_variance(z_test)
         u_not_p = float(bkd.to_numpy(marg_gp.u_not_p()))
 
-        assert bkd.all_bool(var <= u_not_p + 1e-10), (
+        assert bkd.to_bool(bkd.all(var <= u_not_p + 1e-10)), (
             f"Variance exceeds prior bound u_~p = {u_not_p}"
         )
 
@@ -331,7 +331,7 @@ class TestMarginalizedGP2D:
         )
 
         var = marg_gp.predict_variance(z_test)
-        assert bkd.all_bool(var >= -1e-10)
+        assert bkd.to_bool(bkd.all(var >= -1e-10))
 
     def test_non_contiguous_active_dims(self, bkd) -> None:
         """Test marginalization with non-contiguous active dims [0, 2]."""

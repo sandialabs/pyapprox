@@ -43,7 +43,8 @@ class Plotter1D(Generic[Array]):
     ) -> None:
         if len(plot_limits) != 2:
             raise ValueError("plot_limits must have exactly 2 entries: [x_min, x_max].")
-        if self._bkd.any_bool(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
+        limits = self._bkd.asarray(plot_limits)
+        if self._bkd.to_bool(self._bkd.any(~self._bkd.isfinite(limits))):
             raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot(

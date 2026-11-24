@@ -141,8 +141,8 @@ class TestBetaMarginal:
         """Test rvs produces samples in [0, 1]."""
         samples = self._dist.rvs(1000)
         samples_flat = self._bkd.flatten(samples)
-        assert self._bkd.all_bool(samples_flat >= 0.0)
-        assert self._bkd.all_bool(samples_flat <= 1.0)
+        assert self._bkd.to_bool(self._bkd.all(samples_flat >= 0.0))
+        assert self._bkd.to_bool(self._bkd.all(samples_flat <= 1.0))
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""
@@ -420,8 +420,8 @@ class TestBetaMarginalParametrized:
         dist, _ = self._create_dist(bkd, alpha, beta, lb, ub)
         samples = dist.rvs(1000)
         samples_flat = bkd.flatten(samples)
-        assert bkd.all_bool(samples_flat >= lb)
-        assert bkd.all_bool(samples_flat <= ub)
+        assert bkd.to_bool(bkd.all(samples_flat >= lb))
+        assert bkd.to_bool(bkd.all(samples_flat <= ub))
 
     @pytest.mark.parametrize(
         "name,alpha,beta,lb,ub",

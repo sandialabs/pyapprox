@@ -104,7 +104,7 @@ class TestFormProperties:
 
     def test_is_positive_definite_on_nonzero_vectors(self, bkd) -> None:
         metric = DiagonalInnerProduct(_weights(bkd), bkd)
-        assert bool(bkd.all_bool(metric.norm(_vectors(bkd)) > 0.0))
+        assert bool(bkd.to_bool(bkd.all(metric.norm(_vectors(bkd)) > 0.0)))
 
 
 class TestOrthonormalityDrift:

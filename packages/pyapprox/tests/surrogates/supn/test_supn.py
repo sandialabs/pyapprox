@@ -147,7 +147,7 @@ class TestSUPN:
         supn = create_supn(nvars=3, width=5, max_level=2, bkd=bkd)
         samples = bkd.asarray(np.random.uniform(-1, 1, (3, 20)))
         result = supn(samples)
-        assert bkd.all_bool(bkd.isfinite(result))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(result)))
 
     def test_eval_from_basis_matrix(self, bkd) -> None:
         """Test eval_from_basis_matrix matches __call__."""

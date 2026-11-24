@@ -151,7 +151,7 @@ class OperatorSurrogate(Generic[Array]):
             answering False, which asserts the map *is* nonlinear.
         """
         return bool(
-            self._bkd.all_bool(self._bkd.sum(self.indices(), axis=0) <= 1)
+            self._bkd.to_bool(self._bkd.all(self._bkd.sum(self.indices(), axis=0) <= 1))
         )
 
     def predict_coefficients(self, coefs: Array) -> Array:

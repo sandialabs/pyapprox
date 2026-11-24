@@ -120,7 +120,7 @@ class Evidence(Generic[Array]):
         cached = self._cached_weights
         if cached is None or cached.shape != design_weights.shape:
             return False
-        return bool(self._bkd.all_bool(cached == design_weights))
+        return bool(self._bkd.to_bool(self._bkd.all(cached == design_weights)))
 
     def __call__(self, design_weights: Array) -> Array:
         """
@@ -478,7 +478,7 @@ class LogEvidence(Generic[Array]):
         cached = self._cached_weights
         if cached is None or cached.shape != design_weights.shape:
             return False
-        return bool(self._bkd.all_bool(cached == design_weights))
+        return bool(self._bkd.to_bool(self._bkd.all(cached == design_weights)))
 
     def _compute_log_evidence_from_loglike(
         self, loglike_matrix: Array

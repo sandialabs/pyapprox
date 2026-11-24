@@ -100,7 +100,7 @@ class TestExactGPBasic:
         assert mean.shape == (1, n_test)
 
         # All predictions should be finite
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_predict_std(self, bkd) -> None:
         """Test standard deviation prediction."""
@@ -143,7 +143,7 @@ class TestExactGPBasic:
         assert std.shape == (1, n_test)
 
         # All std should be positive
-        assert bkd.all_bool(std > 0)
+        assert bkd.to_bool(bkd.all(std > 0))
 
     def test_predict_covariance(self, bkd) -> None:
         """Test covariance prediction."""
@@ -504,7 +504,7 @@ class TestExactGPBasic:
 
         # Uncertainty at training points should be very small
         std = gp.predict_std(X_train_clean)
-        assert bkd.all_bool(std < 1e-5)
+        assert bkd.to_bool(bkd.all(std < 1e-5))
 
     def test_polynomial_approximation_accuracy(self, bkd) -> None:
         """Test that GP can accurately approximate a low-degree polynomial."""

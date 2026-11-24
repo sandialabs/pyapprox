@@ -26,17 +26,17 @@ class TestCandidateGenerator:
     def test_default_bounds(self, bkd) -> None:
         gen = HybridSobolRandomCandidateGenerator(2, bkd)
         candidates = gen.generate(200)
-        assert bkd.all_bool(candidates >= 0.0)
-        assert bkd.all_bool(candidates <= 1.0)
+        assert bkd.to_bool(bkd.all(candidates >= 0.0))
+        assert bkd.to_bool(bkd.all(candidates <= 1.0))
 
     def test_custom_bounds(self, bkd) -> None:
         bounds = bkd.asarray([[-1.0, 1.0], [0.0, 2.0]])
         gen = HybridSobolRandomCandidateGenerator(2, bkd, scaled_bounds=bounds)
         candidates = gen.generate(200)
-        assert bkd.all_bool(candidates[0, :] >= -1.0)
-        assert bkd.all_bool(candidates[0, :] <= 1.0)
-        assert bkd.all_bool(candidates[1, :] >= 0.0)
-        assert bkd.all_bool(candidates[1, :] <= 2.0)
+        assert bkd.to_bool(bkd.all(candidates[0, :] >= -1.0))
+        assert bkd.to_bool(bkd.all(candidates[0, :] <= 1.0))
+        assert bkd.to_bool(bkd.all(candidates[1, :] >= 0.0))
+        assert bkd.to_bool(bkd.all(candidates[1, :] <= 2.0))
 
     def test_reproducibility(self, bkd) -> None:
         gen1 = HybridSobolRandomCandidateGenerator(2, bkd, seed=7)

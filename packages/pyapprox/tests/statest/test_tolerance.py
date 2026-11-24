@@ -283,7 +283,7 @@ class TestRowContract:
         verdicts = []
         for scale in np.logspace(-3, 3, 61):
             scaled = covariance * scale
-            by_rows = bool(bkd.all_bool(req.rows(scaled) <= 0.0))
+            by_rows = bool(bkd.to_bool(bkd.all(req.rows(scaled) <= 0.0)))
             by_value = bkd.to_float(req.value(scaled)) <= req.tolerance()
             assert by_rows == by_value
             verdicts.append(by_rows)
@@ -296,7 +296,7 @@ class TestRowContract:
         req = make(bkd)
         covariance, _, _ = _covariance_and_directions(bkd)
         shrunk = covariance - 0.5 * covariance
-        assert bkd.all_bool(req.rows(shrunk) <= req.rows(covariance))
+        assert bkd.to_bool(bkd.all(req.rows(shrunk) <= req.rows(covariance)))
 
     # Central differences: the forward-difference V here is only ~6 decades
     # deep, so error_ratio, which divides the smallest error in the sweep by

@@ -856,7 +856,7 @@ class TestFittedFromATolerance:
             requirement
         )
         fitted = FittedGroupACVEstimator(est, result)
-        assert bkd.all_bool(requirement.rows(fitted.covariance()) <= 0.0)
+        assert bkd.to_bool(bkd.all(requirement.rows(fitted.covariance()) <= 0.0))
         bkd.assert_allclose(
             bkd.asarray([fitted.actual_cost()]),
             bkd.asarray([result.total_cost]),
@@ -905,7 +905,7 @@ class TestAllocateForRequirement:
         covariance = est._covariance_from_npartition_samples(
             bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
         )
-        assert bkd.all_bool(req.rows(covariance) <= 0.0)
+        assert bkd.to_bool(bkd.all(req.rows(covariance) <= 0.0))
         bkd.assert_allclose(result.constraint_value, req.value(covariance))
 
     def test_the_statistic_sets_the_high_fidelity_floor(self, bkd) -> None:

@@ -96,7 +96,8 @@ class Plotter2DRectangularDomain(Generic[Array]):
             raise ValueError(
                 "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."
             )
-        if self._bkd.any_bool(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
+        limits = self._bkd.asarray(plot_limits)
+        if self._bkd.to_bool(self._bkd.any(~self._bkd.isfinite(limits))):
             raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot_surface(

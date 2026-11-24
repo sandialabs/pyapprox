@@ -64,8 +64,8 @@ class TestLotkaVolterra3Species:
         assert samples.shape == (12, 100)
 
         for i in range(12):
-            assert bkd.all_bool(samples[i, :] >= bounds[i, 0])
-            assert bkd.all_bool(samples[i, :] <= bounds[i, 1])
+            assert bkd.to_bool(bkd.all(samples[i, :] >= bounds[i, 0]))
+            assert bkd.to_bool(bkd.all(samples[i, :] <= bounds[i, 1]))
 
     def test_residual_evaluation(self, bkd: Backend[Array]) -> None:
         problem = build_lotka_volterra_3species(bkd)

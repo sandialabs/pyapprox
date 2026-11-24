@@ -334,10 +334,10 @@ class TestGaussQuadrature1D:
                 ub_check = points <= bkd.asarray(ub + 1e-12)
                 assert not isinstance(lb_check, bool)  # for mypy
                 assert not isinstance(ub_check, bool)  # for mypy
-                assert bkd.all_bool(lb_check), (
+                assert bkd.to_bool(bkd.all(lb_check)), (
                     f"Points below lower bound for {name} with {npoints} points"
                 )
-                assert bkd.all_bool(ub_check), (
+                assert bkd.to_bool(bkd.all(ub_check)), (
                     f"Points above upper bound for {name} with {npoints} points"
                 )
 
@@ -347,17 +347,17 @@ class TestGaussQuadrature1D:
                 ub_check = points <= bkd.asarray(ub + 1e-12)
                 assert not isinstance(lb_check, bool)  # for mypy
                 assert not isinstance(ub_check, bool)  # for mypy
-                assert bkd.all_bool(lb_check), (
+                assert bkd.to_bool(bkd.all(lb_check)), (
                     f"Points below lower bound for {name} with {npoints} points"
                 )
-                assert bkd.all_bool(ub_check), (
+                assert bkd.to_bool(bkd.all(ub_check)), (
                     f"Points above upper bound for {name} with {npoints} points"
                 )
 
             elif mtype == "gamma":
                 lb_check = points >= bkd.asarray(-1e-12)
                 assert not isinstance(lb_check, bool)  # for mypy
-                assert bkd.all_bool(lb_check), (
+                assert bkd.to_bool(bkd.all(lb_check)), (
                     f"Points below 0 for {name} with {npoints} points"
                 )
 

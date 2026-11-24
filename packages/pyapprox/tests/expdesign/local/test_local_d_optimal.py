@@ -52,7 +52,7 @@ class TestDOptimalCriterion:
         assert val.shape == (1, 1)
 
         # Check that value is finite
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_homoscedastic_least_squares_jacobian(self, bkd):
         """Test D-optimal Jacobian for homoscedastic least squares."""
@@ -66,7 +66,7 @@ class TestDOptimalCriterion:
         assert jac.shape == (1, self._ndesign_pts)
 
         # Check that Jacobian is finite
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_heteroscedastic_least_squares_value(self, bkd):
         """Test D-optimal value for heteroscedastic least squares."""
@@ -80,7 +80,7 @@ class TestDOptimalCriterion:
 
         # Check shape
         assert val.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_heteroscedastic_least_squares_jacobian(self, bkd):
         """Test D-optimal Jacobian for heteroscedastic least squares."""
@@ -93,7 +93,7 @@ class TestDOptimalCriterion:
         jac = crit.jacobian(self._weights)
 
         assert jac.shape == (1, self._ndesign_pts)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_quantile_homoscedastic_value(self, bkd):
         """Test D-optimal value for homoscedastic quantile regression."""
@@ -104,7 +104,7 @@ class TestDOptimalCriterion:
         val = crit(self._weights)
 
         assert val.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_quantile_heteroscedastic_jacobian(self, bkd):
         """Test D-optimal Jacobian for heteroscedastic quantile regression."""
@@ -115,7 +115,7 @@ class TestDOptimalCriterion:
         jac = crit.jacobian(self._weights)
 
         assert jac.shape == (1, self._ndesign_pts)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_nvars_nqoi(self, bkd):
         """Test nvars and nqoi properties."""

@@ -613,5 +613,5 @@ class TestSpectrumConventions:
         data = bkd.asarray(np.random.rand(10, 6))
         svals = DataDrivenKLE(data, nterms=4, bkd=bkd).singular_values()
         assert svals.shape == (4,)
-        assert bool(bkd.all_bool(svals > 0.0))
-        assert bool(bkd.all_bool(svals[:-1] >= svals[1:]))
+        assert bool(bkd.to_bool(bkd.all(svals > 0.0)))
+        assert bool(bkd.to_bool(bkd.all(svals[:-1] >= svals[1:])))

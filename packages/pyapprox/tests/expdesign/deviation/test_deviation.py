@@ -84,7 +84,7 @@ class TestDeviationMeasures:
         self._setup_deviation(stdev)
 
         values = stdev(self._design_weights)
-        assert bkd.all_bool(values >= 0)
+        assert bkd.to_bool(bkd.all(values >= 0))
 
     def test_stdev_jacobian_finite_diff(self, bkd):
         """Test StandardDeviationMeasure Jacobian against finite differences."""
@@ -108,7 +108,7 @@ class TestDeviationMeasures:
         values = stdev(self._design_weights)
         # Values should be near zero (clamped to sqrt(1e-16) = 1e-8 plus
         # numerical precision effects)
-        assert bkd.all_bool(values < 1e-6)
+        assert bkd.to_bool(bkd.all(values < 1e-6))
 
     # --- EntropicDeviationMeasure Tests ---
 
@@ -177,7 +177,7 @@ class TestDeviationMeasures:
         values = avar(self._design_weights)
         # AVaR deviation should be non-negative for positive data
         # (AVaR focuses on upper tail, which is above mean)
-        assert bkd.all_bool(values >= -1e-10)
+        assert bkd.to_bool(bkd.all(values >= -1e-10))
 
     @pytest.mark.slow_on("TorchBkd")
     def test_avar_constant_qoi(self, bkd):

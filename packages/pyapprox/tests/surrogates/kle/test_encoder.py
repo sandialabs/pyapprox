@@ -229,7 +229,7 @@ class TestDecodeStd:
         _, enc = self._from_arrays(bkd)
         rng = np.random.RandomState(7)
         std = bkd.array(np.abs(rng.standard_normal((3, 5))))
-        assert bool(bkd.all_bool(enc.decode_std(std) >= 0.0))
+        assert bool(bkd.to_bool(bkd.all(enc.decode_std(std) >= 0.0)))
 
     def test_carries_no_mean_shift(self, bkd) -> None:
         """A standard deviation is a spread, not a location, so the

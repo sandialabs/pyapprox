@@ -233,7 +233,7 @@ class DiagonalInnerProduct(Generic[Array]):
             raise ValueError(
                 f"weights must be 1D (nstates,), got ndim={weights.ndim}"
             )
-        if not bool(bkd.all_bool(weights > 0.0)):
+        if not bool(bkd.to_bool(bkd.all(weights > 0.0))):
             raise ValueError(
                 "weights must be strictly positive; a non-positive weight "
                 "makes x^T M x indefinite, so it is not an inner product"

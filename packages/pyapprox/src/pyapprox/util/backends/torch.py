@@ -523,30 +523,6 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return bool(array.reshape(()))
 
     @staticmethod
-    def any_bool(array: torch.Tensor) -> bool:
-        return bool(torch.any(array).item())
-
-    @staticmethod
-    def any_array(
-        array: torch.Tensor,
-        axis: int,
-        keepdims: bool = False,
-    ) -> torch.Tensor:
-        return torch.any(array, dim=axis, keepdim=keepdims)
-
-    @staticmethod
-    def all_bool(array: torch.Tensor) -> bool:
-        return bool(torch.all(array).item())
-
-    @staticmethod
-    def all_array(
-        array: torch.Tensor,
-        axis: int,
-        keepdims: bool = False,
-    ) -> torch.Tensor:
-        return torch.all(array, dim=axis, keepdim=keepdims)
-
-    @staticmethod
     def log(array: torch.Tensor) -> torch.Tensor:
         return torch.log(array)
 

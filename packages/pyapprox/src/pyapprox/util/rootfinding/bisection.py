@@ -21,10 +21,12 @@ class BisectionSearch(Generic[Array]):
         it = 0
         residual_lb = self._residual(lb)
         residual_ub = self._residual(ub)
-        if self._bkd.any_bool(
-            cast(
-                Array,
-                self._bkd.sign(residual_lb) == self._bkd.sign(residual_ub),
+        if self._bkd.to_bool(
+            self._bkd.any(
+                cast(
+                    Array,
+                    self._bkd.sign(residual_lb) == self._bkd.sign(residual_ub),
+                )
             )
         ):
             raise RuntimeError

@@ -304,4 +304,4 @@ class TestFEMKLE:
             sigma=1.0,
             bkd=bkd,
         )
-        assert bkd.all_bool(kle.eigenvalues() > 0)
+        assert bkd.to_bool(bkd.all(kle.eigenvalues() > 0))

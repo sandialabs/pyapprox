@@ -211,7 +211,7 @@ class TestMeshKLE:
                 bkd=bkd,
             )
             # Eigenvalues should be positive
-            assert bkd.all_bool(kle.eigenvalues() > 0)
+            assert bkd.to_bool(bkd.all(kle.eigenvalues() > 0))
             # Check shapes
             assert kle.eigenvectors().shape == (npts, nterms)
             assert kle.weighted_eigenvectors().shape == (npts, nterms)
@@ -235,7 +235,7 @@ class TestMeshKLE:
         kernel = SquaredExponentialKernel(lenscale, (0.01, 10.0), 2, bkd)
         kle = MeshKLE(mesh_coords, kernel, nterms=nterms, bkd=bkd)
 
-        assert bkd.all_bool(kle.eigenvalues() > 0)
+        assert bkd.to_bool(bkd.all(kle.eigenvalues() > 0))
         assert kle.eigenvectors().shape == (25, nterms)
 
     def test_mesh_kle_use_log(self, bkd) -> None:

@@ -102,7 +102,7 @@ class TestIntegrals1D:
             self._kernel_callable,
             bkd
         )
-        assert bkd.all_bool(tau > 0)
+        assert bkd.to_bool(bkd.all(tau > 0))
 
     def test_P_shape(self, bkd) -> None:
         """Test P has correct shape (N, N)."""
@@ -137,7 +137,7 @@ class TestIntegrals1D:
         )
         eigvals = bkd.eigvalsh(P)
         # Allow small negative eigenvalues due to numerical error
-        assert bkd.all_bool(eigvals > -1e-10)
+        assert bkd.to_bool(bkd.all(eigvals > -1e-10))
 
     def test_u_scalar(self, bkd) -> None:
         """Test u is a scalar and positive."""
@@ -181,7 +181,7 @@ class TestIntegrals1D:
             self._kernel_callable,
             bkd
         )
-        assert bkd.all_bool(lambda_vec > 0)
+        assert bkd.to_bool(bkd.all(lambda_vec > 0))
 
     def test_Pi_shape(self, bkd) -> None:
         """Test Pi has correct shape (N, N)."""
@@ -372,7 +372,7 @@ class TestConditionalP1D:
 
         # P_ii >= P_tilde_ii (with small tolerance for numerical error)
         diff = P_diag - P_tilde_diag
-        assert bkd.all_bool(diff >= -1e-12), \
+        assert bkd.to_bool(bkd.all(diff >= -1e-12)), \
             ("P_diag - P_tilde_diag should be >= 0, "
              f"got min = {float(bkd.to_numpy(bkd.min(diff)))}")
 

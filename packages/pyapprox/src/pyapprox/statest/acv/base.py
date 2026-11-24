@@ -289,10 +289,10 @@ class ACVEstimator(Generic[Array]):
                 | self._bkd.equal(self._allocation_mat[1:, 2 * ii + 1], 1)
             )[0]
             model_ratios[ii - 1] = self._bkd.sum(partition_ratios[active_partitions])
-            if self._bkd.any_bool(
+            if self._bkd.to_bool(self._bkd.any(
                 self._bkd.equal(self._allocation_mat[0, 2 * ii], 1)
                 | self._bkd.equal(self._allocation_mat[0, 2 * ii + 1], 1)
-            ):
+            )):
                 model_ratios[ii - 1] += 1
         return model_ratios
 

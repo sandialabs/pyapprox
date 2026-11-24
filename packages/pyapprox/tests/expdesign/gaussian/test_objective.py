@@ -137,8 +137,8 @@ class TestDesignObjective:
         solver = RelaxedOEDSolver(objective, design_space=space)
         weights, value = solver.solve()
         bkd.assert_allclose(bkd.sum(weights, axis=0), bkd.asarray([2.0]), rtol=1e-6)
-        assert bkd.all_bool(weights >= -1e-8)
-        assert bkd.all_bool(weights <= 1.0 + 1e-8)
+        assert bkd.to_bool(bkd.all(weights >= -1e-8))
+        assert bkd.to_bool(bkd.all(weights <= 1.0 + 1e-8))
         start = bkd.to_float(objective(space.initial())[0, 0])
         assert value <= start
 

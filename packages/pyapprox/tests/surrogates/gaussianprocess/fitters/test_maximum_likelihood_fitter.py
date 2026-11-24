@@ -59,7 +59,7 @@ class TestGPMaximumLikelihoodFitter:
 
         mean = fitted.predict(self.X_test)
         assert mean.shape == (1, self.n_test)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_original_gp_not_modified(self, bkd) -> None:
         """Original GP must NOT be modified by fitter."""

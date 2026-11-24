@@ -47,7 +47,7 @@ class TestGPFitterAdapter:
         X_test = bkd.array([[0.25, 0.5, 0.75]])
         mean = fitted.predict(X_test)
         assert mean.shape == (1, 3)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_fitted_can_predict_std(self, bkd) -> None:
         np.random.seed(42)
@@ -102,7 +102,7 @@ class TestGPFixedFitterAdapter:
         X_test = bkd.array([[0.25, 0.5, 0.75]])
         mean = fitted.predict(X_test)
         assert mean.shape == (1, 3)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_bkd(self, bkd) -> None:
         adapter = GPFixedFitterAdapter(bkd)
@@ -133,7 +133,7 @@ class TestGPIncrementalFitterAdapter:
         X_test = bkd.array([[0.25, 0.5, 0.75]])
         mean = fitted.predict(X_test)
         assert mean.shape == (1, 3)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_sequential_fits_use_incremental(self, bkd) -> None:
         """Sequential single-point fits produce correct predictions."""

@@ -93,8 +93,8 @@ class TestOutsideTheSupport:
         bkd.assert_allclose(
             wrt_params[:nout], bkd.zeros((nout, wrt_params.shape[1])), atol=0.0
         )
-        assert bkd.all_bool(bkd.isfinite(wrt_x))
-        assert bkd.all_bool(bkd.isfinite(wrt_params))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(wrt_x)))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(wrt_params)))
 
     def test_points_outside_leave_the_gradients_inside_unchanged(
         self,

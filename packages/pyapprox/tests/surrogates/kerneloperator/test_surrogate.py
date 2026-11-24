@@ -64,7 +64,7 @@ class TestKernelOperatorSurrogate:
         surr = KernelOperatorSurrogate([enc_in], [enc_out], reg)
 
         std_result = surr.predict_std([data])
-        assert bkd.all_bool(std_result[0] >= 0)
+        assert bkd.to_bool(bkd.all(std_result[0] >= 0))
 
     def test_dimension_mismatch_raises(self, bkd) -> None:
         enc = IdentityFunctionEncoder(5, bkd)

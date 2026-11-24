@@ -123,7 +123,7 @@ class TestConditionalCopulaSAS:
         z = bkd.asarray(np.random.randn(self._d, 50))
         x = bkd.zeros((1, 50))
         logpdf = self._dist.logpdf(x, z)
-        assert bkd.all_bool(bkd.isfinite(logpdf))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(logpdf)))
 
     def test_rvs_shape(self) -> None:
         """Test rvs output shape."""
@@ -187,7 +187,7 @@ class TestConditionalCopulaSAS:
         params = bkd.zeros((elbo.nvars(), 1))
         neg_elbo = elbo(params)
         assert neg_elbo.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(neg_elbo))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(neg_elbo)))
 
     def test_3d_copula(self) -> None:
         """Test with 3-dimensional copula."""
@@ -202,7 +202,7 @@ class TestConditionalCopulaSAS:
         x = bkd.zeros((1, 10))
         logpdf = dist.logpdf(x, z)
         assert logpdf.shape == (1, 10)
-        assert bkd.all_bool(bkd.isfinite(logpdf))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(logpdf)))
 
 
 class TestCholeskyAutograd:

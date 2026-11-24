@@ -166,8 +166,8 @@ class TestConvention:
         decomposition = solver_cls(bkd).solve(_snapshots(bkd), 5)
         vals = decomposition.eigenvalues
         assert vals.shape == (5,)
-        assert bool(bkd.all_bool(vals >= 0.0))
-        assert bool(bkd.all_bool(vals[:-1] >= vals[1:]))
+        assert bool(bkd.to_bool(bkd.all(vals >= 0.0)))
+        assert bool(bkd.to_bool(bkd.all(vals[:-1] >= vals[1:])))
 
     @pytest.mark.parametrize(
         "solver_cls", [SVDSnapshotSolver, MethodOfSnapshotsSolver]

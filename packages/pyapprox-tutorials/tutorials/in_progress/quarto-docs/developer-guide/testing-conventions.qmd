@@ -207,7 +207,7 @@ ones = self._bkd.ones((2, 2))
 #| eval: false
 # Use backend comparison methods
 self.assertTrue(self._bkd.allclose(a, b, rtol=1e-6, atol=1e-7))
-self.assertTrue(self._bkd.all_bool(values > 0))
+self.assertTrue(self._bkd.to_bool(self._bkd.all(values > 0)))
 ```
 
 #### Shape/Type Checks
@@ -292,7 +292,7 @@ class TestMyKernel(Generic[Array], unittest.TestCase):
         # All eigenvalues should be positive
         eigenvalues = self._bkd.eigvalsh(K)
         self.assertTrue(
-            self._bkd.all_bool(eigenvalues > -1e-10)
+            self._bkd.to_bool(self._bkd.all(eigenvalues > -1e-10))
         )
 
 
@@ -492,8 +492,8 @@ self._bkd.eigvalsh(K)
 ```{python}
 #| eval: false
 self._bkd.allclose(a, b, rtol=1e-6, atol=1e-6)
-self._bkd.all_bool(array > 0)
-self._bkd.any_bool(array < 0)
+self._bkd.to_bool(self._bkd.all(array > 0))
+self._bkd.to_bool(self._bkd.any(array < 0))
 ```
 
 ## File Template

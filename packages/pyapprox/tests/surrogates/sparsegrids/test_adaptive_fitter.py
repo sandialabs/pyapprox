@@ -448,7 +448,7 @@ class TestAdaptiveAdditiveRecovery:
             nonzero_count = int(bkd.to_numpy(bkd.sum(idx > 0)))
             if nonzero_count >= 2:
                 active_levels = idx[idx > 0]
-                assert bkd.all_bool(active_levels == 1), (
+                assert bkd.to_bool(bkd.all(active_levels == 1)), (
                     f"Multi-dim subspace {bkd.to_numpy(idx)} "
                     "has levels > 1 (over-refinement of cross-terms)"
                 )

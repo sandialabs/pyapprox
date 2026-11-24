@@ -70,4 +70,4 @@ class TestMLPVelocityField:
         x_grid = bkd.reshape(bkd.linspace(-2, 2, 20), (1, -1))
         q = compute_flow_density(vf, x_grid, bkd, n_steps=10, scheme="euler")
         assert q.shape == (1, 20)
-        assert bkd.all_bool(bkd.isfinite(q))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(q)))

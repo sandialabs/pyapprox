@@ -172,7 +172,7 @@ class TestMFIsotropic:
         test_pts = bkd.array([[0.5]])
         out = result.surrogate(test_pts)
         assert out.shape[0] == 1
-        assert bool(bkd.all_bool(bkd.isfinite(out)))
+        assert bool(bkd.to_bool(bkd.all(bkd.isfinite(out))))
 
     def test_mf_isotropic_nsamples_counts_across_configs(self, bkd) -> None:
         """result.nsamples equals sum across all config groups."""

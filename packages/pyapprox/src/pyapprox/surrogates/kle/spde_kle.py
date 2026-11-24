@@ -299,7 +299,7 @@ def spde_matern_kle_from_precision_eigenpairs(
             f"eigenvectors must have shape (nnodes, {nterms}), got "
             f"{eigenvectors.shape}"
         )
-    if not bkd.all_bool(precision_eigenvalues > 0.0):
+    if not bkd.to_bool(bkd.all(precision_eigenvalues > 0.0)):
         raise ValueError("precision_eigenvalues must be positive")
     eig_vals = 1.0 / (stationary_variance * precision_eigenvalues**2)
     eig_vals, eig_vecs, _ = sort_eigenpairs(eig_vals, eigenvectors, nterms, bkd)

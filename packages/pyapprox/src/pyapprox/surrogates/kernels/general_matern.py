@@ -260,14 +260,14 @@ the GP/loss layer supplies autograd derivatives automatically.
         # As z → 0, K(r) → 1
         # Use Taylor expansion: K(r) ≈ 1 - c * z^2 + O(z^4)
         # where c depends on nu
-        if self._bkd.any_bool(small_z_mask):
+        if self._bkd.to_bool(self._bkd.any(small_z_mask)):
             # For small z: K(r) ≈ 1 - (z^2)/(2*nu) + higher order terms
             z_small = z * small_z_mask
             K_small = 1.0 - (z_small**2) / (4.0 * nu)
             K = K + K_small * small_z_mask
 
         # For large z, use asymptotic expansion
-        if self._bkd.any_bool(large_z_mask):
+        if self._bkd.to_bool(self._bkd.any(large_z_mask)):
             z_large = z * large_z_mask + (~large_z_mask) * 1.0  # avoid division by zero
 
             # Normalization: 2^(1-nu) / Gamma(nu)

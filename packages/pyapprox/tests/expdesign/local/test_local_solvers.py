@@ -56,7 +56,7 @@ class TestScipyLocalOEDSolver:
         # Check simplex constraints
         weight_sum = bkd.sum(optimal_weights)
         assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
-        assert bkd.all_bool(optimal_weights >= -1e-8)
+        assert bkd.to_bool(bkd.all(optimal_weights >= -1e-8))
 
     def test_a_optimal_solver(self, bkd):
         """Test solver with A-optimal criterion (has HVP)."""
@@ -74,7 +74,7 @@ class TestScipyLocalOEDSolver:
         # Check simplex constraints
         weight_sum = bkd.sum(optimal_weights)
         assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
-        assert bkd.all_bool(optimal_weights >= -1e-8)
+        assert bkd.to_bool(bkd.all(optimal_weights >= -1e-8))
 
     def test_raises_for_vector_criterion(self, bkd):
         """Test that solver raises error for vector criteria."""
@@ -146,7 +146,7 @@ class TestMinimaxLocalOEDSolver:
         # Check simplex constraints
         weight_sum = bkd.sum(optimal_weights)
         assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
-        assert bkd.all_bool(optimal_weights >= -1e-8)
+        assert bkd.to_bool(bkd.all(optimal_weights >= -1e-8))
 
     def test_get_minimax_value(self, bkd):
         """Test that minimax value can be retrieved."""

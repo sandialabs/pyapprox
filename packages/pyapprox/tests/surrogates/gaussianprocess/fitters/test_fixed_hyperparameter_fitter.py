@@ -53,7 +53,7 @@ class TestGPFixedHyperparameterFitter:
 
         mean = fitted.predict(self.X_test)
         assert mean.shape == (1, self.n_test)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_original_gp_not_modified(self, bkd) -> None:
         """Original GP must NOT be modified by fitter."""
@@ -91,7 +91,7 @@ class TestGPFixedHyperparameterFitter:
 
         std = result.surrogate().predict_std(self.X_test)
         assert std.shape == (1, self.n_test)
-        assert bkd.all_bool(std > 0)
+        assert bkd.to_bool(bkd.all(std > 0))
 
     def test_bkd_accessor(self, bkd) -> None:
         """Fitter bkd() should return the backend."""

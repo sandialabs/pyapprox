@@ -258,14 +258,14 @@ def _check_dofs(
         raise ValueError(f"{name} must list at least one DOF per element")
     if nselected == 0:
         return
-    if bkd.any_bool(dofs < 0) or bkd.any_bool(dofs >= nlocal):
+    if bkd.to_bool(bkd.any(dofs < 0)) or bkd.to_bool(bkd.any(dofs >= nlocal)):
         raise ValueError(
             f"{name} entries must be local DOFs in [0, {nlocal}); padded rows "
             "are not allowed"
         )
     # After sorting each row, a repeated DOF sits next to itself.
     sorted_rows = bkd.sort(dofs, axis=1)
-    if bkd.any_bool(bkd.equal(sorted_rows[:, 1:], sorted_rows[:, :-1])):
+    if bkd.to_bool(bkd.any(bkd.equal(sorted_rows[:, 1:], sorted_rows[:, :-1]))):
         raise ValueError(
             f"{name} lists a DOF twice in one element; padded rows are not allowed"
         )

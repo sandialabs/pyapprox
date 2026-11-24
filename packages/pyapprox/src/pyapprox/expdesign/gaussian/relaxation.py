@@ -42,7 +42,7 @@ class BlendedObservation(Generic[Array]):
                 "ref_variances must have shape (nobs, 1), got "
                 f"{tuple(ref_variances.shape)}"
             )
-        if bkd.any_bool(ref_variances <= 0.0):
+        if bkd.to_bool(bkd.any(ref_variances <= 0.0)):
             raise ValueError(
                 "ref_variances must be positive, so a zero weight leaves "
                 "independent noise and the observation stays nonsingular"
@@ -87,5 +87,7 @@ class BlendedObservation(Generic[Array]):
             raise ValueError(
                 f"weights must have shape ({nobs}, 1), got {tuple(weights.shape)}"
             )
-        if self._bkd.any_bool(weights < 0.0) or self._bkd.any_bool(weights > 1.0):
+        if self._bkd.to_bool(self._bkd.any(weights < 0.0)) or self._bkd.to_bool(
+            self._bkd.any(weights > 1.0)
+        ):
             raise ValueError("weights must lie in [0, 1]")

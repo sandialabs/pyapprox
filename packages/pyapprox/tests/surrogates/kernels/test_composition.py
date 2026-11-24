@@ -146,7 +146,7 @@ class TestProductKernel:
         assert jac.shape == (self.nsamples1, self.nsamples2, self.nvars)
 
         # Check finiteness
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
         # Manually compute using product rule
         K1 = self.kernel1(self.X1, self.X2)
@@ -177,7 +177,7 @@ class TestProductKernel:
         assert jac.shape == (self.nsamples1, self.nsamples1, nparams_total)
 
         # Check finiteness
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_operator_overloading(self, bkd) -> None:
         """
@@ -212,7 +212,7 @@ class TestProductKernel:
         assert hvp.shape == (1, self.nsamples2, self.nvars)
 
         # Check finiteness
-        assert bkd.all_bool(bkd.isfinite(hvp))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(hvp)))
 
 
 class TestSumKernel:
@@ -329,7 +329,7 @@ class TestSumKernel:
         assert jac.shape == (self.nsamples1, self.nsamples2, self.nvars)
 
         # Check finiteness
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
         # Manually compute using sum rule
         dK1 = self.kernel1.jacobian(self.X1, self.X2)
@@ -358,7 +358,7 @@ class TestSumKernel:
         assert jac.shape == (self.nsamples1, self.nsamples1, nparams_total)
 
         # Check finiteness
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_operator_overloading(self, bkd) -> None:
         """
@@ -393,7 +393,7 @@ class TestSumKernel:
         assert hvp.shape == (1, self.nsamples2, self.nvars)
 
         # Check finiteness
-        assert bkd.all_bool(bkd.isfinite(hvp))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(hvp)))
 
 
 class TestNestedComposition:
@@ -578,7 +578,7 @@ class TestSeparableProductKernel:
         jac = kernel.jacobian_wrt_params(samples)
         nparams = kernel.hyp_list().nparams()
         assert jac.shape == (n, n, nparams)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
         # Verify using DerivativeChecker
         vec = bkd.ones((n, 1))

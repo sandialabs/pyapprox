@@ -172,7 +172,7 @@ class TestSmolyakMathematicalProperties:
         coefs = compute_smolyak_coefficients(indices, bkd)
 
         # At least one coefficient should be negative
-        has_negative = bool(bkd.any_bool(coefs < 0))
+        has_negative = bool(bkd.to_bool(bkd.any(coefs < 0)))
         assert has_negative, "Smolyak should have negative coefficients"
 
 

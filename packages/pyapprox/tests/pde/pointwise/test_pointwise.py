@@ -656,8 +656,8 @@ class TestKernel:
         with np.errstate(invalid="ignore", divide="ignore"):
             block = kernel.jacobian(inputs)[("u", "u")]
         assert block is not None and block.g3 is not None
-        assert bool(bkd.all_bool(bkd.isnan(block.g3[:, :, 0])))
-        assert not bool(bkd.any_bool(bkd.isnan(block.g3[:, :, 1])))
+        assert bool(bkd.to_bool(bkd.all(bkd.isnan(block.g3[:, :, 0]))))
+        assert not bool(bkd.to_bool(bkd.any(bkd.isnan(block.g3[:, :, 1]))))
 
     def test_unsupported_backend_function(self, numpy_bkd: Backend[Array]) -> None:
         physics = PointwisePhysics(_XY, [Field("u")], {"u": "tan(u)"}, {})

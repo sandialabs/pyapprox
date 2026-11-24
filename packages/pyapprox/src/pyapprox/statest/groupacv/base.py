@@ -133,7 +133,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                 raise ValueError(
                     f"{name}: model index out of range [1, {self._nmodels})"
                 )
-            if not self._bkd.all_bool(self._bkd.isfinite(known.values)):
+            if not self._bkd.to_bool(self._bkd.all(self._bkd.isfinite(known.values))):
                 raise ValueError(f"{name} contains non-finite values")
         self._stat.check_known(known_quantities)
 
@@ -153,9 +153,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             for s in range(nstats):
                 flat = m * nstats + s
                 if not bool(
-                    self._bkd.all_bool(
+                    self._bkd.to_bool(self._bkd.all(
                         self._bkd.isfinite(self._known_values[m:m+1, s:s+1])
-                    )
+                    ))
                 ):
                     self._T_stat_indices.append(flat)
                 else:
@@ -369,7 +369,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             subset, subset, n_k, n_k, n_k, self._stat
         )
         bkd = self._bkd
-        if bkd.all_bool(bkd.equal(sigma_k, 0)):
+        if bkd.to_bool(bkd.all(bkd.equal(sigma_k, 0))):
             return bkd.zeros((self._nT_stats, self._nT_stats))
         sigma_k_inv = self._inv(sigma_k)
         R_k = self._restriction_matrices[k]
@@ -384,7 +384,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             subset, subset, n_k, n_k, n_k, self._stat
         )
         bkd = self._bkd
-        if bkd.all_bool(bkd.equal(sigma_k, 0)):
+        if bkd.to_bool(bkd.all(bkd.equal(sigma_k, 0))):
             block_size = sigma_k.shape[0]
             return bkd.zeros((block_size, self._nT_stats))
         sigma_k_inv = self._inv(sigma_k)

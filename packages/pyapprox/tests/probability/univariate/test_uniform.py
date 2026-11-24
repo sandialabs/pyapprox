@@ -98,8 +98,8 @@ class TestUniformMarginal:
         """Test rvs produces samples in [lower, upper]."""
         samples = self._dist.rvs(1000)
         samples_flat = self._bkd.flatten(samples)
-        assert self._bkd.all_bool(samples_flat >= self._lower)
-        assert self._bkd.all_bool(samples_flat <= self._upper)
+        assert self._bkd.to_bool(self._bkd.all(samples_flat >= self._lower))
+        assert self._bkd.to_bool(self._bkd.all(samples_flat <= self._upper))
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""

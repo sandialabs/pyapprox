@@ -203,13 +203,13 @@ class JointGaussian(Generic[Array]):
                 raise ValueError(
                     f"{name} must have shape ({nobs}, 1), got {tuple(values.shape)}"
                 )
-            if bkd.any_bool(values < 0.0):
+            if bkd.to_bool(bkd.any(values < 0.0)):
                 raise ValueError(f"{name} must be non-negative")
         # Both are non-negative (checked above), so "<= 0" means "== 0".
         # The Array protocol types "==" as returning bool, so "<=" is used.
         weight_is_zero = weights <= 0.0
         variance_is_zero = variances <= 0.0
-        if bkd.any_bool(weight_is_zero & variance_is_zero):
+        if bkd.to_bool(bkd.any(weight_is_zero & variance_is_zero)):
             raise ValueError(
                 "variances must be positive where weights are zero, or the "
                 "observation is singular"

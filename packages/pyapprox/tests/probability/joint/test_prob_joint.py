@@ -148,7 +148,7 @@ class TestIndependentJoint:
         cov = joint.covariance()
         # Check diagonal
         diag = bkd.get_diagonal(cov)
-        assert bkd.all_bool(diag > 0)
+        assert bkd.to_bool(bkd.all(diag > 0))
         # Check off-diagonal is zero
         off_diag = cov - bkd.diag(diag)
         expected = bkd.zeros((3, 3))

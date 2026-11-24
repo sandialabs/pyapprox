@@ -104,7 +104,7 @@ class TestSingleMesh:
         coords = _coords(bkd, 17)
         coef = _coef(bkd, nystrom.nterms())
         values = nystrom_kle_on_mesh(nystrom, coords)(coef)
-        assert bool(bkd.all_bool(values > 0.0))
+        assert bool(bkd.to_bool(bkd.all(values > 0.0)))
         bkd.assert_allclose(
             values, nystrom.evaluate_at(coords, coef), rtol=0.0, atol=0.0
         )

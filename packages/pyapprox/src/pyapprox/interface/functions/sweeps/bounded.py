@@ -141,9 +141,7 @@ class BoundedParameterSweeper(Generic[Array]):
         x = rotation_vec @ y  # Shape: (nvars, 1000)
 
         # Find points inside the canonical hypercube [-1, 1]^d
-        inside_mask = self._bkd.all_array(x >= -1, axis=0) & self._bkd.all_array(
-            x <= 1, axis=0
-        )
+        inside_mask = self._bkd.all(x >= -1, axis=0) & self._bkd.all(x <= 1, axis=0)
         indices = self._bkd.where(inside_mask)[0]
 
         if len(indices) == 0:

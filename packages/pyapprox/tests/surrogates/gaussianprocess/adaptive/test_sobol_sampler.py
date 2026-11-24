@@ -24,17 +24,17 @@ class TestSobolSampler:
     def test_default_bounds(self, bkd) -> None:
         sampler = SobolAdaptiveSampler(2, bkd)
         samples = sampler.select_samples(50)
-        assert bkd.all_bool(samples >= 0.0)
-        assert bkd.all_bool(samples <= 1.0)
+        assert bkd.to_bool(bkd.all(samples >= 0.0))
+        assert bkd.to_bool(bkd.all(samples <= 1.0))
 
     def test_custom_bounds(self, bkd) -> None:
         bounds = bkd.asarray([[-1.0, 1.0], [0.0, 2.0]])
         sampler = SobolAdaptiveSampler(2, bkd, scaled_bounds=bounds)
         samples = sampler.select_samples(50)
-        assert bkd.all_bool(samples[0, :] >= -1.0)
-        assert bkd.all_bool(samples[0, :] <= 1.0)
-        assert bkd.all_bool(samples[1, :] >= 0.0)
-        assert bkd.all_bool(samples[1, :] <= 2.0)
+        assert bkd.to_bool(bkd.all(samples[0, :] >= -1.0))
+        assert bkd.to_bool(bkd.all(samples[0, :] <= 1.0))
+        assert bkd.to_bool(bkd.all(samples[1, :] >= 0.0))
+        assert bkd.to_bool(bkd.all(samples[1, :] <= 2.0))
 
     def test_sequential_calls(self, bkd) -> None:
         """Successive calls return different points (Sobol advances)."""

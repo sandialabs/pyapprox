@@ -58,7 +58,7 @@ class TestCOptimalCriterion:
 
         val = crit(self._weights)
         assert val.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_jacobian_shape(self, bkd):
         """Test that C-optimal Jacobian has correct shape."""
@@ -70,7 +70,7 @@ class TestCOptimalCriterion:
 
         jac = crit.jacobian(self._weights)
         assert jac.shape == (1, self._ndesign_pts)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_hvp_shape(self, bkd):
         """Test that C-optimal HVP has correct shape."""
@@ -82,7 +82,7 @@ class TestCOptimalCriterion:
 
         hvp = crit.hvp(self._weights, self._direction)
         assert hvp.shape == (self._ndesign_pts, 1)
-        assert bkd.all_bool(bkd.isfinite(hvp))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(hvp)))
 
     def test_hvp_available(self, bkd):
         """Test that HVP is available (following optional methods convention)."""
@@ -177,7 +177,7 @@ class TestAOptimalCriterion:
 
         val = crit(self._weights)
         assert val.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_jacobian_shape(self, bkd):
         """Test that A-optimal Jacobian has correct shape."""
@@ -189,7 +189,7 @@ class TestAOptimalCriterion:
 
         jac = crit.jacobian(self._weights)
         assert jac.shape == (1, self._ndesign_pts)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_hvp_shape(self, bkd):
         """Test that A-optimal HVP has correct shape."""
@@ -201,7 +201,7 @@ class TestAOptimalCriterion:
 
         hvp = crit.hvp(self._weights, self._direction)
         assert hvp.shape == (self._ndesign_pts, 1)
-        assert bkd.all_bool(bkd.isfinite(hvp))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(hvp)))
 
     def test_nvars_nqoi(self, bkd):
         """Test nvars and nqoi properties."""
@@ -307,7 +307,7 @@ class TestIOptimalCriterion:
 
         val = crit(self._weights)
         assert val.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_jacobian_shape(self, bkd):
         """Test that I-optimal Jacobian has correct shape."""
@@ -319,7 +319,7 @@ class TestIOptimalCriterion:
 
         jac = crit.jacobian(self._weights)
         assert jac.shape == (1, self._ndesign_pts)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_hvp_shape(self, bkd):
         """Test that I-optimal HVP has correct shape."""
@@ -331,7 +331,7 @@ class TestIOptimalCriterion:
 
         hvp = crit.hvp(self._weights, self._direction)
         assert hvp.shape == (self._ndesign_pts, 1)
-        assert bkd.all_bool(bkd.isfinite(hvp))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(hvp)))
 
     def test_nvars_nqoi(self, bkd):
         """Test nvars and nqoi properties."""
@@ -403,4 +403,4 @@ class TestIOptimalCriterion:
 
         val = crit(self._weights)
         assert val.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))

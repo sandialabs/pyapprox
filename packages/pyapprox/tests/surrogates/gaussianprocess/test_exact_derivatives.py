@@ -63,7 +63,7 @@ class TestExactGPDerivatives:
         jac_error = errors[0]
 
         # All errors should be finite
-        assert bkd.all_bool(bkd.isfinite(jac_error)), \
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac_error))), \
             "Jacobian errors contain non-finite values"
 
         # Minimum error should be small, showing accuracy with optimal step size

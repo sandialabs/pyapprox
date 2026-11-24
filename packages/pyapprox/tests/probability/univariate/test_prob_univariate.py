@@ -51,7 +51,7 @@ class TestGaussianMarginal:
         samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0, 4.0]])
         cdf_vals = self.dist.cdf(samples)
         diffs = cdf_vals[0, 1:] - cdf_vals[0, :-1]
-        assert self._bkd.all_bool(diffs >= 0)
+        assert self._bkd.to_bool(self._bkd.all(diffs >= 0))
 
     def test_invcdf_cdf_inverse(self) -> None:
         """Test invcdf(cdf(x)) = x."""

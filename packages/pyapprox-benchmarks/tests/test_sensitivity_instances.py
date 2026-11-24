@@ -93,8 +93,8 @@ class TestIshigamiBenchmark:
         assert samples.shape == (3, 100)
 
         for i in range(3):
-            assert bkd.all_bool(samples[i, :] >= bounds[i, 0])
-            assert bkd.all_bool(samples[i, :] <= bounds[i, 1])
+            assert bkd.to_bool(bkd.all(samples[i, :] >= bounds[i, 0]))
+            assert bkd.to_bool(bkd.all(samples[i, :] <= bounds[i, 1]))
 
     def test_function_evaluation_at_prior_samples(self, bkd) -> None:
         benchmark = IshigamiBenchmark(bkd)

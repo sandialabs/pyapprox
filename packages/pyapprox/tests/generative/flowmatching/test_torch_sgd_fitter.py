@@ -122,5 +122,5 @@ class TestTorchSGDFitter:
             fitted, x_grid, bkd, n_steps=50, scheme="heun",
         )
         assert q.shape == (1, 50)
-        assert bkd.all_bool(bkd.isfinite(q))
-        assert bkd.all_bool(q >= 0)
+        assert bkd.to_bool(bkd.all(bkd.isfinite(q)))
+        assert bkd.to_bool(bkd.all(q >= 0))

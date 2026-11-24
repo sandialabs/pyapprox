@@ -118,11 +118,11 @@ class TestROLOptimizer:
         assert result.success()
 
         nonlinear_constraint_value = nonlinear_constraint(result.optima())
-        assert bkd.all_bool(
+        assert bkd.to_bool(bkd.all(
             nonlinear_constraint_value >= nonlinear_constraint.lb()
-        ) and bkd.all_bool(
+        )) and bkd.to_bool(bkd.all(
             nonlinear_constraint_value <= nonlinear_constraint.ub()
-        )
+        ))
 
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
         assert linear_constraint_value[0, 0] == pytest.approx(1.0, abs=1e-6)

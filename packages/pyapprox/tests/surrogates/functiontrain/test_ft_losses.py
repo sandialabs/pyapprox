@@ -80,7 +80,7 @@ class TestFunctionTrainMSELoss:
 
         # Check output shape and properties
         assert mse.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(mse))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mse)))
 
         # MSE should be non-negative
         assert float(mse[0, 0]) >= 0
@@ -145,7 +145,7 @@ class TestFunctionTrainMSELoss:
 
         # Check gradient shape: (1, nparams)
         assert grad.shape == (1, loss.nvars())
-        assert bkd.all_bool(bkd.isfinite(grad))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(grad)))
 
     def test_jacobian_zero_at_minimum(self, bkd) -> None:
         """Test that gradient is zero at the optimal solution."""
@@ -204,7 +204,7 @@ class TestFunctionTrainMSELoss:
         grad_error = errors[0]
 
         # All errors should be finite
-        assert bkd.all_bool(bkd.isfinite(grad_error)), (
+        assert bkd.to_bool(bkd.all(bkd.isfinite(grad_error))), (
             "Gradient errors contain non-finite values"
         )
 

@@ -258,7 +258,7 @@ def solve_in_variable_space(
             f"Optimization failed: {result.message()}",
             npartition_samples,
         )
-    if bkd.any_bool(npartition_samples < 0):
+    if bkd.to_bool(bkd.any(npartition_samples < 0)):
         return VariableSpaceSolution(
             None, "Negative sample counts in n-space", npartition_samples
         )

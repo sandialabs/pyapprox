@@ -127,7 +127,7 @@ class Max1DLevelsCriteria(AdmissibilityCriteria[Array], Generic[Array]):
     def __call__(self, index: Array) -> bool:
         violations = index > self._max_levels
         self._last_violations = violations
-        return not self._bkd.any_bool(violations)
+        return not self._bkd.to_bool(self._bkd.any(violations))
 
     def failure_message(self) -> str:
         return "Index exceeds maximum 1D levels in some dimensions"

@@ -45,7 +45,7 @@ class TestMeanFunctions:
         assert m.shape == (1, n_points)
 
         # Check all zeros
-        assert bkd.all_bool(m == 0.0)
+        assert bkd.to_bool(bkd.all(m == 0.0))
 
     def test_zero_mean_hyperparameters(self, bkd) -> None:
         """Test ZeroMean has no hyperparameters."""

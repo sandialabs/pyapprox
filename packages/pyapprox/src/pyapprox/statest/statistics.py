@@ -85,7 +85,7 @@ def _get_acv_mean_discrepancy_covariances_multipliers(
     allocation_mat: Array, npartition_samples: Array, bkd: Backend[Array]
 ) -> Tuple[Array, Array]:
     nmodels = allocation_mat.shape[0]
-    if bkd.any_bool(bkd.asarray(npartition_samples < 0)):
+    if bkd.to_bool(bkd.any(bkd.asarray(npartition_samples < 0))):
         raise RuntimeError(
             "An entry in npartition samples {0} was negative".format(
                 npartition_samples)
@@ -124,7 +124,7 @@ def _get_acv_variance_discrepancy_covariances_multipliers(
     Compute H from Equation 3.14 of Dixon et al.
     """
     nmodels = allocation_mat.shape[0]
-    if bkd.any_bool(bkd.asarray(npartition_samples < 0)):
+    if bkd.to_bool(bkd.any(bkd.asarray(npartition_samples < 0))):
         raise RuntimeError("An entry in npartition samples was negative")
     nsamples_intersect = _get_nsamples_intersect(
         allocation_mat, npartition_samples, bkd

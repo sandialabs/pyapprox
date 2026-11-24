@@ -137,7 +137,7 @@ class TestPredictionOEDObjective:
 
         values = objective(self._design_weights)
         assert values.shape == (1, 1)
-        assert bkd.all_bool(values >= 0)
+        assert bkd.to_bool(bkd.all(values >= 0))
 
     def test_stdev_variance_jacobian_finite_diff(self, bkd):
         """Test StdDev + Variance Jacobian against finite differences."""

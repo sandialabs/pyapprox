@@ -113,7 +113,7 @@ class StreamFunctionVelocityMap(Generic[Array]):
                 "spectrum must be square, shape (n_psi, n_psi), got "
                 f"{tuple(spectrum.shape)}"
             )
-        if bool(bkd.any_bool(spectrum < 0.0)):
+        if bool(bkd.to_bool(bkd.any(spectrum < 0.0))):
             raise ValueError("spectrum entries are variances; must be >= 0")
         self._bkd = bkd
         npts = int(points.shape[1])

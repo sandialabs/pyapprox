@@ -294,7 +294,7 @@ class TestSPDEMaternKLE:
         """All scaled eigenvalues are positive."""
         bkd = numpy_bkd
         kle, _ = _make_2d_kle(bkd)
-        assert bkd.all_bool(kle.eigenvalues() > 0)
+        assert bkd.to_bool(bkd.all(kle.eigenvalues() > 0))
 
     def test_eigenvalue_descending(self, numpy_bkd) -> None:
         """Eigenvalues are sorted in descending order (up to roundoff)."""

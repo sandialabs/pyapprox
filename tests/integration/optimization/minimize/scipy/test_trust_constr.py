@@ -148,10 +148,9 @@ class TestScipyTrustConstrOptimizer:
         assert result.success()
 
         # Assert that the constraints are satisfied
-        nonlinear_constraint_value = nonlinear_constraint(result.optima())
-        assert (
-            bkd.all_bool(nonlinear_constraint_value >= nonlinear_constraint.lb())
-            and bkd.all_bool(nonlinear_constraint_value <= nonlinear_constraint.ub())
+        value = nonlinear_constraint(result.optima())
+        assert bkd.to_bool(bkd.all(value >= nonlinear_constraint.lb())) and bkd.to_bool(
+            bkd.all(value <= nonlinear_constraint.ub())
         )
 
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()

@@ -99,7 +99,7 @@ class TestSeparableKernelIntegralCalculator:
         """Test tau values are positive (kernel is positive)."""
         calc, _ = self._setup(bkd)
         tau = calc.tau_C()
-        assert bkd.all_bool(tau > 0)
+        assert bkd.to_bool(bkd.all(tau > 0))
 
     def test_P_shape(self, bkd) -> None:
         """Test P has correct shape (N, N)."""
@@ -119,7 +119,7 @@ class TestSeparableKernelIntegralCalculator:
         P = calc.P()
         eigvals = bkd.eigvalsh(P)
         # Allow small negative eigenvalues due to numerical error
-        assert bkd.all_bool(eigvals > -1e-10)
+        assert bkd.to_bool(bkd.all(eigvals > -1e-10))
 
     def test_u_positive(self, bkd) -> None:
         """Test u is positive."""
@@ -154,7 +154,7 @@ class TestSeparableKernelIntegralCalculator:
         bkd.assert_allclose(P_cond, P_cond.T, rtol=1e-12)
         # P_cond should be positive semi-definite
         eigvals = bkd.eigvalsh(P_cond)
-        assert bkd.all_bool(eigvals > -1e-10)
+        assert bkd.to_bool(bkd.all(eigvals > -1e-10))
 
     def test_conditional_u_subset(self, bkd) -> None:
         """Test conditional_u with binary index vector.

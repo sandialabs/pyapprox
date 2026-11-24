@@ -164,8 +164,8 @@ class TestSobolGSensitivityIndices:
         assert self._bkd.to_float(self._bkd.sum(main)) < 1.0
 
         # All indices should be non-negative
-        assert self._bkd.all_bool(main >= 0)
-        assert self._bkd.all_bool(total >= 0)
+        assert self._bkd.to_bool(self._bkd.all(main >= 0))
+        assert self._bkd.to_bool(self._bkd.all(total >= 0))
 
         # Check variance is positive
         assert float(var[0]) > 0

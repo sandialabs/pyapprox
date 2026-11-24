@@ -108,8 +108,8 @@ class TestEvidence:
 
         # ESS should be between 1 and ninner
         assert ess.shape == (self._nouter,)
-        assert bkd.all_bool(ess >= 1.0)
-        assert bkd.all_bool(ess <= self._ninner)
+        assert bkd.to_bool(bkd.all(ess >= 1.0))
+        assert bkd.to_bool(bkd.all(ess <= self._ninner))
 
     # --- LogEvidence Tests ---
 

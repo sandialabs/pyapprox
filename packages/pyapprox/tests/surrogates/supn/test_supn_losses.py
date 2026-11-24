@@ -83,7 +83,7 @@ class TestSUPNMSELoss:
         params = supn._flatten_params()
         grad = loss.jacobian(params)
         assert grad.shape == (1, supn.nparams())
-        assert bkd.all_bool(bkd.isfinite(grad))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(grad)))
 
     def test_jacobian_zero_at_minimum(self, bkd) -> None:
         """Test that gradient is zero at the optimal solution."""

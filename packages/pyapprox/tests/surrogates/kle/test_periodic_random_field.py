@@ -78,7 +78,7 @@ class TestPeriodicRandomField:
         assert result.shape == (npts, nsamples)
 
         # Different realizations should generally differ
-        assert not bkd.all_bool(result[:, 0] == result[:, 1])
+        assert not bkd.to_bool(bkd.all(result[:, 0] == result[:, 1]))
 
     def test_periodic_field_eigenvalue_decay(self, bkd) -> None:
         """Test that eigenvalues decay with increasing k."""
@@ -97,7 +97,7 @@ class TestPeriodicRandomField:
 
         eigs = field._eigs[:, 0]  # shape (neigs,)
         # Eigenvalues should be positive and decreasing
-        assert bkd.all_bool(eigs > 0)
+        assert bkd.to_bool(bkd.all(eigs > 0))
         for i in range(neigs - 1):
             assert float(eigs[i]) > float(eigs[i + 1])
 

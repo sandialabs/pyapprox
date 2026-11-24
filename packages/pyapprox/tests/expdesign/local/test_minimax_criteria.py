@@ -51,7 +51,7 @@ class TestGOptimalCriterion:
 
         val = crit(self._weights)
         assert val.shape == (self._npred_pts, 1)
-        assert bkd.all_bool(bkd.isfinite(val))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(val)))
 
     def test_jacobian_shape(self, bkd):
         """Test that G-optimal Jacobian has correct shape (npred_pts, nvars)."""
@@ -63,7 +63,7 @@ class TestGOptimalCriterion:
 
         jac = crit.jacobian(self._weights)
         assert jac.shape == (self._npred_pts, self._ndesign_pts)
-        assert bkd.all_bool(bkd.isfinite(jac))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac)))
 
     def test_nqoi(self, bkd):
         """Test that nqoi returns number of prediction points."""
@@ -105,7 +105,7 @@ class TestGOptimalCriterion:
         crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         val = crit(self._weights)
-        assert bkd.all_bool(val > 0)
+        assert bkd.to_bool(bkd.all(val > 0))
 
     def test_numerical_jacobian(self, numpy_bkd):
         """Verify Jacobian using finite differences."""
@@ -142,7 +142,7 @@ class TestGOptimalCriterion:
 
         val = crit(self._weights)
         assert val.shape == (self._npred_pts, 1)
-        assert bkd.all_bool(val > 0)
+        assert bkd.to_bool(bkd.all(val > 0))
 
 #TODO: Why is R optimal in this test file.
 # Change name of test file to reflect all of its contents or move below

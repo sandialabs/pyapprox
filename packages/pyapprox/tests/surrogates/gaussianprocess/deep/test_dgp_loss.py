@@ -624,6 +624,6 @@ class TestDGPELBOLossAutograd:
             verbosity=0,
         )
         jac_error = errors[0]
-        assert bkd.all_bool(bkd.isfinite(jac_error))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(jac_error)))
         jac_ratio = float(checker.error_ratio(jac_error))
         assert jac_ratio < 1e-6, f"Jacobian error ratio: {jac_ratio}"

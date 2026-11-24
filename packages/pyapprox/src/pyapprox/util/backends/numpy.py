@@ -428,36 +428,6 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return bool(array.reshape(()))
 
     @staticmethod
-    def any_bool(array: NDArray[Any]) -> bool:
-        return bool(np.any(array))
-
-    @staticmethod
-    def any_array(
-        array: NDArray[Any],
-        axis: int,
-        keepdims: bool = False,
-    ) -> NDArray[Any]:
-        # keepdims as a literal per branch: the stubs overload on it
-        if keepdims:
-            return np.asarray(np.any(array, axis=axis, keepdims=True))
-        return np.asarray(np.any(array, axis=axis))
-
-    @staticmethod
-    def all_bool(array: NDArray[Any]) -> bool:
-        return bool(np.all(array))
-
-    @staticmethod
-    def all_array(
-        array: NDArray[Any],
-        axis: int,
-        keepdims: bool = False,
-    ) -> NDArray[Any]:
-        # keepdims as a literal per branch: the stubs overload on it
-        if keepdims:
-            return np.asarray(np.all(array, axis=axis, keepdims=True))
-        return np.asarray(np.all(array, axis=axis))
-
-    @staticmethod
     def log(array: NDArray[Any]) -> NDArray[Any]:
         return np.asarray(np.log(array))
 

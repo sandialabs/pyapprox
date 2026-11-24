@@ -66,7 +66,7 @@ class TestExactGPOptimization:
         # GP should still make predictions
         mean = gp.predict(X_test)
         assert mean.shape == (1, n_test)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_fit_with_constant_mean(self, bkd) -> None:
         """Test fit() optimizes both kernel and mean hyperparameters."""

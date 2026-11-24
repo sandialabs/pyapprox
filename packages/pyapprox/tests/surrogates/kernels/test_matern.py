@@ -64,9 +64,9 @@ class TestMaternKernel:
             )
             kernel_matrix = kernel(self.X1, self.X2)
             assert kernel_matrix.shape == (self.X1.shape[1], self.X2.shape[1])
-            assert bkd.all_bool(
+            assert bkd.to_bool(bkd.all(
                 kernel_matrix >= 0
-            )  # Kernel values must be non-negative
+            ))  # Kernel values must be non-negative
 
     def test_diagonal(self, bkd) -> None:
         """
@@ -109,9 +109,9 @@ class TestMaternKernel:
                 X2 = self.X2
             jacobian = kernel.jacobian(X1, X2)
             assert jacobian.shape == (X1.shape[1], X2.shape[1], self.nvars)
-            assert bkd.all_bool(
+            assert bkd.to_bool(bkd.all(
                 bkd.isfinite(jacobian)
-            )  # Jacobian values must be finite
+            ))  # Jacobian values must be finite
 
             # Wrap the function using FunctionWithJacobianFromCallable
             vec = bkd.ones((X2.shape[1], 1))
@@ -158,9 +158,9 @@ class TestMaternKernel:
                 self.X1.shape[1],
                 self.nvars,
             )
-            assert bkd.all_bool(
+            assert bkd.to_bool(bkd.all(
                 bkd.isfinite(jacobian_params)
-            )  # Jacobian values must be finite
+            ))  # Jacobian values must be finite
 
             # Wrap the function using FunctionWithJacobianFromCallable
             vec = bkd.ones((self.X1.shape[1], 1))
@@ -305,7 +305,7 @@ class TestMaternKernel:
 
             # Verify Jacobian is correct
             jac_error = errors[0]
-            assert bkd.all_bool(bkd.isfinite(jac_error))
+            assert bkd.to_bool(bkd.all(bkd.isfinite(jac_error)))
             jac_ratio = float(checker.error_ratio(jac_error))
             assert (
                 jac_ratio < 1e-6
@@ -313,7 +313,7 @@ class TestMaternKernel:
 
             # Verify HVP is correct
             hvp_error = errors[1]
-            assert bkd.all_bool(bkd.isfinite(hvp_error))
+            assert bkd.to_bool(bkd.all(bkd.isfinite(hvp_error)))
             hvp_ratio = float(checker.error_ratio(hvp_error))
             assert (
                 hvp_ratio < 5e-5

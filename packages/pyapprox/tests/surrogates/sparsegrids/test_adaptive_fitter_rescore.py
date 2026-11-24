@@ -147,7 +147,7 @@ def _assert_same_values(
 
 def _assert_same_indices(bkd: Backend[Array], actual: Array, desired: Array) -> None:
     assert actual.shape == desired.shape
-    assert bkd.all_bool(bkd.equal(actual, desired))
+    assert bkd.to_bool(bkd.all(bkd.equal(actual, desired)))
 
 
 class TestStopKeepsState:

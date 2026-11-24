@@ -124,7 +124,7 @@ def _assert_same_grid(
     actual_selected = actual.get_selected_indices()
     desired_selected = desired.get_selected_indices()
     assert actual_selected.shape == desired_selected.shape
-    assert bkd.all_bool(bkd.equal(actual_selected, desired_selected))
+    assert bkd.to_bool(bkd.all(bkd.equal(actual_selected, desired_selected)))
 
 
 class TestRefineWithModel:
@@ -320,8 +320,8 @@ class TestInterruptedAcrossProcesses:
         desired_values = desired.get_values()
         assert desired_values is not None
         numpy_bkd.assert_allclose(values, desired_values, rtol=1e-12)
-        assert numpy_bkd.all_bool(
-            numpy_bkd.equal(selected, desired.get_selected_indices())
+        assert numpy_bkd.to_bool(
+            numpy_bkd.all(numpy_bkd.equal(selected, desired.get_selected_indices()))
         )
         # Every sample evaluated exactly once across all the processes.
         assert nevaluated == len(evaluated) == samples.shape[1]

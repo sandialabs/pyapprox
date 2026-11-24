@@ -80,8 +80,8 @@ class TestRelaxedKLOEDSolver:
         solver = RelaxedKLOEDSolver(self._objective, config)
         weights, _ = solver.solve()
 
-        assert bkd.all_bool(weights >= -1e-6)
-        assert bkd.all_bool(weights <= 1 + 1e-6)
+        assert bkd.to_bool(bkd.all(weights >= -1e-6))
+        assert bkd.to_bool(bkd.all(weights <= 1 + 1e-6))
 
     def test_weight_floor_enforced(self, bkd):
         """Inactive weights sit at the floor, not below it."""
@@ -93,7 +93,7 @@ class TestRelaxedKLOEDSolver:
         weights, _ = solver.solve()
 
         # trust-constr satisfies bounds to within its own tolerance.
-        assert bkd.all_bool(weights >= floor * (1 - 1e-6))
+        assert bkd.to_bool(bkd.all(weights >= floor * (1 - 1e-6)))
 
     def test_custom_initial_weights(self, bkd):
         """Test solver with custom initial weights."""
@@ -203,8 +203,8 @@ class TestRelaxedKLOEDSolver:
         )
         weights, eig = solver.solve()
         bkd.assert_allclose(bkd.sum(weights, axis=0), bkd.asarray([2.0]), rtol=1e-4)
-        assert bkd.all_bool(weights >= 1e-6 * (1 - 1e-6))
-        assert bkd.all_bool(weights <= 1.0 + 1e-6)
+        assert bkd.to_bool(bkd.all(weights >= 1e-6 * (1 - 1e-6)))
+        assert bkd.to_bool(bkd.all(weights <= 1.0 + 1e-6))
         assert np.isfinite(eig)
 
     def test_rejects_mismatched_design_space(self, bkd: Backend[Array]) -> None:

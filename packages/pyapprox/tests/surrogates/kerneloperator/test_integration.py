@@ -437,7 +437,7 @@ class TestPredictStdCalibration:
             [bkd.array(u_train_np)], [bkd.array(v_train_np)]
         )
         std = result.surrogate().predict_std([bkd.array(u_test_np)])[0]
-        assert bkd.all_bool(std >= 0)
+        assert bkd.to_bool(bkd.all(std >= 0))
 
 
 class TestMultiOutputWithIndependentKernel:

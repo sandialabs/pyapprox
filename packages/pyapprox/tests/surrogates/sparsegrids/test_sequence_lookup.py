@@ -121,7 +121,7 @@ def _assert_same_grid(
     actual_selected = actual.get_selected_indices()
     desired_selected = desired.get_selected_indices()
     assert actual_selected.shape == desired_selected.shape
-    assert bkd.all_bool(bkd.equal(actual_selected, desired_selected))
+    assert bkd.to_bool(bkd.all(bkd.equal(actual_selected, desired_selected)))
 
 
 @pytest.fixture(params=["memory", "npz"])

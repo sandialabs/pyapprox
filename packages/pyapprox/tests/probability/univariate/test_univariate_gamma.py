@@ -128,7 +128,7 @@ class TestGammaMarginal:
         """Test rvs produces positive samples."""
         samples = self._dist.rvs(1000)
         samples_flat = self._bkd.flatten(samples)
-        assert self._bkd.all_bool(samples_flat >= 0.0)
+        assert self._bkd.to_bool(self._bkd.all(samples_flat >= 0.0))
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""

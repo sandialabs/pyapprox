@@ -39,7 +39,8 @@ class Backend(Protocol[Array]):
 
     # Comparisons
     def allclose(self, a, b, rtol, atol) -> bool: ...
-    def all_bool(self, x) -> bool: ...
+    def all(self, x, axis=None, keepdims=False) -> Array: ...
+    def to_bool(self, x) -> bool: ...
 ```
 
 **See also:**
@@ -233,8 +234,8 @@ max_val = bkd.max(x)
 is_close = bkd.allclose(a, b, rtol=1e-6, atol=1e-7)
 
 # Boolean reductions
-all_positive = bkd.all_bool(x > 0)
-any_negative = bkd.any_bool(x < 0)
+all_positive = bkd.to_bool(bkd.all(x > 0))
+any_negative = bkd.to_bool(bkd.any(x < 0))
 ```
 
 ### Reshaping and Indexing

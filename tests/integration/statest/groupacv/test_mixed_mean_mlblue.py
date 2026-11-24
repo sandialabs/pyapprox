@@ -643,7 +643,7 @@ class TestSDPSmoke:
         result = optimizer.optimize(target_cost=10.0)
         assert result.success
         nps = result.npartition_samples
-        assert bkd.all_bool(nps >= -1e-8)
+        assert bkd.to_bool(bkd.all(nps >= -1e-8))
 
     def test_sdp_multi_qoi_feasible(self, numpy_bkd) -> None:
         bkd = numpy_bkd

@@ -29,7 +29,7 @@ class TestChristoffelWeighting:
         basis_values = bkd.asarray([[1.0, 0.0], [1.0, 0.5], [1.0, 1.0]])
         weights = weighting(samples, basis_values)
 
-        assert bkd.all_bool(weights > 0)
+        assert bkd.to_bool(bkd.all(weights > 0))
 
     def test_jacobian_shape(self, bkd) -> None:
         """Test that Jacobian has correct shape."""

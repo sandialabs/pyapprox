@@ -78,7 +78,7 @@ class TestNLMLLoss:
 
         # Check output shape and properties
         assert nll.shape == (1, 1)
-        assert bkd.all_bool(bkd.isfinite(nll))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(nll)))
 
         # NLL should be positive for typical data
         assert float(nll[0, 0]) > 0
@@ -133,7 +133,7 @@ class TestNLMLLoss:
 
         # Check gradient shape: (1, nactive)
         assert grad.shape == (1, loss.nvars())
-        assert bkd.all_bool(bkd.isfinite(grad))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(grad)))
 
     def test_gradient_with_zero_mean(self, bkd) -> None:
         """Test gradient computation with ZeroMean function."""
@@ -179,7 +179,7 @@ class TestNLMLLoss:
         grad_error = errors[0]
 
         # All errors should be finite
-        assert bkd.all_bool(bkd.isfinite(grad_error)), \
+        assert bkd.to_bool(bkd.all(bkd.isfinite(grad_error))), \
             "Gradient errors contain non-finite values"
 
         # Minimum error should be small
@@ -234,7 +234,7 @@ class TestNLMLLoss:
         grad_error = errors[0]
 
         # All errors should be finite
-        assert bkd.all_bool(bkd.isfinite(grad_error)), \
+        assert bkd.to_bool(bkd.all(bkd.isfinite(grad_error))), \
             "Gradient errors contain non-finite values"
 
         # Minimum error should be small
@@ -271,7 +271,7 @@ class TestNLMLLoss:
             grad = _loss_jacobian(loss)(params)
 
             # Gradient should be finite
-            assert bkd.all_bool(bkd.isfinite(grad))
+            assert bkd.to_bool(bkd.all(bkd.isfinite(grad)))
 
     def test_gradient_with_small_dataset(self, bkd) -> None:
         """Test gradient with small dataset (n=3 points)."""

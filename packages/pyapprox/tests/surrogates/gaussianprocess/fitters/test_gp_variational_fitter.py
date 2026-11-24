@@ -94,7 +94,7 @@ class TestVariationalGPFitters:
 
         mean = fitted.predict(self.X_test)
         assert mean.shape == (1, 5)
-        assert bkd.all_bool(bkd.isfinite(mean))
+        assert bkd.to_bool(bkd.all(bkd.isfinite(mean)))
 
     def test_fixed_original_not_modified(self, bkd) -> None:
         """Original GP must NOT be modified."""

@@ -474,7 +474,7 @@ class _NormalizedConstraint(Generic[Array]):
         self, inner: _ConstraintLike[Array], normalization: Array
     ) -> None:
         bkd = inner.bkd()
-        if bkd.any_bool(normalization <= 0):
+        if bkd.to_bool(bkd.any(normalization <= 0)):
             raise ValueError("Normalization factors must be positive")
         self._inner: _ConstraintLike[Array] = inner
         self._norm = normalization

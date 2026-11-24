@@ -299,7 +299,7 @@ class _BlockDiagonalLUHandle(SolverHandleBase[Array]):
             ),
             (size, rhs.shape[1]),
         )
-        if not bkd.all_bool(bkd.isfinite(solution)):
+        if not bkd.to_bool(bkd.all(bkd.isfinite(solution))):
             return solution, SolveInfo(False, message="non-finite solution")
         return solution, SolveInfo(True)
 

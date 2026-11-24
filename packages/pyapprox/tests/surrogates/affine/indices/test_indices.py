@@ -103,7 +103,7 @@ class TestHyperbolicLevelIndices:
         assert indices.shape[1] == 2
         # Should have [1,0] and [0,1]
         norms = indices_pnorm(indices, 1.0, bkd)
-        assert bkd.all_bool(norms == 1.0)
+        assert bkd.to_bool(bkd.all(norms == 1.0))
 
     def test_level_2_2d(self, bkd):
         """Test level 2 indices in 2D."""
@@ -111,7 +111,7 @@ class TestHyperbolicLevelIndices:
         assert indices.shape[1] == 3
         # Should have [2,0], [1,1], [0,2]
         norms = indices_pnorm(indices, 1.0, bkd)
-        assert bkd.all_bool(norms == 2.0)
+        assert bkd.to_bool(bkd.all(norms == 2.0))
 
 
 class TestHyperbolicIndices:
@@ -135,7 +135,7 @@ class TestHyperbolicIndices:
         zero_index = bkd.zeros((2,), dtype=bkd.int64_dtype())
         has_zero = False
         for idx in indices.T:
-            if bkd.all_bool(idx == zero_index):
+            if bkd.to_bool(bkd.all(idx == zero_index)):
                 has_zero = True
                 break
         assert has_zero
@@ -469,7 +469,7 @@ class TestHyperbolicIndexGenerator:
         indices = gen.get_selected_indices()
         # Check that norms don't exceed max_level
         norms = indices_pnorm(indices, 0.5, bkd)
-        assert bkd.all_bool(norms <= 4.0 + 1e-10)
+        assert bkd.to_bool(bkd.all(norms <= 4.0 + 1e-10))
 
     def test_with_max_1d_levels(self, bkd):
         """Test with 1D level constraints."""
@@ -479,8 +479,8 @@ class TestHyperbolicIndexGenerator:
         )
         indices = gen.get_selected_indices()
         # Check 1D constraints
-        assert bkd.all_bool(indices[0, :] <= 2)
-        assert bkd.all_bool(indices[1, :] <= 3)
+        assert bkd.to_bool(bkd.all(indices[0, :] <= 2))
+        assert bkd.to_bool(bkd.all(indices[1, :] <= 3))
         # Should have (2+1)*(3+1) = 12 indices
         assert indices.shape[1] == 12
 

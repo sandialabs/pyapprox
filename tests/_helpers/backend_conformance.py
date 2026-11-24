@@ -909,13 +909,9 @@ CASES: List[Case] = [
     Case("outer", "flattens", (_A, _GEN[0]), differentiable=True),
 ]  # fmt: skip
 
-# Protocol methods without a row. Shrink-only: see the module docstring.
-NOT_YET_COVERED = frozenset(
-    {
-        # Superseded by any, all and to_bool; removed by their codemod.
-        "all_array", "all_bool", "any_array", "any_bool",
-    }
-)  # fmt: skip
+# Protocol methods without a row. Shrink-only (see the module docstring)
+# and now empty: every protocol method has a row or a column.
+NOT_YET_COVERED: frozenset[str] = frozenset()
 
 # Methods with a row that JaxBkd does not implement yet. With
 # NOT_YET_COVERED they make NOT_YET_ON_JAX, the protocol methods JaxBkd

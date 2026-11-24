@@ -77,7 +77,7 @@ class TestFiniteDifferenceJacobian:
         error_centered = bkd.abs(jac_centered - expected)
 
         # Centered should be more accurate
-        assert bkd.all_bool(error_centered < error_forward)
+        assert bkd.to_bool(bkd.all(error_centered < error_forward))
 
     def test_multivariate_jacobian(self, bkd) -> None:
         """Test Jacobian for f(x,y) = x^2 + y^2."""

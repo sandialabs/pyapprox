@@ -273,7 +273,7 @@ class TestTensorProductPiecewise:
 
         weights = subspace.get_quadrature_weights()
         # All weights should be non-negative
-        assert bkd.all_bool(weights >= 0), f"Found negative weights: {weights}"
+        assert bkd.to_bool(bkd.all(weights >= 0)), f"Found negative weights: {weights}"
 
 
 # =============================================================================

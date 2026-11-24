@@ -29,8 +29,8 @@ class TestBoxBudgetDesignSpace:
         assert initial.shape == (4, 1)
         bkd.assert_allclose(bkd.sum(initial, axis=0), bkd.asarray([3.0]))
         bounds = space.bounds()
-        assert bkd.all_bool(initial[:, 0] >= bounds[:, 0])
-        assert bkd.all_bool(initial[:, 0] <= bounds[:, 1])
+        assert bkd.to_bool(bkd.all(initial[:, 0] >= bounds[:, 0]))
+        assert bkd.to_bool(bkd.all(initial[:, 0] <= bounds[:, 1]))
 
     def test_constraint_is_budget(self, bkd: Backend[Array]) -> None:
         """The single constraint is sum(w) = budget."""

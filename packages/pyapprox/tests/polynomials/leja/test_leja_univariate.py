@@ -158,8 +158,8 @@ class TestLejaSequence1D:
         """Test that all points are within bounds."""
         leja = self._create_leja(bkd)
         samples, _ = leja.quadrature_rule(10)
-        assert bkd.all_bool(samples >= -1.0 - 1e-10)
-        assert bkd.all_bool(samples <= 1.0 + 1e-10)
+        assert bkd.to_bool(bkd.all(samples >= -1.0 - 1e-10))
+        assert bkd.to_bool(bkd.all(samples <= 1.0 + 1e-10))
 
     def test_clear_cache(self, bkd) -> None:
         """Test clearing the cache resets to initial point."""
@@ -217,7 +217,7 @@ class TestLejaObjective:
         objective = self._create_objective(bkd)
         test_points = bkd.asarray([[0.5, -0.5, 0.8]])
         values = objective(test_points)
-        assert bkd.all_bool(values <= 0)
+        assert bkd.to_bool(bkd.all(values <= 0))
 
     def test_jacobian_shape(self, bkd) -> None:
         """Test Jacobian shape is (nqoi, nvars) = (1, 1)."""
@@ -310,7 +310,7 @@ class TestTwoPointLejaObjective:
         objective = self._create_objective(bkd)
         test_points = bkd.asarray([[0.5, -0.5, 0.1], [0.3, 0.7, -0.2]])
         values = objective(test_points)
-        assert bkd.all_bool(values <= 0)
+        assert bkd.to_bool(bkd.all(values <= 0))
 
     def test_jacobian_shape(self, bkd) -> None:
         """Test Jacobian shape is (nqoi, nvars) = (1, 2)."""
@@ -416,8 +416,8 @@ class TestTwoPointLejaSequence1D:
         """Test that all points are within bounds."""
         leja = self._create_leja(bkd)
         samples, _ = leja.quadrature_rule(7)
-        assert bkd.all_bool(samples >= -1.0 - 1e-10)
-        assert bkd.all_bool(samples <= 1.0 + 1e-10)
+        assert bkd.to_bool(bkd.all(samples >= -1.0 - 1e-10))
+        assert bkd.to_bool(bkd.all(samples <= 1.0 + 1e-10))
 
     def test_quadrature_rule_shape(self, bkd) -> None:
         """Test quadrature_rule returns correct shapes."""

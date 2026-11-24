@@ -246,8 +246,8 @@ class TestBasisIndexGenerator:
         # Should have 2*2 = 4 basis indices
         assert basis_indices.shape[1] == 4
         # Each index should be in range [0, 2) for both dimensions
-        assert bkd.all_bool(basis_indices[0, :] < 2)
-        assert bkd.all_bool(basis_indices[1, :] < 2)
+        assert bkd.to_bool(bkd.all(basis_indices[0, :] < 2))
+        assert bkd.to_bool(bkd.all(basis_indices[1, :] < 2))
 
     def test_nvars_and_nrefinement_vars(self, bkd):
         """Test nvars and nrefinement_vars properties."""

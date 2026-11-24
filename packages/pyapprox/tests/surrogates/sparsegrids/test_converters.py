@@ -225,8 +225,8 @@ class TestSparseGridToPCEConverter:
         ub_check = samples <= bkd.asarray(1.0)
         assert not isinstance(lb_check, bool)  # for mypy
         assert not isinstance(ub_check, bool)  # for mypy
-        assert bkd.all_bool(lb_check)
-        assert bkd.all_bool(ub_check)
+        assert bkd.to_bool(bkd.all(lb_check))
+        assert bkd.to_bool(bkd.all(ub_check))
 
         # f(x, y) = x^2 + 2*x*y + y
         x, y = samples[0, :], samples[1, :]
