@@ -23,9 +23,14 @@ from typing import Mapping, Sequence
 
 from pyapprox._moved_ratchet import BASELINE_FILE, _files
 
-# Empty while no backend method is superseded; an entry maps a method
-# to its replacement, e.g. "any_bool": "bkd.to_bool(bkd.any(x))".
-SUPERSEDED: Mapping[str, str] = {}
+# Each entry maps a method to its replacement. The dtype aliases' calls
+# left are the precision tests checking that each alias agrees with its
+# role accessor.
+SUPERSEDED: Mapping[str, str] = {
+    "double_dtype": "bkd.real_dtype()",
+    "default_dtype": "bkd.real_dtype()",
+    "int64_dtype": "bkd.index_dtype()",
+}
 CALL_SUFFIXES = (".py", ".qmd")
 BASELINE_KEY = "superseded-method:"
 # Its fixtures write calls as text, so they never reach zero.

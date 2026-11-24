@@ -21,7 +21,7 @@ class TestIndexAddAutograd:
         bkd = torch_bkd
         array = bkd.asarray([1.0, 2.0, 3.0]).requires_grad_()
         values = bkd.asarray([4.0, 5.0]).requires_grad_()
-        index = bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        index = bkd.asarray([2, 2], dtype=bkd.index_dtype())
         weights = bkd.asarray([1.0, 2.0, 3.0])
         array_grad, values_grad = torch.autograd.grad(
             bkd.sum(bkd.index_add(array, index, values) * weights), (array, values)

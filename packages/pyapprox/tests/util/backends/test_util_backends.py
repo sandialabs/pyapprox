@@ -34,7 +34,7 @@ class TestBackend:
         """
         Test the foo function with a 2D array.
         """
-        array_2d = bkd.array([[1, 2], [3, 4]], dtype=bkd.double_dtype())
+        array_2d = bkd.array([[1, 2], [3, 4]], dtype=bkd.real_dtype())
         result = foo(array_2d, bkd)
         expected = (
             array_2d  # Identity matrix dot product should return the original array
@@ -45,7 +45,7 @@ class TestBackend:
         """
         Test the foo function with a 1D array.
         """
-        array_1d = bkd.array([1, 2], dtype=bkd.double_dtype())
+        array_1d = bkd.array([1, 2], dtype=bkd.real_dtype())
         result = foo(array_1d, bkd)
         expected = (
             array_1d  # Identity matrix dot product should return the original array
@@ -87,10 +87,10 @@ class TestTorchBkdDtype:
         from pyapprox.util.backends.torch import TorchBkd
 
         bkd32 = TorchBkd(precision=Precision.SINGLE)
-        assert bkd32.default_dtype() == torch.float32
+        assert bkd32.real_dtype() == torch.float32
 
         bkd64 = TorchBkd(precision=Precision.DOUBLE)
-        assert bkd64.default_dtype() == torch.float64
+        assert bkd64.real_dtype() == torch.float64
 
     def test_default_constructor_uses_torch_default(self) -> None:
         torch = pytest.importorskip("torch")
@@ -98,7 +98,7 @@ class TestTorchBkdDtype:
 
         torch.set_default_dtype(torch.float64)
         bkd = TorchBkd()
-        assert bkd.default_dtype() == torch.float64
+        assert bkd.real_dtype() == torch.float64
         assert bkd.zeros((2,)).dtype == torch.float64
 
     def test_explicit_dtype_overrides_default(self) -> None:
@@ -168,11 +168,11 @@ class TestDtypePredicates:
         assert not bkd.is_integer_dtype(bkd.array([1.0, 2.0]))
 
     def test_int_is_not_floating(self, bkd: Backend[Array]) -> None:
-        int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.int64_dtype())
+        int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.index_dtype())
         assert not bkd.is_floating_dtype(int_array)
 
     def test_int_is_integer(self, bkd: Backend[Array]) -> None:
-        int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.int64_dtype())
+        int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.index_dtype())
         assert bkd.is_integer_dtype(int_array)
 
     def test_bool_is_not_floating(self, bkd: Backend[Array]) -> None:
@@ -274,7 +274,7 @@ class TestLuSolveTranspose:
         rng = np.random.default_rng(3)
         a = rng.normal(size=(4, 4)) + 4.0 * np.eye(4)
         b = rng.normal(size=(4, 2))
-        dtype = bkd.double_dtype()
+        dtype = bkd.real_dtype()
         if complex_entries:
             a = a + 1j * rng.normal(size=(4, 4))
             b = b + 1j * rng.normal(size=(4, 2))
@@ -305,7 +305,7 @@ class TestStackedLu:
         # Zero leading entries: the first column's pivot is not row 0.
         stack[1, 0, 0] = 0.0
         stack[4, :2, 0] = 0.0
-        dtype = bkd.double_dtype()
+        dtype = bkd.real_dtype()
         if complex_entries:
             stack = stack + 1j * rng.normal(size=(6, 3, 3))
             rhs = rhs + 1j * rng.normal(size=(6, 3, 2))

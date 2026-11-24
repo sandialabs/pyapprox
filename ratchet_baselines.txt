@@ -17,8 +17,10 @@ moved:pyapprox.surrogates.affine.leja=26
 moved:pyapprox.surrogates.affine.induced=2
 superseded:pyapprox.pde.manufactured=29
 superseded:pyapprox.pde.galerkin.manufactured=11
-# Calls to superseded backend methods (pyapprox._superseded_ratchet):
-# none at present.
+# Calls to superseded backend methods (pyapprox._superseded_ratchet).
+superseded-method:double_dtype=4
+superseded-method:default_dtype=6
+superseded-method:int64_dtype=4
 # Test modules importing an optional library at module level without
 # skipping first (pyapprox._optional_import_ratchet).
 optional-test-import:torch=0
