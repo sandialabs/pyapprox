@@ -8,7 +8,6 @@ through the pinned map agrees between the storages and with finite
 differences.
 """
 
-import math
 from typing import Callable, Generic, Optional
 
 import numpy as np
@@ -26,7 +25,6 @@ from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.observation_terms import EndpointTerm
 from pyapprox.ode.pinned_rows import (
     AtEveryBlock,
-    PinnedRowsParamDerivatives,
     PinnedRowsProtocol,
     RowPinning,
 )
@@ -71,50 +69,11 @@ from pyapprox.util.rootfinding.nonlinear import Newton
 from tests._helpers.ode.second_order_cases import (
     G,
     N,
+    Prescribed,
     Spring,
+    prescribed_g,
     reduced_system_on,
 )
-
-
-def _g(time: float, order: int) -> float:
-    """The order-th time derivative of g(t) = 0.3 sin(2t) + 0.1 t."""
-    trig = 0.3 * 2.0**order * math.sin(2.0 * time + order * math.pi / 2.0)
-    return trig + (0.1 * time if order == 0 else 0.1 if order == 1 else 0.0)
-
-
-class _Prescribed(Generic[Array]):
-    """g on node 0 of one block, with derivatives through ``norders``."""
-
-    def __init__(
-        self, bkd: Backend[Array], norders: int, parameterized: bool = False
-    ) -> None:
-        self._bkd, self._norders, self._parameterized = bkd, norders, parameterized
-        self._rows = BackendRowSet(backend_state_space(bkd, N).descriptor(), [0], bkd)
-
-    def rows(self) -> BackendRowSet[Array]:
-        return self._rows
-
-    def _column(self, time: float, order: int) -> Array:
-        return self._bkd.asarray([[_g(time, order)], [0.0], [0.0]])
-
-    def values(self, time: float) -> Array:
-        return self._column(time, 0)
-
-    def time_derivative(self, order: int) -> Optional[Callable[[float], Array]]:
-        return _Order(self, order) if order <= self._norders else None
-
-    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
-        if self._parameterized:
-            return PinnedRowsParamDerivatives.unavailable()
-        return PinnedRowsParamDerivatives.independent()
-
-
-class _Order(Generic[Array]):
-    def __init__(self, prescribed: _Prescribed[Array], order: int) -> None:
-        self._prescribed, self._order = prescribed, order
-
-    def __call__(self, time: float) -> Array:
-        return self._prescribed._column(time, self._order)
 
 
 class TestJoinRows:
@@ -196,7 +155,7 @@ def test_lift_rows_on_the_csr_stack(
 class TestDoubledPinnedRows:
     def _doubled(self, bkd: Backend[Array], norders: int) -> DoubledPinnedRows[Array]:
         return DoubledPinnedRows(
-            _Prescribed(bkd, norders), backend_dense_state_blocks(bkd, N)
+            Prescribed(bkd, norders), backend_dense_state_blocks(bkd, N)
         )
 
     def test_values_and_rates(self, bkd: Backend[Array]) -> None:
@@ -217,7 +176,7 @@ class TestDoubledPinnedRows:
             assert column.shape == (2 * N, 1)
             bkd.assert_allclose(
                 column[[0, N], 0],
-                bkd.asarray([_g(time, order), _g(time, order + 1)]),
+                bkd.asarray([prescribed_g(time, order), prescribed_g(time, order + 1)]),
                 rtol=1e-14,
             )
         assert doubled.time_derivative(3) is None
@@ -230,19 +189,19 @@ class TestDoubledPinnedRows:
         doubled = self._doubled(bkd, 1)
         assert doubled.rates() is None
         bkd.assert_allclose(
-            doubled.values(0.2)[N, 0], bkd.asarray(_g(0.2, 1)), rtol=1e-14
+            doubled.values(0.2)[N, 0], bkd.asarray(prescribed_g(0.2, 1)), rtol=1e-14
         )
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         blocks = backend_dense_state_blocks(bkd, N)
         with pytest.raises(ValueError, match="no rate"):
-            DoubledPinnedRows[Array](_Prescribed(bkd, 0), blocks)
+            DoubledPinnedRows[Array](Prescribed(bkd, 0), blocks)
         with pytest.raises(ValueError, match="independent of the parameters"):
-            DoubledPinnedRows[Array](_Prescribed(bkd, 1, parameterized=True), blocks)
+            DoubledPinnedRows[Array](Prescribed(bkd, 1, parameterized=True), blocks)
         with pytest.raises(TypeError, match="TimeDerivativeRowsProtocol"):
             DoubledPinnedRows[Array](None, blocks)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="RowLiftingProtocol"):
-            DoubledPinnedRows[Array](_Prescribed(bkd, 1), None)  # type: ignore[arg-type]
+            DoubledPinnedRows[Array](Prescribed(bkd, 1), None)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="at least 1"):
             self._doubled(bkd, 1).time_derivative(0)
 
@@ -273,7 +232,7 @@ def _pinned_trajectory(
     """The damped spring with node 0 pinned at every block, integrated by
     ``method``; ``blocks`` and ``lifting`` are the same storage."""
     system = reduced_system_on(blocks, bkd, _spring(bkd), "linear")
-    doubled: DoubledPinnedRows[Array] = DoubledPinnedRows(_Prescribed(bkd, 1), lifting)
+    doubled: DoubledPinnedRows[Array] = DoubledPinnedRows(Prescribed(bkd, 1), lifting)
     tableau = backward_euler() if method == "backward_euler" else crank_nicolson()
     newton: Newton[Array, Array] = Newton(atol=1e-14, rtol=0.0, maxiters=20)
     stepper = RungeKutta(tableau, newton).stepper(
@@ -298,7 +257,7 @@ def test_pinned_trajectory_carries_the_data(bkd: Backend[Array], method: str) ->
     assert assembled.ntimes() == condensed.ntimes() == 21
     for k in range(assembled.ntimes()):
         time = assembled.time(k)
-        expected = bkd.asarray([_g(time, 0), _g(time, 1)])
+        expected = bkd.asarray([prescribed_g(time, 0), prescribed_g(time, 1)])
         for store in (assembled, condensed):
             bkd.assert_allclose(
                 store.state(k)[[0, N], 0], expected, rtol=1e-12, atol=1e-14
@@ -360,7 +319,7 @@ def _pinned_endpoint(
     ``blocks`` and ``lifting`` are the same storage."""
     spring = _spring(bkd)
     system = reduced_system_on(blocks, bkd, spring, "linear")
-    doubled: DoubledPinnedRows[Array] = DoubledPinnedRows(_Prescribed(bkd, 1), lifting)
+    doubled: DoubledPinnedRows[Array] = DoubledPinnedRows(Prescribed(bkd, 1), lifting)
     discretization = _PinnedDiscretization(system, spring, doubled, lifting, bkd)
     newton: Newton[Array, Array] = Newton(atol=1e-13, rtol=0.0, maxiters=20)
     functional = FixedTrajectoryFunctional(

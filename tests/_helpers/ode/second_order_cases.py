@@ -3,7 +3,7 @@ parameterized nonlinear spring, dampers, and the transient map of an
 endpoint displacement."""
 
 import math
-from typing import Generic, Optional, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
 
 import numpy as np
 
@@ -12,11 +12,12 @@ from pyapprox.implicitfunction.observation_terms import StateEntries
 from pyapprox.implicitfunction.setups import RecomputeAlways
 from pyapprox.ode.mass_form_system import MassFormSystem
 from pyapprox.ode.observation_terms import EndpointTerm
-from pyapprox.ode.pinned_rows import RowPinningProtocol
+from pyapprox.ode.pinned_rows import PinnedRowsParamDerivatives, RowPinningProtocol
 from pyapprox.ode.residual_derivatives import (
     STATED_ZERO,
     ODEResidualDerivatives,
     backend_spaces,
+    backend_state_space,
     constant_jacobian,
     dense_jacobian,
     dense_operator,
@@ -43,6 +44,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.backend_dense import (
     BackendDenseLU,
     BackendDenseOperator,
+    BackendRowSet,
     DenseFormat,
 )
 from pyapprox.util.linalg.operators import FormatProtocol, OperatorProperties
@@ -344,3 +346,44 @@ def endpoint_function(
         functional,
     )
     return ImplicitMapFunction(implicit, ArrayParameters(bkd))
+
+
+def prescribed_g(time: float, order: int) -> float:
+    """The order-th time derivative of g(t) = 0.3 sin(2t) + 0.1 t."""
+    trig = 0.3 * 2.0**order * math.sin(2.0 * time + order * math.pi / 2.0)
+    return trig + (0.1 * time if order == 0 else 0.1 if order == 1 else 0.0)
+
+
+class Prescribed(Generic[Array]):
+    """g on node 0 of one block, with derivatives through ``norders``."""
+
+    def __init__(
+        self, bkd: Backend[Array], norders: int, parameterized: bool = False
+    ) -> None:
+        self._bkd, self._norders, self._parameterized = bkd, norders, parameterized
+        self._rows = BackendRowSet(backend_state_space(bkd, N).descriptor(), [0], bkd)
+
+    def rows(self) -> BackendRowSet[Array]:
+        return self._rows
+
+    def _column(self, time: float, order: int) -> Array:
+        return self._bkd.asarray([[prescribed_g(time, order)], [0.0], [0.0]])
+
+    def values(self, time: float) -> Array:
+        return self._column(time, 0)
+
+    def time_derivative(self, order: int) -> Optional[Callable[[float], Array]]:
+        return PrescribedOrder(self, order) if order <= self._norders else None
+
+    def parameter_derivatives(self) -> PinnedRowsParamDerivatives[Array]:
+        if self._parameterized:
+            return PinnedRowsParamDerivatives.unavailable()
+        return PinnedRowsParamDerivatives.independent()
+
+
+class PrescribedOrder(Generic[Array]):
+    def __init__(self, prescribed: Prescribed[Array], order: int) -> None:
+        self._prescribed, self._order = prescribed, order
+
+    def __call__(self, time: float) -> Array:
+        return self._prescribed._column(time, self._order)
