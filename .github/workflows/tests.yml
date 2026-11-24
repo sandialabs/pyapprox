@@ -115,9 +115,15 @@ jobs:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('packages/*/pyproject.toml') }}
           restore-keys: ${{ runner.os }}-pip-${{ matrix.python-version }}-
+      # Every job installs under requirements/ci-pins.txt, the versions
+      # the dev envs and the lint job use, so a failure here comes from
+      # the code and not from an upstream release (torch 2.15 once broke
+      # a test that passed on the pinned 2.7.1). The weekly latest-deps
+      # workflow installs without the pins to catch what the next bump
+      # would break.
       - run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
+          python -m pip install -c requirements/ci-pins.txt -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
       - name: Run fast tests (PR — fail-fast)
         if: github.event_name == 'pull_request'
         run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300 ${{ inputs.tests }}
@@ -147,7 +153,7 @@ jobs:
           restore-keys: Linux-pip-3.12-minimal-
       - run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/pyapprox[test]" -e packages/pyapprox-benchmarks
+          python -m pip install -c requirements/ci-pins.txt -e "packages/pyapprox[test]" -e packages/pyapprox-benchmarks
       # The real torch-free gate: torch is optional, so this job must have
       # none, and importing pyapprox must not load it.
       - name: Verify torch is absent and not imported
@@ -177,7 +183,7 @@ jobs:
           restore-keys: Linux-pip-3.12-jax-
       - run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/pyapprox[test,jax]" -e packages/pyapprox-benchmarks
+          python -m pip install -c requirements/ci-pins.txt -e "packages/pyapprox[test,jax]" -e packages/pyapprox-benchmarks
       - name: Run the conformance table on JaxBkd
         run: pytest -v --tb=short --timeout=300 packages/pyapprox/tests/util/backends/test_backend_conformance.py packages/pyapprox/tests/util/backends/test_backend_conformance_jax.py
 
@@ -203,7 +209,7 @@ jobs:
           restore-keys: Linux-pip-3.12-
       - run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
+          python -m pip install -c requirements/ci-pins.txt -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
       - name: Run slow tests only
         env:
           PYAPPROX_RUN_SLOW: "1"
@@ -231,7 +237,7 @@ jobs:
           restore-keys: Linux-pip-3.12-
       - run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
+          python -m pip install -c requirements/ci-pins.txt -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
       - name: Run slower tests only
         env:
           PYAPPROX_RUN_SLOWER: "1"
@@ -259,7 +265,7 @@ jobs:
           restore-keys: Linux-pip-3.12-
       - run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
+          python -m pip install -c requirements/ci-pins.txt -e "packages/pyapprox[fem,umbridge,test,torch]" -e packages/pyapprox-benchmarks
       - name: Run slowest tests only
         env:
           PYAPPROX_RUN_SLOWEST: "1"

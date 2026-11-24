@@ -1,16 +1,27 @@
-# Pinned versions of every package whose types or stubs move the mypy
-# ratchet counts in ratchet_baselines.txt (observed: matplotlib, mpire).
-# A pip constraints file: CI's lint job and the dev envs install with
-# `-c requirements/ci-pins.txt`, so both type-check against the same
-# versions. Bump a pin here, rebuild the dev envs, and adjust the
-# baselines in the same commit when a count moves.
+# The versions CI and the dev envs install: a pip constraints file that
+# CI's lint and test jobs and the dev envs (make dev-env) all install
+# with `-c requirements/ci-pins.txt`. One set of versions means a red CI
+# run comes from the code, not from an upstream release, and that the
+# mypy ratchet counts in ratchet_baselines.txt mean the same thing in CI
+# and locally (packages observed to move them: matplotlib, mpire, and
+# jax when it is missing). Bump a pin here, rebuild the dev envs, and
+# adjust the baselines in the same commit when a count moves. The
+# weekly latest-deps workflow installs without these pins and reports
+# what the next bump would break.
 mypy==1.19.1
 numpy==2.3.5
 scipy==1.16.3
 matplotlib==3.10.8
 sympy==1.14.0
 torch==2.7.1
+jax==0.12.1
+jaxlib==0.12.1
 scikit-fem==11.0.0
 numba==0.62.1
+cvxpy==1.9.3
+umbridge==1.2.10
 joblib==1.5.2
 mpire==2.10.2
+pytest==9.2.0
+pytest-xdist==3.8.0
+pytest-timeout==2.4.0

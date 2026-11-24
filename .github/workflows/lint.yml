@@ -51,14 +51,17 @@ jobs:
           python-version: "3.13"
       # Every package whose types move the ratchet counts in
       # ratchet_baselines.txt is pinned in requirements/ci-pins.txt, the
-      # constraints the dev envs install under too (make dev-env), so the
-      # counts mean the same thing in CI and locally. Full runtime extras
-      # + benchmarks WITH deps: optional packages (skfem, numba, ...) must
-      # be visible to mypy or their typed code is silently unchecked
-      # (Any). torch comes first from the CPU-only index, at its pin.
+      # constraints the test jobs and the dev envs install under too (make
+      # dev-env), so the counts mean the same thing in CI and locally.
+      # Full runtime extras, jax and benchmarks WITH deps: optional
+      # packages (skfem, numba, jax, ...) must be visible to mypy or their
+      # typed code is silently unchecked (Any). jax is not in
+      # runtime-extras, so it is named here; without it util/backends/jax.py
+      # type-checked against Any. torch comes first from the CPU-only
+      # index, at its pin.
       - run: |
           pip install -c requirements/ci-pins.txt torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -c requirements/ci-pins.txt -e "packages/pyapprox[lint,runtime-extras]"
+          pip install -c requirements/ci-pins.txt -e "packages/pyapprox[lint,runtime-extras,jax]"
           pip install -c requirements/ci-pins.txt -e packages/pyapprox-benchmarks
       - name: mypy ratchet (must not exceed baseline)
         run: bash scripts/mypy_diff.sh "$(sed -n 's/^mypy_src=//p' ratchet_baselines.txt)" packages/pyapprox/src/pyapprox/
@@ -73,8 +76,8 @@ jobs:
         run: python -m pyapprox._moved_ratchet
       - name: moved-module stubs in sync
         run: python -m pyapprox._moved_stubs --check
-      # Calls to superseded backend methods (any_bool, ...) must equal
-      # their superseded-method:<name> baselines in ratchet_baselines.txt.
+      # Calls to superseded backend methods must equal their
+      # superseded-method:<name> baselines in ratchet_baselines.txt.
       - name: superseded-method ratchet
         run: python -m pyapprox._superseded_ratchet
       # Test modules importing torch, jax or numba at module level without
@@ -82,4 +85,3 @@ jobs:
       # baselines in ratchet_baselines.txt.
       - name: optional-import ratchet
         run: python -m pyapprox._optional_import_ratchet
-
