@@ -251,7 +251,10 @@ def _essential_selection(
             f"{tuple(weights.shape)}"
         )
     # The 0/1 selection S of the DOFs, from plain integers (constant data).
-    selection = bkd.eye(nstates)[:, dof_list]
+    selection = bkd.stack(
+        [bkd.index_update(bkd.zeros((nstates,)), dof, 1.0) for dof in dof_list],
+        axis=1,
+    )
     # Zeroing the essential rows leaves a DOF's column nonzero exactly when
     # that DOF is not essential.
     unpinned = rows.zero_rows(selection)

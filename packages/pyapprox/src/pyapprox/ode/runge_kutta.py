@@ -547,6 +547,17 @@ class RungeKuttaStepper(Generic[V, A, F]):
             [space] * (nblocks + 1), "unknown and state"
         )
         self._stages_space = BlockInnerProductSpace([space] * nstages, "stages")
+        rows: List[List[Optional[LinearMapProtocol[V]]]] = []
+        for i in range(nstages):
+            row: List[Optional[LinearMapProtocol[V]]] = [None] * (nblocks + 1)
+            if i in self._unknown_stages:
+                row[self._unknown_stages.index(i)] = IdentityOperator(space)
+            else:
+                row[nblocks] = IdentityOperator(space)
+            rows.append(row)
+        self._stage_map: BlockOperator[V] = BlockOperator(
+            rows, self._stage_inputs_space, self._stages_space
+        )
         self._row_pinning = row_pinning
 
     def tableau(self) -> ButcherTableau:
@@ -810,18 +821,10 @@ class RungeKuttaStepper(Generic[V, A, F]):
         values, with its transpose: an identity block per stage, at
         :math:`y_n` for a trivial first stage and at the stage's unknown
         block otherwise. The final block, which no stage reads, is a zero
-        column. The one statement of how stages sit in the unknown."""
-        space = self._system.space
-        nblocks = self._unknown_space.nblocks()
-        rows: List[List[Optional[LinearMapProtocol[V]]]] = []
-        for i in range(self._tableau.nstages()):
-            row: List[Optional[LinearMapProtocol[V]]] = [None] * (nblocks + 1)
-            if i in self._unknown_stages:
-                row[self._unknown_stages.index(i)] = IdentityOperator(space)
-            else:
-                row[nblocks] = IdentityOperator(space)
-            rows.append(row)
-        return BlockOperator(rows, self._stage_inputs_space, self._stages_space)
+        column. The one statement of how stages sit in the unknown. It
+        depends only on the tableau and the space, so it is built once;
+        ``window`` is kept for the protocol."""
+        return self._stage_map
 
     def step_residual(self, window: StepWindow[V]) -> BlockVector[V]:
         r""":math:`R_n` at the window's unknown and past state, at the
