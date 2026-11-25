@@ -95,7 +95,7 @@ def _generic_lagrange_eval(
     numers = samples[:, None] - abscissa[None, :]
 
     # Detect exact node hits
-    is_node = numers == 0.0
+    is_node = bkd.equal(numers, 0.0)
 
     # Replace zeros with 1.0 for safe product computation
     safe_numers = bkd.where(is_node, 1.0, numers)
@@ -109,7 +109,7 @@ def _generic_lagrange_eval(
     # Override rows where sample coincides with a node
     any_hit = bkd.any(is_node, axis=1)  # (nsamples,)
     any_hit_2d = bkd.reshape(any_hit, (-1, 1))  # (nsamples, 1)
-    node_values = bkd.where(is_node, 1.0, 0.0)
+    node_values = bkd.asarray(is_node, dtype=values.dtype)
     values = bkd.where(any_hit_2d, node_values, values)
 
     return values
@@ -236,7 +236,7 @@ def _generic_lagrange_jacobian(
 
     # Node case: precompute D1[m, j] = L'_j(x_m)
     node_diffs = abscissa[:, None] - abscissa[None, :]
-    node_is_diag = node_diffs == 0.0
+    node_is_diag = bkd.equal(node_diffs, 0.0)
     safe_node_diffs = bkd.where(node_is_diag, 1.0, node_diffs)
     node_derivs = bary_weights[None, :] / (bary_weights[:, None] * safe_node_diffs)
     off_diag = bkd.where(node_is_diag, 0.0, node_derivs)
@@ -246,7 +246,7 @@ def _generic_lagrange_jacobian(
     # For near-node samples, look up the precomputed row via matmul
     any_hit = bkd.any(is_near_node, axis=1)
     any_hit_2d = bkd.reshape(any_hit, (-1, 1))
-    is_near_float = bkd.where(is_near_node, 1.0, 0.0)
+    is_near_float = bkd.asarray(is_near_node, dtype=node_derivs.dtype)
     node_result = bkd.dot(is_near_float, node_derivs)
 
     derivs = bkd.where(any_hit_2d, node_result, derivs)
@@ -392,7 +392,7 @@ def _generic_lagrange_hessian(
 
     # Node case: precompute D1 and D2 matrices
     node_diffs_mat = abscissa[:, None] - abscissa[None, :]
-    node_is_diag = node_diffs_mat == 0.0
+    node_is_diag = bkd.equal(node_diffs_mat, 0.0)
     safe_node_diffs = bkd.where(node_is_diag, 1.0, node_diffs_mat)
 
     D1 = bary_weights[None, :] / (bary_weights[:, None] * safe_node_diffs)
@@ -408,7 +408,7 @@ def _generic_lagrange_hessian(
 
     any_hit = bkd.any(is_near_node, axis=1)
     any_hit_2d = bkd.reshape(any_hit, (-1, 1))
-    is_near_float = bkd.where(is_near_node, 1.0, 0.0)
+    is_near_float = bkd.asarray(is_near_node, dtype=D2.dtype)
     node_result = bkd.dot(is_near_float, D2)
 
     derivs = bkd.where(any_hit_2d, node_result, derivs)

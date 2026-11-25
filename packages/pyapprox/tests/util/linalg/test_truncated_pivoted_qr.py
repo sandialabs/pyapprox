@@ -44,7 +44,9 @@ class _PathResult:
 
 
 def _run_factorizer(
-    fac: TruncatedPivotedQRFactorizer[Array], A: Array, npivots: int,
+    fac: TruncatedPivotedQRFactorizer[Array],
+    A: Array,
+    npivots: int,
 ) -> _PathResult:
     """Factorize ``A`` (the matrix ``fac`` was built on) and record rank,
     pivots, R-diagonal and the norm of ``A[:, pivots] - Q @ R``."""
@@ -63,7 +65,10 @@ def _run_factorizer(
 
 
 def _result_for_path(
-    path: str, A_np: NDArray[np.float64], tol: float, npivots: int,
+    path: str,
+    A_np: NDArray[np.float64],
+    tol: float,
+    npivots: int,
 ) -> _PathResult:
     """Run one execution path, forced explicitly: the ``bkd`` fixture alone
     never exercises numpy-generic, since numpy dispatches to numba when it
@@ -81,11 +86,8 @@ def _result_for_path(
         return _run_factorizer(fac_np, A_bkd_np, npivots)
     if path == "torch-generic":
         pytest.importorskip("torch")
-        import torch
-
         from pyapprox.util.backends.torch import TorchBkd
 
-        torch.set_default_dtype(torch.float64)
         bkd_t = TorchBkd()
         A_t = bkd_t.asarray(A_np)
         fac_t = TruncatedPivotedQRFactorizer(A_t, bkd_t, tol=tol)
@@ -105,7 +107,9 @@ class TestAgainstScipy:
         fac = TruncatedPivotedQRFactorizer(bkd.asarray(A_np), bkd, tol=0.0)
         fac.factorize(npivots=25)
         bkd.assert_allclose(
-            fac.rdiag(), bkd.asarray(np.abs(np.diag(R))), atol=1e-10,
+            fac.rdiag(),
+            bkd.asarray(np.abs(np.diag(R))),
+            atol=1e-10,
         )
 
     def test_reconstruction(self, bkd: Backend[Array]) -> None:
@@ -188,7 +192,9 @@ class TestTruncation:
         basis = rng.normal(size=(50, 6))
         A_np = basis @ rng.normal(size=(6, 40))
         fac = TruncatedPivotedQRFactorizer(
-            bkd.asarray(A_np), bkd, tol=1e-10,
+            bkd.asarray(A_np),
+            bkd,
+            tol=1e-10,
         )
         fac.factorize(npivots=30)
         assert fac.npivots() == 6
@@ -207,7 +213,9 @@ class TestAllPaths:
         _Q, R, _piv = scipy.linalg.qr(A_np, pivoting=True, mode="economic")
         res = _result_for_path(path, A_np, tol=0.0, npivots=25)
         NumpyBkd().assert_allclose(
-            res.rdiag, np.abs(np.diag(R)), atol=1e-10,
+            res.rdiag,
+            np.abs(np.diag(R)),
+            atol=1e-10,
         )
 
     def test_all_paths_agree(self) -> None:
@@ -216,26 +224,25 @@ class TestAllPaths:
         rng = np.random.RandomState(11)
         A_np = np.ascontiguousarray(rng.normal(size=(45, 30)))
         results = {
-            path: _result_for_path(path, A_np, tol=1e-12, npivots=20)
-            for path in _PATHS
+            path: _result_for_path(path, A_np, tol=1e-12, npivots=20) for path in _PATHS
         }
         base = results["numpy-generic"]
         for path, res in results.items():
             assert res.npivots == base.npivots, path
             assert res.pivots == base.pivots, path
             NumpyBkd().assert_allclose(
-                res.rdiag, base.rdiag, atol=1e-10, err_msg=path,
+                res.rdiag,
+                base.rdiag,
+                atol=1e-10,
+                err_msg=path,
             )
 
     def test_torch_stays_native(self) -> None:
         # The generic path must keep torch tensors native (no numpy roundtrip
         # mid-compute) so GPU/autograd is preserved.
-        pytest.importorskip("torch")
-        import torch
-
+        torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
-        torch.set_default_dtype(torch.float64)
         bkd = TorchBkd()
         rng = np.random.RandomState(9)
         A = bkd.asarray(rng.normal(size=(30, 20)))
@@ -253,8 +260,9 @@ def _hard_matrix(seed: int) -> NDArray[np.float64]:
     ngrid, core = 200, 60
     U, _ = np.linalg.qr(rng.normal(size=(ngrid, ngrid)))
     svals = np.geomspace(1.0, 1e-11, core)
-    base = (U[:, :core] * svals) @ np.linalg.qr(
-        rng.normal(size=(core, core)))[0][:core, :]
+    base = (U[:, :core] * svals) @ np.linalg.qr(rng.normal(size=(core, core)))[0][
+        :core, :
+    ]
     cols = [base]
     for c in base.T:
         for _ in range(8):
@@ -297,7 +305,10 @@ class TestGeqp3FaithfulDeepSpectrum:
         _Q, R, _piv = scipy.linalg.qr(A_np, pivoting=True, mode="economic")
         ref = np.sort(np.abs(np.diag(R)))[::-1]
         ours = _result_for_path(
-            path, A_np, tol=0.0, npivots=min(A_np.shape),
+            path,
+            A_np,
+            tol=0.0,
+            npivots=min(A_np.shape),
         ).sorted_rdiag()
         n = min(len(ref), len(ours))
         # Deep into the spectrum, down to 1e-9 * R[0,0] (below ~sqrt(eps) the
@@ -331,7 +342,10 @@ class TestGeqp3FaithfulDeepSpectrum:
         n = min(len(nb.rdiag), len(gen.rdiag))
         ref = gen.sorted_rdiag()[:n]
         NumpyBkd().assert_allclose(
-            nb.sorted_rdiag()[:n], ref, rtol=0.0, atol=1e-10 * float(ref[0]),
+            nb.sorted_rdiag()[:n],
+            ref,
+            rtol=0.0,
+            atol=1e-10 * float(ref[0]),
         )
 
     def test_torch_agrees_in_resolvable_range(self) -> None:

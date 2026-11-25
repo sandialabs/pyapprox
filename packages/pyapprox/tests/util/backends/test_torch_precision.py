@@ -126,10 +126,14 @@ def test_array_copies() -> None:
 
 @pytest.mark.parametrize("precision", list(Precision))
 def test_construction_keeps_the_global_default_dtype(precision: Precision) -> None:
-    # The torch fixture runs with float64 as the global default.
+    # torch's own default, float32, differs from the backend's DOUBLE.
     before = torch.get_default_dtype()
-    TorchBkd(precision=precision)
-    assert torch.get_default_dtype() == before
+    torch.set_default_dtype(torch.float32)
+    try:
+        TorchBkd(precision=precision)
+        assert torch.get_default_dtype() == torch.float32
+    finally:
+        torch.set_default_dtype(before)
 
 
 def test_mps_refuses_double_precision() -> None:

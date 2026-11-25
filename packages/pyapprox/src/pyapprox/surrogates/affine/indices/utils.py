@@ -78,9 +78,7 @@ def anisotropy_penalties_from_importance(
     of the eigenvalues.
     """
     if importance.ndim != 1:
-        raise ValueError(
-            f"importance must be 1D, got shape {importance.shape}"
-        )
+        raise ValueError(f"importance must be 1D, got shape {importance.shape}")
     if bkd.to_numpy(importance).min() <= 0:
         raise ValueError("importance must be strictly positive")
     return bkd.max(importance) / importance
@@ -99,12 +97,9 @@ def _normalized_anisotropy_penalties(
     """
     if penalties.shape != (nvars,):
         raise ValueError(
-            f"penalties has wrong shape {penalties.shape}, "
-            f"expected ({nvars},)"
+            f"penalties has wrong shape {penalties.shape}, expected ({nvars},)"
         )
-    np_penalties: NDArray[np.double] = bkd.to_numpy(penalties).astype(
-        np.double
-    )
+    np_penalties: NDArray[np.double] = bkd.to_numpy(penalties).astype(np.double)
     if np.any(np_penalties <= 0):
         raise ValueError("penalties must be strictly positive")
     normalized: NDArray[np.double] = np_penalties / np_penalties.min()
@@ -229,9 +224,7 @@ def compute_hyperbolic_indices(
             indices_list.append(bkd.zeros((nvars, 1), dtype=bkd.index_dtype()))
             continue
         keep = _within_norm_bound(shell, pnorm, max_level, np_penalties)
-        indices_list.append(
-            bkd.asarray(shell[:, keep], dtype=bkd.index_dtype())
-        )
+        indices_list.append(bkd.asarray(shell[:, keep], dtype=bkd.index_dtype()))
 
     if len(indices_list) == 0:
         return bkd.zeros((nvars, 0), dtype=bkd.index_dtype())
@@ -306,9 +299,10 @@ def indices_pnorm(indices: Array, pnorm: float, bkd: Backend[Array]) -> Array:
     Array
         p-norms. Shape: (nindices,) or scalar
     """
+    real_indices = bkd.asarray(indices, dtype=bkd.real_dtype())
     if indices.ndim == 1:
-        return bkd.sum(indices**pnorm) ** (1.0 / pnorm)
-    return bkd.sum(indices**pnorm, axis=0) ** (1.0 / pnorm)
+        return bkd.sum(real_indices**pnorm) ** (1.0 / pnorm)
+    return bkd.sum(real_indices**pnorm, axis=0) ** (1.0 / pnorm)
 
 
 def compute_downward_closure(indices: Array, bkd: Backend[Array]) -> Array:
@@ -367,10 +361,7 @@ def compute_downward_closure(indices: Array, bkd: Backend[Array]) -> Array:
     if nclosure == 0:
         return bkd.zeros((nvars, 0), dtype=bkd.index_dtype())
 
-    result = bkd.zeros((nvars, nclosure), dtype=bkd.index_dtype())
-    for j, idx in enumerate(closure_set):
-        for i in range(nvars):
-            result[i, j] = idx[i]
+    result = bkd.asarray(list(closure_set), dtype=bkd.index_dtype()).T
 
     # Sort lexicographically for consistent output
     return sort_indices_lexiographically(result, bkd)

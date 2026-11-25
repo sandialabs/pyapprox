@@ -92,14 +92,20 @@ class TestTorchBkdDtype:
         bkd64 = TorchBkd(precision=Precision.DOUBLE)
         assert bkd64.real_dtype() == torch.float64
 
-    def test_default_constructor_uses_torch_default(self) -> None:
+    def test_default_constructor_ignores_the_torch_global(self) -> None:
         torch = pytest.importorskip("torch")
         from pyapprox.util.backends.torch import TorchBkd
 
-        torch.set_default_dtype(torch.float64)
-        bkd = TorchBkd()
-        assert bkd.real_dtype() == torch.float64
-        assert bkd.zeros((2,)).dtype == torch.float64
+        before = torch.get_default_dtype()
+        torch.set_default_dtype(torch.float32)
+        try:
+            bkd = TorchBkd()
+            assert bkd.real_dtype() == torch.float64
+            assert bkd.zeros((2,)).dtype == torch.float64
+            assert bkd.asarray([0.1]).dtype == torch.float64
+            assert bkd.to_float(bkd.array([0.1])[0]) == 0.1
+        finally:
+            torch.set_default_dtype(before)
 
     def test_explicit_dtype_overrides_default(self) -> None:
         torch = pytest.importorskip("torch")

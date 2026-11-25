@@ -1116,11 +1116,9 @@ CASES: List[Case] = [
     _member("__mul__", "array", (_A, _POS), differentiable=True),
     _member("__mul__", "scalar", (_A, 2.0), differentiable=True),
     _member("__rmul__", "scalar", (_A, 2.0), differentiable=True),
+    # Integer true division has no row: its result dtype is undefined
+    # (ArrayProtocol.__truediv__), so code converts integers first.
     _member("__truediv__", "array", (_A, _POS), differentiable=True),
-    # The operator gives the library's float (float64), not the configured
-    # one: code converts integers explicitly instead of relying on it.
-    _member("__truediv__", "integers", (_index(3, 4), _index(2, 2)),
-            expect=Expect.DEFAULT, double_only=True),
     _member("__rtruediv__", "scalar", (_POS, 2.0), differentiable=True),
     _member("__pow__", "array", (_POS, _A), differentiable=True),
     _member("__pow__", "scalar", (_A, 2.0), differentiable=True),

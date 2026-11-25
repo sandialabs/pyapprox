@@ -258,7 +258,9 @@ class TestBlendedObservation:
         bkd = torch_bkd
         self._setup(bkd)
         cov_bar = bkd.asarray(np.random.default_rng(21).normal(size=(2, 2)))
-        w = torch.tensor([[0.0], [0.4], [1.0], [0.7]], requires_grad=True)
+        w = torch.tensor(
+            [[0.0], [0.4], [1.0], [0.7]], dtype=bkd.real_dtype(), requires_grad=True
+        )
         value, _ = self._composite(bkd, cov_bar, w)
         (auto,) = torch.autograd.grad(value, [w])
         _, grad = self._composite(bkd, cov_bar, w.detach())

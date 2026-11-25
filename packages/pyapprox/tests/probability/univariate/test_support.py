@@ -114,7 +114,7 @@ class TestOutsideTheSupport:
             hyp = marginal.hyp_list()
             values = hyp.get_values().clone().requires_grad_(True)
             hyp.set_values(values)
-            x = torch.tensor([[points[ii] for ii in indices]])
+            x = torch_bkd.asarray([[points[ii] for ii in indices]])
             total = marginal.cdf(x).sum() + marginal.pdf(x).sum()
             (grad,) = torch.autograd.grad(total, values)
             return grad

@@ -27,7 +27,7 @@ def chebyshev_gauss_lobatto_nodes(npts: int, bkd: Backend[Array]) -> Array:
         raise ValueError(
             f"Chebyshev-Gauss-Lobatto nodes need at least 2 nodes, got {npts}"
         )
-    j = bkd.arange(npts)
+    j = bkd.arange(npts, dtype=bkd.real_dtype())
     return -bkd.cos(math.pi * j / (npts - 1))
 
 
@@ -60,7 +60,7 @@ def chebyshev_gauss_nodes(npts: int, bkd: Backend[Array]) -> Array:
     """
     if npts < 1:
         raise ValueError(f"Chebyshev-Gauss nodes need at least 1 node, got {npts}")
-    j = bkd.arange(npts)
+    j = bkd.arange(npts, dtype=bkd.real_dtype())
     return -bkd.cos(math.pi * (2 * j + 1) / (2 * npts))
 
 
@@ -75,6 +75,6 @@ def chebyshev_gauss_weights(npts: int, bkd: Backend[Array]) -> Array:
     """
     if npts < 1:
         raise ValueError(f"Chebyshev-Gauss nodes need at least 1 node, got {npts}")
-    j = bkd.arange(npts)
+    j = bkd.arange(npts, dtype=bkd.real_dtype())
     signs = bkd.asarray([(-1.0) ** k for k in range(npts)])
     return signs * bkd.sin(math.pi * (2 * j + 1) / (2 * npts))

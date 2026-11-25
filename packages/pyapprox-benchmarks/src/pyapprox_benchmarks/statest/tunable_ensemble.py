@@ -19,9 +19,7 @@ from pyapprox_benchmarks.statest.statistics_mixin import (
 )
 
 
-class TunableEnsembleBenchmark(
-    MultifidelityStatisticsMixin[Array], Generic[Array]
-):
+class TunableEnsembleBenchmark(MultifidelityStatisticsMixin[Array], Generic[Array]):
     """Tunable ensemble benchmark — tunable correlation structure.
 
     3 models with tunable correlation:
@@ -78,9 +76,10 @@ class TunableEnsembleBenchmark(
             bkd,
         )
         domain = BoxDomain(
-            _bounds=bkd.array([[-1.0, 1.0], [-1.0, 1.0]]), _bkd=bkd,
+            _bounds=bkd.array([[-1.0, 1.0], [-1.0, 1.0]]),
+            _bkd=bkd,
         )
-        costs = 10.0 ** (-bkd.arange(self._nmodels))
+        costs = 10.0 ** (-bkd.arange(self._nmodels, dtype=bkd.real_dtype()))
         self._problem = MultifidelityForwardUQProblem(
             "tunable_ensemble_3model",
             list(self._models),
@@ -139,7 +138,9 @@ class TunableEnsembleBenchmark(
         cov_np = bkd.to_numpy(cov).copy()
 
         cov_np[0, 1] = (
-            self._A0 * self._A1 / 9
+            self._A0
+            * self._A1
+            / 9
             * (
                 math.sin(self._theta0) * math.sin(self._theta1)
                 + math.cos(self._theta0) * math.cos(self._theta1)
@@ -148,7 +149,9 @@ class TunableEnsembleBenchmark(
         cov_np[1, 0] = cov_np[0, 1]
 
         cov_np[0, 2] = (
-            self._A0 * self._A2 / 7
+            self._A0
+            * self._A2
+            / 7
             * (
                 math.sin(self._theta0) * math.sin(self._theta2)
                 + math.cos(self._theta0) * math.cos(self._theta2)
@@ -157,7 +160,9 @@ class TunableEnsembleBenchmark(
         cov_np[2, 0] = cov_np[0, 2]
 
         cov_np[1, 2] = (
-            self._A1 * self._A2 / 5
+            self._A1
+            * self._A2
+            / 5
             * (
                 math.sin(self._theta1) * math.sin(self._theta2)
                 + math.cos(self._theta1) * math.cos(self._theta2)
@@ -177,9 +182,7 @@ class TunableEnsembleBenchmark(
 
     def ensemble_means(self) -> Array:
         """Analytical means, shape (nmodels, 1)."""
-        return self._bkd.asarray(
-            [[0.0], [self._shifts[0]], [self._shifts[1]]]
-        )
+        return self._bkd.asarray([[0.0], [self._shifts[0]], [self._shifts[1]]])
 
     def ensemble_covariance(self) -> Array:
         """Analytical covariance matrix, shape (nmodels, nmodels)."""

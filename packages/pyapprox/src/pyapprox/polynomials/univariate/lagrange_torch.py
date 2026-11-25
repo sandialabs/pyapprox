@@ -61,7 +61,7 @@ def lagrange_eval_torch(
     # Override rows where sample coincides with a node
     any_hit = torch.any(is_node, dim=1)  # (nsamples,)
     any_hit_2d = any_hit[:, None]  # (nsamples, 1)
-    node_values = torch.where(is_node, 1.0, 0.0)
+    node_values = is_node.to(values.dtype)
     values = torch.where(any_hit_2d, node_values, values)
 
     return values
@@ -143,7 +143,7 @@ def lagrange_jacobian_torch(
     any_hit = torch.any(is_near, dim=1)
     any_hit_2d = any_hit[:, None]
     D1, _ = _node_deriv_matrices_torch(abscissa, bary_weights)
-    is_near_float = torch.where(is_near, 1.0, 0.0)
+    is_near_float = is_near.to(D1.dtype)
     node_result = torch.matmul(is_near_float, D1)
     derivs = torch.where(any_hit_2d, node_result, derivs)
 
@@ -201,7 +201,7 @@ def lagrange_hessian_torch(
     any_hit = torch.any(is_near, dim=1)
     any_hit_2d = any_hit[:, None]
     _, D2 = _node_deriv_matrices_torch(abscissa, bary_weights)
-    is_near_float = torch.where(is_near, 1.0, 0.0)
+    is_near_float = is_near.to(D2.dtype)
     node_result = torch.matmul(is_near_float, D2)
     derivs = torch.where(any_hit_2d, node_result, derivs)
 

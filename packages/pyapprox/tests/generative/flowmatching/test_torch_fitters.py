@@ -19,7 +19,6 @@ from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_torch_bkd():
-    torch.set_default_dtype(torch.float64)
     return TorchBkd()
 
 
@@ -28,7 +27,12 @@ def _make_linear_quad_data(bkd, n_t=5, n_x=10):
     t_rule = gauss_legendre_rule(bkd)
     x0_rule = gauss_hermite_rule(bkd)
     return build_flow_matching_quad_data(
-        t_rule, x0_rule, forward_map=lambda x: x, n_t=n_t, n_x=n_x, bkd=bkd,
+        t_rule,
+        x0_rule,
+        forward_map=lambda x: x,
+        n_t=n_t,
+        n_x=n_x,
+        bkd=bkd,
     )
 
 
@@ -37,8 +41,12 @@ def _make_shift_quad_data(bkd, shift=2.0, n_t=5, n_x=10):
     t_rule = gauss_legendre_rule(bkd)
     x0_rule = gauss_hermite_rule(bkd)
     return build_flow_matching_quad_data(
-        t_rule, x0_rule, forward_map=lambda x: x + shift,
-        n_t=n_t, n_x=n_x, bkd=bkd,
+        t_rule,
+        x0_rule,
+        forward_map=lambda x: x + shift,
+        n_t=n_t,
+        n_x=n_x,
+        bkd=bkd,
     )
 
 
@@ -51,7 +59,9 @@ class TestTorchQuadratureFitter:
         vf = MLPVelocityField(nvars_in=2, nqoi=1, hidden_dims=[16, 16], bkd=bkd)
 
         fitter = TorchQuadratureFitter(
-            lr=1e-3, n_epochs=500, seed=42,
+            lr=1e-3,
+            n_epochs=500,
+            seed=42,
         )
         result = fitter.fit(vf, path, qd)
         assert result.training_loss() < 1e-4
@@ -66,7 +76,9 @@ class TestTorchQuadratureFitter:
         vf = MLPVelocityField(nvars_in=2, nqoi=1, hidden_dims=[32, 32], bkd=bkd)
 
         fitter = TorchQuadratureFitter(
-            lr=1e-3, n_epochs=1000, seed=42,
+            lr=1e-3,
+            n_epochs=1000,
+            seed=42,
         )
         result = fitter.fit(vf, path, qd)
         assert result.training_loss() < 1e-3
@@ -74,10 +86,12 @@ class TestTorchQuadratureFitter:
         fitted = result.surrogate()
         t_test = bkd.reshape(bkd.linspace(0.1, 0.9, 10), (1, -1))
         x_test = bkd.reshape(bkd.linspace(-2.0, 2.0, 10), (1, -1))
-        vf_in = bkd.vstack([
-            bkd.tile(t_test, (1, 10)),
-            bkd.repeat(x_test, 10),
-        ])
+        vf_in = bkd.vstack(
+            [
+                bkd.tile(t_test, (1, 10)),
+                bkd.repeat(x_test, 10),
+            ]
+        )
         v_pred = fitted(vf_in)
         expected = bkd.full(v_pred.shape, shift)
         bkd.assert_allclose(v_pred, expected, rtol=0.02)
@@ -93,7 +107,9 @@ class TestTorchQuadratureFitter:
             torch.manual_seed(42)
             vf = MLPVelocityField(nvars_in=2, nqoi=1, hidden_dims=[8], bkd=bkd)
             fitter = TorchQuadratureFitter(
-                lr=1e-3, n_epochs=50, seed=123,
+                lr=1e-3,
+                n_epochs=50,
+                seed=123,
             )
             result = fitter.fit(vf, path, qd)
             losses.append(result.training_loss())
@@ -107,7 +123,10 @@ class TestTorchQuadratureFitter:
         vf = MLPVelocityField(nvars_in=2, nqoi=1, hidden_dims=[16], bkd=bkd)
 
         fitter = TorchQuadratureFitter(
-            lr=1e-3, n_epochs=200, batch_size=20, seed=42,
+            lr=1e-3,
+            n_epochs=200,
+            batch_size=20,
+            seed=42,
         )
         result = fitter.fit(vf, path, qd)
         assert result.training_loss() < 1.0
@@ -135,14 +154,20 @@ class TestTorchQuadratureFitter:
         vf = MLPVelocityField(nvars_in=2, nqoi=1, hidden_dims=[16, 16], bkd=bkd)
 
         fitter = TorchQuadratureFitter(
-            lr=1e-3, n_epochs=500, seed=42,
+            lr=1e-3,
+            n_epochs=500,
+            seed=42,
         )
         result = fitter.fit(vf, path, qd)
         fitted = result.surrogate()
 
         x_grid = bkd.reshape(bkd.linspace(-4, 4, 50), (1, -1))
         q = compute_flow_density(
-            fitted, x_grid, bkd, n_steps=50, scheme="heun",
+            fitted,
+            x_grid,
+            bkd,
+            n_steps=50,
+            scheme="heun",
         )
         assert q.shape == (1, 50)
         assert bkd.to_bool(bkd.all(bkd.isfinite(q)))

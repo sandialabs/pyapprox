@@ -679,7 +679,7 @@ class TestAgainstAutograd:
         torch = pytest.importorskip("torch")
         bkd = torch_bkd
         problem = _Problem(bkd, make())
-        param = torch.tensor(LV_PARAM, requires_grad=True)
+        param = torch.tensor(LV_PARAM, dtype=bkd.real_dtype(), requires_grad=True)
         direction = random_direction(bkd)
         value, _ = problem.solve(param)
         (auto_gradient,) = torch.autograd.grad(value[0, 0], param, create_graph=True)

@@ -33,6 +33,21 @@ def test_gauss_lobatto(bkd: Backend[Array], npts: int) -> None:
     )
 
 
+def test_nodes_and_weights_take_the_configured_precision(
+    config_bkd: Backend[Array],
+) -> None:
+    # The node formulas multiply an integer range by pi; each must convert
+    # it to the configured real dtype rather than take a library default.
+    bkd = config_bkd
+    for result in (
+        chebyshev_gauss_lobatto_nodes(5, bkd),
+        chebyshev_gauss_lobatto_weights(5, bkd),
+        chebyshev_gauss_nodes(5, bkd),
+        chebyshev_gauss_weights(5, bkd),
+    ):
+        assert result.dtype == bkd.real_dtype()
+
+
 @pytest.mark.parametrize("npts", [1, 2, 5, 12])
 def test_gauss(bkd: Backend[Array], npts: int) -> None:
     nodes = chebyshev_gauss_nodes(npts, bkd)

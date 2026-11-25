@@ -86,7 +86,7 @@ def jacobi_recurrence(
         )
 
     if ncoefs > 2:
-        inds = bkd.arange(2, ncoefs)
+        inds = bkd.arange(2, ncoefs, dtype=bkd.real_dtype())
         ab[2:, 0] /= (2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0)
         ab[2:, 1] = 4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
         ab[2:, 1] /= (

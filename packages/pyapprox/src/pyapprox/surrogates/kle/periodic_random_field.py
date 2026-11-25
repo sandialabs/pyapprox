@@ -53,11 +53,6 @@ class PeriodicReiszGaussianRandomField(Generic[Array]):
         self._tau = tau
         self._gamma = gamma
         self._bounds = bounds
-
-        self._neigs = None
-        self._eigs = None
-        self._trig_exp = None
-
         self.set_neigs(neigs)
 
     def set_neigs(self, neigs: int) -> None:
@@ -70,7 +65,7 @@ class PeriodicReiszGaussianRandomField(Generic[Array]):
         """
         bkd = self._bkd
         self._neigs = neigs
-        k = bkd.arange(1, neigs + 1)
+        k = bkd.arange(1, neigs + 1, dtype=bkd.real_dtype())
         self._eigs = (
             np.sqrt(2)
             * (

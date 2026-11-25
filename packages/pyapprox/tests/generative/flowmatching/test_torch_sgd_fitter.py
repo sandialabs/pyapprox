@@ -21,7 +21,6 @@ from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_torch_bkd():
-    torch.set_default_dtype(torch.float64)
     return TorchBkd()
 
 
@@ -45,11 +44,17 @@ class TestTorchSGDFitter:
         path = LinearPath(torch_bkd)
         torch.manual_seed(0)
         vf = MLPVelocityField(
-            nvars_in=2, nqoi=1, hidden_dims=[32, 32], bkd=bkd,
+            nvars_in=2,
+            nqoi=1,
+            hidden_dims=[32, 32],
+            bkd=bkd,
         )
 
         fitter = TorchSGDFitter(
-            lr=1e-3, n_steps=3000, batch_size=256, seed=42,
+            lr=1e-3,
+            n_steps=3000,
+            batch_size=256,
+            seed=42,
         )
         result = fitter.fit(vf, path, source, target)
         fitted = result.surrogate()
@@ -57,7 +62,12 @@ class TestTorchSGDFitter:
         nsamples = 2000
         x0 = bkd.asarray(np.random.RandomState(99).randn(1, nsamples).tolist())
         x1 = integrate_flow(
-            fitted, x0, 0.0, 1.0, n_steps=100, bkd=bkd,
+            fitted,
+            x0,
+            0.0,
+            1.0,
+            n_steps=100,
+            bkd=bkd,
             stepper_cls=HeunStepper,
         )
         transported_mean = float(bkd.mean(x1))
@@ -75,10 +85,16 @@ class TestTorchSGDFitter:
             source, target = _make_shift_samplers(shift=1.0, seed=0)
             torch.manual_seed(42)
             vf = MLPVelocityField(
-                nvars_in=2, nqoi=1, hidden_dims=[8], bkd=bkd,
+                nvars_in=2,
+                nqoi=1,
+                hidden_dims=[8],
+                bkd=bkd,
             )
             fitter = TorchSGDFitter(
-                lr=1e-3, n_steps=50, batch_size=64, seed=123,
+                lr=1e-3,
+                n_steps=50,
+                batch_size=64,
+                seed=123,
             )
             result = fitter.fit(vf, path, source, target)
             losses.append(result.training_loss())
@@ -91,7 +107,10 @@ class TestTorchSGDFitter:
         torch_bkd = _make_torch_bkd()
         source, target = _make_shift_samplers()
         vf = MLPVelocityField(
-            nvars_in=2, nqoi=1, hidden_dims=[8], bkd=torch_bkd,
+            nvars_in=2,
+            nqoi=1,
+            hidden_dims=[8],
+            bkd=torch_bkd,
         )
         fitter = TorchSGDFitter(lr=1e-3, n_steps=1)
         with pytest.raises(TypeError, match="TorchBkd"):
@@ -108,18 +127,28 @@ class TestTorchSGDFitter:
         path = LinearPath(torch_bkd)
         torch.manual_seed(0)
         vf = MLPVelocityField(
-            nvars_in=2, nqoi=1, hidden_dims=[16, 16], bkd=bkd,
+            nvars_in=2,
+            nqoi=1,
+            hidden_dims=[16, 16],
+            bkd=bkd,
         )
 
         fitter = TorchSGDFitter(
-            lr=1e-3, n_steps=1000, batch_size=128, seed=42,
+            lr=1e-3,
+            n_steps=1000,
+            batch_size=128,
+            seed=42,
         )
         result = fitter.fit(vf, path, source, target)
         fitted = result.surrogate()
 
         x_grid = bkd.reshape(bkd.linspace(-4, 4, 50), (1, -1))
         q = compute_flow_density(
-            fitted, x_grid, bkd, n_steps=50, scheme="heun",
+            fitted,
+            x_grid,
+            bkd,
+            n_steps=50,
+            scheme="heun",
         )
         assert q.shape == (1, 50)
         assert bkd.to_bool(bkd.all(bkd.isfinite(q)))

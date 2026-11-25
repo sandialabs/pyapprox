@@ -7,12 +7,25 @@ This module provides quadrature rule classes including:
 """
 
 import math
-from typing import Generic, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.polynomials.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class LobattoPolynomial(Protocol, Generic[Array]):
+    """A polynomial family with a Gauss-Lobatto rule (the Jacobi family)."""
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def nterms(self) -> int: ...
+
+    def set_nterms(self, nterms: int) -> None: ...
+
+    def gauss_lobatto_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]: ...
 
 
 class GaussQuadratureRule(Generic[Array]):
@@ -84,7 +97,7 @@ class GaussLobattoQuadratureRule(Generic[Array]):
 
     Parameters
     ----------
-    poly : JacobiPolynomial1D[Array]
+    poly : LobattoPolynomial[Array]
         Jacobi polynomial (or subclass) to use for quadrature.
     store : bool, optional
         If True, cache computed quadrature rules. Default False.
@@ -92,9 +105,14 @@ class GaussLobattoQuadratureRule(Generic[Array]):
 
     def __init__(
         self,
-        poly: OrthonormalPolynomial1D[Array],
+        poly: LobattoPolynomial[Array],
         store: bool = False,
     ) -> None:
+        if not isinstance(poly, LobattoPolynomial):
+            raise TypeError(
+                "poly must have a Gauss-Lobatto rule (LobattoPolynomial), "
+                f"got {type(poly).__name__}"
+            )
         self._poly = poly
         self._bkd = poly.bkd()
         self._store = store
@@ -213,7 +231,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
                 quad_index = self._hierarchical_to_nodal_index(level, ll, ii)
                 quad_rule_indices.append(quad_index)
             nprevious_hier_indices += nhierarchical_indices
-        return self._bkd.asarray(quad_rule_indices, dtype=int)
+        return self._bkd.asarray(quad_rule_indices, dtype=self._bkd.index_dtype())
 
     def _unordered_pts_wts(self, level: int) -> Tuple[Array, Array]:
         """Compute points and weights in natural (not polynomial) order."""
@@ -223,7 +241,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
             return self._bkd.zeros((1,)), self._bkd.ones((1,))
 
         # Chebyshev extrema: x_j = -cos(pi * j / (n-1))
-        jj = self._bkd.arange(nsamples)
+        jj = self._bkd.arange(nsamples, dtype=self._bkd.real_dtype())
         x = -self._bkd.cos(math.pi * jj / (nsamples - 1.0))
 
         # Fix numerical precision at boundaries and midpoint using concatenation
@@ -244,8 +262,8 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
         boundary_wt = wt_factor / (nsamples * (nsamples - 2.0))
 
         # Interior weights
-        jj = self._bkd.arange(1, nsamples - 1)
-        kk = self._bkd.arange(1, (nsamples - 3) // 2 + 1)
+        jj = self._bkd.arange(1, nsamples - 1, dtype=self._bkd.real_dtype())
+        kk = self._bkd.arange(1, (nsamples - 3) // 2 + 1, dtype=self._bkd.real_dtype())
         mysum = self._bkd.sum(
             1.0
             / (4.0 * kk[:, None] ** 2 - 1.0)

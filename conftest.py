@@ -60,11 +60,7 @@ _BACKEND_FACTORIES = _backend_factories()
 @pytest.fixture(params=_BACKEND_FACTORIES, ids=lambda pair: pair[0])
 def bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
     """Parametrized backend fixture -- fresh instance per test."""
-    name, factory = cast(Tuple[str, type], request.param)
-    if name == "TorchBkd":
-        import torch
-
-        torch.set_default_dtype(torch.float64)
+    _, factory = cast(Tuple[str, type], request.param)
     return factory()  # type: ignore[no-any-return]
 
 
@@ -121,10 +117,9 @@ def numpy_bkd() -> NumpyBkd:
 
 def _make_torch_bkd() -> "TorchBkd":
     """Float64 TorchBkd; skips the test when torch is not installed."""
-    torch = pytest.importorskip("torch")
+    pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
 
-    torch.set_default_dtype(torch.float64)
     return TorchBkd()
 
 

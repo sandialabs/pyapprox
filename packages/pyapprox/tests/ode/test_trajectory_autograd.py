@@ -75,7 +75,7 @@ class TestAgainstAutograd:
             prey=(1, 2, 4),
             predator=(3, 4),
         )
-        param = torch.tensor(LV_PARAM, requires_grad=True)
+        param = torch.tensor(LV_PARAM, dtype=bkd.real_dtype(), requires_grad=True)
         direction = random_direction(bkd)
         value = problem.value(param)[0, 0]
         (auto_gradient,) = torch.autograd.grad(value, param, create_graph=True)

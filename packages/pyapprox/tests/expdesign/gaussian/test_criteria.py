@@ -245,7 +245,11 @@ class TestCriteria:
         bkd = torch_bkd
         self._setup(bkd)
         for criterion, index in self._criteria():
-            w = torch.tensor([[0.0], [0.4], [1.0], [0.7], [0.2]], requires_grad=True)
+            w = torch.tensor(
+                [[0.0], [0.4], [1.0], [0.7], [0.2]],
+                dtype=bkd.real_dtype(),
+                requires_grad=True,
+            )
             value, _ = self._composite(criterion, w, index)
             (auto,) = torch.autograd.grad(value[0], [w])
             _, grad = self._composite(criterion, w.detach(), index)

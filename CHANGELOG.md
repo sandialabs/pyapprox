@@ -80,6 +80,18 @@ section is renamed to the version number when a release is tagged (see
 
 ### Changed
 
+- `TorchBkd` no longer sets torch's global default dtype. Code that
+  builds tensors with raw torch calls (`torch.tensor(1.0)`,
+  `torch.zeros(n)`) gets torch's own default, float32, again; build
+  arrays through the backend (`bkd.asarray`, `bkd.zeros`) or pass
+  `dtype=bkd.real_dtype()`.
+- `TorchBkd.asarray` without a `dtype` coerces Python data by kind, as
+  `NumpyBkd` does: ints become the index dtype (int64), bools stay
+  bool, complex numbers the complex dtype; an existing array keeps its
+  dtype. It used to turn all of these into the real floating dtype.
+- Integer true division (`a / b` with both operands integer) has an
+  undefined result dtype across backends: convert to a floating dtype
+  first.
 - Derivative access goes through a `Derivatives` bundle: functions
   declare jacobian/hessian/hvp capabilities via `derivatives()` instead
   of duck-typed methods. The legacy capability-tier protocols, the

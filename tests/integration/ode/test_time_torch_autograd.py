@@ -14,6 +14,7 @@ float() to extract values. This test module creates autograd-friendly
 versions for comparison.
 """
 
+import numpy as np
 import pytest
 
 # Torch is optional and every test here needs it; skip the module
@@ -37,7 +38,6 @@ from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from pyapprox_benchmarks.functions.ode.linear_ode import (
     QuadraticODEResidual,
@@ -152,10 +152,6 @@ class TestTorchAutogradComparison:
     """
 
     def setup_method(self):
-        """Set up torch with float64 precision."""
-        torch.set_default_dtype(torch.float64)
-        torch.manual_seed(42)
-        _bkd = TorchBkd()
         self._tol = 1e-8
         self._Amat = torch.tensor([[-0.5, 0.1], [0.2, -0.3]], dtype=torch.float64)
         self._dt = 0.1
@@ -351,9 +347,8 @@ class TestTorchAutogradComparison:
 
         # Test multiple directions
         for seed in range(5):
-            torch.manual_seed(seed)
-            vvec = torch.randn(2, 1, dtype=torch.float64)
-            vvec = vvec / torch.norm(vvec)
+            vvec = bkd.asarray(np.random.default_rng(seed).normal(size=(2, 1)))
+            vvec = vvec / bkd.norm(vvec)
 
             # Compute analytical HVP
             ode_residual.set_param(bkd.flatten(param))

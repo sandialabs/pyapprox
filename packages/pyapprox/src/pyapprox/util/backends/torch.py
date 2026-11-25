@@ -45,10 +45,6 @@ try:
 except ImportError as err:
     raise ImportError(missing_dependency_message("torch", "TorchBkd", "torch")) from err
 
-# annotated alias: set_default_dtype is untyped in older torch stubs, and
-# a type: ignore would be flagged unused under newer (typed) stubs
-_set_default_dtype: Callable[["torch.dtype"], None] = torch.set_default_dtype
-
 # torch.linalg.LinAlgError exists at runtime but the stubs do not export
 # it; a RuntimeError subclass.
 _TorchLinAlgError: type[RuntimeError] = getattr(torch.linalg, "LinAlgError")
@@ -196,7 +192,6 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         )
         if self._device.type == "mps" and precision is Precision.DOUBLE:
             raise ValueError("MPS has no float64: use Precision.SINGLE on mps")
-        _set_default_dtype(torch.float64)
         # Every torch.compile path in the library runs with a TorchBkd, so
         # this runs before inductor builds its first kernel.
         use_torch_openmp()
@@ -345,10 +340,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
+        # NumPy reads Python data at full width, so a float is rounded once,
+        # to the configured precision, never through torch's global default.
         source = (
             array.detach()
             if isinstance(array, torch.Tensor)
-            else torch.as_tensor(array)
+            else torch.as_tensor(np.asarray(array))
         )
         if dtype is None:
             # Precision is normalized and kind kept: real floating becomes
