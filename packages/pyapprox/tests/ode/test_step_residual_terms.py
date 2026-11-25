@@ -203,6 +203,57 @@ class TestTheFlux:
         ).check_derivatives(case.param, relative=True, central=True)[0]
         assert bkd.to_float(bkd.min(errors)) < 1e-7
 
+    @pytest.mark.parametrize("make", ALL_METHODS, ids=ALL_IDS)
+    def test_a_per_step_observation(
+        self, bkd: Backend[Array], make: Callable[[], Method]
+    ) -> None:
+        """Prey on even steps, predator on odd ones: each step's value is
+        the constant-observation term's for that row, and the term checker
+        (first and second derivatives at every step) passes it wherever it
+        passes that row's constant term. Adams-Moulton 3's lag-2 block on
+        the predator row fails for the constant term too: the block is
+        exactly linear, its difference error is 2e-12 at the largest step
+        and only roundoff below, which the checker does not accept."""
+        case = _Case(bkd, make(), pinned=True)
+        space = case.unconstrained.residual_space()
+
+        def row(entry: int) -> LastBlock[Array, Array]:
+            return LastBlock(StateEntries(bkd, 2, [entry]), space)
+
+        def observations(
+            step: int, window: StepWindow[Array]
+        ) -> LastBlock[Array, Array]:
+            return row(step % 2)
+
+        term = StepResidualTerm.per_step(case.unconstrained, observations, 1)
+        assert term.nqoi() == 1
+        fixed = [StepResidualTerm(case.unconstrained, row(e)) for e in (0, 1)]
+        for step in range(case.store.nsteps()):
+            window = case.window(case.store, step)
+            bkd.assert_allclose(
+                term.value(step, window), fixed[step % 2].value(step, window), atol=0.0
+            )
+        checker: TrajectoryTermChecker[Array, Array] = TrajectoryTermChecker(
+            case.unconstrained,
+            bkd,
+            backend_sample(bkd),
+            case.model.set_param,
+            central=True,
+        )
+
+        def failures(step_term: StepResidualTerm[Array, Array]) -> list[str]:
+            functional = TrajectoryFunctional.from_terms(
+                bkd, 1, step_terms=(step_term,)
+            )
+            return checker.check(functional, case.store, param=case.param).failures()
+
+        known = [failures(constant) for constant in fixed]
+        for failure in failures(term):
+            step = int(failure.split("@")[1].split(".")[0])
+            assert failure in known[step % 2], failure
+        with pytest.raises(ValueError, match="nobs"):
+            StepResidualTerm.per_step(case.unconstrained, observations, -1)
+
     def test_refusals(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd, backward_euler(), pinned=True)
         prey = LastBlock(StateEntries(bkd, 2, [0]), case.unconstrained.residual_space())

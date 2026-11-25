@@ -29,7 +29,7 @@ with the solved system's: the sweeps check a trajectory against the
 solved stepper's parameter version, not this one's.
 """
 
-from typing import Dict, Generic, Optional, TypeVar
+from typing import Callable, Dict, Generic, Optional, TypeVar
 
 from pyapprox.implicitfunction.functional_terms import LinearizationProtocol
 from pyapprox.implicitfunction.observation_terms import StateObservationProtocol
@@ -54,6 +54,12 @@ from pyapprox.util.linalg.operators import (
 
 V = TypeVar("V")
 A = TypeVar("A", bound=ArrayProtocol)
+
+StepObservationFn = Callable[
+    [int, StepWindow[V]], StateObservationProtocol[BlockVector[V], A]
+]
+"""``(step, window) -> Ω_n``: a linear observation of step ``step``'s
+residual, on the stepper's residual space."""
 
 
 class LastBlock(Generic[V, A]):
@@ -103,6 +109,19 @@ class LastBlock(Generic[V, A]):
         return BlockVector(tuple(blocks))
 
 
+class _EveryStep(Generic[V, A]):
+    """The same observation at every step; a class rather than a closure,
+    so a term built on it pickles."""
+
+    def __init__(self, observation: StateObservationProtocol[BlockVector[V], A]):
+        self._observation = observation
+
+    def __call__(
+        self, step: int, window: StepWindow[V]
+    ) -> StateObservationProtocol[BlockVector[V], A]:
+        return self._observation
+
+
 def _one(vector: V) -> BlockVector[V]:
     return BlockVector((vector,))
 
@@ -129,7 +148,8 @@ class StepResidualTerm(Generic[V, A]):
         parameters.
     observation : StateObservationProtocol
         :math:`\Omega`, on the step residual (a block vector of the
-        stepper's residual space), e.g. :class:`LastBlock`.
+        stepper's residual space), e.g. :class:`LastBlock`; the same at
+        every step. :meth:`per_step` takes one that varies by step.
 
     Raises
     ------
@@ -142,17 +162,51 @@ class StepResidualTerm(Generic[V, A]):
         stepper: DifferentiableStepperProtocol[V, A],
         observation: StateObservationProtocol[BlockVector[V], A],
     ) -> None:
-        if not isinstance(stepper, DifferentiableStepperProtocol):
-            raise TypeError(
-                "stepper must satisfy DifferentiableStepperProtocol, got "
-                f"{type(stepper).__name__}"
-            )
         if not isinstance(observation, StateObservationProtocol):
             raise TypeError(
                 "observation must satisfy StateObservationProtocol, got "
                 f"{type(observation).__name__}"
             )
-        self._stepper, self._observation = stepper, observation
+
+        self._setup(stepper, _EveryStep(observation), observation.nobs())
+
+    @classmethod
+    def per_step(
+        cls,
+        stepper: DifferentiableStepperProtocol[V, A],
+        observations: StepObservationFn[V, A],
+        nobs: int,
+    ) -> "StepResidualTerm[V, A]":
+        r""":math:`\Omega_n(\tilde R_n)` with an observation per step:
+        ``observations(step, window)`` is :math:`\Omega_n`, of ``nobs``
+        entries at every step (weights that depend on the step's size or
+        time, say).
+
+        Raises
+        ------
+        TypeError
+            If ``stepper`` does not satisfy its protocol.
+        ValueError
+            If ``nobs`` is negative.
+        """
+        if nobs < 0:
+            raise ValueError(f"nobs must be nonnegative, got {nobs}")
+        term: StepResidualTerm[V, A] = cls.__new__(cls)
+        term._setup(stepper, observations, nobs)
+        return term
+
+    def _setup(
+        self,
+        stepper: DifferentiableStepperProtocol[V, A],
+        observations: StepObservationFn[V, A],
+        nobs: int,
+    ) -> None:
+        if not isinstance(stepper, DifferentiableStepperProtocol):
+            raise TypeError(
+                "stepper must satisfy DifferentiableStepperProtocol, got "
+                f"{type(stepper).__name__}"
+            )
+        self._stepper, self._at, self._nobs = stepper, observations, nobs
         self._derivatives: StepTermDerivatives[V, A] = (
             StepTermDerivatives.second_order(
                 self._wrt_unknown,
@@ -169,10 +223,10 @@ class StepResidualTerm(Generic[V, A]):
         )
 
     def nqoi(self) -> int:
-        return self._observation.nobs()
+        return self._nobs
 
     def value(self, step: int, window: StepWindow[V]) -> A:
-        return self._observation.apply(self._stepper.step_residual(window))
+        return self._at(step, window).apply(self._stepper.step_residual(window))
 
     def derivatives(self) -> StepTermDerivatives[V, A]:
         return self._derivatives
@@ -185,10 +239,12 @@ class StepResidualTerm(Generic[V, A]):
     # ------------------------------------------------------------------
 
     def _observed(
-        self, operator: StepOperator[V]
+        self,
+        observation: StateObservationProtocol[BlockVector[V], A],
+        operator: StepOperator[V],
     ) -> ChainedLinearization[BlockVector[V], V, A]:
         return ChainedLinearization(
-            [ChainPart(self._observation, operator, None)],
+            [ChainPart(observation, operator, None)],
             _same,
             _same,
             self._add_unknown,
@@ -214,7 +270,7 @@ class StepResidualTerm(Generic[V, A]):
     def _wrt_unknown(
         self, step: int, window: StepWindow[V]
     ) -> Optional[LinearizationProtocol[BlockVector[V], A]]:
-        return self._observed(self._stepper.diag(window))
+        return self._observed(self._at(step, window), self._stepper.diag(window))
 
     def _wrt_lag(
         self, step: int, window: StepWindow[V], lag: int
@@ -223,7 +279,7 @@ class StepResidualTerm(Generic[V, A]):
         if field is None:
             raise ValueError("the stepper's bundle has no off_diag")
         return ChainedLinearization(
-            [ChainPart(self._observation, field(window, lag), None)],
+            [ChainPart(self._at(step, window), field(window, lag), None)],
             _one,
             _first,
             self._add_state,
@@ -236,7 +292,7 @@ class StepResidualTerm(Generic[V, A]):
         if field is None:
             return None
         return ChainedLinearization(
-            [ChainPart(self._observation, field(window), None)],
+            [ChainPart(self._at(step, window), field(window), None)],
             _one,
             _first,
             self._add_param,
@@ -268,7 +324,7 @@ class StepResidualTerm(Generic[V, A]):
     ) -> Optional[BlockVector[V]]:
         return self._second().at_lag(
             window,
-            self._observation.apply_transpose(weights),
+            self._at(step, window).apply_transpose(weights),
             0,
             self._lag_tangents(window, tangents),
             _one(direction),
@@ -286,7 +342,7 @@ class StepResidualTerm(Generic[V, A]):
     ) -> Optional[V]:
         total = self._second().at_lag(
             window,
-            self._observation.apply_transpose(weights),
+            self._at(step, window).apply_transpose(weights),
             lag,
             self._lag_tangents(window, tangents),
             _one(direction),
@@ -307,7 +363,7 @@ class StepResidualTerm(Generic[V, A]):
             raise ValueError("the stepper has no parameter space")
         return self._second().wrt_param(
             window,
-            self._observation.apply_transpose(weights),
+            self._at(step, window).apply_transpose(weights),
             self._lag_tangents(window, tangents),
             _one(direction),
             params.component(0),
