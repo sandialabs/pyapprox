@@ -35,17 +35,19 @@ class Plotter1D(Generic[Array]):
             raise ValueError("Can only plot functions with nvars() == 1")
         self._bkd = function.bkd()
         self._function = function
-        self._validate_plot_limits(plot_limits)
-        self._plot_limits = plot_limits
+        self._plot_limits = self._validate_plot_limits(plot_limits)
 
     def _validate_plot_limits(
-        self, plot_limits: Union[Sequence[float], Array],
-    ) -> None:
+        self,
+        plot_limits: Union[Sequence[float], Array],
+    ) -> List[float]:
+        """Check two finite plot limits and return them as floats."""
         if len(plot_limits) != 2:
             raise ValueError("plot_limits must have exactly 2 entries: [x_min, x_max].")
-        limits = self._bkd.asarray(plot_limits)
+        limits = self._bkd.asarray(plot_limits, dtype=self._bkd.real_dtype())
         if self._bkd.to_bool(self._bkd.any(~self._bkd.isfinite(limits))):
             raise ValueError(f"plot limits {plot_limits} must be finite")
+        return [self._bkd.to_float(limits[ii]) for ii in range(2)]
 
     def plot(
         self,

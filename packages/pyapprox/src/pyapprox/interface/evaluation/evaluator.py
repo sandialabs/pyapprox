@@ -233,8 +233,7 @@ class Batch(Generic[Array, Task, Payload]):
         # list, which must not change while it is being walked.
         for handle in list(self._pending):
             remaining = (
-                None if deadline is None
-                else max(0.0, deadline - time.perf_counter())
+                None if deadline is None else max(0.0, deadline - time.perf_counter())
             )
             outcome = handle.outcome(remaining)
             if outcome.status is JobStatus.OUTSTANDING:
@@ -325,11 +324,7 @@ class Batch(Generic[Array, Task, Payload]):
         self._ledger.add(cost, start=outcome.started)
 
         if decoded is None:
-            target = (
-                cancelled
-                if outcome.status.is_retryable()
-                else failed
-            )
+            target = cancelled if outcome.status.is_retryable() else failed
             for idx in outcome.indices:
                 if idx in self._returned:
                     continue
@@ -424,8 +419,7 @@ class Batch(Generic[Array, Task, Payload]):
             self._marshaller.release(outcome)
         except Exception:
             _LOGGER.exception(
-                "release failed for indices %s; its working "
-                "directory may survive",
+                "release failed for indices %s; its working directory may survive",
                 list(outcome.indices),
             )
 
@@ -445,12 +439,9 @@ class Batch(Generic[Array, Task, Payload]):
         # which is also sorted. Without this, arrival order wins and
         # every value pairs with the wrong sample.
         ordered = [piece for _, piece in sorted(columns, key=_by_index)]
-        values = (
-            bkd.hstack(ordered) if ordered else bkd.zeros((nqoi, 0))
-        )
+        values = bkd.hstack(ordered) if ordered else bkd.zeros((nqoi, 0))
         joined = {
-            name: _join(bkd, name, pieces)
-            for name, pieces in derivative_pieces.items()
+            name: _join(bkd, name, pieces) for name, pieces in derivative_pieces.items()
         }
         return EvalResult(
             values=values,
@@ -564,8 +555,7 @@ class Evaluator(Generic[Array, Task, Payload]):
             )
         if samples.shape[0] != self.nvars():
             raise ValueError(
-                f"samples has {samples.shape[0]} rows, expected "
-                f"{self.nvars()}"
+                f"samples has {samples.shape[0]} rows, expected {self.nvars()}"
             )
         req = Request.values_only() if request is None else request
         self._validate_request(req)
@@ -585,9 +575,7 @@ class Evaluator(Generic[Array, Task, Payload]):
             self._dispatcher.concurrency(),
         ):
             tasks.extend(
-                self._marshaller.tasks(
-                    samples[:, lo:hi], list(range(lo, hi)), req
-                )
+                self._marshaller.tasks(samples[:, lo:hi], list(range(lo, hi)), req)
             )
         handles = self._dispatcher.submit(tasks)
         return Batch(
@@ -613,11 +601,7 @@ class Evaluator(Generic[Array, Task, Payload]):
             (request.wants_jvp(), derivs.jvp, "jvp"),
         ]
         if request.wants_hvp():
-            field = (
-                derivs.whvp_batch
-                if request.is_weighted_hvp()
-                else derivs.hvp_batch
-            )
+            field = derivs.whvp_batch if request.is_weighted_hvp() else derivs.hvp_batch
             wanted.append((True, field, "hvp"))
         for asked, capability, name in wanted:
             if asked and capability is None:
@@ -676,9 +660,7 @@ def _select(piece: Array, name: str, take: Sequence[int]) -> Array:
     return piece[:, take]
 
 
-def _with_uncollected(
-    charged: Cost, pending: Sequence[Cost]
-) -> Cost:
+def _with_uncollected(charged: Cost, pending: Sequence[Cost]) -> Cost:
     """Add finished-but-uncollected job costs to what is already charged.
 
     Compute sums. Wall-clock takes the larger of the two rather than
@@ -709,8 +691,7 @@ def _with_uncollected(
             charged.wall_clock,
             max(cost.wall_clock for cost in pending),
         ),
-        compute=charged.compute
-        + sum(cost.compute for cost in pending),
+        compute=charged.compute + sum(cost.compute for cost in pending),
         provenance=provenance,
     )
 
@@ -766,5 +747,5 @@ def _join(
 def _index_array(bkd: Backend[Array], indices: Sequence[int]) -> Array:
     """Build an integer index array, empty-safe on both backends."""
     if not indices:
-        return bkd.zeros((0,), dtype=int)
-    return bkd.asarray(sorted(indices))
+        return bkd.zeros((0,), dtype=bkd.index_dtype())
+    return bkd.asarray(sorted(indices), dtype=bkd.index_dtype())

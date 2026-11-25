@@ -175,7 +175,13 @@ class Backend(Protocol, Generic[Array]):
         self,
         array: ArrayLike,
         dtype: Optional[Any] = None,
-    ) -> Array: ...
+    ) -> Array:
+        """``array`` as an array of this backend, sharing memory with it
+        where the library allows. An explicit ``dtype`` wins. Without one,
+        an existing array keeps its dtype, and Python data is coerced by
+        kind: float to ``real_dtype()``, complex to ``complex_dtype()``,
+        int to ``index_dtype()``, bool kept."""
+        ...
 
     def array(
         self,

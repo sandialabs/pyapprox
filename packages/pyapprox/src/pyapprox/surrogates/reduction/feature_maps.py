@@ -118,9 +118,7 @@ class _MultiIndexFeatureMap(Generic[Array]):
     monomial :math:`h_a(z) = \\prod_b z_b^{i_{ba}}`.
     """
 
-    def __init__(
-        self, nreduced: int, indices: Array, bkd: Backend[Array]
-    ) -> None:
+    def __init__(self, nreduced: int, indices: Array, bkd: Backend[Array]) -> None:
         self._nreduced = nreduced
         self._bkd = bkd
         self._indices = indices
@@ -249,8 +247,7 @@ class MonomialFeatureMap(_MultiIndexFeatureMap[Array], Generic[Array]):
         checked_degrees = tuple(int(d) for d in degrees)
         if any(d < 0 for d in checked_degrees):
             raise ValueError(
-                f"feature-map degrees must be non-negative, got "
-                f"{checked_degrees}."
+                f"feature-map degrees must be non-negative, got {checked_degrees}."
             )
         if len(set(checked_degrees)) != len(checked_degrees):
             raise ValueError(
@@ -268,8 +265,7 @@ class MonomialFeatureMap(_MultiIndexFeatureMap[Array], Generic[Array]):
     ) -> Array:
         """Multi-indices for the selected degree band."""
         per_degree = [
-            compute_hyperbolic_level_indices(nreduced, d, 1.0, bkd)
-            for d in degrees
+            compute_hyperbolic_level_indices(nreduced, d, 1.0, bkd) for d in degrees
         ]
         return bkd.hstack(per_degree)
 
@@ -330,17 +326,11 @@ class SparseMonomialFeatureMap(_MultiIndexFeatureMap[Array], Generic[Array]):
         index_matrix = np.asarray(bkd.to_numpy(indices)).astype(int)
         total_degree = index_matrix.sum(axis=0)
         active_dims = [
-            d
-            for d in range(index_matrix.shape[0])
-            if int(index_matrix[d, :].max()) > 0
+            d for d in range(index_matrix.shape[0]) if int(index_matrix[d, :].max()) > 0
         ]
-        corr_cols = [
-            c
-            for c in range(index_matrix.shape[1])
-            if total_degree[c] >= 2
-        ]
+        corr_cols = [c for c in range(index_matrix.shape[1]) if total_degree[c] >= 2]
         sub = index_matrix[active_dims, :][:, corr_cols]
-        return active_dims, cls(bkd.asarray(sub), bkd)
+        return active_dims, cls(bkd.asarray(sub, dtype=bkd.index_dtype()), bkd)
 
 
 def build_feature_map(

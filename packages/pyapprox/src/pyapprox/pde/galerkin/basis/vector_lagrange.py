@@ -268,14 +268,12 @@ class VectorLagrangeBasis(Generic[Array]):
             combined = np.unique(
                 np.asarray(self._skfem_basis.get_dofs(boundary_name)).flatten()
             )
-            return self._bkd.asarray(combined)
+            return self._bkd.asarray(combined, dtype=self._bkd.index_dtype())
 
         ndim = self._ndim
         for comp in components:
             if not 0 <= comp < ndim:
-                raise ValueError(
-                    f"component {comp} out of range for {ndim} components"
-                )
+                raise ValueError(f"component {comp} out of range for {ndim} components")
         # skfem names vector-element DOFs u^1..u^ndim; selecting one
         # component means skipping the other ndim-1 names
         dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
@@ -285,7 +283,7 @@ class VectorLagrangeBasis(Generic[Array]):
             component_dofs = self._skfem_basis.get_dofs(boundary_name, skip=skip)
             all_dofs.append(np.asarray(component_dofs).flatten())
         combined = np.unique(np.concatenate(all_dofs))
-        return self._bkd.asarray(combined)
+        return self._bkd.asarray(combined, dtype=self._bkd.index_dtype())
 
     def get_component_dofs(self, component: int) -> Array:
         """Return DOF indices for a specific component.

@@ -37,7 +37,7 @@ def evaluate_orthonormal_polynomial_1d(
     nsamples = samples_1d.shape[0]
     nterms = rcoefs.shape[0]
 
-    vals = [bkd.full((nsamples,), 1.0 / rcoefs[0, 1])]
+    vals = [1.0 / rcoefs[0, 1] * bkd.ones((nsamples,))]
 
     if nterms > 1:
         vals.append(1 / rcoefs[1, 1] * ((samples_1d - rcoefs[0, 0]) * vals[0]))
@@ -105,13 +105,11 @@ def evaluate_orthonormal_polynomial_derivatives_1d(
 
         # Use log-gamma to avoid overflow issues
         can_derivs.append(
-            bkd.full(
-                (nsamples,),
-                bkd.exp(
-                    bkd.gammaln(bkd.asarray(_order + 1))
-                    - 0.5 * bkd.sum(bkd.log(b[: _order + 1] ** 2))
-                ),
+            bkd.exp(
+                bkd.gammaln(bkd.asarray(_order + 1, dtype=bkd.real_dtype()))
+                - 0.5 * bkd.sum(bkd.log(b[: _order + 1] ** 2))
             )
+            * bkd.ones((nsamples,))
         )
 
         for jj in range(_order + 1, nterms):
@@ -125,7 +123,7 @@ def evaluate_orthonormal_polynomial_derivatives_1d(
             )
 
         derivs = bkd.stack(can_derivs, axis=1)
-        vals_T = can_derivs
+        vals_T = derivs.T
         result.append(derivs)
 
     if return_all:
@@ -282,10 +280,9 @@ class OrthonormalPolynomial1D(Generic[Array]):
         ValueError
             If samples is not 2D with shape (1, nsamples).
         """
-        result: Array = evaluate_orthonormal_polynomial_derivatives_1d(
-            self._rcoefs, self._bkd, samples, order=1
+        return evaluate_orthonormal_polynomial_derivatives_1d(
+            self.recursion_coefficients(), self._bkd, samples, order=1
         )
-        return result
 
     def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of basis functions.
@@ -305,10 +302,9 @@ class OrthonormalPolynomial1D(Generic[Array]):
         ValueError
             If samples is not 2D with shape (1, nsamples).
         """
-        result: Array = evaluate_orthonormal_polynomial_derivatives_1d(
-            self._rcoefs, self._bkd, samples, order=2
+        return evaluate_orthonormal_polynomial_derivatives_1d(
+            self.recursion_coefficients(), self._bkd, samples, order=2
         )
-        return result
 
     def derivatives(self, samples: Array, order: int) -> Array:
         """Evaluate derivatives of specified order.
@@ -327,10 +323,9 @@ class OrthonormalPolynomial1D(Generic[Array]):
         """
         if order == 0:
             return self(samples)
-        result: Array = evaluate_orthonormal_polynomial_derivatives_1d(
-            self._rcoefs, self._bkd, samples, order=order
+        return evaluate_orthonormal_polynomial_derivatives_1d(
+            self.recursion_coefficients(), self._bkd, samples, order=order
         )
-        return result
 
     def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Compute Gaussian quadrature rule.

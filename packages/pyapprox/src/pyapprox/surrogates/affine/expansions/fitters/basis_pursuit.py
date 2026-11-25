@@ -99,7 +99,7 @@ class BasisPursuitFitter(Generic[Array]):
         for ii in range(params.shape[0]):
             if float(bkd.abs(params[ii, 0])) > threshold:
                 support_list.append(ii)
-        support = bkd.asarray(support_list)
+        support = bkd.asarray(support_list, dtype=bkd.index_dtype())
         n_nonzero = len(support_list)
 
         # Create fitted expansion (immutable pattern)

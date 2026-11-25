@@ -183,9 +183,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
     # Alias for compatibility
     ppf = invcdf
 
-    def rvs(
-        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
-    ) -> Array:
+    def rvs(self, nsamples: int, *, rng: Optional[np.random.Generator] = None) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -202,7 +200,8 @@ class ScipyDiscreteMarginal(Generic[Array]):
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
         samples = self._bkd.asarray(
-            self._scipy_rv.rvs(int(nsamples), random_state=rng)
+            self._scipy_rv.rvs(int(nsamples), random_state=rng),
+            dtype=self._bkd.real_dtype(),
         )
         return self._bkd.reshape(samples, (1, nsamples))
 
@@ -346,7 +345,8 @@ class ScipyDiscreteMarginal(Generic[Array]):
         xk = xk[nonzero_mask]
         pk = pk[nonzero_mask]
 
-        return self._bkd.asarray(xk), self._bkd.asarray(pk)
+        real = self._bkd.real_dtype()
+        return self._bkd.asarray(xk, dtype=real), self._bkd.asarray(pk, dtype=real)
 
     def __repr__(self) -> str:
         """Return string representation."""

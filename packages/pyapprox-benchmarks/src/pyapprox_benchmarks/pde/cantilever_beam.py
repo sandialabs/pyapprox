@@ -241,9 +241,7 @@ class _SkfemSubmesh(Generic[Array]):
         return self._nodes
 
     def elements(self) -> Array:
-        return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64),
-        )
+        return self._bkd.asarray(self._skfem_mesh.t, dtype=self._bkd.index_dtype())
 
     def skfem_mesh(self) -> "skfem.Mesh":
         return self._skfem_mesh
@@ -256,7 +254,7 @@ class _SkfemSubmesh(Generic[Array]):
             )
         facet_idx = bndries[boundary_id]
         node_idx = np.unique(self._skfem_mesh.facets[:, facet_idx])
-        return self._bkd.asarray(node_idx.astype(np.int64))
+        return self._bkd.asarray(node_idx, dtype=self._bkd.index_dtype())
 
 
 def _spde_lognormal_field_map(
@@ -531,9 +529,7 @@ class CantileverBeam2DForwardModel:
         if not isinstance(space, InnerProductSpaceProtocol):
             raise TypeError("the beam's state space has no inner product")
         self._space = space
-        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(
-            ScipySparseLU()
-        )
+        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(ScipySparseLU())
         self._steady = SteadySystem(
             galerkin_steady_residual(discretization, self._parameters),
             space,
@@ -706,16 +702,17 @@ class _ClampedBeam:
         if not isinstance(space, InnerProductSpaceProtocol):
             raise TypeError("the beam's state space has no inner product")
         self._space = space
-        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(
-            ScipySparseLU()
-        )
+        self._setups: RecomputeAlways[_Np, CSRFormat] = RecomputeAlways(ScipySparseLU())
         self._steady = SteadySystem(
             galerkin_steady_residual(discretization, self._parameters),
             space,
             self._setups,
         )
         self._newton: Newton[_Np, _Np] = Newton(
-            atol=1e-10, rtol=0.0, maxiters=50, line_search=True,
+            atol=1e-10,
+            rtol=0.0,
+            maxiters=50,
+            line_search=True,
             linesearch_maxiters=10,
         )
 
@@ -725,9 +722,7 @@ class _ClampedBeam:
     def element_length(self) -> float:
         return self._length / self._nelements
 
-    def solve(
-        self, EI: Union[float, np.ndarray]
-    ) -> Tuple[float, np.ndarray]:
+    def solve(self, EI: Union[float, np.ndarray]) -> Tuple[float, np.ndarray]:
         """Return the tip deflection and the per-element |w''| for ``EI``
         (a scalar, or one value per element)."""
         from pyapprox.pde.galerkin.physics.euler_bernoulli import (
@@ -745,9 +740,7 @@ class _ClampedBeam:
                 f"the beam solve did not converge: {point.info().message}"
             )
         coeffs = point.solution()[:, 0]
-        tip = bkd.to_numpy(
-            self._basis.evaluate(coeffs, bkd.asarray([[self._length]]))
-        )
+        tip = bkd.to_numpy(self._basis.evaluate(coeffs, bkd.asarray([[self._length]])))
         return float(tip[0]), element_curvatures(self._basis, coeffs)
 
 

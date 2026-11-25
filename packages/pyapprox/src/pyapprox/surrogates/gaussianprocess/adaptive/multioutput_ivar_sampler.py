@@ -60,7 +60,9 @@ class MultiOutputIVARSampler(Generic[Array]):
 
         # Track partition indices for mapping global indices to per-output
         ncandidates_per_output = [c.shape[1] for c in candidates_list]
-        self._ncandidates_per_output = bkd.asarray(ncandidates_per_output)
+        self._ncandidates_per_output = bkd.asarray(
+            ncandidates_per_output, dtype=bkd.index_dtype()
+        )
         partition = [0]
         for n in ncandidates_per_output:
             partition.append(partition[-1] + n)
@@ -266,17 +268,14 @@ class MultiOutputIVARSampler(Generic[Array]):
             return obj_vals
 
         prev_best = self._ivar._best_obj_vals[-1]
-        priorities = bkd.full((self._n_total,), float("-inf"))
-
         # Cost-weighted variance reduction for active candidates
-        obj_np = bkd.to_numpy(obj_vals)
-        costs_np = bkd.to_numpy(self._costs)
-        for ii in range(self._n_total):
-            if not np.isinf(obj_np[ii]):
-                cost = costs_np[self._output_ids[ii]]
-                priorities[ii] = bkd.asarray((-obj_np[ii] + prev_best) / cost)
-
-        return priorities
+        candidate_costs = self._costs[
+            bkd.asarray(self._output_ids, dtype=bkd.index_dtype())
+        ]
+        reduction = (-obj_vals + prev_best) / candidate_costs
+        return bkd.where(
+            bkd.isinf(obj_vals), bkd.full_like(obj_vals, float("-inf")), reduction
+        )
 
     def _partition_samples(self, pivot_indices: list[int]) -> List[Array]:
         """Map global pivot indices to per-output sample arrays.

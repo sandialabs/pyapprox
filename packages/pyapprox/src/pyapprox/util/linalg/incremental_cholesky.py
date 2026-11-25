@@ -50,7 +50,7 @@ class IncrementalCholeskyFactorization(Generic[Array]):
 
     def pivots(self) -> Array:
         """Return pivot indices as an array."""
-        return self._bkd.asarray(self._pivots)
+        return self._bkd.asarray(self._pivots, dtype=self._bkd.index_dtype())
 
     def add_pivot(self, pivot: int) -> None:
         """Add one pivot, updating L and L_inv incrementally.

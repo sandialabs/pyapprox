@@ -172,9 +172,7 @@ class ScipyContinuousMarginal(Generic[Array]):
     # Alias for compatibility
     ppf = invcdf
 
-    def rvs(
-        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
-    ) -> Array:
+    def rvs(self, nsamples: int, *, rng: Optional[np.random.Generator] = None) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -190,9 +188,7 @@ class ScipyContinuousMarginal(Generic[Array]):
         Array
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = self._bkd.asarray(
-            self._scipy_rv.rvs(int(nsamples), random_state=rng)
-        )
+        samples = self._bkd.asarray(self._scipy_rv.rvs(int(nsamples), random_state=rng))
         return self._bkd.reshape(samples, (1, nsamples))
 
     def mean_value(self) -> float:
@@ -279,8 +275,8 @@ class ScipyContinuousMarginal(Generic[Array]):
                 scale_values = [0.0] + scale_values
 
         scales = {
-            "loc": self._bkd.asarray([scale_values[0]]),
-            "scale": self._bkd.asarray([scale_values[1]]),
+            "loc": self._bkd.asarray([scale_values[0]], dtype=self._bkd.real_dtype()),
+            "scale": self._bkd.asarray([scale_values[1]], dtype=self._bkd.real_dtype()),
         }
 
         return name, scales, shapes

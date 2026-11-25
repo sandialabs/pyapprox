@@ -141,7 +141,9 @@ class SympyField2D(Generic[Array]):
                 val = f(coords[0], coords[1])
                 if np.isscalar(val):
                     val = np.full(npts, val)
-                grad_normalized.append(self._bkd.asarray(val))
+                grad_normalized.append(
+                    self._bkd.asarray(val, dtype=self._bkd.real_dtype())
+                )
 
             # Check if mesh has curvilinear transform
             transform = self._mesh.transform()

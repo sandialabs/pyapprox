@@ -367,8 +367,19 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
-        if dtype is None and not isinstance(array, torch.Tensor):
-            dtype = self._dtype
+        if dtype is None and not hasattr(array, "dtype"):
+            # Python data is coerced by kind: float to the real dtype, complex
+            # to the complex dtype, int to the index dtype, bool kept. NumPy
+            # reads it at full width, so a float is rounded once, to the
+            # configured precision. An existing array keeps its own dtype.
+            host = np.asarray(array)
+            if np.issubdtype(host.dtype, np.floating):
+                dtype = self._dtype
+            elif np.issubdtype(host.dtype, np.complexfloating):
+                dtype = self._complex_dtype
+            elif np.issubdtype(host.dtype, np.integer):
+                dtype = torch.int64
+            array = host
         return torch.as_tensor(array, dtype=dtype, device=self._device)
 
     @staticmethod

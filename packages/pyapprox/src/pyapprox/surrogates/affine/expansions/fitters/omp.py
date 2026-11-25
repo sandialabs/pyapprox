@@ -145,8 +145,7 @@ class OMPFitter(Generic[Array]):
 
         if return_diagnostics and nqoi != 1:
             raise ValueError(
-                "return_diagnostics=True requires nqoi=1, "
-                f"got nqoi={nqoi}"
+                f"return_diagnostics=True requires nqoi=1, got nqoi={nqoi}"
             )
 
         # Get basis matrix: (nsamples, nterms)
@@ -205,11 +204,11 @@ class OMPFitter(Generic[Array]):
             correlations = bkd.abs(bkd.dot(Phi.T, residual)[:, 0]) / col_norms
 
             # Zero out already selected columns
-            for idx in active_indices:
-                correlations = bkd.where(
-                    bkd.arange(nterms) == idx,
-                    bkd.zeros_like(correlations),
+            if active_indices:
+                correlations = bkd.index_update(
                     correlations,
+                    bkd.asarray(active_indices, dtype=bkd.index_dtype()),
+                    0.0,
                 )
 
             best_idx = bkd.to_int(bkd.argmax(correlations))
@@ -242,13 +241,11 @@ class OMPFitter(Generic[Array]):
         else:
             termination_flag = OMPTerminationFlag.MAX_NONZEROS
 
+        # Compute support (same as selection_order for OMP)
+        support = bkd.asarray(active_indices, dtype=bkd.index_dtype())
         # Build full coefficient array
         if active_coef is not None:
-            for ii, idx in enumerate(active_indices):
-                coef[idx, 0] = active_coef[ii, 0]
-
-        # Compute support (same as selection_order for OMP)
-        support = bkd.asarray(active_indices)
+            coef = bkd.index_update(coef, support, active_coef)
 
         # Create fitted expansion (immutable pattern)
         fitted_expansion = expansion.with_params(coef)
@@ -258,7 +255,7 @@ class OMPFitter(Generic[Array]):
             params=coef,
             n_nonzero=len(active_indices),
             support=support,
-            selection_order=bkd.asarray(selection_order),
+            selection_order=bkd.asarray(selection_order, dtype=bkd.index_dtype()),
             residual_history=bkd.asarray(residual_history),
             termination_flag=termination_flag,
         )

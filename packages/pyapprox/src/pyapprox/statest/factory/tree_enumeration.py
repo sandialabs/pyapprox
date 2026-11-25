@@ -118,7 +118,7 @@ class ModelTree(Generic[Array]):
         index[0] = self._root
         self._to_index_recursive(index, self)
         # Return all entries except the first (root)
-        return self._bkd.asarray(index[1:])
+        return self._bkd.asarray(index[1:], dtype=self._bkd.index_dtype())
 
     def _to_index_recursive(
         self, index: List[Optional[int]], root: "ModelTree[Array]"

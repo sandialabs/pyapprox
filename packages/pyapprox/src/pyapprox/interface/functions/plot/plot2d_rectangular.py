@@ -1,4 +1,4 @@
-from typing import Any, Generic, Sequence, Tuple, Union
+from typing import Any, Generic, List, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -13,6 +13,20 @@ from pyapprox.interface.functions.protocols.validation import (
     validate_function,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def _rectangle_limits(
+    plot_limits: Union[Array, Sequence[Any]], bkd: Backend[Array]
+) -> List[float]:
+    """Check four finite plot limits and return them as floats."""
+    if len(plot_limits) != 4:
+        raise ValueError(
+            "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."
+        )
+    limits = bkd.asarray(plot_limits, dtype=bkd.real_dtype())
+    if bkd.to_bool(bkd.any(~bkd.isfinite(limits))):
+        raise ValueError(f"plot limits {plot_limits} must be finite")
+    return [bkd.to_float(limits[ii]) for ii in range(4)]
 
 
 def meshgrid_samples(
@@ -44,14 +58,11 @@ def meshgrid_samples(
     pts : Array
         The flattened meshgrid samples.
     """
-    if len(plot_limits) != 4:
-        raise ValueError(
-            "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."
-        )
+    limits = _rectangle_limits(plot_limits, bkd)
     num_pts_1d = [num_pts_1d] * 2 if isinstance(num_pts_1d, int) else num_pts_1d
     space_fn = bkd.logspace if logspace else bkd.linspace
-    x = space_fn(plot_limits[0], plot_limits[1], num_pts_1d[0])
-    y = space_fn(plot_limits[2], plot_limits[3], num_pts_1d[1])
+    x = space_fn(limits[0], limits[1], num_pts_1d[0])
+    y = space_fn(limits[2], limits[3], num_pts_1d[1])
     X, Y = bkd.meshgrid(x, y)
     pts = bkd.stack((bkd.flatten(X), bkd.flatten(Y)), axis=0)
     return X, Y, pts
@@ -86,19 +97,7 @@ class Plotter2DRectangularDomain(Generic[Array]):
             raise ValueError("Can only plot functions with nvars() == 2")
         self._bkd = function.bkd()
         self._function = function
-        self._validate_plot_limits(plot_limits)
-        self._plot_limits = plot_limits
-
-    def _validate_plot_limits(
-        self, plot_limits: Union[Sequence[float], Array],
-    ) -> None:
-        if len(plot_limits) != 4:
-            raise ValueError(
-                "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."
-            )
-        limits = self._bkd.asarray(plot_limits)
-        if self._bkd.to_bool(self._bkd.any(~self._bkd.isfinite(limits))):
-            raise ValueError(f"plot limits {plot_limits} must be finite")
+        self._plot_limits = _rectangle_limits(plot_limits, self._bkd)
 
     def plot_surface(
         self,

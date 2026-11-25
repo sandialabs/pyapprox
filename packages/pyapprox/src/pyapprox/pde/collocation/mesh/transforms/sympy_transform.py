@@ -183,9 +183,7 @@ class BaseSympyTransform(Generic[Array], ABC):
         test_pts = np.stack([g.ravel() for g in grids], axis=0)
         return self._bkd.asarray(test_pts)
 
-    def _validate_orthogonality(
-        self, test_pts: Array, rtol: float = 1e-8
-    ) -> None:
+    def _validate_orthogonality(self, test_pts: Array, rtol: float = 1e-8) -> None:
         """Verify coordinate system is orthogonal."""
         jac = self.jacobian_matrix(test_pts)
         npts = test_pts.shape[1]
@@ -200,9 +198,7 @@ class BaseSympyTransform(Generic[Array], ABC):
             for i in range(ndim):
                 for j in range(i + 1, ndim):
                     off_diag = float(g[i, j])
-                    diag_scale = float(
-                        self._bkd.sqrt(g[i, i] * g[j, j])
-                    )
+                    diag_scale = float(self._bkd.sqrt(g[i, i] * g[j, j]))
                     if diag_scale > 1e-14:
                         relative_off_diag = abs(off_diag) / diag_scale
                     else:
@@ -238,9 +234,17 @@ class BaseSympyTransform(Generic[Array], ABC):
 
     def _get_coords_numpy(self, reference_pts: Array) -> List[np.ndarray]:
         """Extract coordinates as numpy arrays."""
-        return [
-            self._bkd.to_numpy(reference_pts[i, :]) for i in range(self.ndim())
-        ]
+        return [self._bkd.to_numpy(reference_pts[i, :]) for i in range(self.ndim())]
+
+    def _pointwise(self, func: Callable[..., Any], coords: List[NDArray[Any]]) -> Array:
+        """Evaluate a lambdified expression at every point, in the real dtype.
+
+        A constant expression evaluates to a scalar (an integer one when the
+        constant is integral); it is broadcast to one value per point.
+        """
+        npts = coords[0].shape[0]
+        values = np.broadcast_to(np.asarray(func(*coords)), (npts,)).copy()
+        return self._bkd.asarray(values, dtype=self._bkd.real_dtype())
 
     def map_to_physical(self, reference_pts: Array) -> Array:
         """Map from reference to physical coordinates.
@@ -256,7 +260,7 @@ class BaseSympyTransform(Generic[Array], ABC):
             Physical coordinates. Shape: (ndim, npts)
         """
         coords = self._get_coords_numpy(reference_pts)
-        phys = [self._bkd.asarray(np.asarray(f(*coords))) for f in self._map_funcs]
+        phys = [self._pointwise(f, coords) for f in self._map_funcs]
         return self._bkd.stack(phys, axis=0)
 
     def map_to_reference(self, physical_pts: Array) -> Array:
@@ -277,10 +281,7 @@ class BaseSympyTransform(Generic[Array], ABC):
             phys_coords = [
                 self._bkd.to_numpy(physical_pts[i, :]) for i in range(self.ndim())
             ]
-            ref = [
-                self._bkd.asarray(np.asarray(f(*phys_coords)))
-                for f in self._inv_funcs
-            ]
+            ref = [self._pointwise(f, phys_coords) for f in self._inv_funcs]
             return self._bkd.stack(ref, axis=0)
         else:
             # Numerical inversion via optimization
@@ -300,9 +301,7 @@ class BaseSympyTransform(Generic[Array], ABC):
         result = np.zeros((ndim, npts))
 
         # Initial guess: midpoint of bounds
-        init_guess = np.array(
-            [0.5 * (lb + ub) for lb, ub in self._bounds]
-        )
+        init_guess = np.array([0.5 * (lb + ub) for lb, ub in self._bounds])
 
         for i in range(npts):
             target = phys_np[:, i]
@@ -318,9 +317,7 @@ class BaseSympyTransform(Generic[Array], ABC):
 
             sol, info, ier, msg = fsolve(residual, init_guess, full_output=True)
             if ier != 1:
-                raise RuntimeError(
-                    f"Inverse mapping failed at point {target}: {msg}"
-                )
+                raise RuntimeError(f"Inverse mapping failed at point {target}: {msg}")
             result[:, i] = sol
 
         return self._bkd.asarray(result)
@@ -340,16 +337,16 @@ class BaseSympyTransform(Generic[Array], ABC):
         Array
             Jacobian matrices. Shape: (npts, ndim, ndim)
         """
-        npts = reference_pts.shape[1]
         ndim = self.ndim()
         coords = self._get_coords_numpy(reference_pts)
-
-        jac = self._bkd.zeros((npts, ndim, ndim))
-        for i in range(ndim):
-            for j in range(ndim):
-                val = np.asarray(self._jac_funcs[i][j](*coords))
-                jac[:, i, j] = self._bkd.asarray(val)
-        return jac
+        rows = [
+            self._bkd.stack(
+                [self._pointwise(self._jac_funcs[i][j], coords) for j in range(ndim)],
+                axis=1,
+            )
+            for i in range(ndim)
+        ]
+        return self._bkd.stack(rows, axis=1)
 
     def jacobian_determinant(self, reference_pts: Array) -> Array:
         """Compute Jacobian determinant.
@@ -367,7 +364,7 @@ class BaseSympyTransform(Generic[Array], ABC):
             Jacobian determinants. Shape: (npts,)
         """
         coords = self._get_coords_numpy(reference_pts)
-        return self._bkd.asarray(np.asarray(self._det_func(*coords)))
+        return self._pointwise(self._det_func, coords)
 
     def scale_factors(self, reference_pts: Array) -> Array:
         """Compute scale factors for curvilinear coordinates.
@@ -384,14 +381,10 @@ class BaseSympyTransform(Generic[Array], ABC):
         Array
             Scale factors. Shape: (npts, ndim)
         """
-        npts = reference_pts.shape[1]
-        ndim = self.ndim()
         coords = self._get_coords_numpy(reference_pts)
-
-        scales = self._bkd.zeros((npts, ndim))
-        for j in range(ndim):
-            scales[:, j] = self._bkd.asarray(np.asarray(self._h_funcs[j](*coords)))
-        return scales
+        return self._bkd.stack(
+            [self._pointwise(h, coords) for h in self._h_funcs], axis=1
+        )
 
     def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
         """Compute unit curvilinear basis vectors.
@@ -409,16 +402,18 @@ class BaseSympyTransform(Generic[Array], ABC):
             Unit basis vectors. Shape: (npts, ndim, ndim)
             result[:, :, j] = e_j (j-th basis vector in Cartesian components)
         """
-        npts = reference_pts.shape[1]
         ndim = self.ndim()
         coords = self._get_coords_numpy(reference_pts)
-
-        basis = self._bkd.zeros((npts, ndim, ndim))
-        for i in range(ndim):  # Cartesian component
-            for j in range(ndim):  # basis vector index
-                val = np.asarray(self._e_funcs[i][j](*coords))
-                basis[:, i, j] = self._bkd.asarray(val)
-        return basis
+        rows = [  # Cartesian component
+            self._bkd.stack(
+                [  # basis vector index
+                    self._pointwise(self._e_funcs[i][j], coords) for j in range(ndim)
+                ],
+                axis=1,
+            )
+            for i in range(ndim)
+        ]
+        return self._bkd.stack(rows, axis=1)
 
     def gradient_factors(self, reference_pts: Array) -> Array:
         """Compute factors for transforming gradients.
