@@ -64,6 +64,10 @@ class LinearizedConstraint(Generic[V]):
         self._tangent: DerivativeOperator[V] = derivatives.tangent(point, time)
         self._param: DerivativeOperator[V] = derivatives.param(point, time)
 
+    def param_is_zero(self) -> bool:
+        r"""Whether the constraint states :math:`\Pi_p` zero."""
+        return self._param.properties().zero
+
     def tangent(self, dx: V, direction: V, space: VectorSpaceProtocol[V]) -> V:
         r""":math:`\Pi'\, dx + \Pi_p\, v`, a new vector."""
         dy = self._tangent.apply(dx)
