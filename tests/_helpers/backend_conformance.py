@@ -1206,6 +1206,11 @@ NOT_YET_ON_JAX = NOT_YET_COVERED | ROWS_NOT_YET_ON_JAX
 # of their own: jit compiles each traceable row (row_kernel).
 COVERED_BY_COLUMNS = frozenset({"jit"})
 
+# Protocol methods taking another backend, which a row cannot express;
+# tests/util/backends/test_backend_identity.py tests them on every
+# configuration.
+COVERED_BY_TESTS = frozenset({"is_compatible", "replace", "from_other"})
+
 
 # ---- running a row
 

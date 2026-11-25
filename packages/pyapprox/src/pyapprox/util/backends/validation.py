@@ -215,38 +215,38 @@ def validate_backend(obj: Any) -> None:
 
 def validate_backends(backends: Sequence[Any]) -> None:
     """
-    Validate that all backends in the sequence have the same
-    class name and are valid backends.
+    Validate that every backend in the sequence is a backend instance
+    compatible with the first (same class, precision and device; see
+    ``Backend.is_compatible``), so the components they belong to can pass
+    arrays to each other unconverted.
 
     Parameters
     ----------
     backends : Sequence[Any]
-        A sequence of backend objects or classes.
+        A sequence of backend instances.
 
     Raises
     ------
     ValueError
-        If the sequence is empty or the backends are inconsistent.
+        If the sequence is empty or two backends are not compatible; the
+        message names both configurations.
     TypeError
-        If any backend is not a valid backend.
+        If an entry is not a backend instance (a backend class included).
     """
     if len(backends) == 0:
         raise ValueError("The sequence of backends cannot be empty.")
-
-    # Validate each backend
     for backend in backends:
+        if isinstance(backend, type):
+            raise TypeError(
+                f"expected a backend instance, got the class {backend.__name__}; "
+                f"construct it, e.g. {backend.__name__}()"
+            )
         validate_backend(backend)
-
-    # Extract class names for comparison
-    class_names = [
-        (type(backend).__name__ if not isinstance(backend, type) else backend.__name__)
-        for backend in backends
-    ]
-
-    # Check if all class names are the same
-    if len(set(class_names)) != 1:
-        raise ValueError(
-            "Inconsistent backends: expected all backends"
-            " to have the same class name,"
-            f" got {set(class_names)}."
-        )
+    first = backends[0]
+    for backend in backends[1:]:
+        if not first.is_compatible(backend):
+            raise ValueError(
+                f"Inconsistent backends: {first!r} and {backend!r}; build the "
+                "components on one backend, or convert at their seam with "
+                "bkd.from_other(array, src_bkd)"
+            )

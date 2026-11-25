@@ -29,7 +29,12 @@ from numpy.typing import NDArray
 
 from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.precision import Precision
-from pyapprox.util.backends.protocols import ArrayLike, KernelResult
+from pyapprox.util.backends.protocols import (
+    ArrayLike,
+    ArrayProtocol,
+    Backend,
+    KernelResult,
+)
 from pyapprox.util.backends.validation import (
     check_dtype_kind,
     check_index_add_shapes,
@@ -135,6 +140,38 @@ class JaxBkd:
     def device() -> str:
         # The platform JAX places arrays on: "cpu", "gpu" or "tpu".
         return str(jax.devices()[0].platform)
+
+    def __repr__(self) -> str:
+        return f"JaxBkd(precision=double, device={self.device()})"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, JaxBkd)
+
+    def __hash__(self) -> int:
+        return hash(JaxBkd)
+
+    def is_compatible(self, other: object) -> bool:
+        # One configuration: double precision on JAX's default device.
+        return isinstance(other, JaxBkd)
+
+    def replace(
+        self, *, precision: Optional[Precision] = None, device: Optional[str] = None
+    ) -> "JaxBkd":
+        if precision not in (None, Precision.DOUBLE) or device not in (
+            None,
+            self.device(),
+        ):
+            raise ValueError(
+                "JaxBkd runs double precision on JAX's default device only, "
+                f"got precision={precision}, device={device!r}"
+            )
+        return JaxBkd()
+
+    def from_other(self, array: ArrayProtocol, src: Backend[Any]) -> jax.Array:
+        if isinstance(array, jax.Array) and self.is_compatible(src):
+            return array
+        # Another library: through NumPy, so not differentiable through.
+        return self.array(src.to_numpy(array))
 
     @staticmethod
     def real_dtype() -> Any:

@@ -207,6 +207,31 @@ class Backend(Protocol, Generic[Array]):
         ``"cuda:0"``."""
         ...
 
+    def is_compatible(self, other: object) -> bool:
+        """Whether ``other`` is a backend of the same class, precision and
+        device, so arrays pass between the two unconverted. Options that
+        change how code runs but not what arrays look like (torch's
+        ``compile``) do not count; equality (``==``) also compares them."""
+        ...
+
+    def replace(
+        self, *, precision: Optional[Precision] = None, device: Optional[str] = None
+    ) -> "Backend[Array]":
+        """A backend of the same class with the given precision or device
+        changed and every other option kept, e.g. a double-precision
+        sibling for one sensitive substep of a single-precision model."""
+        ...
+
+    def from_other(self, array: ArrayProtocol, src: "Backend[Any]") -> Array:
+        """``array``, an array of backend ``src``, as an array of this
+        backend: same values and kind, in this backend's precision and on
+        its device. Returned unchanged when ``src`` is compatible
+        (:meth:`is_compatible`). Between backends of one library the
+        conversion keeps the autograd graph; between libraries it goes
+        through NumPy and is not differentiable through.
+        """
+        ...
+
     def real_dtype(self) -> Any:
         """The real working dtype: float32 or float64, from
         :meth:`precision`."""

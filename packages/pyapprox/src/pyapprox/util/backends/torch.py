@@ -22,6 +22,7 @@ from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import (
     ArrayLike,
+    ArrayProtocol,
     Backend,
     IndexLike,
     KernelResult,
@@ -205,6 +206,63 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         self._complex_dtype = torch.complex64 if single else torch.complex128
         self._compile = compile
         self._jit_cache: Dict[_JitKey, Callable[..., Any]] = {}
+
+    def _placement(self) -> Tuple[str, int]:
+        # "mps" and "mps:0" name one device; an unindexed device is index 0.
+        index = self._device.index
+        return (self._device.type, 0 if index is None else index)
+
+    def __repr__(self) -> str:
+        compiled = ", compile=True" if self._compile else ""
+        return (
+            f"TorchBkd(precision={self._precision.value}, "
+            f"device={self._device}{compiled})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            self.is_compatible(other)
+            and isinstance(other, TorchBkd)
+            and other._compile == self._compile
+        )
+
+    def __hash__(self) -> int:
+        return hash((TorchBkd, self._precision, self._placement(), self._compile))
+
+    def is_compatible(self, other: object) -> bool:
+        return (
+            isinstance(other, TorchBkd)
+            and other._precision is self._precision
+            and other._placement() == self._placement()
+        )
+
+    def replace(
+        self,
+        *,
+        precision: Optional[Precision] = None,
+        device: Optional[Union[str, "torch.device"]] = None,
+        compile: Optional[bool] = None,
+    ) -> "TorchBkd":
+        return TorchBkd(
+            precision=self._precision if precision is None else precision,
+            device=self._device if device is None else device,
+            compile=self._compile if compile is None else compile,
+        )
+
+    def from_other(self, array: ArrayProtocol, src: Backend[Any]) -> torch.Tensor:
+        if isinstance(array, torch.Tensor) and self.is_compatible(src):
+            return array
+        if isinstance(array, torch.Tensor):
+            # tensor.to keeps the autograd graph across precision and device.
+            if array.is_floating_point():
+                dtype = self._dtype
+            elif array.is_complex():
+                dtype = self._complex_dtype
+            else:
+                dtype = array.dtype
+            return array.to(device=self._device, dtype=dtype)
+        # Another library: through NumPy, so not differentiable through.
+        return self.array(src.to_numpy(array))
 
     def __getstate__(self) -> Dict[str, Any]:
         # Compiled kernels do not pickle; the cache is rebuilt on use.

@@ -22,6 +22,7 @@ from pyapprox.util.backends.errors import LinAlgError
 from pyapprox.util.backends.precision import Precision
 from pyapprox.util.backends.protocols import (
     ArrayLike,
+    ArrayProtocol,
     Backend,
     IndexLike,
     KernelResult,
@@ -241,6 +242,33 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     def device(self) -> str:
         return "cpu"
+
+    def __repr__(self) -> str:
+        return f"NumpyBkd(precision={self._precision.value}, device=cpu)"
+
+    def __eq__(self, other: object) -> bool:
+        return self.is_compatible(other)
+
+    def __hash__(self) -> int:
+        return hash((NumpyBkd, self._precision))
+
+    def is_compatible(self, other: object) -> bool:
+        return isinstance(other, NumpyBkd) and other.precision() is self._precision
+
+    def replace(
+        self, *, precision: Optional[Precision] = None, device: Optional[str] = None
+    ) -> "NumpyBkd":
+        return NumpyBkd(
+            precision=self._precision if precision is None else precision,
+            device=device,
+        )
+
+    def from_other(self, array: ArrayProtocol, src: Backend[Any]) -> NDArray[Any]:
+        if isinstance(array, np.ndarray) and self.is_compatible(src):
+            return array
+        # Through NumPy, so not differentiable through; precision follows
+        # this backend, kind is kept.
+        return self.array(src.to_numpy(array))
 
     def real_dtype(self) -> Any:
         return self._real_dtype

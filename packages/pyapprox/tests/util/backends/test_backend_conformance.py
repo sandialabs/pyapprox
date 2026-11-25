@@ -25,6 +25,7 @@ from tests._helpers.backend_conformance import (
     BACKEND_EXTRAS,
     CASES,
     COVERED_BY_COLUMNS,
+    COVERED_BY_TESTS,
     MPS_DECLINES,
     NOT_YET_COVERED,
     NOT_YET_COVERED_ARRAY,
@@ -185,7 +186,7 @@ def test_assert_allclose_rows_come_first() -> None:
 
 def _covered() -> frozenset[str]:
     rows = frozenset(case.method for case in CASES if not case.member)
-    return rows | COVERED_BY_COLUMNS
+    return rows | COVERED_BY_COLUMNS | COVERED_BY_TESTS
 
 
 def test_every_protocol_method_has_a_row_or_is_listed() -> None:
