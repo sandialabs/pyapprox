@@ -1,10 +1,9 @@
-"""Experimental JAX backend, grown one protocol method at a time.
+"""Experimental JAX backend.
 
-``JaxBkd`` implements only the ``Backend`` methods whose conformance rows
-pass on JAX; the rest are listed in the conformance suite's
-``NOT_YET_ON_JAX``, which may only shrink. It does not yet satisfy
-``Backend``, is not exported, and joins the general ``bkd`` test fixture
-only when that list is empty.
+``JaxBkd`` satisfies ``Backend`` and passes the whole conformance table
+in both precisions. It is still experimental: not exported, and not in
+the general ``bkd`` test fixture, because much library code writes into
+arrays in place, which JAX arrays refuse.
 
 ``JaxBkd`` never changes JAX's process-wide configuration. Double
 precision needs 64-bit types, which JAX enables only process-wide
@@ -24,6 +23,7 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    overload,
 )
 
 import numpy as np
@@ -656,17 +656,29 @@ class JaxBkd:
     def einsum(subscripts: str, *operands: jax.Array) -> jax.Array:
         return jnp.einsum(subscripts, *operands)
 
+    @overload
+    @staticmethod
+    def where(condition: jax.Array) -> Tuple[jax.Array, ...]: ...
+
+    @overload
+    @staticmethod
+    def where(
+        condition: jax.Array,
+        x: Union[jax.Array, float],
+        y: Union[jax.Array, float],
+    ) -> jax.Array: ...
+
     @staticmethod
     def where(
         condition: jax.Array,
         x: Optional[Union[jax.Array, float]] = None,
         y: Optional[Union[jax.Array, float]] = None,
     ) -> Union[jax.Array, Tuple[jax.Array, ...]]:
-        if x is None:
+        if x is None and y is None:
             return tuple(jnp.nonzero(condition))
-        if y is None:
-            raise ValueError("Must provide both x and y or neither.")
-        return jnp.where(condition, x, y)
+        if x is not None and y is not None:
+            return jnp.where(condition, x, y)
+        raise ValueError("Must provide both x and y or neither.")
 
     # ---- reductions
 

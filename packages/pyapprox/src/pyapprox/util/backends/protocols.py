@@ -803,10 +803,15 @@ class Backend(Protocol, Generic[Array]):
         """
         ...
 
-    @staticmethod
     def searchsorted(
-        sorted_array: Array, values: Array, side: Literal["left", "right"] = "left"
-    ) -> Array: ...
+        self,
+        sorted_array: Array,
+        values: Array,
+        side: Literal["left", "right"] = "left",
+    ) -> Array:
+        """Insertion positions, in ``index_dtype()``: an instance method
+        because the index dtype is part of the configuration."""
+        ...
 
     @staticmethod
     def clip(array: Array, a_min: Any, a_max: Any) -> Array: ...
@@ -1381,9 +1386,9 @@ class Backend(Protocol, Generic[Array]):
         """
         ...
 
-    @staticmethod
-    def lu_factor(array: Array) -> Tuple[Array, Array]:
-        """Compact LU factorization with pivots.
+    def lu_factor(self, array: Array) -> Tuple[Array, Array]:
+        """Compact LU factorization with pivots. An instance method: the
+        pivots' index dtype is part of the configuration.
 
         Parameters
         ----------

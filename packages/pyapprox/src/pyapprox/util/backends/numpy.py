@@ -1098,8 +1098,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         result: Tuple[NDArray[Any], NDArray[Any], NDArray[Any]] = scipy.linalg.lu(array)
         return result
 
-    @staticmethod
     def lu_factor(
+        self,
         array: NDArray[Any],
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         if array.ndim == 3:
@@ -1108,7 +1108,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             return _batched_lu_factor(array)
         lu, pivots = scipy.linalg.lu_factor(array)
         # Pivots in the index dtype; SciPy gives LAPACK's int32.
-        return lu, pivots.astype(np.int64)
+        return lu, pivots.astype(self.index_dtype())
 
     @staticmethod
     def lu_solve(

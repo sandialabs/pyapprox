@@ -1406,15 +1406,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             cast(torch.Tensor, result.U),
         )
 
-    @staticmethod
     def lu_factor(
+        self,
         array: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # lu_factor_ex tolerates singular matrices (like DAE mass matrices)
         LU, pivots, _info = torch.linalg.lu_factor_ex(array)
         # The contract is NumPy's: 0-based pivots in the index dtype, not
         # LAPACK's 1-based int32 that torch returns.
-        return cast(torch.Tensor, LU), (pivots - 1).to(torch.int64)
+        return cast(torch.Tensor, LU), (pivots - 1).to(self.index_dtype())
 
     @staticmethod
     def lu_solve(

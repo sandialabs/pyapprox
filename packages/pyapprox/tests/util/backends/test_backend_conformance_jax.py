@@ -17,8 +17,10 @@ import pytest
 pytest.importorskip("jax")
 
 import jax
+import jax.numpy as jnp
 
 from pyapprox.util.backends.jax import JaxBkd
+from pyapprox.util.backends.precision import Precision
 from tests._helpers.backend_conformance import (
     CASES,
     NOT_YET_ON_JAX,
@@ -76,3 +78,35 @@ class TestJaxJit:
         restored.assert_allclose(
             compiled(restored.asarray(1.5), size=2), restored.asarray(3.0)
         )
+
+
+class TestConfiguration:
+    """What JAX's process-wide 64-bit switch adds; the configurations
+    themselves run through config_bkd in the other backend tests."""
+
+    def test_double_needs_64_bit_types(self) -> None:
+        with jax.enable_x64(False):
+            with pytest.raises(ValueError, match="jax_enable_x64"):
+                JaxBkd(precision=Precision.DOUBLE)
+
+    def test_single_runs_without_64_bit_types(self) -> None:
+        with jax.enable_x64(False):
+            bkd = JaxBkd(precision=Precision.SINGLE)
+            assert bkd.zeros((2,)).dtype == jnp.float32
+            assert bkd.arange(3).dtype == bkd.index_dtype() == jnp.int32
+            assert bkd.asarray([0.1]).dtype == jnp.float32
+
+    def test_construction_leaves_the_switch_alone(self) -> None:
+        with jax.enable_x64(False):
+            JaxBkd(precision=Precision.SINGLE)
+            assert not jax.config.jax_enable_x64
+
+    def test_precision_change_keeps_the_trace(self, jax_bkd: JaxBkd) -> None:
+        single = jax_bkd.replace(precision=Precision.SINGLE)
+
+        def through_single(x: jax.Array) -> jax.Array:
+            narrowed = single.from_other(x, jax_bkd)
+            return jax_bkd.sum(jax_bkd.from_other(narrowed * 2.0, single))
+
+        gradient = jax.grad(through_single)(jax_bkd.asarray([1.0, 2.0, 3.0]))
+        jax_bkd.assert_allclose(gradient, 2.0 * jax_bkd.ones((3,)))
