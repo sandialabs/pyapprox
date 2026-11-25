@@ -7,6 +7,7 @@ combined mean+variance from model evaluations.
 from abc import ABC, abstractmethod
 from typing import (
     Any,
+    Callable,
     Dict,
     Generic,
     List,
@@ -53,11 +54,11 @@ def _get_nsamples_intersect(
     """
     nmodels = allocation_mat.shape[0]
     nsubset_samples = npartition_samples[:, None] * allocation_mat
-    nsamples_intersect = bkd.zeros((2 * nmodels, 2 * nmodels), dtype=bkd.real_dtype())
-    for ii in range(2 * nmodels):
-        mask = bkd.equal(allocation_mat[:, ii], 1)
-        nsamples_intersect[ii] = bkd.sum(nsubset_samples[mask], axis=0)
-    return nsamples_intersect
+    rows = [
+        bkd.sum(nsubset_samples[bkd.equal(allocation_mat[:, ii], 1)], axis=0)
+        for ii in range(2 * nmodels)
+    ]
+    return bkd.asarray(bkd.stack(rows, axis=0), dtype=bkd.real_dtype())
 
 
 def _get_nsamples_subset(
@@ -73,11 +74,28 @@ def _get_nsamples_subset(
         color blocks in the ACV papers figures of sample allocation
     """
     nmodels = allocation_mat.shape[0]
-    nsamples_subset = bkd.zeros((2 * nmodels,), dtype=bkd.real_dtype())
-    for ii in range(2 * nmodels):
-        mask = bkd.equal(allocation_mat[:, ii], 1)
-        nsamples_subset[ii] = bkd.sum(npartition_samples[mask])
-    return nsamples_subset
+    entries = [
+        bkd.sum(npartition_samples[bkd.equal(allocation_mat[:, ii], 1)])
+        for ii in range(2 * nmodels)
+    ]
+    return bkd.asarray(bkd.stack(entries), dtype=bkd.real_dtype())
+
+
+def _matrix_from_entries(
+    entries: List[List[Array]], ncols: int, bkd: Backend[Array]
+) -> Array:
+    """Stack a nested list of 0-d arrays into a (len(entries), ncols)
+    matrix of the real dtype; an empty list gives an empty matrix."""
+    if not entries:
+        return bkd.zeros((0, ncols), dtype=bkd.real_dtype())
+    return bkd.stack([bkd.stack(row) for row in entries], axis=0)
+
+
+def _vector_from_entries(entries: List[Array], bkd: Backend[Array]) -> Array:
+    """Stack 0-d arrays into a vector; an empty list gives an empty one."""
+    if not entries:
+        return bkd.zeros((0,), dtype=bkd.real_dtype())
+    return bkd.stack(entries)
 
 
 def _get_acv_mean_discrepancy_covariances_multipliers(
@@ -92,16 +110,17 @@ def _get_acv_mean_discrepancy_covariances_multipliers(
         allocation_mat, npartition_samples, bkd
     )
     nsamples_subset = _get_nsamples_subset(allocation_mat, npartition_samples, bkd)
-    Gmat = bkd.zeros((nmodels - 1, nmodels - 1), dtype=bkd.real_dtype())
-    gvec = bkd.zeros((nmodels - 1,), dtype=bkd.real_dtype())
+    g_entries: List[Array] = []
+    G_entries: List[List[Array]] = []
     for ii in range(1, nmodels):
-        gvec[ii - 1] = nsamples_intersect[2 * ii, 0 + 1] / (
-            nsamples_subset[2 * ii] * nsamples_subset[0 + 1]
-        ) - nsamples_intersect[2 * ii + 1, 0 + 1] / (
-            nsamples_subset[2 * ii + 1] * nsamples_subset[0 + 1]
+        g_entries.append(
+            nsamples_intersect[2 * ii, 0 + 1]
+            / (nsamples_subset[2 * ii] * nsamples_subset[0 + 1])
+            - nsamples_intersect[2 * ii + 1, 0 + 1]
+            / (nsamples_subset[2 * ii + 1] * nsamples_subset[0 + 1])
         )
-        for jj in range(1, nmodels):
-            Gmat[ii - 1, jj - 1] = (
+        G_entries.append(
+            [
                 nsamples_intersect[2 * ii, 2 * jj]
                 / (nsamples_subset[2 * ii] * nsamples_subset[2 * jj])
                 - nsamples_intersect[2 * ii, 2 * jj + 1]
@@ -110,8 +129,11 @@ def _get_acv_mean_discrepancy_covariances_multipliers(
                 / (nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj])
                 + nsamples_intersect[2 * ii + 1, 2 * jj + 1]
                 / (nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj + 1])
-            )
-    return Gmat, gvec
+                for jj in range(1, nmodels)
+            ]
+        )
+    Gmat = _matrix_from_entries(G_entries, nmodels - 1, bkd)
+    return Gmat, _vector_from_entries(g_entries, bkd)
 
 
 def _get_acv_variance_discrepancy_covariances_multipliers(
@@ -127,8 +149,8 @@ def _get_acv_variance_discrepancy_covariances_multipliers(
         allocation_mat, npartition_samples, bkd
     )
     nsamples_subset = _get_nsamples_subset(allocation_mat, npartition_samples, bkd)
-    Hmat = bkd.zeros((nmodels - 1, nmodels - 1), dtype=bkd.real_dtype())
-    hvec = bkd.zeros((nmodels - 1,), dtype=bkd.real_dtype())
+    h_entries: List[Array] = []
+    H_entries: List[List[Array]] = []
 
     N0 = nsamples_subset[0 + 1]
     for ii in range(1, nmodels):
@@ -136,9 +158,11 @@ def _get_acv_variance_discrepancy_covariances_multipliers(
         Ni_0 = nsamples_intersect[2 * ii + 1, 0 + 1]  # N_{0\cap i}$
         Nis = nsamples_subset[2 * ii]  # N_{i\star}
         Ni = nsamples_subset[2 * ii + 1]  # N_{i}
-        hvec[ii - 1] = Nis_0 * (Nis_0 - 1) / (
-            N0 * (N0 - 1) * Nis * (Nis - 1)
-        ) - Ni_0 * (Ni_0 - 1) / (N0 * (N0 - 1) * Ni * (Ni - 1))
+        h_entries.append(
+            Nis_0 * (Nis_0 - 1) / (N0 * (N0 - 1) * Nis * (Nis - 1))
+            - Ni_0 * (Ni_0 - 1) / (N0 * (N0 - 1) * Ni * (Ni - 1))
+        )
+        H_row: List[Array] = []
         for jj in range(1, nmodels):
             Nis_js = nsamples_intersect[2 * ii, 2 * jj]  # N_{i\cap j\star}
             Ni_j = nsamples_intersect[2 * ii + 1, 2 * jj + 1]  # N_{i\cap j}$
@@ -146,13 +170,15 @@ def _get_acv_variance_discrepancy_covariances_multipliers(
             Nis_j = nsamples_intersect[2 * ii, 2 * jj + 1]  # N_{i\star\cap j}$
             Njs = nsamples_subset[2 * jj]  # N_{j\star}
             Nj = nsamples_subset[2 * jj + 1]  # N_{j}
-            Hmat[ii - 1, jj - 1] = (
+            H_row.append(
                 Nis_js * (Nis_js - 1) / (Nis * (Nis - 1) * Njs * (Njs - 1))
                 - Nis_j * (Nis_j - 1) / (Nis * (Nis - 1) * Nj * (Nj - 1))
                 - Ni_js * (Ni_js - 1) / (Ni * (Ni - 1) * Njs * (Njs - 1))
                 + Ni_j * (Ni_j - 1) / (Ni * (Ni - 1) * Nj * (Nj - 1))
             )
-    return Hmat, hvec
+        H_entries.append(H_row)
+    Hmat = _matrix_from_entries(H_entries, nmodels - 1, bkd)
+    return Hmat, _vector_from_entries(h_entries, bkd)
 
 
 def _get_multioutput_acv_mean_discrepancy_covariances(
@@ -187,37 +213,53 @@ def _get_multioutput_acv_mean_discrepancy_covariances(
     """
     nmodels = len(gvec) + 1
     nqoi = cov.shape[0] // nmodels
-    discp_cov = bkd.empty(
-        (nqoi * (nmodels - 1), nqoi * (nmodels - 1)), dtype=bkd.real_dtype()
+
+    def cov_block(ii: int, jj: int) -> Array:
+        return cov[(ii + 1) * nqoi : (ii + 2) * nqoi, (jj + 1) * nqoi : (jj + 2) * nqoi]
+
+    discp_cov = _symmetric_block_matrix(
+        lambda ii, jj: Gmat[ii, jj] * cov_block(ii, jj), nmodels - 1, bkd
     )
-    discp_vec = bkd.empty((nqoi, nqoi * (nmodels - 1)), dtype=bkd.real_dtype())
-    for ii in range(nmodels - 1):
-        discp_cov[ii * nqoi : (ii + 1) * nqoi, ii * nqoi : (ii + 1) * nqoi] = (
-            Gmat[ii, ii]
-            * (
-                cov[
-                    (ii + 1) * nqoi : (ii + 2) * nqoi,
-                    (ii + 1) * nqoi : (ii + 2) * nqoi,
-                ]
-            )
-        )
-        discp_vec[:, ii * nqoi : (ii + 1) * nqoi] = (
+    discp_vec = _block_row(
+        [
             gvec[ii] * cov[:nqoi, (ii + 1) * nqoi : (ii + 2) * nqoi]
-        )
-        for jj in range(ii + 1, nmodels - 1):
-            discp_cov[ii * nqoi : (ii + 1) * nqoi, jj * nqoi : (jj + 1) * nqoi] = (
-                Gmat[ii, jj]
-                * (
-                    cov[
-                        (ii + 1) * nqoi : (ii + 2) * nqoi,
-                        (jj + 1) * nqoi : (jj + 2) * nqoi,
-                    ]
-                )
-            )
-            discp_cov[jj * nqoi : (jj + 1) * nqoi, ii * nqoi : (ii + 1) * nqoi] = (
-                discp_cov[ii * nqoi : (ii + 1) * nqoi, jj * nqoi : (jj + 1) * nqoi].T
-            )
+            for ii in range(nmodels - 1)
+        ],
+        nqoi,
+        bkd,
+    )
     return discp_cov, discp_vec
+
+
+def _symmetric_block_matrix(
+    upper_block: Callable[[int, int], Array], nblocks: int, bkd: Backend[Array]
+) -> Array:
+    """The symmetric block matrix whose (ii, jj) block, jj >= ii, is
+    ``upper_block(ii, jj)``; each lower block is the transpose of its
+    mirror. No blocks give an empty matrix."""
+    if nblocks == 0:
+        return bkd.zeros((0, 0), dtype=bkd.real_dtype())
+    upper = {
+        (ii, jj): upper_block(ii, jj)
+        for ii in range(nblocks)
+        for jj in range(ii, nblocks)
+    }
+    return bkd.block(
+        [
+            [
+                upper[(ii, jj)] if jj >= ii else upper[(jj, ii)].T
+                for jj in range(nblocks)
+            ]
+            for ii in range(nblocks)
+        ]
+    )
+
+
+def _block_row(blocks: List[Array], nrows: int, bkd: Backend[Array]) -> Array:
+    """Blocks side by side; no blocks give an (nrows, 0) matrix."""
+    if not blocks:
+        return bkd.zeros((nrows, 0), dtype=bkd.real_dtype())
+    return bkd.hstack(blocks)
 
 
 def _get_multioutput_acv_variance_discrepancy_covariances(
@@ -266,40 +308,27 @@ def _get_multioutput_acv_variance_discrepancy_covariances(
     """
     nmodels = len(gvec) + 1
     nqsq = V.shape[0] // nmodels
-    discp_cov = bkd.empty(
-        (nqsq * (nmodels - 1), nqsq * (nmodels - 1)), dtype=bkd.real_dtype()
+
+    def model_block(A: Array, ii: int, jj: int) -> Array:
+        return A[(ii + 1) * nqsq : (ii + 2) * nqsq, (jj + 1) * nqsq : (jj + 2) * nqsq]
+
+    discp_cov = _symmetric_block_matrix(
+        lambda ii, jj: (
+            Gmat[ii, jj] * model_block(W, ii, jj)
+            + Hmat[ii, jj] * model_block(V, ii, jj)
+        ),
+        nmodels - 1,
+        bkd,
     )
-    discp_vec = bkd.empty((nqsq, nqsq * (nmodels - 1)), dtype=bkd.real_dtype())
-    for ii in range(nmodels - 1):
-        V_ii = V[
-            (ii + 1) * nqsq : (ii + 2) * nqsq,
-            (ii + 1) * nqsq : (ii + 2) * nqsq,
-        ]
-        W_ii = W[
-            (ii + 1) * nqsq : (ii + 2) * nqsq,
-            (ii + 1) * nqsq : (ii + 2) * nqsq,
-        ]
-        V_0i = V[0:nqsq, (ii + 1) * nqsq : (ii + 2) * nqsq]
-        W_0i = W[0:nqsq, (ii + 1) * nqsq : (ii + 2) * nqsq]
-        discp_cov[ii * nqsq : (ii + 1) * nqsq, ii * nqsq : (ii + 1) * nqsq] = (
-            Gmat[ii, ii] * W_ii + Hmat[ii, ii] * V_ii
-        )
-        discp_vec[:, ii * nqsq : (ii + 1) * nqsq] = gvec[ii] * W_0i + hvec[ii] * V_0i
-        for jj in range(ii + 1, nmodels - 1):
-            V_ij = V[
-                (ii + 1) * nqsq : (ii + 2) * nqsq,
-                (jj + 1) * nqsq : (jj + 2) * nqsq,
-            ]
-            W_ij = W[
-                (ii + 1) * nqsq : (ii + 2) * nqsq,
-                (jj + 1) * nqsq : (jj + 2) * nqsq,
-            ]
-            discp_cov[ii * nqsq : (ii + 1) * nqsq, jj * nqsq : (jj + 1) * nqsq] = (
-                Gmat[ii, jj] * W_ij + Hmat[ii, jj] * V_ij
-            )
-            discp_cov[jj * nqsq : (jj + 1) * nqsq, ii * nqsq : (ii + 1) * nqsq] = (
-                discp_cov[ii * nqsq : (ii + 1) * nqsq, jj * nqsq : (jj + 1) * nqsq].T
-            )
+    discp_vec = _block_row(
+        [
+            gvec[ii] * W[0:nqsq, (ii + 1) * nqsq : (ii + 2) * nqsq]
+            + hvec[ii] * V[0:nqsq, (ii + 1) * nqsq : (ii + 2) * nqsq]
+            for ii in range(nmodels - 1)
+        ],
+        nqsq,
+        bkd,
+    )
     return discp_cov, discp_vec
 
 
@@ -324,52 +353,43 @@ def _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
     nqoi = cov.shape[0] // nmodels
     nqsq = V.shape[0] // nmodels
     stride = nqoi + nqsq
-    CF = bkd.empty(
-        (
-            nqoi * (nmodels - 1) + nqsq * (nmodels - 1),
-            nqoi * (nmodels - 1) + nqsq * (nmodels - 1),
-        ),
-        dtype=bkd.real_dtype(),
-    )
-    cf = bkd.empty((stride, stride * (nmodels - 1)), dtype=bkd.real_dtype())
-    for ii in range(nmodels - 1):
+    nblocks = nmodels - 1
+    if nblocks == 0:
+        return (
+            bkd.zeros((0, 0), dtype=bkd.real_dtype()),
+            bkd.zeros((stride, 0), dtype=bkd.real_dtype()),
+        )
+
+    def mean_var_block(ii: int, jj: int) -> Array:
+        # Gmat[ii, jj] times B between the means of model ii + 1 and the
+        # variances of model jj + 1.
+        B_ij = B[(ii + 1) * nqoi : (ii + 2) * nqoi, (jj + 1) * nqsq : (jj + 2) * nqsq]
+        return Gmat[ii, jj] * B_ij
+
+    # Each model contributes a mean row and a variance row of blocks.
+    CF_rows: List[List[Array]] = []
+    for ii in range(nblocks):
+        mean_row: List[Array] = []
+        var_row: List[Array] = []
+        for jj in range(nblocks):
+            mean_row += [
+                CF_mean[ii * nqoi : (ii + 1) * nqoi, jj * nqoi : (jj + 1) * nqoi],
+                mean_var_block(ii, jj),
+            ]
+            var_row += [
+                mean_var_block(jj, ii).T,
+                CF_var[ii * nqsq : (ii + 1) * nqsq, jj * nqsq : (jj + 1) * nqsq],
+            ]
+        CF_rows += [mean_row, var_row]
+
+    cf_top: List[Array] = []
+    cf_bottom: List[Array] = []
+    for ii in range(nblocks):
         B_0i = B[0:nqoi, (ii + 1) * nqsq : (ii + 2) * nqsq]
         B_0i_T = B.T[0:nqsq, (ii + 1) * nqoi : (ii + 2) * nqoi]
-        cf[0:nqoi, ii * stride : ii * stride + nqoi] = cf_mean[
-            :, ii * nqoi : (ii + 1) * nqoi
-        ]
-        cf[0:nqoi, ii * stride + nqoi : (ii + 1) * stride] = gvec[ii] * B_0i
-        cf[nqoi:stride, ii * stride : ii * stride + nqoi] = gvec[ii] * B_0i_T
-        cf[nqoi:stride, ii * stride + nqoi : (ii + 1) * stride] = cf_var[
-            :, ii * nqsq : (ii + 1) * nqsq
-        ]
-        for jj in range(nmodels - 1):
-            B_ij = B[
-                (ii + 1) * nqoi : (ii + 2) * nqoi,
-                (jj + 1) * nqsq : (jj + 2) * nqsq,
-            ]
-            CF[
-                ii * stride : ii * stride + nqoi,
-                jj * stride : jj * stride + nqoi,
-            ] = CF_mean[ii * nqoi : (ii + 1) * nqoi, jj * nqoi : (jj + 1) * nqoi]
-            CF[
-                ii * stride : ii * stride + nqoi,
-                jj * stride + nqoi : (jj + 1) * stride,
-            ] = Gmat[ii, jj] * B_ij
-            CF[
-                jj * stride + nqoi : (jj + 1) * stride,
-                ii * stride : ii * stride + nqoi,
-            ] = bkd.copy(
-                CF[
-                    ii * stride : ii * stride + nqoi,
-                    jj * stride + nqoi : (jj + 1) * stride,
-                ]
-            ).T
-            CF[
-                ii * stride + nqoi : (ii + 1) * stride,
-                jj * stride + nqoi : (jj + 1) * stride,
-            ] = CF_var[ii * nqsq : (ii + 1) * nqsq, jj * nqsq : (jj + 1) * nqsq]
-    return CF, cf
+        cf_top += [cf_mean[:, ii * nqoi : (ii + 1) * nqoi], gvec[ii] * B_0i]
+        cf_bottom += [gvec[ii] * B_0i_T, cf_var[:, ii * nqsq : (ii + 1) * nqsq]]
+    return bkd.block(CF_rows), bkd.block([cf_top, cf_bottom])
 
 
 def _V_entry(cov: Array, bkd: Backend[Array]) -> Array:
@@ -551,17 +571,15 @@ def _get_B_from_pilot(pilot_values: Array, nmodels: int, bkd: Backend[Array]) ->
         B matrix. Shape: (nqoi*nmodels, nqoi^2*nmodels)
     """
     nqoi = pilot_values.shape[0] // nmodels
-    B: List[List[Optional[Array]]] = [
-        [None for jj in range(nmodels)] for ii in range(nmodels)
+    model_values = [
+        pilot_values[ii * nqoi : (ii + 1) * nqoi, :] for ii in range(nmodels)
     ]
-    for ii in range(nmodels):
-        pilot_values_ii = pilot_values[ii * nqoi : (ii + 1) * nqoi, :]
-        B[ii][ii] = _B_entry(pilot_values_ii, pilot_values_ii, bkd)
-        for jj in range(ii + 1, nmodels):
-            pilot_values_jj = pilot_values[jj * nqoi : (jj + 1) * nqoi, :]
-            B[ii][jj] = _B_entry(pilot_values_ii, pilot_values_jj, bkd)
-            B[jj][ii] = _B_entry(pilot_values_jj, pilot_values_ii, bkd)
-    return bkd.block(B)  # type: ignore
+    return bkd.block(
+        [
+            [_B_entry(model_values[ii], model_values[jj], bkd) for jj in range(nmodels)]
+            for ii in range(nmodels)
+        ]
+    )
 
 
 def _nqoi_nqoi_subproblem(
@@ -572,39 +590,35 @@ def _nqoi_nqoi_subproblem(
     qoi_idx: Array,
     bkd: Backend[Array],
 ) -> Array:
-    nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
-    C_new = bkd.empty((nsub_models * nsub_qoi, nsub_models * nsub_qoi))
-    # We must iterate and assign because index_update only does one at a time
-    # and we want to preserve autograd if possible, although here we are
-    # building a new matrix.
-    # Actually, fancy indexing might be better if supported.
-    # But C_new[cnt1, cnt2] = C[idx1, idx2] is what was there.
-    # To keep it backend-agnostic and potentially autograd-friendly,
-    # we should use bkd.zeros and bkd.index_update or similar if we can,
-    # but the current way is what was there.
-    # Given the constraint "avoiding to_numpy() for computation" and
-    # "do not use float(), int(), or .item()", let's use what's safest.
-    # But Array doesn't necessarily support __setitem__ with autograd.
-    # Wait, the prompt says "Ensuring all class instance variables are private
-    # and have proper type hints."
+    rows = _qoi_positions(model_idx, qoi_idx, nqoi, bkd)
+    return _gather(C, rows, rows, bkd)
 
-    # Let's try to use fancy indexing if possible, but the original loop
-    # might be more compatible with some backends.
-    # However, bkd.empty and then assignment is usually not autograd friendly.
-    # But pilot quantities are often not part of the autograd graph.
 
-    cnt1 = 0
-    for jj1 in model_idx:
-        for kk1 in qoi_idx:
-            cnt2 = 0
-            idx1 = bkd.to_int(jj1 * nqoi + kk1)
-            for jj2 in model_idx:
-                for kk2 in qoi_idx:
-                    idx2 = bkd.to_int(jj2 * nqoi + kk2)
-                    C_new[cnt1, cnt2] = C[idx1, idx2]
-                    cnt2 += 1
-            cnt1 += 1
-    return C_new
+def _qoi_positions(
+    model_idx: Array, qoi_idx: Array, nqoi: int, bkd: Backend[Array]
+) -> List[int]:
+    """Rows of the selected (model, QoI) pairs, model-major."""
+    return [bkd.to_int(jj * nqoi + kk) for jj in model_idx for kk in qoi_idx]
+
+
+def _qoisq_positions(
+    model_idx: Array, qoi_idx: Array, nqoi: int, bkd: Backend[Array]
+) -> List[int]:
+    """Rows of the selected (model, QoI, QoI) triples, model-major."""
+    return [
+        bkd.to_int(jj * nqoi**2 + kk * nqoi + ll)
+        for jj in model_idx
+        for kk in qoi_idx
+        for ll in qoi_idx
+    ]
+
+
+def _gather(A: Array, rows: List[int], cols: List[int], bkd: Backend[Array]) -> Array:
+    """The submatrix of ``A`` at ``rows`` x ``cols``."""
+    index = bkd.index_dtype()
+    return _fancy_index_2d(
+        A, bkd.asarray(rows, dtype=index), bkd.asarray(cols, dtype=index)
+    )
 
 
 def _nqoisq_nqoisq_subproblem(
@@ -615,22 +629,8 @@ def _nqoisq_nqoisq_subproblem(
     qoi_idx: Array,
     bkd: Backend[Array],
 ) -> Array:
-    nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
-    V_new = bkd.empty((nsub_models * nsub_qoi**2, nsub_models * nsub_qoi**2))
-    cnt1 = 0
-    for jj1 in model_idx:
-        for kk1 in qoi_idx:
-            for ll1 in qoi_idx:
-                cnt2 = 0
-                idx1 = bkd.to_int(jj1 * nqoi**2 + kk1 * nqoi + ll1)
-                for jj2 in model_idx:
-                    for kk2 in qoi_idx:
-                        for ll2 in qoi_idx:
-                            idx2 = bkd.to_int(jj2 * nqoi**2 + kk2 * nqoi + ll2)
-                            V_new[cnt1, cnt2] = V[idx1, idx2]
-                            cnt2 += 1
-                cnt1 += 1
-    return V_new
+    rows = _qoisq_positions(model_idx, qoi_idx, nqoi, bkd)
+    return _gather(V, rows, rows, bkd)
 
 
 def _nqoi_nqoisq_subproblem(
@@ -641,21 +641,12 @@ def _nqoi_nqoisq_subproblem(
     qoi_idx: Array,
     bkd: Backend[Array],
 ) -> Array:
-    nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
-    B_new = bkd.empty((nsub_models * nsub_qoi, nsub_models * nsub_qoi**2))
-    cnt1 = 0
-    for jj1 in model_idx:
-        for kk1 in qoi_idx:
-            cnt2 = 0
-            idx1 = bkd.to_int(jj1 * nqoi + kk1)
-            for jj2 in model_idx:
-                for kk2 in qoi_idx:
-                    for ll2 in qoi_idx:
-                        idx2 = bkd.to_int(jj2 * nqoi**2 + kk2 * nqoi + ll2)
-                        B_new[cnt1, cnt2] = B[idx1, idx2]
-                        cnt2 += 1
-            cnt1 += 1
-    return B_new
+    return _gather(
+        B,
+        _qoi_positions(model_idx, qoi_idx, nqoi, bkd),
+        _qoisq_positions(model_idx, qoi_idx, nqoi, bkd),
+        bkd,
+    )
 
 
 def _ncovariance_stats(nqoi: int) -> int:
