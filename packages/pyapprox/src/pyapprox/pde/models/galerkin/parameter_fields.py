@@ -31,12 +31,14 @@ from pyapprox.ode.residual_derivatives import (
 )
 from pyapprox.ode.state_derivatives import StateStateHVPFn
 from pyapprox.pde.parameterizations.derivatives import (
-    InitialParamHVPFn,
-    InitialParamJacobianFn,
     ParamDerivatives,
     ParamHVPFn,
     ParamJacobianFn,
     ParamJacobianProtocol,
+)
+from pyapprox.pde.parameterizations.initial_value import (
+    InitialParamHVPAt,
+    InitialParamJacobianAt,
 )
 from pyapprox.pde.parameterizations.parameter_state import ParameterState
 from pyapprox.util.backends.protocols import Array, Backend
@@ -112,31 +114,6 @@ class _ParamJacobianAt(Generic[Array]):
             self._params,
             self._states,
         )
-
-
-class _InitialParamJacobianAt(Generic[Array]):
-    """``() -> dy_0/dp`` at the current parameters."""
-
-    def __init__(
-        self, fn: InitialParamJacobianFn[Array], parameters: ParameterState[Array]
-    ) -> None:
-        self._fn, self._parameters = fn, parameters
-
-    def __call__(self) -> Array:
-        return self._fn(self._parameters.current())
-
-
-class _InitialParamHVPAt(Generic[Array]):
-    """``(weight, vec) -> sum_i weight_i (d^2 y_0,i/dp^2) vec`` at the
-    current parameters."""
-
-    def __init__(
-        self, fn: InitialParamHVPFn[Array], parameters: ParameterState[Array]
-    ) -> None:
-        self._fn, self._parameters = fn, parameters
-
-    def __call__(self, weight: Array, vec: Array) -> Array:
-        return self._fn(self._parameters.current(), weight, vec)
 
 
 class _ParamHVPAt(Generic[Array]):
@@ -232,7 +209,7 @@ def residual_derivatives(
                 "independent of the parameters (initial_state=STATED_ZERO)"
             )
         initial = dense_operator(
-            _InitialParamJacobianAt(initial_param_jacobian, parameters),
+            InitialParamJacobianAt(initial_param_jacobian, parameters),
             params,
             states,
             bkd,
@@ -242,7 +219,7 @@ def residual_derivatives(
             None
             if initial_param_hvp is None
             else matrix_free_initial_state_curvature(
-                _InitialParamHVPAt(initial_param_hvp, parameters), params, bkd
+                InitialParamHVPAt(initial_param_hvp, parameters), params, bkd
             )
         )
     param_param_hvp = param_derivatives.param_param_hvp

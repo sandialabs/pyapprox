@@ -28,3 +28,27 @@ def owns(owner: object, target: object) -> bool:
     if target is owner:
         return True
     return isinstance(owner, OwnerProtocol) and owner.owns(target)
+
+
+class Owners:
+    """Several owners as one: it holds whatever any of them holds.
+
+    A problem's parameterization may write objects that no single part of
+    the problem holds, a transient problem's initial value beside its
+    system, say; the problem is checked as the owners together.
+
+    Parameters
+    ----------
+    *owners : object
+        The owners, each checked with :func:`owns`.
+    """
+
+    def __init__(self, *owners: object) -> None:
+        self._owners = owners
+
+    def owns(self, target: object) -> bool:
+        return any(owns(owner, target) for owner in self._owners)
+
+    def __repr__(self) -> str:
+        names = ", ".join(type(owner).__name__ for owner in self._owners)
+        return f"{type(self).__name__}({names})"
