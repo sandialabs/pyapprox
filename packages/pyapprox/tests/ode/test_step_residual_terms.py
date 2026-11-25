@@ -111,7 +111,7 @@ class _Case(Generic[Array]):
         prey = LastBlock(
             StateEntries(self.bkd, 2, [0]), self.unconstrained.residual_space()
         )
-        return StepResidualTerm(self.unconstrained, prey)
+        return StepResidualTerm.every_step(self.unconstrained, prey)
 
 
 class TestTheFlux:
@@ -225,9 +225,11 @@ class TestTheFlux:
         ) -> LastBlock[Array, Array]:
             return row(step % 2)
 
-        term = StepResidualTerm.per_step(case.unconstrained, observations, 1)
+        term = StepResidualTerm(case.unconstrained, observations, 1)
         assert term.nqoi() == 1
-        fixed = [StepResidualTerm(case.unconstrained, row(e)) for e in (0, 1)]
+        fixed = [
+            StepResidualTerm.every_step(case.unconstrained, row(e)) for e in (0, 1)
+        ]
         for step in range(case.store.nsteps()):
             window = case.window(case.store, step)
             bkd.assert_allclose(
@@ -247,20 +249,28 @@ class TestTheFlux:
             )
             return checker.check(functional, case.store, param=case.param).failures()
 
+        # Tightens to failures(term) == [] once the checker accepts an
+        # exactly linear block.
         known = [failures(constant) for constant in fixed]
         for failure in failures(term):
             step = int(failure.split("@")[1].split(".")[0])
             assert failure in known[step % 2], failure
         with pytest.raises(ValueError, match="nobs"):
-            StepResidualTerm.per_step(case.unconstrained, observations, -1)
+            StepResidualTerm(case.unconstrained, observations, -1)
+        # An observation of another count than nobs is refused at the step.
+        wrong = StepResidualTerm(case.unconstrained, observations, 2)
+        with pytest.raises(ValueError, match="step 0"):
+            wrong.value(0, case.window(case.store, 0))
 
     def test_refusals(self, bkd: Backend[Array]) -> None:
         case = _Case(bkd, backward_euler(), pinned=True)
         prey = LastBlock(StateEntries(bkd, 2, [0]), case.unconstrained.residual_space())
         with pytest.raises(TypeError, match="DifferentiableStepperProtocol"):
-            StepResidualTerm(object(), prey)  # type: ignore[arg-type]
+            StepResidualTerm.every_step(object(), prey)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="StateObservationProtocol"):
-            StepResidualTerm(case.unconstrained, object())  # type: ignore[arg-type]
+            StepResidualTerm.every_step(case.unconstrained, object())  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="callable"):
+            StepResidualTerm(case.unconstrained, prey, 1)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="StateObservationProtocol"):
             LastBlock(object(), case.unconstrained.residual_space())  # type: ignore[arg-type]
 
@@ -302,7 +312,7 @@ class TestOnAnOpaqueStack:
             _MockEntry(space, mock_sample(space.descriptor(), 5)),
             stepper.residual_space(),
         )
-        term: StepResidualTerm[MockVector, NDArray[Any]] = StepResidualTerm(
+        term: StepResidualTerm[MockVector, NDArray[Any]] = StepResidualTerm.every_step(
             stepper, observation
         )
         functional = TrajectoryFunctional.from_terms(bkd, 1, step_terms=(term,))

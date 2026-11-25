@@ -113,7 +113,9 @@ class _EveryStep(Generic[V, A]):
     """The same observation at every step; a class rather than a closure,
     so a term built on it pickles."""
 
-    def __init__(self, observation: StateObservationProtocol[BlockVector[V], A]):
+    def __init__(
+        self, observation: StateObservationProtocol[BlockVector[V], A]
+    ) -> None:
         self._observation = observation
 
     def __call__(
@@ -135,10 +137,18 @@ def _same(vector: BlockVector[V]) -> BlockVector[V]:
 
 
 class StepResidualTerm(Generic[V, A]):
-    r""":math:`\Omega(\tilde R_n)` at each step, :math:`\tilde R_n` the
+    r""":math:`\Omega_n(\tilde R_n)` at each step, :math:`\tilde R_n` the
     unconstrained stepper's residual at the solved trajectory's window, a
-    step term of ``observation.nobs()`` entries (see the module
-    docstring).
+    step term of ``nobs`` entries (see the module docstring).
+
+    ``observations(step, window)`` is :math:`\Omega_n`, which may depend
+    on the step (weights that depend on its size or time, say).
+    :meth:`every_step` builds the term for one observation at every step.
+    The callable is called several times per step (the value, the
+    unknown's and each lag's and the parameters' derivatives, each
+    curvature), so it should be cheap or cache by step. A closure makes
+    the term unpicklable; pass an instance of a module-level class to
+    keep it picklable.
 
     Parameters
     ----------
@@ -146,56 +156,23 @@ class StepResidualTerm(Generic[V, A]):
         The unconstrained stepper: the solved stepper's method on the
         system before its rows were replaced, reading the same
         parameters.
-    observation : StateObservationProtocol
-        :math:`\Omega`, on the step residual (a block vector of the
-        stepper's residual space), e.g. :class:`LastBlock`; the same at
-        every step. :meth:`per_step` takes one that varies by step.
+    observations : StepObservationFn
+        :math:`\Omega_n` for each step, on the step residual (a block
+        vector of the stepper's residual space), e.g. :class:`LastBlock`.
+    nobs : int
+        The number of entries of every :math:`\Omega_n`; :meth:`value`
+        refuses an observation of another count.
 
     Raises
     ------
     TypeError
-        If ``stepper`` or ``observation`` does not satisfy its protocol.
+        If ``stepper`` does not satisfy its protocol or ``observations``
+        is not callable.
+    ValueError
+        If ``nobs`` is negative.
     """
 
     def __init__(
-        self,
-        stepper: DifferentiableStepperProtocol[V, A],
-        observation: StateObservationProtocol[BlockVector[V], A],
-    ) -> None:
-        if not isinstance(observation, StateObservationProtocol):
-            raise TypeError(
-                "observation must satisfy StateObservationProtocol, got "
-                f"{type(observation).__name__}"
-            )
-
-        self._setup(stepper, _EveryStep(observation), observation.nobs())
-
-    @classmethod
-    def per_step(
-        cls,
-        stepper: DifferentiableStepperProtocol[V, A],
-        observations: StepObservationFn[V, A],
-        nobs: int,
-    ) -> "StepResidualTerm[V, A]":
-        r""":math:`\Omega_n(\tilde R_n)` with an observation per step:
-        ``observations(step, window)`` is :math:`\Omega_n`, of ``nobs``
-        entries at every step (weights that depend on the step's size or
-        time, say).
-
-        Raises
-        ------
-        TypeError
-            If ``stepper`` does not satisfy its protocol.
-        ValueError
-            If ``nobs`` is negative.
-        """
-        if nobs < 0:
-            raise ValueError(f"nobs must be nonnegative, got {nobs}")
-        term: StepResidualTerm[V, A] = cls.__new__(cls)
-        term._setup(stepper, observations, nobs)
-        return term
-
-    def _setup(
         self,
         stepper: DifferentiableStepperProtocol[V, A],
         observations: StepObservationFn[V, A],
@@ -206,6 +183,13 @@ class StepResidualTerm(Generic[V, A]):
                 "stepper must satisfy DifferentiableStepperProtocol, got "
                 f"{type(stepper).__name__}"
             )
+        if not callable(observations):
+            raise TypeError(
+                "observations must be callable as (step, window), got "
+                f"{type(observations).__name__}"
+            )
+        if nobs < 0:
+            raise ValueError(f"nobs must be nonnegative, got {nobs}")
         self._stepper, self._at, self._nobs = stepper, observations, nobs
         self._derivatives: StepTermDerivatives[V, A] = (
             StepTermDerivatives.second_order(
@@ -222,11 +206,40 @@ class StepResidualTerm(Generic[V, A]):
             )
         )
 
+    @classmethod
+    def every_step(
+        cls,
+        stepper: DifferentiableStepperProtocol[V, A],
+        observation: StateObservationProtocol[BlockVector[V], A],
+    ) -> "StepResidualTerm[V, A]":
+        r""":math:`\Omega(\tilde R_n)` with the same observation at every
+        step.
+
+        Raises
+        ------
+        TypeError
+            If ``stepper`` or ``observation`` does not satisfy its protocol.
+        """
+        if not isinstance(observation, StateObservationProtocol):
+            raise TypeError(
+                "observation must satisfy StateObservationProtocol, got "
+                f"{type(observation).__name__}"
+            )
+        return cls(stepper, _EveryStep(observation), observation.nobs())
+
     def nqoi(self) -> int:
         return self._nobs
 
     def value(self, step: int, window: StepWindow[V]) -> A:
-        return self._at(step, window).apply(self._stepper.step_residual(window))
+        """Raises ValueError if the step's observation has another count
+        than ``nobs``."""
+        observation = self._at(step, window)
+        if observation.nobs() != self._nobs:
+            raise ValueError(
+                f"the observation of step {step} has {observation.nobs()} "
+                f"entries, not {self._nobs}"
+            )
+        return observation.apply(self._stepper.step_residual(window))
 
     def derivatives(self) -> StepTermDerivatives[V, A]:
         return self._derivatives

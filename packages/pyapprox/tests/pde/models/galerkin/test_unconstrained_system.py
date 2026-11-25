@@ -203,7 +203,9 @@ class _Case:
             self.heat.system.nstates(),
             [int(dof) for dof in self.heat.ends],
         )
-        return StepResidualTerm(stepper, LastBlock(ends, stepper.residual_space()))
+        return StepResidualTerm.every_step(
+            stepper, LastBlock(ends, stepper.residual_space())
+        )
 
     def functional(self) -> TrajectoryFunctional[_Np, _Np]:
         """Each end's flux, summed over the steps: two entries, totaled by
@@ -284,9 +286,7 @@ class TestTheRightHandSide:
             bkd.assert_allclose(zeroed[case.heat.ends], bkd.zeros((2, 1)))
             assert float(np.max(np.abs(applied[case.heat.ends]))) > 1e-3
 
-    def test_its_bundle_passes_the_residual_checker(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_its_bundle_passes_the_residual_checker(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         case = _Case(bkd, backward_euler(), final_time=_DELTAT)
         raw = case.unconstrained.system().rhs
@@ -336,7 +336,8 @@ class TestTheRightHandSide:
             GalerkinUnconstrainedRightHandSide(heat.system)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="ParameterState"):
             GalerkinUnconstrainedRightHandSide(
-                discretization, heat.parameterization  # type: ignore[arg-type]
+                discretization,
+                heat.parameterization,  # type: ignore[arg-type]
             )
         with pytest.raises(ValueError, match="does not hold"):
             GalerkinUnconstrainedRightHandSide(
@@ -410,9 +411,7 @@ class TestTheInitialStateChoice:
         state = bkd.asarray(np.linspace(0.1, 0.9, nstates))
         assert float(np.max(np.abs(bundle.param(state, _TIME).apply(direction)))) > 0
 
-    def test_by_default_it_is_the_parameterizations(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_by_default_it_is_the_parameterizations(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         case = _Case(bkd, backward_euler(), final_time=_DELTAT)
         bundle = case.unconstrained.system().rhs.derivatives()
@@ -514,9 +513,7 @@ class TestTheFlux:
             rtol=1e-10,
         )
 
-    def test_the_solved_systems_residual_misses_it(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
+    def test_the_solved_systems_residual_misses_it(self, numpy_bkd: NumpyBkd) -> None:
         """Wrong-model control: the solved stepper's residual vanishes on
         the pinned rows, so the same term there reads no flux."""
         case = _Case(numpy_bkd, backward_euler())

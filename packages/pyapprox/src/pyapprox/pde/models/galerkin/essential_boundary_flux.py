@@ -109,9 +109,9 @@ class _EssentialRowWeights(Generic[Array]):
     def adjoint(self, qoi: int) -> Array:
         """QoI ``qoi``'s weights placed on all rows, zero off the
         selection. Shape: ``(nstates,)``."""
-        out = self._bkd.copy(self._bkd.zeros((self._nstates,)))
-        out[self._dofs] = self._weights[qoi]
-        return out
+        return self._bkd.index_update(
+            self._bkd.zeros((self._nstates,)), self._dofs, self._weights[qoi]
+        )
 
 
 def essential_boundary_flux(
@@ -219,7 +219,9 @@ def time_integrated_essential_boundary_flux(
     rows = system.essential_rows.rows()
     observation = RowWeights(bkd, rows, _essential_selection(bkd, rows, dofs, weights))
     stepper = method.stepper(system.unconstrained, setups)
-    return StepResidualTerm(stepper, LastBlock(observation, stepper.residual_space()))
+    return StepResidualTerm.every_step(
+        stepper, LastBlock(observation, stepper.residual_space())
+    )
 
 
 def _essential_selection(
@@ -249,8 +251,7 @@ def _essential_selection(
             f"{tuple(weights.shape)}"
         )
     # The 0/1 selection S of the DOFs, from plain integers (constant data).
-    selection = bkd.copy(bkd.zeros((nstates, len(dof_list))))
-    selection[dof_list, list(range(len(dof_list)))] = 1.0
+    selection = bkd.eye(nstates)[:, dof_list]
     # Zeroing the essential rows leaves a DOF's column nonzero exactly when
     # that DOF is not essential.
     unpinned = rows.zero_rows(selection)
