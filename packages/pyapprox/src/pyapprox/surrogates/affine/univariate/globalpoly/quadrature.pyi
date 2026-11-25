@@ -2,12 +2,15 @@
 # ruff: noqa
 import math
 from typing import Generic
+from typing import Protocol
 from typing import Tuple
+from typing import runtime_checkable
 from pyapprox.polynomials.univariate.globalpoly.orthopoly_base import OrthonormalPolynomial1D
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.protocols import Backend
+from pyapprox.polynomials.univariate.globalpoly.quadrature import LobattoPolynomial as LobattoPolynomial
 from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussQuadratureRule as GaussQuadratureRule
 from pyapprox.polynomials.univariate.globalpoly.quadrature import GaussLobattoQuadratureRule as GaussLobattoQuadratureRule
 from pyapprox.polynomials.univariate.globalpoly.quadrature import _is_power_of_two as _is_power_of_two
 from pyapprox.polynomials.univariate.globalpoly.quadrature import ClenshawCurtisQuadratureRule as ClenshawCurtisQuadratureRule
-__all__ = ['GaussQuadratureRule', 'GaussLobattoQuadratureRule', '_is_power_of_two', 'ClenshawCurtisQuadratureRule']
+__all__ = ['LobattoPolynomial', 'GaussQuadratureRule', 'GaussLobattoQuadratureRule', '_is_power_of_two', 'ClenshawCurtisQuadratureRule']
