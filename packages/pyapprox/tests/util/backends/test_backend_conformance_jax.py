@@ -9,6 +9,7 @@ JAX is optional, so the whole module is skipped without it.
 """
 
 import pickle
+from typing import Callable
 
 import pytest
 
@@ -28,9 +29,14 @@ from tests._helpers.backend_conformance import (
 
 _ON_JAX = [case for case in CASES if case.method not in NOT_YET_ON_JAX]
 
+# Annotated alias: jax.config.update is untyped in jax's stubs.
+_update_config: Callable[[str, bool], None] = jax.config.update
+
 
 @pytest.fixture
 def jax_bkd() -> JaxBkd:
+    # 64-bit types are the caller's to enable; JaxBkd only checks them.
+    _update_config("jax_enable_x64", True)
     return JaxBkd()
 
 

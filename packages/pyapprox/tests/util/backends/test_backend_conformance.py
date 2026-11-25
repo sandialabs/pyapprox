@@ -69,9 +69,10 @@ def _compiling_torch_bkd() -> ConformanceBackend[Any]:
 
 
 def _jax_bkd() -> ConformanceBackend[Any]:
-    pytest.importorskip("jax")
+    jax = pytest.importorskip("jax")
     from pyapprox.util.backends.jax import JaxBkd
 
+    jax.config.update("jax_enable_x64", True)
     return JaxBkd()
 
 

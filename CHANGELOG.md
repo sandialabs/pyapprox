@@ -85,6 +85,11 @@ section is renamed to the version number when a release is tagged (see
   `torch.zeros(n)`) gets torch's own default, float32, again; build
   arrays through the backend (`bkd.asarray`, `bkd.zeros`) or pass
   `dtype=bkd.real_dtype()`.
+- The experimental `JaxBkd` takes `precision=` and `device=` like the
+  other backends and no longer enables `jax_enable_x64` itself: double
+  precision (the default) requires the caller to set it
+  (`jax.config.update("jax_enable_x64", True)`) and raises otherwise;
+  single precision runs either way.
 - `TorchBkd.asarray` without a `dtype` coerces Python data by kind, as
   `NumpyBkd` does: ints become the index dtype (int64), bools stay
   bool, complex numbers the complex dtype; an existing array keeps its

@@ -6,9 +6,11 @@ pass on JAX; the rest are listed in the conformance suite's
 ``Backend``, is not exported, and joins the general ``bkd`` test fixture
 only when that list is empty.
 
-Constructing a ``JaxBkd`` enables 64-bit types process-wide
-(``jax_enable_x64``), as ``TorchBkd`` sets torch's default dtype: without
-it JAX silently computes in 32 bits.
+``JaxBkd`` never changes JAX's process-wide configuration. Double
+precision needs 64-bit types, which JAX enables only process-wide
+(``jax.config.update("jax_enable_x64", True)``, before any array is
+made): the caller's choice, so ``JaxBkd(precision=Precision.DOUBLE)``
+refuses to start without it rather than turning it on.
 """
 
 import functools
@@ -93,22 +95,75 @@ def _width_pair(dtype: Any) -> Tuple[Any, Any]:
 _JitKey = Tuple[Callable[..., Any], Tuple[str, ...], bool]
 
 
+def _resolve_device(device: Optional[str]) -> "jax.Device":
+    """The JAX device named ``device`` ("cpu", "gpu", "tpu", optionally
+    with ":index"), or JAX's default device for ``None``."""
+    if device is None:
+        return jax.devices()[0]
+    platform, _, index = device.partition(":")
+    try:
+        candidates = jax.devices(platform)
+    except RuntimeError as err:
+        raise ValueError(f"JAX has no {platform!r} device") from err
+    position = int(index) if index else 0
+    if position >= len(candidates):
+        raise ValueError(
+            f"JAX has {len(candidates)} {platform!r} device(s), got index {position}"
+        )
+    return candidates[position]
+
+
+def _device_name(device: "jax.Device") -> str:
+    # The platform alone names its first device, as torch's "cpu" does.
+    return device.platform if device.id == 0 else f"{device.platform}:{device.id}"
+
+
 class JaxBkd:
     """JAX arrays behind the ``Backend`` method names (partial)."""
 
-    def __init__(self) -> None:
-        jax.enable_x64.set_global(True)
+    def __init__(
+        self,
+        *,
+        precision: Precision = Precision.DOUBLE,
+        device: Optional[str] = None,
+    ) -> None:
+        """``precision`` sets the real working dtype (float32 or float64)
+        and with it the complex one; ``device`` ("cpu", "gpu", "tpu",
+        optionally ":index") defaults to JAX's default device.
+
+        Double precision needs ``jax_enable_x64``, which only the caller
+        may set (it is process-wide). The index dtype is int64 with it
+        and int32 without, read here."""
+        if not isinstance(precision, Precision):
+            raise TypeError(
+                f"precision must be a Precision, got {type(precision).__name__}"
+            )
+        x64 = bool(jax.config.jax_enable_x64)
+        if precision is Precision.DOUBLE and not x64:
+            raise ValueError(
+                "JAX double precision needs 64-bit types: call "
+                'jax.config.update("jax_enable_x64", True) before creating '
+                "any array, or use Precision.SINGLE"
+            )
+        self._precision = precision
+        self._device_spec = device
+        self._device = _resolve_device(device)
+        single = precision is Precision.SINGLE
+        self._dtype = jnp.float32 if single else jnp.float64
+        self._complex_dtype = jnp.complex64 if single else jnp.complex128
+        self._index_dtype = jnp.int64 if x64 else jnp.int32
         self._jit_cache: Dict[_JitKey, Callable[..., Any]] = {}
 
     def __getstate__(self) -> Dict[str, Any]:
-        # Compiled kernels do not pickle; the cache is rebuilt on use.
+        # Compiled kernels and JAX devices do not pickle; both are rebuilt.
         state = dict(self.__dict__)
         state["_jit_cache"] = {}
+        del state["_device"]
         return state
 
     def __setstate__(self, state: Dict[str, Any]) -> None:
-        jax.enable_x64.set_global(True)
         self.__dict__.update(state)
+        self._device = _resolve_device(self._device_spec)
 
     def jit(
         self,
@@ -130,64 +185,62 @@ class JaxBkd:
 
     # ---- dtypes and conversion
 
-    # Always double precision: x64 is enabled on construction.
+    def precision(self) -> Precision:
+        return self._precision
 
-    @staticmethod
-    def precision() -> Precision:
-        return Precision.DOUBLE
-
-    @staticmethod
-    def device() -> str:
-        # The platform JAX places arrays on: "cpu", "gpu" or "tpu".
-        return str(jax.devices()[0].platform)
+    def device(self) -> str:
+        return _device_name(self._device)
 
     def __repr__(self) -> str:
-        return f"JaxBkd(precision=double, device={self.device()})"
+        return f"JaxBkd(precision={self._precision.value}, device={self.device()})"
+
+    def _identity(self) -> Tuple[Precision, str]:
+        return (self._precision, self.device())
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, JaxBkd)
+        return isinstance(other, JaxBkd) and self._identity() == other._identity()
 
     def __hash__(self) -> int:
-        return hash(JaxBkd)
+        return hash((JaxBkd, self._identity()))
 
     def is_compatible(self, other: object) -> bool:
-        # One configuration: double precision on JAX's default device.
-        return isinstance(other, JaxBkd)
+        # JAX has no compile switch, so compatibility is equality.
+        return self == other
 
     def replace(
         self, *, precision: Optional[Precision] = None, device: Optional[str] = None
     ) -> "JaxBkd":
-        if precision not in (None, Precision.DOUBLE) or device not in (
-            None,
-            self.device(),
-        ):
-            raise ValueError(
-                "JaxBkd runs double precision on JAX's default device only, "
-                f"got precision={precision}, device={device!r}"
-            )
-        return JaxBkd()
+        return JaxBkd(
+            precision=self._precision if precision is None else precision,
+            device=self.device() if device is None else device,
+        )
 
     def from_other(self, array: ArrayProtocol, src: Backend[Any]) -> jax.Array:
-        if isinstance(array, jax.Array) and self.is_compatible(src):
-            return array
+        if isinstance(array, jax.Array):
+            if self.is_compatible(src):
+                return array
+            # device_put and astype keep the array traceable across
+            # precision and device.
+            if jnp.issubdtype(array.dtype, jnp.complexfloating):
+                array = array.astype(self._complex_dtype)
+            elif jnp.issubdtype(array.dtype, jnp.floating):
+                array = array.astype(self._dtype)
+            placed: jax.Array = jax.device_put(array, self._device)
+            return placed
         # Another library: through NumPy, so not differentiable through.
         return self.array(src.to_numpy(array))
 
-    @staticmethod
-    def real_dtype() -> Any:
-        return jnp.float64
+    def real_dtype(self) -> Any:
+        return self._dtype
 
-    @staticmethod
-    def complex_dtype() -> Any:
-        return jnp.complex128
+    def complex_dtype(self) -> Any:
+        return self._complex_dtype
 
-    @staticmethod
-    def index_dtype() -> Any:
-        return jnp.int64
+    def index_dtype(self) -> Any:
+        return self._index_dtype
 
-    @staticmethod
-    def eps() -> float:
-        return float(np.finfo(np.float64).eps)
+    def eps(self) -> float:
+        return float(np.finfo(self._dtype).eps)
 
     @staticmethod
     def result_type(*arrays: jax.Array) -> Any:
@@ -215,21 +268,36 @@ class JaxBkd:
     def imag(array: jax.Array) -> jax.Array:
         return jnp.imag(array)
 
-    @staticmethod
-    def default_dtype() -> Any:
-        return jnp.float64
+    def default_dtype(self) -> Any:
+        return self._dtype
 
-    @staticmethod
-    def double_dtype() -> Any:
-        return jnp.float64
+    def double_dtype(self) -> Any:
+        return self._dtype
 
-    @staticmethod
-    def int64_dtype() -> Any:
-        return jnp.int64
+    def int64_dtype(self) -> Any:
+        return self._index_dtype
 
-    @staticmethod
-    def asarray(array: ArrayLike, dtype: Optional[Any] = None) -> jax.Array:
-        return jnp.asarray(array, dtype=dtype)
+    def _kind_dtype(self, dtype: Any) -> Any:
+        """The configured dtype of ``dtype``'s kind: real floating to the
+        real dtype, complex to the complex one, integer to the index
+        dtype; bool kept."""
+        if jnp.issubdtype(dtype, jnp.complexfloating):
+            return self._complex_dtype
+        if jnp.issubdtype(dtype, jnp.floating):
+            return self._dtype
+        if jnp.issubdtype(dtype, jnp.integer):
+            return self._index_dtype
+        return dtype
+
+    def asarray(self, array: ArrayLike, dtype: Optional[Any] = None) -> jax.Array:
+        if dtype is None and not hasattr(array, "dtype"):
+            # Python data is coerced by kind, read by NumPy at full width
+            # so a float is rounded once, to the configured precision.
+            host = np.asarray(array)
+            return jnp.asarray(
+                host, dtype=self._kind_dtype(host.dtype), device=self._device
+            )
+        return jnp.asarray(array, dtype=dtype, device=self._device)
 
     @staticmethod
     def to_numpy(array: jax.Array) -> NDArray[Any]:
@@ -256,12 +324,23 @@ class JaxBkd:
             strict=True,
         )
 
-    @staticmethod
-    def array(array: ArrayLike, dtype: Optional[Any] = None) -> jax.Array:
-        if dtype is None and not isinstance(array, jax.Array):
-            if np.issubdtype(np.asarray(array).dtype, np.floating):
-                dtype = jnp.float64
-        return jnp.array(array, dtype=dtype, copy=True)
+    def array(self, array: ArrayLike, dtype: Optional[Any] = None) -> jax.Array:
+        source = array if isinstance(array, jax.Array) else np.asarray(array)
+        if dtype is None:
+            # Precision is normalized and kind kept: real floating becomes
+            # the real working dtype, complex the complex one.
+            kind = source.dtype
+            if jnp.issubdtype(kind, jnp.complexfloating):
+                dtype = self._complex_dtype
+            elif jnp.issubdtype(kind, jnp.floating):
+                dtype = self._dtype
+            elif (
+                jnp.issubdtype(kind, jnp.integer)
+                and np.dtype(kind).itemsize > np.dtype(self._index_dtype).itemsize
+            ):
+                # Without 64-bit types JAX has no int64 to keep.
+                dtype = self._index_dtype
+        return jnp.array(source, dtype=dtype, copy=True, device=self._device)
 
     @staticmethod
     def array_type() -> type:
@@ -305,32 +384,32 @@ class JaxBkd:
 
     # ---- creation
 
-    @staticmethod
-    def zeros(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
-        return jnp.zeros(shape, dtype=dtype)
+    def _or_real(self, dtype: Optional[Any]) -> Any:
+        return self._dtype if dtype is None else dtype
 
-    @staticmethod
-    def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
-        return jnp.ones(shape, dtype=dtype)
+    def zeros(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
+        return jnp.zeros(shape, dtype=self._or_real(dtype), device=self._device)
 
-    @staticmethod
+    def ones(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
+        return jnp.ones(shape, dtype=self._or_real(dtype), device=self._device)
+
     def full(
-        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> jax.Array:
-        return jnp.full(shape, fill_value, dtype=dtype)
+        return jnp.full(
+            shape, fill_value, dtype=self._or_real(dtype), device=self._device
+        )
 
-    @staticmethod
-    def empty(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
-        return jnp.empty(shape, dtype=dtype)
+    def empty(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> jax.Array:
+        return jnp.empty(shape, dtype=self._or_real(dtype), device=self._device)
 
-    @staticmethod
     def eye(
-        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+        self, nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
     ) -> jax.Array:
-        return jnp.eye(nrows, ncols, dtype=dtype)
+        return jnp.eye(nrows, ncols, dtype=self._or_real(dtype), device=self._device)
 
-    @staticmethod
     def arange(
+        self,
         start: Union[int, float],
         /,
         stop: Optional[Union[int, float]] = None,
@@ -340,15 +419,19 @@ class JaxBkd:
     ) -> jax.Array:
         if stop is None:
             start, stop = 0, start
-        return jnp.arange(start, stop, step, dtype=dtype)
+        if dtype is None:
+            # Integer bounds give the index dtype, float bounds the real one.
+            integral = all(
+                isinstance(v, (int, np.integer)) for v in (start, stop, step)
+            )
+            dtype = self._index_dtype if integral else self._dtype
+        return jnp.arange(start, stop, step, dtype=dtype, device=self._device)
 
-    @staticmethod
-    def linspace(start: float, stop: float, num: int) -> jax.Array:
-        return jnp.linspace(start, stop, num)
+    def linspace(self, start: float, stop: float, num: int) -> jax.Array:
+        return jnp.linspace(start, stop, num, dtype=self._dtype, device=self._device)
 
-    @staticmethod
-    def logspace(start: float, stop: float, num: int) -> jax.Array:
-        return jnp.logspace(start, stop, num)
+    def logspace(self, start: float, stop: float, num: int) -> jax.Array:
+        return jnp.logspace(start, stop, num, dtype=self._dtype, device=self._device)
 
     @staticmethod
     def zeros_like(array: jax.Array, dtype: Optional[Any] = None) -> jax.Array:
@@ -737,11 +820,10 @@ class JaxBkd:
         p, lower, upper = jax.scipy.linalg.lu(array)
         return p, lower, upper
 
-    @staticmethod
-    def lu_factor(array: jax.Array) -> Tuple[jax.Array, jax.Array]:
+    def lu_factor(self, array: jax.Array) -> Tuple[jax.Array, jax.Array]:
         lu, pivots = jax.scipy.linalg.lu_factor(array)
         # Pivots in the index dtype; JAX gives LAPACK's int32.
-        return lu, pivots.astype(jnp.int64)
+        return lu, pivots.astype(self._index_dtype)
 
     @staticmethod
     def lu_solve(
@@ -917,10 +999,9 @@ class JaxBkd:
     def triu(array: jax.Array, k: int = 0) -> jax.Array:
         return jnp.triu(array, k)
 
-    @staticmethod
-    def tril_indices(n: int, k: int = 0) -> Tuple[jax.Array, jax.Array]:
+    def tril_indices(self, n: int, k: int = 0) -> Tuple[jax.Array, jax.Array]:
         rows, cols = jnp.tril_indices(n, k)
-        return rows.astype(jnp.int64), cols.astype(jnp.int64)
+        return rows.astype(self._index_dtype), cols.astype(self._index_dtype)
 
     @staticmethod
     def get_diagonal(
@@ -952,14 +1033,16 @@ class JaxBkd:
         check_orderable("argsort", jnp.iscomplexobj(array))
         return jnp.argsort(array, axis=axis, stable=True)
 
-    @staticmethod
     def searchsorted(
+        self,
         sorted_array: jax.Array,
         values: jax.Array,
         side: Literal["left", "right"] = "left",
     ) -> jax.Array:
         # In the index dtype; JAX gives int32 even with 64-bit types on.
-        return jnp.searchsorted(sorted_array, values, side=side).astype(jnp.int64)
+        return jnp.searchsorted(sorted_array, values, side=side).astype(
+            self._index_dtype
+        )
 
     @staticmethod
     def atleast_1d(array: jax.Array) -> jax.Array:

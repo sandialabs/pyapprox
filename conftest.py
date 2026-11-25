@@ -14,6 +14,7 @@ from pyapprox.util.backends.precision import Precision
 from tests._helpers.markers import matching_target
 
 if TYPE_CHECKING:
+    from pyapprox.util.backends.jax import JaxBkd
     from pyapprox.util.backends.torch import TorchBkd
 
 # ---------- env vars ----------
@@ -66,9 +67,11 @@ def bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
 
 def _configured_bkd(
     name: str, precision: Precision, device: str
-) -> Union[NumpyBkd, TorchBkd]:
+) -> Union[NumpyBkd, TorchBkd, JaxBkd]:
     if name == "NumpyBkd":
         return NumpyBkd(precision=precision)
+    if name == "JaxBkd":
+        return _configured_jax_bkd(precision, device)
     torch = pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
 
@@ -79,11 +82,23 @@ def _configured_bkd(
     return TorchBkd(precision=precision, device=device)
 
 
+def _configured_jax_bkd(precision: Precision, device: str) -> JaxBkd:
+    jax = pytest.importorskip("jax")
+    from pyapprox.util.backends.jax import JaxBkd
+
+    if device != "cpu" and not any(d.platform == device for d in jax.devices()):
+        pytest.skip(f"no JAX {device} device")
+    # 64-bit types are process-wide in JAX and the caller's to enable;
+    # the test session enables them once, as a user would.
+    jax.config.update("jax_enable_x64", True)
+    return JaxBkd(precision=precision, device=device)
+
+
 # The configurations config_bkd runs over: backend x precision x device.
 # MPS has no float64, so it runs single precision only.
 _CONFIGURATIONS: List[Tuple[str, Precision, str]] = [
     (name, precision, "cpu")
-    for name in ("NumpyBkd", "TorchBkd")
+    for name in ("NumpyBkd", "TorchBkd", "JaxBkd")
     for precision in (Precision.DOUBLE, Precision.SINGLE)
 ] + [
     ("TorchBkd", Precision.DOUBLE, "cuda"),
@@ -100,7 +115,7 @@ def _configuration_id(config: Tuple[str, Precision, str]) -> str:
 
 
 @pytest.fixture(params=_CONFIGURATIONS, ids=_configuration_id)
-def config_bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
+def config_bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd, JaxBkd]:
     """Opt-in backend fixture over every configuration (backend x
     precision x device); a library or device that is not available is
     skipped. The default ``bkd`` fixture stays double precision on the

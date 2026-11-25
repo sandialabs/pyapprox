@@ -149,15 +149,48 @@ class TestValidateBackends:
 
 
 class TestJax:
-    def test_one_configuration(self, numpy_bkd: NumpyBkd) -> None:
-        pytest.importorskip("jax")
+    """What JAX's process-wide 64-bit switch adds; the configurations
+    themselves run through config_bkd above."""
+
+    def test_double_needs_64_bit_types(self) -> None:
+        jax = pytest.importorskip("jax")
         from pyapprox.util.backends.jax import JaxBkd
 
-        jax_bkd = JaxBkd()
-        assert jax_bkd == JaxBkd()
-        assert jax_bkd.is_compatible(jax_bkd.replace())
-        with pytest.raises(ValueError, match="double precision"):
-            jax_bkd.replace(precision=Precision.SINGLE)
-        moved = jax_bkd.from_other(numpy_bkd.asarray([1.0, 2.0]), numpy_bkd)
-        assert moved.dtype == jax_bkd.real_dtype()
-        assert not numpy_bkd.is_compatible(jax_bkd)
+        with jax.enable_x64(False):
+            with pytest.raises(ValueError, match="jax_enable_x64"):
+                JaxBkd(precision=Precision.DOUBLE)
+
+    def test_single_runs_without_64_bit_types(self) -> None:
+        jax = pytest.importorskip("jax")
+        from pyapprox.util.backends.jax import JaxBkd
+
+        with jax.enable_x64(False):
+            bkd = JaxBkd(precision=Precision.SINGLE)
+            assert bkd.zeros((2,)).dtype == jax.numpy.float32
+            assert bkd.arange(3).dtype == bkd.index_dtype() == jax.numpy.int32
+            assert bkd.asarray([0.1]).dtype == jax.numpy.float32
+
+    def test_construction_leaves_the_switch_alone(self) -> None:
+        jax = pytest.importorskip("jax")
+        from pyapprox.util.backends.jax import JaxBkd
+
+        with jax.enable_x64(False):
+            JaxBkd(precision=Precision.SINGLE)
+            assert not jax.config.jax_enable_x64
+
+    def test_precision_change_keeps_the_trace(self, numpy_bkd: NumpyBkd) -> None:
+        jax = pytest.importorskip("jax")
+        from pyapprox.util.backends.jax import JaxBkd
+
+        jax.config.update("jax_enable_x64", True)
+        double = JaxBkd()
+        single = double.replace(precision=Precision.SINGLE)
+        assert not numpy_bkd.is_compatible(double)
+
+        def through_single(x: Array) -> Array:
+            narrowed = single.from_other(x, double)
+            return double.sum(double.from_other(narrowed * 2.0, single))
+
+        x = double.asarray([1.0, 2.0, 3.0])
+        gradient = jax.grad(through_single)(x)
+        double.assert_allclose(gradient, 2.0 * double.ones((3,)))
