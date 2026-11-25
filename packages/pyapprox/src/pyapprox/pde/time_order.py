@@ -22,11 +22,11 @@ mass ``[I 0; 0 M]``, constraints on both ``u`` and its rate, and an
 initial velocity. That is a second-order integration path in its own
 right, not a fix inside the guard.
 
-What lifts the refusal: a second-order integration path (Newmark or
-generalized-alpha, or the doubled first-order system) admits physics
+What lifts the refusal: a second-order integration path admits physics
 satisfying ``SecondOrderInTimeProtocol``; first-order paths keep
-refusing them. When that path exists, the last sentence of
-``second_order_in_time_refusal`` should name its entry point.
+refusing them, and ``second_order_in_time_refusal`` names the entry
+point of each such path: for collocation, the doubled first-order
+system of ``collocation_second_order_system``.
 """
 
 from typing import Protocol, runtime_checkable
@@ -63,9 +63,11 @@ def second_order_in_time_refusal(physics_name: str) -> str:
         f"{physics_name} is second order in time (rho u_tt = div sigma + "
         "f), but this transient path integrates the first-order system "
         "M du/dt = F(u, t): a viscous relaxation with no inertia or "
-        "density, not elastodynamics. Solve the steady problem instead; "
-        "elastodynamics needs second-order time integration, which no "
-        "transient path provides yet."
+        "density, not elastodynamics. Solve the steady problem instead, or "
+        "integrate the dynamics with second-order time integration: for a "
+        "collocation physics, collocation_second_order_system "
+        "(pyapprox.pde.models.collocation.second_order_system); no Galerkin "
+        "path provides it yet."
     )
 
 

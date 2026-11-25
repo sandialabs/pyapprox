@@ -78,6 +78,11 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     forcing : float, NodalCoefficientProtocol or callable, optional
         Forcing with the force components stacked, in the same forms but
         of length ndim*npts. Absent means none.
+    density : float, NodalCoefficientProtocol or callable, optional
+        The density :math:`\rho` of the dynamics :math:`\rho \ddot u =
+        \nabla \cdot \sigma + f`, in the same forms as the Lamé
+        parameters; read only by a second-order transient path. Absent
+        means none declared, and such a path refuses the physics.
     """
 
     def __init__(
@@ -87,6 +92,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         lamda: CoefficientInput[Array],
         mu: CoefficientInput[Array],
         forcing: Optional[CoefficientInput[Array]] = None,
+        density: Optional[CoefficientInput[Array]] = None,
     ):
         ndim = basis.ndim()
         if ndim not in (2, 3):
@@ -101,6 +107,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         self._checked_lamda = CheckedValues(self._lamda, self._check_lamda)
         self._checked_mu = CheckedValues(self._mu, self._check_mu)
         self._forcing = optional_nodal_coefficient(forcing, ndim * npts, bkd)
+        self._density = optional_nodal_coefficient(density, npts, bkd)
 
         # Precompute first-derivative matrices per dimension
         self._D: List[Array] = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
@@ -361,6 +368,34 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         order in time, so ``du/dt = div(sigma) + f`` is not its dynamics.
         """
         return second_order_in_time_refusal(type(self).__name__)
+
+    def interior_density_weights(self) -> Array:
+        r"""The nodal density :math:`\rho(x_i)`, repeated for each
+        displacement component: the weights of :math:`\ddot u` in
+        :math:`\mathrm{diag}(\rho)\, \ddot u = f(u, t)`. Shape: (ndim*npts,)
+
+        Raises
+        ------
+        ValueError
+            If no density was declared, it is declared time-dependent (the
+            mass is fixed for a system's life), or it is not positive
+            everywhere.
+        """
+        bkd = self._bkd
+        if self._density is None:
+            raise ValueError(
+                f"{type(self).__name__} declares no density; pass density= to "
+                "integrate its dynamics"
+            )
+        if self._density.is_time_dependent():
+            raise ValueError(
+                "the density is declared time-dependent, but the mass of a "
+                "second-order system is fixed for its life"
+            )
+        rho = self._density.values(0.0)
+        if not bkd.to_bool(bkd.all(rho > 0.0)):
+            raise ValueError("the density must be positive at every node")
+        return bkd.concatenate([rho] * self._ndim)
 
     # -- the interior operator (CollocationInteriorOperatorProtocol)
 
@@ -623,7 +658,6 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         """
         bkd = self._bkd
         npts = self.npts()
-        nbnd = bc_indices.shape[0]
         comp = bkd.to_int(bc_indices[0]) // npts
         mesh_idx = bc_indices - comp * npts
         if self._ndim == 3:
@@ -633,12 +667,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             for j in range(1, 3):
                 dt_dmu = dt_dmu + 2.0 * eps[comp][j][mesh_idx] * normals[:, j]
             dt_dlam = trace_b * normals[:, comp]
-            result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
-            for i in range(nbnd):
-                idx = bkd.to_int(mesh_idx[i])
-                result[i, idx] = dt_dmu[i]
-                result[i, npts + idx] = dt_dlam[i]
-            return result
+            return self._one_nonzero_per_block(mesh_idx, dt_dmu, dt_dlam)
         exx, exy, eyy = self._strains(state)
         exx_b = exx[mesh_idx]
         exy_b = exy[mesh_idx]
@@ -652,13 +681,18 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         else:
             dt_dmu = 2.0 * exy_b * nx + 2.0 * eyy_b * ny
             dt_dlam = trace_b * ny
+        return self._one_nonzero_per_block(mesh_idx, dt_dmu, dt_dlam)
 
-        result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
-        for i in range(nbnd):
-            idx = bkd.to_int(mesh_idx[i])
-            result[i, idx] = dt_dmu[i]
-            result[i, npts + idx] = dt_dlam[i]
-        return result
+    def _one_nonzero_per_block(
+        self, mesh_idx: Array, dt_dmu: Array, dt_dlam: Array
+    ) -> Array:
+        r"""Rows :math:`[\,\mathrm{diag}(t_\mu) E \;|\; \mathrm{diag}
+        (t_\lambda) E\,]`, :math:`E` selecting each row's node: one nonzero
+        in each of the mu and lambda blocks. Shape: (n_bc, 2*npts)"""
+        select = self._bkd.eye(self.npts())[mesh_idx]
+        return self._bkd.concatenate(
+            [dt_dmu[:, None] * select, dt_dlam[:, None] * select], axis=1
+        )
 
 
 def create_linear_elasticity(
@@ -667,6 +701,7 @@ def create_linear_elasticity(
     lamda: CoefficientInput[Array],
     mu: CoefficientInput[Array],
     forcing: Optional[CoefficientInput[Array]] = None,
+    density: Optional[CoefficientInput[Array]] = None,
 ) -> LinearElasticityPhysics[Array]:
     r"""Create linear elasticity physics.
 
@@ -682,10 +717,12 @@ def create_linear_elasticity(
         Shear modulus :math:`\mu`.
     forcing : float, NodalCoefficientProtocol or callable, optional
         Source term, components stacked.
+    density : float, NodalCoefficientProtocol or callable, optional
+        Density :math:`\rho`, read only by a second-order transient path.
 
     Returns
     -------
     LinearElasticityPhysics
         Linear elasticity physics instance.
     """
-    return LinearElasticityPhysics(basis, bkd, lamda, mu, forcing)
+    return LinearElasticityPhysics(basis, bkd, lamda, mu, forcing, density)

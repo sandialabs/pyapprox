@@ -117,8 +117,27 @@ def collocation_unconstrained_system(
             "(TransientInteriorOperatorProtocol), got "
             f"{type(physics).__name__}"
         )
+    return _weighted_system(system, physics.interior_mass_weights(), parameters, solver)
+
+
+def _weighted_system(
+    system: CollocationSystem[Array],
+    weights: Array,
+    parameters: Optional[ParameterState[Array]],
+    solver: Optional[LinearSolverProtocol[Array, DenseFormat[Array]]],
+) -> MassFormSystem[Array, Array, DenseFormat[Array]]:
+    r""":math:`\mathrm{diag}(m)\, \dot u = f(u, t; p)` for the given nodal
+    weights :math:`m`, shape (nstates,): the builder the first- and
+    second-order paths share, each choosing the weights it reads.
+
+    Raises
+    ------
+    ValueError
+        If the weights do not have one entry per state or a weight is
+        negative.
+    """
+    physics = system.physics()
     bkd, nstates = system.bkd(), system.nstates()
-    weights = physics.interior_mass_weights()
     if tuple(weights.shape) != (nstates,):
         raise ValueError(
             f"mass weights must have shape ({nstates},), got {tuple(weights.shape)}"

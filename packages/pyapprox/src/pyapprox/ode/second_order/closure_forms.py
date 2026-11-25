@@ -149,3 +149,20 @@ class DirectClosure(Generic[V, F, G]):
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._constraint!r})"
+
+
+class DirectClosureForm:
+    """The direct closure form: builds a :class:`DirectClosure`, for a
+    caller that is given the form and builds the constraint and storage
+    itself."""
+
+    def relation(
+        self,
+        constraint: DisplacementConstraintProtocol[V, F],
+        blocks: ClosureBlocksProtocol[V, F, G],
+    ) -> DirectClosure[V, F, G]:
+        """:math:`c(u, t) = 0` on the velocity rows of ``blocks``."""
+        return DirectClosure(constraint, blocks)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
