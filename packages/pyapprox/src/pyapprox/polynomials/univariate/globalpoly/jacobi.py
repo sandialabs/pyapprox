@@ -63,44 +63,63 @@ def jacobi_recurrence(
     if ncoefs == 0:
         return bkd.ones((0, 2))
 
-    ab = bkd.ones((ncoefs, 2)) * bkd.array([beta**2.0 - alpha**2.0, 1.0])
+    def _entry(value: Array) -> Array:
+        return bkd.reshape(value, (1,))
+
+    beta2_minus_alpha2 = beta**2.0 - alpha**2.0
 
     # First coefficient (always needed for ncoefs >= 1)
-    ab[0, 0] = (beta - alpha) / (alpha + beta + 2.0)
-    ab[0, 1] = bkd.exp(
-        (alpha + beta + 1.0) * math.log(2.0)
-        + bkd.asarray(
-            sp.gammaln(bkd.to_numpy(alpha + 1.0))
-            + sp.gammaln(bkd.to_numpy(beta + 1.0))
-            - sp.gammaln(bkd.to_numpy(alpha + beta + 2.0))
+    a_parts = [_entry((beta - alpha) / (alpha + beta + 2.0))]
+    b_parts = [
+        _entry(
+            bkd.exp(
+                (alpha + beta + 1.0) * math.log(2.0)
+                + bkd.asarray(
+                    sp.gammaln(bkd.to_numpy(alpha + 1.0))
+                    + sp.gammaln(bkd.to_numpy(beta + 1.0))
+                    - sp.gammaln(bkd.to_numpy(alpha + beta + 2.0))
+                )
+            )
         )
-    )
+    ]
 
     if ncoefs > 1:
-        ab[1, 0] /= (2.0 + alpha + beta) * (4.0 + alpha + beta)
-        ab[1, 1] = (
-            4.0
-            * (alpha + 1.0)
-            * (beta + 1.0)
-            / ((alpha + beta + 2.0) ** 2 * (alpha + beta + 3.0))
+        a_parts.append(
+            _entry(beta2_minus_alpha2 / ((2.0 + alpha + beta) * (4.0 + alpha + beta)))
+        )
+        b_parts.append(
+            _entry(
+                4.0
+                * (alpha + 1.0)
+                * (beta + 1.0)
+                / ((alpha + beta + 2.0) ** 2 * (alpha + beta + 3.0))
+            )
         )
 
     if ncoefs > 2:
         inds = bkd.arange(2, ncoefs, dtype=bkd.real_dtype())
-        ab[2:, 0] /= (2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0)
-        ab[2:, 1] = 4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
-        ab[2:, 1] /= (
-            (2.0 * inds + alpha + beta) ** 2
-            * (2.0 * inds + alpha + beta + 1.0)
-            * (2.0 * inds + alpha + beta - 1)
+        a_parts.append(
+            beta2_minus_alpha2
+            / ((2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0))
+        )
+        b_parts.append(
+            4
+            * inds
+            * (inds + alpha)
+            * (inds + beta)
+            * (inds + alpha + beta)
+            / (
+                (2.0 * inds + alpha + beta) ** 2
+                * (2.0 * inds + alpha + beta + 1.0)
+                * (2.0 * inds + alpha + beta - 1)
+            )
         )
 
-    ab[:, 1] = bkd.sqrt(ab[:, 1])
-
+    b_col = bkd.sqrt(bkd.concatenate(b_parts))
     if probability:
-        ab[0, 1] = 1.0
+        b_col = bkd.concatenate([bkd.ones((1,), dtype=b_col.dtype), b_col[1:]])
 
-    return ab
+    return bkd.stack([bkd.concatenate(a_parts), b_col], axis=1)
 
 
 class JacobiPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
@@ -162,21 +181,28 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
             )
 
         N = npoints - 2
-        rcoefs = self._bkd.copy(self._rcoefs[:npoints])
+        bkd = self._bkd
+        rcoefs = self._rcoefs[:npoints]
 
         # Correct first b coefficient
-        rcoefs[0, 1] = math.exp(
-            (self._alpha + self._beta + 1.0) * math.log(2.0)
-            + self._bkd.gammaln(self._bkd.asarray(self._alpha) + 1.0)
-            + self._bkd.gammaln(self._bkd.asarray(self._beta) + 1.0)
-            - self._bkd.gammaln(self._bkd.asarray(self._alpha + self._beta) + 2.0)
+        rcoefs = bkd.index_update(
+            rcoefs,
+            (0, 1),
+            math.exp(
+                (self._alpha + self._beta + 1.0) * math.log(2.0)
+                + bkd.gammaln(bkd.asarray(self._alpha) + 1.0)
+                + bkd.gammaln(bkd.asarray(self._beta) + 1.0)
+                - bkd.gammaln(bkd.asarray(self._alpha + self._beta) + 2.0)
+            ),
         )
 
         # Modify last coefficients for Lobatto rule
-        rcoefs[npoints - 1, 0] = (self._alpha - self._beta) / (
-            2 * N + self._alpha + self._beta + 2
+        rcoefs = bkd.index_update(
+            rcoefs,
+            (npoints - 1, 0),
+            (self._alpha - self._beta) / (2 * N + self._alpha + self._beta + 2),
         )
-        rcoefs[npoints - 1, 1] = math.sqrt(
+        last_b = math.sqrt(
             4
             * (N + self._alpha + 1)
             * (N + self._beta + 1)
@@ -186,6 +212,7 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
                 * (2 * N + self._alpha + self._beta + 2) ** 2
             )
         )
+        rcoefs = bkd.index_update(rcoefs, (npoints - 1, 1), last_b)
         return self._gauss_quadrature_from_rcoefs(npoints, rcoefs)
 
     def __repr__(self) -> str:
@@ -234,9 +261,11 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D[Array], Generic[Array]):
 
         Note: Applies scaling factor to match standard normalization.
         """
-        vals = super().__call__(samples)
-        vals[:, 1:] /= 2**0.5
-        return vals
+        return self._scale_higher_terms(super().__call__(samples))
+
+    def _scale_higher_terms(self, values: Array) -> Array:
+        """Divide every column but the constant term's by sqrt(2)."""
+        return self._bkd.hstack([values[:, :1], values[:, 1:] / 2**0.5])
 
     def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of Chebyshev polynomials.
@@ -253,9 +282,7 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D[Array], Generic[Array]):
         Array
             First derivatives. Shape: (nsamples, nterms)
         """
-        jacs = super().jacobian_batch(samples)
-        jacs[:, 1:] /= 2**0.5
-        return jacs
+        return self._scale_higher_terms(super().jacobian_batch(samples))
 
     def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of Chebyshev polynomials.
@@ -272,9 +299,7 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D[Array], Generic[Array]):
         Array
             Second derivatives. Shape: (nsamples, nterms)
         """
-        hess = super().hessian_batch(samples)
-        hess[:, 1:] /= 2**0.5
-        return hess
+        return self._scale_higher_terms(super().hessian_batch(samples))
 
     def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Compute Gauss-Chebyshev quadrature.

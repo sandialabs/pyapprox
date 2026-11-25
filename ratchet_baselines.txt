@@ -10,7 +10,7 @@ mypy_benchmarks=210
 # assignment": ArrayProtocol has no __setitem__), counted apart from the
 # mypy totals above by scripts/mypy_diff.sh. Shrink-only: convert them
 # to index_update / index_add or collect-and-stack when touching a file.
-inplace_writes:pyapprox=491
+inplace_writes:pyapprox=476
 inplace_writes:pyapprox_benchmarks=23
 moved:pyapprox.surrogates.affine.univariate=206
 moved:pyapprox.surrogates.affine.leja=26
