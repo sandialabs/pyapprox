@@ -142,13 +142,13 @@ class TestStepMap:
 
 class TestStageValues:
     @pytest.mark.parametrize("make", _TABLEAU_MAKERS, ids=TABLEAU_IDS)
-    def test_transpose_is_the_adjoint(
+    def test_stage_map_reads_the_stages_and_transposes(
         self, bkd: Backend[Array], make: Callable[[], ButcherTableau]
     ) -> None:
-        """sum_j <c_j, Y_j(u, y)> = <u_bar, u> + <y_bar, y> on random
-        two-column blocks: stage_values is linear in the unknown and the
-        stored state, and stage_values_transpose is its transpose; it
-        refuses a wrong number of cotangents."""
+        """On random two-column blocks, stage_values puts y_n first for a
+        trivial first stage and the unknown's blocks after; stage_map's
+        transpose satisfies sum_j <c_j, Y_j> = <(u, y), stage_map^T c>,
+        the final block's cotangent (if any) zero."""
         tableau = make()
         stepper = rk_stepper(tableau, dense_mass_form_system(LinearMassModel(bkd)))
         state = bkd.asarray([[1.0], [-0.5], [2.0]])
@@ -165,17 +165,27 @@ class TestStageValues:
         stages = stepper.stage_values(
             replace(window, past_states=(start,), unknown=unknown)
         )
+        first = 1 if tableau.has_trivial_first_stage() else 0
+        expected = ([start] if first else []) + list(
+            unknown.blocks[: tableau.nstages() - first]
+        )
+        assert len(stages) == tableau.nstages()
+        for got, want in zip(stages, expected):
+            bkd.assert_allclose(got, want, atol=0.0)
         cotangents = [block() for _ in range(tableau.nstages())]
         forward = sum(bkd.to_float(bkd.sum(c * y)) for c, y in zip(cotangents, stages))
-        unknown_bar, start_bar = stepper.stage_values_transpose(window, cotangents)
-        backward = bkd.to_float(bkd.sum(start_bar * start)) + sum(
+        pulled = stepper.stage_map(window).apply_transpose(
+            BlockVector(tuple(cotangents))
+        )
+        assert len(pulled.blocks) == nblocks + 1
+        backward = sum(
             bkd.to_float(bkd.sum(b * u))
-            for b, u in zip(unknown_bar.blocks, unknown.blocks)
+            for b, u in zip(pulled.blocks, (*unknown.blocks, start))
         )
         assert abs(forward) > 1e-3
         assert abs(backward - forward) <= 1e-12 * abs(forward)
-        with pytest.raises(ValueError):
-            stepper.stage_values_transpose(window, cotangents[:-1])
+        if nblocks > tableau.nstages() - first:
+            bkd.assert_allclose(pulled.blocks[nblocks - 1], bkd.zeros((3, 2)), atol=0.0)
 
 
 class TestCheckerPasses:

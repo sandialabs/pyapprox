@@ -542,6 +542,11 @@ class RungeKuttaStepper(Generic[V, A, F]):
         self._unknown_space = BlockInnerProductSpace([space] * nblocks, "unknown")
         self._residual_space = BlockInnerProductSpace([space] * nblocks, "residual")
         self._state_space = BlockInnerProductSpace([space], "state")
+        # stage_map's spaces: the unknown's blocks then y_n, and the stages.
+        self._stage_inputs_space = BlockInnerProductSpace(
+            [space] * (nblocks + 1), "unknown and state"
+        )
+        self._stages_space = BlockInnerProductSpace([space] * nstages, "stages")
         self._row_pinning = row_pinning
 
     def tableau(self) -> ButcherTableau:
@@ -794,41 +799,29 @@ class RungeKuttaStepper(Generic[V, A, F]):
 
     def stage_values(self, window: StepWindow[V]) -> List[V]:
         """Every stage value at ``window``: :math:`y_n` for a trivial
-        first stage, otherwise the unknown's blocks."""
-        stages: List[V] = []
-        if self._tableau.has_trivial_first_stage():
-            stages.append(window.past_state(1))
-        stages += list(window.unknown.blocks[: len(self._unknown_stages)])
-        return stages
+        first stage, otherwise the unknown's blocks; :meth:`stage_map`
+        applied to the window's unknown and :math:`y_n`."""
+        read = BlockVector(tuple(window.unknown.blocks) + (window.past_state(1),))
+        return list(self.stage_map(window).apply(read).blocks)
 
-    def stage_values_transpose(
-        self, window: StepWindow[V], cotangents: Sequence[V]
-    ) -> tuple[BlockVector[V], V]:
-        """The transpose of :meth:`stage_values` at ``window``, which is
-        linear in the unknown and :math:`y_n`: for one cotangent per stage
-        (blocks of columns alike), the unknown's cotangent and
-        :math:`y_n`'s. The final block, which no stage value reads, gets
-        zero.
-
-        Raises
-        ------
-        ValueError
-            If there is not one cotangent per stage.
-        """
-        nstages = self._tableau.nstages()
-        if len(cotangents) != nstages:
-            raise ValueError(
-                f"stage_values_transpose needs {nstages} cotangents, got "
-                f"{len(cotangents)}"
-            )
+    def stage_map(self, window: StepWindow[V]) -> StepOperator[V]:
+        r"""The linear map :math:`(u_n, y_n) \mapsto (Y_1, \dots, Y_s)`
+        from the unknown's blocks followed by :math:`y_n` to the stage
+        values, with its transpose: an identity block per stage, at
+        :math:`y_n` for a trivial first stage and at the stage's unknown
+        block otherwise. The final block, which no stage reads, is a zero
+        column. The one statement of how stages sit in the unknown."""
         space = self._system.space
-        zero = space.scale(0.0, cotangents[0])
-        first = nstages - len(self._unknown_stages)
-        blocks = [space.copy(cotangent) for cotangent in cotangents[first:]]
-        if self._final_block:
-            blocks.append(zero)
-        start = space.copy(cotangents[0]) if first == 1 else space.copy(zero)
-        return BlockVector(tuple(blocks)), start
+        nblocks = self._unknown_space.nblocks()
+        rows: List[List[Optional[LinearMapProtocol[V]]]] = []
+        for i in range(self._tableau.nstages()):
+            row: List[Optional[LinearMapProtocol[V]]] = [None] * (nblocks + 1)
+            if i in self._unknown_stages:
+                row[self._unknown_stages.index(i)] = IdentityOperator(space)
+            else:
+                row[nblocks] = IdentityOperator(space)
+            rows.append(row)
+        return BlockOperator(rows, self._stage_inputs_space, self._stages_space)
 
     def step_residual(self, window: StepWindow[V]) -> BlockVector[V]:
         r""":math:`R_n` at the window's unknown and past state, at the

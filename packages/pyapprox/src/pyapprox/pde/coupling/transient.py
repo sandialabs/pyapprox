@@ -72,7 +72,7 @@ from pyapprox.ode.protocols.differentiable_stepper import (
 from pyapprox.ode.residual_derivatives import ODEResidualDerivatives
 from pyapprox.ode.residual_form import ResidualFormProtocol
 from pyapprox.ode.step_plan import GivenSizes
-from pyapprox.ode.stepper_derivatives import StepWindow
+from pyapprox.ode.stepper_derivatives import StepOperator, StepWindow
 from pyapprox.ode.tableau import ButcherTableau
 from pyapprox.ode.trajectory_store import (
     InMemoryTrajectoryStore,
@@ -1445,11 +1445,9 @@ class StageValuesProtocol(Protocol[V]):
         then the unknown's stage blocks."""
         ...
 
-    def stage_values_transpose(
-        self, window: StepWindow[V], cotangents: Sequence[V]
-    ) -> tuple[BlockVector[V], V]:
-        """The transpose of :meth:`stage_values`: for one cotangent per
-        stage, the unknown's cotangent and the stored state's."""
+    def stage_map(self, window: StepWindow[V]) -> StepOperator[V]:
+        """The linear map from the unknown's blocks followed by the stored
+        state to the stage values, with its transpose."""
         ...
 
 
@@ -1585,10 +1583,10 @@ class StageQuadratureTrace(Generic[V, A]):
     ) -> Optional[TrajectoryAdjoint[A, V]]:
         """Supplied for any trial with steps: each stage's cotangent is the
         cotangent's test-function entries weighted as :meth:`output`
-        weights them, put on the port rows, and the stepper's
-        ``stage_values_transpose`` carries them to the step's unknown and
-        to the state it starts from (the committed one, for the first
-        step, does not change)."""
+        weights them, put on the port rows, and the transpose of the
+        stepper's ``stage_map`` carries them to the step's unknown and to
+        the state it starts from (the committed one, for the first step,
+        does not change)."""
         windows = [trial.window(m) for m in range(trial.nsteps())]
         if not windows:
             return None
@@ -1613,7 +1611,11 @@ class StageQuadratureTrace(Generic[V, A]):
                     for k, psi in enumerate(values):
                         total = total + (weight * psi) * per_test[:, k : k + 1]
                     stages.append(take_t(space.zeros(1), total))
-                unknown, start = stepper.stage_values_transpose(window, stages)
+                pulled = stepper.stage_map(window).apply_transpose(
+                    BlockVector(tuple(stages))
+                )
+                unknown = BlockVector(pulled.blocks[:-1])
+                start = pulled.blocks[-1]
                 unknowns.append(unknown)
                 if m >= 1:
                     states[m - 1] = space.axpby(1.0, start, 1.0, states[m - 1])
