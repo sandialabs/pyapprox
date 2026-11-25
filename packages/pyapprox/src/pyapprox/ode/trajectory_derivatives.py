@@ -123,6 +123,7 @@ from pyapprox.implicitfunction.functional_terms import (
     parameter_first_derivatives,
     parameter_second_derivatives,
 )
+from pyapprox.ode.constraint_chain import LinearizedConstraint
 from pyapprox.ode.integration import DifferentiableStackConstraintProtocol
 from pyapprox.ode.mass_form_system import RightHandSideProtocol
 from pyapprox.ode.protocols import DifferentiableStepperProtocol
@@ -478,16 +479,6 @@ class TangentState(Generic[V]):
     unknown: Optional[BlockVector[V]]
 
 
-@dataclass(frozen=True)
-class _ConstraintSecondOrder(Generic[V]):
-    r"""The constraint's three :math:`\bar\nu`-weighted second
-    derivatives at one stored state."""
-
-    state_state: DerivativeOperator[V]
-    state_param: DerivativeOperator[V]
-    param_param: DerivativeOperator[V]
-
-
 class TrajectoryDerivatives(Generic[V, A]):
     r"""The tangent and adjoint sweeps of a stepper's recorded
     trajectories (see the module docstring).
@@ -636,12 +627,11 @@ class TrajectoryDerivatives(Generic[V, A]):
             raise SolveFailedError(f"{what}: {info.message}")
         return solution
 
-    def _constraint_terms(
+    def _constraint_at(
         self, store: TrajectoryStoreProtocol[V], index: int
-    ) -> Optional[tuple[DerivativeOperator[V], DerivativeOperator[V]]]:
-        r""":math:`(\Pi', \Pi_p)` at stored state ``index``, linearized at
-        the value the constraint was applied to; None without a
-        constraint.
+    ) -> Optional[LinearizedConstraint[V]]:
+        r""":math:`\Pi` at stored state ``index``, linearized at the value
+        it was applied to; None without a constraint.
 
         Raises
         ------
@@ -650,14 +640,12 @@ class TrajectoryDerivatives(Generic[V, A]):
         """
         if self._constraint is None:
             return None
-        derivs = self._constraint.derivatives()
-        if derivs.tangent is None or derivs.param is None:
-            raise TypeError(
-                f"{type(self._constraint).__name__}'s derivatives() lacks "
-                "tangent or param, so it has no parameter gradients"
-            )
-        point, time = store.unconstrained(index), store.time(index)
-        return derivs.tangent(point, time), derivs.param(point, time)
+        return LinearizedConstraint(
+            self._constraint.derivatives(),
+            store.unconstrained(index),
+            store.time(index),
+            type(self._constraint).__name__,
+        )
 
     # ------------------------------------------------------------------
     # The tangent sweep
@@ -667,14 +655,10 @@ class TrajectoryDerivatives(Generic[V, A]):
         self, store: TrajectoryStoreProtocol[V], index: int, dz: V, direction: V
     ) -> V:
         r""":math:`w = \Pi' dz + \Pi_p v` at stored state ``index``."""
-        terms = self._constraint_terms(store, index)
-        if terms is None:
+        at = self._constraint_at(store, index)
+        if at is None:
             return dz
-        tangent, param = terms
-        w = tangent.apply(dz)
-        if not param.properties().zero:
-            w = self._state_space().axpby(1.0, param.apply(direction), 1.0, w, out=w)
-        return w
+        return at.tangent(dz, direction, self._state_space())
 
     def tangent(
         self,
@@ -936,37 +920,6 @@ class TrajectoryDerivatives(Generic[V, A]):
         """
         return StepSecondOrder.of(
             self._stepper.derivatives(), type(self._stepper).__name__
-        )
-
-    def _constraint_second_order(
-        self, store: TrajectoryStoreProtocol[V], index: int, cotangent: V
-    ) -> Optional[_ConstraintSecondOrder[V]]:
-        r"""The constraint's second derivatives at stored state ``index``,
-        weighted by ``cotangent`` (:math:`\bar\nu_m`); None without a
-        constraint.
-
-        Raises
-        ------
-        TypeError
-            If the constraint's bundle has no second derivatives.
-        """
-        if self._constraint is None:
-            return None
-        derivs = self._constraint.derivatives()
-        if (
-            derivs.state_state is None
-            or derivs.state_param is None
-            or derivs.param_param is None
-        ):
-            raise TypeError(
-                f"{type(self._constraint).__name__}'s derivatives() has no "
-                "second derivatives, so it has no Hessian-vector products"
-            )
-        point, time = store.unconstrained(index), store.time(index)
-        return _ConstraintSecondOrder(
-            derivs.state_state(point, time, cotangent),
-            derivs.state_param(point, time, cotangent),
-            derivs.param_param(point, time, cotangent),
         )
 
     def gradient(
@@ -1348,12 +1301,10 @@ class _AdjointSweep(Generic[V, A]):
         cotangent = self._cotangents.complete(index)
         self._cotangent = (index, cotangent)
         pulled = cotangent
-        terms = self._owner._constraint_terms(self._store, index)
-        if terms is not None:
-            tangent, param = terms
-            pulled = tangent.apply_transpose(cotangent)
-            if not param.properties().zero:
-                self._add(param.apply_transpose(cotangent))
+        at = self._owner._constraint_at(self._store, index)
+        if at is not None:
+            pulled, param_term = at.pull(cotangent)
+            self._add(param_term)
         extra_state, extra_param = self._sources.at_state(index)
         if extra_state is not None:
             pulled = self._space.axpby(1.0, extra_state, 1.0, pulled, out=pulled)
@@ -1661,23 +1612,17 @@ class _SecondOrderSources(Generic[V, A]):
                 to_param = accumulate(
                     to_param, term.param_param(state, omega, v), self._params
                 )
-        ops = self._owner._constraint_second_order(
-            self._store, index, self._adjoint.cotangent(index)
-        )
-        if ops is None:
+        at = self._owner._constraint_at(self._store, index)
+        if at is None:
             return None, to_param
-        dx = self._tangents.unconstrained(index)
-        to_state: Optional[V] = None
-        for op, x in ((ops.state_state, dx), (ops.state_param, v)):
-            if not op.properties().zero:
-                to_state = accumulate(to_state, op.apply(x), self._space)
-        if not ops.state_param.properties().zero:
-            to_param = accumulate(
-                to_param, ops.state_param.apply_transpose(dx), self._params
-            )
-        if not ops.param_param.properties().zero:
-            to_param = accumulate(to_param, ops.param_param.apply(v), self._params)
-        return to_state, to_param
+        to_state, constrained = at.second(
+            self._adjoint.cotangent(index),
+            self._tangents.unconstrained(index),
+            v,
+            self._space,
+            self._params,
+        )
+        return to_state, accumulate(to_param, constrained, self._params)
 
     def begin_step(self, step: int, window: StepWindow[V]) -> None:
         """Read the tangent store's window of step ``step`` once (recorded
