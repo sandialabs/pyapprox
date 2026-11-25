@@ -51,9 +51,7 @@ except ImportError:
         "skfem", feature_name="Galerkin module", extra_name="fem"
     )
 
-_KappaFn = Callable[
-    ["NDArray[np.floating[Any]]"], "NDArray[np.floating[Any]]"
-]
+_KappaFn = Callable[["NDArray[np.floating[Any]]"], "NDArray[np.floating[Any]]"]
 
 
 class QuasilinearDiffusion(Generic[Array]):
@@ -99,7 +97,7 @@ class QuasilinearDiffusion(Generic[Array]):
         kappa: _KappaFn,
         kappa_deriv: _KappaFn,
         kappa_second_deriv: _KappaFn,
-        forcing: Optional[Callable[..., Any]] = None,
+        forcing: Optional[Callable[..., np.ndarray]] = None,
     ):
         self._basis = basis
         self._bkd = bkd
@@ -121,9 +119,7 @@ class QuasilinearDiffusion(Generic[Array]):
         # Raw supplier kept for consumers that inspect it; normalized
         # companion is what assembly evaluates.
         self._forcing = forcing
-        self._forcing_eval = (
-            None if forcing is None else as_time_aware(forcing)
-        )
+        self._forcing_eval = None if forcing is None else as_time_aware(forcing)
 
     def is_linear(self) -> bool:
         """Quasilinear diffusion is nonlinear in the state."""
@@ -140,10 +136,7 @@ class QuasilinearDiffusion(Generic[Array]):
     def interior_is_time_invariant(self) -> bool:
         """Whether the forcing is declared time-independent (the
         diffusivity field and kappa cannot depend on time)."""
-        return (
-            self._forcing_eval is None
-            or not self._forcing_eval.is_time_dependent()
-        )
+        return self._forcing_eval is None or not self._forcing_eval.is_time_dependent()
 
     def interior_jacobian_is_time_invariant(self) -> bool:
         """Always: the diffusivity field and kappa cannot depend on time,
@@ -169,9 +162,7 @@ class QuasilinearDiffusion(Generic[Array]):
         """Solve M * x = rhs for x."""
         return self._mass.mass_solve(rhs)
 
-    def _get_forcing(
-        self, coords: np.ndarray, time: float = 0.0
-    ) -> np.ndarray:
+    def _get_forcing(self, coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         """Get forcing values at given coordinates and time.
 
         The supplier declares whether it consults time, so this is a
@@ -242,15 +233,13 @@ class QuasilinearDiffusion(Generic[Array]):
         kappa = self._kappa
         current_time = time
 
-        def linear_form(
-            v: "DiscreteField", w: "FormExtraParams"
-        ) -> np.ndarray:
+        def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x_np = np.asarray(w.x)
             if len(x_np.shape) == 3:
                 ndim, nelem, nquad = x_np.shape
-                forc = self._get_forcing(
-                    x_np.reshape(ndim, -1), current_time
-                ).reshape(nelem, nquad)
+                forc = self._get_forcing(x_np.reshape(ndim, -1), current_time).reshape(
+                    nelem, nquad
+                )
             else:
                 forc = self._get_forcing(x_np, current_time)
             ret: NDArray[np.floating[Any]] = forc * v - w.a_field * kappa(
@@ -294,9 +283,7 @@ class QuasilinearDiffusion(Generic[Array]):
         kappa_deriv = self._kappa_deriv
         kappa_second_deriv = self._kappa_second_deriv
 
-        def linear_form(
-            v: "DiscreteField", w: "FormExtraParams"
-        ) -> np.ndarray:
+        def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             uvals = np.asarray(w.u_prev)
             kp, kpp = kappa_deriv(uvals), kappa_second_deriv(uvals)
             ret: NDArray[np.floating[Any]] = -w.a_field * (
@@ -371,14 +358,10 @@ class QuasilinearDiffusion(Generic[Array]):
         w_interp = self._interpolate(self._bkd.to_numpy(wvec))
         kappa, kappa_deriv = self._kappa, self._kappa_deriv
 
-        def linear_form(
-            v: "DiscreteField", w: "FormExtraParams"
-        ) -> np.ndarray:
+        def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             uvals = np.asarray(w.u_prev)
             ret: NDArray[np.floating[Any]] = -v * (
-                kappa_deriv(uvals)
-                * w.wdir
-                * dot(grad(w.u_prev), grad(w.adj))
+                kappa_deriv(uvals) * w.wdir * dot(grad(w.u_prev), grad(w.adj))
                 + kappa(uvals) * dot(grad(w.wdir), grad(w.adj))
             )
             return ret
@@ -403,9 +386,7 @@ class QuasilinearDiffusion(Generic[Array]):
 
         Shape: ``(nstates,)``.
         """
-        mixed = -self._newton_stiffness(
-            self._bkd.to_numpy(delta_field), state
-        )
+        mixed = -self._newton_stiffness(self._bkd.to_numpy(delta_field), state)
         return self._bkd.asarray(mixed.T @ self._bkd.to_numpy(adj_state))
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:

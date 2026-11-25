@@ -97,7 +97,7 @@ class BurgersPhysics(Generic[Array]):
         basis: GalerkinBasisProtocol[Array],
         viscosity: Union[float, Callable[..., Any], DiffusionFunctionProtocol],
         bkd: Backend[Array],
-        forcing: Optional[Callable[..., Any]] = None,
+        forcing: Optional[Callable[..., np.ndarray]] = None,
     ):
         self._basis = basis
         self._bkd = bkd
@@ -107,9 +107,7 @@ class BurgersPhysics(Generic[Array]):
         # normalized companion that assembly evaluates uniformly as
         # f(coords, time).
         self._forcing = forcing
-        self._forcing_eval = (
-            None if forcing is None else as_time_aware(forcing)
-        )
+        self._forcing_eval = None if forcing is None else as_time_aware(forcing)
 
     def is_linear(self) -> bool:
         """Burgers equation is always nonlinear."""
@@ -136,8 +134,7 @@ class BurgersPhysics(Generic[Array]):
         """Whether the viscosity and the forcing are declared
         time-independent."""
         return not self._viscosity.is_time_dependent() and (
-            self._forcing_eval is None
-            or not self._forcing_eval.is_time_dependent()
+            self._forcing_eval is None or not self._forcing_eval.is_time_dependent()
         )
 
     def interior_jacobian_is_time_invariant(self) -> bool:
